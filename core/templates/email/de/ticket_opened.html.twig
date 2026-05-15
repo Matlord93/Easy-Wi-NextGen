@@ -1,0 +1,61 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Hallo {{ customer_name|default('dort') }},</p>
+  <p style="margin:0 0 16px 0;">
+    dein Support-Ticket wurde erfolgreich erstellt. Wir haben deine Anfrage erhalten und werden uns so bald wie möglich bei dir melden.
+  </p>
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px 0; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
+    <tr>
+      <td style="padding:16px 20px; background-color:#f9fafb; border-bottom:1px solid #e5e7eb;">
+        <p style="margin:0; font-size:13px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.05em;">Ticket-Details</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 20px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280; width:120px;">Ticket-Nr.</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827; font-weight:600;">#{{ ticket_id }}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280;">Betreff</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827;">{{ ticket_subject }}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280;">Kategorie</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827;">{{ ticket_category }}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280;">Priorität</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827;">{{ ticket_priority }}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280;">Erstellt am</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827;">{{ ticket_created_at }}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px 0; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
+    <tr>
+      <td style="padding:16px 20px; background-color:#f9fafb; border-bottom:1px solid #e5e7eb;">
+        <p style="margin:0; font-size:13px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.05em;">Deine Nachricht</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 20px; font-size:14px; color:#374151; line-height:1.6;">{{ ticket_message|nl2br }}</td>
+    </tr>
+  </table>
+
+  <p style="margin:0 0 24px 0; text-align:center;">
+    <a href="{{ ticket_url }}" style="display:inline-block; background-color:#111827; color:#ffffff; text-decoration:none; font-size:14px; font-weight:600; padding:12px 28px; border-radius:8px;">Ticket ansehen</a>
+  </p>
+
+  <p style="margin:0; font-size:13px; color:#6b7280; line-height:1.6;">
+    Du kannst deinen Ticket-Status jederzeit in deinem Kunden-Panel einsehen. Sobald unser Support-Team antwortet, erhältst du eine weitere E-Mail-Benachrichtigung.
+  </p>
+{% endblock %}

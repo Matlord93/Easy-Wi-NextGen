@@ -1442,43 +1442,199 @@ INIT
 # Release / binary download
 # ---------------------------------------------------------------------------
 
-download_release_asset() {
-  local asset="$1" dest="$2" version="${3:-latest}"
-  local base
+release_download_bases() {
+  local version="${1:-latest}"
   if [[ -n "${version}" && "${version}" != "latest" ]]; then
-    base="${EASYWI_GITHUB_RELEASE_BASE}/download/${version}"
+    printf '%s/download/%s\n' "${EASYWI_GITHUB_RELEASE_BASE}" "${version}"
+    if [[ "${version}" != v* && "${version}" != V* ]]; then
+      printf '%s/download/v%s\n' "${EASYWI_GITHUB_RELEASE_BASE}" "${version}"
+    fi
   else
-    base="${EASYWI_GITHUB_RELEASE_BASE}/latest/download"
+    printf '%s/latest/download\n' "${EASYWI_GITHUB_RELEASE_BASE}"
   fi
-  log "Download: ${base}/${asset}"
-  curl -fsSL "${base}/${asset}" -o "${dest}" \
-    || fatal "Asset nicht verfügbar: ${asset}"
+}
+
+curl_release_asset() {
+  local url="$1" dest="$2" token="${3:-}"
+  local -a args=(-fsSL --retry 3 --retry-delay 2 -H "User-Agent: easywi-installer/${VERSION}")
+  [[ -n "${token}" ]] && args+=(-H "Authorization: Bearer ${token}")
+  curl "${args[@]}" "${url}" -o "${dest}"
+}
+
+download_release_asset() {
+  local asset="$1" dest="$2" version="${3:-latest}" token="${4:-}"
+  local base
+  while IFS= read -r base; do
+    log "Download: ${base}/${asset}"
+    if curl_release_asset "${base}/${asset}" "${dest}" "${token}"; then
+      return 0
+    fi
+  done < <(release_download_bases "${version}")
+  fatal "Asset nicht verfügbar: ${asset}"
 }
 
 download_optional_asset() {
-  local asset="$1" dest="$2" version="${3:-latest}"
+  local asset="$1" dest="$2" version="${3:-latest}" token="${4:-}"
   local base
-  if [[ -n "${version}" && "${version}" != "latest" ]]; then
-    base="${EASYWI_GITHUB_RELEASE_BASE}/download/${version}"
-  else
-    base="${EASYWI_GITHUB_RELEASE_BASE}/latest/download"
-  fi
-  curl -fsSL "${base}/${asset}" -o "${dest}" 2>/dev/null && return 0
+  while IFS= read -r base; do
+    curl_release_asset "${base}/${asset}" "${dest}" "${token}" 2>/dev/null && return 0
+  done < <(release_download_bases "${version}")
   rm -f "${dest}"; return 1
 }
 
+version_without_v() {
+  local version="${1:-}"
+  version="${version#v}"; version="${version#V}"
+  printf '%s' "${version}"
+}
+
+verify_release_checksum() {
+  local checksums_file="$1" asset_path="$2" asset_name="$3"
+  [[ -f "${checksums_file}" ]] || fatal "Checksums-Datei fehlt: ${checksums_file}"
+  local expected actual
+  expected="$(awk -v n="${asset_name}" '$2==n || $2=="*" n {print $1}' "${checksums_file}" | head -n1)"
+  [[ -n "${expected}" ]] || fatal "Kein Checksum-Eintrag für ${asset_name} gefunden."
+  actual="$(sha256sum "${asset_path}" | awk '{print $1}')"
+  [[ "${actual}" == "${expected}" ]] || fatal "Checksum für ${asset_name} ungültig. Erwartet ${expected}, erhalten ${actual}."
+  ok "Checksum verifiziert: ${asset_name}"
+}
+
+checksum_file_contains_asset() {
+  local checksums_file="$1" asset_name="$2"
+  [[ -f "${checksums_file}" ]] || return 1
+  awk -v n="${asset_name}" '$2==n || $2=="*" n {found=1} END{exit found?0:1}' "${checksums_file}"
+}
+
+download_checksums_for_asset() {
+  local dest="$1" version="$2" token="$3"; shift 3
+  local candidate
+  for candidate in "$@"; do
+    if download_optional_asset "${candidate}" "${dest}" "${version}" "${token}"; then
+      printf '%s' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+extract_panel_archive() {
+  local archive="$1" extract_dir="$2" asset_name="$3"
+  case "${asset_name}" in
+    *.tar.gz|*.tgz) tar -xzf "${archive}" -C "${extract_dir}" ;;
+    *.zip)          command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${archive}" -d "${extract_dir}" ;;
+    *)              fatal "Unbekanntes Panel-Archivformat: ${asset_name}" ;;
+  esac
+}
+
+find_extracted_core_dir() {
+  local extract_dir="$1"
+  if [[ -f "${extract_dir}/core/bin/console" ]]; then
+    printf '%s' "${extract_dir}/core"
+    return 0
+  fi
+  if [[ -f "${extract_dir}/bin/console" ]]; then
+    printf '%s' "${extract_dir}"
+    return 0
+  fi
+  local found
+  found="$(find "${extract_dir}" -maxdepth 3 -type f -path '*/bin/console' -print -quit 2>/dev/null || true)"
+  [[ -n "${found}" ]] || return 1
+  printf '%s' "${found%/bin/console}"
+}
+
+install_panel_release() {
+  local install_dir="$1" version="${2:-latest}" github_token="${3:-}"
+  local tmp archive checksums asset_name checksum_name version_plain source_dir core_dir
+  tmp="$(mktemp -d)"
+  archive="${tmp}/panel-archive"
+  checksums="${tmp}/checksums.txt"
+  version_plain="$(version_without_v "${version}")"
+  core_dir="${install_dir}/core"
+
+  step "Lade Panel-Release (${version})."
+
+  local -a candidates=()
+  if [[ "${version_plain}" == "latest" ]]; then
+    local checksum_probe parsed_asset
+    for checksum_probe in checksums-core.txt checksums-webinterface.txt; do
+      if download_optional_asset "${checksum_probe}" "${checksums}" "${version}" "${github_token}"; then
+        while IFS= read -r parsed_asset; do
+          [[ -n "${parsed_asset}" ]] && candidates+=("${parsed_asset}")
+        done < <(awk '$2 ~ /^(\*?)(easywi-core(-[^[:space:]]+)?\.tar\.gz|easywi-webinterface-[^[:space:]]+\.zip)$/ {gsub(/^\*/, "", $2); print $2}' "${checksums}")
+      fi
+    done
+    rm -f "${checksums}"
+  fi
+  candidates+=("easywi-core.tar.gz")
+  if [[ -n "${version_plain}" && "${version_plain}" != "latest" ]]; then
+    candidates+=("easywi-core-${version_plain}.tar.gz" "easywi-webinterface-${version_plain}.zip")
+  fi
+  candidates+=("easywi-webinterface-${version}.zip")
+
+  for asset_name in "${candidates[@]}"; do
+    [[ "${asset_name}" == *latest* ]] && continue
+    if ! download_optional_asset "${asset_name}" "${archive}" "${version}" "${github_token}"; then
+      asset_name=""
+      continue
+    fi
+
+    checksum_name=""
+    for checksum_candidate in checksums-core.txt checksums-webinterface.txt checksums.txt checksums.sha256; do
+      if download_optional_asset "${checksum_candidate}" "${checksums}" "${version}" "${github_token}" \
+        && checksum_file_contains_asset "${checksums}" "${asset_name}"; then
+        checksum_name="${checksum_candidate}"
+        break
+      fi
+    done
+
+    if [[ -n "${checksum_name}" ]]; then
+      log "Checksums geladen: ${checksum_name}"
+      verify_release_checksum "${checksums}" "${archive}" "${asset_name}"
+      break
+    fi
+
+    warn "Release-Asset ${asset_name} gefunden, aber kein passender Checksum-Eintrag – versuche nächstes Asset."
+    rm -f "${archive}" "${checksums}"
+    asset_name=""
+  done
+  [[ -n "${asset_name}" ]] || fatal "Kein Panel-Release-Asset mit passender Checksum gefunden (versucht: ${candidates[*]})."
+
+  extract_panel_archive "${archive}" "${tmp}" "${asset_name}"
+  source_dir="$(find_extracted_core_dir "${tmp}")" || fatal "Archiv enthält kein Symfony-core/bin/console."
+
+  mkdir -p "${install_dir}"
+  if [[ -d "${core_dir}" && -n "$(find "${core_dir}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+    if prompt_yes_no "${core_dir} ist nicht leer. Inhalt durch Release ersetzen?" "no"; then
+      (shopt -s dotglob nullglob; rm -rf "${core_dir:?}/"*)
+    else
+      fatal "Core-Verzeichnis nicht leer. Installation abgebrochen."
+    fi
+  fi
+  mkdir -p "${core_dir}"
+  (shopt -s dotglob nullglob; cp -a "${source_dir}/"* "${core_dir}/")
+  printf '%s\n' "${asset_name}" > "${install_dir}/.easywi-release-asset"
+  printf '%s\n' "${version}" > "${install_dir}/.easywi-release-version"
+  rm -rf "${tmp}"
+  ok "Panel-Release installiert: ${asset_name} -> ${core_dir}"
+}
+
 install_agent_binaries() {
-  local arch="$1" version="${2:-latest}"
+  local arch="$1" version="${2:-latest}" github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
   local tmp; tmp="$(mktemp -d)"
 
   step "Lade Agent-Binaries (${arch}, ${version})."
 
-  # Agent binary
   local agent_dest="${tmp}/agent-raw"
-  local agent_resolved=""
+  local checksums="${tmp}/checksums.txt"
+  local agent_resolved="" asset_name=""
   for suffix in ".tar.gz" ".zip" ""; do
-    local asset_name="easywi-agent-${arch}${suffix}"
-    if download_optional_asset "${asset_name}" "${agent_dest}" "${version}"; then
+    asset_name="easywi-agent-${arch}${suffix}"
+    if download_optional_asset "${asset_name}" "${agent_dest}" "${version}" "${github_token}"; then
+      if download_checksums_for_asset "${checksums}" "${version}" "${github_token}" checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256 >/dev/null; then
+        verify_release_checksum "${checksums}" "${agent_dest}" "${asset_name}"
+      else
+        fatal "Keine Agent-Checksums-Datei im Release gefunden."
+      fi
       case "${suffix}" in
         .tar.gz) tar -xzf "${agent_dest}" -C "${tmp}" ;;
         .zip)    command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${agent_dest}" -d "${tmp}" ;;
@@ -1686,7 +1842,7 @@ prepare_agent_dirs() {
 # ---------------------------------------------------------------------------
 
 install_panel() {
-  local install_dir="$1" repo_url="$2" repo_ref="$3"
+  local install_dir="$1" _repo_url="$2" release_version="$3"
   local db_driver="$4" db_system="$5" db_root_pw="$6"
   local db_host="$7" db_port="$8" db_name="$9" db_user="${10}" db_password="${11}"
   local php_version="${12}" web_hostname="${13}"
@@ -1709,7 +1865,7 @@ install_panel() {
   resolve_db_packages    "${manager}" "${db_system}"
   resolve_redis_packages "${manager}"
 
-  local base_pkgs=(git curl ca-certificates unzip openssl jq)
+  local base_pkgs=(curl ca-certificates unzip openssl jq tar)
   base_pkgs+=("$(nginx_packages "${manager}")")
 
   install_packages "${manager}" "${base_pkgs[@]}" "${PHP_BASE_PKGS[@]}" "${DB_PKGS[@]}" "${REDIS_SERVER_PKGS[@]}"
@@ -1742,25 +1898,7 @@ install_panel() {
   fi
 
   # Source code
-  step "Lade Panel-Quellcode."
-  if [[ -d "${install_dir}/.git" ]]; then
-    ensure_git_safe_dir "${install_dir}"
-    git -C "${install_dir}" fetch --all --tags
-    git -C "${install_dir}" checkout "${repo_ref}"
-    git -C "${install_dir}" pull --ff-only
-    ok "Repository aktualisiert."
-  elif [[ -d "${install_dir}" && -n "$(ls -A "${install_dir}" 2>/dev/null)" ]]; then
-    if prompt_yes_no "${install_dir} ist nicht leer. Inhalt löschen?" "no"; then
-      (shopt -s dotglob nullglob; rm -rf "${install_dir:?}/"*)
-      git clone "${repo_url}" "${install_dir}"
-    else
-      fatal "Installationsverzeichnis nicht leer und kein Git-Repo."
-    fi
-  else
-    git clone "${repo_url}" "${install_dir}"
-  fi
-  ensure_git_safe_dir "${install_dir}"
-  git -C "${install_dir}" checkout "${repo_ref}"
+  install_panel_release "${install_dir}" "${release_version}" "${github_token}"
 
   local core_dir="${install_dir}/core"
   [[ -d "${core_dir}" ]] || fatal "core/-Verzeichnis nicht gefunden: ${core_dir}"
@@ -1981,14 +2119,14 @@ run_panel_install() {
   ╔══════════════════════════════════════════════════╗
   ║  Panel (Core) Installation                       ║
   ║  Installiert: PHP, Nginx, Composer, Symfony      ║
-  ║  Quellcode von GitHub (Easy-Wi-NextGen)          ║
+  ║  Quellcode aus GitHub Releases (keine Git-Clones) ║
   ╚══════════════════════════════════════════════════╝
 
 INFO
 
   local install_dir="${EASYWI_INSTALL_DIR:-/var/www/easywi}"
-  local repo_url="${EASYWI_REPO_URL:-https://github.com/Matlord93/Easy-Wi-NextGen.git}"
-  local repo_ref="${EASYWI_REPO_REF:-main}"
+  local repo_url="${EASYWI_REPO_URL:-}" # deprecated: releases are used exclusively
+  local repo_ref="${EASYWI_RELEASE_VERSION:-${EASYWI_REPO_REF:-latest}}"
   local db_driver="${EASYWI_DB_DRIVER:-mysql}"
   local db_system="${EASYWI_DB_SYSTEM:-}"
   local db_root_pw="${EASYWI_DB_ROOT_PASSWORD:-}"
@@ -2010,9 +2148,8 @@ INFO
   local setup_ssl="${EASYWI_SETUP_SSL:-false}"
   local ssl_email="${EASYWI_SSL_EMAIL:-}"
 
-  prompt_value repo_url       "Git-Repository URL"                           "${repo_url}"
   prompt_value install_dir    "Installationsverzeichnis"                     "${install_dir}"
-  prompt_value repo_ref       "Git-Branch oder Tag"                          "${repo_ref}"
+  prompt_value repo_ref       "Release-Version (latest oder Tag)"            "${repo_ref}"
   prompt_value system_user    "Linux-Systembenutzer für EasyWI"              "${system_user}"
   prompt_value php_version    "PHP-Version"                                  "${php_version}"
   prompt_value web_hostname   "Panel-Domain (_ = alle, z.B. panel.example.com)" "${web_hostname}"
@@ -2140,8 +2277,8 @@ INFO
 
   # ── Panel-Parameter ────────────────────────────────────────────────────
   local install_dir="${EASYWI_INSTALL_DIR:-/var/www/easywi}"
-  local repo_url="${EASYWI_REPO_URL:-https://github.com/Matlord93/Easy-Wi-NextGen.git}"
-  local repo_ref="${EASYWI_REPO_REF:-main}"
+  local repo_url="${EASYWI_REPO_URL:-}" # deprecated: releases are used exclusively
+  local repo_ref="${EASYWI_RELEASE_VERSION:-${EASYWI_REPO_REF:-latest}}"
   local db_driver="${EASYWI_DB_DRIVER:-mysql}"
   local db_system="${EASYWI_DB_SYSTEM:-}"
   local db_root_pw="${EASYWI_DB_ROOT_PASSWORD:-}"
@@ -2179,9 +2316,8 @@ INFO
 
   ── Panel-Einstellungen ──────────────────────────────
 HDR
-  prompt_value repo_url       "Git-Repository URL"                                       "${repo_url}"
   prompt_value install_dir    "Installationsverzeichnis"                                 "${install_dir}"
-  prompt_value repo_ref       "Git-Branch oder Tag"                                      "${repo_ref}"
+  prompt_value repo_ref       "Release-Version (latest oder Tag)"                        "${repo_ref}"
   prompt_value system_user    "Linux-Systembenutzer für EasyWI"                          "${system_user}"
   prompt_value php_version    "PHP-Version"                                              "${php_version}"
   prompt_value web_hostname   "Panel-Domain (_ = alle, z.B. panel.example.com)"          "${web_hostname}"

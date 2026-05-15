@@ -1,36 +1,80 @@
-<div id="agent-update-card" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-    <div class="flex flex-col gap-2">
-        <h3 class="text-lg font-semibold text-slate-900">{{ t('admin_updates_agents_title', page_locale()) }}</h3>
-        <p class="text-sm text-slate-700">{{ t('admin_updates_agents_intro', page_locale()) }}</p>
+<div id="agent-update-card" class="ng-card" style="overflow:hidden;">
+
+    {# ── Card Header ── #}
+    <div style="padding:20px 24px 0;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <div style="width:32px;height:32px;border-radius:10px;background:rgba(56,189,248,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <svg style="width:16px;height:16px;color:#7dd3fc;" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm1 8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H2zm.5-2a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0-5a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0 8a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm3 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm0-5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm0 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/></svg>
+                    </div>
+                    <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--ng-text);">{{ t('admin_updates_agents_title', page_locale()) }}</h2>
+                </div>
+                <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_updates_agents_intro', page_locale()) }}</p>
+            </div>
+
+            {# Status badge #}
+            <div>
+                {% if agentUpdate.updates > 0 %}
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">
+                        <span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;animation:pulse 2s infinite;"></span>
+                        {{ agentUpdate.updates }} {{ t('admin_nodes_updates_label', page_locale()) }}
+                    </span>
+                {% else %}
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.25);">
+                        <svg style="width:11px;height:11px;" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                        {{ t('admin_dashboard_core_update_up_to_date', page_locale()) }}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
     </div>
 
-    {# ── Release channel selector ── #}
-    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
-        <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_release_channel_agent', page_locale()) }}</p>
-        <form method="post" hx-post="/admin/updates/agents/channel" hx-target="#agent-update-card" hx-swap="outerHTML" class="flex flex-wrap items-center gap-3">
+    {# ── Agent Stats Grid ── #}
+    <div style="padding:16px 24px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+            <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+                <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_nodes_total', page_locale()) }}</p>
+                <p style="margin:0;font-size:22px;font-weight:700;color:var(--ng-text);">{{ agentUpdate.total }}</p>
+            </div>
+            <div style="padding:12px 14px;border-radius:var(--ng-radius);border:1px solid {% if agentUpdate.updates > 0 %}rgba(251,191,36,0.3){% else %}var(--ng-border){% endif %};background:{% if agentUpdate.updates > 0 %}rgba(251,191,36,0.06){% else %}var(--ng-surface-soft){% endif %};">
+                <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_nodes_updates_label', page_locale()) }}</p>
+                <p style="margin:0;font-size:22px;font-weight:700;color:{% if agentUpdate.updates > 0 %}#fbbf24{% else %}var(--ng-text){% endif %};">{{ agentUpdate.updates }}</p>
+            </div>
+            <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+                <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_updates_agents_latest', page_locale()) }}</p>
+                <p style="margin:0;font-size:18px;font-weight:700;color:var(--ng-text);font-family:monospace;">{{ agentUpdate.latestVersion ?? '—' }}</p>
+            </div>
+        </div>
+    </div>
+
+    {# ── Release Channel ── #}
+    <div style="margin:0 24px;padding:14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+        <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('update_release_channel_agent', page_locale()) }}</p>
+        <form method="post" hx-post="/admin/updates/agents/channel" hx-target="#agent-update-card" hx-swap="outerHTML" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
             <input type="hidden" name="csrf_token" value="{{ agentUpdate.csrf.agents_channel }}">
             {% for value, label in agentUpdate.channels %}
-                <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                     <input
                         type="radio" name="channel" value="{{ value }}"
                         {% if agentUpdate.channel == value %}checked{% endif %}
                         onchange="this.form.requestSubmit()"
-                        class="accent-indigo-600"
+                        style="accent-color:var(--ng-primary);"
                     >
-                    <span class="font-medium text-slate-700">{{ label }}</span>
+                    <span style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ label }}</span>
                     {% if value == 'stable' %}
-                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">{{ t('update_channel_stable', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);">{{ t('update_channel_stable', page_locale()) }}</span>
                     {% elseif value == 'beta' %}
-                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">{{ t('update_channel_beta', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(245,158,11,0.12);color:#fcd34d;border:1px solid rgba(245,158,11,0.25);">{{ t('update_channel_beta', page_locale()) }}</span>
                     {% elseif value == 'dev' %}
-                        <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-700">{{ t('update_channel_dev', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(56,189,248,0.12);color:#7dd3fc;border:1px solid rgba(56,189,248,0.25);">{{ t('update_channel_dev', page_locale()) }}</span>
                     {% endif %}
                 </label>
             {% endfor %}
         </form>
-        <p class="mt-2 text-xs text-slate-500">
+        <p style="margin:8px 0 0;font-size:11px;color:var(--ng-text-muted);">
             {{ t('update_channel_current_label', page_locale()) }}
-            <span class="font-semibold text-slate-700">{{ agentUpdate.channels[agentUpdate.channel] ?? agentUpdate.channel }}</span>.
+            <span style="font-weight:700;color:var(--ng-text);">{{ agentUpdate.channels[agentUpdate.channel] ?? agentUpdate.channel }}</span>.
             {% if agentUpdate.channel == 'dev' %}
                 {{ t('update_channel_dev_desc', page_locale()) }}
             {% elseif agentUpdate.channel == 'beta' %}
@@ -41,43 +85,58 @@
         </p>
     </div>
 
+    {# ── Notices ── #}
     {% if agentUpdate.notice %}
-        <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);font-size:13px;color:#4ade80;">
             {{ t('admin_updates_agents_notice', page_locale()) }}
         </div>
     {% endif %}
     {% if agentUpdate.error %}
-        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);font-size:13px;color:#fcd34d;">
             {{ agentUpdate.error }}
         </div>
     {% endif %}
 
-    <div class="mt-5 grid gap-4 sm:grid-cols-3">
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_nodes_total', page_locale()) }}</p>
-            <p class="mt-2 text-xl font-semibold text-slate-900">{{ agentUpdate.total }}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_nodes_updates_label', page_locale()) }}</p>
-            <p class="mt-2 text-xl font-semibold text-slate-900">{{ agentUpdate.updates }}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_updates_agents_latest', page_locale()) }}</p>
-            <p class="mt-2 text-xl font-semibold text-slate-900">{{ agentUpdate.latestVersion ?? '—' }}</p>
-        </div>
-    </div>
 
-    <div class="mt-5 flex flex-wrap gap-3">
+    {# ── GitHub Cache Status ── #}
+    {% if agentUpdate.cacheStatus is defined and agentUpdate.cacheStatus is not empty %}
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);font-size:12px;color:var(--ng-text-muted);">
+            {% if agentUpdate.cacheStatus.fetched_at is defined and agentUpdate.cacheStatus.fetched_at %}
+                {{ t('admin_updates_cache_last_checked', page_locale()) }}: <strong style="color:var(--ng-text);">{{ agentUpdate.cacheStatus.fetched_at|date('Y-m-d H:i:s') }}</strong>.
+            {% endif %}
+            {% if agentUpdate.cacheStatus.expires_at is defined and agentUpdate.cacheStatus.expires_at %}
+                {{ t('admin_updates_cache_next_check', page_locale()) }}: <strong style="color:var(--ng-text);">{{ agentUpdate.cacheStatus.expires_at|date('Y-m-d H:i:s') }}</strong>.
+            {% endif %}
+            {% if agentUpdate.cacheStatus.rate_limit_reset is defined and agentUpdate.cacheStatus.rate_limit_reset %}
+                <span style="color:#fcd34d;">{{ t('admin_updates_cache_rate_limit', page_locale()) }} {{ agentUpdate.cacheStatus.rate_limit_reset|date('Y-m-d H:i:s') }}.</span>
+            {% elseif agentUpdate.cacheStatus.last_error is defined and agentUpdate.cacheStatus.last_error and agentUpdate.cacheStatus.has_cache is defined and agentUpdate.cacheStatus.has_cache %}
+                <span style="color:#fcd34d;">{{ t('admin_updates_cache_stale', page_locale()) }}</span>
+            {% elseif agentUpdate.cacheStatus.last_error is defined and agentUpdate.cacheStatus.last_error %}
+                <span style="color:#f87171;">{{ t('admin_updates_cache_unavailable', page_locale()) }}</span>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {# ── Action Buttons ── #}
+    <div style="padding:16px 24px 20px;border-top:1px solid var(--ng-border);margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;background:var(--ng-surface-soft);">
+        <button class="ui-button ui-button--ghost" hx-post="/admin/updates/agents/check" hx-target="#agent-update-card" hx-swap="outerHTML">{{ t('admin_updates_check_now', page_locale()) }}</button>
         <button
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            class="ui-button ui-button--primary"
             hx-post="/admin/updates/agents/update"
             hx-target="#agent-update-card"
             hx-swap="outerHTML"
-            {% if agentUpdate.latestVersion is empty or agentUpdate.updates < 1 %}disabled{% endif %}
-        >{{ t('admin_updates_agents_action', page_locale()) }}</button>
+            {% if agentUpdate.latestVersion is empty or agentUpdate.updates < 1 %}
+                disabled style="opacity:.45;cursor:not-allowed;"
+            {% endif %}
+        >
+            <svg style="width:13px;height:13px;" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+            {{ t('admin_updates_agents_action', page_locale()) }}
+        </button>
         <a
             href="/admin/nodes"
-            class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+            class="ui-button ui-button--ghost"
+            style="text-decoration:none;"
         >{{ t('admin_updates_agents_manage', page_locale()) }}</a>
     </div>
+
 </div>

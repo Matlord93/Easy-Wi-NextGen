@@ -28,6 +28,7 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/updates')]
@@ -47,10 +48,9 @@ final class AdminUpdateController
         #[Autowire(service: 'limiter.admin_update_jobs')]
         private readonly RateLimiterFactory $updateLimiter,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
-        #[Autowire('%app.core_update_token%')]
-        private readonly string $githubToken = '',
     ) {
     }
 
@@ -63,12 +63,13 @@ final class AdminUpdateController
 
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $agentChannel = $this->updateSettingsService->getAgentChannel();
-        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($agentChannel);
+        $forceRefresh = $request->query->getBoolean('force') || $request->query->getBoolean('refresh');
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($agentChannel, $forceRefresh);
 
         return new Response($this->twig->render('admin/updates/index.html.twig', [
             'activeNav' => 'updates',
-            'coreUpdate' => $this->buildCoreUpdateSummary(),
-            'agentUpdate' => $this->buildAgentUpdateSummary($agents, $latestVersion),
+            'coreUpdate' => $this->buildCoreUpdateSummary($forceRefresh),
+            'agentUpdate' => $this->buildAgentUpdateSummary($agents, $latestVersion, $request->getLocale()),
         ]));
     }
 
@@ -106,7 +107,7 @@ final class AdminUpdateController
             $releasePackage = $this->coreReleaseChecker->getReleasePackageForChannel($channel);
             if ($releasePackage === null) {
                 $summary = $this->buildCoreUpdateSummary();
-                $summary['error'] = 'Kein passendes Core-Release-Asset für den gewählten Kanal gefunden.';
+                $summary['error'] = $this->translateUpdateMessage('admin_updates_core_no_release_asset', $request->getLocale());
 
                 return $this->renderUpdateCard($summary);
             }
@@ -194,6 +195,30 @@ final class AdminUpdateController
         return $this->renderUpdateCard($this->buildCoreUpdateSummary());
     }
 
+    #[Route(path: '/webinterface/check', name: 'admin_updates_webinterface_check', methods: ['POST'])]
+    public function refreshCoreCheck(Request $request): Response
+    {
+        if (!$this->isSuperAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return $this->renderUpdateCard($this->buildCoreUpdateSummary(true));
+    }
+
+    #[Route(path: '/agents/check', name: 'admin_updates_agents_check', methods: ['POST'])]
+    public function refreshAgentCheck(Request $request): Response
+    {
+        if (!$this->isSuperAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        $agentChannel = $this->updateSettingsService->getAgentChannel();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($agentChannel, true);
+
+        return $this->renderAgentUpdateCard($this->buildAgentUpdateSummary($agents, $latestVersion, $request->getLocale()));
+    }
+
     #[Route(path: '/core/channel', name: 'admin_updates_core_channel', methods: ['POST'])]
     public function setCoreChannel(Request $request): Response
     {
@@ -229,7 +254,7 @@ final class AdminUpdateController
 
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $latestVersion = $this->releaseChecker->getLatestVersionForChannel($channel);
-        $summary = $this->buildAgentUpdateSummary($agents, $latestVersion);
+        $summary = $this->buildAgentUpdateSummary($agents, $latestVersion, $request->getLocale());
 
         return $this->renderAgentUpdateCard($summary);
     }
@@ -245,10 +270,10 @@ final class AdminUpdateController
         $agentChannel = $this->updateSettingsService->getAgentChannel();
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $latestVersion = $this->releaseChecker->getLatestVersionForChannel($agentChannel);
-        $summary = $this->buildAgentUpdateSummary($agents, $latestVersion);
+        $summary = $this->buildAgentUpdateSummary($agents, $latestVersion, $request->getLocale());
 
-        if ($this->agentDownloadsRequirePanelProxy()) {
-            $summary['error'] = 'Agent-Updates aus privaten GitHub Releases sind blockiert, bis ein signierter Panel-Download-Proxy aktiv ist. Es wurde kein Job erzeugt.';
+        if ($this->agentUpdatesRequirePanelProxy($agents, $latestVersion, $agentChannel)) {
+            $summary['error'] = $this->translateUpdateMessage('admin_updates_agent_private_proxy_blocked', $request->getLocale());
 
             return $this->renderAgentUpdateCard($summary);
         }
@@ -289,9 +314,9 @@ final class AdminUpdateController
         );
     }
 
-    private function buildCoreUpdateSummary(): array
+    private function buildCoreUpdateSummary(bool $force = false): array
     {
-        $status = $this->updateService->checkForUpdate();
+        $status = $this->updateService->checkForUpdate($force);
         $settings = $this->updateSettingsService->getSettings();
         $versionInfo = $this->updateJobService->getVersionInfo();
         $migrationStatus = $this->updateJobService->getMigrationStatus();
@@ -309,6 +334,7 @@ final class AdminUpdateController
             'notes' => $status->notes,
             'notesList' => $this->normalizeNotesList($status->notes),
             'manifestError' => $status->error,
+            'cacheStatus' => $status->cacheStatus,
             'logPath' => null,
             'latestJob' => $latestJob,
             'logLines' => $logLines,
@@ -334,7 +360,7 @@ final class AdminUpdateController
     /**
      * @param Agent[] $agents
      */
-    private function buildAgentUpdateSummary(array $agents, ?string $latestVersion): array
+    private function buildAgentUpdateSummary(array $agents, ?string $latestVersion, string $locale): array
     {
         $agentChannel = $this->updateSettingsService->getAgentChannel();
         $updates = 0;
@@ -346,12 +372,15 @@ final class AdminUpdateController
             }
         }
 
+        $cacheStatus = $this->releaseChecker->getCacheStatus($agentChannel);
+
         return [
             'total' => count($agents),
             'updates' => $updates,
             'latestVersion' => $latestVersion,
             'channel' => $agentChannel,
-            'error' => $latestVersion === null ? 'Kein passendes Agent-Release für den gewählten Kanal gefunden.' : null,
+            'error' => $latestVersion === null ? $this->agentReleaseErrorMessage($cacheStatus, $locale) : null,
+            'cacheStatus' => $cacheStatus,
             'channels' => AgentReleaseChecker::channels(),
             'notice' => null,
             'csrf' => [
@@ -360,9 +389,42 @@ final class AdminUpdateController
         ];
     }
 
-    private function agentDownloadsRequirePanelProxy(): bool
+    /** @param array<string, mixed> $cacheStatus */
+    private function agentReleaseErrorMessage(array $cacheStatus, string $locale): string
     {
-        return trim($this->githubToken) !== '';
+        if (($cacheStatus['last_error_type'] ?? null) === 'RATE_LIMIT') {
+            $reset = $cacheStatus['rate_limit_reset'] ?? null;
+            $resetAt = is_int($reset) || (is_string($reset) && ctype_digit($reset)) ? date('Y-m-d H:i:s', (int) $reset) : '—';
+
+            return $this->translateUpdateMessage('admin_updates_agent_rate_limit', $locale, ['%time%' => $resetAt]);
+        }
+        if (($cacheStatus['last_error_type'] ?? null) === 'ACCESS_DENIED') {
+            return $this->translateUpdateMessage('admin_updates_agent_access_denied', $locale);
+        }
+        if (($cacheStatus['last_error_type'] ?? null) === 'NOT_FOUND') {
+            return $this->translateUpdateMessage('admin_updates_agent_not_found', $locale);
+        }
+
+        return $this->translateUpdateMessage('admin_updates_agent_no_release', $locale);
+    }
+
+    /** @param array<string, string> $parameters */
+    private function translateUpdateMessage(string $key, string $locale, array $parameters = []): string
+    {
+        return $this->translator->trans($key, $parameters, 'portal', $locale);
+    }
+
+    /** @param Agent[] $agents */
+    private function agentUpdatesRequirePanelProxy(array $agents, ?string $latestVersion, string $channel): bool
+    {
+        foreach ($agents as $agent) {
+            $releaseInfo = $this->resolveAgentReleaseInfo($agent, $latestVersion, $channel);
+            if ($releaseInfo !== null && $this->releaseChecker->releaseAssetRequiresPanelProxy($releaseInfo)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function renderUpdateCard(array $summary): Response
@@ -480,16 +542,7 @@ final class AdminUpdateController
     {
         $currentVersion = $agent->getLastHeartbeatVersion();
 
-        $stats = $agent->getLastHeartbeatStats() ?? [];
-        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
-        $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
-
-        $assetName = $this->resolveAgentAssetName($os, $arch);
-        if ($assetName === null) {
-            return null;
-        }
-
-        $releaseInfo = $this->releaseChecker->getReleaseAssetUrlsForChannel($assetName, $channel);
+        $releaseInfo = $this->resolveAgentReleaseInfo($agent, $latestVersion, $channel);
         if ($releaseInfo === null) {
             return null;
         }
@@ -512,6 +565,21 @@ final class AdminUpdateController
             'version' => $version,
             'channel' => $channel,
         ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function resolveAgentReleaseInfo(Agent $agent, ?string $latestVersion, string $channel): ?array
+    {
+        $stats = $agent->getLastHeartbeatStats() ?? [];
+        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
+        $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
+
+        $assetName = $this->resolveAgentAssetName($os, $arch);
+        if ($assetName === null) {
+            return null;
+        }
+
+        return $this->releaseChecker->getReleaseAssetUrlsForChannel($assetName, $channel, $latestVersion);
     }
 
     private function resolveAgentAssetName(string $os, string $arch): ?string

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\MailService;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Ticket;
 use App\Module\Core\Domain\Entity\TicketAttachment;
@@ -70,6 +72,8 @@ final class AdminTicketController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly NotificationService $notificationService,
+        private readonly MailService $mailService,
+        private readonly AppSettingsService $appSettingsService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
     ) {
@@ -182,6 +186,25 @@ final class AdminTicketController
         );
         $this->entityManager->flush();
 
+        $customer = $ticket->getCustomer();
+        $this->mailService->sendTemplate(
+            $customer->getEmail(),
+            'ticket_opened',
+            [
+                'ticket_id'         => $ticket->getId(),
+                'ticket_subject'    => $ticket->getSubject(),
+                'ticket_category'   => ucfirst(strtolower($ticket->getCategory()->value)),
+                'ticket_priority'   => ucfirst(strtolower($ticket->getPriority()->value)),
+                'ticket_created_at' => $ticket->getCreatedAt()->format('d.m.Y H:i'),
+                'ticket_message'    => $message->getBody(),
+                'ticket_url'        => '/tickets/' . $ticket->getId(),
+                'customer_name'     => $customer->getName() ?? $customer->getEmail(),
+                'customer_email'    => $customer->getEmail(),
+            ],
+            null,
+            true,
+        );
+
         $response = new Response($this->twig->render('admin/tickets/_form.html.twig', [
             'form' => $this->buildFormContext(),
             'customers' => $customers,
@@ -269,6 +292,23 @@ final class AdminTicketController
             '/tickets',
         );
         $this->entityManager->flush();
+
+        $customer = $ticket->getCustomer();
+        $this->mailService->sendTemplate(
+            $customer->getEmail(),
+            'ticket_reply_customer',
+            [
+                'ticket_id'      => $ticket->getId(),
+                'ticket_subject' => $ticket->getSubject(),
+                'reply_message'  => $message->getBody(),
+                'replied_by'     => $actor->getName() ?? $actor->getEmail(),
+                'replied_at'     => $message->getCreatedAt()->format('d.m.Y H:i'),
+                'ticket_url'     => '/tickets/' . $ticket->getId(),
+                'customer_name'  => $customer->getName() ?? $customer->getEmail(),
+            ],
+            null,
+            true,
+        );
 
         return new Response($this->twig->render('admin/tickets/_messages.html.twig', [
             'ticket' => $this->normalizeTicket($ticket),

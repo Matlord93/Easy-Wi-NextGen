@@ -39,6 +39,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/nodes')]
@@ -67,10 +68,9 @@ final class AdminNodeController
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly FirewallStateRepository $firewallStateRepository,
         private readonly UserRepository $userRepository,
+        private readonly TranslatorInterface $translator,
         #[Autowire(param: 'app.admin_authorized_keys_path')]
         private readonly string $adminAuthorizedKeysPath,
-        #[Autowire('%app.core_update_token%')]
-        private readonly string $githubToken = '',
     ) {
     }
 
@@ -244,10 +244,6 @@ final class AdminNodeController
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        if ($this->agentDownloadsRequirePanelProxy()) {
-            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
-        }
-
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $serverUpdateJobs = $this->buildServerUpdateJobIndex($nodes);
@@ -614,11 +610,10 @@ final class AdminNodeController
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        if ($this->agentDownloadsRequirePanelProxy()) {
-            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
-        }
-
         $latestVersion = $this->releaseChecker->getLatestVersion();
+        if ($this->agentUpdatesRequirePanelProxy($nodes, $latestVersion)) {
+            return $this->renderNodesTable($this->translateUpdateMessage('admin_updates_agent_private_proxy_blocked', $request->getLocale()));
+        }
         $updateJobs = $this->buildUpdateJobIndex($nodes);
 
         $this->queueAgentUpdates($nodes, $latestVersion, $updateJobs, $actor);
@@ -634,16 +629,16 @@ final class AdminNodeController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        if ($this->agentDownloadsRequirePanelProxy()) {
-            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
-        }
-
         $stageSize = max(1, (int) $request->request->get('stage_size', 5));
         $targetVersion = trim((string) $request->request->get('target_version', ''));
         $rollbackVersion = trim((string) $request->request->get('rollback_version', ''));
 
         $allNodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $nodes = array_values(array_filter($allNodes, static fn ($node): bool => $node->getStatus() !== \App\Module\Core\Domain\Entity\Agent::STATUS_DECOMMISSIONED));
+        $targetForProxyCheck = $rollbackVersion !== '' ? $rollbackVersion : ($targetVersion !== '' ? $targetVersion : null);
+        if ($this->agentUpdatesRequirePanelProxy($nodes, $targetForProxyCheck)) {
+            return $this->renderNodesTable($this->translateUpdateMessage('admin_updates_agent_private_proxy_blocked', $request->getLocale()));
+        }
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $chunks = array_chunk($nodes, $stageSize);
 
@@ -675,11 +670,10 @@ final class AdminNodeController
             return new Response('Node not found.', Response::HTTP_NOT_FOUND);
         }
 
-        if ($this->agentDownloadsRequirePanelProxy()) {
-            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
-        }
-
         $latestVersion = $this->releaseChecker->getLatestVersion();
+        if ($this->agentUpdatesRequirePanelProxy([$node], $latestVersion)) {
+            return $this->renderNodesTable($this->translateUpdateMessage('admin_updates_agent_private_proxy_blocked', $request->getLocale()));
+        }
         $updateJobs = $this->buildUpdateJobIndex([$node]);
         $this->queueAgentUpdates([$node], $latestVersion, $updateJobs, $actor);
 
@@ -928,10 +922,6 @@ final class AdminNodeController
     private function renderNodesTable(?string $notice = null, ?string $error = null): Response
     {
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        if ($this->agentDownloadsRequirePanelProxy()) {
-            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
-        }
-
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $serverUpdateJobs = $this->buildServerUpdateJobIndex($nodes);
@@ -1629,26 +1619,31 @@ final class AdminNodeController
         return $queued;
     }
 
-    private function agentDownloadsRequirePanelProxy(): bool
+    /** @param array<int, \App\Module\Core\Domain\Entity\Agent> $nodes */
+    private function agentUpdatesRequirePanelProxy(array $nodes, ?string $targetVersion): bool
     {
-        return trim($this->githubToken) !== '';
+        foreach ($nodes as $node) {
+            $releaseInfo = $this->resolveAgentReleaseInfo($node, $targetVersion);
+            if ($releaseInfo !== null && $this->releaseChecker->releaseAssetRequiresPanelProxy($releaseInfo)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param array<string, string> $parameters */
+    private function translateUpdateMessage(string $key, string $locale, array $parameters = []): string
+    {
+        return $this->translator->trans($key, $parameters, 'portal', $locale);
     }
 
     private function buildAgentUpdatePayload(\App\Module\Core\Domain\Entity\Agent $node, ?string $latestVersion, ?string $rollbackVersion = null, ?Job $existingJob = null): ?array
     {
         $currentVersion = $node->getLastHeartbeatVersion();
 
-        $stats = $node->getLastHeartbeatStats() ?? [];
-        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
-        $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
-
-        $assetName = $this->resolveAgentAssetName($os, $arch);
-        if ($assetName === null) {
-            return null;
-        }
-
         $targetVersion = $rollbackVersion !== null && $rollbackVersion !== '' ? $rollbackVersion : $latestVersion;
-        $releaseInfo = $this->releaseChecker->getReleaseAssetUrls($assetName, $targetVersion);
+        $releaseInfo = $this->resolveAgentReleaseInfo($node, $targetVersion);
         if ($releaseInfo === null) {
             return null;
         }
@@ -1680,6 +1675,21 @@ final class AdminNodeController
             'previous_failed_reason' => $lastFailedReason,
             'rollout_pin' => $latestVersion !== null && $latestVersion !== '',
         ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function resolveAgentReleaseInfo(\App\Module\Core\Domain\Entity\Agent $node, ?string $targetVersion): ?array
+    {
+        $stats = $node->getLastHeartbeatStats() ?? [];
+        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
+        $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
+
+        $assetName = $this->resolveAgentAssetName($os, $arch);
+        if ($assetName === null) {
+            return null;
+        }
+
+        return $this->releaseChecker->getReleaseAssetUrls($assetName, $targetVersion);
     }
 
     private function resolveAgentAssetName(string $os, string $arch): ?string

@@ -47,21 +47,33 @@ final class ModuleRegistry
             'description' => 'TS3 instances and voice service orchestration.',
         ],
         ModuleKey::Ts6->value => [
-            'label' => 'Teamspeak 6 (Experimental)',
-            'version' => '0.1.0',
-            'description' => 'Planned TS6 lifecycle management (feature flagged).',
-            'default_enabled' => false,
-        ],
-        ModuleKey::TsVirtual->value => [
-            'label' => 'TS Virtual Servers (Experimental)',
-            'version' => '0.1.0',
-            'description' => 'Virtual server hosting on top of a TS6 node (feature flagged).',
+            'label' => 'Teamspeak 6',
+            'version' => '1.0.0',
+            'description' => 'TS6 lifecycle management and voice service orchestration.',
             'default_enabled' => false,
         ],
         ModuleKey::Billing->value => [
             'label' => 'Billing',
             'version' => '1.0.0',
             'description' => 'Invoices, payments, and dunning workflows.',
+        ],
+        ModuleKey::Unifi->value => [
+            'label' => 'UniFi',
+            'version' => '1.0.0',
+            'description' => 'UniFi network management and automation.',
+            'default_enabled' => false,
+        ],
+        ModuleKey::Cms->value => [
+            'label' => 'CMS',
+            'version' => '1.0.0',
+            'description' => 'Content management, pages and maintenance mode.',
+            'default_enabled' => true,
+        ],
+        ModuleKey::Shop->value => [
+            'label' => 'Shop',
+            'version' => '1.0.0',
+            'description' => 'Self-service ordering and product catalog.',
+            'default_enabled' => false,
         ],
     ];
 

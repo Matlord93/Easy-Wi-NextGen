@@ -416,6 +416,134 @@ function Get-RandomHex {
     (($bytes | ForEach-Object { $_.ToString('x2') }) -join '').Substring(0, $Length)
 }
 
+function Get-VersionWithoutPrefix {
+    param([string]$Version)
+    if ([string]::IsNullOrWhiteSpace($Version)) { return 'latest' }
+    return ($Version -replace '^[vV]', '')
+}
+
+function Get-FileSha256Hex {
+    param([string]$Path)
+    return (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Test-ChecksumEntry {
+    param([string]$ChecksumsPath, [string]$AssetName)
+    if (-not (Test-Path $ChecksumsPath)) { return $false }
+    foreach ($line in Get-Content -Path $ChecksumsPath) {
+        $trimmed = $line.Trim()
+        if ($trimmed -match '^([a-fA-F0-9]{64})\s+\*?(.+)$') {
+            if ([System.IO.Path]::GetFileName($Matches[2].Trim()) -eq $AssetName) { return $true }
+        }
+    }
+    return $false
+}
+
+function Assert-ReleaseChecksum {
+    param([string]$ChecksumsPath, [string]$AssetPath, [string]$AssetName)
+    $expected = ''
+    foreach ($line in Get-Content -Path $ChecksumsPath) {
+        $trimmed = $line.Trim()
+        if ($trimmed -match '^([a-fA-F0-9]{64})\s+\*?(.+)$') {
+            if ([System.IO.Path]::GetFileName($Matches[2].Trim()) -eq $AssetName) {
+                $expected = $Matches[1].ToLowerInvariant()
+                break
+            }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($expected)) { throw "Kein Checksum-Eintrag für $AssetName gefunden." }
+    $actual = Get-FileSha256Hex -Path $AssetPath
+    if ($actual -ne $expected) { throw "Checksum für $AssetName ungültig. Erwartet $expected, erhalten $actual." }
+    Write-Log "Checksum verifiziert: $AssetName"
+}
+
+function Find-ExtractedCoreDirectory {
+    param([string]$ExtractDir)
+    $directCore = Join-Path $ExtractDir 'core\bin\console'
+    if (Test-Path $directCore) { return (Join-Path $ExtractDir 'core') }
+    $directRoot = Join-Path $ExtractDir 'bin\console'
+    if (Test-Path $directRoot) { return $ExtractDir }
+    $candidate = Get-ChildItem -Path $ExtractDir -Recurse -File -Filter 'console' | Where-Object { $_.FullName -match '[\\/]bin[\\/]console$' } | Select-Object -First 1
+    if ($null -eq $candidate) { throw 'Archiv enthält kein Symfony-core/bin/console.' }
+    return (Split-Path -Parent (Split-Path -Parent $candidate.FullName))
+}
+
+function Install-PanelRelease {
+    param([string]$InstallDir, [string]$Version)
+
+    if ([string]::IsNullOrWhiteSpace($Version)) { $Version = 'latest' }
+    Write-Log "Lade Panel-Release ($Version)."
+    Ensure-Directory -Path $InstallDir
+
+    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("easywi-panel-" + [guid]::NewGuid().ToString('N'))
+    Ensure-Directory -Path $tempDir
+    $archivePath = Join-Path $tempDir 'panel-archive'
+    $checksumsPath = Join-Path $tempDir 'checksums.txt'
+    $plainVersion = Get-VersionWithoutPrefix -Version $Version
+    $assetCandidates = New-Object System.Collections.Generic.List[string]
+    if ($plainVersion -eq 'latest') {
+        foreach ($checksumProbe in @('checksums-core.txt', 'checksums-webinterface.txt')) {
+            if (Try-DownloadReleaseAsset -Version $Version -AssetName $checksumProbe -TargetPath $checksumsPath) {
+                foreach ($line in Get-Content -Path $checksumsPath) {
+                    if ($line.Trim() -match '^[a-fA-F0-9]{64}\s+\*?(easywi-core(-[^\s]+)?\.tar\.gz|easywi-webinterface-[^\s]+\.zip)$') {
+                        [void]$assetCandidates.Add($Matches[1])
+                    }
+                }
+            }
+        }
+        Remove-Item -Path $checksumsPath -Force -ErrorAction SilentlyContinue
+    }
+    [void]$assetCandidates.Add('easywi-core.tar.gz')
+    if ($plainVersion -ne 'latest') {
+        [void]$assetCandidates.Add("easywi-core-$plainVersion.tar.gz")
+        [void]$assetCandidates.Add("easywi-webinterface-$plainVersion.zip")
+    }
+
+    $selectedAsset = ''
+    try {
+        foreach ($assetName in $assetCandidates) {
+            if (-not (Try-DownloadReleaseAsset -Version $Version -AssetName $assetName -TargetPath $archivePath)) { continue }
+            $selectedChecksum = ''
+            foreach ($checksumAsset in @('checksums-core.txt', 'checksums-webinterface.txt', 'checksums.txt', 'checksums.sha256')) {
+                if ((Try-DownloadReleaseAsset -Version $Version -AssetName $checksumAsset -TargetPath $checksumsPath) -and (Test-ChecksumEntry -ChecksumsPath $checksumsPath -AssetName $assetName)) {
+                    $selectedChecksum = $checksumAsset
+                    break
+                }
+            }
+            if (-not [string]::IsNullOrWhiteSpace($selectedChecksum)) {
+                Write-Log "Checksums geladen: $selectedChecksum"
+                Assert-ReleaseChecksum -ChecksumsPath $checksumsPath -AssetPath $archivePath -AssetName $assetName
+                $selectedAsset = $assetName
+                break
+            }
+            Write-Log "Release-Asset $assetName gefunden, aber kein passender Checksum-Eintrag – versuche nächstes Asset."
+            Remove-Item -Path $archivePath, $checksumsPath -Force -ErrorAction SilentlyContinue
+        }
+
+        if ([string]::IsNullOrWhiteSpace($selectedAsset)) { throw "Kein Panel-Release-Asset mit passender Checksum gefunden: $($assetCandidates -join ', ')" }
+
+        $extractDir = Join-Path $tempDir 'extract'
+        Ensure-Directory -Path $extractDir
+        if ($selectedAsset.EndsWith('.zip')) {
+            Expand-Archive -Path $archivePath -DestinationPath $extractDir -Force
+        } else {
+            tar -xzf $archivePath -C $extractDir
+        }
+        $sourceCore = Find-ExtractedCoreDirectory -ExtractDir $extractDir
+        $targetCore = Join-Path $InstallDir 'core'
+        if ((Test-Path $targetCore) -and ((Get-ChildItem -Force -ErrorAction SilentlyContinue $targetCore | Measure-Object).Count -gt 0)) {
+            throw "Core-Verzeichnis ist nicht leer: $targetCore"
+        }
+        Ensure-Directory -Path $targetCore
+        Get-ChildItem -Path $sourceCore -Force | Copy-Item -Destination $targetCore -Recurse -Force
+        Set-Content -Path (Join-Path $InstallDir '.easywi-release-asset') -Value $selectedAsset -Encoding UTF8
+        Set-Content -Path (Join-Path $InstallDir '.easywi-release-version') -Value $Version -Encoding UTF8
+        Write-Log "Panel-Release installiert: $selectedAsset -> $targetCore"
+    } finally {
+        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Run-PanelSetup {
     param(
         [string]$Mode,
@@ -436,19 +564,7 @@ function Run-PanelSetup {
     Write-Log "Starte Windows Panel-Vorbereitung ($Mode)."
     Ensure-Directory -Path $InstallDir
 
-    if (Test-Path (Join-Path $InstallDir '.git')) {
-        Write-Log 'Repository vorhanden, aktualisiere…'
-        git -C $InstallDir fetch --all --tags
-        git -C $InstallDir checkout $RepoRef
-        git -C $InstallDir pull --ff-only
-    } else {
-        if ((Get-ChildItem -Force -ErrorAction SilentlyContinue $InstallDir | Measure-Object).Count -gt 0) {
-            throw "Installationsverzeichnis ist nicht leer und kein Git-Repository: $InstallDir"
-        }
-        Write-Log "Clone $RepoUrl ($RepoRef)"
-        git clone $RepoUrl $InstallDir
-        git -C $InstallDir checkout $RepoRef
-    }
+    Install-PanelRelease -InstallDir $InstallDir -Version $RepoRef
 
     $coreDir = Join-Path $InstallDir 'core'
     if (-not (Test-Path $coreDir)) {
@@ -495,7 +611,7 @@ function Run-PanelSetup {
         'EasyWI Windows Panel Vorbereitung',
         '=================================',
         "InstallDir: $InstallDir",
-        "Repo: $RepoUrl@$RepoRef",
+        "Release: $RepoRef",
         "DB: $DbDriver $DbHost $DbName",
         '',
         'Nächste Schritte:',
@@ -549,13 +665,32 @@ function Download-ReleaseAsset {
     )
 
     Ensure-Directory -Path (Split-Path -Parent $TargetPath)
+    $urls = New-Object System.Collections.Generic.List[string]
     if ($Version -eq 'latest') {
-        $url = "https://github.com/$RepoOwner/$RepoName/releases/latest/download/$AssetName"
+        [void]$urls.Add("https://github.com/$RepoOwner/$RepoName/releases/latest/download/$AssetName")
     } else {
-        $url = "https://github.com/$RepoOwner/$RepoName/releases/download/$Version/$AssetName"
+        [void]$urls.Add("https://github.com/$RepoOwner/$RepoName/releases/download/$Version/$AssetName")
+        if (($Version -notmatch '^[vV]')) {
+            [void]$urls.Add("https://github.com/$RepoOwner/$RepoName/releases/download/v$Version/$AssetName")
+        }
     }
-    Write-Log "Lade $AssetName von $url"
-    Invoke-WebRequest -Uri $url -OutFile $TargetPath
+    $headers = @{ 'User-Agent' = 'easywi-installer-menu' }
+    $githubToken = $env:EASYWI_APP_GITHUB_TOKEN
+    if ([string]::IsNullOrWhiteSpace($githubToken)) { $githubToken = $env:GITHUB_TOKEN }
+    if (-not [string]::IsNullOrWhiteSpace($githubToken)) { $headers['Authorization'] = "Bearer $githubToken" }
+    $lastError = $null
+    foreach ($url in $urls) {
+        try {
+            Write-Log "Lade $AssetName von $url"
+            Invoke-WebRequest -Uri $url -OutFile $TargetPath -Headers $headers
+            return
+        } catch {
+            $lastError = $_
+            Remove-Item -Path $TargetPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if ($null -ne $lastError) { throw $lastError }
+    throw "Asset nicht verfügbar: $AssetName"
 }
 
 
@@ -874,8 +1009,8 @@ function Run-PanelInstall {
     Write-Host 'Panel-Setup: Wir laden das Webinterface, schreiben die .env.local und richten Abhängigkeiten ein.'
     $mode = 'Standalone'
     $panelInstallDir = Read-Optional -Prompt 'Installationsverzeichnis' -Default (Get-DefaultValue -Value $InstallDir -Default 'C:\easywi')
-    $panelRepoUrl = Read-Optional -Prompt 'Git-Repository URL' -Default (Get-DefaultValue -Value $RepoUrl -Default "https://github.com/$RepoOwner/$RepoName")
-    $panelRepoRef = Read-Optional -Prompt 'Git-Branch/Tag' -Default (Get-DefaultValue -Value $RepoRef -Default 'Beta')
+    $panelRepoUrl = Get-DefaultValue -Value $RepoUrl -Default '' # deprecated: releases are used exclusively
+    $panelRepoRef = Read-Optional -Prompt 'Release-Version (latest oder Tag)' -Default (Get-DefaultValue -Value $RepoRef -Default 'latest')
     $panelDbDriver = Read-Optional -Prompt 'DB-Treiber (mysql/pgsql)' -Default (Get-DefaultValue -Value $DbDriver -Default 'mysql')
     $panelDbHost = Read-Optional -Prompt 'DB-Host' -Default (Get-DefaultValue -Value $DbHost -Default '127.0.0.1')
     $panelDbPort = Read-Optional -Prompt 'DB-Port (leer = Standard)' -Default $DbPort

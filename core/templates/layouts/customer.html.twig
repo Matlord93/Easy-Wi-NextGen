@@ -12,6 +12,7 @@
 {% set moduleMail = module_enabled('mail') %}
 {% set moduleDns = module_enabled('dns') %}
 {% set moduleBilling = module_enabled('billing') %}
+{% set moduleShop = module_enabled('shop') %}
 {% set showVoiceserver = moduleTs6 or moduleTs %}
 {% set extensionItems = extension_menu_items('customer') %}
 {% set gdprItems = extensionItems is not empty
@@ -92,7 +93,7 @@
         open: false,
         items: gdprItems
     } : null,
-    moduleBilling ? {
+    (moduleBilling and moduleShop) ? {
         label: t('customer_nav_group_marketplace', page_locale()),
         open: true,
         items: ([{ key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop'), iconSvg: iconShop }]|merge(marketplaceItems))

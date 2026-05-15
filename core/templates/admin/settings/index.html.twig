@@ -5,34 +5,33 @@
 {% set activeNav = 'settings' %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:1.5rem;">
 
+    {# Alerts #}
     {% if errors is not empty %}
-        <div class="ng-alert ng-alert--danger">
-            <ul class="list-disc space-y-1 pl-4">
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:var(--ng-radius);padding:1rem;color:#b91c1c;">
+            <ul style="margin:0;padding-left:1.25rem;">
                 {% for error in errors %}
                     <li>{{ error }}</li>
                 {% endfor %}
             </ul>
         </div>
     {% elseif tokenRotated %}
-        <div class="ng-alert ng-alert--success">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--ng-radius);padding:1rem;color:#15803d;">
             {{ t('admin_settings_token_rotated', page_locale()) }}
         </div>
     {% elseif saved %}
-        <div class="ng-alert ng-alert--success">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--ng-radius);padding:1rem;color:#15803d;">
             {{ t('admin_settings_saved', page_locale()) }}
         </div>
     {% endif %}
 
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_settings_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_settings_description', page_locale()) }}</p>
-            </div>
+    <div class="ng-card" style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);background:var(--ng-surface);">
+        <div style="padding:1.5rem;border-bottom:1px solid var(--ng-border);">
+            <h2 style="font-size:1.125rem;font-weight:700;color:var(--ng-text);margin:0 0 0.25rem;">{{ t('admin_settings_title', page_locale()) }}</h2>
+            <p style="color:var(--ng-text-muted);margin:0;font-size:0.875rem;">{{ t('admin_settings_description', page_locale()) }}</p>
         </div>
-        <div class="ng-data-card__body">
+        <div style="padding:1.5rem;">
 
             {# Tab navigation #}
             {% set tabs = [
@@ -42,13 +41,14 @@
                 { key: 'customer', label: t('admin_webinterface_tab_customer', page_locale()) },
                 { key: 'security', label: t('admin_webinterface_tab_security', page_locale()) },
                 { key: 'maintenance', label: t('admin_webinterface_tab_maintenance', page_locale()) },
-                { key: 'agent', label: t('admin_webinterface_tab_agent', page_locale()) }
+                { key: 'agent', label: t('admin_webinterface_tab_agent', page_locale()) },
+                { key: 'mail_templates', label: t('admin_settings_mail_templates_tab', page_locale()) }
             ] %}
-            <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-3 mb-6">
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--ng-border);">
                 {% for tab in tabs %}
                     <a
                         href="{{ path('admin_settings', {tab: tab.key}) }}"
-                        class="rounded-lg border px-4 py-2 text-xs font-semibold {{ activeTab == tab.key ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:text-slate-800' }}"
+                        style="border-radius:999px;padding:0.375rem 1rem;font-size:0.75rem;font-weight:600;text-decoration:none;transition:background 0.15s;{% if activeTab == tab.key %}background:var(--ng-primary-soft);color:var(--ng-primary);border:1px solid var(--ng-primary);{% else %}background:var(--ng-surface-soft);color:var(--ng-text-muted);border:1px solid var(--ng-border);{% endif %}"
                     >
                         {{ tab.label }}
                     </a>
@@ -60,318 +60,466 @@
 
                 {# ── General ── #}
                 {% if activeTab == 'general' %}
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_site_title', page_locale()) }}</label>
-                            <input type="text" name="site_title" value="{{ settings.site_title }}" class="form-input">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                            <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_site_title', page_locale()) }}</label>
+                            <input type="text" name="site_title" value="{{ settings.site_title }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                         </div>
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_branding_name', page_locale()) }}</label>
-                            <input type="text" name="branding_name" value="{{ settings.branding_name }}" class="form-input">
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                            <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_branding_name', page_locale()) }}</label>
+                            <input type="text" name="branding_name" value="{{ settings.branding_name }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                         </div>
-                        <div class="form-field col-span-2">
-                            <label class="form-label">{{ t('admin_webinterface_branding_logo', page_locale()) }}</label>
-                            <input type="text" name="branding_logo_url" value="{{ settings.branding_logo_url }}" placeholder="/assets/logo.svg" class="form-input">
-                            <p class="mt-2 text-xs text-slate-500">{{ t('admin_webinterface_branding_logo_hint', page_locale()) }}</p>
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;grid-column:span 2;">
+                            <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_branding_logo', page_locale()) }}</label>
+                            <input type="text" name="branding_logo_url" value="{{ settings.branding_logo_url }}" placeholder="/assets/logo.svg" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                            <p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_webinterface_branding_logo_hint', page_locale()) }}</p>
                         </div>
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_support_email', page_locale()) }}</label>
-                            <input type="email" name="support_email" value="{{ settings.support_email }}" placeholder="support@example.com" class="form-input">
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                            <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_support_email', page_locale()) }}</label>
+                            <input type="email" name="support_email" value="{{ settings.support_email }}" placeholder="support@example.com" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                         </div>
                     </div>
 
                 {# ── Email ── #}
                 {% elseif activeTab == 'email' %}
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_mail_from_name', page_locale()) }}</label>
-                            <input type="text" name="mail_from_name" value="{{ settings.mail_from_name }}" class="form-input">
+                    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+                        {# Basic mail fields #}
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_mail_from_name', page_locale()) }}</label>
+                                <input type="text" name="mail_from_name" value="{{ settings.mail_from_name }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_mail_from_address', page_locale()) }}</label>
+                                <input type="email" name="mail_from_address" value="{{ settings.mail_from_address }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_mail_reply_to', page_locale()) }}</label>
+                                <input type="email" name="mail_reply_to" value="{{ settings.mail_reply_to }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_mail_default_locale', page_locale()) }}</label>
+                                <select name="mail_default_locale" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                                    <option value="de" {{ settings.mail_default_locale == 'de' ? 'selected' : '' }}>DE</option>
+                                    <option value="en" {{ settings.mail_default_locale == 'en' ? 'selected' : '' }}>EN</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_mail_from_address', page_locale()) }}</label>
-                            <input type="email" name="mail_from_address" value="{{ settings.mail_from_address }}" class="form-input">
-                        </div>
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_mail_reply_to', page_locale()) }}</label>
-                            <input type="email" name="mail_reply_to" value="{{ settings.mail_reply_to }}" class="form-input">
-                        </div>
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_mail_default_locale', page_locale()) }}</label>
-                            <select name="mail_default_locale" class="form-input">
-                                <option value="de" {{ settings.mail_default_locale == 'de' ? 'selected' : '' }}>DE</option>
-                                <option value="en" {{ settings.mail_default_locale == 'en' ? 'selected' : '' }}>EN</option>
-                            </select>
+
+                        {# SMTP Konfiguration #}
+                        <div style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);overflow:hidden;">
+                            <div style="padding:0.75rem 1rem;background:var(--ng-surface-soft);border-bottom:1px solid var(--ng-border);">
+                                <h3 style="margin:0;font-size:0.875rem;font-weight:600;color:var(--ng-text);">{{ t('admin_settings_smtp_section', page_locale()) }}</h3>
+                            </div>
+                            <div style="padding:1rem;display:flex;flex-direction:column;gap:1rem;">
+                                {# Backend selection #}
+                                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                                    <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_mail_backend_label', page_locale()) }}</label>
+                                    <div style="display:flex;flex-wrap:wrap;gap:0.75rem;">
+                                        {% for optKey, optLabel in mail_backend_options %}
+                                            <label style="display:inline-flex;align-items:center;gap:0.375rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                                                <input type="radio" name="smtp_backend" value="{{ optKey }}" {% if settings.smtp_backend is defined and settings.smtp_backend == optKey %}checked{% elseif optKey == 'none' and settings.smtp_backend is not defined %}checked{% endif %}>
+                                                {{ optLabel }}
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                {# External SMTP fields #}
+                                <div id="smtp-external-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_smtp_host', page_locale()) }}</label>
+                                        <input type="text" name="smtp_host" value="{{ settings.smtp_host is defined ? settings.smtp_host : '' }}" placeholder="mail.example.com" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                                    </div>
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_smtp_port', page_locale()) }}</label>
+                                        <input type="number" name="smtp_port" value="{{ settings.smtp_port is defined ? settings.smtp_port : '587' }}" placeholder="587" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                                    </div>
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_smtp_user', page_locale()) }}</label>
+                                        <input type="text" name="smtp_user" value="{{ settings.smtp_user is defined ? settings.smtp_user : '' }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                                    </div>
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_smtp_password', page_locale()) }}</label>
+                                        <input type="password" name="smtp_password" placeholder="●●●●●●●●" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                                    </div>
+                                    <div style="grid-column:span 2;">
+                                        <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                                            <input type="checkbox" name="mailer_verify_tls" value="1" {{ (settings.mailer_verify_tls is defined and settings.mailer_verify_tls) ? 'checked' : '' }}>
+                                            {{ t('admin_settings_smtp_tls_verify', page_locale()) }}
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {# DSN Info #}
+                                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.75rem;font-size:0.8125rem;color:var(--ng-text-muted);">
+                                    {{ t('admin_settings_mailer_dsn_label', page_locale()) }}: <code style="font-family:monospace;background:var(--ng-border);padding:0.1rem 0.4rem;border-radius:4px;">{{ settings.mailer_dsn is defined ? settings.mailer_dsn : '—' }}</code>
+                                </div>
+
+                                {# Mail enabled toggle #}
+                                <div>
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                                        <input type="checkbox" name="mail_enabled" value="1" {{ (settings.mail_enabled is defined and settings.mail_enabled) ? 'checked' : '' }}>
+                                        Mail-Versand aktiviert
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                 {# ── Gameserver ── #}
                 {% elseif activeTab == 'gameserver' %}
-                    <div class="flex flex-col gap-6">
-                        <div class="grid grid-cols-3 gap-4">
-                            <div class="form-field">
-                                <label class="form-label">{{ t('admin_webinterface_gameserver_default_slots', page_locale()) }}</label>
-                                <input type="number" min="1" name="gameserver_default_slots" value="{{ settings.gameserver_default_slots }}" class="form-input">
+                    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_gameserver_default_slots', page_locale()) }}</label>
+                                <input type="number" min="1" name="gameserver_default_slots" value="{{ settings.gameserver_default_slots }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                             </div>
-                            <div class="form-field">
-                                <label class="form-label">{{ t('admin_webinterface_gameserver_min_slots', page_locale()) }}</label>
-                                <input type="number" min="1" name="gameserver_min_slots" value="{{ settings.gameserver_min_slots }}" class="form-input">
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_gameserver_min_slots', page_locale()) }}</label>
+                                <input type="number" min="1" name="gameserver_min_slots" value="{{ settings.gameserver_min_slots }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                             </div>
-                            <div class="form-field">
-                                <label class="form-label">{{ t('admin_webinterface_gameserver_max_slots', page_locale()) }}</label>
-                                <input type="number" min="1" name="gameserver_max_slots" value="{{ settings.gameserver_max_slots }}" class="form-input">
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_gameserver_max_slots', page_locale()) }}</label>
+                                <input type="number" min="1" name="gameserver_max_slots" value="{{ settings.gameserver_max_slots }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                             </div>
-                            <div class="col-span-3 flex flex-wrap gap-6">
-                                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                    <input type="checkbox" name="gameserver_show_port_range" value="1" class="rounded border-slate-300" {{ settings.gameserver_show_port_range ? 'checked' : '' }}>
+                            <div style="grid-column:span 3;display:flex;flex-wrap:wrap;gap:1.5rem;">
+                                <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                                    <input type="checkbox" name="gameserver_show_port_range" value="1" {{ settings.gameserver_show_port_range ? 'checked' : '' }}>
                                     {{ t('admin_webinterface_gameserver_show_port_range', page_locale()) }}
                                 </label>
-                                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                    <input type="checkbox" name="gameserver_allow_start_stop" value="1" class="rounded border-slate-300" {{ settings.gameserver_allow_start_stop ? 'checked' : '' }}>
+                                <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                                    <input type="checkbox" name="gameserver_allow_start_stop" value="1" {{ settings.gameserver_allow_start_stop ? 'checked' : '' }}>
                                     {{ t('admin_webinterface_gameserver_allow_start_stop', page_locale()) }}
                                 </label>
                             </div>
                         </div>
 
-                        <details class="rounded-lg border border-slate-200">
-                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">{{ t('admin_settings_core_section', page_locale()) }}</summary>
-                            <div class="border-t border-slate-200 px-4 py-4">
-                                <div class="form-field">
-                                    <label class="form-label">{{ t('admin_settings_instance_base_dir', page_locale()) }}</label>
-                                    <input
-                                        type="text"
-                                        name="instance_base_dir"
-                                        value="{{ settings.instance_base_dir }}"
-                                        placeholder="/home"
-                                        class="form-input"
-                                    >
-                                    <p class="mt-2 text-xs text-slate-500">{{ t('admin_settings_instance_base_dir_hint', page_locale()) }}</p>
+                        <details style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);">
+                            <summary style="cursor:pointer;padding:0.75rem 1rem;font-size:0.875rem;font-weight:600;color:var(--ng-text);">{{ t('admin_settings_core_section', page_locale()) }}</summary>
+                            <div style="border-top:1px solid var(--ng-border);padding:1rem;">
+                                <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                    <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_instance_base_dir', page_locale()) }}</label>
+                                    <input type="text" name="instance_base_dir" value="{{ settings.instance_base_dir }}" placeholder="/home" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                                    <p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_settings_instance_base_dir_hint', page_locale()) }}</p>
                                 </div>
                             </div>
                         </details>
 
-                        <details class="rounded-lg border border-slate-200">
-                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">{{ t('admin_settings_sftp_section', page_locale()) }}</summary>
-                            <div class="border-t border-slate-200 px-4 py-4">
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_settings_sftp_host', page_locale()) }}</label>
-                                        <input type="text" name="sftp_host" value="{{ settings.sftp_host }}" placeholder="node.example.com" class="form-input">
+                        <details style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);">
+                            <summary style="cursor:pointer;padding:0.75rem 1rem;font-size:0.875rem;font-weight:600;color:var(--ng-text);">{{ t('admin_settings_sftp_section', page_locale()) }}</summary>
+                            <div style="border-top:1px solid var(--ng-border);padding:1rem;">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_sftp_host', page_locale()) }}</label>
+                                        <input type="text" name="sftp_host" value="{{ settings.sftp_host }}" placeholder="node.example.com" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_settings_sftp_port', page_locale()) }}</label>
-                                        <input type="text" name="sftp_port" value="{{ settings.sftp_port }}" placeholder="22" class="form-input">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_sftp_port', page_locale()) }}</label>
+                                        <input type="text" name="sftp_port" value="{{ settings.sftp_port }}" placeholder="22" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_settings_sftp_username', page_locale()) }}</label>
-                                        <input type="text" name="sftp_username" value="{{ settings.sftp_username }}" placeholder="easywi" class="form-input">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_sftp_username', page_locale()) }}</label>
+                                        <input type="text" name="sftp_username" value="{{ settings.sftp_username }}" placeholder="easywi" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_settings_sftp_password', page_locale()) }}</label>
-                                        <input type="password" name="sftp_password" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" class="form-input">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_sftp_password', page_locale()) }}</label>
+                                        <input type="password" name="sftp_password" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
-                                    <div class="form-field col-span-2">
-                                        <label class="form-label">{{ t('admin_settings_sftp_private_key', page_locale()) }}</label>
-                                        <textarea name="sftp_private_key" rows="4" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" class="form-input"></textarea>
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;grid-column:span 2;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_sftp_private_key', page_locale()) }}</label>
+                                        <textarea name="sftp_private_key" rows="4" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;font-family:monospace;resize:vertical;"></textarea>
                                     </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_settings_sftp_private_key_path', page_locale()) }}</label>
-                                        <input type="text" name="sftp_private_key_path" value="{{ settings.sftp_private_key_path }}" placeholder="/home/easywi/.ssh/id_ed25519" class="form-input">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_sftp_private_key_path', page_locale()) }}</label>
+                                        <input type="text" name="sftp_private_key_path" value="{{ settings.sftp_private_key_path }}" placeholder="/home/easywi/.ssh/id_ed25519" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_settings_sftp_private_key_passphrase', page_locale()) }}</label>
-                                        <input type="password" name="sftp_private_key_passphrase" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" class="form-input">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_sftp_private_key_passphrase', page_locale()) }}</label>
+                                        <input type="password" name="sftp_private_key_passphrase" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
                                 </div>
-                                <p class="mt-3 text-xs text-slate-500">{{ t('admin_settings_secret_hint', page_locale()) }}</p>
+                                <p style="margin:0.75rem 0 0;font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_settings_secret_hint', page_locale()) }}</p>
                             </div>
                         </details>
                     </div>
 
                 {# ── Customer ── #}
                 {% elseif activeTab == 'customer' %}
-                    <div class="flex flex-col gap-5">
-                        <div class="flex flex-wrap gap-6">
-                            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                <input type="checkbox" name="customer_data_manager_enabled" value="1" class="rounded border-slate-300" {{ settings.customer_data_manager_enabled ? 'checked' : '' }}>
+                    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+                        <div style="display:flex;flex-wrap:wrap;gap:1.5rem;">
+                            <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                                <input type="checkbox" name="customer_data_manager_enabled" value="1" {{ settings.customer_data_manager_enabled ? 'checked' : '' }}>
                                 {{ t('admin_webinterface_customer_data_manager', page_locale()) }}
                             </label>
-                            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                <input type="checkbox" name="customer_file_push_enabled" value="1" class="rounded border-slate-300" {{ settings.customer_file_push_enabled ? 'checked' : '' }}>
+                            <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                                <input type="checkbox" name="customer_file_push_enabled" value="1" {{ settings.customer_file_push_enabled ? 'checked' : '' }}>
                                 {{ t('admin_webinterface_customer_file_push', page_locale()) }}
                             </label>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="form-field">
-                                <label class="form-label">{{ t('admin_webinterface_customer_console_label', page_locale()) }}</label>
-                                <input type="text" name="customer_console_label" value="{{ settings.customer_console_label }}" placeholder="{{ t('customer_instance_tab_console', page_locale()) }}" class="form-input">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_customer_console_label', page_locale()) }}</label>
+                                <input type="text" name="customer_console_label" value="{{ settings.customer_console_label }}" placeholder="{{ t('customer_instance_tab_console', page_locale()) }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                             </div>
-                            <div class="form-field">
-                                <label class="form-label">{{ t('admin_webinterface_customer_logs_label', page_locale()) }}</label>
-                                <input type="text" name="customer_logs_label" value="{{ settings.customer_logs_label }}" placeholder="{{ t('admin_webinterface_customer_logs_default_label', page_locale()) }}" class="form-input">
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_customer_logs_label', page_locale()) }}</label>
+                                <input type="text" name="customer_logs_label" value="{{ settings.customer_logs_label }}" placeholder="{{ t('admin_webinterface_customer_logs_default_label', page_locale()) }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                             </div>
                         </div>
                     </div>
 
                 {# ── Security ── #}
                 {% elseif activeTab == 'security' %}
-                    <div class="flex flex-col gap-6">
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_security_session_idle', page_locale()) }}</label>
-                            <input type="number" min="5" name="security_session_idle_minutes" value="{{ settings.security_session_idle_minutes }}" class="form-input max-w-xs">
-                            <p class="mt-2 text-xs text-slate-500">{{ t('admin_webinterface_security_session_idle_hint', page_locale()) }}</p>
+                    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                            <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_security_session_idle', page_locale()) }}</label>
+                            <input type="number" min="5" name="security_session_idle_minutes" value="{{ settings.security_session_idle_minutes }}" style="width:12rem;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);">
+                            <p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_webinterface_security_session_idle_hint', page_locale()) }}</p>
                         </div>
 
-                        <details class="rounded-lg border border-slate-200" open>
-                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">{{ t('admin_webinterface_security_2fa_policy', page_locale()) }}</summary>
-                            <div class="border-t border-slate-200 px-4 py-4">
-                                <div class="flex flex-col gap-3 text-sm text-slate-700">
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="checkbox" name="security_2fa_required_global" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_global ? 'checked' : '' }}>
+                        <details style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);" open>
+                            <summary style="cursor:pointer;padding:0.75rem 1rem;font-size:0.875rem;font-weight:600;color:var(--ng-text);">{{ t('admin_webinterface_security_2fa_policy', page_locale()) }}</summary>
+                            <div style="border-top:1px solid var(--ng-border);padding:1rem;">
+                                <div style="display:flex;flex-direction:column;gap:0.75rem;font-size:0.875rem;color:var(--ng-text);">
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                        <input type="checkbox" name="security_2fa_required_global" value="1" {{ settings.security_2fa_required_global ? 'checked' : '' }}>
                                         {{ t('admin_webinterface_security_2fa_global', page_locale()) }}
                                     </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="checkbox" name="security_2fa_required_admin" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_admin ? 'checked' : '' }}>
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                        <input type="checkbox" name="security_2fa_required_admin" value="1" {{ settings.security_2fa_required_admin ? 'checked' : '' }}>
                                         {{ t('admin_webinterface_security_2fa_admin', page_locale()) }}
                                     </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="checkbox" name="security_2fa_required_reseller" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_reseller ? 'checked' : '' }}>
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                        <input type="checkbox" name="security_2fa_required_reseller" value="1" {{ settings.security_2fa_required_reseller ? 'checked' : '' }}>
                                         {{ t('admin_webinterface_security_2fa_reseller', page_locale()) }}
                                     </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="checkbox" name="security_2fa_required_customer" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_customer ? 'checked' : '' }}>
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                        <input type="checkbox" name="security_2fa_required_customer" value="1" {{ settings.security_2fa_required_customer ? 'checked' : '' }}>
                                         {{ t('admin_webinterface_security_2fa_customer', page_locale()) }}
                                     </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="checkbox" name="registration_enabled" value="1" class="rounded border-slate-300" {{ settings.registration_enabled ? 'checked' : '' }}>
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                        <input type="checkbox" name="registration_enabled" value="1" {{ settings.registration_enabled ? 'checked' : '' }}>
                                         {{ t('admin_webinterface_security_registration_public', page_locale()) }}
                                     </label>
                                 </div>
                             </div>
                         </details>
 
-                        <details class="rounded-lg border border-slate-200">
-                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">{{ t('admin_webinterface_security_antiabu_title', page_locale()) }}</summary>
-                            <div class="border-t border-slate-200 px-4 py-4">
-                                <div class="grid grid-cols-2 gap-4">
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_contact ? 'checked' : '' }}> {{ t('admin_webinterface_security_pow_contact', page_locale()) }}</label>
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_registration ? 'checked' : '' }}> {{ t('admin_webinterface_security_pow_registration', page_locale()) }}</label>
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_registration ? 'checked' : '' }}> {{ t('admin_webinterface_security_captcha_registration', page_locale()) }}</label>
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_contact ? 'checked' : '' }}> {{ t('admin_webinterface_security_captcha_contact', page_locale()) }}</label>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_webinterface_security_min_submit_seconds', page_locale()) }}</label>
-                                        <input type="number" min="1" name="anti_abuse_min_submit_seconds" value="{{ settings.anti_abuse_min_submit_seconds }}" class="form-input">
+                        <details style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);">
+                            <summary style="cursor:pointer;padding:0.75rem 1rem;font-size:0.875rem;font-weight:600;color:var(--ng-text);">{{ t('admin_webinterface_security_antiabu_title', page_locale()) }}</summary>
+                            <div style="border-top:1px solid var(--ng-border);padding:1rem;">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;"><input type="checkbox" name="anti_abuse_enable_pow_contact" value="1" {{ settings.anti_abuse_enable_pow_contact ? 'checked' : '' }}> {{ t('admin_webinterface_security_pow_contact', page_locale()) }}</label>
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;"><input type="checkbox" name="anti_abuse_enable_pow_registration" value="1" {{ settings.anti_abuse_enable_pow_registration ? 'checked' : '' }}> {{ t('admin_webinterface_security_pow_registration', page_locale()) }}</label>
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;"><input type="checkbox" name="anti_abuse_enable_captcha_registration" value="1" {{ settings.anti_abuse_enable_captcha_registration ? 'checked' : '' }}> {{ t('admin_webinterface_security_captcha_registration', page_locale()) }}</label>
+                                    <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;"><input type="checkbox" name="anti_abuse_enable_captcha_contact" value="1" {{ settings.anti_abuse_enable_captcha_contact ? 'checked' : '' }}> {{ t('admin_webinterface_security_captcha_contact', page_locale()) }}</label>
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_security_min_submit_seconds', page_locale()) }}</label>
+                                        <input type="number" min="1" name="anti_abuse_min_submit_seconds" value="{{ settings.anti_abuse_min_submit_seconds }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_webinterface_security_pow_difficulty', page_locale()) }}</label>
-                                        <input type="number" min="0" max="6" name="anti_abuse_pow_difficulty" value="{{ settings.anti_abuse_pow_difficulty }}" class="form-input">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_security_pow_difficulty', page_locale()) }}</label>
+                                        <input type="number" min="0" max="6" name="anti_abuse_pow_difficulty" value="{{ settings.anti_abuse_pow_difficulty }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_webinterface_security_daily_ip_threshold', page_locale()) }}</label>
-                                        <input type="number" min="1" name="anti_abuse_daily_ip_limit" value="{{ settings.anti_abuse_daily_ip_limit }}" class="form-input">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_security_daily_ip_threshold', page_locale()) }}</label>
+                                        <input type="number" min="1" name="anti_abuse_daily_ip_limit" value="{{ settings.anti_abuse_daily_ip_limit }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                     </div>
                                 </div>
                             </div>
                         </details>
 
-                        <div class="ng-data-card">
-                            <div class="ng-data-card__header">
+                        <div class="ng-card" style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);">
+                            <div style="padding:1rem;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;">
                                 <div>
-                                    <h2 class="ng-data-card__title">{{ t('admin_webinterface_security_2fa_overview', page_locale()) }}</h2>
-                                    <p class="ng-data-card__sub">{{ t('admin_webinterface_security_2fa_overview_hint', page_locale()) }}</p>
+                                    <h2 style="font-size:0.9375rem;font-weight:600;color:var(--ng-text);margin:0 0 0.25rem;">{{ t('admin_webinterface_security_2fa_overview', page_locale()) }}</h2>
+                                    <p style="font-size:0.8125rem;color:var(--ng-text-muted);margin:0;">{{ t('admin_webinterface_security_2fa_overview_hint', page_locale()) }}</p>
                                 </div>
-                                <div class="ng-data-card__actions">
-                                    <span class="ui-badge ui-badge--primary">{{ twoFactorOverview|length }}</span>
-                                </div>
+                                <span class="ui-badge ui-badge--primary">{{ twoFactorOverview|length }}</span>
                             </div>
-                            <div class="ng-data-card__body--flush">
-                                <div class="cust-ws-table-wrap">
-                                    <table class="cust-table">
-                                        <thead>
+                            <div style="overflow-x:auto;">
+                                <table style="width:100%;border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="background:var(--ng-surface-soft);">
+                                            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:600;color:var(--ng-text-muted);border-bottom:1px solid var(--ng-border);">{{ t('admin_webinterface_security_2fa_user', page_locale()) }}</th>
+                                            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:600;color:var(--ng-text-muted);border-bottom:1px solid var(--ng-border);">{{ t('admin_webinterface_security_2fa_role', page_locale()) }}</th>
+                                            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:600;color:var(--ng-text-muted);border-bottom:1px solid var(--ng-border);">{{ t('admin_webinterface_security_2fa_status', page_locale()) }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for entry in twoFactorOverview %}
                                             <tr>
-                                                <th>{{ t('admin_webinterface_security_2fa_user', page_locale()) }}</th>
-                                                <th>{{ t('admin_webinterface_security_2fa_role', page_locale()) }}</th>
-                                                <th>{{ t('admin_webinterface_security_2fa_status', page_locale()) }}</th>
+                                                <td style="padding:0.625rem 1rem;font-size:0.875rem;color:var(--ng-text);border-bottom:1px solid var(--ng-border);">{{ entry.email }}</td>
+                                                <td style="padding:0.625rem 1rem;font-size:0.875rem;color:var(--ng-text);border-bottom:1px solid var(--ng-border);">{{ entry.type|title }}</td>
+                                                <td style="padding:0.625rem 1rem;font-size:0.875rem;border-bottom:1px solid var(--ng-border);">
+                                                    <span class="ui-badge {{ entry.totpEnabled ? 'ui-badge--success' : 'ui-badge--neutral' }}">
+                                                        {{ entry.totpEnabled ? t('admin_webinterface_security_2fa_enabled', page_locale()) : t('admin_webinterface_security_2fa_disabled', page_locale()) }}
+                                                    </span>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for entry in twoFactorOverview %}
-                                                <tr>
-                                                    <td>{{ entry.email }}</td>
-                                                    <td>{{ entry.type|title }}</td>
-                                                    <td>
-                                                        <span class="ui-badge {{ entry.totpEnabled ? 'ui-badge--success' : 'ui-badge--neutral' }}">
-                                                            {{ entry.totpEnabled ? t('admin_webinterface_security_2fa_enabled', page_locale()) : t('admin_webinterface_security_2fa_disabled', page_locale()) }}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            {% else %}
-                                                <tr>
-                                                    <td colspan="3" class="cust-table__empty">{{ t('admin_webinterface_security_2fa_empty', page_locale()) }}</td>
-                                                </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="3" style="padding:2rem;text-align:center;font-size:0.875rem;color:var(--ng-text-muted);">{{ t('admin_webinterface_security_2fa_empty', page_locale()) }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
 
                 {# ── Maintenance ── #}
                 {% elseif activeTab == 'maintenance' %}
-                    <div class="flex flex-col gap-5">
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                            <input type="checkbox" name="cms_maintenance_enabled" value="1" class="rounded border-slate-300" {{ settings.cms_maintenance_enabled ? 'checked' : '' }}>
+                    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+                        <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                            <input type="checkbox" name="cms_maintenance_enabled" value="1" {{ settings.cms_maintenance_enabled ? 'checked' : '' }}>
                             {{ t('admin_webinterface_maintenance_enabled', page_locale()) }}
                         </label>
 
                         <div>
-                            <p class="form-label mb-3">{{ t('admin_webinterface_maintenance_schedule', page_locale()) }}</p>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="form-field">
-                                    <label class="form-label">{{ t('admin_webinterface_maintenance_start', page_locale()) }}</label>
-                                    <input type="datetime-local" name="cms_maintenance_starts_at" value="{{ settings.cms_maintenance_starts_at }}" class="form-input">
+                            <p style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);margin:0 0 0.75rem;">{{ t('admin_webinterface_maintenance_schedule', page_locale()) }}</p>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                                <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                    <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_maintenance_start', page_locale()) }}</label>
+                                    <input type="datetime-local" name="cms_maintenance_starts_at" value="{{ settings.cms_maintenance_starts_at }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                 </div>
-                                <div class="form-field">
-                                    <label class="form-label">{{ t('admin_webinterface_maintenance_end', page_locale()) }}</label>
-                                    <input type="datetime-local" name="cms_maintenance_ends_at" value="{{ settings.cms_maintenance_ends_at }}" class="form-input">
+                                <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                    <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_maintenance_end', page_locale()) }}</label>
+                                    <input type="datetime-local" name="cms_maintenance_ends_at" value="{{ settings.cms_maintenance_ends_at }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                                 </div>
                             </div>
                         </div>
 
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_maintenance_message', page_locale()) }}</label>
-                            <textarea name="cms_maintenance_message" rows="3" class="form-input">{{ settings.cms_maintenance_message }}</textarea>
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                            <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_maintenance_message', page_locale()) }}</label>
+                            <textarea name="cms_maintenance_message" rows="3" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;resize:vertical;">{{ settings.cms_maintenance_message }}</textarea>
                         </div>
 
-                        <div class="form-field">
-                            <label class="form-label">Wartungsmodus Grafik (URL oder /Pfad)</label>
-                            <input type="text" name="cms_maintenance_graphic" value="{{ settings.cms_maintenance_graphic }}" class="form-input" placeholder="/images/maintenance.png">
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                            <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_maintenance_graphic', page_locale()) }}</label>
+                            <input type="text" name="cms_maintenance_graphic" value="{{ settings.cms_maintenance_graphic }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;" placeholder="/images/maintenance.png">
                         </div>
 
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_webinterface_maintenance_allowlist', page_locale()) }}</label>
-                            <textarea name="cms_maintenance_allowlist" rows="3" class="form-input" placeholder="203.0.113.10&#10;198.51.100.0/24">{{ settings.cms_maintenance_allowlist }}</textarea>
-                            <p class="mt-2 text-xs text-slate-500">{{ t('admin_webinterface_maintenance_hint', page_locale()) }}</p>
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                            <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_webinterface_maintenance_allowlist', page_locale()) }}</label>
+                            <textarea name="cms_maintenance_allowlist" rows="3" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;resize:vertical;font-family:monospace;" placeholder="203.0.113.10&#10;198.51.100.0/24">{{ settings.cms_maintenance_allowlist }}</textarea>
+                            <p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_webinterface_maintenance_hint', page_locale()) }}</p>
                         </div>
                     </div>
 
                 {# ── Agent ── #}
                 {% elseif activeTab == 'agent' %}
-                    <div class="flex flex-col gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <h2 class="text-sm font-semibold uppercase text-slate-700">Agent Registration Token</h2>
-                        <p class="text-sm text-slate-700">Status: <span class="ui-badge {{ agentRegistrationTokenSet ? 'ui-badge--success' : 'ui-badge--neutral' }}">{{ agentRegistrationTokenSet ? 'set' : 'not set' }}</span></p>
-                        <p class="text-sm text-slate-700">Masked: <code class="rounded bg-slate-100 px-2 py-1 text-xs font-mono">{{ agentRegistrationTokenMasked }}</code></p>
+                    <div style="display:flex;flex-direction:column;gap:1rem;border:1px solid var(--ng-border);border-radius:var(--ng-radius);background:var(--ng-surface-soft);padding:1rem;">
+                        <h2 style="margin:0;font-size:0.875rem;font-weight:600;text-transform:uppercase;color:var(--ng-text);">{{ t('admin_settings_agent_token_section', page_locale()) }}</h2>
+                        <p style="margin:0;font-size:0.875rem;color:var(--ng-text);">{{ t('admin_settings_agent_token_status', page_locale()) }}: <span class="ui-badge {{ agentRegistrationTokenSet ? 'ui-badge--success' : 'ui-badge--neutral' }}">{{ agentRegistrationTokenSet ? t('admin_settings_agent_token_set', page_locale()) : t('admin_settings_agent_token_not_set', page_locale()) }}</span></p>
+                        <p style="margin:0;font-size:0.875rem;color:var(--ng-text);">{{ t('admin_settings_agent_token_masked', page_locale()) }}: <code style="border-radius:4px;background:var(--ng-border);padding:0.1rem 0.5rem;font-size:0.75rem;font-family:monospace;">{{ agentRegistrationTokenMasked }}</code></p>
                         <div>
-                            <button type="submit" formaction="{{ path('admin_settings_agent_token_rotate') }}" formmethod="post" class="ui-button ui-button--warning">Rotate token</button>
+                            <button type="submit" formaction="{{ path('admin_settings_agent_token_rotate') }}" formmethod="post" class="ui-button ui-button--warning">{{ t('admin_settings_agent_token_rotate', page_locale()) }}</button>
                         </div>
-                        <p class="text-xs text-slate-500">After rotation, existing agents using the old token for new registrations will fail immediately.</p>
+                        <p style="margin:0;font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_settings_agent_token_rotate_hint', page_locale()) }}</p>
                     </div>
+
+                {# ── E-Mail Vorlagen ── #}
+                {% elseif activeTab == 'mail_templates' %}
+                    {# Header #}
+                    <div style="margin-bottom:1.5rem;">
+                        <h2 style="font-size:1.125rem;font-weight:700;color:var(--ng-text);margin:0 0 0.375rem;">{{ t('admin_settings_mail_templates_title', page_locale()) }}</h2>
+                        <p style="font-size:0.875rem;color:var(--ng-text-muted);margin:0;">{{ t('admin_settings_mail_templates_intro', page_locale()) }}</p>
+                    </div>
+
+                    {# Language selector #}
+                    {% set activeLang = app.request.query.get('lang', 'de') %}
+                    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;">
+                        <a href="{{ path('admin_settings', {tab: 'mail_templates', lang: 'de'}) }}" style="border-radius:999px;padding:0.375rem 1rem;font-size:0.75rem;font-weight:600;text-decoration:none;{% if activeLang == 'de' %}background:var(--ng-primary-soft);color:var(--ng-primary);border:1px solid var(--ng-primary);{% else %}background:var(--ng-surface-soft);color:var(--ng-text-muted);border:1px solid var(--ng-border);{% endif %}">🇩🇪 Deutsch</a>
+                        <a href="{{ path('admin_settings', {tab: 'mail_templates', lang: 'en'}) }}" style="border-radius:999px;padding:0.375rem 1rem;font-size:0.75rem;font-weight:600;text-decoration:none;{% if activeLang == 'en' %}background:var(--ng-primary-soft);color:var(--ng-primary);border:1px solid var(--ng-primary);{% else %}background:var(--ng-surface-soft);color:var(--ng-text-muted);border:1px solid var(--ng-border);{% endif %}">🇬🇧 English</a>
+                    </div>
+
+                    {# Template definitions #}
+                    {% set templateDefs = {
+                        'account_created': { label: t('admin_mail_tpl_account_created_label', page_locale()), desc: t('admin_mail_tpl_account_created_desc', page_locale()) },
+                        'contact_message': { label: t('admin_mail_tpl_contact_message_label', page_locale()), desc: t('admin_mail_tpl_contact_message_desc', page_locale()) },
+                        'gameserver_ready': { label: t('admin_mail_tpl_gameserver_ready_label', page_locale()), desc: t('admin_mail_tpl_gameserver_ready_desc', page_locale()) },
+                        'invoice_paid': { label: t('admin_mail_tpl_invoice_paid_label', page_locale()), desc: t('admin_mail_tpl_invoice_paid_desc', page_locale()) },
+                        'password_reset': { label: t('admin_mail_tpl_password_reset_label', page_locale()), desc: t('admin_mail_tpl_password_reset_desc', page_locale()) },
+                        'server_created': { label: t('admin_mail_tpl_server_created_label', page_locale()), desc: t('admin_mail_tpl_server_created_desc', page_locale()) },
+                        'voiceserver_ready': { label: t('admin_mail_tpl_voiceserver_ready_label', page_locale()), desc: t('admin_mail_tpl_voiceserver_ready_desc', page_locale()) },
+                        'webspace_ready': { label: t('admin_mail_tpl_webspace_ready_label', page_locale()), desc: t('admin_mail_tpl_webspace_ready_desc', page_locale()) }
+                    } %}
+
+                    {# Template cards grid #}
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:2rem;">
+                        {% for tplKey, tplDef in templateDefs %}
+                            <div style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);background:var(--ng-surface);overflow:hidden;">
+                                <div style="padding:1rem;border-bottom:1px solid var(--ng-border);display:flex;align-items:flex-start;justify-content:space-between;gap:0.75rem;">
+                                    <div>
+                                        <div style="font-weight:600;font-size:0.9rem;color:var(--ng-text);margin-bottom:0.25rem;">{{ tplDef.label }}</div>
+                                        <div style="font-size:0.75rem;color:var(--ng-text-muted);">{{ tplDef.desc }}</div>
+                                    </div>
+                                    <span style="background:var(--ng-primary-soft);color:var(--ng-primary);border-radius:999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;white-space:nowrap;">{{ activeLang|upper }}</span>
+                                </div>
+                                <div style="padding:0.75rem 1rem;">
+                                    <div style="font-size:0.72rem;font-family:monospace;color:var(--ng-text-muted);margin-bottom:0.75rem;">{{ tplKey }}</div>
+                                    <details>
+                                        <summary style="cursor:pointer;font-size:0.8125rem;font-weight:500;color:var(--ng-primary);list-style:none;display:inline-flex;align-items:center;gap:0.375rem;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10h-.5a.499.499 0 0 1-.175-.032l-.179.178a.5.5 0 0 0-.11.168l-2 5a.5.5 0 0 0 .65.65l5-2a.5.5 0 0 0 .168-.11l.178-.178z"/></svg>
+                                            {{ t('admin_settings_mail_tpl_edit', page_locale()) }}
+                                        </summary>
+                                        <div style="margin-top:0.75rem;">
+                                            <form method="post" action="/admin/settings/mail-templates/{{ activeLang }}/{{ tplKey }}">
+                                                <input type="hidden" name="_token" value="{{ csrf_token('mail_template_' ~ tplKey) }}">
+                                                <textarea name="content" rows="8" placeholder="HTML-Inhalt der Vorlage…" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.8125rem;font-family:monospace;background:var(--ng-surface-soft);color:var(--ng-text);box-sizing:border-box;resize:vertical;"></textarea>
+                                                <p style="font-size:0.72rem;color:var(--ng-text-muted);margin:0.375rem 0 0.75rem;">{{ t('admin_settings_mail_tpl_backend_hint', page_locale()) }}</p>
+                                                <button type="submit" class="ui-button ui-button--primary" style="font-size:0.8125rem;padding:0.375rem 0.875rem;">{{ t('admin_settings_mail_tpl_save', page_locale()) }}</button>
+                                            </form>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    {# New template section #}
+                    <div style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);background:var(--ng-surface);overflow:hidden;">
+                        <div style="padding:1rem;border-bottom:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                            <h3 style="margin:0 0 0.25rem;font-size:0.9375rem;font-weight:600;color:var(--ng-text);">{{ t('admin_settings_mail_tpl_new_title', page_locale()) }}</h3>
+                            <p style="margin:0;font-size:0.8125rem;color:var(--ng-text-muted);">{{ t('admin_settings_mail_tpl_new_intro', page_locale()) }}</p>
+                        </div>
+                        <div style="padding:1.25rem;">
+                            <form method="post" action="/admin/settings/mail-templates/create" style="display:flex;flex-direction:column;gap:1rem;">
+                                <input type="hidden" name="_token" value="{{ csrf_token('mail_template_create') }}">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">Template-Key (Slug)</label>
+                                        <input type="text" name="key" placeholder="invoice_reminder" pattern="[a-z0-9_]+" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                                    </div>
+                                    <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                        <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">{{ t('admin_settings_mail_tpl_language', page_locale()) }}</label>
+                                        <select name="locale" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                                            <option value="de">DE – Deutsch</option>
+                                            <option value="en">EN – English</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                    <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">HTML-Inhalt</label>
+                                    <textarea name="content" rows="10" placeholder="<!DOCTYPE html>…" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.8125rem;font-family:monospace;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;resize:vertical;"></textarea>
+                                </div>
+                                <div>
+                                    <button type="submit" class="ui-button ui-button--primary">Vorlage erstellen</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
                 {% endif %}
 
-                <div class="mt-6 flex flex-wrap items-center gap-3">
-                    <button type="submit" class="ui-button ui-button--primary">{{ t('admin_settings_save', page_locale()) }}</button>
-                    <a href="/admin" class="ui-button ui-button--ghost">{{ t('admin_settings_back', page_locale()) }}</a>
-                </div>
+                {% if activeTab != 'mail_templates' %}
+                    <div style="margin-top:1.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem;">
+                        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_settings_save', page_locale()) }}</button>
+                        <a href="/admin" class="ui-button ui-button--ghost">{{ t('admin_settings_back', page_locale()) }}</a>
+                    </div>
+                {% endif %}
             </form>
 
         </div>

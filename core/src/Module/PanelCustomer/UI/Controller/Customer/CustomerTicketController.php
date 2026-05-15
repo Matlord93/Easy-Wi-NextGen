@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\MailService;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Ticket;
 use App\Module\Core\Domain\Entity\TicketAttachment;
@@ -62,6 +64,8 @@ final class CustomerTicketController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly NotificationService $notificationService,
+        private readonly MailService $mailService,
+        private readonly AppSettingsService $appSettingsService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
     ) {
@@ -164,6 +168,23 @@ final class CustomerTicketController
         );
         $this->entityManager->flush();
 
+        $ticketContext = $this->buildTicketMailContext($ticket, $message->getBody());
+        $this->mailService->sendTemplate(
+            $actor->getEmail(),
+            'ticket_opened',
+            $ticketContext,
+            null,
+            true,
+        );
+        $supportEmail = $this->appSettingsService->getSupportEmail() ?? $this->appSettingsService->getMailFromAddress();
+        $this->mailService->sendTemplate(
+            $supportEmail,
+            'ticket_opened_admin',
+            $ticketContext,
+            null,
+            true,
+        );
+
         $response = new Response($this->twig->render('customer/tickets/_form.html.twig', [
             'form' => $this->buildFormContext(),
         ]));
@@ -234,6 +255,24 @@ final class CustomerTicketController
             '/admin/tickets',
         );
         $this->entityManager->flush();
+
+        $supportEmail = $this->appSettingsService->getSupportEmail() ?? $this->appSettingsService->getMailFromAddress();
+        $this->mailService->sendTemplate(
+            $supportEmail,
+            'ticket_reply_admin',
+            [
+                'ticket_id'      => $ticket->getId(),
+                'ticket_subject' => $ticket->getSubject(),
+                'ticket_status'  => ucfirst(strtolower($ticket->getStatus()->value)),
+                'customer_name'  => $actor->getName() ?? $actor->getEmail(),
+                'customer_email' => $actor->getEmail(),
+                'reply_message'  => $messageBody,
+                'replied_at'     => $message->getCreatedAt()->format('d.m.Y H:i'),
+                'ticket_url'     => '/admin/tickets/' . $ticket->getId(),
+            ],
+            null,
+            true,
+        );
 
         return new Response($this->twig->render('customer/tickets/_messages.html.twig', [
             'ticket' => $this->normalizeTicket($ticket),
@@ -611,6 +650,26 @@ final class CustomerTicketController
             TicketPriority::Normal->value => 'border-sky-200 bg-sky-50 text-sky-700',
             TicketPriority::High->value => 'border-orange-200 bg-orange-50 text-orange-700',
             TicketPriority::Urgent->value => 'border-rose-200 bg-rose-50 text-rose-700',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildTicketMailContext(Ticket $ticket, string $messageBody): array
+    {
+        $customer = $ticket->getCustomer();
+
+        return [
+            'ticket_id'         => $ticket->getId(),
+            'ticket_subject'    => $ticket->getSubject(),
+            'ticket_category'   => ucfirst(strtolower($ticket->getCategory()->value)),
+            'ticket_priority'   => ucfirst(strtolower($ticket->getPriority()->value)),
+            'ticket_created_at' => $ticket->getCreatedAt()->format('d.m.Y H:i'),
+            'ticket_message'    => $messageBody,
+            'ticket_url'        => '/tickets/' . $ticket->getId(),
+            'customer_name'     => $customer->getName() ?? $customer->getEmail(),
+            'customer_email'    => $customer->getEmail(),
         ];
     }
 }

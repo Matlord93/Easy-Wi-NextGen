@@ -38,12 +38,12 @@ final class CoreReleaseChecker
         return $this->resolver()->normalizeChannel($this->channel);
     }
 
-    public function getLatestVersion(): ?string
+    public function getLatestVersion(bool $force = false): ?string
     {
-        return $this->getLatestVersionForChannel($this->channel);
+        return $this->getLatestVersionForChannel($this->channel, $force);
     }
 
-    public function getLatestVersionForChannel(string $channel): ?string
+    public function getLatestVersionForChannel(string $channel, bool $force = false): ?string
     {
         if (trim($this->repository) === '') {
             return null;
@@ -53,11 +53,11 @@ final class CoreReleaseChecker
         $cacheKey = sprintf('%s.%s.%s', self::CACHE_KEY, sha1($this->repository), $channel);
         $item = $this->cache->getItem($cacheKey);
         $cached = $item->get();
-        if ($item->isHit() && is_string($cached) && $cached !== '') {
+        if (!$force && $item->isHit() && is_string($cached) && $cached !== '') {
             return $cached;
         }
 
-        $latest = $this->resolver()->getLatestVersion($this->repository, $channel);
+        $latest = $this->resolver()->getLatestVersion($this->repository, $channel, 'core', $force);
         if ($latest !== null) {
             $item->set($latest);
             $item->expiresAfter($this->cacheTtlSeconds);
@@ -68,7 +68,7 @@ final class CoreReleaseChecker
     }
 
     /** @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null */
-    public function getReleasePackageForChannel(string $channel, ?string $targetVersion = null): ?array
+    public function getReleasePackageForChannel(string $channel, ?string $targetVersion = null, bool $force = false): ?array
     {
         if (trim($this->repository) === '') {
             return null;
@@ -81,10 +81,12 @@ final class CoreReleaseChecker
             self::CHECKSUMS_ASSET,
             self::SIGNATURE_ASSET,
             $targetVersion,
+            'core',
+            $force,
         );
     }
 
-    public function describeReleasePackageSelectionFailure(string $channel, ?string $targetVersion = null): string
+    public function describeReleasePackageSelectionFailure(string $channel, ?string $targetVersion = null, bool $force = false): string
     {
         if (trim($this->repository) === '') {
             return 'Kein GitHub Repository für Core-Updates konfiguriert.';
@@ -96,6 +98,8 @@ final class CoreReleaseChecker
             self::coreAssetMatcher(),
             self::CHECKSUMS_ASSET,
             $targetVersion,
+            'core',
+            $force,
         );
     }
 
@@ -163,6 +167,12 @@ final class CoreReleaseChecker
         }
 
         return preg_match('/(?:^|[-_.])(update-agent|agent|patch|delta)(?:$|[-_.])/', $lower) === 1;
+    }
+
+    /** @return array<string, mixed> */
+    public function getCacheStatus(?string $channel = null): array
+    {
+        return $this->resolver()->getCacheStatus($this->repository, $channel ?? $this->channel, 'core');
     }
 
     /** @return array<string, string> */

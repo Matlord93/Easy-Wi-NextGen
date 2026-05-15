@@ -22,6 +22,9 @@
 {% set moduleMail = module_enabled('mail') %}
 {% set moduleDns = module_enabled('dns') %}
 {% set moduleBilling = module_enabled('billing') %}
+{% set moduleUnifi = module_enabled('unifi') %}
+{% set moduleCms = module_enabled('cms') %}
+{% set moduleShop = module_enabled('shop') %}
 
 {# Profile summary for topbar #}
 {% set adminUser = current_user() %}
@@ -99,7 +102,7 @@
     { key: 'nodes',            label: t('admin_nav_nodes', page_locale()),           href: path('admin_nodes'),                 iconSvg: icon.server },
     { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()),href: path('admin_agent_bootstrap_tokens'),iconSvg: icon.key },
     { key: 'ddos',             label: t('admin_nav_ddos_policy', page_locale()),     href: path('admin_ddos'),                  iconSvg: icon.ddos },
-    { key: 'unifi',            label: t('admin_nav_unifi', page_locale()),           href: path('admin_unifi_dashboard'),       iconSvg: icon.wifi },
+    moduleUnifi ? { key: 'unifi', label: t('admin_nav_unifi', page_locale()), href: path('admin_unifi_dashboard'), iconSvg: icon.wifi } : null,
     { key: 'backup-system',    label: t('admin_nav_backup_system', page_locale()),   href: path('admin_settings_backups'),      iconSvg: icon.archive }
 ]|filter(v => v) %}
 
@@ -114,12 +117,12 @@
     { key: 'databases', label: t('admin_nav_databases', page_locale()), href: path('admin_databases'), iconSvg: icon.database }
 ]|filter(v => v) %}
 
-{% set shopItems = moduleBilling ? [
+{% set shopItems = moduleShop ? [
     { key: 'shop-categories', label: t('admin_nav_shop_categories', page_locale()), href: path('admin_shop_categories'), iconSvg: icon.tag },
     { key: 'shop-products',   label: t('admin_nav_shop_products', page_locale()),   href: path('admin_shop_products'),   iconSvg: icon.shop }
 ] : [] %}
 
-{% set cmsItems = [
+{% set cmsItems = moduleCms ? [
     { key: 'cms-pages',     label: t('cms_pages_title', page_locale()),       href: path('admin_cms_pages'),       iconSvg: icon.page },
     { key: 'cms-blog',      label: t('cms_blog_nav', page_locale()),          href: path('admin_cms_blog_index'),  iconSvg: icon.newspaper },
     { key: 'cms-events',    label: t('admin_cms_events_label', page_locale()),   href: path('admin_cms_events_index'),iconSvg: icon.calendar },
@@ -129,7 +132,7 @@
     { key: 'cms-forum',     label: t('admin_cms_forum_label', page_locale()),    href: path('admin_cms_forum'),       iconSvg: icon.chat },
     { key: 'cms-contact',   label: t('admin_cms_contact_label', page_locale()),  href: path('admin_cms_contact'),     iconSvg: icon.mail },
     { key: 'cms-settings',  label: t('admin_cms_settings_label', page_locale()), href: path('admin_cms_settings'),    iconSvg: icon.cog }
-] %}
+] : [] %}
 
 {% set domainItems = [
     moduleDns  ? { key: 'dns-records',  label: t('admin_nav_dns_records', page_locale()),  href: path('admin_dns_records'),  iconSvg: icon.dns } : null,

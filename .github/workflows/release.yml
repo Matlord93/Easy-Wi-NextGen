@@ -47,6 +47,8 @@ jobs:
           set -euo pipefail
           mkdir -p dist/release
           VERSION="${GITHUB_REF_NAME#v}"
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          AGENT_LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=${BUILD_DATE}"
 
           tar \
             --exclude='.env' \
@@ -63,8 +65,8 @@ jobs:
             -x 'core/.env' 'core/.env.*' 'core/var/*' 'core/storage/*' 'core/uploads/*' 'core/srv/*' 'core/node_modules/*' 'core/vendor/*')
 
           if [[ -f agent/go.mod ]]; then
-            (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
-            (cd agent && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/release/easywi-agent-windows-amd64.exe ./cmd/agent)
+            (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
+            (cd agent && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-agent-windows-amd64.exe ./cmd/agent)
             (cd dist/release && tar -czf easywi-agent-linux-amd64.tar.gz easywi-agent-linux-amd64)
             (cd dist/release && zip -q easywi-agent-linux-amd64.zip easywi-agent-linux-amd64)
             (cd dist/release && zip -q easywi-agent-windows-amd64.zip easywi-agent-windows-amd64.exe)

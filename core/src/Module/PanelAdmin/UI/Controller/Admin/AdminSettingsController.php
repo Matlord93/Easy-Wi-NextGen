@@ -47,6 +47,8 @@ final class AdminSettingsController
             'agentRegistrationTokenMasked' => $this->settingsService->getAgentRegistrationTokenMasked(),
             'agentRegistrationTokenSet' => $this->settingsService->hasAgentRegistrationTokenInDb(),
             'tokenRotated' => $request->query->getBoolean('tokenRotated'),
+            'mail_template_keys' => $activeTab === 'mail_templates' ? ['account_created', 'contact_message', 'gameserver_ready', 'invoice_paid', 'password_reset', 'server_created', 'voiceserver_ready', 'webspace_ready'] : [],
+            'mail_backend_options' => ['none' => 'Keine (Deaktiviert)', 'local' => 'Lokal (Sendmail)', 'panel' => 'Panel Mail-Server', 'external' => 'Externer SMTP'],
         ]));
     }
 
@@ -231,6 +233,16 @@ final class AdminSettingsController
         return new RedirectResponse(sprintf('/admin/settings?saved=1&tab=%s', $activeTab));
     }
 
+    #[Route(path: '/mail-templates', name: 'admin_settings_mail_templates', methods: ['GET'])]
+    public function mailTemplates(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new RedirectResponse($this->urlGenerator->generate('admin_settings', ['tab' => 'mail_templates']));
+    }
+
     #[Route(path: '/agent-registration-token/rotate', name: 'admin_settings_agent_token_rotate', methods: ['POST'])]
     public function rotateAgentRegistrationToken(Request $request): Response
     {
@@ -258,7 +270,7 @@ final class AdminSettingsController
     private function resolveTab(string $tab): string
     {
         $tab = strtolower(trim($tab));
-        $allowed = ['general', 'email', 'gameserver', 'customer', 'security', 'maintenance', 'agent'];
+        $allowed = ['general', 'email', 'gameserver', 'customer', 'security', 'maintenance', 'agent', 'mail_templates'];
 
         return in_array($tab, $allowed, true) ? $tab : 'general';
     }

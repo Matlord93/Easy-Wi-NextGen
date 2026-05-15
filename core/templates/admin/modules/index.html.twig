@@ -5,64 +5,155 @@
 {% set activeNav = 'modules' %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+{% set totalCount = modules|length %}
+{% set enabledCount = modules|filter(m => m.enabled)|length %}
+{% set disabledCount = totalCount - enabledCount %}
+{% set locale = page_locale() %}
 
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_modules_heading', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_modules_intro', page_locale()) }}</p>
+<div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+    {# Hero Section #}
+    <div class="ng-card tkt-hero" style="padding:2rem;">
+        <div class="tkt-hero__pill" style="display:inline-block;background:var(--ng-primary-soft);color:var(--ng-primary);border-radius:999px;padding:0.25rem 0.75rem;font-size:0.75rem;font-weight:600;margin-bottom:1rem;">{{ t('admin_modules_management', locale) }}</div>
+        <h1 class="tkt-hero__title" style="font-size:1.5rem;font-weight:700;color:var(--ng-text);margin:0 0 0.5rem;">{{ pageTitle }}</h1>
+        <p class="tkt-hero__sub" style="color:var(--ng-text-muted);margin:0 0 1.5rem;">{{ pageSubtitle }}</p>
+
+        {# KPI Strip #}
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+            <div class="tkt-kpi" style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:1rem;text-align:center;">
+                <div style="font-size:2rem;font-weight:700;color:var(--ng-text);">{{ totalCount }}</div>
+                <div style="font-size:0.75rem;color:var(--ng-text-muted);margin-top:0.25rem;">{{ t('admin_modules_kpi_total', locale) }}</div>
+            </div>
+            <div class="tkt-kpi tkt-kpi--resolved" style="border-radius:var(--ng-radius);padding:1rem;text-align:center;">
+                <div style="font-size:2rem;font-weight:700;color:#4ade80;">{{ enabledCount }}</div>
+                <div style="font-size:0.75rem;color:rgba(74,222,128,0.7);margin-top:0.25rem;">{{ t('admin_modules_kpi_enabled', locale) }}</div>
+            </div>
+            <div class="tkt-kpi" style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:1rem;text-align:center;">
+                <div style="font-size:2rem;font-weight:700;color:var(--ng-text-muted);">{{ disabledCount }}</div>
+                <div style="font-size:0.75rem;color:var(--ng-text-muted);margin-top:0.25rem;">{{ t('admin_modules_kpi_disabled', locale) }}</div>
+            </div>
+            <div class="tkt-kpi" style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:1rem;text-align:center;">
+                <div style="font-size:2rem;font-weight:700;color:var(--ng-text-muted);">—</div>
+                <div style="font-size:0.75rem;color:var(--ng-text-muted);margin-top:0.25rem;">&nbsp;</div>
             </div>
         </div>
-        <div class="ng-data-card__body--flush">
-            <div class="cust-ws-table-wrap">
-                <table class="cust-table">
-                    <thead>
-                        <tr>
-                            <th>{{ t('admin_modules_table_module', page_locale()) }}</th>
-                            <th>{{ t('admin_modules_table_version', page_locale()) }}</th>
-                            <th>{{ t('admin_modules_table_status', page_locale()) }}</th>
-                            <th>{{ t('admin_modules_table_last_updated', page_locale()) }}</th>
-                            <th>{{ t('admin_modules_table_action', page_locale()) }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for module in modules %}
-                            <tr>
-                                <td>
-                                    <div class="font-medium text-slate-900">{{ module.label }}</div>
-                                    <div class="text-xs text-slate-500">{{ module.description }}</div>
-                                </td>
-                                <td>{{ module.version }}</td>
-                                <td>
-                                    {% if module.enabled %}
-                                        <span class="ui-badge ui-badge--success">{{ t('admin_modules_enabled', page_locale()) }}</span>
-                                    {% else %}
-                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_modules_disabled', page_locale()) }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ module.updatedAt ? module.updatedAt|date('Y-m-d H:i') : '—' }}</td>
-                                <td>
-                                    <form method="post" action="/admin/modules/{{ module.key }}/toggle">
-                                        <input type="hidden" name="enabled" value="{{ module.enabled ? 'false' : 'true' }}">
-                                        <input type="hidden" name="_token" value="{{ csrf_token('module_toggle_' ~ module.key) }}">
-                                        {% if module.enabled %}
-                                            <button class="ui-button ui-button--danger ui-button--sm">{{ t('disable', page_locale()) }}</button>
-                                        {% else %}
-                                            <button class="ui-button ui-button--primary ui-button--sm">{{ t('enable', page_locale()) }}</button>
-                                        {% endif %}
-                                    </form>
-                                </td>
-                            </tr>
+
+        {# Action bar #}
+        <div style="display:flex;align-items:center;gap:1rem;font-size:0.875rem;color:var(--ng-text-muted);">
+            <span>{{ t('admin_modules_summary', locale)|replace({'%enabled%': enabledCount, '%total%': totalCount}) }}</span>
+        </div>
+    </div>
+
+    {# Module Cards Grid #}
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;">
+        {% for module in modules %}
+            {% set icon_key = module.key %}
+            <div class="ng-card" style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);background:var(--ng-surface);padding:1.25rem;display:flex;flex-direction:column;gap:0.75rem;">
+
+                {# Header: Icon + Label #}
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <div style="width:2.5rem;height:2.5rem;background:var(--ng-primary-soft);border-radius:var(--ng-radius);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        {% if icon_key == 'web' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5H4.847zM8.5 5v2.5h2.99a12.495 12.495 0 0 0-.337-2.5H8.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5H4.51zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5H8.5zM5.145 12c.138.386.295.744.468 1.068.552 1.035 1.218 1.65 1.887 1.855V12H5.145zm.182 2.472a6.696 6.696 0 0 1-.597-.933A9.268 9.268 0 0 1 4.09 12H2.255a7.024 7.024 0 0 0 3.072 2.472zM3.82 11a13.652 13.652 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5H3.82zm6.853 3.472A7.024 7.024 0 0 0 13.745 12H11.91a9.27 9.27 0 0 1-.64 1.539 6.688 6.688 0 0 1-.597.933zM8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855.173-.324.33-.682.468-1.068H8.5zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.65 13.65 0 0 1-.312 2.5zm2.802-3.5a6.959 6.959 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5h2.49zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7.024 7.024 0 0 0-3.072-2.472c.218.284.418.598.597.933zM10.855 4a7.966 7.966 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4h2.355z"/>
+                            </svg>
+                        {% elseif icon_key == 'mail' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/>
+                            </svg>
+                        {% elseif icon_key == 'dns' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M6.5 1A1.5 1.5 0 0 0 5 2.5V3H1.5A1.5 1.5 0 0 0 0 4.5v1.384l7.614 2.03a1.5 1.5 0 0 0 .772 0L16 5.884V4.5A1.5 1.5 0 0 0 14.5 3H11v-.5A1.5 1.5 0 0 0 9.5 1h-3zm0 1h3a.5.5 0 0 1 .5.5V3H6v-.5a.5.5 0 0 1 .5-.5z"/>
+                                <path d="M0 12.5A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5V6.85L8.129 8.947a.5.5 0 0 1-.258 0L0 6.85v5.65z"/>
+                            </svg>
+                        {% elseif icon_key == 'game' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/>
+                                <path d="M3.051 3.26a.5.5 0 0 1 .354-.613l1.932-.518a.5.5 0 0 1 .62.39c.655-.079 1.35-.117 2.043-.117.72 0 1.443.041 2.12.126a.5.5 0 0 1 .622-.399l1.932.518a.5.5 0 0 1 .306.729c.14.09.266.19.373.297.408.408.78 1.05 1.095 1.772.32.733.599 1.591.805 2.466.206.875.34 1.78.364 2.606.024.816-.059 1.602-.328 2.21a1.42 1.42 0 0 1-1.445.83c-.636-.067-1.115-.394-1.513-.773-.245-.232-.496-.526-.739-.808-.126-.148-.25-.292-.368-.423-.728-.804-1.597-1.527-3.224-1.527-1.627 0-2.496.723-3.224 1.527-.118.131-.242.275-.368.423-.243.282-.494.576-.739.808-.398.379-.877.706-1.513.773a1.42 1.42 0 0 1-1.445-.83c-.27-.608-.352-1.394-.329-2.21.024-.826.16-1.73.365-2.606.206-.875.486-1.733.805-2.466.315-.722.687-1.364 1.094-1.772a2.34 2.34 0 0 1 .433-.336 .5.5 0 0 1-.028-.079zm2.036.412c-.877.185-1.469.443-1.733.708-.276.276-.587.783-.885 1.465a13.748 13.748 0 0 0-.748 2.295 12.351 12.351 0 0 0-.339 2.406c-.022.755.062 1.368.243 1.776a.42.42 0 0 0 .426.24c.327-.034.61-.199.929-.502.212-.202.4-.423.615-.674.133-.156.276-.323.44-.504C4.861 9.969 5.978 9.027 8 9.027s3.139.942 3.965 1.855c.164.181.307.348.44.504.214.251.403.472.615.674.318.303.601.468.929.503a.42.42 0 0 0 .426-.241c.18-.408.265-1.02.243-1.776a12.354 12.354 0 0 0-.339-2.406 13.753 13.753 0 0 0-.748-2.295c-.298-.682-.609-1.19-.885-1.465-.264-.265-.856-.523-1.733-.708-.877-.184-2.354-.295-3.913-.295-1.559 0-3.036.111-3.913.295z"/>
+                            </svg>
+                        {% elseif icon_key == 'sinusbot' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M9 13c0 1.105-1.12 2-2.5 2S4 14.105 4 13s1.12-2 2.5-2 2.5.895 2.5 2z"/>
+                                <path fill-rule="evenodd" d="M9 3v10H8V3h1z"/>
+                                <path d="M8 2.82a1 1 0 0 1 .804-.98l3-.6A1 1 0 0 1 13 2.22V4L8 5V2.82z"/>
+                            </svg>
+                        {% elseif icon_key == 'ts' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M8 1a5 5 0 0 0-5 5v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a6 6 0 1 1 12 0v6a2.5 2.5 0 0 1-2.5 2.5H9.366a1 1 0 0 1-.866.5h-1a1 1 0 1 1 0-2h1a1 1 0 0 1 .866.5H11.5A1.5 1.5 0 0 0 13 12h-1a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1V6a5 5 0 0 0-5-5z"/>
+                            </svg>
+                        {% elseif icon_key == 'ts6' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M8 1a5 5 0 0 0-5 5v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a6 6 0 1 1 12 0v6a2.5 2.5 0 0 1-2.5 2.5H9.366a1 1 0 0 1-.866.5h-1a1 1 0 1 1 0-2h1a1 1 0 0 1 .866.5H11.5A1.5 1.5 0 0 0 13 12h-1a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1V6a5 5 0 0 0-5-5z"/>
+                                <text x="10" y="6" font-size="5" fill="var(--ng-primary)" font-weight="bold">6</text>
+                            </svg>
+                        {% elseif icon_key == 'billing' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v1h14V4a1 1 0 0 0-1-1H2zm13 4H1v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7z"/>
+                                <path d="M2 10a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-1z"/>
+                            </svg>
+                        {% elseif icon_key == 'unifi' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M15.384 6.115a.485.485 0 0 0-.047-.736A12.444 12.444 0 0 0 8 3C5.259 3 2.723 3.882.663 5.379a.485.485 0 0 0-.048.736.518.518 0 0 0 .668.05A11.448 11.448 0 0 1 8 4c2.507 0 4.827.802 6.716 2.164.205.148.49.13.668-.049z"/>
+                                <path d="M13.229 8.271a.482.482 0 0 0-.063-.745A9.455 9.455 0 0 0 8 6c-1.905 0-3.68.56-5.166 1.526a.48.48 0 0 0-.063.745.525.525 0 0 0 .652.065A8.46 8.46 0 0 1 8 7a8.46 8.46 0 0 1 4.576 1.336c.206.132.48.108.653-.065z"/>
+                                <path d="M11.077 10.43a.482.482 0 0 0-.075-.752A6.36 6.36 0 0 0 8 9c-1.089 0-2.114.28-3.002.752a.482.482 0 0 0-.074.752.528.528 0 0 0 .63.084A5.369 5.369 0 0 1 8 10c.868 0 1.69.22 2.447.584a.527.527 0 0 0 .63-.084z"/>
+                                <path d="M8 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+                            </svg>
+                        {% elseif icon_key == 'cms' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M5 4a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm-.5 2.5A.5.5 0 0 1 5 6h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM5 8a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5z"/>
+                                <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm10-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1z"/>
+                            </svg>
+                        {% elseif icon_key == 'shop' %}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5zM3.102 4l1.313 7h8.17l1.313-7H3.102zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                            </svg>
                         {% else %}
-                            <tr>
-                                <td colspan="5" class="cust-table__empty">{{ t('admin_modules_no_modules', page_locale()) }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="var(--ng-primary)" viewBox="0 0 16 16">
+                                <path d="M8 4.143A4.143 4.143 0 1 0 8 12.43 4.143 4.143 0 0 0 8 4.143zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"/>
+                            </svg>
+                        {% endif %}
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:var(--ng-text);font-size:0.9375rem;">{{ module.label }}</div>
+                        <div style="font-size:0.75rem;color:var(--ng-text-muted);">v{{ module.version }}</div>
+                    </div>
+                    <div>
+                        {% if module.enabled %}
+                            <span class="ui-badge" style="background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);border-radius:999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">{{ t('admin_modules_enabled', locale) }}</span>
+                        {% else %}
+                            <span class="ui-badge" style="background:var(--ng-surface-soft);color:var(--ng-text-muted);border:1px solid var(--ng-border);border-radius:999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">{{ t('admin_modules_disabled', locale) }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# Description #}
+                <p style="font-size:0.8125rem;color:var(--ng-text-muted);margin:0;line-height:1.5;">{{ module.description }}</p>
+
+                {# Footer: last updated + toggle #}
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:0.5rem;border-top:1px solid var(--ng-border);">
+                    <span style="font-size:0.72rem;color:var(--ng-text-muted);">
+                        {% if module.updatedAt %}
+                            {{ module.updatedAt|date('d.m.Y H:i') }}
+                        {% else %}
+                            {{ t('admin_modules_never_changed', locale) }}
+                        {% endif %}
+                    </span>
+                    <form method="post" action="/admin/modules/{{ module.key }}/toggle">
+                        <input type="hidden" name="enabled" value="{{ module.enabled ? 'false' : 'true' }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('module_toggle_' ~ module.key) }}">
+                        {% if module.enabled %}
+                            <button class="ui-button ui-button--danger" style="font-size:0.75rem;padding:0.3rem 0.75rem;">{{ t('disable', locale) }}</button>
+                        {% else %}
+                            <button class="ui-button ui-button--primary" style="font-size:0.75rem;padding:0.3rem 0.75rem;">{{ t('enable', locale) }}</button>
+                        {% endif %}
+                    </form>
+                </div>
             </div>
-        </div>
+        {% else %}
+            <div style="grid-column:1/-1;text-align:center;color:var(--ng-text-muted);padding:3rem;">
+                {{ t('admin_modules_no_modules', locale) }}
+            </div>
+        {% endfor %}
     </div>
 
 </div>

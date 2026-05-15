@@ -14,6 +14,7 @@ final class UpdateStatus
         public readonly ?string $error,
         public readonly ?string $assetUrl,
         public readonly ?string $assetSha256 = null,
+        public readonly array $cacheStatus = [],
     ) {
     }
 }

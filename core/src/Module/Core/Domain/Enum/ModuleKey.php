@@ -15,4 +15,7 @@ enum ModuleKey: string
     case Ts6 = 'ts6';
     case TsVirtual = 'ts_virtual';
     case Billing = 'billing';
+    case Unifi = 'unifi';
+    case Cms = 'cms';
+    case Shop = 'shop';
 }

@@ -1,0 +1,58 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Hallo,</p>
+  <p style="margin:0 0 16px 0;">
+    ein Kunde hat auf Ticket <strong>#{{ ticket_id }}</strong> geantwortet und wartet auf deine Rückmeldung.
+  </p>
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 16px 0; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
+    <tr>
+      <td style="padding:16px 20px; background-color:#f9fafb; border-bottom:1px solid #e5e7eb;">
+        <p style="margin:0; font-size:13px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.05em;">Ticket-Info</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 20px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280; width:140px;">Ticket-Nr.</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827; font-weight:600;">#{{ ticket_id }}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280;">Betreff</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827;">{{ ticket_subject }}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280;">Kunde</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827;">{{ customer_name }} ({{ customer_email }})</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; font-size:14px; color:#6b7280;">Status</td>
+            <td style="padding:4px 0; font-size:14px; color:#111827;">{{ ticket_status }}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px 0; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
+    <tr>
+      <td style="padding:16px 20px; background-color:#f9fafb; border-bottom:1px solid #e5e7eb;">
+        <p style="margin:0; font-size:13px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.05em;">Neue Nachricht des Kunden</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 20px; font-size:14px; color:#374151; line-height:1.6;">{{ reply_message|nl2br }}</td>
+    </tr>
+    <tr>
+      <td style="padding:10px 20px; background-color:#f9fafb; border-top:1px solid #e5e7eb; font-size:12px; color:#9ca3af;">
+        Gesendet von {{ customer_name }} &bull; {{ replied_at }}
+      </td>
+    </tr>
+  </table>
+
+  <p style="margin:0; text-align:center;">
+    <a href="{{ ticket_url }}" style="display:inline-block; background-color:#111827; color:#ffffff; text-decoration:none; font-size:14px; font-weight:600; padding:12px 28px; border-radius:8px;">Ticket im Admin-Panel öffnen</a>
+  </p>
+{% endblock %}

@@ -9,6 +9,7 @@ use App\Module\Core\Application\GithubReleaseResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class AgentReleaseCheckerTest extends TestCase
 {
@@ -143,6 +144,98 @@ final class AgentReleaseCheckerTest extends TestCase
         $checker = $this->checker('alpha');
 
         self::assertSame('dev', $checker->getChannel());
+    }
+
+
+    public function testAgentUpdateCheckUsesResolverCache(): void
+    {
+        $requests = 0;
+        $client = new MockHttpClient(function () use (&$requests): MockResponse {
+            ++$requests;
+            return new MockResponse((string) json_encode([[
+                'draft' => false,
+                'prerelease' => false,
+                'tag_name' => 'v9.0.0',
+            ]], JSON_THROW_ON_ERROR));
+        });
+        $checker = new AgentReleaseChecker(
+            new ArrayAdapter(),
+            'Matlord93/Easy-Wi-NextGen',
+            3600,
+            'stable',
+            new GithubReleaseResolver($client, null, new ArrayAdapter(), 3600),
+        );
+
+        self::assertSame('v9.0.0', $checker->getLatestVersionForChannel('stable'));
+        self::assertSame('v9.0.0', $checker->getLatestVersionForChannel('stable'));
+        self::assertSame(1, $requests);
+        self::assertTrue($checker->getCacheStatus('stable')['has_cache']);
+    }
+
+
+    public function testPublicGithubBrowserDownloadUrlDoesNotRequirePanelProxy(): void
+    {
+        $checker = $this->checker('stable');
+
+        self::assertFalse($checker->releaseAssetRequiresPanelProxy([
+            'download_url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.0.0/easywi-agent-linux-amd64',
+            'checksums_url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.0.0/checksums-agent.txt',
+        ]));
+    }
+
+    public function testAuthenticatedGithubApiAssetUrlRequiresPanelProxy(): void
+    {
+        $checker = $this->checker('stable');
+
+        self::assertTrue($checker->releaseAssetRequiresPanelProxy([
+            'download_url' => 'https://api.github.com/repos/Matlord93/Easy-Wi-NextGen/releases/assets/100',
+            'checksums_url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.0.0/checksums-agent.txt',
+        ]));
+    }
+
+    public function testCachedPublicAssetCanStillBeUsedAfterRateLimit(): void
+    {
+        $requests = 0;
+        $reset = time() + 3600;
+        $client = new MockHttpClient(function () use (&$requests, $reset): MockResponse {
+            ++$requests;
+            if ($requests === 1) {
+                return new MockResponse((string) json_encode([[
+                    'draft' => false,
+                    'prerelease' => false,
+                    'tag_name' => 'v10.0.0',
+                    'assets' => [
+                        ['name' => 'easywi-agent-linux-amd64', 'url' => 'https://api.github.com/repos/Matlord93/Easy-Wi-NextGen/releases/assets/100', 'browser_download_url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v10.0.0/easywi-agent-linux-amd64'],
+                        ['name' => 'checksums-agent.txt', 'url' => 'https://api.github.com/repos/Matlord93/Easy-Wi-NextGen/releases/assets/101', 'browser_download_url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v10.0.0/checksums-agent.txt'],
+                    ],
+                ]], JSON_THROW_ON_ERROR));
+            }
+
+            return new MockResponse('{"message":"API rate limit exceeded"}', [
+                'http_code' => 403,
+                'response_headers' => [
+                    'x-ratelimit-remaining: 0',
+                    'x-ratelimit-reset: ' . $reset,
+                ],
+            ]);
+        });
+        $checker = new AgentReleaseChecker(
+            new ArrayAdapter(),
+            'Matlord93/Easy-Wi-NextGen',
+            1,
+            'stable',
+            new GithubReleaseResolver($client, 'secret-token', new ArrayAdapter(), 1),
+        );
+
+        $first = $checker->getReleaseAssetUrlsForChannel('easywi-agent-linux-amd64', 'stable');
+        self::assertIsArray($first);
+        self::assertFalse($checker->releaseAssetRequiresPanelProxy($first));
+        sleep(2);
+        $stale = $checker->getReleaseAssetUrlsForChannel('easywi-agent-linux-amd64', 'stable');
+        self::assertIsArray($stale);
+        self::assertSame('https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v10.0.0/easywi-agent-linux-amd64', $stale['download_url']);
+        self::assertFalse($checker->releaseAssetRequiresPanelProxy($stale));
+        self::assertSame(2, $requests);
     }
 
     private function checker(string $channel): AgentReleaseChecker

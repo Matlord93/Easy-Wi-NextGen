@@ -1,66 +1,91 @@
-<div id="core-update-card" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h2 class="text-lg font-semibold">{{ t('admin_dashboard_core_updates_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('admin_dashboard_core_updates_intro', page_locale()) }}</p>
-        </div>
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
-                <input type="hidden" name="type" value="update">
-                <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.update }}">
-                <button
-                    class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm"
-                    {% if coreUpdate.latestVersion is empty or coreUpdate.updateAvailable is same as(false) %}
-                        disabled
-                    {% endif %}
-                >
-                    {{ t('admin_dashboard_core_updates_action', page_locale()) }}
-                </button>
-            </form>
-            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
-                <input type="hidden" name="type" value="migrate">
-                <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.migrate }}">
-                <button class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
-                    {{ t('admin_dashboard_core_updates_migrate_action', page_locale()) }}
-                </button>
-            </form>
-            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
-                <input type="hidden" name="type" value="both">
-                <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.both }}">
-                <button class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
-                    {{ t('admin_dashboard_core_updates_both_action', page_locale()) }}
-                </button>
-            </form>
+<div id="core-update-card" class="ng-card" style="overflow:hidden;">
+
+    {# ── Card Header ── #}
+    <div style="padding:20px 24px 0;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <div style="width:32px;height:32px;border-radius:10px;background:var(--ng-primary-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <svg style="width:16px;height:16px;color:var(--ng-primary);" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                    </div>
+                    <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--ng-text);">{{ t('admin_dashboard_core_updates_title', page_locale()) }}</h2>
+                </div>
+                <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_updates_intro', page_locale()) }}</p>
+            </div>
+
+            {# Status badge #}
+            <div>
+                {% if coreUpdate.updateAvailable %}
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">
+                        <span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;animation:pulse 2s infinite;"></span>
+                        {{ t('admin_dashboard_core_update_available', page_locale()) }}
+                    </span>
+                {% elseif coreUpdate.updateAvailable is same as(false) %}
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.25);">
+                        <svg style="width:11px;height:11px;" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                        {{ t('admin_dashboard_core_update_up_to_date', page_locale()) }}
+                    </span>
+                {% else %}
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(148,163,184,0.1);color:var(--ng-text-muted);border:1px solid var(--ng-border);">
+                        {{ t('admin_dashboard_core_update_unknown', page_locale()) }}
+                    </span>
+                {% endif %}
+            </div>
         </div>
     </div>
 
-    {# ── Release channel selector ── #}
-    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
-        <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_release_channel', page_locale()) }}</p>
-        <form method="post" hx-post="/admin/updates/core/channel" hx-target="#core-update-card" hx-swap="outerHTML" class="flex flex-wrap items-center gap-3">
+    {# ── Version Info Grid ── #}
+    <div style="padding:16px 24px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+                <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_current_version', page_locale()) }}</p>
+                <p style="margin:0;font-size:18px;font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.currentVersion ?? '—' }}</p>
+            </div>
+            <div style="padding:12px 14px;border-radius:var(--ng-radius);border:1px solid {% if coreUpdate.updateAvailable %}rgba(251,191,36,0.3){% else %}var(--ng-border){% endif %};background:{% if coreUpdate.updateAvailable %}rgba(251,191,36,0.06){% else %}var(--ng-surface-soft){% endif %};">
+                <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_latest_version', page_locale()) }}</p>
+                <p style="margin:0;font-size:18px;font-weight:700;color:{% if coreUpdate.updateAvailable %}#fbbf24{% else %}var(--ng-text){% endif %};font-family:monospace;">{{ coreUpdate.latestVersion ?? '—' }}</p>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+            <div style="padding:10px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+                <p style="margin:0 0 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_current_commit', page_locale()) }}</p>
+                <p style="margin:0;font-size:12px;font-weight:600;color:var(--ng-text);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ coreUpdate.currentCommit ?? '—' }}</p>
+            </div>
+            <div style="padding:10px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+                <p style="margin:0 0 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_current_build', page_locale()) }}</p>
+                <p style="margin:0;font-size:12px;font-weight:600;color:var(--ng-text);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ coreUpdate.currentBuild ?? '—' }}</p>
+            </div>
+        </div>
+    </div>
+
+    {# ── Release Channel ── #}
+    <div style="margin:0 24px;padding:14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+        <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('update_release_channel', page_locale()) }}</p>
+        <form method="post" hx-post="/admin/updates/core/channel" hx-target="#core-update-card" hx-swap="outerHTML" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
             <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.core_channel }}">
             {% for value, label in coreUpdate.channels %}
-                <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                     <input
                         type="radio" name="channel" value="{{ value }}"
                         {% if coreUpdate.channel == value %}checked{% endif %}
                         onchange="this.form.requestSubmit()"
-                        class="accent-indigo-600"
+                        style="accent-color:var(--ng-primary);"
                     >
-                    <span class="font-medium text-slate-700">{{ label }}</span>
+                    <span style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ label }}</span>
                     {% if value == 'stable' %}
-                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">{{ t('update_channel_stable', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);">{{ t('update_channel_stable', page_locale()) }}</span>
                     {% elseif value == 'beta' %}
-                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">{{ t('update_channel_beta', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(245,158,11,0.12);color:#fcd34d;border:1px solid rgba(245,158,11,0.25);">{{ t('update_channel_beta', page_locale()) }}</span>
                     {% elseif value == 'dev' %}
-                        <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-700">{{ t('update_channel_dev', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(56,189,248,0.12);color:#7dd3fc;border:1px solid rgba(56,189,248,0.25);">{{ t('update_channel_dev', page_locale()) }}</span>
                     {% endif %}
                 </label>
             {% endfor %}
         </form>
-        <p class="mt-2 text-xs text-slate-500">
+        <p style="margin:8px 0 0;font-size:11px;color:var(--ng-text-muted);">
             {{ t('update_channel_current_label', page_locale()) }}
-            <span class="font-semibold text-slate-700">{{ coreUpdate.channels[coreUpdate.channel] ?? coreUpdate.channel }}</span>.
+            <span style="font-weight:700;color:var(--ng-text);">{{ coreUpdate.channels[coreUpdate.channel] ?? coreUpdate.channel }}</span>.
             {% if coreUpdate.channel == 'dev' %}
                 {{ t('update_channel_dev_desc', page_locale()) }}
             {% elseif coreUpdate.channel == 'beta' %}
@@ -71,154 +96,187 @@
         </p>
     </div>
 
-    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_current_version', page_locale()) }}</p>
-            <p class="mt-2 text-lg font-semibold text-slate-900">{{ coreUpdate.currentVersion ?? '—' }}</p>
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_latest_version', page_locale()) }}</p>
-            <p class="mt-2 text-lg font-semibold text-slate-900">{{ coreUpdate.latestVersion ?? '—' }}</p>
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_status', page_locale()) }}</p>
-            <p class="mt-2 text-lg font-semibold text-slate-900">
-                {% if coreUpdate.updateAvailable is same as(true) %}
-                    {{ t('admin_dashboard_core_update_available', page_locale()) }}
-                {% elseif coreUpdate.updateAvailable is same as(false) %}
-                    {{ t('admin_dashboard_core_update_up_to_date', page_locale()) }}
-                {% else %}
-                    {{ t('admin_dashboard_core_update_unknown', page_locale()) }}
-                {% endif %}
-            </p>
-        </div>
-    </div>
-
-    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_current_commit', page_locale()) }}</p>
-            <p class="mt-2 font-semibold">{{ coreUpdate.currentCommit ?? '—' }}</p>
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_current_build', page_locale()) }}</p>
-            <p class="mt-2 font-semibold">{{ coreUpdate.currentBuild ?? '—' }}</p>
-        </div>
-    </div>
-
-    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-        <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_migration_dry_run', page_locale()) }}</p>
+    {# ── Migration Status ── #}
+    <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+        <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_migration_dry_run', page_locale()) }}</p>
         {% if coreUpdate.migrationStatus.error %}
-            <p class="mt-2 text-rose-700">{{ t('admin_dashboard_core_migration_error', page_locale()) }}</p>
+            <p style="margin:0;font-size:13px;color:#f87171;">{{ t('admin_dashboard_core_migration_error', page_locale()) }}</p>
         {% else %}
-            <p class="mt-2">{{ t('admin_dashboard_core_migration_pending', page_locale())|replace({'%count%': coreUpdate.migrationStatus.pending}) }}</p>
+            <p style="margin:0;font-size:13px;color:var(--ng-text);">{{ t('admin_dashboard_core_migration_pending', page_locale())|replace({'%count%': coreUpdate.migrationStatus.pending}) }}</p>
         {% endif %}
     </div>
 
-    {# ── Auto-update toggles ── #}
-    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
-            <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_auto_enabled_label', page_locale()) }}</p>
-            <form method="post" hx-post="/admin/updates/webinterface/auto" hx-target="#core-update-card" hx-swap="outerHTML" class="flex items-center gap-3">
-                <label class="relative inline-flex cursor-pointer items-center">
+    {# ── Auto-Update Toggles ── #}
+    <div style="margin:10px 24px 0;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+            <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('update_auto_enabled_label', page_locale()) }}</p>
+            <form method="post" hx-post="/admin/updates/webinterface/auto" hx-target="#core-update-card" hx-swap="outerHTML" style="display:flex;align-items:center;gap:10px;">
+                <label style="position:relative;display:inline-flex;cursor:pointer;align-items:center;">
                     <input
                         type="checkbox" name="enabled" value="1"
                         {% if coreUpdate.autoEnabled %}checked{% endif %}
                         onchange="this.form.requestSubmit()"
-                        class="peer sr-only"
+                        style="position:absolute;opacity:0;width:0;height:0;"
+                        class="peer"
                     >
-                    <div class="peer h-5 w-9 rounded-full bg-slate-300 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full"></div>
+                    <div style="width:36px;height:20px;border-radius:999px;transition:background .2s;background:{% if coreUpdate.autoEnabled %}var(--ng-primary){% else %}var(--ng-border-strong, rgba(148,163,184,0.3)){% endif %};position:relative;">
+                        <span style="position:absolute;top:2px;left:{% if coreUpdate.autoEnabled %}18px{% else %}2px{% endif %};width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></span>
+                    </div>
                 </label>
-                <span class="text-sm text-slate-700">{{ coreUpdate.autoEnabled ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</span>
+                <span style="font-size:13px;color:var(--ng-text);">{{ coreUpdate.autoEnabled ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</span>
             </form>
-            <p class="mt-1 text-xs text-slate-500">{{ t('admin_web_update_auto_hint', page_locale())|replace({'app:update:auto': '<code class="rounded bg-slate-200 px-1">app:update:auto</code>'})|raw }}</p>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_web_update_auto_hint', page_locale())|replace({'app:update:auto': '<code style="border-radius:4px;background:var(--ng-surface);padding:1px 4px;font-family:monospace;">app:update:auto</code>'})|raw }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
-            <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_auto_migrate_label', page_locale()) }}</p>
-            <form method="post" hx-post="/admin/updates/webinterface/auto-migrate" hx-target="#core-update-card" hx-swap="outerHTML" class="flex items-center gap-3">
-                <label class="relative inline-flex cursor-pointer items-center">
+        <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+            <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('update_auto_migrate_label', page_locale()) }}</p>
+            <form method="post" hx-post="/admin/updates/webinterface/auto-migrate" hx-target="#core-update-card" hx-swap="outerHTML" style="display:flex;align-items:center;gap:10px;">
+                <label style="position:relative;display:inline-flex;cursor:pointer;align-items:center;">
                     <input
                         type="checkbox" name="enabled" value="1"
                         {% if coreUpdate.autoMigrate %}checked{% endif %}
                         onchange="this.form.requestSubmit()"
-                        class="peer sr-only"
+                        style="position:absolute;opacity:0;width:0;height:0;"
+                        class="peer"
                     >
-                    <div class="peer h-5 w-9 rounded-full bg-slate-300 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full"></div>
+                    <div style="width:36px;height:20px;border-radius:999px;transition:background .2s;background:{% if coreUpdate.autoMigrate %}var(--ng-primary){% else %}var(--ng-border-strong, rgba(148,163,184,0.3)){% endif %};position:relative;">
+                        <span style="position:absolute;top:2px;left:{% if coreUpdate.autoMigrate %}18px{% else %}2px{% endif %};width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></span>
+                    </div>
                 </label>
-                <span class="text-sm text-slate-700">{{ coreUpdate.autoMigrate ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</span>
+                <span style="font-size:13px;color:var(--ng-text);">{{ coreUpdate.autoMigrate ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</span>
             </form>
-            <p class="mt-1 text-xs text-slate-500">{{ t('admin_updates_auto_run_migrations', page_locale()) }}</p>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_updates_auto_run_migrations', page_locale()) }}</p>
         </div>
     </div>
 
-    {% if coreUpdate.autoEnabled and coreUpdate.notesList is not empty %}
-        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_changes', page_locale()) }}</p>
-            <ul class="mt-2 list-disc space-y-1 pl-5">
-                {% for item in coreUpdate.notesList %}
-                    <li>{{ item }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% elseif coreUpdate.notes %}
-        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_notes', page_locale()) }}</p>
-            <p class="mt-2 whitespace-pre-line">{{ coreUpdate.notes }}</p>
-        </div>
-    {% endif %}
-
+    {# ── Notices / Errors ── #}
     {% if coreUpdate.manifestError %}
-        <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.25);font-size:13px;color:#fca5a5;">
             {{ coreUpdate.manifestError }}
         </div>
     {% endif %}
 
     {% if coreUpdate.notice or coreUpdate.error %}
-        <div class="mt-4 rounded-xl border px-4 py-3 text-sm {{ coreUpdate.error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700' }}">
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);{% if coreUpdate.error %}background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.25);color:#fca5a5;{% else %}background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);color:#4ade80;{% endif %}font-size:13px;">
             {{ coreUpdate.error ?? coreUpdate.notice }}
         </div>
     {% endif %}
 
-    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-        <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_last_job', page_locale()) }}</p>
+    {# ── Update Notes ── #}
+    {% if coreUpdate.autoEnabled and coreUpdate.notesList is not empty %}
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+            <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_update_changes', page_locale()) }}</p>
+            <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
+                {% for item in coreUpdate.notesList %}
+                    <li style="font-size:13px;color:var(--ng-text);">{{ item }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% elseif coreUpdate.notes %}
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+            <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_update_notes', page_locale()) }}</p>
+            <p style="margin:0;font-size:13px;color:var(--ng-text);white-space:pre-line;">{{ coreUpdate.notes }}</p>
+        </div>
+    {% endif %}
+
+    {# ── Last Job ── #}
+    <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+        <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_last_job', page_locale()) }}</p>
         {% if coreUpdate.latestJob %}
-            <div class="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-                <div><span class="font-semibold text-slate-600">ID</span> {{ coreUpdate.latestJob.id }}</div>
-                <div><span class="font-semibold text-slate-600">Status</span> {{ coreUpdate.latestJob.status }}</div>
-                <div><span class="font-semibold text-slate-600">Typ</span> {{ coreUpdate.latestJob.type }}</div>
-                <div><span class="font-semibold text-slate-600">Exit</span> {{ coreUpdate.latestJob.exitCode ?? '—' }}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <div style="font-size:12px;color:var(--ng-text-muted);">ID <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.id }}</span></div>
+                <div style="font-size:12px;color:var(--ng-text-muted);">Status
+                    <span style="font-weight:700;color:{% if coreUpdate.latestJob.status == 'done' %}#4ade80{% elseif coreUpdate.latestJob.status == 'failed' %}#f87171{% else %}var(--ng-text){% endif %};">{{ coreUpdate.latestJob.status }}</span>
+                </div>
+                <div style="font-size:12px;color:var(--ng-text-muted);">Typ <span style="font-weight:700;color:var(--ng-text);">{{ coreUpdate.latestJob.type }}</span></div>
+                <div style="font-size:12px;color:var(--ng-text-muted);">Exit <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.exitCode ?? '—' }}</span></div>
             </div>
         {% else %}
-            <p class="mt-2 text-xs text-slate-600">{{ t('admin_dashboard_core_no_jobs', page_locale()) }}</p>
+            <p style="margin:0;font-size:13px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_no_jobs', page_locale()) }}</p>
         {% endif %}
     </div>
 
-    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-        <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_logs', page_locale()) }}</p>
-        <pre class="mt-2 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700">{{ coreUpdate.logLines|join("\n") }}</pre>
+    {# ── Update Log ── #}
+    <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+        <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_update_logs', page_locale()) }}</p>
+        <pre style="margin:0;max-height:200px;overflow:auto;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface);padding:12px;font-size:11px;color:var(--ng-text);line-height:1.6;">{{ coreUpdate.logLines|join("\n") }}</pre>
     </div>
 
+    {# ── Rollback ── #}
     {% if coreUpdate.backups is not empty %}
-        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_rollback', page_locale()) }}</p>
-            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML" class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+            <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_rollback', page_locale()) }}</p>
+            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
                 <input type="hidden" name="type" value="rollback">
                 <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.rollback }}">
-                <select name="backup_path" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                <select name="backup_path" style="flex:1;min-width:180px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface);color:var(--ng-text);padding:6px 10px;font-size:12px;">
                     {% for backup in coreUpdate.backups %}
                         <option value="{{ backup.path }}">{{ backup.path }}</option>
                     {% endfor %}
                 </select>
-                <button class="btn rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+                <button class="ui-button ui-button--ghost" style="font-size:12px;">
                     {{ t('admin_dashboard_core_rollback_action', page_locale()) }}
                 </button>
             </form>
         </div>
     {% endif %}
 
-    {# ── Cron hint ── #}
-    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-        <p class="text-xs font-semibold uppercase text-slate-500 mb-1">Automatisierung via Cron / Systemd</p>
-        <p class="text-xs text-slate-500 mb-2">{{ t('admin_updates_crontab_instruction', page_locale()) }}</p>
-        <pre class="rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700">{{ coreUpdate.cronCommand }}</pre>
+    {# ── Cron / Automation ── #}
+    <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+        <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_updates_cron_section', page_locale()) }}</p>
+        <p style="margin:0 0 8px;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_updates_crontab_instruction', page_locale()) }}</p>
+        <pre style="margin:0;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface);padding:10px 12px;font-size:11px;color:var(--ng-text);overflow:auto;">{{ coreUpdate.cronCommand }}</pre>
     </div>
+
+
+    {# ── GitHub Cache Status ── #}
+    {% if coreUpdate.cacheStatus is defined and coreUpdate.cacheStatus is not empty %}
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);font-size:12px;color:var(--ng-text-muted);">
+            {% if coreUpdate.cacheStatus.fetched_at is defined and coreUpdate.cacheStatus.fetched_at %}
+                {{ t('admin_updates_cache_last_checked', page_locale()) }}: <strong style="color:var(--ng-text);">{{ coreUpdate.cacheStatus.fetched_at|date('Y-m-d H:i:s') }}</strong>.
+            {% endif %}
+            {% if coreUpdate.cacheStatus.expires_at is defined and coreUpdate.cacheStatus.expires_at %}
+                {{ t('admin_updates_cache_next_check', page_locale()) }}: <strong style="color:var(--ng-text);">{{ coreUpdate.cacheStatus.expires_at|date('Y-m-d H:i:s') }}</strong>.
+            {% endif %}
+            {% if coreUpdate.cacheStatus.rate_limit_reset is defined and coreUpdate.cacheStatus.rate_limit_reset %}
+                <span style="color:#fcd34d;">{{ t('admin_updates_cache_rate_limit', page_locale()) }} {{ coreUpdate.cacheStatus.rate_limit_reset|date('Y-m-d H:i:s') }}.</span>
+            {% elseif coreUpdate.cacheStatus.last_error is defined and coreUpdate.cacheStatus.last_error and coreUpdate.cacheStatus.has_cache is defined and coreUpdate.cacheStatus.has_cache %}
+                <span style="color:#fcd34d;">{{ t('admin_updates_cache_stale', page_locale()) }}</span>
+            {% elseif coreUpdate.cacheStatus.last_error is defined and coreUpdate.cacheStatus.last_error %}
+                <span style="color:#f87171;">{{ t('admin_updates_cache_unavailable', page_locale()) }}</span>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {# ── Action Buttons ── #}
+    <div style="padding:16px 24px 20px;border-top:1px solid var(--ng-border);margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;background:var(--ng-surface-soft);">
+        <button class="ui-button ui-button--ghost" hx-post="/admin/updates/webinterface/check" hx-target="#core-update-card" hx-swap="outerHTML">{{ t('admin_updates_check_now', page_locale()) }}</button>
+        <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
+            <input type="hidden" name="type" value="update">
+            <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.update }}">
+            <button
+                class="ui-button ui-button--primary"
+                {% if coreUpdate.latestVersion is empty or coreUpdate.updateAvailable is same as(false) %}
+                    disabled style="opacity:.45;cursor:not-allowed;"
+                {% endif %}
+            >
+                <svg style="width:13px;height:13px;" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                {{ t('admin_dashboard_core_updates_action', page_locale()) }}
+            </button>
+        </form>
+        <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
+            <input type="hidden" name="type" value="migrate">
+            <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.migrate }}">
+            <button class="ui-button ui-button--ghost">
+                {{ t('admin_dashboard_core_updates_migrate_action', page_locale()) }}
+            </button>
+        </form>
+        <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
+            <input type="hidden" name="type" value="both">
+            <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.both }}">
+            <button class="ui-button ui-button--ghost">
+                {{ t('admin_dashboard_core_updates_both_action', page_locale()) }}
+            </button>
+        </form>
+    </div>
+
 </div>

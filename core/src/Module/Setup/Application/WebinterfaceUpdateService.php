@@ -44,10 +44,10 @@ final class WebinterfaceUpdateService
     ) {
     }
 
-    public function checkForUpdate(): UpdateStatus
+    public function checkForUpdate(bool $force = false): UpdateStatus
     {
         $installedVersion = $this->getInstalledVersion();
-        $manifestResult = $this->fetchManifest();
+        $manifestResult = $this->fetchManifest($force);
         if ($manifestResult['manifest'] === null) {
             return new UpdateStatus(
                 $installedVersion,
@@ -56,6 +56,8 @@ final class WebinterfaceUpdateService
                 null,
                 $manifestResult['error'],
                 null,
+                null,
+                $manifestResult['cache_status'] ?? [],
             );
         }
 
@@ -70,6 +72,7 @@ final class WebinterfaceUpdateService
             null,
             $manifest->assetUrl,
             $manifest->sha256,
+            $manifestResult['cache_status'] ?? [],
         );
     }
 
@@ -327,17 +330,17 @@ final class WebinterfaceUpdateService
         }
     }
 
-    private function fetchManifest(): array
+    private function fetchManifest(bool $force = false): array
     {
-        $manifest = $this->fetchManifestFromGithubRelease();
+        $manifest = $this->fetchManifestFromGithubRelease($force);
         if ($manifest !== null) {
-            return ['manifest' => $manifest, 'error' => null];
+            return ['manifest' => $manifest, 'error' => null, 'cache_status' => $this->githubReleaseCacheStatus()];
         }
 
         if (trim($this->manifestUrl) !== '') {
             $manifest = $this->fetchManifestFromUrl($this->manifestUrl);
             if ($manifest !== null) {
-                return ['manifest' => $manifest, 'error' => null];
+                return ['manifest' => $manifest, 'error' => null, 'cache_status' => $this->githubReleaseCacheStatus()];
             }
         }
 
@@ -351,7 +354,23 @@ final class WebinterfaceUpdateService
             $details,
             $channel,
             implode(', ', CoreReleaseChecker::allowedCoreAssetPatterns()),
-        )];
+        ), 'cache_status' => $this->githubReleaseCacheStatus()];
+    }
+
+    /** @return array<string, mixed> */
+    public function getUpdateCheckCacheStatus(): array
+    {
+        return $this->githubReleaseCacheStatus();
+    }
+
+    /** @return array<string, mixed> */
+    private function githubReleaseCacheStatus(): array
+    {
+        if ($this->coreReleaseChecker === null) {
+            return [];
+        }
+
+        return $this->coreReleaseChecker->getCacheStatus($this->normalizeReleaseChannel($this->settingsService->getCoreChannel()));
     }
 
     private function fetchManifestFromUrl(string $url): ?UpdateManifest
@@ -378,14 +397,14 @@ final class WebinterfaceUpdateService
         return $manifest;
     }
 
-    private function fetchManifestFromGithubRelease(): ?UpdateManifest
+    private function fetchManifestFromGithubRelease(bool $force = false): ?UpdateManifest
     {
         if ($this->coreReleaseChecker === null) {
             return null;
         }
 
         $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
-        $package = $this->coreReleaseChecker->getReleasePackageForChannel($channel);
+        $package = $this->coreReleaseChecker->getReleasePackageForChannel($channel, null, $force);
         if ($package === null) {
             return null;
         }
@@ -798,7 +817,7 @@ final class WebinterfaceUpdateService
             'User-Agent' => 'Easy-Wi-NextGen',
         ];
 
-        $token = $this->githubToken !== null ? trim($this->githubToken) : '';
+        $token = $this->resolveGithubToken();
         $host = parse_url($url, PHP_URL_HOST);
         $hostLower = is_string($host) ? strtolower($host) : '';
         if ($hostLower === 'api.github.com') {
@@ -809,6 +828,16 @@ final class WebinterfaceUpdateService
         }
 
         return $headers;
+    }
+
+    private function resolveGithubToken(): string
+    {
+        $token = $this->githubToken !== null ? trim($this->githubToken) : '';
+        if ($token === '') {
+            $token = trim((string) ($_SERVER['APP_GITHUB_TOKEN'] ?? $_ENV['APP_GITHUB_TOKEN'] ?? $_SERVER['GITHUB_TOKEN'] ?? $_ENV['GITHUB_TOKEN'] ?? ''));
+        }
+
+        return $token;
     }
 
     private function isAllowedManifestCoreAsset(UpdateManifest $manifest): bool

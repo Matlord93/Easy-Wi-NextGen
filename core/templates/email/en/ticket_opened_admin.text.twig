@@ -1,0 +1,26 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hello,
+
+a new support ticket has just been submitted by a customer and is waiting to be handled.
+
+TICKET DETAILS
+--------------
+Ticket No.:  #{{ ticket_id }}
+Subject:     {{ ticket_subject }}
+Category:    {{ ticket_category }}
+Priority:    {{ ticket_priority }}
+Created at:  {{ ticket_created_at }}
+
+CUSTOMER
+--------
+Name:  {{ customer_name }}
+Email: {{ customer_email }}
+
+CUSTOMER'S MESSAGE
+------------------
+{{ ticket_message }}
+
+Open ticket in admin panel: {{ ticket_url }}
+{% endblock %}

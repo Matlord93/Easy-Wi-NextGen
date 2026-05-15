@@ -1,0 +1,17 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hi {{ customer_name|default('there') }},
+
+our support team has replied to your ticket #{{ ticket_id }}. Please read the response below and get back to us if you have any further questions.
+
+TICKET: #{{ ticket_id }} – {{ ticket_subject }}
+REPLY BY {{ replied_by }} ({{ replied_at }})
+{{ '=' * 60 }}
+{{ reply_message }}
+{{ '=' * 60 }}
+
+View ticket & reply: {{ ticket_url }}
+
+If you feel your issue has been resolved, you can close the ticket directly in your panel. Otherwise, just reply and we will be happy to assist you further.
+{% endblock %}

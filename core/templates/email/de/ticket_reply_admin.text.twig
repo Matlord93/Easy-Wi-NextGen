@@ -1,0 +1,21 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hallo,
+
+ein Kunde hat auf Ticket #{{ ticket_id }} geantwortet und wartet auf deine Rückmeldung.
+
+TICKET-INFO
+-----------
+Ticket-Nr.: #{{ ticket_id }}
+Betreff:    {{ ticket_subject }}
+Kunde:      {{ customer_name }} ({{ customer_email }})
+Status:     {{ ticket_status }}
+
+NEUE NACHRICHT DES KUNDEN ({{ replied_at }})
+{{ '=' * 60 }}
+{{ reply_message }}
+{{ '=' * 60 }}
+
+Ticket im Admin-Panel öffnen: {{ ticket_url }}
+{% endblock %}

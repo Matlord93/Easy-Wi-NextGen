@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Module\Core\Application\AgentReleaseChecker;
+use App\Module\Core\Application\ChangelogFetcher;
+use App\Module\Core\Application\CoreReleaseChecker;
 use App\Module\Core\Application\UpdateJobService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -19,6 +22,9 @@ final class UpdateDiagnoseCommand extends Command
 {
     public function __construct(
         private readonly UpdateJobService $updateJobService,
+        private readonly CoreReleaseChecker $coreReleaseChecker,
+        private readonly AgentReleaseChecker $agentReleaseChecker,
+        private readonly ChangelogFetcher $changelogFetcher,
     ) {
         parent::__construct();
     }
@@ -61,6 +67,14 @@ final class UpdateDiagnoseCommand extends Command
             ]);
         }
 
+
+        $io->section('GitHub update-check cache');
+        $io->text(sprintf('APP_UPDATE_CHECK_CACHE_TTL: %s', (string) ($_SERVER['APP_UPDATE_CHECK_CACHE_TTL'] ?? $_ENV['APP_UPDATE_CHECK_CACHE_TTL'] ?? '3600')));
+        $io->text(sprintf('Token vorhanden: %s', $this->tokenPresent() ? 'ja' : 'nein'));
+        $this->renderCacheStatus($io, 'Core', $this->coreReleaseChecker->getCacheStatus());
+        $this->renderCacheStatus($io, 'Agent', $this->agentReleaseChecker->getCacheStatus());
+        $this->renderCacheStatus($io, 'Changelog', $this->changelogFetcher->getCacheStatus());
+
         $io->section('Migrations');
         $migrationStatus = $this->updateJobService->getMigrationStatus();
         if ($migrationStatus['error'] !== null) {
@@ -71,6 +85,41 @@ final class UpdateDiagnoseCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    /** @param array<string, mixed> $status */
+    private function renderCacheStatus(SymfonyStyle $io, string $label, array $status): void
+    {
+        $io->text(sprintf('%s Cache vorhanden: %s', $label, ($status['has_cache'] ?? false) ? 'ja' : 'nein'));
+        $io->listing([
+            sprintf('Repository: %s', (string) ($status['repository'] ?? 'n/a')),
+            sprintf('Channel: %s', (string) ($status['channel'] ?? 'n/a')),
+            sprintf('Check type: %s', (string) ($status['check_type'] ?? 'n/a')),
+            sprintf('Letzter erfolgreicher Fetch: %s', $this->formatTimestamp($status['last_success_at'] ?? $status['fetched_at'] ?? null)),
+            sprintf('Cache gültig bis: %s', $this->formatTimestamp($status['expires_at'] ?? null)),
+            sprintf('Nächster automatischer Check: %s', $this->formatTimestamp($status['next_check_at'] ?? null)),
+            sprintf('Repository visibility: %s', (string) ($status['repository_visibility'] ?? 'unknown')),
+            sprintf('Letzter GitHub HTTP Status: %s', (string) ($status['last_http_status'] ?? 'n/a')),
+            sprintf('Rate-Limit remaining: %s', (string) ($status['rate_limit_remaining'] ?? 'n/a')),
+            sprintf('Rate-Limit-Reset: %s', $this->formatTimestamp($status['rate_limit_reset'] ?? null)),
+            sprintf('Letzter Fehler-Typ: %s', (string) ($status['last_error_type'] ?? 'keiner')),
+            sprintf('Letzte GitHub-Fehlermeldung: %s', (string) ($status['last_error'] ?? 'keine')),
+        ]);
+    }
+
+    private function formatTimestamp(mixed $timestamp): string
+    {
+        if (!is_int($timestamp) && !(is_string($timestamp) && ctype_digit($timestamp))) {
+            return 'n/a';
+        }
+
+        $value = (int) $timestamp;
+        return $value > 0 ? date(DATE_ATOM, $value) : 'n/a';
+    }
+
+    private function tokenPresent(): bool
+    {
+        return trim((string) ($_SERVER['APP_GITHUB_TOKEN'] ?? $_ENV['APP_GITHUB_TOKEN'] ?? $_SERVER['GITHUB_TOKEN'] ?? $_ENV['GITHUB_TOKEN'] ?? '')) !== '';
     }
 
     private function renderDirStatus(SymfonyStyle $io, string $label, string $path): void

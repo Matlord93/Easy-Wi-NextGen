@@ -21,6 +21,8 @@ parameters:
   app.core_update_workflow: '%env(default::APP_CORE_UPDATE_WORKFLOW)%'
   app.core_update_token_default: ''
   app.core_update_token: '%env(default:app.core_update_token_default:APP_GITHUB_TOKEN)%'
+  app.update_check_cache_ttl_default: '3600'
+  app.update_check_cache_ttl: '%env(int:default:app.update_check_cache_ttl_default:APP_UPDATE_CHECK_CACHE_TTL)%'
   app.core_update_install_dir: '%env(default::APP_CORE_UPDATE_INSTALL_DIR)%'
   app.core_update_manifest_url: '%env(default::APP_CORE_UPDATE_MANIFEST_URL)%'
   app.core_update_releases_dir: '%env(APP_CORE_UPDATE_RELEASES_DIR)%'
@@ -155,23 +157,27 @@ services:
   App\Module\Core\Application\GithubReleaseResolver:
     arguments:
       $token: '%app.core_update_token%'
+      $cache: '@cache.app'
+      $cacheTtlSeconds: '%app.update_check_cache_ttl%'
+      $lockDir: '%kernel.project_dir%/var/update-check-locks'
 
   App\Module\Core\Application\AgentReleaseChecker:
     arguments:
       $repository: '%app.agent_release_repository%'
-      $cacheTtlSeconds: '%env(int:APP_AGENT_RELEASE_CACHE_TTL)%'
+      $cacheTtlSeconds: '%app.update_check_cache_ttl%'
       $channel: '%app.agent_release_channel%'
       $releaseResolver: '@App\Module\Core\Application\GithubReleaseResolver'
 
   App\Module\Core\Application\ChangelogFetcher:
     arguments:
       $repository: '%app.changelog_repository%'
-      $cacheTtlSeconds: '%env(int:APP_CHANGELOG_CACHE_TTL)%'
+      $cacheTtlSeconds: '%app.update_check_cache_ttl%'
+      $releaseResolver: '@App\Module\Core\Application\GithubReleaseResolver'
 
   App\Module\Core\Application\CoreReleaseChecker:
     arguments:
       $repository: '%app.core_release_repository%'
-      $cacheTtlSeconds: '%env(int:APP_CORE_RELEASE_CACHE_TTL)%'
+      $cacheTtlSeconds: '%app.update_check_cache_ttl%'
       $channel: '%app.core_release_channel%'
       $releaseResolver: '@App\Module\Core\Application\GithubReleaseResolver'
 

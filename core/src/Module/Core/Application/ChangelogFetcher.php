@@ -17,7 +17,8 @@ final class ChangelogFetcher
     public function __construct(
         CacheItemPoolInterface $cache,
         ?string $repository,
-        int $cacheTtlSeconds = 300,
+        int $cacheTtlSeconds = 3600,
+        private readonly ?GithubReleaseResolver $releaseResolver = null,
     ) {
         $this->cache = $cache;
         $this->repository = $repository ?? '';
@@ -57,30 +58,37 @@ final class ChangelogFetcher
      */
     private function fetchReleases(): array
     {
-        $url = sprintf('https://api.github.com/repos/%s/releases', $this->repository);
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => [
-                    'Accept: application/vnd.github+json',
-                    'User-Agent: Easy-Wi-NextGen',
+        if ($this->releaseResolver !== null) {
+            $payload = $this->releaseResolver->getCachedReleases($this->repository, GithubReleaseResolver::CHANNEL_STABLE, 'changelog');
+            if ($payload === null) {
+                return [];
+            }
+        } else {
+            $url = sprintf('https://api.github.com/repos/%s/releases?per_page=50', $this->repository);
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'header' => [
+                        'Accept: application/vnd.github+json',
+                        'User-Agent: Easy-Wi-NextGen',
+                    ],
+                    'timeout' => 5,
                 ],
-                'timeout' => 5,
-            ],
-        ]);
+            ]);
 
-        $response = @file_get_contents($url, false, $context);
-        if ($response === false) {
-            return [];
-        }
+            $response = @file_get_contents($url, false, $context);
+            if ($response === false) {
+                return [];
+            }
 
-        try {
-            $payload = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return [];
-        }
-        if (!is_array($payload)) {
-            return [];
+            try {
+                $payload = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                return [];
+            }
+            if (!is_array($payload)) {
+                return [];
+            }
         }
 
         $items = [];
@@ -105,6 +113,16 @@ final class ChangelogFetcher
         }
 
         return $items;
+    }
+
+    /** @return array<string, mixed> */
+    public function getCacheStatus(): array
+    {
+        if ($this->releaseResolver === null) {
+            return ['has_cache' => false, 'ttl' => $this->cacheTtlSeconds];
+        }
+
+        return $this->releaseResolver->getCacheStatus($this->repository, GithubReleaseResolver::CHANNEL_STABLE, 'changelog');
     }
 
     private function parsePublishedAt(mixed $value): ?\DateTimeImmutable

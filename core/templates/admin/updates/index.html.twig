@@ -5,24 +5,96 @@
 {% set activeNav = 'updates' %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
-    <div class="ng-layout-2col--equal">
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_updates_web_title', page_locale()) }}</h2>
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+    {# ── Hero ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            {{ t('admin_updates_title', page_locale()) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_updates_title', page_locale()) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_updates_intro', page_locale()) }}</p>
+                    </div>
+
+                    {# ── KPI Strip ── #}
+                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
+
+                        {# Core current version #}
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_dashboard_core_current_version', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ coreUpdate.currentVersion ?? '—' }}</div>
+                        </div>
+
+                        {# Core latest version #}
+                        <div class="tkt-kpi {% if coreUpdate.updateAvailable %}tkt-kpi--open{% elseif coreUpdate.updateAvailable is same as(false) %}tkt-kpi--resolved{% endif %}">
+                            <div class="tkt-kpi__label">{{ t('admin_dashboard_core_latest_version', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ coreUpdate.latestVersion ?? '—' }}</div>
+                        </div>
+
+                        {# Agent updates available #}
+                        <div class="tkt-kpi {% if agentUpdate.updates > 0 %}tkt-kpi--open{% else %}tkt-kpi--resolved{% endif %}">
+                            <div class="tkt-kpi__label">{{ t('admin_nodes_updates_label', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ agentUpdate.updates }}</div>
+                        </div>
+
+                        {# Total nodes #}
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_nodes_total', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ agentUpdate.total }}</div>
+                        </div>
+
+                    </div>
                 </div>
-            </div>
-            <div class="ng-data-card__body">
-                {% include 'admin/dashboard/_web_update_card.html.twig' with { coreUpdate: coreUpdate } %}
             </div>
         </div>
 
-        <div id="agent-update-card" class="ng-data-card">
-            <div class="ng-data-card__body">
-                {% include 'admin/updates/_agent_update_card.html.twig' with { agentUpdate: agentUpdate } %}
+        {# ── Action bar ── #}
+        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);align-items:center;">
+            <div>
+                <p style="margin:0;font-size:13px;font-weight:700;color:var(--ng-text);">
+                    {% if coreUpdate.updateAvailable %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <svg style="width:14px;height:14px;color:#fbbf24;" viewBox="0 0 16 16" fill="currentColor"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z"/><path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm.7-3.509a.905.905 0 1 1 1.8 0L9.1 9.5a.552.552 0 0 1-1.1 0L7.702 7.49z" fill="#fff"/></svg>
+                            {{ t('admin_dashboard_core_update_available', page_locale()) }} — v{{ coreUpdate.latestVersion }}
+                        </span>
+                    {% elseif coreUpdate.updateAvailable is same as(false) %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;color:#4ade80;">
+                            <svg style="width:14px;height:14px;" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                            {{ t('admin_dashboard_core_update_up_to_date', page_locale()) }}
+                        </span>
+                    {% else %}
+                        <span style="color:var(--ng-text-muted);">{{ t('admin_dashboard_core_update_unknown', page_locale()) }}</span>
+                    {% endif %}
+                </p>
+                <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_updates_intro', page_locale()) }}</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <a href="/admin/nodes" class="ui-button ui-button--ghost" style="text-decoration:none;">
+                    {{ t('admin_updates_agents_manage', page_locale()) }}
+                </a>
             </div>
         </div>
+    </section>
+
+    {# ── 2-column grid ── #}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+        {# ── Core / Webinterface Updates ── #}
+        <div id="core-update-card">
+            {% include 'admin/dashboard/_web_update_card.html.twig' with { coreUpdate: coreUpdate } %}
+        </div>
+
+        {# ── Agent Updates ── #}
+        <div id="agent-update-card">
+            {% include 'admin/updates/_agent_update_card.html.twig' with { agentUpdate: agentUpdate } %}
+        </div>
+
     </div>
+
 </div>
 {% endblock %}

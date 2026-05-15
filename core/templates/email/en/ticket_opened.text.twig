@@ -1,0 +1,23 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hi {{ customer_name|default('there') }},
+
+your support ticket has been successfully created. We have received your request and will get back to you as soon as possible.
+
+TICKET DETAILS
+--------------
+Ticket No.:  #{{ ticket_id }}
+Subject:     {{ ticket_subject }}
+Category:    {{ ticket_category }}
+Priority:    {{ ticket_priority }}
+Created at:  {{ ticket_created_at }}
+
+YOUR MESSAGE
+------------
+{{ ticket_message }}
+
+View ticket: {{ ticket_url }}
+
+You can check your ticket status at any time in your customer panel. Once our support team responds, you will receive another email notification.
+{% endblock %}

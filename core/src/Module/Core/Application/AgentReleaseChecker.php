@@ -37,12 +37,12 @@ final class AgentReleaseChecker
         return $this->resolver()->normalizeChannel($this->channel);
     }
 
-    public function getLatestVersion(): ?string
+    public function getLatestVersion(bool $force = false): ?string
     {
-        return $this->getLatestVersionForChannel($this->channel);
+        return $this->getLatestVersionForChannel($this->channel, $force);
     }
 
-    public function getLatestVersionForChannel(string $channel): ?string
+    public function getLatestVersionForChannel(string $channel, bool $force = false): ?string
     {
         if (trim($this->repository) === '') {
             return null;
@@ -52,11 +52,11 @@ final class AgentReleaseChecker
         $cacheKey = sprintf('%s.%s.%s', self::CACHE_KEY, sha1($this->repository), $channel);
         $item = $this->cache->getItem($cacheKey);
         $cached = $item->get();
-        if ($item->isHit() && is_string($cached) && $cached !== '') {
+        if (!$force && $item->isHit() && is_string($cached) && $cached !== '') {
             return $cached;
         }
 
-        $latest = $this->resolver()->getLatestVersion($this->repository, $channel);
+        $latest = $this->resolver()->getLatestVersion($this->repository, $channel, 'agent', $force);
         if ($latest !== null) {
             $item->set($latest);
             $item->expiresAfter($this->cacheTtlSeconds);
@@ -73,7 +73,7 @@ final class AgentReleaseChecker
     }
 
     /** @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null */
-    public function getReleaseAssetUrlsForChannel(string $assetName, string $channel, ?string $targetVersion = null): ?array
+    public function getReleaseAssetUrlsForChannel(string $assetName, string $channel, ?string $targetVersion = null, bool $force = false): ?array
     {
         if (trim($this->repository) === '') {
             return null;
@@ -86,6 +86,8 @@ final class AgentReleaseChecker
             self::CHECKSUMS_ASSET,
             self::SIGNATURE_ASSET,
             $targetVersion,
+            'agent',
+            $force,
         );
     }
 
@@ -99,6 +101,33 @@ final class AgentReleaseChecker
         }
 
         return version_compare($current, $latest, '<');
+    }
+
+    /** @return array<string, mixed> */
+    public function getCacheStatus(?string $channel = null): array
+    {
+        return $this->resolver()->getCacheStatus($this->repository, $channel ?? $this->channel, 'agent');
+    }
+
+    /** @param array<string, mixed> $releaseInfo */
+    public function releaseAssetRequiresPanelProxy(array $releaseInfo): bool
+    {
+        foreach (['download_url', 'checksums_url', 'signature_url'] as $key) {
+            $url = $releaseInfo[$key] ?? null;
+            if (is_string($url) && $url !== '' && self::isAuthenticatedGithubApiAssetUrl($url)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function isAuthenticatedGithubApiAssetUrl(string $url): bool
+    {
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        $path = (string) parse_url($url, PHP_URL_PATH);
+
+        return $host === 'api.github.com' && preg_match('#^/repos/[^/]+/[^/]+/releases/assets/#', $path) === 1;
     }
 
     /** @return array<string, string> */
