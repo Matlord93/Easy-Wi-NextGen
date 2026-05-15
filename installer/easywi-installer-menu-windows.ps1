@@ -602,8 +602,8 @@ function Resolve-WindowsExecutableAsset {
     Ensure-Directory -Path (Split-Path -Parent $TargetPath)
     $tempAssetPath = "$TargetPath.download"
     $assetName = Download-ReleaseAssetFromCandidates -Version $Version -AssetNames @(
-        "$BaseAssetName.exe",
-        "$BaseAssetName.zip"
+        "$BaseAssetName.zip",
+        "$BaseAssetName.exe"
     ) -TargetPath $tempAssetPath
 
     if ($assetName.EndsWith('.zip')) {
@@ -891,7 +891,7 @@ function Run-PanelInstall {
 
 function Run-AgentInstall {
     Write-Host ''
-    Write-Host 'Agent-Setup: Wir laden Agent (und optional easywi-sftp), registrieren den Agenten und installieren Windows-Services.'
+    Write-Host 'Agent-Setup: Wir laden den Agenten, registrieren ihn und installieren den Windows-Service.'
     $agentCoreUrl = Read-Optional -Prompt 'Core API URL' -Default (Get-DefaultValue -Value $CoreUrl -Default $env:EASYWI_CORE_URL)
     if ([string]::IsNullOrWhiteSpace($agentCoreUrl)) { $agentCoreUrl = 'https://api.easywi.example' }
     $agentBootstrapToken = Read-Optional -Prompt 'Bootstrap Token' -Default (Get-DefaultValue -Value $BootstrapToken -Default $env:EASYWI_BOOTSTRAP_TOKEN)
@@ -902,9 +902,8 @@ function Run-AgentInstall {
     $defaultFileBaseDirs = Get-DefaultWindowsFileBaseDirs
     $resolvedFileBaseDirs = Read-Optional -Prompt 'File Base Directories (comma separated)' -Default (Get-DefaultValue -Value $FileBaseDirs -Default $defaultFileBaseDirs)
     $resolvedInstanceBaseDir = Read-Optional -Prompt 'Instance Base Directory' -Default (Get-DefaultValue -Value $InstanceBaseDir -Default 'C:\home')
-    $installEmbeddedSftpAnswer = Read-Optional -Prompt 'Embedded easywi-sftp zusätzlich installieren? (yes/no)' -Default (Get-DefaultValue -Value $InstallEmbeddedSftp -Default 'yes')
-    $resolvedSftpServiceName = Read-Optional -Prompt 'Service-Name (SFTP)' -Default (Get-DefaultValue -Value $SftpServiceName -Default 'EasyWI-SFTP')
-    $resolvedSftpBaseDir = Read-Optional -Prompt 'SFTP Base Directory' -Default (Get-DefaultValue -Value $SftpBaseDir -Default 'C:\ProgramData\EasyWI\sftp')
+    $resolvedSftpServiceName = Get-DefaultValue -Value $SftpServiceName -Default 'EasyWI-SFTP'
+    $resolvedSftpBaseDir = Get-DefaultValue -Value $SftpBaseDir -Default 'C:\ProgramData\EasyWI\sftp'
     $defaultBindIPs = Get-LocalIPv4Addresses
     $resolvedBindIPAddresses = Read-Optional -Prompt 'Bind IP Addresses (comma separated, optional)' -Default (Get-DefaultValue -Value $BindIPAddresses -Default $defaultBindIPs)
 
@@ -919,18 +918,6 @@ function Run-AgentInstall {
     $sftpConfigPath = Join-Path $resolvedSftpBaseDir 'config.json'
 
     Resolve-WindowsExecutableAsset -Version $resolvedAgentVersion -BaseAssetName 'easywi-agent-windows-amd64' -TargetPath $agentPath
-    $enableSftpService = Test-Yes -Value $installEmbeddedSftpAnswer
-    if ($enableSftpService) {
-        try {
-            Resolve-WindowsExecutableAsset -Version $resolvedAgentVersion -BaseAssetName 'easywi-sftp-windows-amd64' -TargetPath $sftpPath
-            $downloadedSftp = $true
-        } catch {
-            $downloadedSftp = $false
-        }
-        if (-not $downloadedSftp) {
-            Write-Log 'easywi-sftp konnte nicht heruntergeladen werden, Agent wird ohne separaten SFTP-Service installiert.'
-        }
-    }
 
     $resolvedBindIPAddresses = ($resolvedBindIPAddresses -split ',') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
     $bindIPAddressesValue = ($resolvedBindIPAddresses -join ',')

@@ -141,6 +141,26 @@ function Assert-Checksum {
     }
 }
 
+
+function Download-FirstReleaseAsset {
+    param(
+        [string]$ReleaseBase,
+        [string[]]$AssetNames,
+        [string]$TargetPath
+    )
+
+    foreach ($candidate in $AssetNames) {
+        try {
+            Invoke-ApiRequest -Uri "$ReleaseBase/$candidate" -OutFile $TargetPath
+            return $candidate
+        } catch {
+            Remove-Item -Path $TargetPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    throw "Keines der erwarteten Release-Assets gefunden: $($AssetNames -join ', ')"
+}
+
 $script:EffectiveProxy = Resolve-EffectiveProxy -ExplicitProxy $ProxyUrl
 if (-not [string]::IsNullOrWhiteSpace($script:EffectiveProxy)) {
     Write-Log "Proxy aktiv: $script:EffectiveProxy"
@@ -154,41 +174,51 @@ if (-not (Test-Path -Path $serviceInstaller)) {
 
 $resolvedVersion = Resolve-ReleaseTag -RequestedVersion $Version
 $cleanVersion = $resolvedVersion.TrimStart('v', 'V')
-$assetName = 'easywi-agent-windows-amd64.exe'
+$assetName = 'easywi-agent-windows-amd64.zip'
 $releaseBase = "https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/$resolvedVersion"
-$assetUrl = "$releaseBase/$assetName"
-$checksumsUrl = "$releaseBase/checksums-agent.txt"
 
 Ensure-Directory -Path $InstallDir
 Ensure-Directory -Path ([System.IO.Path]::GetDirectoryName($ConfigPath))
 
 $agentBinary = Join-Path $InstallDir 'easywi-agent.exe'
-$tempBinary = Join-Path $env:TEMP "easywi-agent-$cleanVersion.exe"
+$tempArchive = Join-Path $env:TEMP "easywi-agent-$cleanVersion.zip"
 $tempChecksums = Join-Path $env:TEMP "easywi-agent-$cleanVersion-checksums.txt"
+$extractDir = Join-Path $env:TEMP ("easywi-agent-$cleanVersion-" + [guid]::NewGuid().ToString('N'))
 
 Write-Log "Lade Agent-Version $resolvedVersion herunter ..."
-Invoke-ApiRequest -Uri $assetUrl -OutFile $tempBinary
-Invoke-ApiRequest -Uri $checksumsUrl -OutFile $tempChecksums
+Download-FirstReleaseAsset -ReleaseBase $releaseBase -AssetNames @($assetName) -TargetPath $tempArchive | Out-Null
+Download-FirstReleaseAsset -ReleaseBase $releaseBase -AssetNames @('checksums.sha256', 'checksums-agent-windows.txt', 'checksums-agent.txt') -TargetPath $tempChecksums | Out-Null
 
 $expectedHash = Get-ExpectedChecksum -ChecksumsPath $tempChecksums -AssetName $assetName
-Assert-Checksum -FilePath $tempBinary -ExpectedHash $expectedHash
+Assert-Checksum -FilePath $tempArchive -ExpectedHash $expectedHash
 
-$replaceBinary = $true
-if (Test-Path -Path $agentBinary) {
-    $existingHash = (Get-FileHash -Path $agentBinary -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($existingHash -eq $expectedHash) {
-        $replaceBinary = $false
-        Write-Log "Binary bereits aktuell ($resolvedVersion); kein Austausch nötig."
+Ensure-Directory -Path $extractDir
+try {
+    Expand-Archive -Path $tempArchive -DestinationPath $extractDir -Force
+    $extractedBinary = Get-ChildItem -Path $extractDir -Recurse -File | Where-Object { $_.Name -eq 'easywi-agent-windows-amd64.exe' -or $_.Name -eq 'easywi-agent.exe' } | Select-Object -First 1
+    if ($null -eq $extractedBinary) {
+        throw 'Keine easywi-agent.exe im Agent-Archiv gefunden.'
     }
-}
 
-if ($replaceBinary) {
-    Move-Item -Path $tempBinary -Destination $agentBinary -Force
-    Write-Log "Binary aktualisiert: $agentBinary"
-} else {
-    Remove-Item -Path $tempBinary -Force -ErrorAction SilentlyContinue
+    $replaceBinary = $true
+    if (Test-Path -Path $agentBinary) {
+        $existingHash = (Get-FileHash -Path $agentBinary -Algorithm SHA256).Hash.ToLowerInvariant()
+        $newHash = (Get-FileHash -Path $extractedBinary.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($existingHash -eq $newHash) {
+            $replaceBinary = $false
+            Write-Log "Binary bereits aktuell ($resolvedVersion); kein Austausch nötig."
+        }
+    }
+
+    if ($replaceBinary) {
+        Move-Item -Path $extractedBinary.FullName -Destination $agentBinary -Force
+        Write-Log "Binary aktualisiert: $agentBinary"
+    }
+} finally {
+    Remove-Item -Path $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $tempArchive -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $tempChecksums -Force -ErrorAction SilentlyContinue
 }
-Remove-Item -Path $tempChecksums -Force -ErrorAction SilentlyContinue
 
 Ensure-PackageTooling
 

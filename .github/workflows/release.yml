@@ -62,6 +62,10 @@ jobs:
           if [[ -f agent/go.mod ]]; then
             (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
             (cd agent && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/release/easywi-agent-windows-amd64.exe ./cmd/agent)
+            (cd dist/release && tar -czf easywi-agent-linux-amd64.tar.gz easywi-agent-linux-amd64)
+            (cd dist/release && zip -q easywi-agent-linux-amd64.zip easywi-agent-linux-amd64)
+            (cd dist/release && zip -q easywi-agent-windows-amd64.zip easywi-agent-windows-amd64.exe)
+            rm -f dist/release/easywi-agent-linux-amd64 dist/release/easywi-agent-windows-amd64.exe
           else
             # TODO: Keep the release structure ready if the agent source is moved out of this repository.
             echo "agent/go.mod not found; skipping agent binaries" >&2
@@ -72,8 +76,8 @@ jobs:
         run: |
           set -euo pipefail
           (cd dist/release && sha256sum easywi-core.tar.gz > checksums-core.txt)
-          if compgen -G "dist/release/easywi-agent-*" > /dev/null; then
-            (cd dist/release && sha256sum easywi-agent-* > checksums-agent.txt)
+          if compgen -G "dist/release/easywi-agent-*.zip" > /dev/null || compgen -G "dist/release/easywi-agent-*.tar.gz" > /dev/null; then
+            (cd dist/release && sha256sum easywi-agent-*.zip easywi-agent-*.tar.gz 2>/dev/null > checksums-agent.txt || sha256sum easywi-agent-*.zip > checksums-agent.txt)
           else
             : > dist/release/checksums-agent.txt
           fi
@@ -96,7 +100,7 @@ jobs:
           rm -f /tmp/easywi-release-key.pem
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           prerelease: ${{ steps.channel.outputs.prerelease }}
           fail_on_unmatched_files: false
@@ -106,14 +110,16 @@ jobs:
             Assets:
             - easywi-core.tar.gz
             - checksums-core.txt
-            - easywi-agent-linux-amd64
-            - easywi-agent-windows-amd64.exe
+            - easywi-agent-linux-amd64.tar.gz
+            - easywi-agent-linux-amd64.zip
+            - easywi-agent-windows-amd64.zip
             - checksums-agent.txt
           files: |
             dist/release/easywi-core.tar.gz
             dist/release/checksums-core.txt
             dist/release/checksums-core.txt.asc
-            dist/release/easywi-agent-linux-amd64
-            dist/release/easywi-agent-windows-amd64.exe
+            dist/release/easywi-agent-linux-amd64.tar.gz
+            dist/release/easywi-agent-linux-amd64.zip
+            dist/release/easywi-agent-windows-amd64.zip
             dist/release/checksums-agent.txt
             dist/release/checksums-agent.txt.asc

@@ -40,6 +40,23 @@ resolve_tag() {
     -H 'User-Agent: easywi-linux-agent-installer' | jq -r '.tag_name'
 }
 
+
+download_first_release_asset() {
+  local releaseBase="$1"
+  local targetPath="$2"
+  shift 2
+
+  local candidate
+  for candidate in "$@"; do
+    if curl_cmd "${releaseBase}/${candidate}" -o "${targetPath}"; then
+      echo "${candidate}"
+      return
+    fi
+  done
+
+  fail "Keines der erwarteten Release-Assets gefunden: $*"
+}
+
 verify_checksum() {
   local checksums="$1"
   local file="$2"
@@ -166,7 +183,10 @@ main() {
   local checksumsFile="$tempDir/checksums.sha256"
 
   log "Lade Agent ${tag} herunter"
-  curl_cmd "${releaseBase}/checksums.sha256" -o "$checksumsFile"
+  download_first_release_asset "$releaseBase" "$checksumsFile" \
+    checksums.sha256 \
+    checksums-agent-linux.txt \
+    checksums-agent.txt >/dev/null
   local downloadedBinary
   downloadedBinary="$(resolve_agent_asset "$releaseBase" "$tempDir" "$checksumsFile" "$archSuffix")"
 

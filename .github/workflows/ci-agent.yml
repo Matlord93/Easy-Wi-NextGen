@@ -103,24 +103,32 @@ jobs:
           GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/${{ matrix.target_os }}/easywi-agent${{ matrix.artifact_suffix }} ./cmd/agent
 
-      - name: Build easywi-sftp
+      - name: Package agent
         shell: bash
         run: |
-          GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/${{ matrix.target_os }}/easywi-sftp${{ matrix.artifact_suffix }} ./cmd/easywi-sftp
+          cd ../dist/${{ matrix.target_os }}
+          if [[ "${{ matrix.target_os }}" == "windows" ]]; then
+            zip -q easywi-agent-windows-amd64.zip easywi-agent.exe
+          else
+            tar -czf easywi-agent-linux-amd64.tar.gz easywi-agent
+            zip -q easywi-agent-linux-amd64.zip easywi-agent
+          fi
 
       - name: Generate checksums
+        shell: bash
         run: |
           cd ../dist/${{ matrix.target_os }}
-          sha256sum easywi-* > checksums-agent-${{ matrix.target_os }}.txt
+          shopt -s nullglob
+          assets=(easywi-agent-*.zip easywi-agent-*.tar.gz)
+          sha256sum "${assets[@]}" > checksums-agent-${{ matrix.target_os }}.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
           name: agent-binaries-${{ matrix.target_os }}
           path: |
-            dist/${{ matrix.target_os }}/easywi-agent*
-            dist/${{ matrix.target_os }}/easywi-sftp*
+            dist/${{ matrix.target_os }}/easywi-agent-*.zip
+            dist/${{ matrix.target_os }}/easywi-agent-*.tar.gz
             dist/${{ matrix.target_os }}/checksums-agent-*.txt
 
   release:
@@ -162,11 +170,11 @@ jobs:
           done
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
-            dist/easywi-agent*
-            dist/easywi-sftp*
+            dist/easywi-agent-*.zip
+            dist/easywi-agent-*.tar.gz
             dist/checksums-agent-*.txt
             dist/checksums-agent-*.txt.asc
           generate_release_notes: false
