@@ -27,6 +27,7 @@ jobs:
     name: agent-ci
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     defaults:
       run:

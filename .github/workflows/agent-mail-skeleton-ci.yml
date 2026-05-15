@@ -18,6 +18,7 @@ jobs:
   lint-test-build:
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     defaults:
       run:

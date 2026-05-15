@@ -19,6 +19,7 @@ jobs:
     name: Build agent + publish release
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     env:
       GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}

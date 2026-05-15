@@ -11,6 +11,7 @@ jobs:
   release:
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     env:
       EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}

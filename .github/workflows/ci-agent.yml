@@ -14,6 +14,7 @@ jobs:
     name: Agent - contract
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     steps:
       - uses: actions/checkout@v6
@@ -58,15 +59,20 @@ jobs:
         working-directory: agent
 
   build:
-    name: Agent - build/test/smoke (${{ matrix.os }})
+    name: Agent - build/test/smoke (${{ matrix.target_os }})
     needs: contract
     runs-on:
       - self-hosted
-      - ${{ matrix.os }}
+      - k8s-autoscaling-runner
+      - linux
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, windows]
+        include:
+          - target_os: linux
+            artifact_suffix: ""
+          - target_os: windows
+            artifact_suffix: .exe
     defaults:
       run:
         working-directory: agent
@@ -95,48 +101,29 @@ jobs:
       - name: Build agent
         shell: bash
         run: |
-          mkdir -p ../dist/${{ matrix.os }}
-          go build -trimpath -ldflags="-s -w" \
-            -o ../dist/${{ matrix.os }}/easywi-agent ./cmd/agent
+          mkdir -p ../dist/${{ matrix.target_os }}
+          GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+            -o ../dist/${{ matrix.target_os }}/easywi-agent${{ matrix.artifact_suffix }} ./cmd/agent
 
       - name: Build easywi-sftp
         shell: bash
         run: |
-          go build -trimpath -ldflags="-s -w" \
-            -o ../dist/${{ matrix.os }}/easywi-sftp ./cmd/easywi-sftp
-
-      - name: Add executable suffix on Windows artifacts
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Move-Item -Path ../dist/${{ matrix.os }}/easywi-agent -Destination ../dist/${{ matrix.os }}/easywi-agent.exe
-          Move-Item -Path ../dist/${{ matrix.os }}/easywi-sftp -Destination ../dist/${{ matrix.os }}/easywi-sftp.exe
+          GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+            -o ../dist/${{ matrix.target_os }}/easywi-sftp${{ matrix.artifact_suffix }} ./cmd/easywi-sftp
 
       - name: Generate checksums
-        if: runner.os != 'Windows'
         run: |
-          cd ../dist/${{ matrix.os }}
-          sha256sum easywi-* > checksums-agent-${{ runner.os }}.txt
-
-      - name: Generate checksums (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem ../dist/${{ matrix.os }}/easywi-* | Sort-Object Name
-          $lines = foreach ($file in $files) {
-            $hash = (Get-FileHash -Algorithm SHA256 -Path $file.FullName).Hash.ToLower()
-            "$hash  $($file.Name)"
-          }
-          Set-Content -Path ../dist/${{ matrix.os }}/checksums-agent-${{ runner.os }}.txt -Value $lines
+          cd ../dist/${{ matrix.target_os }}
+          sha256sum easywi-* > checksums-agent-${{ matrix.target_os }}.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: agent-binaries-${{ matrix.os }}
+          name: agent-binaries-${{ matrix.target_os }}
           path: |
-            dist/${{ matrix.os }}/easywi-agent*
-            dist/${{ matrix.os }}/easywi-sftp*
-            dist/${{ matrix.os }}/checksums-agent-*.txt
+            dist/${{ matrix.target_os }}/easywi-agent*
+            dist/${{ matrix.target_os }}/easywi-sftp*
+            dist/${{ matrix.target_os }}/checksums-agent-*.txt
 
   release:
     name: Agent - publish release assets
@@ -144,6 +131,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     permissions:
       contents: write

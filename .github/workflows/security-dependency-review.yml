@@ -31,6 +31,7 @@ jobs:
     name: security-dependency-review
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     steps:
       - name: Checkout

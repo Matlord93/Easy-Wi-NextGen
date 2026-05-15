@@ -14,6 +14,7 @@ jobs:
     name: Installer - lint
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     steps:
       - uses: actions/checkout@v6
@@ -32,6 +33,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     permissions:
       contents: write

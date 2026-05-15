@@ -1,5 +1,5 @@
 name: Verify PHP environment
-description: Verifies the self-hosted runner already has a usable PHP and Composer installation.
+description: Verifies the self-hosted runner has PHP 8.5+ and Composer 2, bootstrapping Composer when needed.
 inputs:
   required-extensions:
     description: Comma-separated PHP extensions that must be loaded.
@@ -8,7 +8,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Verify PHP 8.5+ and Composer
+    - name: Verify PHP 8.5+ and required extensions
       shell: bash
       env:
         REQUIRED_EXTENSIONS: ${{ inputs.required-extensions }}
@@ -17,11 +17,6 @@ runs:
 
         if ! command -v php >/dev/null 2>&1; then
           echo 'PHP is not installed or is not on PATH. Preinstall PHP 8.5+ on the self-hosted runner.' >&2
-          exit 1
-        fi
-
-        if ! command -v composer >/dev/null 2>&1; then
-          echo 'Composer is not installed or is not on PATH. Preinstall Composer 2 on the self-hosted runner.' >&2
           exit 1
         fi
 
@@ -46,4 +41,80 @@ runs:
         '
 
         php --version
+
+    - name: Install Composer when missing
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if command -v composer >/dev/null 2>&1; then
+          exit 0
+        fi
+
+        install_dir="${RUNNER_TEMP:-/tmp}/composer/bin"
+        setup_file="${RUNNER_TEMP:-/tmp}/composer-setup.php"
+        mkdir -p "${install_dir}"
+
+        expected_checksum="$(php -r "copy('https://composer.github.io/installer.sig', 'php://stdout');")"
+        if [ -z "${expected_checksum}" ]; then
+          echo 'Unable to fetch Composer installer checksum.' >&2
+          exit 1
+        fi
+
+        php -r "copy('https://getcomposer.org/installer', '${setup_file}');"
+        if [ ! -s "${setup_file}" ]; then
+          echo 'Unable to download Composer installer.' >&2
+          exit 1
+        fi
+
+        actual_checksum="$(php -r "echo hash_file('sha384', '${setup_file}');")"
+        if [ "${expected_checksum}" != "${actual_checksum}" ]; then
+          rm -f "${setup_file}"
+          echo 'Composer installer checksum verification failed.' >&2
+          exit 1
+        fi
+
+        php "${setup_file}" --install-dir="${install_dir}" --filename=composer --quiet
+        rm -f "${setup_file}"
+        echo "${install_dir}" >> "${GITHUB_PATH}"
+        echo "${install_dir}" >> "${RUNNER_TEMP:-/tmp}/composer-path"
+
+    - name: Verify Composer 2
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [ -f "${RUNNER_TEMP:-/tmp}/composer-path" ]; then
+          while IFS= read -r composer_path; do
+            PATH="${composer_path}:${PATH}"
+          done < "${RUNNER_TEMP:-/tmp}/composer-path"
+          export PATH
+        fi
+
+        if ! command -v composer >/dev/null 2>&1; then
+          echo 'Composer is not installed or is not on PATH, and automatic Composer installation did not complete.' >&2
+          exit 1
+        fi
+
+        php -r '
+          $output = [];
+          $exitCode = 0;
+          exec("composer --no-ansi --version", $output, $exitCode);
+          if ($exitCode !== 0 || $output === []) {
+              fwrite(STDERR, "Unable to determine Composer version." . PHP_EOL);
+              exit(1);
+          }
+
+          $versionLine = implode("\n", $output);
+          if (!preg_match("/Composer version ([0-9]+(?:\.[0-9]+)*)/", $versionLine, $matches)) {
+              fwrite(STDERR, "Unable to parse Composer version from: " . $versionLine . PHP_EOL);
+              exit(1);
+          }
+
+          if (version_compare($matches[1], "2.0.0", "<")) {
+              fwrite(STDERR, "Composer 2+ is required; found " . $matches[1] . PHP_EOL);
+              exit(1);
+          }
+        '
+
         composer --version

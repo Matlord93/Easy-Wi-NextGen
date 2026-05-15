@@ -12,6 +12,7 @@ jobs:
   release:
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     steps:
       - uses: actions/checkout@v6

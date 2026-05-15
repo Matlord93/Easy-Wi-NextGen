@@ -12,6 +12,7 @@ jobs:
   core:
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     defaults:
       run:
@@ -32,6 +33,7 @@ jobs:
   agent:
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     defaults:
       run:
@@ -50,6 +52,7 @@ jobs:
   contract:
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     steps:
       - uses: actions/checkout@v6

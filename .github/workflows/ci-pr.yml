@@ -15,6 +15,7 @@ jobs:
     name: Core (Symfony) - install + tests
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     defaults:
       run:
@@ -109,14 +110,11 @@ jobs:
           if composer run --list -q | grep -q "test"; then composer run test; else echo "No test script"; fi
 
   agent:
-    name: Agent (Go) - build/test/smoke (${{ matrix.os }})
+    name: Agent (Go) - build/test/smoke (linux)
     runs-on:
       - self-hosted
-      - ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [linux, windows]
+      - k8s-autoscaling-runner
+      - linux
     defaults:
       run:
         working-directory: agent
@@ -139,17 +137,24 @@ jobs:
       - name: Smoke test (agent startup + core connectivity + dummy job)
         run: go test ./cmd/agent -run TestAgentCoreConnectivitySmoke
 
-      - name: Build agent
+      - name: Build agent (Linux target)
         run: go build -trimpath -ldflags="-s -w" ./cmd/agent
 
-      - name: Build easywi-sftp
+      - name: Build easywi-sftp (Linux target)
         run: go build -trimpath -ldflags="-s -w" ./cmd/easywi-sftp
+
+      - name: Build agent (Windows target)
+        run: GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" ./cmd/agent
+
+      - name: Build easywi-sftp (Windows target)
+        run: GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" ./cmd/easywi-sftp
 
 
   smoke-gates:
     name: Smoke Gates (config + smoke script)
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     steps:
       - uses: actions/checkout@v6
@@ -190,6 +195,7 @@ jobs:
     name: Installer - lint
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     steps:
       - uses: actions/checkout@v6

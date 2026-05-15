@@ -16,6 +16,7 @@ jobs:
     if: ${{ github.event.workflow_run.event == 'workflow_dispatch' }}
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     steps:
       - name: Ensure non-root runner user

@@ -34,6 +34,7 @@ jobs:
     name: security-codeql
     runs-on:
       - self-hosted
+      - k8s-autoscaling-runner
       - linux
     strategy:
       fail-fast: false
