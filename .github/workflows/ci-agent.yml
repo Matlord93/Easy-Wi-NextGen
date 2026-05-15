@@ -12,15 +12,20 @@ permissions:
 jobs:
   contract:
     name: Agent - contract
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup Python for OpenAPI checks
         run: |
-          python3 -m pip install --upgrade pip pyyaml
+          python3 -m pip install --user --upgrade pip pyyaml
 
       - name: Validate Core-Agent OpenAPI spec
         run: python3 "$GITHUB_WORKSPACE/docs/api/scripts/validate_openapi.py" "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"
@@ -45,17 +50,22 @@ jobs:
   build:
     name: Agent - build/test/smoke (${{ matrix.os }})
     needs: contract
-    runs-on: ${{ matrix.os }}
+    runs-on:
+      - self-hosted
+      - ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [linux, windows]
     defaults:
       run:
         working-directory: agent
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -122,12 +132,17 @@ jobs:
     name: Agent - publish release assets
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
@@ -154,7 +169,7 @@ jobs:
           done
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/easywi-agent*

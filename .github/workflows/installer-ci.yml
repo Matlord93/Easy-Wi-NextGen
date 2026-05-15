@@ -25,19 +25,30 @@ permissions:
 jobs:
   installer:
     name: installer-ci
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Install shellcheck
         run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
+          set -euo pipefail
           if ! command -v shellcheck >/dev/null 2>&1; then
-            echo 'Missing shellcheck. Install with: sudo apt-get install shellcheck' >&2
-            exit 1
+            version=0.10.0
+            mkdir -p "$HOME/.local/bin" "$RUNNER_TEMP/shellcheck"
+            curl -sSfL "https://github.com/koalaman/shellcheck/releases/download/v${version}/shellcheck-v${version}.linux.x86_64.tar.xz" \
+              | tar -xJ -C "$RUNNER_TEMP/shellcheck" --strip-components=1
+            mv "$RUNNER_TEMP/shellcheck/shellcheck" "$HOME/.local/bin/shellcheck"
+            chmod +x "$HOME/.local/bin/shellcheck"
+            export PATH="$HOME/.local/bin:$PATH"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           fi
+          shellcheck --version
 
       - name: Bash syntax check
         run: |

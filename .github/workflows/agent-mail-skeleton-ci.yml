@@ -16,13 +16,18 @@ permissions:
 
 jobs:
   lint-test-build:
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     defaults:
       run:
         working-directory: agent
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup Go
         uses: actions/setup-go@v6
         with:

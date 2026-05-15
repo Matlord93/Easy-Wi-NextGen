@@ -10,12 +10,17 @@ permissions:
 
 jobs:
   core:
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     defaults:
       run:
         working-directory: core
     steps:
       - uses: actions/checkout@v6
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -23,17 +28,21 @@ jobs:
       - run: composer validate --strict
       - run: composer install --no-interaction --prefer-dist --no-scripts
         env:
-          COMPOSER_ALLOW_SUPERUSER: '1'
           SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
       - run: php bin/phpunit --testsuite default
 
   agent:
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     defaults:
       run:
         working-directory: agent
     steps:
       - uses: actions/checkout@v6
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - uses: actions/setup-go@v6
         with:
           go-version-file: agent/go.mod
@@ -41,7 +50,12 @@ jobs:
       - run: go vet ./...
 
   contract:
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     steps:
       - uses: actions/checkout@v6
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - run: python3 "$GITHUB_WORKSPACE/docs/api/scripts/validate_openapi.py" "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"

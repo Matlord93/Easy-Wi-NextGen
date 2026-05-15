@@ -29,7 +29,9 @@ permissions:
 jobs:
   core:
     name: core-ci
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     defaults:
       run:
         working-directory: core
@@ -37,6 +39,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
@@ -59,14 +64,13 @@ jobs:
       - name: Composer install
         run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
         env:
-          COMPOSER_ALLOW_SUPERUSER: '1'
           SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
 
 
       - name: Setup Python for OpenAPI checks
         working-directory: .
         run: |
-          python3 -m pip install --upgrade pip pyyaml
+          python3 -m pip install --user --upgrade pip pyyaml
 
       - name: Validate Core-Agent OpenAPI spec
         working-directory: .
@@ -165,11 +169,16 @@ jobs:
 
   smoke-gates:
     name: smoke-gates
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: "Pre-deploy gate: validate compose config (dev)"
         run: docker compose --env-file deploy/shared/env/dev.env -f deploy/compose/dev/docker-compose.yml config
 

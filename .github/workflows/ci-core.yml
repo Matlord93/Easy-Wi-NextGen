@@ -12,7 +12,9 @@ permissions:
 jobs:
   test:
     name: Core - tests
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     defaults:
       run:
         working-directory: core
@@ -21,6 +23,9 @@ jobs:
         with:
           fetch-depth: 0
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
@@ -41,12 +46,9 @@ jobs:
 
       - name: Composer install
         run: composer install --no-interaction --no-progress
-        env:
-          COMPOSER_ALLOW_SUPERUSER: 1
-
       - name: Setup Python for OpenAPI checks
         run: |
-          python3 -m pip install --upgrade pip pyyaml
+          python3 -m pip install --user --upgrade pip pyyaml
         working-directory: .
 
       - name: Validate Core-Agent OpenAPI spec
@@ -72,7 +74,9 @@ jobs:
     name: Core - release bundle
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     permissions:
       contents: write
     defaults:
@@ -81,6 +85,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
@@ -159,7 +166,7 @@ jobs:
             --armor --detach-sign ../dist/manifest.json
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           # Korrigierte Pfade, da die Dateien im Root-Dist Ordner liegen
           files: |

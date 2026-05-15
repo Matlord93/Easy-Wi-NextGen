@@ -14,8 +14,21 @@ jobs:
   gate-critical-findings:
     name: gate-critical-findings
     if: ${{ github.event.workflow_run.event == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     steps:
+      - name: Ensure non-root runner user
+        run: |
+          set -euo pipefail
+          current_uid="$(id -u)"
+          current_user="$(id -un)"
+          if [ "${current_uid}" -eq 0 ]; then
+            echo "Self-hosted runner must execute as a regular user, not root." >&2
+            exit 1
+          fi
+          echo "Running as ${current_user} (uid ${current_uid})."
+
       - name: Check for open critical code scanning alerts
         id: critical
         env:

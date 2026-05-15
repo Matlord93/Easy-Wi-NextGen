@@ -25,7 +25,9 @@ permissions:
 jobs:
   agent:
     name: agent-ci
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     defaults:
       run:
         working-directory: agent
@@ -33,6 +35,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -44,7 +49,7 @@ jobs:
       - name: Setup Python for OpenAPI checks
         working-directory: .
         run: |
-          python3 -m pip install --upgrade pip pyyaml
+          python3 -m pip install --user --upgrade pip pyyaml
 
       - name: Validate Core-Agent OpenAPI spec
         working-directory: .

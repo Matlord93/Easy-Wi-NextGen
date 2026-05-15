@@ -9,7 +9,9 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     env:
       EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
     steps:
@@ -17,6 +19,9 @@ jobs:
         with:
           fetch-depth: 0
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Build release artifacts
         env:
           VERSION: ${{ github.ref_name }}
@@ -31,7 +36,7 @@ jobs:
           openssl dgst -sha256 -sign /tmp/release_key.pem -out dist/core-release/manifest.sig dist/core-release/manifest.json
 
       - name: Publish release assets
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/core-release/core-full-*.zip
@@ -46,5 +51,7 @@ jobs:
       - name: Upload SBOM (optional)
         continue-on-error: true
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          mkdir -p "$HOME/.local/bin"
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$HOME/.local/bin"
+          export PATH="$HOME/.local/bin:$PATH"
           syft dir:. -o spdx-json > dist/core-release/sbom.spdx.json

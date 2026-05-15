@@ -30,7 +30,9 @@ permissions:
 jobs:
   analyze:
     name: security-codeql
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     strategy:
       fail-fast: false
 
@@ -40,6 +42,9 @@ jobs:
         with:
           fetch-depth: 0
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Initialize CodeQL (Go)
         uses: github/codeql-action/init@v4
         with:

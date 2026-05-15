@@ -13,13 +13,18 @@ concurrency:
 jobs:
   core:
     name: Core (Symfony) - install + tests
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     defaults:
       run:
         working-directory: core
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
@@ -108,17 +113,22 @@ jobs:
 
   agent:
     name: Agent (Go) - build/test/smoke (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on:
+      - self-hosted
+      - ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [linux, windows]
     defaults:
       run:
         working-directory: agent
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -141,10 +151,15 @@ jobs:
 
   smoke-gates:
     name: Smoke Gates (config + smoke script)
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: "Pre-deploy gate: validate compose config (dev)"
         run: docker compose --env-file deploy/shared/env/dev.env -f deploy/compose/dev/docker-compose.yml config
 
@@ -156,10 +171,15 @@ jobs:
 
   installer:
     name: Installer - lint
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
       - name: ShellCheck (bash installer)
         uses: ludeeus/action-shellcheck@master
         with:
