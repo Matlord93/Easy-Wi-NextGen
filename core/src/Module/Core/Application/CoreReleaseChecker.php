@@ -9,9 +9,9 @@ use Psr\Cache\CacheItemPoolInterface;
 final class CoreReleaseChecker
 {
     private const CACHE_KEY = 'core.latest_release_version';
-    private const CORE_ASSET = 'easywi-core.tar.gz';
     private const CHECKSUMS_ASSET = 'checksums-core.txt';
     private const SIGNATURE_ASSET = 'checksums-core.txt.asc';
+    private const STATIC_CORE_ASSETS = ['easywi-core.tar.gz', 'easywi-core.zip'];
 
     public const CHANNEL_STABLE = GithubReleaseResolver::CHANNEL_STABLE;
     public const CHANNEL_BETA = GithubReleaseResolver::CHANNEL_BETA;
@@ -74,12 +74,27 @@ final class CoreReleaseChecker
             return null;
         }
 
-        return $this->resolver()->getLatestAsset(
+        return $this->resolver()->getLatestAssetMatching(
             $this->repository,
             $channel,
-            self::CORE_ASSET,
+            self::coreAssetMatcher(),
             self::CHECKSUMS_ASSET,
             self::SIGNATURE_ASSET,
+            $targetVersion,
+        );
+    }
+
+    public function describeReleasePackageSelectionFailure(string $channel, ?string $targetVersion = null): string
+    {
+        if (trim($this->repository) === '') {
+            return 'Kein GitHub Repository für Core-Updates konfiguriert.';
+        }
+
+        return $this->resolver()->describeLatestAssetSelectionFailure(
+            $this->repository,
+            $channel,
+            self::coreAssetMatcher(),
+            self::CHECKSUMS_ASSET,
             $targetVersion,
         );
     }
@@ -94,6 +109,60 @@ final class CoreReleaseChecker
         }
 
         return version_compare($current, $latest, '<');
+    }
+
+    /** @return string[] */
+    public static function allowedCoreAssetPatterns(): array
+    {
+        return [
+            'easywi-core.tar.gz',
+            'easywi-core.zip',
+            'easywi-webinterface-<version>.tar.gz',
+            'easywi-webinterface-<version>.zip',
+            'easywi-webinterface-v<version>.tar.gz',
+            'easywi-webinterface-v<version>.zip',
+        ];
+    }
+
+    /** @return callable(string,string):bool|int */
+    public static function coreAssetMatcher(): callable
+    {
+        return static function (string $assetName, string $releaseTag): bool|int {
+            $assetName = trim($assetName);
+            if ($assetName === '' || self::isForbiddenCoreAssetName($assetName)) {
+                return false;
+            }
+
+            if ($assetName === 'easywi-core.tar.gz') {
+                return 0;
+            }
+            if ($assetName === 'easywi-core.zip') {
+                return 1;
+            }
+
+            $version = ltrim(trim($releaseTag), 'vV');
+            if ($version === '') {
+                return false;
+            }
+
+            return match ($assetName) {
+                sprintf('easywi-webinterface-%s.tar.gz', $version) => 10,
+                sprintf('easywi-webinterface-%s.zip', $version) => 11,
+                sprintf('easywi-webinterface-v%s.tar.gz', $version) => 12,
+                sprintf('easywi-webinterface-v%s.zip', $version) => 13,
+                default => false,
+            };
+        };
+    }
+
+    public static function isForbiddenCoreAssetName(string $assetName): bool
+    {
+        $lower = strtolower(basename(trim($assetName)));
+        if ($lower === '' || str_ends_with($lower, '.asc') || str_starts_with($lower, 'checksums-')) {
+            return true;
+        }
+
+        return preg_match('/(?:^|[-_.])(update-agent|agent|patch|delta)(?:$|[-_.])/', $lower) === 1;
     }
 
     /** @return array<string, string> */

@@ -46,6 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/release
+          VERSION="${GITHUB_REF_NAME#v}"
 
           tar \
             --exclude='.env' \
@@ -58,6 +59,8 @@ jobs:
             --exclude='vendor' \
             --exclude='.git' \
             -czf dist/release/easywi-core.tar.gz core
+          (cd . && zip -qr "dist/release/easywi-webinterface-${VERSION}.zip" core \
+            -x 'core/.env' 'core/.env.*' 'core/var/*' 'core/storage/*' 'core/uploads/*' 'core/srv/*' 'core/node_modules/*' 'core/vendor/*')
 
           if [[ -f agent/go.mod ]]; then
             (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
@@ -75,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          (cd dist/release && sha256sum easywi-core.tar.gz > checksums-core.txt)
+          (cd dist/release && sha256sum easywi-core.tar.gz easywi-webinterface-*.zip > checksums-core.txt)
           if compgen -G "dist/release/easywi-agent-*.zip" > /dev/null || compgen -G "dist/release/easywi-agent-*.tar.gz" > /dev/null; then
             (cd dist/release && sha256sum easywi-agent-*.zip easywi-agent-*.tar.gz 2>/dev/null > checksums-agent.txt || sha256sum easywi-agent-*.zip > checksums-agent.txt)
           else
@@ -109,6 +112,7 @@ jobs:
 
             Assets:
             - easywi-core.tar.gz
+            - easywi-webinterface-<version>.zip (version without leading v)
             - checksums-core.txt
             - easywi-agent-linux-amd64.tar.gz
             - easywi-agent-linux-amd64.zip
@@ -116,6 +120,7 @@ jobs:
             - checksums-agent.txt
           files: |
             dist/release/easywi-core.tar.gz
+            dist/release/easywi-webinterface-*.zip
             dist/release/checksums-core.txt
             dist/release/checksums-core.txt.asc
             dist/release/easywi-agent-linux-amd64.tar.gz

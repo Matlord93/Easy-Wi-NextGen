@@ -40,7 +40,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $status = $service->checkForUpdate();
 
-        self::assertSame('Kein passendes GitHub Release-Asset oder Manifest gefunden.', $status->error);
+        self::assertStringContainsString('Kein gültiges Core-Paket', (string) $status->error);
         self::assertSame('1.2.2', $status->installedVersion);
         self::assertNull($status->latestVersion);
         self::assertNull($status->updateAvailable);
@@ -84,6 +84,143 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         self::assertTrue($status->updateAvailable);
         self::assertSame('Generated fallback notes', $status->notes);
         self::assertSame('https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v2.0.0/easywi-core.tar.gz', $status->assetUrl);
+    }
+
+
+    public function testFetchChecksumUsesSelectedAssetNameExactly(): void
+    {
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => new MockHttpClient([new MockResponse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  easywi-core.tar.gz
+")]),
+            'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
+            'manifestUrl' => '',
+            'installDir' => sys_get_temp_dir(),
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => sys_get_temp_dir() . '/update.lock',
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'dev',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
+        ]);
+
+        $method = new \ReflectionMethod($service, 'fetchChecksumForAsset');
+        $logPath = tempnam(sys_get_temp_dir(), 'easywi-log-');
+
+        self::assertNull($method->invoke($service, 'https://example.invalid/checksums-core.txt', 'easywi-webinterface-0.9.7-dev.20260515.1.zip', $logPath));
+    }
+
+    public function testFetchChecksumReturnsHashForSelectedVersionedZipAsset(): void
+    {
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => new MockHttpClient([new MockResponse("e78002c856e60968afd38fee74e4616f0d6d6ebf44476bd92896a80f5ed47b78  easywi-webinterface-0.9.7-dev.20260515.1.zip
+")]),
+            'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
+            'manifestUrl' => '',
+            'installDir' => sys_get_temp_dir(),
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => sys_get_temp_dir() . '/update.lock',
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'dev',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
+        ]);
+
+        $method = new \ReflectionMethod($service, 'fetchChecksumForAsset');
+        $logPath = tempnam(sys_get_temp_dir(), 'easywi-log-');
+
+        self::assertSame(
+            'e78002c856e60968afd38fee74e4616f0d6d6ebf44476bd92896a80f5ed47b78',
+            $method->invoke($service, 'https://example.invalid/checksums-core.txt', 'easywi-webinterface-0.9.7-dev.20260515.1.zip', $logPath),
+        );
+    }
+
+    public function testZipExtractionAcceptsSafeArchiveAndRejectsTraversal(): void
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            self::markTestSkipped('ZipArchive extension is not available.');
+        }
+
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
+            'manifestUrl' => '',
+            'installDir' => sys_get_temp_dir(),
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => sys_get_temp_dir() . '/update.lock',
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
+        ]);
+        $method = new \ReflectionMethod($service, 'extractArchive');
+        $logPath = tempnam(sys_get_temp_dir(), 'easywi-log-');
+
+        $safeZip = $this->createZip(['core/VERSION' => '2.0.0']);
+        $safeWorkDir = sys_get_temp_dir() . '/easywi-safe-' . bin2hex(random_bytes(4));
+        mkdir($safeWorkDir, 0770, true);
+        $safeStaging = $method->invoke($service, $safeZip, $safeWorkDir, $logPath);
+
+        self::assertIsString($safeStaging);
+        self::assertFileExists($safeStaging . '/core/VERSION');
+
+        $traversalZip = $this->createZip(['../evil.php' => 'bad']);
+        $badWorkDir = sys_get_temp_dir() . '/easywi-bad-' . bin2hex(random_bytes(4));
+        mkdir($badWorkDir, 0770, true);
+
+        self::assertNull($method->invoke($service, $traversalZip, $badWorkDir, $logPath));
+    }
+
+    public function testZipExtractionRejectsAbsolutePaths(): void
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            self::markTestSkipped('ZipArchive extension is not available.');
+        }
+
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
+            'manifestUrl' => '',
+            'installDir' => sys_get_temp_dir(),
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => sys_get_temp_dir() . '/update.lock',
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
+        ]);
+        $method = new \ReflectionMethod($service, 'extractArchive');
+        $logPath = tempnam(sys_get_temp_dir(), 'easywi-log-');
+        $absoluteZip = $this->createZip(['/absolute.php' => 'bad']);
+        $workDir = sys_get_temp_dir() . '/easywi-absolute-' . bin2hex(random_bytes(4));
+        mkdir($workDir, 0770, true);
+
+        self::assertNull($method->invoke($service, $absoluteZip, $workDir, $logPath));
+    }
+
+    /** @param array<string, string> $entries */
+    private function createZip(array $entries): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'easywi-zip-') . '.zip';
+        $zip = new \ZipArchive();
+        self::assertTrue($zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE));
+        foreach ($entries as $name => $contents) {
+            self::assertTrue($zip->addFromString($name, $contents));
+        }
+        self::assertTrue($zip->close());
+
+        return $path;
     }
 
     /**

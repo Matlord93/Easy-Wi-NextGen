@@ -41,12 +41,98 @@ final class GithubReleaseResolver
         ?string $signatureAssetName = null,
         ?string $targetVersion = null,
     ): ?array {
+        return $this->getLatestAssetMatching(
+            $repository,
+            $channel,
+            static fn (string $candidateName, string $releaseTag): bool => $candidateName === $assetName,
+            $checksumsAssetName,
+            $signatureAssetName,
+            $targetVersion,
+        );
+    }
+
+    /**
+     * @param callable(string,string):bool|int $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
+     *
+     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
+     */
+    public function getLatestAssetMatching(
+        string $repository,
+        string $channel,
+        callable $assetMatcher,
+        string $checksumsAssetName,
+        ?string $signatureAssetName = null,
+        ?string $targetVersion = null,
+    ): ?array {
         $releases = $this->fetchReleases($repository);
         if ($releases === null) {
             return null;
         }
 
-        return $this->selectLatestAsset($releases, $channel, $assetName, $checksumsAssetName, $signatureAssetName, $targetVersion);
+        return $this->selectLatestAssetMatching($releases, $channel, $assetMatcher, $checksumsAssetName, $signatureAssetName, $targetVersion);
+    }
+
+    /**
+     * @param callable(string,string):bool|int $assetMatcher receives the asset name and release tag.
+     */
+    public function describeLatestAssetSelectionFailure(
+        string $repository,
+        string $channel,
+        callable $assetMatcher,
+        string $checksumsAssetName,
+        ?string $targetVersion = null,
+    ): string {
+        $channel = $this->normalizeChannel($channel);
+        $releases = $this->fetchReleases($repository);
+        if ($releases === null) {
+            return sprintf('Repository %s konnte nicht abgefragt werden.', $repository);
+        }
+
+        $normalizedTarget = $this->normalizeVersion($targetVersion);
+        $latestRelease = null;
+        foreach ($this->filterReleasesByChannel($releases, $channel) as $release) {
+            $tag = $this->extractReleaseTag($release);
+            if ($tag === null) {
+                continue;
+            }
+            if ($normalizedTarget !== null && $this->normalizeVersion($tag) !== $normalizedTarget) {
+                continue;
+            }
+            if ($latestRelease === null || $this->compareReleaseTags($tag, (string) ($latestRelease['tag_name'] ?? $latestRelease['name'] ?? '')) > 0) {
+                $latestRelease = $release;
+            }
+        }
+
+        if ($latestRelease === null) {
+            return sprintf('Kein Release für Repository %s im Channel %s gefunden.', $repository, $channel);
+        }
+
+        $tag = $this->extractReleaseTag($latestRelease) ?? '(unbekannt)';
+        $assets = is_array($latestRelease['assets'] ?? null) ? $latestRelease['assets'] : [];
+        $assetNames = [];
+        foreach ($assets as $asset) {
+            if (is_array($asset) && is_string($asset['name'] ?? null) && trim($asset['name']) !== '') {
+                $assetNames[] = trim($asset['name']);
+            }
+        }
+
+        $matching = $this->findMatchingAssetName($assets, $tag, $assetMatcher);
+        $hasChecksums = $this->findAssetDownloadUrl($assets, $checksumsAssetName) !== null;
+        if ($matching !== null && !$hasChecksums) {
+            return sprintf(
+                'Release %s enthält Core-Paket %s, aber %s fehlt. Gefunden: %s',
+                $tag,
+                $matching,
+                $checksumsAssetName,
+                implode(', ', $assetNames),
+            );
+        }
+
+        return sprintf(
+            'Kein gültiges Core-Paket im Release %s gefunden. Gefunden: %s',
+            $tag,
+            implode(', ', $assetNames) !== '' ? implode(', ', $assetNames) : '(keine Assets)',
+        );
     }
 
     /**
@@ -90,6 +176,30 @@ final class GithubReleaseResolver
         ?string $signatureAssetName = null,
         ?string $targetVersion = null,
     ): ?array {
+        return $this->selectLatestAssetMatching(
+            $releases,
+            $channel,
+            static fn (string $candidateName, string $releaseTag): bool => $candidateName === $assetName,
+            $checksumsAssetName,
+            $signatureAssetName,
+            $targetVersion,
+        );
+    }
+
+    /**
+     * @param array<int, mixed> $releases
+     * @param callable(string,string):bool|int $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
+     *
+     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
+     */
+    public function selectLatestAssetMatching(
+        array $releases,
+        string $channel,
+        callable $assetMatcher,
+        string $checksumsAssetName,
+        ?string $signatureAssetName = null,
+        ?string $targetVersion = null,
+    ): ?array {
         $channel = $this->normalizeChannel($channel);
         $selected = null;
         $normalizedTarget = $this->normalizeVersion($targetVersion);
@@ -105,9 +215,10 @@ final class GithubReleaseResolver
             }
 
             $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
-            $downloadUrl = $this->findAssetDownloadUrl($assets, $assetName);
+            $matchedAssetName = $this->findMatchingAssetName($assets, $tag, $assetMatcher);
+            $downloadUrl = $matchedAssetName !== null ? $this->findAssetDownloadUrl($assets, $matchedAssetName) : null;
             $checksumsUrl = $this->findAssetDownloadUrl($assets, $checksumsAssetName);
-            if ($downloadUrl === null || $checksumsUrl === null) {
+            if ($matchedAssetName === null || $downloadUrl === null || $checksumsUrl === null) {
                 continue;
             }
 
@@ -116,7 +227,7 @@ final class GithubReleaseResolver
                 'download_url' => $downloadUrl,
                 'checksums_url' => $checksumsUrl,
                 'signature_url' => $signatureAssetName !== null ? $this->findAssetDownloadUrl($assets, $signatureAssetName) : null,
-                'asset_name' => $assetName,
+                'asset_name' => $matchedAssetName,
                 'channel' => $channel,
             ];
 
@@ -282,6 +393,39 @@ final class GithubReleaseResolver
 
         $tag = trim($tag);
         return $tag !== '' ? $tag : null;
+    }
+
+    /**
+     * @param array<int, mixed> $assets
+     * @param callable(string,string):bool|int $assetMatcher
+     */
+    private function findMatchingAssetName(array $assets, string $releaseTag, callable $assetMatcher): ?string
+    {
+        $matchedName = null;
+        $matchedPriority = PHP_INT_MAX;
+        foreach ($assets as $index => $asset) {
+            if (!is_array($asset)) {
+                continue;
+            }
+
+            $name = is_string($asset['name'] ?? null) ? trim($asset['name']) : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $match = $assetMatcher($name, $releaseTag);
+            if ($match === false) {
+                continue;
+            }
+
+            $priority = is_int($match) ? $match : 1000 + $index;
+            if ($matchedName === null || $priority < $matchedPriority) {
+                $matchedName = $name;
+                $matchedPriority = $priority;
+            }
+        }
+
+        return $matchedName;
     }
 
     /** @param array<int, mixed> $assets */

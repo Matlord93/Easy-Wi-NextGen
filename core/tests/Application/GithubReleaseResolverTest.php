@@ -101,6 +101,35 @@ final class GithubReleaseResolverTest extends TestCase
         self::assertStringContainsString('authorization: bearer secret-token', strtolower($headers));
     }
 
+
+    public function testAuthenticatedMatchingAssetUsesApiUrlWithoutExposingToken(): void
+    {
+        $response = new MockResponse((string) json_encode([[
+            'draft' => false,
+            'prerelease' => true,
+            'tag_name' => 'v0.9.7-dev.20260515.1',
+            'body' => "channel: dev\n",
+            'assets' => [
+                ['name' => 'easywi-webinterface-0.9.7-dev.20260515.1.zip', 'url' => 'https://api.github.com/repos/Matlord93/webinterface/releases/assets/200', 'browser_download_url' => 'https://github.com/Matlord93/webinterface/releases/download/v0.9.7-dev.20260515.1/easywi-webinterface-0.9.7-dev.20260515.1.zip'],
+                ['name' => 'checksums-core.txt', 'url' => 'https://api.github.com/repos/Matlord93/webinterface/releases/assets/201', 'browser_download_url' => 'https://github.com/Matlord93/webinterface/releases/download/v0.9.7-dev.20260515.1/checksums-core.txt'],
+            ],
+        ]], JSON_THROW_ON_ERROR));
+        $resolver = new GithubReleaseResolver(new MockHttpClient([$response]), 'secret-token');
+
+        $asset = $resolver->getLatestAssetMatching(
+            'Matlord93/webinterface',
+            'dev',
+            static fn (string $name, string $tag): bool => $name === 'easywi-webinterface-0.9.7-dev.20260515.1.zip',
+            'checksums-core.txt',
+        );
+
+        self::assertIsArray($asset);
+        self::assertSame('https://api.github.com/repos/Matlord93/webinterface/releases/assets/200', $asset['download_url'] ?? null);
+        self::assertSame('https://api.github.com/repos/Matlord93/webinterface/releases/assets/201', $asset['checksums_url'] ?? null);
+        self::assertArrayNotHasKey('token', $asset);
+        self::assertStringNotContainsString('secret-token', json_encode($asset, JSON_THROW_ON_ERROR));
+    }
+
     /** @return array<int, array<string, mixed>> */
     private function mixedReleases(): array
     {

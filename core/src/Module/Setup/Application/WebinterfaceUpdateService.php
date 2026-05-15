@@ -341,7 +341,17 @@ final class WebinterfaceUpdateService
             }
         }
 
-        return ['manifest' => null, 'error' => 'Kein passendes GitHub Release-Asset oder Manifest gefunden.'];
+        $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
+        $details = $this->coreReleaseChecker !== null
+            ? $this->coreReleaseChecker->describeReleasePackageSelectionFailure($channel)
+            : sprintf('Repository %s wurde geprüft.', $this->releaseRepository !== '' ? $this->releaseRepository : '(nicht konfiguriert)');
+
+        return ['manifest' => null, 'error' => sprintf(
+            '%s Channel: %s. Erwartet: %s.',
+            $details,
+            $channel,
+            implode(', ', CoreReleaseChecker::allowedCoreAssetPatterns()),
+        )];
     }
 
     private function fetchManifestFromUrl(string $url): ?UpdateManifest
@@ -358,7 +368,7 @@ final class WebinterfaceUpdateService
         }
 
         $manifest = $this->createManifestFromPayload($payload);
-        if ($manifest === null || !$this->isAllowedCoreAssetUrl($manifest->assetUrl) || !$this->isManifestAllowedForSelectedChannel($manifest)) {
+        if ($manifest === null || !$this->isAllowedCoreAssetUrl($manifest->assetUrl) || !$this->isManifestAllowedForSelectedChannel($manifest) || !$this->isAllowedManifestCoreAsset($manifest)) {
             return null;
         }
         if ($manifest->deltaAssetUrl !== null && !$this->isAllowedCoreAssetUrl($manifest->deltaAssetUrl)) {
@@ -418,6 +428,9 @@ final class WebinterfaceUpdateService
         } elseif (is_string($latestPayload)) {
             $latest = trim($latestPayload);
         }
+        if ($latest === '' && is_string($payload['version'] ?? null)) {
+            $latest = trim($payload['version']);
+        }
         if ($latest === '') {
             return null;
         }
@@ -429,8 +442,15 @@ final class WebinterfaceUpdateService
 
         // Legacy flat format: {latest, asset_url, sha256, notes, delta}
         $assetUrl = is_string($payload['asset_url'] ?? null) ? trim($payload['asset_url']) : '';
+        if ($assetUrl === '' && is_string($payload['download_url'] ?? null)) {
+            $assetUrl = trim($payload['download_url']);
+        }
         $sha256 = is_string($payload['sha256'] ?? null) ? trim($payload['sha256']) : null;
         $notes = is_string($payload['notes'] ?? null) ? trim($payload['notes']) : null;
+        $checksumsUrl = is_string($payload['checksums_url'] ?? null) ? trim($payload['checksums_url']) : null;
+        $signatureUrl = is_string($payload['signature_url'] ?? null) ? trim($payload['signature_url']) : null;
+        $assetName = is_string($payload['asset_name'] ?? null) ? trim($payload['asset_name']) : $this->assetNameFromUrl($assetUrl);
+        $manifestChannel = is_string($payload['channel'] ?? null) ? $this->normalizeReleaseChannel($payload['channel']) : $channel;
         $deltaPayload = is_array($payload['delta'] ?? null) ? $payload['delta'] : null;
         $deltaFrom = is_array($deltaPayload) && is_string($deltaPayload['from'] ?? null) ? trim($deltaPayload['from']) : null;
         $deltaAssetUrl = is_array($deltaPayload) && is_string($deltaPayload['asset_url'] ?? null) ? trim($deltaPayload['asset_url']) : null;
@@ -455,6 +475,10 @@ final class WebinterfaceUpdateService
             $deltaAssetUrl !== '' ? $deltaAssetUrl : null,
             $deltaSha256 !== '' ? $deltaSha256 : null,
             $deltaDeletes,
+            $checksumsUrl !== '' ? $checksumsUrl : null,
+            $signatureUrl !== '' ? $signatureUrl : null,
+            $assetName !== '' ? $assetName : null,
+            $manifestChannel,
         );
     }
 
@@ -483,6 +507,8 @@ final class WebinterfaceUpdateService
             $assetUrl = is_string($artifact['url'] ?? null) ? trim($artifact['url']) : '';
             $sha256 = is_string($artifact['sha256'] ?? null) ? trim($artifact['sha256']) : null;
             $notes = is_string($release['changelog'] ?? null) ? trim($release['changelog']) : null;
+            $checksumsUrl = is_string($artifact['checksums_url'] ?? null) ? trim($artifact['checksums_url']) : null;
+            $assetName = is_string($artifact['asset_name'] ?? null) ? trim($artifact['asset_name']) : $this->assetNameFromUrl($assetUrl);
 
             if ($assetUrl === '') {
                 continue;
@@ -497,6 +523,10 @@ final class WebinterfaceUpdateService
                 null,
                 null,
                 [],
+                $checksumsUrl !== '' ? $checksumsUrl : null,
+                null,
+                $assetName !== '' ? $assetName : null,
+                $channel,
             );
         }
 
@@ -590,6 +620,21 @@ final class WebinterfaceUpdateService
         }
 
         return null;
+    }
+
+    private function assetNameFromUrl(?string $url): ?string
+    {
+        if ($url === null || trim($url) === '') {
+            return null;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        if (!is_string($path) || trim($path) === '') {
+            return null;
+        }
+
+        $basename = basename($path);
+        return $basename !== '' ? rawurldecode($basename) : null;
     }
 
     private function isUpdateAvailable(?string $installedVersion, ?string $latestVersion): ?bool
@@ -766,9 +811,24 @@ final class WebinterfaceUpdateService
         return $headers;
     }
 
+    private function isAllowedManifestCoreAsset(UpdateManifest $manifest): bool
+    {
+        $assetName = $manifest->assetName ?? $this->assetNameFromUrl($manifest->assetUrl);
+        if ($assetName === null) {
+            return false;
+        }
+
+        $matcher = CoreReleaseChecker::coreAssetMatcher();
+        return $matcher($assetName, $manifest->latest) !== false;
+    }
+
     private function isManifestAllowedForSelectedChannel(UpdateManifest $manifest): bool
     {
         $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
+        if ($manifest->channel !== null && $this->normalizeReleaseChannel($manifest->channel) !== $channel) {
+            return false;
+        }
+
         $versionChannel = $this->detectVersionChannel($manifest->latest);
         if ($versionChannel !== $channel) {
             return false;
@@ -866,8 +926,13 @@ final class WebinterfaceUpdateService
                     $this->log($logPath, 'ZIP-Archiv konnte nicht geöffnet werden.');
                     return null;
                 }
+                if (!$this->validateZipArchivePaths($zip, $logPath)) {
+                    $zip->close();
+                    return null;
+                }
                 $zip->extractTo($stagingDir);
                 $zip->close();
+                $this->normalizeExtractedPermissions($stagingDir);
                 return $stagingDir;
             }
 
@@ -881,13 +946,21 @@ final class WebinterfaceUpdateService
                     }
                     $phar = new \PharData($tarPath);
                 }
+                if (!$this->validatePharArchivePaths($phar, $logPath)) {
+                    return null;
+                }
                 $phar->extractTo($stagingDir, null, true);
+                $this->normalizeExtractedPermissions($stagingDir);
                 return $stagingDir;
             }
 
             if (str_ends_with($lower, '.tar')) {
                 $phar = new \PharData($archivePath);
+                if (!$this->validatePharArchivePaths($phar, $logPath)) {
+                    return null;
+                }
                 $phar->extractTo($stagingDir, null, true);
+                $this->normalizeExtractedPermissions($stagingDir);
                 return $stagingDir;
             }
         } catch (\Throwable) {
@@ -897,6 +970,63 @@ final class WebinterfaceUpdateService
 
         $this->log($logPath, 'Unbekanntes Archivformat.');
         return null;
+    }
+
+    private function validateZipArchivePaths(\ZipArchive $zip, string $logPath): bool
+    {
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $name = $zip->getNameIndex($index);
+            if ($name === false || !$this->isSafeArchivePath($name)) {
+                $this->log($logPath, 'Archiv enthält einen unsicheren Pfad.');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function validatePharArchivePaths(\PharData $phar, string $logPath): bool
+    {
+        foreach (new \RecursiveIteratorIterator($phar) as $entry) {
+            $path = method_exists($entry, 'getRelativePathname') ? $entry->getRelativePathname() : $entry->getPathName();
+            if (!$entry instanceof \SplFileInfo || !$this->isSafeArchivePath($path)) {
+                $this->log($logPath, 'Archiv enthält einen unsicheren Pfad.');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isSafeArchivePath(string $path): bool
+    {
+        $path = str_replace('\\', '/', $path);
+        if ($path === '' || str_starts_with($path, '/') || preg_match('/^[A-Za-z]:\//', $path) === 1) {
+            return false;
+        }
+
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '..') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizeExtractedPermissions(string $directory): void
+    {
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST,
+        );
+        foreach ($iterator as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                continue;
+            }
+
+            @chmod($item->getPathname(), $item->isDir() ? 0775 : 0664);
+        }
     }
 
     private function resolveExtractedRoot(string $stagingDir): string
