@@ -20,7 +20,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
                 'version' => '1.2.3',
                 'artifacts' => [
                     'core_novendor_targz' => [
-                        'url' => 'https://example.invalid/core-novendor-1.2.3.tar.gz',
+                        'url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.2.3/easywi-core.tar.gz',
                         'sha256' => 'abc123',
                     ],
                 ],
@@ -46,7 +46,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $status = $service->checkForUpdate();
         self::assertSame('1.2.3', $status->latestVersion);
-        self::assertSame('https://example.invalid/core-novendor-1.2.3.tar.gz', $status->assetUrl);
+        self::assertSame('https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.2.3/easywi-core.tar.gz', $status->assetUrl);
         self::assertSame('abc123', $status->assetSha256);
     }
 

@@ -265,9 +265,15 @@ final class UpdateJobService implements MigrationStatusProviderInterface
      */
     private function normalizePayload(array $payload): array
     {
-        if (!array_key_exists('package_url', $payload) && $this->defaultPackageUrl !== null) {
+        if (array_key_exists('download_url', $payload) && !array_key_exists('package_url', $payload)) {
+            $payload['package_url'] = $payload['download_url'];
+        }
+
+        if (!array_key_exists('package_url', $payload) && $this->defaultPackageUrl !== null && trim($this->defaultPackageUrl) !== '') {
             $payload['package_url'] = $this->defaultPackageUrl;
         }
+
+        unset($payload['github_token'], $payload['token'], $payload['authorization']);
 
         return $payload;
     }

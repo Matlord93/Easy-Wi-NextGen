@@ -69,6 +69,8 @@ final class AdminNodeController
         private readonly UserRepository $userRepository,
         #[Autowire(param: 'app.admin_authorized_keys_path')]
         private readonly string $adminAuthorizedKeysPath,
+        #[Autowire('%app.core_update_token%')]
+        private readonly string $githubToken = '',
     ) {
     }
 
@@ -242,6 +244,10 @@ final class AdminNodeController
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        if ($this->agentDownloadsRequirePanelProxy()) {
+            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
+        }
+
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $serverUpdateJobs = $this->buildServerUpdateJobIndex($nodes);
@@ -608,6 +614,10 @@ final class AdminNodeController
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        if ($this->agentDownloadsRequirePanelProxy()) {
+            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
+        }
+
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $updateJobs = $this->buildUpdateJobIndex($nodes);
 
@@ -622,6 +632,10 @@ final class AdminNodeController
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        if ($this->agentDownloadsRequirePanelProxy()) {
+            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
         }
 
         $stageSize = max(1, (int) $request->request->get('stage_size', 5));
@@ -659,6 +673,10 @@ final class AdminNodeController
         $node = $this->agentRepository->find($id);
         if ($node === null) {
             return new Response('Node not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        if ($this->agentDownloadsRequirePanelProxy()) {
+            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
         }
 
         $latestVersion = $this->releaseChecker->getLatestVersion();
@@ -910,6 +928,10 @@ final class AdminNodeController
     private function renderNodesTable(?string $notice = null, ?string $error = null): Response
     {
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        if ($this->agentDownloadsRequirePanelProxy()) {
+            return $this->renderNodesTable('Agent updates from private GitHub releases are blocked until a signed panel download proxy is available. No update job was queued.');
+        }
+
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $serverUpdateJobs = $this->buildServerUpdateJobIndex($nodes);
@@ -1605,6 +1627,11 @@ final class AdminNodeController
 
         $this->entityManager->flush();
         return $queued;
+    }
+
+    private function agentDownloadsRequirePanelProxy(): bool
+    {
+        return trim($this->githubToken) !== '';
     }
 
     private function buildAgentUpdatePayload(\App\Module\Core\Domain\Entity\Agent $node, ?string $latestVersion, ?string $rollbackVersion = null, ?Job $existingJob = null): ?array

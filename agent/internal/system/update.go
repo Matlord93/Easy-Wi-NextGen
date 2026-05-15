@@ -100,18 +100,15 @@ func ApplyUpdateFromChecksums(ctx context.Context, opts UpdateFromChecksumsOptio
 		return UpdatePlan{}, err
 	}
 
-	signatureURL := opts.SignatureURL
-	if signatureURL == "" {
-		signatureURL = opts.ChecksumsURL + ".asc"
-	}
+	if signatureURL := strings.TrimSpace(opts.SignatureURL); signatureURL != "" {
+		signatureFile := filepath.Join(tempDir, "agent.update.checksums.asc")
+		if err := downloadToFile(ctx, signatureURL, signatureFile); err != nil {
+			return UpdatePlan{}, err
+		}
 
-	signatureFile := filepath.Join(tempDir, "agent.update.checksums.asc")
-	if err := downloadToFile(ctx, signatureURL, signatureFile); err != nil {
-		return UpdatePlan{}, err
-	}
-
-	if err := verifyChecksumsSignature(checksumsFile, signatureFile); err != nil {
-		return UpdatePlan{}, err
+		if err := verifyChecksumsSignature(checksumsFile, signatureFile); err != nil {
+			return UpdatePlan{}, err
+		}
 	}
 
 	assetName := opts.AssetName

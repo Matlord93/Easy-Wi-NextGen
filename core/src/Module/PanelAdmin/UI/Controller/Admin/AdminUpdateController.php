@@ -39,6 +39,7 @@ final class AdminUpdateController
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
         private readonly AgentReleaseChecker $releaseChecker,
+        private readonly CoreReleaseChecker $coreReleaseChecker,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly UpdateJobService $updateJobService,
@@ -48,6 +49,8 @@ final class AdminUpdateController
         private readonly Environment $twig,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
+        #[Autowire('%app.core_update_token%')]
+        private readonly string $githubToken = '',
     ) {
     }
 
@@ -96,6 +99,25 @@ final class AdminUpdateController
         $payload = [];
         if ($type === 'rollback') {
             $payload['backup_path'] = (string) $request->request->get('backup_path');
+        }
+
+        if ($type === 'update' || $type === 'both') {
+            $channel = $this->updateSettingsService->getCoreChannel();
+            $releasePackage = $this->coreReleaseChecker->getReleasePackageForChannel($channel);
+            if ($releasePackage === null) {
+                $summary = $this->buildCoreUpdateSummary();
+                $summary['error'] = 'Kein passendes Core-Release-Asset für den gewählten Kanal gefunden.';
+
+                return $this->renderUpdateCard($summary);
+            }
+            $payload = array_merge($payload, [
+                'version' => $releasePackage['version'],
+                'channel' => $releasePackage['channel'],
+                'download_url' => $releasePackage['download_url'],
+                'checksums_url' => $releasePackage['checksums_url'],
+                'signature_url' => $releasePackage['signature_url'] ?? null,
+                'asset_name' => $releasePackage['asset_name'],
+            ]);
         }
 
         $job = $this->updateJobService->createJob($type, $createdBy, $payload);
@@ -223,11 +245,17 @@ final class AdminUpdateController
         $agentChannel = $this->updateSettingsService->getAgentChannel();
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $latestVersion = $this->releaseChecker->getLatestVersionForChannel($agentChannel);
-        $updateJobs = $this->buildUpdateJobIndex($agents);
+        $summary = $this->buildAgentUpdateSummary($agents, $latestVersion);
 
+        if ($this->agentDownloadsRequirePanelProxy()) {
+            $summary['error'] = 'Agent-Updates aus privaten GitHub Releases sind blockiert, bis ein signierter Panel-Download-Proxy aktiv ist. Es wurde kein Job erzeugt.';
+
+            return $this->renderAgentUpdateCard($summary);
+        }
+
+        $updateJobs = $this->buildUpdateJobIndex($agents);
         $this->queueAgentUpdates($agents, $latestVersion, $updateJobs, $actor, $agentChannel);
 
-        $summary = $this->buildAgentUpdateSummary($agents, $latestVersion);
         $summary['notice'] = true;
 
         return $this->renderAgentUpdateCard($summary);
@@ -277,6 +305,7 @@ final class AdminUpdateController
             'currentBuild' => $versionInfo['build'],
             'latestVersion' => $status->latestVersion,
             'updateAvailable' => $status->updateAvailable,
+            'packageUrl' => $status->assetUrl,
             'notes' => $status->notes,
             'notesList' => $this->normalizeNotesList($status->notes),
             'manifestError' => $status->error,
@@ -322,12 +351,18 @@ final class AdminUpdateController
             'updates' => $updates,
             'latestVersion' => $latestVersion,
             'channel' => $agentChannel,
+            'error' => $latestVersion === null ? 'Kein passendes Agent-Release für den gewählten Kanal gefunden.' : null,
             'channels' => AgentReleaseChecker::channels(),
             'notice' => null,
             'csrf' => [
                 'agents_channel' => $this->csrfTokenManager->getToken('admin_update_agents_channel')->getValue(),
             ],
         ];
+    }
+
+    private function agentDownloadsRequirePanelProxy(): bool
+    {
+        return trim($this->githubToken) !== '';
     }
 
     private function renderUpdateCard(array $summary): Response

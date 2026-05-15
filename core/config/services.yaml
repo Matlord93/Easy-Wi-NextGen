@@ -13,7 +13,7 @@ parameters:
   app.agent_release_repository: '%env(default::APP_AGENT_RELEASE_REPOSITORY)%'
   app.agent_release_channel: '%env(default:app.agent_release_channel_default:APP_AGENT_RELEASE_CHANNEL)%'
   app.changelog_repository: '%env(default::APP_CHANGELOG_REPOSITORY)%'
-  app.core_release_channel_default: 'beta'
+  app.core_release_channel_default: 'stable'
   app.core_release_repository: '%env(default::APP_CORE_RELEASE_REPOSITORY)%'
   app.core_release_channel: '%env(default:app.core_release_channel_default:APP_CORE_RELEASE_CHANNEL)%'
   app.core_version: '%env(default::APP_CORE_VERSION)%'
@@ -151,11 +151,16 @@ services:
       $minQuota: '%app.sinusbot_quota_min%'
       $maxQuota: '%app.sinusbot_quota_max%'
 
+  App\Module\Core\Application\GithubReleaseResolver:
+    arguments:
+      $token: '%app.core_update_token%'
+
   App\Module\Core\Application\AgentReleaseChecker:
     arguments:
       $repository: '%app.agent_release_repository%'
       $cacheTtlSeconds: '%env(int:APP_AGENT_RELEASE_CACHE_TTL)%'
       $channel: '%app.agent_release_channel%'
+      $releaseResolver: '@App\Module\Core\Application\GithubReleaseResolver'
 
   App\Module\Core\Application\ChangelogFetcher:
     arguments:
@@ -167,6 +172,7 @@ services:
       $repository: '%app.core_release_repository%'
       $cacheTtlSeconds: '%env(int:APP_CORE_RELEASE_CACHE_TTL)%'
       $channel: '%app.core_release_channel%'
+      $releaseResolver: '@App\Module\Core\Application\GithubReleaseResolver'
 
   App\Module\Core\Application\GithubWorkflowDispatcher:
     arguments:
@@ -190,6 +196,8 @@ services:
       $kernelEnvironment: '%kernel.environment%'
       $kernelDebug: '%kernel.debug%'
       $panelUpdateNewsPublisher: '@App\Module\Core\Application\PanelUpdateNewsPublisher'
+      $coreReleaseChecker: '@App\Module\Core\Application\CoreReleaseChecker'
+      $githubToken: '%app.core_update_token%'
 
   App\Module\Core\Application\UpdateJobService:
     arguments:

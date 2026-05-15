@@ -9,18 +9,22 @@ use Psr\Cache\CacheItemPoolInterface;
 final class CoreReleaseChecker
 {
     private const CACHE_KEY = 'core.latest_release_version';
+    private const CORE_ASSET = 'easywi-core.tar.gz';
+    private const CHECKSUMS_ASSET = 'checksums-core.txt';
+    private const SIGNATURE_ASSET = 'checksums-core.txt.asc';
 
-    public const CHANNEL_STABLE = 'stable';
-    public const CHANNEL_BETA = 'beta';
-    public const CHANNEL_DEV = 'dev';
+    public const CHANNEL_STABLE = GithubReleaseResolver::CHANNEL_STABLE;
+    public const CHANNEL_BETA = GithubReleaseResolver::CHANNEL_BETA;
+    public const CHANNEL_DEV = GithubReleaseResolver::CHANNEL_DEV;
     /** @deprecated use CHANNEL_DEV */
-    public const CHANNEL_ALPHA = 'alpha';
+    public const CHANNEL_ALPHA = GithubReleaseResolver::CHANNEL_ALPHA;
 
     public function __construct(
         private readonly CacheItemPoolInterface $cache,
         private readonly string $repository,
         private readonly int $cacheTtlSeconds = 300,
         private readonly string $channel = self::CHANNEL_STABLE,
+        private readonly ?GithubReleaseResolver $releaseResolver = null,
     ) {
     }
 
@@ -31,7 +35,7 @@ final class CoreReleaseChecker
 
     public function getChannel(): string
     {
-        return $this->normalizeChannel($this->channel);
+        return $this->resolver()->normalizeChannel($this->channel);
     }
 
     public function getLatestVersion(): ?string
@@ -41,20 +45,19 @@ final class CoreReleaseChecker
 
     public function getLatestVersionForChannel(string $channel): ?string
     {
-        if ($this->repository === '') {
+        if (trim($this->repository) === '') {
             return null;
         }
 
-        $channel = $this->normalizeChannel($channel);
-        $cacheKey = sprintf('%s.%s', self::CACHE_KEY, $channel);
-
+        $channel = $this->resolver()->normalizeChannel($channel);
+        $cacheKey = sprintf('%s.%s.%s', self::CACHE_KEY, sha1($this->repository), $channel);
         $item = $this->cache->getItem($cacheKey);
         $cached = $item->get();
         if ($item->isHit() && is_string($cached) && $cached !== '') {
             return $cached;
         }
 
-        $latest = $this->fetchLatestVersion($channel);
+        $latest = $this->resolver()->getLatestVersion($this->repository, $channel);
         if ($latest !== null) {
             $item->set($latest);
             $item->expiresAfter($this->cacheTtlSeconds);
@@ -64,10 +67,27 @@ final class CoreReleaseChecker
         return $latest;
     }
 
+    /** @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null */
+    public function getReleasePackageForChannel(string $channel, ?string $targetVersion = null): ?array
+    {
+        if (trim($this->repository) === '') {
+            return null;
+        }
+
+        return $this->resolver()->getLatestAsset(
+            $this->repository,
+            $channel,
+            self::CORE_ASSET,
+            self::CHECKSUMS_ASSET,
+            self::SIGNATURE_ASSET,
+            $targetVersion,
+        );
+    }
+
     public function isUpdateAvailable(?string $currentVersion, ?string $latestVersion = null): ?bool
     {
-        $current = $this->normalizeVersion($currentVersion);
-        $latest = $this->normalizeVersion($latestVersion ?? $this->getLatestVersion());
+        $current = $this->resolver()->normalizeVersion($currentVersion);
+        $latest = $this->resolver()->normalizeVersion($latestVersion ?? $this->getLatestVersion());
 
         if ($current === null || $latest === null) {
             return null;
@@ -86,181 +106,12 @@ final class CoreReleaseChecker
         ];
     }
 
-    private function fetchLatestVersion(string $channel): ?string
+    private function resolver(): GithubReleaseResolver
     {
-        $releases = $this->fetchReleases();
-        if ($releases === null) {
-            return null;
+        if ($this->releaseResolver !== null) {
+            return $this->releaseResolver;
         }
 
-        $latestTag = null;
-        foreach ($this->filterReleasesByChannel($releases, $channel) as $release) {
-            $tag = $this->extractReleaseTag($release);
-            if ($tag === null) {
-                continue;
-            }
-
-            if ($latestTag === null || $this->compareReleaseTags($tag, $latestTag) > 0) {
-                $latestTag = $tag;
-            }
-        }
-
-        return $latestTag;
-    }
-
-    private function fetchReleases(): ?array
-    {
-        $url = sprintf('https://api.github.com/repos/%s/releases?per_page=20', $this->repository);
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => [
-                    'Accept: application/vnd.github+json',
-                    'User-Agent: Easy-Wi-NextGen',
-                ],
-                'timeout' => 5,
-            ],
-        ]);
-
-        $response = @file_get_contents($url, false, $context);
-        if ($response === false) {
-            return null;
-        }
-
-        try {
-            $payload = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return null;
-        }
-        if (!is_array($payload)) {
-            return null;
-        }
-
-        return $payload;
-    }
-
-
-    /**
-     * @param array<int, mixed> $releases
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function filterReleasesByChannel(array $releases, string $channel): array
-    {
-        $filtered = [];
-        foreach ($releases as $release) {
-            if (!is_array($release)) {
-                continue;
-            }
-            if (($release['draft'] ?? false) === true) {
-                continue;
-            }
-            if ($this->detectReleaseChannel($release) !== $channel) {
-                continue;
-            }
-            $filtered[] = $release;
-        }
-
-        return $filtered;
-    }
-
-    /**
-     * @param array<string, mixed> $release
-     */
-    private function extractReleaseTag(array $release): ?string
-    {
-        $tag = $release['tag_name'] ?? $release['name'] ?? null;
-        if (!is_string($tag)) {
-            return null;
-        }
-
-        $tag = trim($tag);
-        return $tag !== '' ? $tag : null;
-    }
-
-    private function compareReleaseTags(string $leftTag, string $rightTag): int
-    {
-        $leftNormalized = $this->normalizeVersion($leftTag);
-        $rightNormalized = $this->normalizeVersion($rightTag);
-
-        if ($leftNormalized !== null && $rightNormalized !== null) {
-            return version_compare($leftNormalized, $rightNormalized);
-        }
-
-        return strcmp($leftTag, $rightTag);
-    }
-
-    /**
-     * @param array<string, mixed> $release
-     */
-    private function detectReleaseChannel(array $release): string
-    {
-        $explicitChannel = $this->extractExplicitChannel($release);
-        if ($explicitChannel !== null) {
-            return $explicitChannel;
-        }
-
-        $isPrerelease = ($release['prerelease'] ?? false) === true;
-        if (!$isPrerelease) {
-            return self::CHANNEL_STABLE;
-        }
-
-        $tagLower = strtolower((string) ($release['tag_name'] ?? $release['name'] ?? ''));
-        if (preg_match('/(?:^|[._\-+])(?:dev|alpha|snapshot|nightly)(?:$|[._\-+])/', $tagLower) === 1) {
-            return self::CHANNEL_DEV;
-        }
-        if (preg_match('/(?:^|[._\-+])(?:beta|preview|rc)(?:$|[._\-+])/', $tagLower) === 1) {
-            return self::CHANNEL_BETA;
-        }
-
-        return self::CHANNEL_BETA;
-    }
-
-    /**
-     * @param array<string, mixed> $release
-     */
-    private function extractExplicitChannel(array $release): ?string
-    {
-        foreach (['body', 'name'] as $field) {
-            $value = $release[$field] ?? null;
-            if (!is_string($value) || trim($value) === '') {
-                continue;
-            }
-            if (preg_match('/(?:^|\R)\s*(?:easywi[-_ ]?)?channel\s*[:=]\s*(stable|beta|dev|alpha)\b/i', $value, $matches) === 1) {
-                return $this->normalizeChannel($matches[1]);
-            }
-        }
-
-        return null;
-    }
-
-    private function normalizeVersion(?string $version): ?string
-    {
-        if ($version === null) {
-            return null;
-        }
-
-        $value = trim($version);
-        if ($value === '') {
-            return null;
-        }
-
-        $value = ltrim($value, 'vV');
-        $value = preg_replace('/[^0-9A-Za-z.+-]/', '', $value) ?? $value;
-
-        if ($value === '') {
-            return null;
-        }
-
-        return $value;
-    }
-
-    private function normalizeChannel(string $channel): string
-    {
-        return match (strtolower(trim($channel))) {
-            self::CHANNEL_BETA => self::CHANNEL_BETA,
-            self::CHANNEL_DEV, self::CHANNEL_ALPHA => self::CHANNEL_DEV,
-            default => self::CHANNEL_STABLE,
-        };
+        throw new \LogicException('GithubReleaseResolver service is not configured.');
     }
 }

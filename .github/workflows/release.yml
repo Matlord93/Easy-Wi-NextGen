@@ -1,58 +1,116 @@
-name: release-core
+name: release
 
 on:
   push:
-    tags: ['v*']
+    tags:
+      - "v*"
 
 permissions:
   contents: write
 
 jobs:
   release:
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
-    env:
-      EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect release channel
+        id: channel
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          shopt -s nocasematch
+          if [[ "$tag" == *-dev* || "$tag" == *-alpha* || "$tag" == *-snapshot* || "$tag" == *-nightly* ]]; then
+            channel="dev"
+            prerelease="true"
+          elif [[ "$tag" == *-beta* || "$tag" == *-preview* || "$tag" == *-rc* ]]; then
+            channel="beta"
+            prerelease="true"
+          else
+            channel="stable"
+            prerelease="false"
+          fi
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go for agent builds
+        if: ${{ hashFiles('agent/go.mod') != '' }}
+        uses: actions/setup-go@v5
         with:
-          fetch-depth: 0
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
 
+      - name: Build release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
 
-      - name: Ensure non-root runner user
-        uses: ./.github/actions/ensure-runner-user
-      - name: Build release artifacts
+          tar \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='var' \
+            --exclude='storage' \
+            --exclude='uploads' \
+            --exclude='srv' \
+            --exclude='node_modules' \
+            --exclude='vendor' \
+            --exclude='.git' \
+            -czf dist/release/easywi-core.tar.gz core
+
+          if [[ -f agent/go.mod ]]; then
+            (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
+            (cd agent && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/release/easywi-agent-windows-amd64.exe ./cmd/agent)
+          else
+            # TODO: Keep the release structure ready if the agent source is moved out of this repository.
+            echo "agent/go.mod not found; skipping agent binaries" >&2
+          fi
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd dist/release && sha256sum easywi-core.tar.gz > checksums-core.txt)
+          if compgen -G "dist/release/easywi-agent-*" > /dev/null; then
+            (cd dist/release && sha256sum easywi-agent-* > checksums-agent.txt)
+          else
+            : > dist/release/checksums-agent.txt
+          fi
+
+      - name: Sign checksums (optional)
+        if: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY != '' }}
         env:
-          VERSION: ${{ github.ref_name }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
+        shell: bash
         run: |
-          VERSION="${VERSION#v}" ./scripts/build-core-release.sh dist/core-release
+          set -euo pipefail
+          printf '%s' "$EASYWI_RELEASE_PRIVATE_KEY" > /tmp/easywi-release-key.pem
+          openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-core.txt.asc dist/release/checksums-core.txt
+          if [[ -s dist/release/checksums-agent.txt ]]; then
+            openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-agent.txt.asc dist/release/checksums-agent.txt
+          fi
+          rm -f /tmp/easywi-release-key.pem
 
-      - name: Generate manifest signature (optional)
-        if: ${{ env.EASYWI_RELEASE_PRIVATE_KEY != '' }}
-        run: |
-          printf '%s' "$EASYWI_RELEASE_PRIVATE_KEY" > /tmp/release_key.pem
-          openssl dgst -sha256 -sign /tmp/release_key.pem -out dist/core-release/manifest.sig dist/core-release/manifest.json
-
-      - name: Publish release assets
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/core-release/core-full-*.zip
-            dist/core-release/core-full-*.tar.gz
-            dist/core-release/core-novendor-*.zip
-            dist/core-release/core-novendor-*.tar.gz
-            dist/core-release/checksums.sha256
-            dist/core-release/manifest.json
-            dist/core-release/manifest.sig
-            dist/core-release/feed.json
+          prerelease: ${{ steps.channel.outputs.prerelease }}
+          fail_on_unmatched_files: false
+          body: |
+            channel: ${{ steps.channel.outputs.channel }}
 
-      - name: Upload SBOM (optional)
-        continue-on-error: true
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$HOME/.local/bin"
-          export PATH="$HOME/.local/bin:$PATH"
-          syft dir:. -o spdx-json > dist/core-release/sbom.spdx.json
+            Assets:
+            - easywi-core.tar.gz
+            - checksums-core.txt
+            - easywi-agent-linux-amd64
+            - easywi-agent-windows-amd64.exe
+            - checksums-agent.txt
+          files: |
+            dist/release/easywi-core.tar.gz
+            dist/release/checksums-core.txt
+            dist/release/checksums-core.txt.asc
+            dist/release/easywi-agent-linux-amd64
+            dist/release/easywi-agent-windows-amd64.exe
+            dist/release/checksums-agent.txt
+            dist/release/checksums-agent.txt.asc

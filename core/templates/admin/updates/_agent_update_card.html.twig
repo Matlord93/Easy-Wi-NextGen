@@ -46,6 +46,11 @@
             {{ t('admin_updates_agents_notice', page_locale()) }}
         </div>
     {% endif %}
+    {% if agentUpdate.error %}
+        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {{ agentUpdate.error }}
+        </div>
+    {% endif %}
 
     <div class="mt-5 grid gap-4 sm:grid-cols-3">
         <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -64,10 +69,11 @@
 
     <div class="mt-5 flex flex-wrap gap-3">
         <button
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white"
+            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             hx-post="/admin/updates/agents/update"
             hx-target="#agent-update-card"
             hx-swap="outerHTML"
+            {% if agentUpdate.latestVersion is empty or agentUpdate.updates < 1 %}disabled{% endif %}
         >{{ t('admin_updates_agents_action', page_locale()) }}</button>
         <a
             href="/admin/nodes"

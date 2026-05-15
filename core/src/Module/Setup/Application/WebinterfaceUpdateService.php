@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\Application;
 
+use App\Module\Core\Application\CoreReleaseChecker;
 use App\Module\Core\Application\PanelUpdateNewsPublisher;
 use App\Module\Core\Update\UpdateManifest;
 use App\Module\Core\Update\UpdateResult;
@@ -38,6 +39,8 @@ final class WebinterfaceUpdateService
         private readonly string $kernelEnvironment,
         private readonly bool $kernelDebug,
         private readonly ?PanelUpdateNewsPublisher $panelUpdateNewsPublisher = null,
+        private readonly ?CoreReleaseChecker $coreReleaseChecker = null,
+        private readonly ?string $githubToken = null,
     ) {
     }
 
@@ -143,7 +146,21 @@ final class WebinterfaceUpdateService
             }
 
             $expectedSha = $useDelta ? $manifest->deltaSha256 : $manifest->sha256;
-            if ($expectedSha !== null && !$this->verifySha256($archivePath, $expectedSha, $logPath)) {
+            if ($expectedSha === null && !$useDelta && $manifest->checksumsUrl !== null) {
+                $expectedSha = $this->fetchChecksumForAsset($manifest->checksumsUrl, $manifest->assetName, $logPath);
+            }
+            if ($expectedSha === null) {
+                $this->log($logPath, 'SHA256-Prüfsumme fehlt. Update wird abgebrochen.');
+                return new UpdateResult(
+                    false,
+                    'SHA256-Prüfsumme fehlt.',
+                    'Checksums Asset fehlt oder enthält keinen passenden Eintrag.',
+                    $logPath,
+                    $installedVersion,
+                    $manifest->latest,
+                );
+            }
+            if (!$this->verifySha256($archivePath, $expectedSha, $logPath)) {
                 return new UpdateResult(
                     false,
                     'SHA256-Prüfung fehlgeschlagen.',
@@ -312,6 +329,11 @@ final class WebinterfaceUpdateService
 
     private function fetchManifest(): array
     {
+        $manifest = $this->fetchManifestFromGithubRelease();
+        if ($manifest !== null) {
+            return ['manifest' => $manifest, 'error' => null];
+        }
+
         if (trim($this->manifestUrl) !== '') {
             $manifest = $this->fetchManifestFromUrl($this->manifestUrl);
             if ($manifest !== null) {
@@ -319,12 +341,7 @@ final class WebinterfaceUpdateService
             }
         }
 
-        $manifest = $this->fetchManifestFromGithubRelease();
-        if ($manifest !== null) {
-            return ['manifest' => $manifest, 'error' => null];
-        }
-
-        return ['manifest' => null, 'error' => 'Manifest konnte nicht geladen werden.'];
+        return ['manifest' => null, 'error' => 'Kein passendes GitHub Release-Asset oder Manifest gefunden.'];
     }
 
     private function fetchManifestFromUrl(string $url): ?UpdateManifest
@@ -340,87 +357,51 @@ final class WebinterfaceUpdateService
             return null;
         }
 
-        return $this->createManifestFromPayload($payload);
+        $manifest = $this->createManifestFromPayload($payload);
+        if ($manifest === null || !$this->isAllowedCoreAssetUrl($manifest->assetUrl) || !$this->isManifestAllowedForSelectedChannel($manifest)) {
+            return null;
+        }
+        if ($manifest->deltaAssetUrl !== null && !$this->isAllowedCoreAssetUrl($manifest->deltaAssetUrl)) {
+            return null;
+        }
+
+        return $manifest;
     }
 
     private function fetchManifestFromGithubRelease(): ?UpdateManifest
     {
-        $repository = trim($this->releaseRepository);
-        if ($repository === '') {
+        if ($this->coreReleaseChecker === null) {
             return null;
         }
 
         $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
-        $endpoint = sprintf('https://api.github.com/repos/%s/releases?per_page=20', $repository);
-
-        try {
-            $response = $this->httpClient->request('GET', $endpoint, [
-                'timeout' => 10,
-                'headers' => [
-                    'Accept' => 'application/vnd.github+json',
-                    'User-Agent' => 'Easy-Wi-NextGen',
-                ],
-            ]);
-            if ($response->getStatusCode() !== 200) {
-                return null;
-            }
-            $releases = json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\Throwable) {
+        $package = $this->coreReleaseChecker->getReleasePackageForChannel($channel);
+        if ($package === null) {
             return null;
         }
 
-        if (!is_array($releases)) {
+        $version = is_string($package['version'] ?? null) ? trim($package['version']) : '';
+        $assetUrl = is_string($package['download_url'] ?? null) ? trim($package['download_url']) : '';
+        $checksumsUrl = is_string($package['checksums_url'] ?? null) ? trim($package['checksums_url']) : '';
+        $assetName = is_string($package['asset_name'] ?? null) ? trim($package['asset_name']) : 'easywi-core.tar.gz';
+        if ($version === '' || $assetUrl === '' || $checksumsUrl === '') {
             return null;
         }
 
-        foreach ($releases as $release) {
-            if (!is_array($release)) {
-                continue;
-            }
-
-            if (($release['draft'] ?? false) === true) {
-                continue;
-            }
-
-            if ($this->detectGithubReleaseChannel($release) !== $channel) {
-                continue;
-            }
-
-            $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
-            $manifestAssetUrl = $this->findAssetUrlByName($assets, 'manifest.json');
-            if ($manifestAssetUrl !== null) {
-                $manifest = $this->fetchManifestFromUrl($manifestAssetUrl);
-                if ($manifest !== null) {
-                    return $manifest;
-                }
-            }
-
-            $tag = is_string($release['tag_name'] ?? null) ? trim($release['tag_name']) : '';
-            $version = $this->normalizeVersion($tag);
-            if ($version === null) {
-                continue;
-            }
-
-            $assetUrl = $this->findWebinterfaceArchiveAssetUrl($assets, $version);
-            if ($assetUrl === null) {
-                continue;
-            }
-
-            $notes = is_string($release['body'] ?? null) ? trim((string) $release['body']) : null;
-
-            return new UpdateManifest(
-                $version,
-                $assetUrl,
-                null,
-                $notes !== '' ? $notes : null,
-                null,
-                null,
-                null,
-                [],
-            );
-        }
-
-        return null;
+        return new UpdateManifest(
+            $version,
+            $assetUrl,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [],
+            $checksumsUrl,
+            is_string($package['signature_url'] ?? null) ? $package['signature_url'] : null,
+            $assetName,
+            $channel,
+        );
     }
 
     private function createManifestFromPayload(mixed $payload): ?UpdateManifest
@@ -713,6 +694,7 @@ final class WebinterfaceUpdateService
         try {
             $response = $this->httpClient->request('GET', $assetUrl, [
                 'timeout' => 30,
+                'headers' => $this->downloadHeaders($assetUrl),
             ]);
             if ($response->getStatusCode() !== 200) {
                 $this->log($logPath, 'Asset download fehlgeschlagen: HTTP ' . $response->getStatusCode());
@@ -725,6 +707,130 @@ final class WebinterfaceUpdateService
         }
 
         return $archivePath;
+    }
+
+
+    private function fetchChecksumForAsset(string $checksumsUrl, ?string $assetName, string $logPath): ?string
+    {
+        $assetName = $assetName !== null && $assetName !== '' ? $assetName : 'easywi-core.tar.gz';
+
+        try {
+            $response = $this->httpClient->request('GET', $checksumsUrl, [
+                'timeout' => 15,
+                'headers' => $this->downloadHeaders($checksumsUrl),
+            ]);
+            if ($response->getStatusCode() !== 200) {
+                $this->log($logPath, 'Checksums download fehlgeschlagen: HTTP ' . $response->getStatusCode());
+                return null;
+            }
+            $contents = $response->getContent(false);
+        } catch (\Throwable) {
+            $this->log($logPath, 'Checksums download fehlgeschlagen.');
+            return null;
+        }
+
+        foreach (preg_split('/\\r\\n|\\r|\\n/', $contents) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            if (preg_match('/^([a-f0-9]{64})\s+\*?(.+)$/i', $line, $matches) !== 1) {
+                continue;
+            }
+            if (basename(trim($matches[2])) === $assetName) {
+                return strtolower($matches[1]);
+            }
+        }
+
+        $this->log($logPath, sprintf('Checksums Datei enthält keinen Eintrag für %s.', $assetName));
+        return null;
+    }
+
+    /** @return array<string, string> */
+    private function downloadHeaders(string $url): array
+    {
+        $headers = [
+            'User-Agent' => 'Easy-Wi-NextGen',
+        ];
+
+        $token = $this->githubToken !== null ? trim($this->githubToken) : '';
+        $host = parse_url($url, PHP_URL_HOST);
+        $hostLower = is_string($host) ? strtolower($host) : '';
+        if ($hostLower === 'api.github.com') {
+            $headers['Accept'] = 'application/octet-stream';
+        }
+        if ($token !== '' && ($hostLower === 'github.com' || str_ends_with($hostLower, '.github.com') || $hostLower === 'api.github.com')) {
+            $headers['Authorization'] = 'Bearer ' . $token;
+        }
+
+        return $headers;
+    }
+
+    private function isManifestAllowedForSelectedChannel(UpdateManifest $manifest): bool
+    {
+        $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
+        $versionChannel = $this->detectVersionChannel($manifest->latest);
+        if ($versionChannel !== $channel) {
+            return false;
+        }
+
+        $tag = $this->releaseTagFromGithubDownloadUrl($manifest->assetUrl);
+        return $tag === null || $this->detectVersionChannel($tag) === $channel;
+    }
+
+    private function detectVersionChannel(string $version): string
+    {
+        $lower = strtolower($version);
+        if (preg_match('/(?:^|[._\-+])(?:dev|alpha|snapshot|nightly)(?:$|[._\-+])/', $lower) === 1) {
+            return 'dev';
+        }
+        if (preg_match('/(?:^|[._\-+])(?:beta|preview|rc)(?:$|[._\-+])/', $lower) === 1) {
+            return 'beta';
+        }
+
+        return 'stable';
+    }
+
+    private function releaseTagFromGithubDownloadUrl(string $url): ?string
+    {
+        if (strtolower((string) parse_url($url, PHP_URL_HOST)) !== 'github.com') {
+            return null;
+        }
+
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        if (preg_match('#/releases/download/([^/]+)/#', $path, $matches) !== 1) {
+            return null;
+        }
+
+        return rawurldecode($matches[1]);
+    }
+
+    private function isAllowedCoreAssetUrl(string $url): bool
+    {
+        $repository = trim($this->releaseRepository, '/ ');
+        if ($repository === '') {
+            return false;
+        }
+
+        $parts = explode('/', $repository, 2);
+        if (count($parts) !== 2) {
+            return false;
+        }
+        [$owner, $repo] = array_map('rawurlencode', $parts);
+
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        $normalizedPath = '/' . ltrim($path, '/');
+
+        if ($host === 'github.com') {
+            return str_starts_with($normalizedPath, sprintf('/%s/%s/releases/download/', $owner, $repo));
+        }
+
+        if ($host === 'api.github.com') {
+            return str_starts_with($normalizedPath, sprintf('/repos/%s/%s/releases/assets/', $owner, $repo));
+        }
+
+        return false;
     }
 
     private function verifySha256(string $archivePath, string $expected, string $logPath): bool

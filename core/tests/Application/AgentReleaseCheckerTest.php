@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace App\Tests\Application;
 
 use App\Module\Core\Application\AgentReleaseChecker;
+use App\Module\Core\Application\GithubReleaseResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use Symfony\Component\HttpClient\MockHttpClient;
 
 final class AgentReleaseCheckerTest extends TestCase
 {
     public function testSelectLatestReleaseAssetPrefersHighestVersionNotFirstApiEntry(): void
     {
-        $checker = new AgentReleaseChecker(new ArrayAdapter(), 'Matlord93/Easy-Wi-NextGen', 300, 'beta');
+        $checker = $this->checker('beta');
 
         $releases = [
             [
@@ -46,7 +48,7 @@ final class AgentReleaseCheckerTest extends TestCase
 
     public function testFetchLatestVersionComparesSemverLikeTags(): void
     {
-        $checker = new AgentReleaseChecker(new ArrayAdapter(), 'Matlord93/Easy-Wi-NextGen', 300, 'beta');
+        $checker = $this->checker('beta');
 
         $method = new \ReflectionMethod($checker, 'compareReleaseTags');
 
@@ -58,7 +60,7 @@ final class AgentReleaseCheckerTest extends TestCase
 
     public function testSelectLatestReleaseAssetSupportsPinnedTargetVersion(): void
     {
-        $checker = new AgentReleaseChecker(new ArrayAdapter(), 'Matlord93/Easy-Wi-NextGen', 300, 'stable');
+        $checker = $this->checker('stable');
 
         $releases = [
             [
@@ -90,7 +92,7 @@ final class AgentReleaseCheckerTest extends TestCase
 
     public function testChannelFilteringSeparatesDevBetaAndStableGithubReleases(): void
     {
-        $checker = new AgentReleaseChecker(new ArrayAdapter(), 'Matlord93/Easy-Wi-NextGen', 300, 'dev');
+        $checker = $this->checker('dev');
 
         $releases = [
             [
@@ -138,9 +140,19 @@ final class AgentReleaseCheckerTest extends TestCase
 
     public function testAlphaChannelAliasNormalizesToDev(): void
     {
-        $checker = new AgentReleaseChecker(new ArrayAdapter(), 'Matlord93/Easy-Wi-NextGen', 300, 'alpha');
+        $checker = $this->checker('alpha');
 
         self::assertSame('dev', $checker->getChannel());
     }
 
+    private function checker(string $channel): AgentReleaseChecker
+    {
+        return new AgentReleaseChecker(
+            new ArrayAdapter(),
+            'Matlord93/Easy-Wi-NextGen',
+            300,
+            $channel,
+            new GithubReleaseResolver(new MockHttpClient()),
+        );
+    }
 }

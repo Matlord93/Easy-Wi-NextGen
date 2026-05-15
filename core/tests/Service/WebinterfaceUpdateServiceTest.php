@@ -12,30 +12,10 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class WebinterfaceUpdateServiceTest extends TestCase
 {
-    public function testFallsBackToGithubReleaseManifestWhenConfiguredManifestIsUnavailable(): void
+    public function testReportsErrorWhenConfiguredManifestAndReleasePackageAreUnavailable(): void
     {
         $httpClient = new MockHttpClient([
             new MockResponse('', ['http_code' => 404]),
-            new MockResponse(json_encode([
-                [
-                    'draft' => false,
-                    'prerelease' => false,
-                    'tag_name' => 'v1.2.3',
-                    'assets' => [
-                        [
-                            'name' => 'manifest.json',
-                            'browser_download_url' => 'https://example.test/manifest.json',
-                        ],
-                    ],
-                    'body' => 'release notes',
-                ],
-            ], JSON_THROW_ON_ERROR), ['http_code' => 200]),
-            new MockResponse(json_encode([
-                'latest' => '1.2.3',
-                'asset_url' => 'https://example.test/easywi-webinterface-1.2.3.zip',
-                'sha256' => 'abc',
-                'notes' => 'notes from manifest',
-            ], JSON_THROW_ON_ERROR), ['http_code' => 200]),
         ]);
 
         $tmpDir = sys_get_temp_dir() . '/easywi-update-test-' . bin2hex(random_bytes(4));
@@ -60,30 +40,20 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $status = $service->checkForUpdate();
 
-        self::assertNull($status->error);
+        self::assertSame('Kein passendes GitHub Release-Asset oder Manifest gefunden.', $status->error);
         self::assertSame('1.2.2', $status->installedVersion);
-        self::assertSame('1.2.3', $status->latestVersion);
-        self::assertTrue($status->updateAvailable);
-        self::assertSame('notes from manifest', $status->notes);
+        self::assertNull($status->latestVersion);
+        self::assertNull($status->updateAvailable);
     }
 
-    public function testBuildsManifestFromReleaseAssetsWhenManifestAssetMissing(): void
+    public function testAcceptsManifestAssetUrlOnlyFromConfiguredRepository(): void
     {
         $httpClient = new MockHttpClient([
-            new MockResponse('', ['http_code' => 500]),
             new MockResponse(json_encode([
-                [
-                    'draft' => false,
-                    'prerelease' => false,
-                    'tag_name' => 'v2.0.0',
-                    'assets' => [
-                        [
-                            'name' => 'easywi-webinterface-2.0.0.zip',
-                            'browser_download_url' => 'https://example.test/easywi-webinterface-2.0.0.zip',
-                        ],
-                    ],
-                    'body' => 'Generated fallback notes',
-                ],
+                'latest' => '2.0.0',
+                'asset_url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v2.0.0/easywi-core.tar.gz',
+                'sha256' => 'abc',
+                'notes' => 'Generated fallback notes',
             ], JSON_THROW_ON_ERROR), ['http_code' => 200]),
         ]);
 
@@ -113,7 +83,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         self::assertSame('2.0.0', $status->latestVersion);
         self::assertTrue($status->updateAvailable);
         self::assertSame('Generated fallback notes', $status->notes);
-        self::assertSame('https://example.test/easywi-webinterface-2.0.0.zip', $status->assetUrl);
+        self::assertSame('https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v2.0.0/easywi-core.tar.gz', $status->assetUrl);
     }
 
     /**
