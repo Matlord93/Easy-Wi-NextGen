@@ -187,10 +187,21 @@ final class GithubReleaseResolver
         $rightNormalized = $this->normalizeVersion($rightTag);
 
         if ($leftNormalized !== null && $rightNormalized !== null) {
-            return version_compare($leftNormalized, $rightNormalized);
+            $comparison = version_compare(
+                $this->normalizeDevReleaseAliasForComparison($leftNormalized),
+                $this->normalizeDevReleaseAliasForComparison($rightNormalized),
+            );
+            if ($comparison !== 0) {
+                return $comparison;
+            }
         }
 
         return strcmp($leftTag, $rightTag);
+    }
+
+    private function normalizeDevReleaseAliasForComparison(string $version): string
+    {
+        return preg_replace('/([._\-+])(?:alpha|snapshot|nightly)(?=$|[._\-+])/i', '$1dev', $version) ?? $version;
     }
 
     /** @return array<int, mixed>|null */
