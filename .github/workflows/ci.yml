@@ -46,6 +46,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: agent/go.mod
+          cache: 'false'
       - run: go test ./...
       - run: go vet ./...
 

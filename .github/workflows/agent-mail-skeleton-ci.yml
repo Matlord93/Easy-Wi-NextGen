@@ -35,8 +35,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: agent/go.mod
-          cache: true
-          cache-dependency-path: agent/go.sum
+          cache: 'false'
 
       - name: Configure isolated Go build cache
         uses: ./.github/actions/configure-go-build-cache
