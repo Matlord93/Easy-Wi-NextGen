@@ -2329,7 +2329,7 @@ setup_cpu_grub() {
 
   # Entferne bereits vorhandene CPU-/Idle-Parameter (idempotent)
   local cleaned="${current}"
-  for tok in intel_pstate amd_pstate processor.max_cstate idle; do
+  for tok in intel_pstate intel_idle.max_cstate amd_pstate processor.max_cstate idle; do
     cleaned="$(printf '%s' "${cleaned}" | sed -E "s/${tok}=[^ ]*( |$)/ /g" | tr -s ' ')"
   done
   cleaned="${cleaned# }"; cleaned="${cleaned% }"
@@ -2369,30 +2369,121 @@ setup_cpu_grub() {
   warn "WICHTIG: Neustart erforderlich, damit die GRUB-Parameter wirksam werden!"
 }
 
+try_install_cpu_tools() {
+  local manager="$1"; shift
+  local packages=("$@")
+  [[ ${#packages[@]} -eq 0 ]] && return 1
+
+  log "Versuche optionale CPU-Tools: ${packages[*]}"
+  case "${manager}" in
+    apt)
+      if [[ "${APT_UPDATED}" -eq 0 ]]; then
+        env DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 || return 1
+        APT_UPDATED=1
+      fi
+      env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" >/dev/null 2>&1
+      ;;
+    dnf)    dnf install -y "${packages[@]}" >/dev/null 2>&1 ;;
+    yum)    yum install -y "${packages[@]}" >/dev/null 2>&1 ;;
+    zypper) zypper --non-interactive install --no-confirm "${packages[@]}" >/dev/null 2>&1 ;;
+    pacman) pacman -Sy --noconfirm --needed "${packages[@]}" >/dev/null 2>&1 ;;
+    apk)    apk add --no-cache "${packages[@]}" >/dev/null 2>&1 ;;
+    *)      return 1 ;;
+  esac
+}
+
 install_cpufreq_tools() {
   local manager="$1"
-  step "Installiere CPU-Frequenz-Tools."
+  local installed=false
+  step "Installiere CPU-Frequenz-Tools (optional, distro-spezifische Fallbacks)."
+
   case "${manager}" in
-    apt)     install_packages "${manager}" cpufrequtils linux-tools-common linux-tools-generic 2>/dev/null || \
-             install_packages "${manager}" cpufrequtils ;;
-    dnf|yum) install_packages "${manager}" kernel-tools ;;
-    zypper)  install_packages "${manager}" cpupower ;;
-    pacman)  install_packages "${manager}" cpupower ;;
-    apk)     install_packages "${manager}" cpufrequtils 2>/dev/null || true ;;
+    apt)
+      try_install_cpu_tools "${manager}" cpufrequtils linux-cpupower && installed=true
+      "${installed}" || try_install_cpu_tools "${manager}" cpufrequtils linux-tools-common linux-tools-generic && installed=true
+      "${installed}" || try_install_cpu_tools "${manager}" cpufrequtils && installed=true
+      ;;
+    dnf|yum)
+      try_install_cpu_tools "${manager}" kernel-tools && installed=true
+      "${installed}" || try_install_cpu_tools "${manager}" cpupowerutils && installed=true
+      ;;
+    zypper)
+      try_install_cpu_tools "${manager}" cpupower && installed=true
+      "${installed}" || try_install_cpu_tools "${manager}" cpufrequtils && installed=true
+      ;;
+    pacman)
+      try_install_cpu_tools "${manager}" cpupower && installed=true
+      ;;
+    apk)
+      try_install_cpu_tools "${manager}" cpupower && installed=true
+      "${installed}" || try_install_cpu_tools "${manager}" cpufrequtils && installed=true
+      ;;
   esac
+
+  if "${installed}"; then
+    ok "CPU-Frequenz-Tools installiert."
+  else
+    warn "Keine CPU-Frequenz-Tools installiert – fahre mit generischem sysfs-Fallback fort."
+  fi
+}
+find_cpupower() {
+  command -v cpupower 2>/dev/null || printf '/usr/bin/cpupower'
+}
+
+write_sysfs_value() {
+  local path="$1" value="$2"
+  [[ -w "${path}" ]] || return 1
+  printf '%s' "${value}" > "${path}" 2>/dev/null
+}
+
+apply_cpu_performance_sysfs() {
+  local governor="$1"
+  local changed=false policy max_freq pref_file gov_file
+
+  for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+    [[ -d "${policy}" ]] || continue
+
+    gov_file="${policy}/scaling_governor"
+    if [[ -f "${policy}/scaling_available_governors" ]] && ! grep -qw "${governor}" "${policy}/scaling_available_governors"; then
+      warn "Governor '${governor}' wird von ${policy##*/} nicht angeboten."
+    elif write_sysfs_value "${gov_file}" "${governor}"; then
+      changed=true
+    fi
+
+    max_freq=""
+    [[ -r "${policy}/cpuinfo_max_freq" ]] && max_freq="$(cat "${policy}/cpuinfo_max_freq")"
+    [[ -z "${max_freq}" && -r "${policy}/scaling_max_freq" ]] && max_freq="$(cat "${policy}/scaling_max_freq")"
+    if [[ -n "${max_freq}" ]] && write_sysfs_value "${policy}/scaling_min_freq" "${max_freq}"; then
+      changed=true
+    fi
+
+    pref_file="${policy}/energy_performance_preference"
+    if [[ -f "${policy}/energy_performance_available_preferences" ]] \
+      && grep -qw performance "${policy}/energy_performance_available_preferences" \
+      && write_sysfs_value "${pref_file}" performance; then
+      changed=true
+    fi
+  done
+
+  write_sysfs_value /sys/devices/system/cpu/intel_pstate/min_perf_pct 100 && changed=true
+  write_sysfs_value /sys/devices/system/cpu/intel_pstate/max_perf_pct 100 && changed=true
+  write_sysfs_value /sys/devices/system/cpu/intel_pstate/no_turbo 0 && changed=true
+  write_sysfs_value /sys/devices/system/cpu/cpufreq/boost 1 && changed=true
+  write_sysfs_value /sys/devices/system/cpu/boost 1 && changed=true
+
+  "${changed}"
 }
 
 set_cpu_governor_now() {
   local governor="$1"
-  local changed=false
+  local changed=false cpupower_bin
 
-  # Methode 1: cpupower
-  if command -v cpupower >/dev/null 2>&1; then
-    cpupower frequency-set -g "${governor}" 2>/dev/null && changed=true
+  cpupower_bin="$(find_cpupower)"
+  if [[ -x "${cpupower_bin}" ]]; then
+    "${cpupower_bin}" -c all frequency-set -g "${governor}" 2>/dev/null && changed=true
   fi
 
-  # Methode 2: cpufreq-set
-  if ! "${changed}" && command -v cpufreq-set >/dev/null 2>&1; then
+  if command -v cpufreq-set >/dev/null 2>&1; then
     local cpu
     for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
       [[ -d "${cpu}" ]] || continue
@@ -2401,66 +2492,205 @@ set_cpu_governor_now() {
     done
   fi
 
-  # Methode 3: direkt via sysfs (funktioniert immer)
-  local gov_file
-  for gov_file in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-    [[ -f "${gov_file}" ]] && printf '%s' "${governor}" > "${gov_file}" 2>/dev/null && changed=true
-  done
-
-  if "${changed}"; then
-    ok "CPU-Governor jetzt auf '${governor}' gesetzt."
-  else
-    warn "CPU-Governor konnte nicht sofort gesetzt werden (z.B. kein cpufreq-Treiber geladen)."
+  if apply_cpu_performance_sysfs "${governor}"; then
+    changed=true
   fi
 
-  # Alle CPU-Idle-/C-States deaktivieren (Tiefe ≥ 0 → keine Schlafzustände)
-  if command -v cpupower >/dev/null 2>&1; then
-    if cpupower idle-set -D 0 2>/dev/null; then
+  if command -v x86_energy_perf_policy >/dev/null 2>&1; then
+    x86_energy_perf_policy performance 2>/dev/null && changed=true
+  fi
+
+  if "${changed}"; then
+    ok "CPU-Governor, Mindesttakt und Energieprofil jetzt auf maximale Performance gesetzt."
+  else
+    warn "CPU-Performance konnte nicht sofort gesetzt werden (z.B. kein cpufreq-/pstate-Treiber geladen)."
+  fi
+
+  if [[ -x "${cpupower_bin}" ]]; then
+    if "${cpupower_bin}" idle-set -D 0 2>/dev/null; then
       ok "CPU-Idle-States deaktiviert (cpupower idle-set -D 0)."
     else
       warn "cpupower idle-set -D 0 fehlgeschlagen – ggf. nach Reboot wirksam."
     fi
   else
-    warn "cpupower nicht verfügbar – idle-set wird nach Reboot via Service gesetzt."
+    warn "cpupower nicht verfügbar – idle-set wird nach Reboot via Service versucht."
+  fi
+}
+
+write_cpu_performance_helper() {
+  local governor="$1"
+
+  cat > /usr/local/sbin/easywi-cpu-performance.sh <<'HELPER'
+#!/bin/sh
+set -u
+GOVERNOR="${1:-performance}"
+RETRIES="${2:-45}"
+SLEEP_SECONDS="${3:-1}"
+
+write_value() {
+  path="$1"
+  value="$2"
+  [ -w "$path" ] || return 1
+  printf '%s' "$value" > "$path" 2>/dev/null
+}
+
+policy_max_freq() {
+  policy="$1"
+  if [ -r "$policy/cpuinfo_max_freq" ]; then
+    cat "$policy/cpuinfo_max_freq"
+  elif [ -r "$policy/scaling_max_freq" ]; then
+    cat "$policy/scaling_max_freq"
+  fi
+}
+
+apply_once() {
+  for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+    [ -d "$policy" ] || continue
+
+    if [ -r "$policy/scaling_available_governors" ] && ! grep -qw "$GOVERNOR" "$policy/scaling_available_governors"; then
+      :
+    else
+      write_value "$policy/scaling_governor" "$GOVERNOR" || true
+    fi
+
+    max_freq="$(policy_max_freq "$policy")"
+    [ -n "$max_freq" ] && write_value "$policy/scaling_min_freq" "$max_freq" || true
+
+    if [ -r "$policy/energy_performance_available_preferences" ] \
+      && grep -qw performance "$policy/energy_performance_available_preferences"; then
+      write_value "$policy/energy_performance_preference" performance || true
+    fi
+  done
+
+  write_value /sys/devices/system/cpu/intel_pstate/min_perf_pct 100 || true
+  write_value /sys/devices/system/cpu/intel_pstate/max_perf_pct 100 || true
+  write_value /sys/devices/system/cpu/intel_pstate/no_turbo 0 || true
+  write_value /sys/devices/system/cpu/cpufreq/boost 1 || true
+  write_value /sys/devices/system/cpu/boost 1 || true
+
+  if command -v cpupower >/dev/null 2>&1; then
+    cpupower -c all frequency-set -g "$GOVERNOR" >/dev/null 2>&1 || true
+    cpupower idle-set -D 0 >/dev/null 2>&1 || true
+  elif [ -x /usr/bin/cpupower ]; then
+    /usr/bin/cpupower -c all frequency-set -g "$GOVERNOR" >/dev/null 2>&1 || true
+    /usr/bin/cpupower idle-set -D 0 >/dev/null 2>&1 || true
+  fi
+
+  command -v x86_energy_perf_policy >/dev/null 2>&1 && x86_energy_perf_policy performance >/dev/null 2>&1 || true
+}
+
+verify_performance() {
+  found=0
+  failed=0
+
+  for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+    [ -d "$policy" ] || continue
+    found=1
+
+    if [ -r "$policy/scaling_available_governors" ] && grep -qw "$GOVERNOR" "$policy/scaling_available_governors"; then
+      current_governor="$(cat "$policy/scaling_governor" 2>/dev/null || true)"
+      [ "$current_governor" = "$GOVERNOR" ] || failed=1
+    fi
+
+    max_freq="$(policy_max_freq "$policy")"
+    current_min=""
+    [ -r "$policy/scaling_min_freq" ] && current_min="$(cat "$policy/scaling_min_freq" 2>/dev/null || true)"
+    if [ -n "$max_freq" ] && [ -n "$current_min" ] && [ "$current_min" != "$max_freq" ]; then
+      failed=1
+    fi
+  done
+
+  [ "$found" -eq 1 ] && [ "$failed" -eq 0 ]
+}
+
+i=0
+while [ "$i" -lt "$RETRIES" ]; do
+  apply_once
+  verify_performance && exit 0
+  i=$((i + 1))
+  sleep "$SLEEP_SECONDS"
+done
+
+# Final best-effort pass: never fail the boot if a platform exposes read-only cpufreq knobs.
+apply_once
+exit 0
+HELPER
+  chmod 0755 /usr/local/sbin/easywi-cpu-performance.sh
+}
+
+
+disable_cpu_power_conflicts() {
+  local svc
+
+  if has_systemctl; then
+    for svc in ondemand.service power-profiles-daemon.service tuned.service auto-cpufreq.service tlp.service; do
+      if systemctl list-unit-files "${svc}" >/dev/null 2>&1; then
+        systemctl disable --now "${svc}" >/dev/null 2>&1 || true
+        systemctl mask "${svc}" >/dev/null 2>&1 || true
+        ok "Konkurrierenden CPU-Power-Dienst deaktiviert: ${svc}"
+      fi
+    done
+  elif has_openrc; then
+    for svc in cpufreqd tlp; do
+      if rc-service "${svc}" status >/dev/null 2>&1; then
+        rc-service "${svc}" stop >/dev/null 2>&1 || true
+        rc-update del "${svc}" default >/dev/null 2>&1 || true
+        ok "Konkurrierenden CPU-Power-Dienst deaktiviert: ${svc}"
+      fi
+    done
   fi
 }
 
 write_cpu_governor_service() {
   local governor="$1"
 
+  write_cpu_performance_helper "${governor}"
+  disable_cpu_power_conflicts
+
   if has_systemctl; then
     cat > /etc/systemd/system/easywi-cpu-governor.service <<UNIT
 [Unit]
 Description=EasyWI CPU Performance Governor
-After=sysinit.target
-Before=basic.target
+After=multi-user.target systemd-modules-load.service
+Wants=systemd-modules-load.service
+Conflicts=ondemand.service power-profiles-daemon.service tuned.service auto-cpufreq.service tlp.service
 
 [Service]
 Type=oneshot
-RemainAfterExit=yes
-ExecStart=/bin/sh -c 'for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do [ -f "\$f" ] && printf ${governor} > "\$f"; done'
-ExecStart=-/usr/bin/cpupower idle-set -D 0
+ExecStartPre=-/bin/sh -c 'command -v modprobe >/dev/null 2>&1 && modprobe msr || true'
+ExecStart=/usr/local/sbin/easywi-cpu-performance.sh ${governor} 45 1
 
 [Install]
 WantedBy=multi-user.target
 UNIT
+    cat > /etc/systemd/system/easywi-cpu-governor.timer <<UNIT
+[Unit]
+Description=EasyWI CPU Performance Governor Re-Apply Timer
+
+[Timer]
+OnBootSec=30sec
+OnUnitActiveSec=5min
+AccuracySec=30sec
+Unit=easywi-cpu-governor.service
+
+[Install]
+WantedBy=timers.target
+UNIT
     service_enable_start easywi-cpu-governor.service
-    ok "CPU-Governor-Service (easywi-cpu-governor.service) aktiviert."
+    systemctl enable --now easywi-cpu-governor.timer >/dev/null 2>&1 || warn "Konnte easywi-cpu-governor.timer nicht aktivieren."
+    ok "CPU-Performance-Service und Re-Apply-Timer aktiviert."
 
   elif has_openrc; then
     cat > /etc/local.d/easywi-cpu-governor.start <<RC
 #!/bin/sh
-for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-  [ -f "\$f" ] && printf '${governor}' > "\$f"
-done
-command -v cpupower >/dev/null 2>&1 && cpupower idle-set -D 0
+/usr/local/sbin/easywi-cpu-performance.sh ${governor} 45 1
 RC
     chmod +x /etc/local.d/easywi-cpu-governor.start
     rc-update add local default 2>/dev/null || true
-    ok "CPU-Governor-Start-Skript eingerichtet (/etc/local.d/easywi-cpu-governor.start)."
+    ok "CPU-Performance-Start-Skript eingerichtet (/etc/local.d/easywi-cpu-governor.start)."
 
   else
-    warn "Kein systemd/OpenRC – CPU-Governor muss manuell persistiert werden."
+    warn "Kein systemd/OpenRC – CPU-Performance muss manuell persistiert werden."
   fi
 }
 
@@ -2474,13 +2704,14 @@ setup_cpu_performance() {
 
   case "${cpu_vendor}" in
     GenuineIntel)
-      step "Intel-CPU erkannt – deaktiviere intel_pstate, limitiere C-States."
-      # intel_pstate=disable → acpi-cpufreq übernimmt → performance-Governor möglich
-      grub_args="intel_pstate=disable processor.max_cstate=1 idle=mwait"
+      step "Intel-CPU erkannt – nutze intel_pstate/HWP und limitiere tiefe C-States."
+      # Debian 13 nutzt auf modernen Intel-Systemen meist intel_pstate/HWP.
+      # Nicht deaktivieren: stattdessen Mindesttakt/Performance-Preference per sysfs erzwingen.
+      grub_args="intel_idle.max_cstate=1 processor.max_cstate=1 idle=mwait"
       ;;
     AuthenticAMD)
       step "AMD-CPU erkannt – setze amd_pstate auf passive, limitiere C-States."
-      # amd_pstate=passive: lässt performance-Governor zu ohne pstate komplett zu deaktivieren
+      # amd_pstate=passive lässt den performance-Governor und feste Mindestfrequenz zu.
       grub_args="amd_pstate=passive processor.max_cstate=1 idle=mwait"
       ;;
     *)
@@ -2518,7 +2749,7 @@ run_cpu_performance() {
 
   ╔══════════════════════════════════════════════════╗
   ║  CPU Performance-Modus                           ║
-  ║  Setzt CPU dauerhaft auf vollen Takt             ║
+  ║  Setzt Governor und Mindesttakt auf Maximum       ║
   ║  – auch im Idle (kein Throttling)                ║
   ║  Passt GRUB für Intel und AMD CPUs an            ║
   ║  Kompatibel mit allen unterstützten Distros      ║
