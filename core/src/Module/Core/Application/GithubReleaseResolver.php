@@ -309,6 +309,11 @@ final class GithubReleaseResolver
             }
 
             $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
+            $matchingAssetNames = $this->findMatchingAssetNames($assets, $tag, $assetMatcher);
+            if (count($matchingAssetNames) <= 1) {
+                continue;
+            }
+
             $checksumsUrl = $this->findAssetDownloadUrl($assets, $checksumsAssetName);
             if ($checksumsUrl === null) {
                 continue;
@@ -319,7 +324,7 @@ final class GithubReleaseResolver
                 continue;
             }
 
-            foreach ($this->findMatchingAssetNames($assets, $tag, $assetMatcher) as $matchedAssetName) {
+            foreach ($matchingAssetNames as $matchedAssetName) {
                 if (!isset($checksumAssetNames[$matchedAssetName])) {
                     continue;
                 }

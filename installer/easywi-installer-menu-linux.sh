@@ -181,7 +181,8 @@ backup_conflicting_ondrej_php_sources() {
   # option Signed-By", so remove stale Ondrej/PHP source definitions before
   # adding the PPA again.
   local source_dir="/etc/apt/sources.list.d"
-  local backup_dir="${source_dir}/easywi-disabled-ondrej-php.$(date +%Y%m%d%H%M%S)"
+  local backup_dir
+  backup_dir="${source_dir}/easywi-disabled-ondrej-php.$(date +%Y%m%d%H%M%S)"
   local source_file backed_up=false
 
   [[ -d "${source_dir}" ]] || return 0
