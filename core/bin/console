@@ -9,7 +9,22 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\ErrorHandler\Debug;
 
-require dirname(__DIR__).'/vendor/autoload.php';
+$projectDir = dirname(__DIR__);
+$autoloadPath = $projectDir.'/vendor/autoload.php';
+
+if (!is_file($autoloadPath)) {
+    $message = 'Missing Composer dependencies.';
+    if (is_file($projectDir.'/composer.json')) {
+        $message .= ' Run `cd '.$projectDir.' && composer install` before using `php bin/console`.';
+    } else {
+        $message .= ' Composer metadata is also missing from '.$projectDir.'. Restore the complete core package, including composer.json, before using `php bin/console`.';
+    }
+
+    fwrite(STDERR, $message . PHP_EOL);
+    exit(1);
+}
+
+require $autoloadPath;
 
 if (is_file(dirname(__DIR__).'/.env')) {
     (new Dotenv())->bootEnv(dirname(__DIR__).'/.env');

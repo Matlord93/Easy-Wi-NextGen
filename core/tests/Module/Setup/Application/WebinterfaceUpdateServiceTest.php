@@ -21,7 +21,12 @@ final class WebinterfaceUpdateServiceTest extends TestCase
                 'artifacts' => [
                     'core_novendor_targz' => [
                         'url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.2.3/easywi-core.tar.gz',
-                        'sha256' => 'abc123',
+                        'sha256' => 'tar123',
+                    ],
+                    'webinterface_zip' => [
+                        'url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.2.3/easywi-webinterface-1.2.3.zip',
+                        'sha256' => 'zip123',
+                        'asset_name' => 'easywi-webinterface-1.2.3.zip',
                     ],
                 ],
                 'changelog' => 'Fixes',
@@ -46,8 +51,8 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $status = $service->checkForUpdate();
         self::assertSame('1.2.3', $status->latestVersion);
-        self::assertSame('https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.2.3/easywi-core.tar.gz', $status->assetUrl);
-        self::assertSame('abc123', $status->assetSha256);
+        self::assertSame('https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/v1.2.3/easywi-webinterface-1.2.3.zip', $status->assetUrl);
+        self::assertSame('zip123', $status->assetSha256);
     }
 
     /**

@@ -1,4 +1,5 @@
 parameters:
+  app.default_uri_default: 'http://localhost'
   app.agent_signature_skew_seconds: '%env(int:AGENT_SIGNATURE_SKEW_SECONDS)%'
   app.agent_nonce_ttl_seconds: '%env(int:AGENT_NONCE_TTL_SECONDS)%'
   app.agent_jwt_issuer_default: 'easywi-panel'
@@ -28,7 +29,7 @@ parameters:
   app.core_update_releases_dir: '%env(APP_CORE_UPDATE_RELEASES_DIR)%'
   app.core_update_current_symlink: '%env(APP_CORE_UPDATE_CURRENT_SYMLINK)%'
   app.core_update_lock_file: '%env(APP_CORE_UPDATE_LOCK_FILE)%'
-  app.core_update_excludes_default: '.env,config/local*,var/,storage/,uploads/'
+  app.core_update_excludes_default: '.env,config/local*,var/,storage/,uploads/,vendor/'
   app.core_update_excludes: '%env(default:app.core_update_excludes_default:APP_CORE_UPDATE_EXCLUDES)%'
   app.core_update_jobs_dir_default: '%kernel.project_dir%/srv/update/jobs'
   app.core_update_logs_dir_default: '%kernel.project_dir%/srv/update/logs'

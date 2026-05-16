@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application;
 
+use App\Module\Core\Application\CoreReleaseChecker;
 use App\Module\Core\Application\GithubReleaseResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
@@ -129,6 +130,38 @@ final class GithubReleaseResolverTest extends TestCase
         self::assertSame('https://github.com/Matlord93/webinterface/releases/download/v0.9.7-dev.20260515.1/checksums-core.txt', $asset['checksums_url'] ?? null);
         self::assertArrayNotHasKey('token', $asset);
         self::assertStringNotContainsString('secret-token', json_encode($asset, JSON_THROW_ON_ERROR));
+    }
+
+
+    public function testHttpResolverSelectsAssetPresentInChecksumFile(): void
+    {
+        $releasePayload = [[
+            'draft' => false,
+            'prerelease' => true,
+            'tag_name' => 'v0.9.7-dev.20260515.2',
+            'body' => "channel: dev\n",
+            'assets' => [
+                ['name' => 'easywi-core.tar.gz', 'browser_download_url' => 'https://github.com/Matlord93/webinterface/releases/download/v0.9.7-dev.20260515.2/easywi-core.tar.gz'],
+                ['name' => 'easywi-core-0.9.7-dev.20260515.2.tar.gz', 'browser_download_url' => 'https://github.com/Matlord93/webinterface/releases/download/v0.9.7-dev.20260515.2/easywi-core-0.9.7-dev.20260515.2.tar.gz'],
+                ['name' => 'checksums-core.txt', 'browser_download_url' => 'https://github.com/Matlord93/webinterface/releases/download/v0.9.7-dev.20260515.2/checksums-core.txt'],
+            ],
+        ]];
+        $checksumPayload = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  easywi-core-0.9.7-dev.20260515.2.tar.gz\n";
+        $resolver = new GithubReleaseResolver(new MockHttpClient([
+            new MockResponse((string) json_encode($releasePayload, JSON_THROW_ON_ERROR)),
+            new MockResponse($checksumPayload),
+        ]));
+
+        $asset = $resolver->getLatestAssetMatching(
+            'Matlord93/webinterface',
+            'dev',
+            CoreReleaseChecker::coreAssetMatcher(),
+            'checksums-core.txt',
+        );
+
+        self::assertIsArray($asset);
+        self::assertSame('easywi-core-0.9.7-dev.20260515.2.tar.gz', $asset['asset_name'] ?? null);
+        self::assertSame('https://github.com/Matlord93/webinterface/releases/download/v0.9.7-dev.20260515.2/easywi-core-0.9.7-dev.20260515.2.tar.gz', $asset['download_url'] ?? null);
     }
 
 

@@ -24,6 +24,14 @@ final class WebinterfaceUpdateService
         'uploads/',
     ];
 
+    /**
+     * Keep Composer dependencies available while the currently running console process
+     * finishes an in-place update, especially when release artifacts omit vendor/.
+     */
+    private const REQUIRED_RUNTIME_EXCLUDES = [
+        'vendor/',
+    ];
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly WebinterfaceUpdateSettingsService $settingsService,
@@ -136,7 +144,7 @@ final class WebinterfaceUpdateService
             }
 
             $workDir = $this->createWorkDir();
-            $archivePath = $this->downloadAsset($assetUrl, $workDir, $logPath);
+            $archivePath = $this->downloadAsset($assetUrl, $workDir, $logPath, $useDelta ? null : $manifest->assetName);
             if ($archivePath === null) {
                 return new UpdateResult(
                     false,
@@ -179,7 +187,7 @@ final class WebinterfaceUpdateService
                 return new UpdateResult(
                     false,
                     'Entpacken fehlgeschlagen.',
-                    'Archive konnte nicht entpackt werden.',
+                    'Archiv konnte nicht entpackt werden.',
                     $logPath,
                     $installedVersion,
                     $manifest->latest,
@@ -501,6 +509,23 @@ final class WebinterfaceUpdateService
         );
     }
 
+
+    /**
+     * @param array<string, mixed> $artifacts
+     * @return array<string, mixed>|null
+     */
+    private function selectReleaseFeedCoreArtifact(array $artifacts): ?array
+    {
+        foreach (['webinterface_zip', 'core_zip', 'core_novendor_zip', 'core_novendor_targz'] as $key) {
+            $artifact = $artifacts[$key] ?? null;
+            if (is_array($artifact)) {
+                return $artifact;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param array<int, mixed> $releases
      */
@@ -518,7 +543,7 @@ final class WebinterfaceUpdateService
             }
 
             $artifacts = is_array($release['artifacts'] ?? null) ? $release['artifacts'] : [];
-            $artifact = is_array($artifacts['core_novendor_targz'] ?? null) ? $artifacts['core_novendor_targz'] : null;
+            $artifact = $this->selectReleaseFeedCoreArtifact($artifacts);
             if ($artifact === null) {
                 continue;
             }
@@ -749,11 +774,10 @@ final class WebinterfaceUpdateService
         return $workDir;
     }
 
-    private function downloadAsset(string $assetUrl, string $workDir, string $logPath): ?string
+    private function downloadAsset(string $assetUrl, string $workDir, string $logPath, ?string $preferredFilename = null): ?string
     {
-        $path = parse_url($assetUrl, PHP_URL_PATH);
-        $filename = is_string($path) && $path !== '' ? basename($path) : 'package';
-        $archivePath = $workDir . '/' . $filename;
+        $urlPath = parse_url($assetUrl, PHP_URL_PATH);
+        $urlFilename = is_string($urlPath) && $urlPath !== '' ? rawurldecode(basename($urlPath)) : null;
 
         try {
             $response = $this->httpClient->request('GET', $assetUrl, [
@@ -764,6 +788,15 @@ final class WebinterfaceUpdateService
                 $this->log($logPath, 'Asset download fehlgeschlagen: HTTP ' . $response->getStatusCode());
                 return null;
             }
+
+            $headers = $response->getHeaders(false);
+            $contentDisposition = $headers['content-disposition'][0] ?? null;
+            $filename = $this->resolveDownloadedArchiveFilename(
+                $preferredFilename,
+                is_string($contentDisposition) ? $contentDisposition : null,
+                $urlFilename,
+            );
+            $archivePath = $workDir . '/' . $filename;
             file_put_contents($archivePath, $response->getContent(false));
         } catch (\Throwable $exception) {
             $this->log($logPath, 'Asset download fehlgeschlagen.');
@@ -771,6 +804,58 @@ final class WebinterfaceUpdateService
         }
 
         return $archivePath;
+    }
+
+    private function resolveDownloadedArchiveFilename(?string $preferredFilename, ?string $contentDisposition, ?string $urlFilename): string
+    {
+        foreach ([
+            $preferredFilename,
+            $this->filenameFromContentDisposition($contentDisposition),
+            $urlFilename,
+        ] as $candidate) {
+            $safe = $this->safeDownloadFilename($candidate);
+            if ($safe !== null) {
+                return $safe;
+            }
+        }
+
+        return 'package';
+    }
+
+    private function filenameFromContentDisposition(?string $contentDisposition): ?string
+    {
+        if ($contentDisposition === null || trim($contentDisposition) === '') {
+            return null;
+        }
+
+        if (preg_match('/filename\*=UTF-8\'\'([^;]+)/i', $contentDisposition, $matches) === 1) {
+            return rawurldecode(trim($matches[1], " \""));
+        }
+
+        if (preg_match('/filename=(\"[^\"]+\"|[^;]+)/i', $contentDisposition, $matches) === 1) {
+            return trim($matches[1], " \"");
+        }
+
+        return null;
+    }
+
+    private function safeDownloadFilename(?string $filename): ?string
+    {
+        if ($filename === null) {
+            return null;
+        }
+
+        $filename = trim(str_replace('\\', '/', $filename));
+        if ($filename === '') {
+            return null;
+        }
+
+        $basename = basename($filename);
+        if ($basename === '' || $basename === '.' || $basename === '..') {
+            return null;
+        }
+
+        return $basename;
     }
 
 
@@ -946,59 +1031,234 @@ final class WebinterfaceUpdateService
             mkdir($stagingDir, 0770, true);
         }
 
-        $lower = strtolower($archivePath);
+        $archiveType = $this->detectArchiveType($archivePath);
 
         try {
-            if (str_ends_with($lower, '.zip')) {
-                $zip = new \ZipArchive();
-                if ($zip->open($archivePath) !== true) {
-                    $this->log($logPath, 'ZIP-Archiv konnte nicht geöffnet werden.');
+            if ($archiveType === 'zip') {
+                if (!$this->extractZipArchive($archivePath, $stagingDir, $logPath)) {
                     return null;
                 }
-                if (!$this->validateZipArchivePaths($zip, $logPath)) {
-                    $zip->close();
-                    return null;
-                }
-                $zip->extractTo($stagingDir);
-                $zip->close();
                 $this->normalizeExtractedPermissions($stagingDir);
                 return $stagingDir;
             }
 
-            if (str_ends_with($lower, '.tar.gz') || str_ends_with($lower, '.tgz')) {
-                $phar = new \PharData($archivePath);
-                $tarPath = $archivePath;
-                if (str_ends_with($lower, '.gz')) {
-                    $tarPath = substr($archivePath, 0, -3);
-                    if (!file_exists($tarPath)) {
-                        $phar->decompress();
-                    }
-                    $phar = new \PharData($tarPath);
-                }
-                if (!$this->validatePharArchivePaths($phar, $logPath)) {
+            if ($archiveType === 'tar.gz') {
+                if (!$this->extractTarArchive($archivePath, $stagingDir, true, $logPath)) {
                     return null;
                 }
-                $phar->extractTo($stagingDir, null, true);
                 $this->normalizeExtractedPermissions($stagingDir);
                 return $stagingDir;
             }
 
-            if (str_ends_with($lower, '.tar')) {
-                $phar = new \PharData($archivePath);
-                if (!$this->validatePharArchivePaths($phar, $logPath)) {
+            if ($archiveType === 'tar') {
+                if (!$this->extractTarArchive($archivePath, $stagingDir, false, $logPath)) {
                     return null;
                 }
-                $phar->extractTo($stagingDir, null, true);
                 $this->normalizeExtractedPermissions($stagingDir);
                 return $stagingDir;
             }
-        } catch (\Throwable) {
-            $this->log($logPath, 'Archiv konnte nicht entpackt werden.');
+        } catch (\Throwable $exception) {
+            $this->log($logPath, 'Archiv konnte nicht entpackt werden: ' . $exception->getMessage());
             return null;
         }
 
         $this->log($logPath, 'Unbekanntes Archivformat.');
         return null;
+    }
+
+
+    private function extractTarArchive(string $archivePath, string $stagingDir, bool $gzipCompressed, string $logPath): bool
+    {
+        try {
+            $phar = $this->openTarArchive($archivePath, $gzipCompressed);
+            if ($this->validatePharArchivePaths($phar, $logPath)) {
+                $phar->extractTo($stagingDir, null, true);
+                return true;
+            }
+
+            return false;
+        } catch (\Throwable $exception) {
+            $this->log($logPath, 'TAR-Archiv konnte nicht mit PharData entpackt werden: ' . $exception->getMessage());
+        }
+
+        return $this->extractTarArchiveWithCommand($archivePath, $stagingDir, $gzipCompressed, $logPath);
+    }
+
+    private function openTarArchive(string $archivePath, bool $gzipCompressed): \PharData
+    {
+        if (!$gzipCompressed) {
+            return new \PharData($archivePath);
+        }
+
+        $gzipArchivePath = $archivePath;
+        if (preg_match('/\.(?:tar\.gz|tgz)$/i', $gzipArchivePath) !== 1) {
+            $gzipArchivePath = $archivePath . '.tar.gz';
+            if (!file_exists($gzipArchivePath) && !copy($archivePath, $gzipArchivePath)) {
+                throw new \RuntimeException('Temporäre .tar.gz-Datei konnte nicht erstellt werden.');
+            }
+        }
+
+        $phar = new \PharData($gzipArchivePath);
+        $tarPath = preg_replace('/\.(?:tar\.gz|tgz)$/i', '.tar', $gzipArchivePath);
+        if (!is_string($tarPath) || $tarPath === '') {
+            $tarPath = $gzipArchivePath . '.tar';
+        }
+        if (!file_exists($tarPath)) {
+            $phar->decompress();
+        }
+
+        return new \PharData($tarPath);
+    }
+
+    private function extractTarArchiveWithCommand(string $archivePath, string $stagingDir, bool $gzipCompressed, string $logPath): bool
+    {
+        $listCommand = $gzipCompressed
+            ? ['tar', '-tzf', $archivePath]
+            : ['tar', '-tf', $archivePath];
+        $listResult = $this->executeArchiveCommand($listCommand);
+        if ($listResult['exitCode'] !== 0) {
+            $this->log($logPath, 'TAR-Archiv konnte nicht mit tar geprüft werden: ' . $listResult['output']);
+            return false;
+        }
+
+        foreach (preg_split('/\r\n|\r|\n/', $listResult['output']) ?: [] as $path) {
+            if ($path === '') {
+                continue;
+            }
+            if (!$this->isSafeArchivePath($path)) {
+                $this->log($logPath, 'Archiv enthält einen unsicheren Pfad.');
+                return false;
+            }
+        }
+
+        $extractCommand = $gzipCompressed
+            ? ['tar', '-xzf', $archivePath, '-C', $stagingDir]
+            : ['tar', '-xf', $archivePath, '-C', $stagingDir];
+        $extractResult = $this->executeArchiveCommand($extractCommand);
+        if ($extractResult['exitCode'] !== 0) {
+            $this->log($logPath, 'TAR-Archiv konnte nicht mit tar extrahiert werden: ' . $extractResult['output']);
+            return false;
+        }
+
+        return true;
+    }
+
+    private function detectArchiveType(string $archivePath): ?string
+    {
+        $lower = strtolower($archivePath);
+        if (str_ends_with($lower, '.zip')) {
+            return 'zip';
+        }
+        if (str_ends_with($lower, '.tar.gz') || str_ends_with($lower, '.tgz')) {
+            return 'tar.gz';
+        }
+        if (str_ends_with($lower, '.tar')) {
+            return 'tar';
+        }
+
+        if (is_file($archivePath) && filesize($archivePath) >= 4) {
+            $handle = @fopen($archivePath, 'rb');
+            if (is_resource($handle)) {
+                $header = fread($handle, 512);
+                fclose($handle);
+                if (is_string($header)) {
+                    if (str_starts_with($header, "PK\x03\x04") || str_starts_with($header, "PK\x05\x06") || str_starts_with($header, "PK\x07\x08")) {
+                        return 'zip';
+                    }
+                    if (str_starts_with($header, "\x1F\x8B")) {
+                        return 'tar.gz';
+                    }
+                    if (strlen($header) > 265 && substr($header, 257, 5) === 'ustar') {
+                        return 'tar';
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function extractZipArchive(string $archivePath, string $stagingDir, string $logPath): bool
+    {
+        if (class_exists(\ZipArchive::class)) {
+            $zip = new \ZipArchive();
+            if ($zip->open($archivePath) !== true) {
+                $this->log($logPath, 'ZIP-Archiv konnte nicht geöffnet werden; versuche Entpacken mit unzip.');
+                return $this->extractZipArchiveWithUnzip($archivePath, $stagingDir, $logPath);
+            }
+            if (!$this->validateZipArchivePaths($zip, $logPath)) {
+                $zip->close();
+                return false;
+            }
+            $extracted = $zip->extractTo($stagingDir);
+            $zip->close();
+            if (!$extracted) {
+                $this->log($logPath, 'ZIP-Archiv konnte nicht extrahiert werden; versuche Entpacken mit unzip.');
+                return $this->extractZipArchiveWithUnzip($archivePath, $stagingDir, $logPath);
+            }
+
+            return true;
+        }
+
+        $this->log($logPath, 'PHP-ZIP-Erweiterung ist nicht verfügbar; versuche Entpacken mit unzip.');
+        return $this->extractZipArchiveWithUnzip($archivePath, $stagingDir, $logPath);
+    }
+
+    private function extractZipArchiveWithUnzip(string $archivePath, string $stagingDir, string $logPath): bool
+    {
+        $listResult = $this->executeArchiveCommand(['unzip', '-Z', '-1', $archivePath]);
+        if ($listResult['exitCode'] !== 0) {
+            $this->log($logPath, 'ZIP-Archiv konnte nicht mit unzip geprüft werden: ' . $listResult['output']);
+            return false;
+        }
+
+        foreach (preg_split('/\r\n|\r|\n/', $listResult['output']) ?: [] as $path) {
+            if ($path === '') {
+                continue;
+            }
+            if (!$this->isSafeArchivePath($path)) {
+                $this->log($logPath, 'Archiv enthält einen unsicheren Pfad.');
+                return false;
+            }
+        }
+
+        $extractResult = $this->executeArchiveCommand(['unzip', '-qq', $archivePath, '-d', $stagingDir]);
+        if ($extractResult['exitCode'] !== 0) {
+            $this->log($logPath, 'ZIP-Archiv konnte nicht mit unzip extrahiert werden: ' . $extractResult['output']);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $command
+     * @return array{exitCode: int, output: string}
+     */
+    private function executeArchiveCommand(array $command): array
+    {
+        $process = @proc_open($command, [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes);
+        if (!is_resource($process)) {
+            return [
+                'exitCode' => 127,
+                'output' => 'Prozess konnte nicht gestartet werden.',
+            ];
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+        $output = trim((string) $stdout . PHP_EOL . (string) $stderr);
+
+        return [
+            'exitCode' => is_int($exitCode) ? $exitCode : 1,
+            'output' => $output,
+        ];
     }
 
     private function validateZipArchivePaths(\ZipArchive $zip, string $logPath): bool
@@ -1365,8 +1625,15 @@ final class WebinterfaceUpdateService
     {
         $raw = array_map('trim', explode(',', $this->excludes));
         $filtered = array_values(array_filter($raw, static fn (string $value): bool => $value !== ''));
+        $excludes = $filtered !== [] ? $filtered : self::DEFAULT_EXCLUDES;
 
-        return $filtered !== [] ? $filtered : self::DEFAULT_EXCLUDES;
+        foreach (self::REQUIRED_RUNTIME_EXCLUDES as $requiredExclude) {
+            if (!in_array($requiredExclude, $excludes, true)) {
+                $excludes[] = $requiredExclude;
+            }
+        }
+
+        return $excludes;
     }
 
     private function shouldUseDelta(?string $installedVersion, UpdateManifest $manifest, string $logPath): bool

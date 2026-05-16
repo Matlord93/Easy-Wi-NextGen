@@ -92,7 +92,10 @@ final class GithubReleaseResolver
             return null;
         }
 
-        $selected = $this->selectLatestAssetMatching($releases, $channel, $assetMatcher, $checksumsAssetName, $signatureAssetName, $targetVersion);
+        $selected = $this->selectLatestAssetMatchingWithChecksumContents($releases, $channel, $assetMatcher, $checksumsAssetName, $signatureAssetName, $targetVersion);
+        if ($selected === null) {
+            $selected = $this->selectLatestAssetMatching($releases, $channel, $assetMatcher, $checksumsAssetName, $signatureAssetName, $targetVersion);
+        }
         if ($selected !== null) {
             $this->storeSelectedCacheMetadata($repository, $channel, $checkType, ['asset' => $selected]);
         }
@@ -271,6 +274,79 @@ final class GithubReleaseResolver
 
             if ($selected === null || $this->compareReleaseTags($candidate['version'], $selected['version']) > 0) {
                 $selected = $candidate;
+            }
+        }
+
+        return $selected;
+    }
+
+    /**
+     * @param array<int, mixed> $releases
+     * @param callable(string,string):bool|int $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
+     *
+     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
+     */
+    private function selectLatestAssetMatchingWithChecksumContents(
+        array $releases,
+        string $channel,
+        callable $assetMatcher,
+        string $checksumsAssetName,
+        ?string $signatureAssetName = null,
+        ?string $targetVersion = null,
+    ): ?array {
+        $channel = $this->normalizeChannel($channel);
+        $selected = null;
+        $normalizedTarget = $this->normalizeVersion($targetVersion);
+
+        foreach ($this->filterReleasesByChannel($releases, $channel) as $release) {
+            $tag = $this->extractReleaseTag($release);
+            if ($tag === null) {
+                continue;
+            }
+
+            if ($normalizedTarget !== null && $this->normalizeVersion($tag) !== $normalizedTarget) {
+                continue;
+            }
+
+            $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
+            $checksumsUrl = $this->findAssetDownloadUrl($assets, $checksumsAssetName);
+            if ($checksumsUrl === null) {
+                continue;
+            }
+
+            $checksumAssetNames = $this->fetchChecksumAssetNames($checksumsUrl);
+            if ($checksumAssetNames === null) {
+                continue;
+            }
+
+            foreach ($this->findMatchingAssetNames($assets, $tag, $assetMatcher) as $matchedAssetName) {
+                if (!isset($checksumAssetNames[$matchedAssetName])) {
+                    continue;
+                }
+
+                $downloadUrl = $this->findAssetDownloadUrl($assets, $matchedAssetName);
+                if ($downloadUrl === null) {
+                    continue;
+                }
+
+                $candidate = [
+                    'version' => $tag,
+                    'download_url' => $downloadUrl,
+                    'checksums_url' => $checksumsUrl,
+                    'signature_url' => $signatureAssetName !== null ? $this->findAssetDownloadUrl($assets, $signatureAssetName) : null,
+                    'asset_name' => $matchedAssetName,
+                    'channel' => $channel,
+                ];
+
+                if ($normalizedTarget !== null) {
+                    return $candidate;
+                }
+
+                if ($selected === null || $this->compareReleaseTags($candidate['version'], $selected['version']) > 0) {
+                    $selected = $candidate;
+                }
+
+                continue 2;
             }
         }
 
@@ -853,6 +929,97 @@ final class GithubReleaseResolver
         }
 
         return $matchedName;
+    }
+
+    /**
+     * @param array<int, mixed> $assets
+     * @param callable(string,string):bool|int $assetMatcher
+     *
+     * @return string[]
+     */
+    private function findMatchingAssetNames(array $assets, string $releaseTag, callable $assetMatcher): array
+    {
+        $matches = [];
+        foreach ($assets as $index => $asset) {
+            if (!is_array($asset)) {
+                continue;
+            }
+
+            $name = is_string($asset['name'] ?? null) ? trim($asset['name']) : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $match = $assetMatcher($name, $releaseTag);
+            if ($match === false) {
+                continue;
+            }
+
+            $matches[] = [
+                'name' => $name,
+                'priority' => is_int($match) ? $match : 1000 + $index,
+            ];
+        }
+
+        usort($matches, static fn (array $left, array $right): int => $left['priority'] <=> $right['priority']);
+
+        return array_map(static fn (array $match): string => $match['name'], $matches);
+    }
+
+    /** @return array<string, true>|null */
+    private function fetchChecksumAssetNames(string $checksumsUrl): ?array
+    {
+        try {
+            $response = $this->httpClient->request('GET', $checksumsUrl, [
+                'headers' => $this->downloadHeaders($checksumsUrl),
+                'timeout' => 10,
+            ]);
+            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+                return null;
+            }
+
+            $contents = $response->getContent(false);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $assetNames = [];
+        foreach (preg_split('/\\r\\n|\\r|\\n/', $contents) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            if (preg_match('/^[a-f0-9]{64}\s+\\*?(.+)$/i', $line, $matches) !== 1) {
+                continue;
+            }
+
+            $name = basename(trim($matches[1]));
+            if ($name !== '') {
+                $assetNames[$name] = true;
+            }
+        }
+
+        return $assetNames;
+    }
+
+    /** @return array<string, string> */
+    private function downloadHeaders(string $url): array
+    {
+        $headers = [
+            'User-Agent' => 'Easy-Wi-NextGen',
+        ];
+
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host === 'api.github.com') {
+            $headers['Accept'] = 'application/octet-stream';
+        }
+
+        $token = $this->resolveToken();
+        if ($token !== '' && ($host === 'github.com' || str_ends_with($host, '.github.com') || $host === 'api.github.com')) {
+            $headers['Authorization'] = 'Bearer ' . $token;
+        }
+
+        return $headers;
     }
 
     /** @param array<int, mixed> $assets */

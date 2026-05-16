@@ -91,7 +91,7 @@ final class CoreReleaseCheckerTest extends TestCase
         self::assertNull($checker->getReleasePackageForChannel('dev'));
     }
 
-    public function testStaticCoreAssetWinsOverAgentAndVersionedAssets(): void
+    public function testVersionedWebinterfaceZipWinsOverStaticCoreAsset(): void
     {
         $checker = $this->checker([[
             'draft' => false,
@@ -108,8 +108,8 @@ final class CoreReleaseCheckerTest extends TestCase
 
         $package = $checker->getReleasePackageForChannel('dev');
 
-        self::assertSame('easywi-core.zip', $package['asset_name'] ?? null);
-        self::assertSame('https://example.invalid/core.zip', $package['download_url'] ?? null);
+        self::assertSame('easywi-webinterface-0.9.7-dev.20260515.1.zip', $package['asset_name'] ?? null);
+        self::assertSame('https://example.invalid/versioned.zip', $package['download_url'] ?? null);
     }
 
     public function testChannelIsolationForCorePackages(): void

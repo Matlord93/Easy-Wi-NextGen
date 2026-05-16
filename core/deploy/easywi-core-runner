@@ -97,18 +97,57 @@ download_package() {
   curl -fsSL "$url" -o "$dest"
 }
 
+safe_archive_name() {
+  local candidate="$1"
+  candidate="${candidate##*/}"
+  candidate="${candidate%%\?*}"
+  candidate="${candidate%%#*}"
+  if [[ "$candidate" =~ ^[A-Za-z0-9._-]+\.(zip|tar|tar\.gz|tgz)$ ]]; then
+    printf '%s' "$candidate"
+    return 0
+  fi
+  return 1
+}
+
+archive_type() {
+  local archive="$1"
+  case "$archive" in
+    *.zip) echo "zip"; return 0 ;;
+    *.tar.gz|*.tgz) echo "tar.gz"; return 0 ;;
+    *.tar) echo "tar"; return 0 ;;
+  esac
+
+  if command -v file >/dev/null 2>&1; then
+    local mime
+    mime="$(file -b --mime-type "$archive" 2>/dev/null || true)"
+    case "$mime" in
+      application/zip) echo "zip"; return 0 ;;
+      application/gzip|application/x-gzip) echo "tar.gz"; return 0 ;;
+      application/x-tar) echo "tar"; return 0 ;;
+    esac
+  fi
+
+  return 1
+}
+
 extract_package() {
   local archive="$1"
   local target="$2"
   mkdir -p "$target"
-  case "$archive" in
-    *.zip)
+  local type
+  if ! type="$(archive_type "$archive")"; then
+    log "Unknown archive format for $archive."
+    return 1
+  fi
+
+  case "$type" in
+    zip)
       unzip -q "$archive" -d "$target"
       ;;
-    *.tar.gz|*.tgz)
+    tar.gz)
       tar -xzf "$archive" -C "$target"
       ;;
-    *.tar)
+    tar)
       tar -xf "$archive" -C "$target"
       ;;
     *)
@@ -139,7 +178,15 @@ perform_update() {
   package_url="$(read_job_payload_field package_url)"
   local tmp_dir
   tmp_dir="$(mktemp -d)"
-  local archive="$tmp_dir/package"
+  local asset_name
+  asset_name="$(read_job_payload_field asset_name)"
+  local archive_name
+  if ! archive_name="$(safe_archive_name "$asset_name")"; then
+    if ! archive_name="$(safe_archive_name "$package_url")"; then
+      archive_name="package"
+    fi
+  fi
+  local archive="$tmp_dir/$archive_name"
   if ! download_package "$package_url" "$archive"; then
     log "Missing package URL."
     return 1

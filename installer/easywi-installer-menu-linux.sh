@@ -28,12 +28,15 @@ run_or_fatal() {
   local log_file
   log_file="$(mktemp -t easywi-installer.XXXXXX.log)"
 
-  if "$@" >"${log_file}" 2>&1; then
+  set +e
+  "$@" >"${log_file}" 2>&1
+  local status=$?
+  set -e
+  if [[ "${status}" -eq 0 ]]; then
     rm -f "${log_file}"
     return 0
   fi
 
-  local status=$?
   log "FEHLER: ${description} (Exit-Code ${status})."
   if [[ -s "${log_file}" ]]; then
     log "Letzte Ausgabe von '${*}':"
@@ -171,6 +174,30 @@ apt_update_once() {
   fi
 }
 
+backup_conflicting_ondrej_php_sources() {
+  # add-apt-repository on newer Ubuntu releases writes deb822 source files with
+  # an inline Signed-By key. Older EasyWI runs used a keyring path for the same
+  # PPA URL. APT rejects that mixed state with "Conflicting values set for
+  # option Signed-By", so remove stale Ondrej/PHP source definitions before
+  # adding the PPA again.
+  local source_dir="/etc/apt/sources.list.d"
+  local backup_dir="${source_dir}/easywi-disabled-ondrej-php.$(date +%Y%m%d%H%M%S)"
+  local source_file backed_up=false
+
+  [[ -d "${source_dir}" ]] || return 0
+
+  while IFS= read -r -d '' source_file; do
+    if grep -Eq 'ppa\.launchpad(content)?\.net/ondrej/php|ondrej-ubuntu-php|ppa:ondrej/php' "${source_file}"; then
+      if [[ "${backed_up}" == false ]]; then
+        mkdir -p "${backup_dir}"
+        backed_up=true
+      fi
+      mv "${source_file}" "${backup_dir}/$(basename "${source_file}")"
+      warn "Vorhandene Ondrej/PHP-APT-Quelle wegen möglichem Signed-By-Konflikt deaktiviert: ${source_file}"
+    fi
+  done < <(find "${source_dir}" -maxdepth 1 -type f \( -name '*.list' -o -name '*.sources' \) -print0 2>/dev/null)
+}
+
 install_packages() {
   local manager="$1"; shift
   local packages=("$@")
@@ -218,13 +245,19 @@ setup_php_repo() {
   case "${family}" in
     debian)
       step "Richte PHP-Repository ein (Ondrej/PHP)."
+      local distro; distro="$(get_os_field ID)"
+      if [[ "${distro}" == "ubuntu" ]]; then
+        backup_conflicting_ondrej_php_sources
+      fi
       apt_update_once
       install_packages "${manager}" ca-certificates curl gnupg
 
-      local distro; distro="$(get_os_field ID)"
       if [[ "${distro}" == "ubuntu" ]]; then
         install_packages "${manager}" software-properties-common
-        # Ubuntu >= 24.04 ships PHP 8.x in main; still add PPA for latest
+        # Ubuntu >= 24.04 ships PHP 8.x in main; still add PPA for latest.
+        # Clean up once more in case software-properties-common created or
+        # normalized a source definition before add-apt-repository runs.
+        backup_conflicting_ondrej_php_sources
         add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 || warn "PPA konnte nicht hinzugefügt werden – nutze Distro-Pakete."
       else
         # Debian: sury.org
@@ -1461,6 +1494,46 @@ curl_release_asset() {
   curl "${args[@]}" "${url}" -o "${dest}"
 }
 
+curl_github_api() {
+  local url="$1" dest="$2" token="${3:-}"
+  local -a args=(
+    -fsSL --retry 3 --retry-delay 2
+    -H "Accept: application/vnd.github+json"
+    -H "User-Agent: easywi-installer/${VERSION}"
+  )
+  [[ -n "${token}" ]] && args+=(-H "Authorization: Bearer ${token}")
+  curl "${args[@]}" "${url}" -o "${dest}"
+}
+
+resolve_latest_release_with_assets() {
+  local token="${1:-}"; shift || true
+  local -a asset_names=("$@")
+  [[ "${#asset_names[@]}" -gt 0 ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  local tmp releases_url names_json tag
+  tmp="$(mktemp)"
+  releases_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases?per_page=50"
+  if ! curl_github_api "${releases_url}" "${tmp}" "${token}" 2>/dev/null; then
+    rm -f "${tmp}"
+    return 1
+  fi
+
+  names_json="$(printf '%s\n' "${asset_names[@]}" | jq -R . | jq -s .)"
+  tag="$(jq -r --argjson names "${names_json}" '
+    [ .[]
+      | select((.draft // false) | not)
+      | select((.prerelease // false) | not)
+      | select(any(.assets[]?.name; . as $asset_name | ($names | index($asset_name))))
+    ]
+    | .[0].tag_name // empty
+  ' "${tmp}")"
+  rm -f "${tmp}"
+
+  [[ -n "${tag}" ]] || return 1
+  printf '%s\n' "${tag}"
+}
+
 download_release_asset() {
   local asset="$1" dest="$2" version="${3:-latest}" token="${4:-}"
   local base
@@ -1626,26 +1699,53 @@ install_agent_binaries() {
 
   local agent_dest="${tmp}/agent-raw"
   local checksums="${tmp}/checksums.txt"
-  local agent_resolved="" asset_name=""
+  local agent_resolved="" asset_name="" resolved_version="${version}"
+  local -a asset_candidates=()
   for suffix in ".tar.gz" ".zip" ""; do
-    asset_name="easywi-agent-${arch}${suffix}"
-    if download_optional_asset "${asset_name}" "${agent_dest}" "${version}" "${github_token}"; then
-      if download_checksums_for_asset "${checksums}" "${version}" "${github_token}" checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256 >/dev/null; then
+    asset_candidates+=("easywi-agent-${arch}${suffix}")
+  done
+
+  for asset_name in "${asset_candidates[@]}"; do
+    if download_optional_asset "${asset_name}" "${agent_dest}" "${resolved_version}" "${github_token}"; then
+      if download_checksums_for_asset "${checksums}" "${resolved_version}" "${github_token}" checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256 >/dev/null; then
         verify_release_checksum "${checksums}" "${agent_dest}" "${asset_name}"
       else
         fatal "Keine Agent-Checksums-Datei im Release gefunden."
       fi
-      case "${suffix}" in
-        .tar.gz) tar -xzf "${agent_dest}" -C "${tmp}" ;;
-        .zip)    command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${agent_dest}" -d "${tmp}" ;;
-        *)       cp "${agent_dest}" "${tmp}/easywi-agent-${arch}" ;;
+      case "${asset_name}" in
+        *.tar.gz) tar -xzf "${agent_dest}" -C "${tmp}" ;;
+        *.zip)    command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${agent_dest}" -d "${tmp}" ;;
+        *)         cp "${agent_dest}" "${tmp}/easywi-agent-${arch}" ;;
       esac
       agent_resolved="${tmp}/easywi-agent-${arch}"
       break
     fi
   done
+
+  if [[ -z "${agent_resolved}" && "${version}" == "latest" ]]; then
+    if resolved_version="$(resolve_latest_release_with_assets "${github_token}" "${asset_candidates[@]}")"; then
+      warn "Das GitHub-'latest'-Release enthält kein Agent-Binary für ${arch}; verwende Agent-Release ${resolved_version}."
+      for asset_name in "${asset_candidates[@]}"; do
+        if download_optional_asset "${asset_name}" "${agent_dest}" "${resolved_version}" "${github_token}"; then
+          if download_checksums_for_asset "${checksums}" "${resolved_version}" "${github_token}" checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256 >/dev/null; then
+            verify_release_checksum "${checksums}" "${agent_dest}" "${asset_name}"
+          else
+            fatal "Keine Agent-Checksums-Datei im Release ${resolved_version} gefunden."
+          fi
+          case "${asset_name}" in
+            *.tar.gz) tar -xzf "${agent_dest}" -C "${tmp}" ;;
+            *.zip)    command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${agent_dest}" -d "${tmp}" ;;
+            *)        cp "${agent_dest}" "${tmp}/easywi-agent-${arch}" ;;
+          esac
+          agent_resolved="${tmp}/easywi-agent-${arch}"
+          break
+        fi
+      done
+    fi
+  fi
+
   [[ -n "${agent_resolved}" && -f "${agent_resolved}" ]] \
-    || fatal "Kein Agent-Binary für ${arch} gefunden."
+    || fatal "Kein Agent-Binary für ${arch} gefunden (Version: ${version})."
 
   install -m 0755 "${agent_resolved}" /usr/local/bin/easywi-agent
   rm -rf "${tmp}"

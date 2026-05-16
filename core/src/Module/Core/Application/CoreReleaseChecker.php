@@ -119,12 +119,16 @@ final class CoreReleaseChecker
     public static function allowedCoreAssetPatterns(): array
     {
         return [
-            'easywi-core.tar.gz',
-            'easywi-core.zip',
-            'easywi-webinterface-<version>.tar.gz',
             'easywi-webinterface-<version>.zip',
-            'easywi-webinterface-v<version>.tar.gz',
             'easywi-webinterface-v<version>.zip',
+            'easywi-core.zip',
+            'easywi-core-<version>.zip',
+            'easywi-core-v<version>.zip',
+            'easywi-core.tar.gz',
+            'easywi-core-<version>.tar.gz',
+            'easywi-core-v<version>.tar.gz',
+            'easywi-webinterface-<version>.tar.gz',
+            'easywi-webinterface-v<version>.tar.gz',
         ];
     }
 
@@ -137,11 +141,11 @@ final class CoreReleaseChecker
                 return false;
             }
 
-            if ($assetName === 'easywi-core.tar.gz') {
-                return 0;
-            }
             if ($assetName === 'easywi-core.zip') {
-                return 1;
+                return 10;
+            }
+            if ($assetName === 'easywi-core.tar.gz') {
+                return 50;
             }
 
             $version = ltrim(trim($releaseTag), 'vV');
@@ -150,10 +154,14 @@ final class CoreReleaseChecker
             }
 
             return match ($assetName) {
-                sprintf('easywi-webinterface-%s.tar.gz', $version) => 10,
-                sprintf('easywi-webinterface-%s.zip', $version) => 11,
-                sprintf('easywi-webinterface-v%s.tar.gz', $version) => 12,
-                sprintf('easywi-webinterface-v%s.zip', $version) => 13,
+                sprintf('easywi-webinterface-%s.zip', $version) => 0,
+                sprintf('easywi-webinterface-v%s.zip', $version) => 1,
+                sprintf('easywi-core-%s.zip', $version) => 20,
+                sprintf('easywi-core-v%s.zip', $version) => 21,
+                sprintf('easywi-core-%s.tar.gz', $version) => 60,
+                sprintf('easywi-core-v%s.tar.gz', $version) => 61,
+                sprintf('easywi-webinterface-%s.tar.gz', $version) => 70,
+                sprintf('easywi-webinterface-v%s.tar.gz', $version) => 71,
                 default => false,
             };
         };
