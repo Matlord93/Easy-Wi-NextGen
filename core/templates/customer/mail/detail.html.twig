@@ -9,7 +9,7 @@
                 <h1 class="cust-panel__title">{{ t('customer_mailbox_detail_title', locale) }}</h1>
             </div>
         </div>
-        <div class="cust-panel__body" style="display:flex;flex-direction:column;gap:16px;">
+        <div style="display:flex;flex-direction:column;gap:16px;padding:16px;">
 
             {% if last_job and last_job.status == 'failed' %}
                 <div class="cust-alert cust-alert--error">{{ t('customer_mailbox_detail_last_job_failed', locale) }}: {{ last_job.error ?: 'unknown' }}</div>
@@ -174,8 +174,8 @@ SMTP:
                 <div style="border:1px solid var(--ng-border);border-radius:8px;padding:12px;background:var(--ng-surface-soft);display:flex;flex-direction:column;gap:10px;">
                     <h3 style="font-weight:600;color:var(--ng-text);">{{ t('customer_mailbox_detail_password_title', locale) }}</h3>
                     <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('customer_mailbox_detail_password_provisioning_hint', locale) }}</p>
-                    <form method="post" action="{{ path('customer_mail_password_reset', { id: mailbox.id }) }}" class="cust-form-card__body" style="gap:10px;">
-                        <input type="hidden" name="_csrf_token" value="{{ password_csrf }}">
+                    <form method="post" action="{{ path('customer_mail_password_reset', { id: mailbox.id }) }}" style="display:flex;flex-direction:column;gap:10px;">
+                        <input type="hidden" name="_csrf_token" value='{{ password_csrf }}'>
                         <div>
                             <label for="mailbox-password" class="cust-form-label">{{ t('customer_mailbox_detail_new_password', locale) }}</label>
                             <input id="mailbox-password" name="password" type="password" autocomplete="new-password" required minlength="8">

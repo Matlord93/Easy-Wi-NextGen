@@ -195,7 +195,7 @@
     {% endif %}
 
     {# ── Users Table ── #}
-    <section class="ng-card" style="overflow:hidden;">
+    <section class="ng-card" style="overflow:visible;">
         <div class="tkt-filter-bar">
             <div class="tkt-filter-bar__top">
                 <div>
@@ -221,7 +221,7 @@
                 <button type="button" class="ui-button ui-button--ghost" onclick="document.getElementById('user-search').value='';document.getElementById('user-type-filter').value='';filterUsers();">{{ t('admin_users_filter_reset', locale) }}</button>
             </div>
         </div>
-        <div class="cust-ws-table-wrap">
+        <div class="cust-ws-table-wrap" style="overflow-x:auto;overflow-y:visible;">
             <table class="cust-table">
                 <thead>
                     <tr>
@@ -371,5 +371,67 @@ function filterUsers() {
         emptyRow.style.display = visible === 0 ? '' : 'none';
     }
 }
+
+(function () {
+    function positionMenu(details) {
+        var trigger = details.querySelector('.ng-overflow__trigger');
+        var menu = details.querySelector('.ng-overflow__menu');
+        if (!trigger || !menu) return;
+
+        var tRect = trigger.getBoundingClientRect();
+        var menuH = menu.offsetHeight;
+        var spaceBelow = window.innerHeight - tRect.bottom - 8;
+        var rightEdge = window.innerWidth - tRect.right;
+
+        menu.style.position = 'fixed';
+        menu.style.left = 'auto';
+        menu.style.right = Math.max(rightEdge, 8) + 'px';
+
+        if (spaceBelow >= menuH || spaceBelow >= (window.innerHeight - tRect.top - 8)) {
+            menu.style.top = (tRect.bottom + 6) + 'px';
+            menu.style.bottom = 'auto';
+        } else {
+            menu.style.bottom = (window.innerHeight - tRect.top + 6) + 'px';
+            menu.style.top = 'auto';
+        }
+    }
+
+    function resetMenu(menu) {
+        if (!menu) return;
+        menu.style.position = '';
+        menu.style.top = '';
+        menu.style.bottom = '';
+        menu.style.right = '';
+        menu.style.left = '';
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('details.ng-overflow').forEach(function (details) {
+            details.addEventListener('toggle', function () {
+                var menu = details.querySelector('.ng-overflow__menu');
+                if (details.open) {
+                    requestAnimationFrame(function () { positionMenu(details); });
+                } else {
+                    resetMenu(menu);
+                }
+            });
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('details.ng-overflow')) {
+                document.querySelectorAll('details.ng-overflow[open]').forEach(function (d) {
+                    d.removeAttribute('open');
+                    resetMenu(d.querySelector('.ng-overflow__menu'));
+                });
+            }
+        });
+
+        window.addEventListener('scroll', function () {
+            document.querySelectorAll('details.ng-overflow[open]').forEach(function (d) {
+                positionMenu(d);
+            });
+        }, { passive: true });
+    });
+}());
 </script>
 {% endblock %}

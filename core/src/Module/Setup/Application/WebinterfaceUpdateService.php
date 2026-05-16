@@ -1902,9 +1902,10 @@ final class WebinterfaceUpdateService
     private function runCommand(string|array $command, string $cwd, int $timeoutSeconds = 600): array
     {
         try {
+            $environment = $this->currentProcessEnvironment();
             $process = is_array($command)
-                ? new Process($command, $cwd, null, null, $timeoutSeconds)
-                : Process::fromShellCommandline($command, $cwd, null, null, $timeoutSeconds);
+                ? new Process($command, $cwd, $environment, null, $timeoutSeconds)
+                : Process::fromShellCommandline($command, $cwd, $environment, null, $timeoutSeconds);
             $process->run();
 
             $stdout = trim($process->getOutput());
@@ -1927,6 +1928,26 @@ final class WebinterfaceUpdateService
                 'command' => $this->stringifyCommand($command),
             ];
         }
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function currentProcessEnvironment(): ?array
+    {
+        $environment = getenv();
+        if (!is_array($environment)) {
+            return null;
+        }
+
+        /** @var array<string, string> $stringEnvironment */
+        $stringEnvironment = array_filter(
+            $environment,
+            static fn (mixed $value, mixed $key): bool => is_string($key) && is_string($value),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
+        return $stringEnvironment;
     }
 
     /**

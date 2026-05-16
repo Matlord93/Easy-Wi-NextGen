@@ -1531,8 +1531,10 @@ label {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    z-index: 10;
-    box-shadow: 0 16px 32px rgba(0,0,0,0.22);
+    z-index: 1050;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.32);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
 }
 .ng-overflow__item { justify-content: flex-start; }
 

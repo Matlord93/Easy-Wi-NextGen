@@ -1600,9 +1600,9 @@ select_agent_release_option() {
 
 INFO
 
-  local i tag channel published assets label
+  local i tag channel published _assets label
   for i in "${!options[@]}"; do
-    IFS=$'\t' read -r tag channel published assets <<< "${options[$i]}"
+    IFS=$'\t' read -r tag channel published _assets <<< "${options[$i]}"
     case "${channel}" in
       dev)    label="Aktuelle Dev-Version" ;;
       beta)   label="Aktuelle Beta-Version" ;;
@@ -1630,7 +1630,7 @@ INFO
   done
 
   [[ "${choice}" -gt 0 ]] || return 1
-  IFS=$'\t' read -r tag channel published assets <<< "${options[$((choice - 1))]}"
+  IFS=$'\t' read -r tag channel published _assets <<< "${options[$((choice - 1))]}"
   printf '%s\n' "${tag}"
 }
 
