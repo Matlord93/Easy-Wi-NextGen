@@ -5,7 +5,35 @@
 {% set activeNav = 'webspaces' %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="flex flex-col gap-6">
+
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot" style="background:#34d399;"></span>
+                            {{ t('admin_webspaces_title', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_webspaces_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_webspaces_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_webspaces_list_title', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ webspaces|length }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div>
+        <a href="#webspaces-create-section" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_create_title', locale) }}</a>
+    </div>
 
     {% if notice %}
         <div class="ng-alert ng-alert--success">{{ notice }}</div>
@@ -15,36 +43,36 @@
     {% endif %}
 
     {# Create form + help text #}
-    <div class="ng-layout-2col--equal">
+    <div class="ng-layout-2col--equal" id="webspaces-create-section">
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_webspaces_create_title', page_locale()) }}</h2>
+                    <h2 class="ng-data-card__title">{{ t('admin_webspaces_create_title', locale) }}</h2>
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <form class="flex flex-col gap-4" method="post" action="{{ path('admin_webspaces_create') }}">
+                <form style="display:flex;flex-direction:column;gap:16px;" method="post" action="{{ path('admin_webspaces_create') }}">
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_webspaces_customer_label', page_locale()) }}</label>
+                        <label class="form-label">{{ t('admin_webspaces_customer_label', locale) }}</label>
                         <select name="customer_id" class="form-input">
-                            <option value="">{{ t('admin_webspaces_customer_placeholder', page_locale()) }}</option>
+                            <option value="">{{ t('admin_webspaces_customer_placeholder', locale) }}</option>
                             {% for customer in customers %}
                                 <option value="{{ customer.id }}">{{ customer.email }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_webspaces_node_label', page_locale()) }}</label>
+                        <label class="form-label">{{ t('admin_webspaces_node_label', locale) }}</label>
                         <select name="node_id" id="ws-node-select" class="form-input">
-                            <option value="">{{ t('admin_webspaces_node_placeholder', page_locale()) }}</option>
+                            <option value="">{{ t('admin_webspaces_node_placeholder', locale) }}</option>
                             {% for node in nodes %}
                                 <option value="{{ node.id }}" data-panel-host="{{ panelHostNodeIds[node.id] is defined ? '1' : '0' }}">
                                     {{ node.name ?? node.id }}{% if panelHostNodeIds[node.id] is defined %} ★ Panel{% endif %}
                                 </option>
                             {% endfor %}
                         </select>
-                        <div id="ws-panel-host-warning" class="mt-2 hidden ng-alert ng-alert--warning">
-                            {{ t('admin_webspaces_panel_host_warning', page_locale()) }}
+                        <div id="ws-panel-host-warning" class="hidden ng-alert ng-alert--warning" style="margin-top:8px;">
+                            {{ t('admin_webspaces_panel_host_warning', locale) }}
                         </div>
                     </div>
                     <script>
@@ -61,22 +89,22 @@
                     }());
                     </script>
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_webspaces_path_label', page_locale()) }}</label>
+                        <label class="form-label">{{ t('admin_webspaces_path_label', locale) }}</label>
                         <input type="text" name="path" placeholder="/var/www/example.com" class="form-input" disabled>
-                        <p class="mt-1 text-xs text-slate-600">{{ t('admin_webspaces_path_auto_hint', page_locale()) }}</p>
+                        <p class="form-hint">{{ t('admin_webspaces_path_auto_hint', locale) }}</p>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_webspaces_docroot_label', page_locale()) }}</label>
+                        <label class="form-label">{{ t('admin_webspaces_docroot_label', locale) }}</label>
                         <input type="text" name="docroot" placeholder="/var/www/example.com/public" class="form-input" disabled>
-                        <p class="mt-1 text-xs text-slate-600">{{ t('admin_webspaces_docroot_auto_hint', page_locale()) }}</p>
+                        <p class="form-hint">{{ t('admin_webspaces_docroot_auto_hint', locale) }}</p>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_webspaces_domain_label', page_locale()) }}</label>
-                        <input type="text" name="domain" placeholder="{{ t('admin_webspaces_domain_placeholder', page_locale()) }}" class="form-input">
+                        <label class="form-label">{{ t('admin_webspaces_domain_label', locale) }}</label>
+                        <input type="text" name="domain" placeholder="{{ t('admin_webspaces_domain_placeholder', locale) }}" class="form-input">
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div class="form-field">
-                            <label class="form-label">{{ t('admin_webspaces_php_label', page_locale()) }}</label>
+                            <label class="form-label">{{ t('admin_webspaces_php_label', locale) }}</label>
                             <select name="php_version" class="form-input">
                                 {% for version in phpVersions %}
                                     {% set isDefault = version == defaultPhpVersion %}
@@ -85,28 +113,28 @@
                             </select>
                         </div>
                         <div class="form-field">
-                            <label class="form-label">{{ t('admin_webspaces_quota_label', page_locale()) }}</label>
+                            <label class="form-label">{{ t('admin_webspaces_quota_label', locale) }}</label>
                             <input type="number" min="0" name="quota" value="0" class="form-input">
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div class="form-field">
-                            <label class="form-label">{{ t('admin_webspaces_disk_limit_label', page_locale()) }}</label>
+                            <label class="form-label">{{ t('admin_webspaces_disk_limit_label', locale) }}</label>
                             <input type="number" min="0" name="disk_limit_bytes" value="0" class="form-input">
                         </div>
-                        <div class="flex items-center gap-4 pt-6">
-                            <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700 cursor-pointer">
-                                <input type="checkbox" name="ftp_enabled" class="rounded border-slate-300 text-slate-900">
-                                {{ t('admin_webspaces_ftp_label', page_locale()) }}
+                        <div style="display:flex;align-items:center;gap:16px;padding-top:24px;">
+                            <label style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;text-transform:uppercase;cursor:pointer;color:var(--ng-text-muted);">
+                                <input type="checkbox" name="ftp_enabled">
+                                {{ t('admin_webspaces_ftp_label', locale) }}
                             </label>
-                            <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700 cursor-pointer">
-                                <input type="checkbox" name="sftp_enabled" class="rounded border-slate-300 text-slate-900">
-                                {{ t('admin_webspaces_sftp_label', page_locale()) }}
+                            <label style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;text-transform:uppercase;cursor:pointer;color:var(--ng-text-muted);">
+                                <input type="checkbox" name="sftp_enabled">
+                                {{ t('admin_webspaces_sftp_label', locale) }}
                             </label>
                         </div>
                     </div>
                     <button type="submit" class="ui-button ui-button--primary">
-                        {{ t('admin_webspaces_create_action', page_locale()) }}
+                        {{ t('admin_webspaces_create_action', locale) }}
                     </button>
                 </form>
             </div>
@@ -115,14 +143,14 @@
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_webspaces_help_title', page_locale()) }}</h2>
+                    <h2 class="ng-data-card__title">{{ t('admin_webspaces_help_title', locale) }}</h2>
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <ul class="flex flex-col gap-2 text-sm text-slate-600 list-disc pl-5">
-                    <li>{{ t('admin_webspaces_help_paths', page_locale()) }}</li>
-                    <li>{{ t('admin_webspaces_help_agent', page_locale()) }}</li>
-                    <li>{{ t('admin_webspaces_help_security', page_locale()) }}</li>
+                <ul style="display:flex;flex-direction:column;gap:8px;padding-left:20px;list-style:disc;color:var(--ng-text-muted);font-size:0.875rem;">
+                    <li>{{ t('admin_webspaces_help_paths', locale) }}</li>
+                    <li>{{ t('admin_webspaces_help_agent', locale) }}</li>
+                    <li>{{ t('admin_webspaces_help_security', locale) }}</li>
                 </ul>
             </div>
         </div>
@@ -138,8 +166,8 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">{{ t('admin_webspaces_list_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_webspaces_list_intro', page_locale()) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_webspaces_list_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_webspaces_list_intro', locale) }}</p>
             </div>
             <div class="ng-data-card__actions">
                 <span class="ui-badge ui-badge--neutral">{{ webspaces|length }}</span>
@@ -150,151 +178,151 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>{{ t('admin_label_id', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_customer_label', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_node_label', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_path_label', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_domain_label', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_port_label', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_ddos_label', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_php_label', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_status_label', page_locale()) }}</th>
-                            <th>{{ t('admin_webspaces_col_apply', page_locale()) }}</th>
-                            <th>{{ t('admin_actions', page_locale()) }}</th>
+                            <th>{{ t('admin_label_id', locale) }}</th>
+                            <th>{{ t('admin_webspaces_customer_label', locale) }}</th>
+                            <th>{{ t('admin_webspaces_node_label', locale) }}</th>
+                            <th>{{ t('admin_webspaces_path_label', locale) }}</th>
+                            <th>{{ t('admin_webspaces_domain_label', locale) }}</th>
+                            <th>{{ t('admin_webspaces_port_label', locale) }}</th>
+                            <th>{{ t('admin_webspaces_ddos_label', locale) }}</th>
+                            <th>{{ t('admin_webspaces_php_label', locale) }}</th>
+                            <th>{{ t('admin_webspaces_status_label', locale) }}</th>
+                            <th>{{ t('admin_webspaces_col_apply', locale) }}</th>
+                            <th>{{ t('admin_actions', locale) }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for webspace in webspaces %}
                             <tr>
-                                <td class="font-mono text-xs text-slate-700">{{ webspace.id }}</td>
+                                <td style="font-family:monospace;font-size:11px;color:var(--ng-text-muted);">{{ webspace.id }}</td>
                                 <td>
-                                    <div class="font-semibold text-slate-900">{{ webspace.customer.email }}</div>
-                                    <div class="text-xs text-slate-600">ID {{ webspace.customer.id }}</div>
+                                    <div style="font-weight:600;color:var(--ng-text);">{{ webspace.customer.email }}</div>
+                                    <div style="font-size:11px;color:var(--ng-text-muted);">ID {{ webspace.customer.id }}</div>
                                 </td>
                                 <td>
-                                    <div class="font-semibold text-slate-900">{{ webspace.node.name ?? webspace.node.id }}</div>
-                                    <div class="text-xs text-slate-600">{{ webspace.node.id }}</div>
+                                    <div style="font-weight:600;color:var(--ng-text);">{{ webspace.node.name ?? webspace.node.id }}</div>
+                                    <div style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.node.id }}</div>
                                 </td>
                                 <td>
-                                    <div class="font-semibold text-slate-900">{{ webspace.path }}</div>
-                                    <div class="text-xs text-slate-600">{{ webspace.docroot }}</div>
+                                    <div style="font-weight:600;color:var(--ng-text);">{{ webspace.path }}</div>
+                                    <div style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.docroot }}</div>
                                 </td>
-                                <td class="text-xs text-slate-600">{{ webspace.domain }}</td>
-                                <td class="text-xs text-slate-600">{{ webspace.assigned_port ?? '-' }}</td>
+                                <td style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.domain }}</td>
+                                <td style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.assigned_port ?? '-' }}</td>
                                 <td>
                                     {% if webspace.ddos_protection_enabled %}
-                                        <span class="ui-badge ui-badge--success">{{ t('admin_webspaces_ddos_enabled', page_locale()) }}</span>
+                                        <span class="ui-badge ui-badge--success">{{ t('admin_webspaces_ddos_enabled', locale) }}</span>
                                     {% else %}
-                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_webspaces_ddos_disabled', page_locale()) }}</span>
+                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_webspaces_ddos_disabled', locale) }}</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-xs text-slate-600">{{ webspace.php_version }}</td>
+                                <td style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.php_version }}</td>
                                 <td>
                                     {% set badgeVariant = statusClasses[webspace.status] ?? 'neutral' %}
                                     <span class="ui-badge ui-badge--{{ badgeVariant }}">{{ webspace.status|title }}</span>
                                 </td>
-                                <td class="text-xs text-slate-600">
+                                <td style="font-size:11px;color:var(--ng-text-muted);">
                                     <div>{{ webspace.apply_status|default('unknown')|replace({'_':' '})|title }}</div>
-                                    <div>{% if webspace.apply_required %}{{ t('admin_webspaces_apply_required', page_locale()) }}{% else %}{{ t('admin_webspaces_apply_clean', page_locale()) }}{% endif %}</div>
+                                    <div>{% if webspace.apply_required %}{{ t('admin_webspaces_apply_required', locale) }}{% else %}{{ t('admin_webspaces_apply_clean', locale) }}{% endif %}</div>
                                     {% if webspace.last_apply_error_code %}
-                                        <div class="text-rose-600">{{ webspace.last_apply_error_code }}</div>
+                                        <div style="color:#fca5a5;">{{ webspace.last_apply_error_code }}</div>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <div class="flex flex-wrap gap-2">
+                                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
                                         {% if webspace.status != 'deleted' %}
                                             {% if webspace.status == 'active' %}
                                                 <form method="post" action="{{ path('admin_webspaces_suspend', {id: webspace.id}) }}">
                                                     <button class="ui-button ui-button--warning ui-button--sm">
-                                                        {{ t('admin_webspaces_suspend_action', page_locale()) }}
+                                                        {{ t('admin_webspaces_suspend_action', locale) }}
                                                     </button>
                                                 </form>
                                             {% elseif webspace.status == 'suspended' %}
                                                 <form method="post" action="{{ path('admin_webspaces_resume', {id: webspace.id}) }}">
                                                     <button class="ui-button ui-button--primary ui-button--sm">
-                                                        {{ t('admin_webspaces_resume_action', page_locale()) }}
+                                                        {{ t('admin_webspaces_resume_action', locale) }}
                                                     </button>
                                                 </form>
                                             {% endif %}
-                                            <form method="post" action="{{ path('admin_webspaces_delete', {id: webspace.id}) }}" onsubmit="return confirm('{{ t('admin_webspaces_delete_confirm', page_locale()) }}');">
+                                            <form method="post" action="{{ path('admin_webspaces_delete', {id: webspace.id}) }}" onsubmit="return confirm('{{ t('admin_webspaces_delete_confirm', locale) }}');">
                                                 <button class="ui-button ui-button--danger ui-button--sm">
-                                                    {{ t('admin_webspaces_delete_action', page_locale()) }}
+                                                    {{ t('admin_webspaces_delete_action', locale) }}
                                                 </button>
                                             </form>
                                         {% else %}
-                                            <span class="text-xs text-slate-500">{{ t('admin_webspaces_deleted_label', page_locale()) }}</span>
+                                            <span style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_webspaces_deleted_label', locale) }}</span>
                                         {% endif %}
                                     </div>
                                 </td>
                             </tr>
-                            <tr class="bg-slate-50/60">
-                                <td colspan="11" class="px-6 py-5">
-                                    <details class="group rounded-xl border border-slate-200 bg-white">
-                                        <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800 group-open:border-b group-open:border-slate-200">
-                                            {{ t('admin_webspaces_domain_management_title', page_locale()) }}
+                            <tr style="background:var(--ng-surface-soft);">
+                                <td colspan="11" style="padding:24px 24px;">
+                                    <details style="border:1px solid var(--ng-border);border-radius:0.75rem;background:var(--ng-surface);">
+                                        <summary style="cursor:pointer;padding:12px 16px;font-size:0.875rem;font-weight:600;color:var(--ng-text);border-bottom:1px solid var(--ng-border);">
+                                            {{ t('admin_webspaces_domain_management_title', locale) }}
                                         </summary>
-                                        <div class="grid gap-5 p-4 xl:grid-cols-3">
-                                            <form method="post" action="{{ path('admin_webspaces_domain_add', {id: webspace.id}) }}" class="flex flex-col gap-3 rounded-lg border border-slate-200 p-4">
-                                                <h3 class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_domain_add_title', page_locale()) }}</h3>
-                                                <input name="fqdn" placeholder="example.com oder app.example.com" class="form-input" required>
+                                        <div style="display:grid;grid-template-columns:1fr 2fr;gap:20px;padding:16px;">
+                                            <form method="post" action="{{ path('admin_webspaces_domain_add', {id: webspace.id}) }}" style="display:flex;flex-direction:column;gap:12px;border:1px solid var(--ng-border);border-radius:0.5rem;padding:1rem;">
+                                                <h3 style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--ng-text);">{{ t('admin_webspaces_domain_add_title', locale) }}</h3>
+                                                <input name="fqdn" placeholder="{{ t('admin_webspaces_domain_placeholder', locale) }}" class="form-input" required>
                                                 <select name="type" class="form-input">
-                                                    <option value="domain">Domain</option>
-                                                    <option value="subdomain">Subdomain</option>
+                                                    <option value="domain">{{ t('admin_webspaces_domain_type_domain', locale) }}</option>
+                                                    <option value="subdomain">{{ t('admin_webspaces_domain_type_subdomain', locale) }}</option>
                                                 </select>
-                                                <input name="target_path" placeholder="{{ t('admin_webspaces_domain_target_path_placeholder', page_locale()) }}" class="form-input">
-                                                <input name="server_aliases" placeholder="Aliase: www.example.com, m.example.com" class="form-input">
-                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="redirect_https" value="1"> {{ t('admin_webspaces_domain_https_redirect', page_locale()) }}</label>
-                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="redirect_www" value="1"> {{ t('admin_webspaces_domain_www_redirect', page_locale()) }}</label>
-                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="request_tls" value="1"> {{ t('admin_webspaces_domain_request_ssl', page_locale()) }}</label>
+                                                <input name="target_path" placeholder="{{ t('admin_webspaces_domain_target_path_placeholder', locale) }}" class="form-input">
+                                                <input name="server_aliases" placeholder="{{ t('admin_webspaces_domain_aliases_placeholder', locale) }}" class="form-input">
+                                                <label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;color:var(--ng-text-muted);"><input type="checkbox" name="redirect_https" value="1"> {{ t('admin_webspaces_domain_https_redirect', locale) }}</label>
+                                                <label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;color:var(--ng-text-muted);"><input type="checkbox" name="redirect_www" value="1"> {{ t('admin_webspaces_domain_www_redirect', locale) }}</label>
+                                                <label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;color:var(--ng-text-muted);"><input type="checkbox" name="request_tls" value="1"> {{ t('admin_webspaces_domain_request_ssl', locale) }}</label>
                                                 <input name="ssl_email" type="email" placeholder="admin@example.com (optional)" class="form-input">
-                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_add_button', page_locale()) }}</button>
+                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_add_button', locale) }}</button>
                                             </form>
 
-                                            <div class="flex flex-col gap-3 xl:col-span-2">
-                                                <h3 class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_assigned_domains_title', page_locale()) }}</h3>
+                                            <div style="display:flex;flex-direction:column;gap:12px;">
+                                                <h3 style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--ng-text);">{{ t('admin_webspaces_assigned_domains_title', locale) }}</h3>
                                                 {% for domain in webspace.domains %}
-                                                    <div class="rounded-lg border border-slate-200 bg-white p-4">
-                                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                                    <div style="border:1px solid var(--ng-border);border-radius:0.5rem;background:var(--ng-surface);padding:1rem;">
+                                                        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;">
                                                             <div>
-                                                                <div class="font-semibold text-slate-900">{{ domain.name }}</div>
-                                                                <div class="text-xs text-slate-500">{{ domain.type }} · {{ domain.status }} · Apply: {{ domain.apply_status }}{% if domain.ssl_expires_at %} · SSL bis {{ domain.ssl_expires_at|date('Y-m-d') }}{% endif %}</div>
+                                                                <div style="font-weight:600;color:var(--ng-text);">{{ domain.name }}</div>
+                                                                <div style="font-size:11px;color:var(--ng-text-muted);">{{ domain.type }} · {{ domain.status }} · {{ domain.apply_status }}{% if domain.ssl_expires_at %} · SSL {{ domain.ssl_expires_at|date('Y-m-d') }}{% endif %}</div>
                                                             </div>
-                                                            <form method="post" action="{{ path('admin_webspaces_domain_delete', {id: webspace.id, domainId: domain.id}) }}" onsubmit="return confirm('Domain entfernen?');">
-                                                                <button class="ui-button ui-button--danger ui-button--sm">{{ t('admin_webspaces_domain_remove_button', page_locale()) }}</button>
+                                                            <form method="post" action="{{ path('admin_webspaces_domain_delete', {id: webspace.id, domainId: domain.id}) }}" onsubmit="return confirm('{{ t('admin_webspaces_domain_remove_confirm', locale)|e('js') }}');">
+                                                                <button class="ui-button ui-button--danger ui-button--sm">{{ t('admin_webspaces_domain_remove_button', locale) }}</button>
                                                             </form>
                                                         </div>
-                                                        <form method="post" action="{{ path('admin_webspaces_domain_update', {id: webspace.id, domainId: domain.id}) }}" class="mt-3 grid gap-2 md:grid-cols-4">
-                                                            <input name="target_path" value="{{ domain.target_path }}" placeholder="{{ t('admin_webspaces_domain_target_path_label', page_locale()) }}" class="form-input md:col-span-1">
-                                                            <input name="server_aliases" value="{{ domain.server_aliases }}" placeholder="Subdomains/Aliase" class="form-input md:col-span-2">
-                                                            <div class="flex items-center gap-3 text-xs text-slate-700">
-                                                                <label class="cursor-pointer"><input type="checkbox" name="redirect_https" value="1" {% if domain.redirect_https %}checked{% endif %}> HTTPS</label>
-                                                                <label class="cursor-pointer"><input type="checkbox" name="redirect_www" value="1" {% if domain.redirect_www %}checked{% endif %}> WWW</label>
+                                                        <form method="post" action="{{ path('admin_webspaces_domain_update', {id: webspace.id, domainId: domain.id}) }}" style="margin-top:12px;display:grid;grid-template-columns:1fr 2fr 1fr;gap:8px;">
+                                                            <input name="target_path" value="{{ domain.target_path }}" placeholder="{{ t('admin_webspaces_domain_target_path_label', locale) }}" class="form-input">
+                                                            <input name="server_aliases" value="{{ domain.server_aliases }}" placeholder="{{ t('admin_webspaces_domain_aliases_sub_placeholder', locale) }}" class="form-input">
+                                                            <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--ng-text);">
+                                                                <label style="cursor:pointer;"><input type="checkbox" name="redirect_https" value="1" {% if domain.redirect_https %}checked{% endif %}> {{ t('admin_webspaces_domain_https_label', locale) }}</label>
+                                                                <label style="cursor:pointer;"><input type="checkbox" name="redirect_www" value="1" {% if domain.redirect_www %}checked{% endif %}> {{ t('admin_webspaces_domain_www_label', locale) }}</label>
                                                             </div>
-                                                            <button class="ui-button ui-button--ghost ui-button--sm md:col-span-4">{{ t('admin_webspaces_domain_save_apply_button', page_locale()) }}</button>
+                                                            <button class="ui-button ui-button--ghost ui-button--sm" style="grid-column:1/-1;">{{ t('admin_webspaces_domain_save_apply_button', locale) }}</button>
                                                         </form>
-                                                        <div class="mt-3 flex flex-wrap gap-2">
-                                                            <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'issue'}) }}" class="flex gap-2">
+                                                        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
+                                                            <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'issue'}) }}" style="display:flex;gap:8px;">
                                                                 <input name="ssl_email" type="email" placeholder="admin@{{ domain.name }}" class="form-input">
-                                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_ssl_issue_button', page_locale()) }}</button>
+                                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_ssl_issue_button', locale) }}</button>
                                                             </form>
                                                             <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'renew'}) }}">
-                                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_ssl_renew_button', page_locale()) }}</button>
+                                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_ssl_renew_button', locale) }}</button>
                                                             </form>
                                                             <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'disable'}) }}">
-                                                                <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_webspaces_domain_ssl_disable_button', page_locale()) }}</button>
+                                                                <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_webspaces_domain_ssl_disable_button', locale) }}</button>
                                                             </form>
                                                         </div>
-                                                        <form method="post" action="{{ path('admin_webspaces_mailbox_create', {id: webspace.id}) }}" class="mt-3 grid gap-2 border-t border-slate-100 pt-3 md:grid-cols-5">
+                                                        <form method="post" action="{{ path('admin_webspaces_mailbox_create', {id: webspace.id}) }}" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;border-top:1px solid var(--ng-border);padding-top:12px;">
                                                             <input type="hidden" name="domain_id" value="{{ domain.id }}">
                                                             <input name="local_part" placeholder="info" class="form-input" required>
-                                                            <input value="@{{ domain.name }}" disabled class="form-input bg-slate-50">
-                                                            <input name="password" type="password" placeholder="Passwort" class="form-input" required>
+                                                            <input value="@{{ domain.name }}" disabled class="form-input">
+                                                            <input name="password" type="password" placeholder="{{ t('admin_mailboxes_password', locale) }}" class="form-input" required>
                                                             <input name="quota" type="number" min="1" value="1024" class="form-input" required>
-                                                            <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_mailbox_create_button', page_locale()) }}</button>
+                                                            <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_mailbox_create_button', locale) }}</button>
                                                         </form>
                                                     </div>
                                                 {% else %}
-                                                    <div class="cust-empty">{{ t('admin_webspaces_no_domains', page_locale()) }}</div>
+                                                    <div class="cust-empty">{{ t('admin_webspaces_no_domains', locale) }}</div>
                                                 {% endfor %}
                                             </div>
                                         </div>
@@ -303,15 +331,15 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="11" class="cust-table__empty">{{ t('admin_webspaces_empty', page_locale()) }}</td>
+                                <td colspan="11" class="cust-table__empty">{{ t('admin_webspaces_empty', locale) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
             {% set total_pages = (total / per_page)|round(0, 'ceil') %}
-            <div class="border-t border-slate-200 px-6 py-3 text-xs text-slate-600">
-                Page {{ page }} / {{ total_pages > 0 ? total_pages : 1 }} · {{ total }} items
+            <div style="border-top:1px solid var(--ng-border);padding:12px 24px;font-size:11px;color:var(--ng-text-muted);">
+                {{ t('admin_webspaces_pagination', locale)|replace({'%page%': page, '%total_pages%': (total_pages > 0 ? total_pages : 1), '%total%': total}) }}
             </div>
         </div>
     </div>

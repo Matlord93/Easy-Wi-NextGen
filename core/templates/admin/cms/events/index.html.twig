@@ -39,10 +39,14 @@
                                 </td>
                                 <td>{{ event.startAt|date('Y-m-d H:i') }}</td>
                                 <td>
-                                    {% if event.isPublished %}
-                                        <span class="ui-badge ui-badge--success">{{ event.status }}</span>
+                                    {% if event.status == 'planned' %}
+                                        <span class="ui-badge ui-badge--success">{{ t('admin_cms_events_status_planned', locale) }}</span>
+                                    {% elseif event.status == 'canceled' %}
+                                        <span class="ui-badge ui-badge--danger">{{ t('admin_cms_events_status_canceled', locale) }}</span>
+                                    {% elseif event.status == 'past' %}
+                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_cms_events_status_past', locale) }}</span>
                                     {% else %}
-                                        <span class="ui-badge ui-badge--warning">{{ t('admin_cms_events_draft', locale) }}</span>
+                                        <span class="ui-badge ui-badge--warning">{{ event.status }}</span>
                                     {% endif %}
                                 </td>
                                 <td>

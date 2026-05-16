@@ -97,7 +97,7 @@ final class AdminTicketController
         if ($admin === null) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
-        $tickets = $this->applyTicketFilters($this->ticketRepository->findForAdminList(), $request, $admin);
+        $tickets = $this->applyTicketFilters($this->ticketRepository->findVisibleForAdminQueue($admin), $request, $admin);
 
         return new Response($this->twig->render('admin/tickets/_table.html.twig', [
             'tickets' => $this->normalizeTickets($tickets),
@@ -1084,7 +1084,7 @@ final class AdminTicketController
 
     private function renderIndex(User $admin, Request $request, array $overrides = [], int $status = Response::HTTP_OK): Response
     {
-        $allTickets = $this->ticketRepository->findForAdminList();
+        $allTickets = $this->ticketRepository->findVisibleForAdminQueue($admin);
         $tickets = $this->applyTicketFilters($allTickets, $request, $admin);
         $templates = $this->ticketTemplateRepository->findByAdmin($admin);
         $quickReplies = $this->ticketQuickReplyRepository->findByAdmin($admin);

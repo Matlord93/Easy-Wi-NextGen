@@ -12,6 +12,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[AsCommand(
     name: 'app:update:auto',
@@ -23,6 +24,7 @@ final class UpdateAutoCommand extends Command
         private readonly WebinterfaceUpdateService $updateService,
         private readonly WebinterfaceUpdateSettingsService $settingsService,
         private readonly AgentUpdateQueueService $agentUpdateQueueService,
+        private readonly TranslatorInterface $translator,
     ) {
         parent::__construct();
     }
@@ -31,7 +33,7 @@ final class UpdateAutoCommand extends Command
     {
         $this
             ->addOption('force', null, InputOption::VALUE_NONE, 'Run even if auto-update is disabled in settings')
-            ->addOption('no-migrate', null, InputOption::VALUE_NONE, 'Skip running DB migrations after update')
+            ->addOption('no-migrate', null, InputOption::VALUE_NONE, 'Deprecated: migrations are part of the standard core update path')
             ->addOption('no-agents', null, InputOption::VALUE_NONE, 'Skip queuing available agent updates')
             ->addOption('agents-only', null, InputOption::VALUE_NONE, 'Only queue available agent updates and skip the core update');
     }
@@ -90,20 +92,13 @@ final class UpdateAutoCommand extends Command
         }
 
         $output->writeln($result->message);
-
-        $runMigrate = $settings['autoMigrate'] && !$input->getOption('no-migrate');
-        if (!$runMigrate) {
-            return Command::SUCCESS;
+        if ($input->getOption('no-migrate')) {
+            $output->writeln('<comment>' . $this->translator->trans('admin_updates_no_migrate_deprecated', [], 'portal') . '</comment>');
+        }
+        if (!$settings['autoMigrate']) {
+            $output->writeln('<comment>' . $this->translator->trans('admin_updates_auto_migrate_core_always_runs', [], 'portal') . '</comment>');
         }
 
-        $output->writeln('Führe DB-Migrationen aus…');
-        $migrateResult = $this->updateService->applyMigrations();
-        if (!$migrateResult->success) {
-            $output->writeln('Migrationen fehlgeschlagen: ' . ($migrateResult->error ?? $migrateResult->message));
-            return Command::FAILURE;
-        }
-
-        $output->writeln($migrateResult->message);
         return Command::SUCCESS;
     }
 }

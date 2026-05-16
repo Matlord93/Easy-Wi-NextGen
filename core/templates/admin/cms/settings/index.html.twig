@@ -54,7 +54,7 @@
                         <input type="text" name="social_website" value="{{ branding.socials.website|default('') }}" class="form-input">
                     </div>
                     <div class="form-field">
-                        <label class="form-label">Discord</label>
+                        <label class="form-label">{{ t('admin_cms_settings_discord', locale) }}</label>
                         <input type="text" name="social_discord" value="{{ branding.socials.discord|default('') }}" class="form-input">
                     </div>
                     <div class="form-field">
@@ -79,7 +79,7 @@
             <div class="ng-data-card__body">
                 <div class="ng-layout-2col--equal">
                     {% for key, enabled in module_toggles %}
-                        <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer">
+                        <label class="inline-flex items-center gap-2 text-sm cursor-pointer" style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;">
                             <input type="checkbox" name="toggle_{{ key }}" value="1" {% if enabled %}checked{% endif %}>
                             <span>{{ key|capitalize }}</span>
                         </label>
@@ -114,7 +114,7 @@
                 </div>
             </div>
             <div class="ng-data-card__body flex flex-col gap-4">
-                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer w-fit">
+                <label class="inline-flex items-center gap-2 text-sm cursor-pointer" style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;width:fit-content;">
                     <input type="checkbox" name="maintenance_enabled" value="1" {% if maintenance.enabled %}checked{% endif %}>
                     <span>{{ t('admin_cms_settings_maintenance_enable', locale) }}</span>
                 </label>

@@ -1,55 +1,57 @@
-<div class="overflow-x-auto">
-    <table class="min-w-full text-sm">
-        <thead class="text-xs uppercase text-slate-700 border-b border-slate-200">
+<div class="cust-ws-table-wrap">
+    <table class="cust-table">
+        <thead>
             <tr>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('order', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('type', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('preview', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('updated', page_locale()) }}</th>
-                <th class="px-5 py-3 text-right font-semibold">{{ t('actions', page_locale()) }}</th>
+                <th>{{ t('order', page_locale()) }}</th>
+                <th>{{ t('type', page_locale()) }}</th>
+                <th>{{ t('preview', page_locale()) }}</th>
+                <th>{{ t('updated', page_locale()) }}</th>
+                <th class="text-right">{{ t('actions', page_locale()) }}</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100">
+        <tbody>
             {% for block in blocks %}
-                <tr class="hover:bg-slate-50">
-                    <td class="px-5 py-4 text-slate-600">{{ block.sort_order }}</td>
-                    <td class="px-5 py-4">
-                        <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ block.type }}</span>
-                        <span class="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">v{{ block.version }}</span>
+                <tr>
+                    <td>{{ block.sort_order }}</td>
+                    <td>
+                        <span class="ui-badge ui-badge--info">{{ block.type }}</span>
+                        <span class="ui-badge ui-badge--neutral">v{{ block.version }}</span>
                     </td>
-                    <td class="px-5 py-4 text-slate-600">
+                    <td>
                         <span class="line-clamp-2">{{ block.preview|slice(0, 120) }}{% if block.preview|length > 120 %}…{% endif %}</span>
                     </td>
-                    <td class="px-5 py-4 text-slate-700">{{ block.updated_at|date('Y-m-d H:i') }}</td>
-                    <td class="px-5 py-4 text-right space-x-2">
-                        <button
-                            class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                            hx-post="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/move-up"
-                        >↑</button>
-                        <button
-                            class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                            hx-post="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/move-down"
-                        >↓</button>
-                        <button
-                            class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                            hx-get="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/edit"
-                            hx-target="#cms-block-form"
-                            hx-swap="outerHTML"
-                        >
-                            {{ t('edit', page_locale()) }}
-                        </button>
-                        <button
-                            class="inline-flex items-center rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                            hx-post="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/delete"
-                            hx-confirm="{{ t('delete_block_confirm', page_locale()) }}"
-                        >
-                            {{ t('delete', page_locale()) }}
-                        </button>
+                    <td>{{ block.updated_at|date('Y-m-d H:i') }}</td>
+                    <td class="text-right">
+                        <div class="inline-flex items-center gap-2">
+                            <button
+                                class="ui-button ui-button--ghost ui-button--sm"
+                                hx-post="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/move-up"
+                            >↑</button>
+                            <button
+                                class="ui-button ui-button--ghost ui-button--sm"
+                                hx-post="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/move-down"
+                            >↓</button>
+                            <button
+                                class="ui-button ui-button--ghost ui-button--sm"
+                                hx-get="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/edit"
+                                hx-target="#cms-block-form"
+                                hx-swap="outerHTML"
+                            >
+                                {{ t('edit', page_locale()) }}
+                            </button>
+                            <button
+                                class="ui-button ui-button--danger ui-button--sm"
+                                hx-post="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/delete"
+                                hx-confirm="{{ t('delete_block_confirm', page_locale()) }}"
+                            >
+                                {{ t('delete', page_locale()) }}
+                            </button>
+                        </div>
                     </td>
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-700">{{ t('no_blocks_yet', page_locale()) }}</td>
+                    <td colspan="5" class="cust-table__empty">{{ t('no_blocks_yet', page_locale()) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

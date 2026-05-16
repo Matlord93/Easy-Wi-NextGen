@@ -26,9 +26,9 @@
         hx-target="#cms-block-form"
         hx-swap="outerHTML"
     >
-        <div>
-            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('block_type', page_locale()) }}</label>
-            <input type="text" name="type" value="{{ blockForm.type }}" list="cms-block-types" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('block_type_placeholder', page_locale()) }}">
+        <div class="form-field">
+            <label class="form-label">{{ t('block_type', page_locale()) }}</label>
+            <input type="text" name="type" value="{{ blockForm.type }}" list="cms-block-types" class="form-input" placeholder="{{ t('block_type_placeholder', page_locale()) }}">
             <datalist id="cms-block-types">
                 <option value="hero"></option>
                 <option value="rich_text"></option>
@@ -38,98 +38,98 @@
                 <option value="server_featured"></option>
             </datalist>
         </div>
-        <div>
-            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Version</label>
-            <select name="version" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
-                <option value="1" {% if blockForm.version == 1 %}selected{% endif %}>Legacy (v1)</option>
-                <option value="2" {% if blockForm.version == 2 %}selected{% endif %}>V2</option>
+        <div class="form-field">
+            <label class="form-label">{{ t('admin_cms_block_version_label', page_locale()) }}</label>
+            <select name="version" class="form-input">
+                <option value="1" {% if blockForm.version == 1 %}selected{% endif %}>{{ t('admin_cms_block_version_legacy', page_locale()) }}</option>
+                <option value="2" {% if blockForm.version == 2 %}selected{% endif %}>{{ t('admin_cms_block_version_v2', page_locale()) }}</option>
             </select>
         </div>
-        <div>
-            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('content', page_locale()) }}</label>
-            <textarea name="content" rows="6" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('block_content_placeholder', page_locale()) }}">{{ blockForm.content }}</textarea>
+        <div class="form-field">
+            <label class="form-label">{{ t('content', page_locale()) }}</label>
+            <textarea name="content" rows="6" class="form-input" placeholder="{{ t('block_content_placeholder', page_locale()) }}">{{ blockForm.content }}</textarea>
         </div>
 
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <div class="text-xs font-semibold uppercase text-slate-700">V2 Block Payload</div>
-            <p class="text-xs text-slate-600">Die V2 Felder werden genutzt, wenn Version = 2 gesetzt ist.</p>
-            <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero Headline</label>
-                    <input type="text" name="hero_headline" value="{{ blockForm.payload.headline|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+        <div style="border:1px solid var(--ng-border);border-radius:0.5rem;background:var(--ng-surface-soft);padding:1rem;">
+            <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('admin_cms_block_v2_payload_title', page_locale()) }}</div>
+            <p style="font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_cms_block_v2_payload_hint', page_locale()) }}</p>
+            <div class="grid gap-3 sm:grid-cols-2" style="margin-top:0.75rem;">
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_block_hero_headline', page_locale()) }}</label>
+                    <input type="text" name="hero_headline" value="{{ blockForm.payload.headline|default('') }}" class="form-input">
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero CTA Text</label>
-                    <input type="text" name="hero_cta_text" value="{{ blockForm.payload.ctaText|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                </div>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero Subheadline</label>
-                <input type="text" name="hero_subheadline" value="{{ blockForm.payload.subheadline|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-            </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero Background Image Path</label>
-                    <input type="text" name="hero_background_image_path" value="{{ blockForm.payload.backgroundImagePath|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero CTA URL</label>
-                    <input type="text" name="hero_cta_url" value="{{ blockForm.payload.ctaUrl|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_block_hero_cta_text', page_locale()) }}</label>
+                    <input type="text" name="hero_cta_text" value="{{ blockForm.payload.ctaText|default('') }}" class="form-input">
                 </div>
             </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Rich Text Content (HTML/Markdown)</label>
-                <textarea name="rich_text_content" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ blockForm.payload.content|default('') }}</textarea>
+            <div class="form-field" style="margin-top:0.75rem;">
+                <label class="form-label">{{ t('admin_cms_block_hero_subheadline', page_locale()) }}</label>
+                <input type="text" name="hero_subheadline" value="{{ blockForm.payload.subheadline|default('') }}" class="form-input">
             </div>
-            <div class="grid gap-3 sm:grid-cols-3">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Image Path</label>
-                    <input type="text" name="image_path" value="{{ blockForm.payload.path|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            <div class="grid gap-3 sm:grid-cols-2" style="margin-top:0.75rem;">
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_block_hero_bg_image', page_locale()) }}</label>
+                    <input type="text" name="hero_background_image_path" value="{{ blockForm.payload.backgroundImagePath|default('') }}" class="form-input">
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Image Alt</label>
-                    <input type="text" name="image_alt" value="{{ blockForm.payload.alt|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Image Caption</label>
-                    <input type="text" name="image_caption" value="{{ blockForm.payload.caption|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_block_hero_cta_url', page_locale()) }}</label>
+                    <input type="text" name="hero_cta_url" value="{{ blockForm.payload.ctaUrl|default('') }}" class="form-input">
                 </div>
             </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Cards JSON</label>
-                <textarea name="cards_json" rows="5" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ blockForm.payload.cards is defined ? blockForm.payload.cards|json_encode(constant('JSON_PRETTY_PRINT')) : '[]' }}</textarea>
+            <div class="form-field" style="margin-top:0.75rem;">
+                <label class="form-label">{{ t('admin_cms_block_rich_text_content', page_locale()) }}</label>
+                <textarea name="rich_text_content" rows="4" class="form-input">{{ blockForm.payload.content|default('') }}</textarea>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-3" style="margin-top:0.75rem;">
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_block_image_path', page_locale()) }}</label>
+                    <input type="text" name="image_path" value="{{ blockForm.payload.path|default('') }}" class="form-input">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_block_image_alt', page_locale()) }}</label>
+                    <input type="text" name="image_alt" value="{{ blockForm.payload.alt|default('') }}" class="form-input">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_block_image_caption', page_locale()) }}</label>
+                    <input type="text" name="image_caption" value="{{ blockForm.payload.caption|default('') }}" class="form-input">
+                </div>
+            </div>
+            <div class="form-field" style="margin-top:0.75rem;">
+                <label class="form-label">{{ t('admin_cms_block_cards_json', page_locale()) }}</label>
+                <textarea name="cards_json" rows="5" class="form-input">{{ blockForm.payload.cards is defined ? blockForm.payload.cards|json_encode(constant('JSON_PRETTY_PRINT')) : '[]' }}</textarea>
             </div>
         </div>
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <div class="text-xs font-semibold uppercase text-slate-700">{{ t('server_block_settings', page_locale()) }}</div>
-            <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('game_filter', page_locale()) }}</label>
-                    <input type="text" name="server_game" value="{{ blockForm.settings.game }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('game_filter_placeholder', page_locale()) }}">
+        <div style="border:1px solid var(--ng-border);border-radius:0.5rem;background:var(--ng-surface-soft);padding:1rem;">
+            <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('server_block_settings', page_locale()) }}</div>
+            <div class="grid gap-3 sm:grid-cols-2" style="margin-top:0.75rem;">
+                <div class="form-field">
+                    <label class="form-label">{{ t('game_filter', page_locale()) }}</label>
+                    <input type="text" name="server_game" value="{{ blockForm.settings.game }}" class="form-input" placeholder="{{ t('game_filter_placeholder', page_locale()) }}">
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('limit', page_locale()) }}</label>
-                    <input type="number" name="server_limit" value="{{ blockForm.settings.limit }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" min="1" max="100">
+                <div class="form-field">
+                    <label class="form-label">{{ t('limit', page_locale()) }}</label>
+                    <input type="number" name="server_limit" value="{{ blockForm.settings.limit }}" class="form-input" min="1" max="100">
                 </div>
             </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-                    <input type="checkbox" name="server_show_players" class="rounded border-slate-300 text-indigo-600" {% if blockForm.settings.show_players %}checked{% endif %}>
+            <div class="grid gap-3 sm:grid-cols-2" style="margin-top:0.75rem;">
+                <label class="inline-flex items-center gap-2 text-sm cursor-pointer" style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;">
+                    <input type="checkbox" name="server_show_players" {% if blockForm.settings.show_players %}checked{% endif %}>
                     {{ t('show_players', page_locale()) }}
                 </label>
-                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-                    <input type="checkbox" name="server_show_join_button" class="rounded border-slate-300 text-indigo-600" {% if blockForm.settings.show_join_button %}checked{% endif %}>
+                <label class="inline-flex items-center gap-2 text-sm cursor-pointer" style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;">
+                    <input type="checkbox" name="server_show_join_button" {% if blockForm.settings.show_join_button %}checked{% endif %}>
                     {{ t('show_join_button', page_locale()) }}
                 </label>
             </div>
-            <p class="text-xs text-slate-700">{{ t('server_block_settings_help', page_locale())|raw }}</p>
+            <p style="font-size:0.75rem;color:var(--ng-text-muted);margin-top:0.75rem;">{{ t('server_block_settings_help', page_locale())|raw }}</p>
         </div>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button type="submit" class="w-full rounded-lg px-4 py-2 text-sm font-semibold text-white {{ blockForm.submit_color }}">{{ t(blockForm.submit_label, page_locale()) }}</button>
+            <button type="submit" class="ui-button ui-button--primary">{{ t(blockForm.submit_label, page_locale()) }}</button>
             {% if blockForm.action == 'update' %}
                 <button
                     type="button"
-                    class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto"
+                    class="ui-button ui-button--secondary"
                     hx-get="/admin/cms/pages/{{ page.id }}/blocks/form"
                     hx-target="#cms-block-form"
                     hx-swap="outerHTML"

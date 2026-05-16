@@ -3,42 +3,60 @@
 {% set pageTitle = t('admin_dns_heading', page_locale()) %}
 {% set pageSubtitle = t('admin_dns_intro', page_locale()) %}
 {% set activeNav = 'dns-records' %}
+{% set locale = page_locale() %}
 {% set topbarActions %}
     <button
         class="ui-button ui-button--ghost ui-button--sm"
         hx-get="/admin/dns/records/table"
         hx-target="#dns-records-table"
         hx-swap="outerHTML"
-    >{{ t('refresh', page_locale()) }}</button>
+    >{{ t('refresh', locale) }}</button>
     <button
         class="ui-button ui-button--primary ui-button--sm"
         hx-get="/admin/dns/records/form"
         hx-target="#dns-record-form"
         hx-swap="outerHTML"
-    >{{ t('admin_dns_new_record', page_locale()) }}</button>
+    >{{ t('admin_dns_new_record', locale) }}</button>
 {% endset %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_dns_total_records', page_locale()) }}</div>
-            <div class="ng-kpi-box__value">{{ summary.total }}</div>
+    {# ── Hero with KPI ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            {{ t('admin_dns_hero_label', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_dns_heading', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_dns_hero_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_dns_total_records', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.total }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_dns_a_records', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.byType.A ?? 0 }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_dns_cname_records', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.byType.CNAME ?? 0 }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_dns_mx_records', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.byType.MX ?? 0 }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_dns_a_records', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--primary">{{ summary.byType.A ?? 0 }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_dns_cname_records', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.byType.CNAME ?? 0 }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_dns_mx_records', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.byType.MX ?? 0 }}</div>
-        </div>
-    </div>
+    </section>
 
     <div class="ng-layout-2col">
         <div id="dns-record-form" class="ng-data-card">

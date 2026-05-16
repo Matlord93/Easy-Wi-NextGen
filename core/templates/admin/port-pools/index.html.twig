@@ -14,6 +14,38 @@
         <div class="ng-alert ng-alert--danger">{{ error }}</div>
     {% endif %}
 
+    {# Hero #}
+    <div class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot" style="background:#f59e0b;"></span>
+                            {{ t('admin_server_ports_title', page_locale()) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_server_ports_title', page_locale()) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_server_ports_intro', page_locale()) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_server_ports_pool_list_title', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ portPools|length }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_server_ports_blocks_title', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ portBlocks|length }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_status_enabled', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ portPools|filter(p => p.enabled)|length }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {# Create forms: pool + block assign #}
     <div class="ng-layout-2col--equal">
         {# Create pool #}
@@ -41,7 +73,7 @@
                             <input type="text" name="name" placeholder="{{ t('admin_port_pools_name_placeholder', page_locale()) }}" class="form-input" required>
                         </div>
                         <div class="form-field">
-                            <label class="form-label">Tag</label>
+                            <label class="form-label">{{ t('admin_port_pools_tag_label', page_locale()) }}</label>
                             <input type="text" name="tag" placeholder="GAME_UDP" class="form-input" required>
                         </div>
                     </div>
@@ -52,7 +84,7 @@
                             <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_pools_range_start_placeholder', page_locale()) }}" class="form-input" required>
                             <input type="number" min="1" name="end_port" placeholder="{{ t('admin_port_pools_range_end_placeholder', page_locale()) }}" class="form-input" required>
                         </div>
-                        <p class="mt-1 text-xs text-slate-600">{{ t('admin_port_pools_range_hint', page_locale()) }}</p>
+                        <p class="mt-1 text-xs" style="color:var(--ng-text-muted)">{{ t('admin_port_pools_range_hint', page_locale()) }}</p>
                     </div>
 
                     <div class="form-field">
@@ -61,11 +93,11 @@
                             <option value="next">{{ t('admin_server_ports_strategy_next', page_locale()) }}</option>
                             <option value="gap10">{{ t('admin_server_ports_strategy_gap10', page_locale()) }}</option>
                         </select>
-                        <p class="mt-1 text-xs text-slate-600">{{ t('admin_server_ports_strategy_hint', page_locale()) }}</p>
+                        <p class="mt-1 text-xs" style="color:var(--ng-text-muted)">{{ t('admin_server_ports_strategy_hint', page_locale()) }}</p>
                     </div>
 
-                    <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700 cursor-pointer">
-                        <input type="checkbox" name="enabled" value="1" checked class="h-4 w-4 rounded border-slate-300 text-slate-900">
+                    <label class="flex items-center gap-2 text-xs font-semibold uppercase cursor-pointer" style="color:var(--ng-text)">
+                        <input type="checkbox" name="enabled" value="1" checked class="h-4 w-4 rounded" style="border-color:var(--ng-border)">
                         {{ t('admin_status_enabled', page_locale()) }}
                     </label>
 
@@ -116,7 +148,7 @@
                             <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_blocks_range_start_placeholder', page_locale()) }}" class="form-input">
                             <input type="number" min="1" name="end_port" placeholder="{{ t('admin_port_blocks_range_end_placeholder', page_locale()) }}" class="form-input">
                         </div>
-                        <p class="mt-1 text-xs text-slate-600">{{ t('admin_server_ports_block_assign_hint', page_locale()) }}</p>
+                        <p class="mt-1 text-xs" style="color:var(--ng-text-muted)">{{ t('admin_server_ports_block_assign_hint', page_locale()) }}</p>
                     </div>
 
                     <button type="submit" class="ui-button ui-button--primary">
@@ -154,10 +186,10 @@
                     <tbody>
                         {% for pool in portPools %}
                             <tr>
-                                <td class="font-mono text-xs text-slate-700">{{ pool.id }}</td>
+                                <td class="font-mono text-xs" style="color:var(--ng-text)">{{ pool.id }}</td>
                                 <td>
-                                    <div class="font-semibold text-slate-900">{{ pool.name }}</div>
-                                    <div class="text-xs text-slate-600">{{ pool.tag }}</div>
+                                    <div class="font-semibold" style="color:var(--ng-text)">{{ pool.name }}</div>
+                                    <div class="text-xs" style="color:var(--ng-text-muted)">{{ pool.tag }}</div>
                                 </td>
                                 <td>{{ pool.node.name ?? pool.node.id }}</td>
                                 <td><span class="ui-badge ui-badge--info">{{ pool.start_port }}-{{ pool.end_port }}</span></td>
@@ -208,7 +240,7 @@
                     <tbody>
                         {% for block in portBlocks %}
                             <tr>
-                                <td class="font-mono text-xs text-slate-700">{{ block.id }}</td>
+                                <td class="font-mono text-xs" style="color:var(--ng-text)">{{ block.id }}</td>
                                 <td>{{ block.pool.name }}</td>
                                 <td>{{ block.customer.email }}</td>
                                 <td><span class="ui-badge ui-badge--info">{{ block.start_port }}-{{ block.end_port }}</span></td>

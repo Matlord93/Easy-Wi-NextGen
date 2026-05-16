@@ -7,6 +7,10 @@ LOCK_FILE="${EASYWI_CORE_LOCK_FILE:-$CORE_DIR/srv/update/lock}"
 JOBS_DIR="${EASYWI_CORE_JOBS_DIR:-$CORE_DIR/srv/update/jobs}"
 LOGS_DIR="${EASYWI_CORE_LOGS_DIR:-$CORE_DIR/srv/update/logs}"
 BACKUPS_DIR="${EASYWI_CORE_BACKUPS_DIR:-$CORE_DIR/srv/update/backups}"
+PHP_BIN="${EASYWI_PHP_BIN:-${PHP_BINARY:-}}"
+if [[ -z "$PHP_BIN" ]]; then
+  PHP_BIN="$(command -v php || true)"
+fi
 EXCLUDES=(
   ".env"
   "config/local*"
@@ -37,6 +41,11 @@ if [[ -z "$JOB_ID" ]]; then
   usage
 fi
 
+if [[ -z "$PHP_BIN" ]]; then
+  echo "PHP binary not found." >&2
+  exit 1
+fi
+
 JOB_FILE="$JOBS_DIR/$JOB_ID.json"
 if [[ ! -f "$JOB_FILE" ]]; then
   echo "Job not found: $JOB_FILE" >&2
@@ -44,7 +53,7 @@ if [[ ! -f "$JOB_FILE" ]]; then
 fi
 
 mkdir -p "$LOGS_DIR" "$BACKUPS_DIR"
-LOG_PATH=$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["logPath"] ?? "";' "$JOB_FILE")
+LOG_PATH=$("$PHP_BIN" -r 'echo json_decode(file_get_contents($argv[1]), true)["logPath"] ?? "";' "$JOB_FILE")
 if [[ -z "$LOG_PATH" ]]; then
   LOG_PATH="$LOGS_DIR/$JOB_ID.log"
 fi
@@ -56,13 +65,19 @@ log() {
 update_job() {
   local status="$1"
   local exit_code="${2:-}"
-  php -r '
+  local step="${3:-}"
+  local error_message="${4:-}"
+  "$PHP_BIN" -r '
     $path = $argv[1];
     $status = $argv[2];
     $exitCode = $argv[3] !== "" ? (int) $argv[3] : null;
+    $step = $argv[4] !== "" ? $argv[4] : null;
+    $errorMessage = $argv[5] !== "" ? $argv[5] : null;
     $data = json_decode(file_get_contents($path), true);
     if (!is_array($data)) { exit(1); }
     $data["status"] = $status;
+    if ($step !== null) { $data["lastStep"] = $step; }
+    if ($errorMessage !== null) { $data["error"] = $errorMessage; }
     if ($status === "running" && empty($data["startedAt"])) {
         $data["startedAt"] = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
     }
@@ -71,17 +86,33 @@ update_job() {
         $data["exitCode"] = $exitCode;
     }
     file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
-  ' "$JOB_FILE" "$status" "${exit_code:-}"
+  ' "$JOB_FILE" "$status" "${exit_code:-}" "$step" "$error_message"
+}
+
+run_step() {
+  local step="$1"
+  shift
+  log "Running step: $step"
+  update_job "running" "" "$step"
+  set +e
+  "$@" > >(tee -a "$LOG_PATH") 2> >(tee -a "$LOG_PATH" >&2)
+  local code=$?
+  set -e
+  if [[ "$code" -ne 0 ]]; then
+    log "Step failed: $step (exit code $code)."
+    return "$code"
+  fi
+  log "Step finished: $step"
 }
 
 read_job_field() {
   local field="$1"
-  php -r 'echo json_decode(file_get_contents($argv[1]), true)[$argv[2]] ?? "";' "$JOB_FILE" "$field"
+  "$PHP_BIN" -r 'echo json_decode(file_get_contents($argv[1]), true)[$argv[2]] ?? "";' "$JOB_FILE" "$field"
 }
 
 read_job_payload_field() {
   local field="$1"
-  php -r '
+  "$PHP_BIN" -r '
     $data = json_decode(file_get_contents($argv[1]), true);
     echo is_array($data) && isset($data["payload"]) ? ($data["payload"][$argv[2]] ?? "") : "";
   ' "$JOB_FILE" "$field"
@@ -165,7 +196,7 @@ perform_backup() {
     rsync_excludes+=(--exclude "$item")
   done
   rsync -a --delete "${rsync_excludes[@]}" "$CORE_DIR/" "$backup_path/"
-  php -r '
+  "$PHP_BIN" -r '
     $path = $argv[1];
     $data = json_decode(file_get_contents($path), true);
     $data["payload"]["backup_path"] = $argv[2];
@@ -207,19 +238,30 @@ perform_update() {
   done
   log "Deploying core update to $CORE_DIR."
   rsync -a --delete "${rsync_excludes[@]}" "$root_dir/" "$CORE_DIR/"
-  log "Running composer install."
-  (cd "$CORE_DIR" && composer install --no-dev --no-interaction --optimize-autoloader)
-  log "Clearing cache."
-  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
-  log "Warming cache."
-  (cd "$CORE_DIR" && php bin/console cache:warmup --env=prod)
+  if [[ -z "$PHP_BIN" ]]; then
+    log "PHP binary not found."
+    return 1
+  fi
+  run_step "composer install" bash -lc 'cd "$1" && composer install --no-dev --no-interaction --optimize-autoloader' bash "$CORE_DIR" || return $?
+  perform_post_update_tasks
+}
+
+perform_post_update_tasks() {
+  if [[ -z "$PHP_BIN" ]]; then
+    log "PHP binary not found."
+    return 1
+  fi
+  if [[ ! -f "$CORE_DIR/bin/console" ]]; then
+    log "Symfony console not found: $CORE_DIR/bin/console"
+    return 1
+  fi
+  run_step "doctrine:migrations:migrate" bash -lc 'cd "$1" && "$2" bin/console doctrine:migrations:migrate --no-interaction' bash "$CORE_DIR" "$PHP_BIN" || return $?
+  run_step "doctrine:schema:validate" bash -lc 'cd "$1" && "$2" bin/console doctrine:schema:validate --no-interaction' bash "$CORE_DIR" "$PHP_BIN" || return $?
+  run_step "cache:clear" bash -lc 'cd "$1" && "$2" bin/console cache:clear --env=prod --no-interaction' bash "$CORE_DIR" "$PHP_BIN" || return $?
 }
 
 perform_migrate() {
-  log "Running migrations."
-  (cd "$CORE_DIR" && php bin/console doctrine:migrations:migrate --no-interaction)
-  log "Clearing cache."
-  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
+  perform_post_update_tasks
 }
 
 perform_rollback() {
@@ -240,7 +282,7 @@ perform_rollback() {
   log "Restoring backup from $backup_path."
   rsync -a --delete "${rsync_excludes[@]}" "$backup_path/" "$CORE_DIR/"
   log "Clearing cache."
-  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
+  (cd "$CORE_DIR" && "$PHP_BIN" bin/console cache:clear --env=prod --no-interaction)
 }
 
 exec 9>"$LOCK_FILE"
@@ -252,21 +294,20 @@ fi
 update_job "running"
 TYPE="$(read_job_field type)"
 EXIT_CODE=0
+FAILED_STEP=""
 
 log "Starting job $JOB_ID ($TYPE)."
 if [[ "$TYPE" == "update" ]]; then
   perform_backup
-  perform_update || EXIT_CODE=$?
+  perform_update || { EXIT_CODE=$?; FAILED_STEP=$(read_job_field lastStep); }
 elif [[ "$TYPE" == "migrate" ]]; then
-  perform_migrate || EXIT_CODE=$?
+  perform_migrate || { EXIT_CODE=$?; FAILED_STEP=$(read_job_field lastStep); }
 elif [[ "$TYPE" == "both" ]]; then
+  log "Job type both uses the standard update path: deploy, migrations, schema validation, cache clear."
   perform_backup
-  perform_update || EXIT_CODE=$?
-  if [[ "$EXIT_CODE" -eq 0 ]]; then
-    perform_migrate || EXIT_CODE=$?
-  fi
+  perform_update || { EXIT_CODE=$?; FAILED_STEP=$(read_job_field lastStep); }
 elif [[ "$TYPE" == "rollback" ]]; then
-  perform_rollback || EXIT_CODE=$?
+  perform_rollback || { EXIT_CODE=$?; FAILED_STEP=$(read_job_field lastStep); }
 else
   log "Unknown job type."
   EXIT_CODE=2
@@ -276,8 +317,8 @@ if [[ "$EXIT_CODE" -eq 0 ]]; then
   update_job "finished" "0"
   log "Job finished successfully."
 else
-  update_job "failed" "$EXIT_CODE"
-  log "Job failed with exit code $EXIT_CODE."
+  update_job "failed" "$EXIT_CODE" "${FAILED_STEP:-}" "Job failed with exit code $EXIT_CODE${FAILED_STEP:+ during $FAILED_STEP}."
+  log "Job failed with exit code $EXIT_CODE${FAILED_STEP:+ during $FAILED_STEP}."
 fi
 
 exit "$EXIT_CODE"

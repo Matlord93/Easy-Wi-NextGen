@@ -153,7 +153,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface
             $process = Process::fromShellCommandline(
                 sprintf('%s --run-job %s', $this->runnerCommand, escapeshellarg($jobId)),
                 $this->coreDir,
-                null,
+                ['EASYWI_PHP_BIN' => PHP_BINARY],
                 null,
                 1,
             );

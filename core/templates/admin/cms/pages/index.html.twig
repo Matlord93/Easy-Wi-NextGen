@@ -13,29 +13,46 @@
 {% endset %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="flex flex-col gap-6">
 
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('total_pages', page_locale()) }}</div>
-            <div class="ng-kpi-box__value">{{ summary.total }}</div>
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot" style="background:#a78bfa;"></span>
+                            {{ t('cms_pages_title', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('cms_pages_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('cms_pages_description', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('total_pages', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.total }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('published', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.published }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('blocks', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.blocks }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('published', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.published }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('blocks', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--primary">{{ summary.blocks }}</div>
-        </div>
-    </div>
+    </section>
 
     <div class="ng-layout-2col">
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('pages_overview', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('pages_overview_description', page_locale()) }}</p>
+                    <h2 class="ng-data-card__title">{{ t('pages_overview', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('pages_overview_description', locale) }}</p>
                 </div>
                 <div class="ng-data-card__actions">
                     <button
@@ -43,7 +60,7 @@
                         hx-get="/admin/cms/pages/table"
                         hx-target="#cms-pages-table"
                         hx-swap="outerHTML"
-                    >{{ t('refresh', page_locale()) }}</button>
+                    >{{ t('refresh', locale) }}</button>
                 </div>
             </div>
             <div class="ng-data-card__body--flush">

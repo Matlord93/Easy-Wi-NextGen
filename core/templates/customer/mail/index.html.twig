@@ -9,7 +9,7 @@
     <div class="cust-hero">
         <div class="cust-hero__inner">
             <div>
-                <div class="cust-hero__label">Kommunikation</div>
+                <div class="cust-hero__label">{{ t('customer_mail_kicker', page_locale()) }}</div>
                 <h1 class="cust-hero__title">{{ t('customer_mail_title', page_locale()) }}</h1>
                 <p class="cust-hero__desc">{{ t('customer_mail_description', page_locale()) }}</p>
             </div>
@@ -27,17 +27,17 @@
             <div class="cust-hero__stat">
                 <div class="cust-hero__stat-label">{{ t('customer_mail_mailboxes_label', page_locale()) }}</div>
                 <div class="cust-hero__stat-value">{{ mailboxes|length }}</div>
-                <div class="cust-hero__stat-sub">E-Mail-Konten</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_mail_stat_mailbox_sub', page_locale()) }}</div>
             </div>
             <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">Aliase</div>
+                <div class="cust-hero__stat-label">{{ t('customer_mail_stat_alias_label', page_locale()) }}</div>
                 <div class="cust-hero__stat-value">{{ aliases|length }}</div>
-                <div class="cust-hero__stat-sub">Weiterleitungen</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_mail_stat_alias_sub', page_locale()) }}</div>
             </div>
             <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">Domains</div>
+                <div class="cust-hero__stat-label">{{ t('customer_mail_stat_domain_label', page_locale()) }}</div>
                 <div class="cust-hero__stat-value">{{ domains|length }}</div>
-                <div class="cust-hero__stat-sub">Konfiguriert</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_mail_stat_domain_sub', page_locale()) }}</div>
             </div>
         </div>
     </div>
@@ -59,7 +59,7 @@
             <div class="cust-panel__head">
                 <div>
                     <h3 class="cust-panel__title">{{ t('customer_mail_webmail_accesses_title', page_locale()) }}</h3>
-                    <p class="cust-panel__sub">Roundcube URLs nach Domain</p>
+                    <p class="cust-panel__sub">{{ t('customer_mail_roundcube_url_sub', page_locale()) }}</p>
                 </div>
             </div>
             <div class="cust-panel__body">
@@ -103,7 +103,7 @@
                 <div class="cust-form-row">
                     <div>
                         <label class="cust-form-label">{{ t('customer_mail_password_label', page_locale()) }}</label>
-                        <input type="password" name="password" minlength="8" placeholder="Min. 8 Zeichen" required>
+                        <input type="password" name="password" minlength="8" placeholder="{{ t('customer_mail_password_min_hint', page_locale()) }}" required>
                     </div>
                     <div>
                         <label class="cust-form-label">{{ t('customer_mail_quota_label', page_locale()) }} (MB)</label>
@@ -167,13 +167,13 @@
         {# Alias create #}
         <div class="cust-form-card">
             <div class="cust-form-card__head">
-                <h3 class="cust-form-card__title">Alias erstellen</h3>
-                <p class="cust-form-card__sub">Leite eine Adresse auf ein oder mehrere Ziele weiter.</p>
+                <h3 class="cust-form-card__title">{{ t('customer_mail_alias_create_title', page_locale()) }}</h3>
+                <p class="cust-form-card__sub">{{ t('customer_mail_alias_create_desc', page_locale()) }}</p>
             </div>
             <form method="post" action="{{ path('customer_mail_alias_create') }}" class="cust-form-card__body">
                 <input type="hidden" name="_token" value="{{ csrf.alias_create }}">
                 <div>
-                    <label class="cust-form-label">Domain</label>
+                    <label class="cust-form-label">{{ t('customer_mail_alias_domain_label', page_locale()) }}</label>
                     <select name="domain_id" required>
                         <option value="">{{ t('customer_mail_domain_select_placeholder', page_locale()) }}</option>
                         {% for domain in domains %}
@@ -182,18 +182,18 @@
                     </select>
                 </div>
                 <div>
-                    <label class="cust-form-label">Alias-Name</label>
+                    <label class="cust-form-label">{{ t('customer_mail_alias_name_label', page_locale()) }}</label>
                     <input type="text" name="local_part" placeholder="z.B. kontakt" required>
                 </div>
                 <div>
-                    <label class="cust-form-label">Weiterleiten an</label>
+                    <label class="cust-form-label">{{ t('customer_mail_alias_dest_label', page_locale()) }}</label>
                     <textarea name="destinations" rows="3" placeholder="user@example.com, admin@example.com" required></textarea>
-                    <div style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">Mehrere Ziele mit Komma, Semikolon oder Zeilenumbruch trennen.</div>
+                    <div style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">{{ t('customer_mail_alias_dest_hint', page_locale()) }}</div>
                 </div>
                 <input type="hidden" name="enabled" value="1">
                 <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
                     <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
-                    Alias erstellen
+                    {{ t('customer_mail_alias_create_action', page_locale()) }}
                 </button>
             </form>
         </div>
@@ -202,15 +202,15 @@
         <div class="cust-panel">
             <div class="cust-panel__head">
                 <div>
-                    <h3 class="cust-panel__title">Aktive Aliase</h3>
-                    <p class="cust-panel__sub">Verwalte deine Mail-Weiterleitungen.</p>
+                    <h3 class="cust-panel__title">{{ t('customer_mail_alias_list_title', page_locale()) }}</h3>
+                    <p class="cust-panel__sub">{{ t('customer_mail_alias_list_sub', page_locale()) }}</p>
                 </div>
             </div>
             <div class="cust-panel__body--flush">
                 {% if aliases is empty %}
                     <div class="cust-empty">
                         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 3.5a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1H1.5a.5.5 0 0 1-.5-.5zm0 4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H1.5a.5.5 0 0 1-.5-.5zm0 4a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1H1.5a.5.5 0 0 1-.5-.5z"/></svg>
-                        Noch keine Mail-Aliase vorhanden.
+                        {{ t('customer_mail_alias_empty', page_locale()) }}
                     </div>
                 {% else %}
                     <div class="cust-mail-list">
@@ -220,7 +220,7 @@
                                     <div>
                                         <div class="cust-mail-item__address">{{ alias.address }}</div>
                                         <div class="cust-mail-item__meta">
-                                            <span class="ui-badge ui-badge--{{ alias.enabled ? 'success' : 'neutral' }}">{{ alias.enabled ? 'Aktiv' : 'Inaktiv' }}</span>
+                                            <span class="ui-badge ui-badge--{{ alias.enabled ? 'success' : 'neutral' }}">{{ alias.enabled ? t('customer_mail_alias_active', page_locale()) : t('customer_mail_alias_inactive', page_locale()) }}</span>
                                             → {{ alias.destinations|join(', ') }}
                                         </div>
                                     </div>
@@ -228,7 +228,7 @@
                                         <form method="post" action="{{ path('customer_mail_alias_status_update', { id: alias.id }) }}">
                                             <input type="hidden" name="_token" value="{{ csrf.aliases[alias.id].status ?? '' }}">
                                             <input type="hidden" name="enabled" value="{{ alias.enabled ? '0' : '1' }}">
-                                            <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ alias.enabled ? 'Deaktivieren' : 'Aktivieren' }}</button>
+                                            <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ alias.enabled ? t('customer_mail_alias_deactivate', page_locale()) : t('customer_mail_alias_activate', page_locale()) }}</button>
                                         </form>
                                         <form method="post" action="{{ path('customer_mail_alias_delete', { id: alias.id }) }}" onsubmit="return confirm('{{ t('customer_mail_delete_confirm', page_locale()) }}');">
                                             <input type="hidden" name="_token" value="{{ csrf.aliases[alias.id].delete ?? '' }}">
@@ -239,7 +239,7 @@
                                 <form method="post" action="{{ path('customer_mail_alias_destinations_update', { id: alias.id }) }}" style="display:flex;gap:8px;align-items:flex-start;">
                                     <input type="hidden" name="_token" value="{{ csrf.aliases[alias.id].destinations ?? '' }}">
                                     <textarea name="destinations" rows="2" style="flex:1;min-width:0;">{{ alias.destinations|join(', ') }}</textarea>
-                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm" style="flex-shrink:0;">Speichern</button>
+                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm" style="flex-shrink:0;">{{ t('customer_mail_alias_save', page_locale()) }}</button>
                                 </form>
                             </div>
                         {% endfor %}
@@ -267,7 +267,7 @@
                             <th>{{ t('customer_mail_settings_domain', page_locale()) }}</th>
                             <th>{{ t('customer_mail_settings_incoming', page_locale()) }} (IMAP)</th>
                             <th>{{ t('customer_mail_settings_outgoing', page_locale()) }} (SMTP)</th>
-                            <th>DNS-Status</th>
+                            <th>{{ t('customer_mail_dns_title', page_locale()) }}</th>
                         </tr>
                     </thead>
                     <tbody>

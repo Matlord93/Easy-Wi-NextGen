@@ -2,21 +2,60 @@
 {% set member = form.member %}
 {% set locale = page_locale() %}
 {% block content %}
-<form method="post" action="{{ form.action_url }}" class="mx-auto max-w-3xl space-y-3 rounded-2xl border bg-white p-6">
-    <h1 class="text-xl font-semibold">{{ member ? t('admin_cms_team_form_edit', locale) : t('admin_cms_team_form_new', locale) }}</h1>
-    <input name="name" value="{{ member ? member.name : '' }}" placeholder="Name" class="w-full rounded border px-3 py-2" />
-    <input name="role_title" value="{{ member ? member.roleTitle : '' }}" placeholder="Role title" class="w-full rounded border px-3 py-2" />
-    <select name="team_name" class="w-full rounded border px-3 py-2">
-        <option value="">{{ t('admin_cms_team_table_general', locale) }}</option>
-        {% for group in teamGroups|default([]) %}
-            <option value="{{ group.name }}" {% if member and member.teamName == group.name %}selected{% endif %}>{{ group.name }}</option>
-        {% endfor %}
-    </select>
-    <textarea name="bio" rows="5" placeholder="Bio" class="w-full rounded border px-3 py-2">{{ member ? member.bio : '' }}</textarea>
-    <input name="avatar_path" value="{{ member ? member.avatarPath : '' }}" placeholder="Avatar path" class="w-full rounded border px-3 py-2" />
-    <textarea name="socials_json" rows="3" placeholder='{"x":"https://x.com/..."}' class="w-full rounded border px-3 py-2">{{ member and member.socialsJson ? member.socialsJson|json_encode : '' }}</textarea>
-    <input type="number" name="sort_order" value="{{ member ? member.sortOrder : 0 }}" class="w-full rounded border px-3 py-2" />
-    <label><input type="checkbox" name="is_active" value="1" {% if member is null or member.isActive %}checked{% endif %}/> {{ t('admin_cms_team_form_active', locale) }}</label>
-    <div><button class="rounded bg-indigo-600 px-4 py-2 text-white">{{ t('admin_cms_team_form_save', locale) }}</button></div>
-</form>
+<div class="ng-data-card mx-auto max-w-3xl">
+    <div class="ng-data-card__body">
+        <form method="post" action="{{ form.action_url }}" class="flex flex-col gap-4">
+            <h1 class="text-xl font-semibold">{{ member ? t('admin_cms_team_form_edit', locale) : t('admin_cms_team_form_new', locale) }}</h1>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_cms_team_form_name_label', locale) }}</label>
+                <input name="name" value="{{ member ? member.name : '' }}" placeholder="{{ t('admin_cms_team_form_name_placeholder', locale) }}" class="form-input" />
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_cms_team_form_role_label', locale) }}</label>
+                <input name="role_title" value="{{ member ? member.roleTitle : '' }}" placeholder="{{ t('admin_cms_team_form_role_placeholder', locale) }}" class="form-input" />
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_cms_team_form_team_label', locale) }}</label>
+                <select name="team_name" class="form-input">
+                    <option value="">{{ t('admin_cms_team_table_general', locale) }}</option>
+                    {% for group in teamGroups|default([]) %}
+                        <option value="{{ group.name }}" {% if member and member.teamName == group.name %}selected{% endif %}>{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_cms_team_form_bio_label', locale) }}</label>
+                <textarea name="bio" rows="5" placeholder="{{ t('admin_cms_team_form_bio_placeholder', locale) }}" class="form-input">{{ member ? member.bio : '' }}</textarea>
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_cms_team_form_avatar_label', locale) }}</label>
+                <input name="avatar_path" value="{{ member ? member.avatarPath : '' }}" placeholder="{{ t('admin_cms_team_form_avatar_placeholder', locale) }}" class="form-input" />
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_cms_team_form_socials_label', locale) }}</label>
+                <textarea name="socials_json" rows="3" placeholder='{"x":"https://x.com/..."}' class="form-input">{{ member and member.socialsJson ? member.socialsJson|json_encode : '' }}</textarea>
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_cms_team_form_sort_label', locale) }}</label>
+                <input type="number" name="sort_order" value="{{ member ? member.sortOrder : 0 }}" class="form-input" />
+            </div>
+
+            <label class="flex items-center gap-2">
+                <input type="checkbox" name="is_active" value="1" {% if member is null or member.isActive %}checked{% endif %}/>
+                {{ t('admin_cms_team_form_active', locale) }}
+            </label>
+
+            <div>
+                <button class="ui-button ui-button--primary">{{ t('admin_cms_team_form_save', locale) }}</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

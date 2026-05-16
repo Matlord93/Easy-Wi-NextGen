@@ -2,22 +2,74 @@
 {% set event = form.event %}
 {% set locale = page_locale() %}
 {% block content %}
-<form method="post" action="{{ form.action_url }}" class="mx-auto max-w-3xl space-y-3 rounded-2xl border bg-white p-6">
-    <h1 class="text-xl font-semibold">{{ event ? t('admin_cms_events_form_edit_title', locale) : t('admin_cms_events_form_new_title', locale) }}</h1>
-    <input name="title" value="{{ event ? event.title : '' }}" placeholder="{{ t('admin_cms_events_form_title_placeholder', locale) }}" class="w-full rounded border px-3 py-2" />
-    <input name="slug" value="{{ event ? event.slug : '' }}" placeholder="{{ t('admin_cms_events_form_slug_placeholder', locale) }}" class="w-full rounded border px-3 py-2" />
-    <textarea name="description" rows="6" placeholder="{{ t('admin_cms_events_form_desc_placeholder', locale) }}" class="w-full rounded border px-3 py-2">{{ event ? event.description : '' }}</textarea>
-    <div class="grid gap-3 md:grid-cols-2">
-        <input type="datetime-local" name="start_at" value="{{ event and event.startAt ? event.startAt|date('Y-m-d\\TH:i') : '' }}" class="rounded border px-3 py-2" />
-        <input type="datetime-local" name="end_at" value="{{ event and event.endAt ? event.endAt|date('Y-m-d\\TH:i') : '' }}" class="rounded border px-3 py-2" />
+<div class="mx-auto max-w-3xl flex flex-col gap-6">
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h1 class="ng-data-card__title">{{ event ? t('admin_cms_events_form_edit_title', locale) : t('admin_cms_events_form_new_title', locale) }}</h1>
+            </div>
+        </div>
+        <div class="ng-data-card__body">
+            <form method="post" action="{{ form.action_url }}" class="flex flex-col gap-5">
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_events_form_title_placeholder', locale) }}</label>
+                    <input name="title" value="{{ event ? event.title : '' }}" placeholder="{{ t('admin_cms_events_form_title_placeholder', locale) }}" class="form-input" />
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_events_form_slug_placeholder', locale) }}</label>
+                    <input name="slug" value="{{ event ? event.slug : '' }}" placeholder="{{ t('admin_cms_events_form_slug_placeholder', locale) }}" class="form-input" />
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_events_form_desc_placeholder', locale) }}</label>
+                    <textarea name="description" rows="6" placeholder="{{ t('admin_cms_events_form_desc_placeholder', locale) }}" class="form-input">{{ event ? event.description : '' }}</textarea>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_events_table_start', locale) }}</label>
+                        <input type="datetime-local" name="start_at" value="{{ event and event.startAt ? event.startAt|date('Y-m-d\\TH:i') : '' }}" class="form-input" />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_events_form_end_at', locale) }}</label>
+                        <input type="datetime-local" name="end_at" value="{{ event and event.endAt ? event.endAt|date('Y-m-d\\TH:i') : '' }}" class="form-input" />
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_events_form_location', locale) }}</label>
+                    <input name="location" value="{{ event ? event.location : '' }}" placeholder="{{ t('admin_cms_events_form_location', locale) }}" class="form-input" />
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_events_table_status', locale) }}</label>
+                    <select name="status" class="form-input">
+                        {% set value = event ? event.status : 'planned' %}
+                        <option value="planned" {% if value == 'planned' %}selected{% endif %}>{{ t('admin_cms_events_status_planned', locale) }}</option>
+                        <option value="canceled" {% if value == 'canceled' %}selected{% endif %}>{{ t('admin_cms_events_status_canceled', locale) }}</option>
+                        <option value="past" {% if value == 'past' %}selected{% endif %}>{{ t('admin_cms_events_status_past', locale) }}</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_events_form_cover', locale) }}</label>
+                    <input name="cover_image_path" value="{{ event ? event.coverImagePath : '' }}" placeholder="{{ t('admin_cms_events_form_cover', locale) }}" class="form-input" />
+                </div>
+
+                <label class="inline-flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="is_published" {% if event and event.isPublished %}checked{% endif %} />
+                    <span>{{ t('admin_cms_events_form_published', locale) }}</span>
+                </label>
+
+                <div class="flex items-center gap-3">
+                    <button class="ui-button ui-button--primary" type="submit">{{ t('admin_cms_events_form_save', locale) }}</button>
+                    <a href="/admin/cms/events" class="ui-button ui-button--ghost">{{ t('cancel', locale) }}</a>
+                </div>
+
+            </form>
+        </div>
     </div>
-    <input name="location" value="{{ event ? event.location : '' }}" placeholder="{{ t('admin_cms_events_form_location', locale) }}" class="w-full rounded border px-3 py-2" />
-    <select name="status" class="w-full rounded border px-3 py-2">
-        {% set value = event ? event.status : 'planned' %}
-        {% for s in ['planned','canceled','past'] %}<option value="{{ s }}" {% if value == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
-    </select>
-    <input name="cover_image_path" value="{{ event ? event.coverImagePath : '' }}" placeholder="{{ t('admin_cms_events_form_cover', locale) }}" class="w-full rounded border px-3 py-2" />
-    <label><input type="checkbox" name="is_published" {% if event and event.isPublished %}checked{% endif %}/> {{ t('admin_cms_events_form_published', locale) }}</label>
-    <div><button class="rounded bg-indigo-600 px-4 py-2 text-white">{{ t('admin_cms_events_form_save', locale) }}</button></div>
-</form>
+</div>
 {% endblock %}

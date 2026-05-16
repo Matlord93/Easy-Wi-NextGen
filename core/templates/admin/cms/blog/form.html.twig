@@ -4,87 +4,94 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="mx-auto max-w-4xl space-y-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ pageTitle }}</h1>
-        <p class="text-sm text-slate-600">{{ t('cms_blog_form_description', locale) }}</p>
+<div class="mx-auto max-w-4xl flex flex-col gap-6">
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h1 class="ng-data-card__title">{{ pageTitle }}</h1>
+                <p class="ng-data-card__subtitle">{{ t('cms_blog_form_description', locale) }}</p>
+            </div>
+        </div>
+        <div class="ng-data-card__body">
+
+            {% if form.errors is not empty %}
+                <div class="ng-alert ng-alert--danger">
+                    <ul class="list-disc pl-5">
+                        {% for error in form.errors %}<li>{{ error }}</li>{% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            <form method="post" action="{{ form.action_url }}" class="flex flex-col gap-5">
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('title', locale) }}</label>
+                        <input name="title" value="{{ form.title }}" class="form-input" />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('slug', locale) }}</label>
+                        <input name="slug" value="{{ form.slug }}" class="form-input" />
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('cms_blog_excerpt', locale) }}</label>
+                    <textarea name="excerpt" rows="3" class="form-input">{{ form.excerpt }}</textarea>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_blog_content_label', locale) }}</label>
+                    <textarea name="content" rows="10" class="form-input">{{ form.content }}</textarea>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_blog_seo_title_label', locale) }}</label>
+                        <input name="seo_title" value="{{ form.seo_title }}" class="form-input" />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_blog_featured_image', locale) }}</label>
+                        <input name="featured_image_path" value="{{ form.featured_image_path }}" class="form-input" />
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_cms_blog_seo_desc_label', locale) }}</label>
+                    <textarea name="seo_description" rows="2" class="form-input">{{ form.seo_description }}</textarea>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_blog_category_select', locale) }}</label>
+                        <select name="category_id" class="form-input">
+                            <option value="">-</option>
+                            {% for category in form.categories %}
+                                <option value="{{ category.id }}" {% if form.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_blog_tags_select', locale) }}</label>
+                        <select name="tag_ids[]" multiple class="form-input" style="height:8rem">
+                            {% for tag in form.available_tags %}
+                                <option value="{{ tag.id }}" {% if tag.id in form.tag_ids %}selected{% endif %}>{{ tag.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <label class="inline-flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="is_published" {% if form.is_published %}checked{% endif %} />
+                    <span>{{ t('cms_blog_publish', locale) }}</span>
+                </label>
+
+                <div class="flex items-center gap-3">
+                    <button class="ui-button ui-button--primary" type="submit">{{ t(form.submit_label, locale) }}</button>
+                    <a href="/admin/cms/blog" class="ui-button ui-button--ghost">{{ t('cancel', locale) }}</a>
+                </div>
+            </form>
+
+        </div>
     </div>
-
-    {% if form.errors is not empty %}
-        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <ul class="list-disc pl-5">
-                {% for error in form.errors %}<li>{{ error }}</li>{% endfor %}
-            </ul>
-        </div>
-    {% endif %}
-
-    <form method="post" action="{{ form.action_url }}" class="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="grid gap-4 md:grid-cols-2">
-            <label class="block text-sm">
-                <span class="text-slate-700">{{ t('title', locale) }}</span>
-                <input name="title" value="{{ form.title }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            </label>
-            <label class="block text-sm">
-                <span class="text-slate-700">{{ t('slug', locale) }}</span>
-                <input name="slug" value="{{ form.slug }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            </label>
-        </div>
-
-        <label class="block text-sm">
-            <span class="text-slate-700">{{ t('cms_blog_excerpt', locale) }}</span>
-            <textarea name="excerpt" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ form.excerpt }}</textarea>
-        </label>
-
-        <label class="block text-sm">
-            <span class="text-slate-700">{{ t('admin_cms_blog_content_label', locale) }}</span>
-            <textarea name="content" rows="10" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ form.content }}</textarea>
-        </label>
-
-        <div class="grid gap-4 md:grid-cols-2">
-            <label class="block text-sm">
-                <span class="text-slate-700">{{ t('admin_cms_blog_seo_title_label', locale) }}</span>
-                <input name="seo_title" value="{{ form.seo_title }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            </label>
-            <label class="block text-sm">
-                <span class="text-slate-700">{{ t('admin_cms_blog_featured_image', locale) }}</span>
-                <input name="featured_image_path" value="{{ form.featured_image_path }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            </label>
-        </div>
-
-        <label class="block text-sm">
-            <span class="text-slate-700">{{ t('admin_cms_blog_seo_desc_label', locale) }}</span>
-            <textarea name="seo_description" rows="2" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ form.seo_description }}</textarea>
-        </label>
-
-        <div class="grid gap-4 md:grid-cols-2">
-            <label class="block text-sm">
-                <span class="text-slate-700">{{ t('admin_cms_blog_category_select', locale) }}</span>
-                <select name="category_id" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                    <option value="">-</option>
-                    {% for category in form.categories %}
-                        <option value="{{ category.id }}" {% if form.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label class="block text-sm">
-                <span class="text-slate-700">{{ t('admin_cms_blog_tags_select', locale) }}</span>
-                <select name="tag_ids[]" multiple class="mt-1 h-32 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                    {% for tag in form.available_tags %}
-                        <option value="{{ tag.id }}" {% if tag.id in form.tag_ids %}selected{% endif %}>{{ tag.name }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-        </div>
-
-        <label class="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" name="is_published" {% if form.is_published %}checked{% endif %} />
-            <span>{{ t('cms_blog_publish', locale) }}</span>
-        </label>
-
-        <div class="flex items-center gap-3">
-            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700" type="submit">{{ t(form.submit_label, locale) }}</button>
-            <a href="/admin/cms/blog" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">{{ t('cancel', locale) }}</a>
-        </div>
-    </form>
 </div>
 {% endblock %}

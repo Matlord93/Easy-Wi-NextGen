@@ -30,17 +30,17 @@
             <div class="cust-hero__stat">
                 <div class="cust-hero__stat-label">{{ t('customer_webspace_summary_webspaces', page_locale()) }}</div>
                 <div class="cust-hero__stat-value">{{ summary.webspaces }}</div>
-                <div class="cust-hero__stat-sub">Webspace-Pakete</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_webspace_stat_webspace_sub', page_locale()) }}</div>
             </div>
             <div class="cust-hero__stat">
                 <div class="cust-hero__stat-label">{{ t('customer_webspace_summary_domains', page_locale()) }}</div>
                 <div class="cust-hero__stat-value">{{ summary.domains }}</div>
-                <div class="cust-hero__stat-sub">Domains</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_webspace_stat_domain_sub', page_locale()) }}</div>
             </div>
             <div class="cust-hero__stat">
                 <div class="cust-hero__stat-label">{{ t('customer_webspace_summary_mailboxes', page_locale()) }}</div>
                 <div class="cust-hero__stat-value">{{ summary.mailboxes }}</div>
-                <div class="cust-hero__stat-sub">E-Mail-Konten</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_webspace_stat_mailbox_sub', page_locale()) }}</div>
             </div>
             <div class="cust-hero__stat">
                 <div class="cust-hero__stat-label">{{ t('customer_webspace_summary_ssl_expiring', page_locale()) }}</div>
@@ -59,7 +59,7 @@
             <div>
                 <div class="cust-ws-action__title">{{ t('customer_webspace_action_files', page_locale()) }}</div>
                 <div class="cust-ws-action__desc">{{ t('customer_webspace_action_files_description', page_locale()) }}</div>
-                <div class="cust-ws-action__count">{{ summary.webspaces }} Webspaces</div>
+                <div class="cust-ws-action__count">{{ summary.webspaces }} {{ t('customer_webspace_webspaces_action_count', page_locale()) }}</div>
             </div>
         </a>
         <a href="{{ path('customer_domains') }}" class="cust-ws-action">
@@ -69,7 +69,7 @@
             <div>
                 <div class="cust-ws-action__title">{{ t('customer_webspace_action_domains', page_locale()) }}</div>
                 <div class="cust-ws-action__desc">{{ t('customer_webspace_action_domains_description', page_locale()) }}</div>
-                <div class="cust-ws-action__count">{{ summary.domains }} Domains</div>
+                <div class="cust-ws-action__count">{{ summary.domains }} {{ t('customer_webspace_domains_action_count', page_locale()) }}</div>
             </div>
         </a>
         <a href="{{ path('customer_mail') }}" class="cust-ws-action">
@@ -79,7 +79,7 @@
             <div>
                 <div class="cust-ws-action__title">{{ t('customer_webspace_action_mail', page_locale()) }}</div>
                 <div class="cust-ws-action__desc">{{ t('customer_webspace_action_mail_description', page_locale()) }}</div>
-                <div class="cust-ws-action__count">{{ summary.mailboxes }} Postfächer</div>
+                <div class="cust-ws-action__count">{{ summary.mailboxes }} {{ t('customer_webspace_mailboxes_action_count', page_locale()) }}</div>
             </div>
         </a>
         <a href="/roundcube" target="_blank" rel="noopener noreferrer" class="cust-ws-action">
@@ -87,8 +87,8 @@
                 <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917z"/></svg>
             </div>
             <div>
-                <div class="cust-ws-action__title">Roundcube Webmail</div>
-                <div class="cust-ws-action__desc">E-Mails direkt im Browser lesen und schreiben.</div>
+                <div class="cust-ws-action__title">{{ t('customer_webspace_roundcube_title', page_locale()) }}</div>
+                <div class="cust-ws-action__desc">{{ t('customer_webspace_roundcube_desc', page_locale()) }}</div>
                 <div class="cust-ws-action__count" style="background:rgba(34,197,94,0.15);color:#4ade80;border-color:rgba(34,197,94,0.25);">{{ t('customer_webspace_open_button', page_locale()) }}</div>
             </div>
         </a>
@@ -197,7 +197,7 @@
                                 <td>
                                     <span class="ui-badge ui-badge--{{ wsBadge }}">{{ wsStatus|replace({'_': ' '})|title }}</span>
                                     {% if webspace.apply_required %}
-                                        <span class="ui-badge ui-badge--warning" style="margin-left:4px;">Apply ausstehend</span>
+                                        <span class="ui-badge ui-badge--warning" style="margin-left:4px;">{{ t('customer_webspace_apply_pending', page_locale()) }}</span>
                                     {% endif %}
                                 </td>
                                 <td style="color:var(--ng-text-muted);font-size:12px;">{{ webspace.updated_at|date('Y-m-d H:i') }}</td>

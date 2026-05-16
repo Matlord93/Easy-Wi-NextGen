@@ -16,16 +16,16 @@
         <div class="ng-data-card__body">
             <form method="post" action="/admin/cms/media" enctype="multipart/form-data" style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
                 <div class="form-field" style="grid-column: span 2;">
-                    <label class="form-label">File</label>
+                    <label class="form-label">{{ t('admin_cms_media_file_label', locale) }}</label>
                     <input type="file" name="file" class="form-input" required />
                 </div>
                 <div class="form-field">
-                    <label class="form-label">Title</label>
-                    <input name="title" placeholder="Title" class="form-input" />
+                    <label class="form-label">{{ t('admin_cms_media_title_label', locale) }}</label>
+                    <input name="title" placeholder="{{ t('admin_cms_media_title_label', locale) }}" class="form-input" />
                 </div>
                 <div class="form-field">
-                    <label class="form-label">Alt</label>
-                    <input name="alt" placeholder="Alt" class="form-input" />
+                    <label class="form-label">{{ t('admin_cms_media_alt_label', locale) }}</label>
+                    <input name="alt" placeholder="{{ t('admin_cms_media_alt_label', locale) }}" class="form-input" />
                 </div>
                 <div>
                     <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_cms_media_upload', locale) }}</button>

@@ -3,9 +3,26 @@
 {% set pageTitle = t('admin_databases_title', page_locale()) %}
 {% set pageSubtitle = t('admin_databases_intro', page_locale()) %}
 {% set activeNav = 'databases' %}
+{% set locale = page_locale() %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+    {# ── Hero ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot"></span>
+                        {{ t('admin_databases_hero_label', locale) }}
+                    </div>
+                    <h1 class="tkt-hero__title">{{ t('admin_databases_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_databases_hero_intro', locale) }}</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
     {% if errors is defined and errors is not empty %}
         <div class="ng-alert ng-alert--danger">
@@ -45,15 +62,15 @@
                             {% for database in databases %}
                                 <tr>
                                     <td>
-                                        <div class="font-semibold text-slate-900">{{ database.name }}</div>
-                                        <div class="text-xs text-slate-500">ID {{ database.id }}</div>
+                                        <div class="font-semibold" style="color:var(--ng-text);">{{ database.name }}</div>
+                                        <div style="font-size:11px;color:var(--ng-text-muted);">ID {{ database.id }}</div>
                                     </td>
                                     <td>{{ database.engine }}</td>
                                     <td>{{ database.host }}:{{ database.port }}</td>
                                     <td>
                                         {% if database.node is defined and database.node %}
-                                            <div class="font-semibold text-slate-900">{{ database.node.name }}</div>
-                                            <div class="text-xs text-slate-500">ID {{ database.node.id }}</div>
+                                            <div class="font-semibold" style="color:var(--ng-text);">{{ database.node.name }}</div>
+                                            <div style="font-size:11px;color:var(--ng-text-muted);">ID {{ database.node.id }}</div>
                                         {% else %}
                                             <span class="ui-badge ui-badge--neutral">{{ t('admin_databases_node_unassigned', page_locale()) }}</span>
                                         {% endif %}
@@ -153,10 +170,10 @@
         <div class="ng-data-card__body">
             <div class="grid grid-cols-2 gap-3 xl:grid-cols-3">
                 {% for customer in customers %}
-                    <form method="post" action="{{ path('admin_database_customer_limit', {id: customer.id}) }}" class="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
+                    <form method="post" action="{{ path('admin_database_customer_limit', {id: customer.id}) }}" class="flex items-center gap-3" style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.75rem;">
                         <div class="min-w-0 flex-1">
-                            <div class="truncate text-sm font-semibold text-slate-900">{{ customer.email }}</div>
-                            <div class="text-xs text-slate-500">{{ t('admin_databases_customer_id_label', page_locale()) }} {{ customer.id }}</div>
+                            <div class="truncate text-sm font-semibold" style="color:var(--ng-text);">{{ customer.email }}</div>
+                            <div style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_databases_customer_id_label', page_locale()) }} {{ customer.id }}</div>
                         </div>
                         <input name="database_limit" type="number" min="0" value="{{ customer.databaseLimit }}" class="form-input w-24">
                         <button class="ui-button ui-button--primary ui-button--sm">{{ t('save', page_locale()) }}</button>
@@ -194,8 +211,8 @@
                             {% for node in databaseNodes %}
                                 <tr>
                                     <td>
-                                        <div class="font-semibold text-slate-900">{{ node.name }}</div>
-                                        <div class="text-xs text-slate-500">ID {{ node.id }}</div>
+                                        <div class="font-semibold" style="color:var(--ng-text);">{{ node.name }}</div>
+                                        <div style="font-size:11px;color:var(--ng-text-muted);">ID {{ node.id }}</div>
                                         {% if not node.isActive %}
                                             <span class="ui-badge ui-badge--danger mt-1">{{ t('admin_database_nodes_inactive', page_locale()) }}</span>
                                         {% endif %}
@@ -203,16 +220,16 @@
                                     <td>{{ node.engine }}</td>
                                     <td>{{ node.host }}:{{ node.port }}</td>
                                     <td>
-                                        <div class="font-semibold text-slate-900">{{ node.agent.id }}</div>
-                                        <div class="text-xs text-slate-500">{{ node.agent.name ?: t('admin_database_nodes_agent_placeholder', page_locale()) }}</div>
+                                        <div class="font-semibold" style="color:var(--ng-text);">{{ node.agent.id }}</div>
+                                        <div style="font-size:11px;color:var(--ng-text-muted);">{{ node.agent.name ?: t('admin_database_nodes_agent_placeholder', page_locale()) }}</div>
                                     </td>
                                     <td>
-                                        <div class="font-semibold text-slate-900">{{ node.healthStatus }}</div>
-                                        <div class="text-xs text-slate-500">
+                                        <div class="font-semibold" style="color:var(--ng-text);">{{ node.healthStatus }}</div>
+                                        <div style="font-size:11px;color:var(--ng-text-muted);">
                                             {{ node.lastCheckedAt ? node.lastCheckedAt|date('Y-m-d H:i') : t('admin_database_nodes_never_checked', page_locale()) }}
                                         </div>
                                         {% if node.healthMessage %}
-                                            <div class="mt-1 text-xs text-slate-500">{{ node.healthMessage }}</div>
+                                            <div style="margin-top:4px;font-size:11px;color:var(--ng-text-muted);">{{ node.healthMessage }}</div>
                                         {% endif %}
                                     </td>
                                     <td>

@@ -3,9 +3,22 @@
 {% set pageTitle = t('admin_ddos_title', page_locale()) %}
 {% set pageSubtitle = t('admin_ddos_intro', page_locale()) %}
 {% set activeNav = 'ddos' %}
+{% set locale = page_locale() %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+
+{% set totalNodes = statusPanels|length %}
+{% set attackCount = 0 %}
+{% set idleCount = 0 %}
+{% for panel in statusPanels %}
+    {% if panel.attackActive %}
+        {% set attackCount = attackCount + 1 %}
+    {% else %}
+        {% set idleCount = idleCount + 1 %}
+    {% endif %}
+{% endfor %}
+
+<div style="display:flex;flex-direction:column;gap:20px;">
 
     {% if errors is not empty %}
         <div class="ng-alert ng-alert--danger">
@@ -19,60 +32,94 @@
 
     {% if ddosApplied %}
         <div class="ng-alert ng-alert--success">
-            {{ t('admin_ddos_jobs_queued', page_locale()) }}
+            {{ t('admin_ddos_jobs_queued', locale) }}
         </div>
     {% endif %}
 
-    {# Current node status #}
+    {# ── Hero with KPI ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            {{ t('admin_ddos_hero_label', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_ddos_hero_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_ddos_hero_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_ddos_nodes_protected', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ totalNodes }}</div>
+                        </div>
+                        <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
+                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_ddos_attacks_active', locale) }}</div>
+                            <div class="tkt-kpi__value" style="color:#fca5a5;">{{ attackCount }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_nodes_ddos_idle', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ idleCount }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# ── Current node status ── #}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">{{ t('admin_ddos_current_status_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_ddos_current_status_intro', page_locale()) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_ddos_current_status_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_ddos_current_status_intro', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
             {% if statusPanels is empty %}
-                <div class="cust-empty">{{ t('admin_ddos_no_nodes_available', page_locale()) }}</div>
+                <div class="cust-table__empty">{{ t('admin_ddos_no_nodes_available', locale) }}</div>
             {% else %}
-                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));">
                     {% for panel in statusPanels %}
-                        <div class="rounded-lg border border-slate-200 p-4">
-                            <div class="flex items-start justify-between gap-3">
+                        <div class="ng-card" style="padding:16px;display:flex;flex-direction:column;gap:0;">
+
+                            {# 1. Node name + attack status badge #}
+                            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
                                 <div>
-                                    <p class="text-sm font-semibold text-slate-900">{{ panel.name }}</p>
-                                    <p class="text-xs text-slate-600">{{ t('admin_ddos_node_label', page_locale())|replace({'%id%': panel.id}) }}</p>
+                                    <p style="margin:0;font-size:14px;font-weight:600;color:var(--ng-text);">{{ panel.name }}</p>
+                                    <p style="margin:2px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_ddos_node_label', locale)|replace({'%id%': panel.id}) }}</p>
                                 </div>
                                 {% if panel.attackActive %}
-                                    <span class="ui-badge ui-badge--danger">{{ t('admin_nodes_ddos_attack_active', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--danger">{{ t('admin_nodes_ddos_attack_active', locale) }}</span>
                                 {% else %}
-                                    <span class="ui-badge ui-badge--success">{{ t('admin_nodes_ddos_idle', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--success">{{ t('admin_nodes_ddos_idle', locale) }}</span>
                                 {% endif %}
                             </div>
 
-                            {# Port telemetry #}
-                            <div class="mt-3">
-                                <p class="text-xs font-semibold uppercase" style="color:var(--ng-text-muted);">Port-Telemetrie</p>
-                                <div class="mt-2 flex flex-col gap-1">
+                            {# 2. Port telemetry #}
+                            <div style="margin-top:14px;">
+                                <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_port_telemetry', locale) }}</p>
+                                <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
                                     {% if panel.portStats is empty %}
-                                        <span class="ui-badge ui-badge--neutral">Keine Port-Details gemeldet</span>
+                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_port_details', locale) }}</span>
                                     {% else %}
                                         {% for stat in panel.portStats %}
-                                            <div class="flex items-center justify-between rounded-lg border px-3 py-2 text-xs" style="border-color:{{ stat.attack_active ? 'rgba(239,68,68,.4)' : 'var(--ng-border)' }};background:{{ stat.attack_active ? 'rgba(239,68,68,.08)' : 'var(--ng-surface-soft)' }};color:{{ stat.attack_active ? '#fca5a5' : 'var(--ng-text)' }};">
-                                                <span>Port {{ stat.port }}</span>
-                                                <span>{{ stat.syn_recv }} SYN-RECV{{ stat.attack_active ? ' · Angriff aktiv' : '' }}</span>
+                                            <div style="display:flex;align-items:center;justify-content:space-between;border-radius:6px;border:1px solid {{ stat.attack_active ? 'rgba(239,68,68,.4)' : 'var(--ng-border)' }};background:{{ stat.attack_active ? 'rgba(239,68,68,.08)' : 'var(--ng-surface-soft)' }};padding:6px 10px;font-size:12px;color:{{ stat.attack_active ? '#fca5a5' : 'var(--ng-text)' }};">
+                                                <span>{{ t('admin_ddos_node_label', locale)|replace({'%id%': stat.port}) }}</span>
+                                                <span>{{ stat.syn_recv }} SYN-RECV{{ stat.attack_active ? ' · ' ~ t('admin_ddos_attack_active_suffix', locale) : '' }}</span>
                                             </div>
                                         {% endfor %}
                                     {% endif %}
                                 </div>
                             </div>
 
-                            {# Protocols #}
-                            <div class="mt-3">
-                                <p class="text-xs font-semibold uppercase" style="color:var(--ng-text-muted);">{{ t('admin_ddos_protocols', page_locale()) }}</p>
-                                <div class="mt-2 flex flex-wrap gap-2">
+                            {# 3. Protocols #}
+                            <div style="margin-top:14px;">
+                                <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_protocols', locale) }}</p>
+                                <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
                                     {% if panel.protocols is empty %}
-                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_protocols_reported', page_locale()) }}</span>
+                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_protocols_reported', locale) }}</span>
                                     {% else %}
                                         {% for protocol in panel.protocols %}
                                             <span class="ui-badge ui-badge--info">{{ protocol|upper }}</span>
@@ -81,42 +128,44 @@
                                 </div>
                             </div>
 
-                            {# Policy #}
-                            <div class="mt-3" style="border-top:1px solid var(--ng-border);padding-top:12px;">
-                                <div class="flex items-center justify-between text-xs">
-                                    <span class="font-semibold uppercase" style="color:var(--ng-text-muted);">{{ t('admin_ddos_policy', page_locale()) }}</span>
+                            {# 4. Policy info #}
+                            <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ng-border);">
+                                <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;">
+                                    <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_policy', locale) }}</span>
                                     <span style="color:var(--ng-text);">
                                         {% if panel.policyEnabled is same as(false) %}
-                                            {{ t('admin_ddos_policy_disabled', page_locale()) }}
+                                            {{ t('admin_ddos_policy_disabled', locale) }}
                                         {% else %}
                                             {{ panel.policyMode ?? '—' }}
                                         {% endif %}
                                     </span>
                                 </div>
-                                <div class="mt-2 flex flex-col gap-1 text-xs" style="color:var(--ng-text-muted);">
-
-                                <div class="flex items-center justify-between">
-                                    <span>{{ t('admin_ddos_packets_per_second', page_locale()) }}</span>
-                                    <span class="font-medium">{{ panel.pps ?? '—' }}</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span>{{ t('admin_ddos_connections', page_locale()) }}</span>
-                                    <span class="font-medium">{{ panel.connCount ?? '—' }}</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span>{{ t('admin_ddos_mode', page_locale()) }}</span>
-                                    <span class="font-medium">{{ panel.mode ?? '—' }}</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span>{{ t('admin_ddos_reported', page_locale()) }}</span>
-                                    <span class="font-medium">{{ panel.reportedAt ? panel.reportedAt|date('Y-m-d H:i') : '—' }}</span>
+                                <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ng-text-muted);">
+                                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                                        <span>{{ t('admin_ddos_packets_per_second', locale) }}</span>
+                                        <span style="font-weight:500;color:var(--ng-text);">{{ panel.pps ?? '—' }}</span>
+                                    </div>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                                        <span>{{ t('admin_ddos_connections', locale) }}</span>
+                                        <span style="font-weight:500;color:var(--ng-text);">{{ panel.connCount ?? '—' }}</span>
+                                    </div>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                                        <span>{{ t('admin_ddos_mode', locale) }}</span>
+                                        <span style="font-weight:500;color:var(--ng-text);">{{ panel.mode ?? '—' }}</span>
+                                    </div>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                                        <span>{{ t('admin_ddos_reported', locale) }}</span>
+                                        <span style="font-weight:500;color:var(--ng-text);">{{ panel.reportedAt ? panel.reportedAt|date('Y-m-d H:i') : '—' }}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="mt-4">
-                                <p class="text-xs font-semibold uppercase text-slate-600">{{ t('admin_ddos_protected_ports', page_locale()) }}</p>
-                                <div class="mt-2 flex flex-wrap gap-2">
+
+                            {# 5. Protected ports #}
+                            <div style="margin-top:14px;">
+                                <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_protected_ports', locale) }}</p>
+                                <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
                                     {% if panel.ports is empty %}
-                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_ports_reported', page_locale()) }}</span>
+                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_ports_reported', locale) }}</span>
                                     {% else %}
                                         {% for port in panel.ports %}
                                             <span class="ui-badge ui-badge--info">{{ port }}</span>
@@ -124,44 +173,34 @@
                                     {% endif %}
                                 </div>
                             </div>
-                            <div class="mt-3">
-                                <p class="text-xs font-semibold uppercase text-slate-600">{{ t('admin_ddos_protocols', page_locale()) }}</p>
-                                <div class="mt-2 flex flex-wrap gap-2">
-                                    {% if panel.protocols is empty %}
-                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_protocols_reported', page_locale()) }}</span>
-                                    {% else %}
-                                        {% for protocol in panel.protocols %}
-                                            <span class="ui-badge ui-badge--info">{{ protocol|upper }}</span>
-                                        {% endfor %}
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="mt-4 border-t border-slate-100 pt-4">
-                                <div class="flex items-center justify-between text-xs">
-                                    <span class="font-semibold uppercase text-slate-600">{{ t('admin_ddos_policy', page_locale()) }}</span>
-                                    <span class="font-medium text-slate-700">
+
+                            {# 6. Policy ports & protocols + apply timestamps #}
+                            <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ng-border);">
+                                <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;">
+                                    <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_policy', locale) }}</span>
+                                    <span style="font-weight:500;color:var(--ng-text);">
                                         {% if panel.policyEnabled is same as(false) %}
-                                            {{ t('admin_ddos_policy_disabled', page_locale()) }}
+                                            {{ t('admin_ddos_policy_disabled', locale) }}
                                         {% else %}
                                             {{ panel.policyMode ?? '—' }}
                                         {% endif %}
                                     </span>
                                 </div>
-                                <div class="mt-2 space-y-2 text-xs text-slate-700">
-                                    <div class="flex items-center justify-between">
-                                        <span>{{ t('admin_ddos_applied', page_locale()) }}</span>
-                                        <span class="font-medium">{{ panel.policyAppliedAt ? panel.policyAppliedAt|date('Y-m-d H:i') : '—' }}</span>
+                                <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ng-text-muted);">
+                                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                                        <span>{{ t('admin_ddos_applied', locale) }}</span>
+                                        <span style="font-weight:500;color:var(--ng-text);">{{ panel.policyAppliedAt ? panel.policyAppliedAt|date('Y-m-d H:i') : '—' }}</span>
                                     </div>
-                                    <div class="flex items-center justify-between">
-                                        <span>{{ t('admin_ddos_last_update', page_locale()) }}</span>
-                                        <span class="font-medium">{{ panel.policyUpdatedAt ? panel.policyUpdatedAt|date('Y-m-d H:i') : '—' }}</span>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                                        <span>{{ t('admin_ddos_last_update', locale) }}</span>
+                                        <span style="font-weight:500;color:var(--ng-text);">{{ panel.policyUpdatedAt ? panel.policyUpdatedAt|date('Y-m-d H:i') : '—' }}</span>
                                     </div>
                                 </div>
-                                <div class="mt-3">
-                                    <p class="text-xs font-semibold uppercase text-slate-600">{{ t('admin_ddos_policy_ports', page_locale()) }}</p>
-                                    <div class="mt-2 flex flex-wrap gap-2">
+                                <div style="margin-top:10px;">
+                                    <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_policy_ports', locale) }}</p>
+                                    <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;">
                                         {% if panel.policyPorts is empty %}
-                                            <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_policy_ports', page_locale()) }}</span>
+                                            <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_policy_ports', locale) }}</span>
                                         {% else %}
                                             {% for port in panel.policyPorts %}
                                                 <span class="ui-badge ui-badge--info">{{ port }}</span>
@@ -169,11 +208,11 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="mt-3">
-                                    <p class="text-xs font-semibold uppercase text-slate-600">{{ t('admin_ddos_policy_protocols', page_locale()) }}</p>
-                                    <div class="mt-2 flex flex-wrap gap-2">
+                                <div style="margin-top:10px;">
+                                    <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_policy_protocols', locale) }}</p>
+                                    <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;">
                                         {% if panel.policyProtocols is empty %}
-                                            <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_policy_protocols', page_locale()) }}</span>
+                                            <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_policy_protocols', locale) }}</span>
                                         {% else %}
                                             {% for protocol in panel.policyProtocols %}
                                                 <span class="ui-badge ui-badge--info">{{ protocol|upper }}</span>
@@ -182,6 +221,7 @@
                                     </div>
                                 </div>
                             </div>
+
                         </div>
                     {% endfor %}
                 </div>
@@ -189,74 +229,72 @@
         </div>
     </div>
 
-    {# Apply policy form #}
+    {# ── Apply policy form ── #}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">{{ t('admin_ddos_apply_policy_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_ddos_apply_policy_intro', page_locale()) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_ddos_apply_policy_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_ddos_apply_policy_intro', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
-            <form method="post" action="/admin/ddos/apply" class="flex flex-col gap-6">
+            <form method="post" action="/admin/ddos/apply" style="display:flex;flex-direction:column;gap:24px;">
+
+                {# Target nodes #}
                 <div>
-                    <p class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_ddos_target_nodes', page_locale()) }}</p>
-                    <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <p style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_target_nodes', locale) }}</p>
+                    <div style="margin-top:12px;display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));">
                         {% for node in nodes %}
-                            <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 cursor-pointer">
+                            <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--ng-border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--ng-text);cursor:pointer;background:var(--ng-surface);">
                                 <input
                                     type="checkbox"
                                     name="nodes[]"
                                     value="{{ node.id }}"
-                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                     {{ node.id in formData.nodes ? 'checked' : '' }}
                                 >
-                                <span>{{ node.name ?? t('admin_ddos_unnamed_node', page_locale()) }} <span class="text-xs text-slate-500">#{{ node.id }}</span></span>
+                                <span>{{ node.name ?? t('admin_ddos_unnamed_node', locale) }} <span style="font-size:11px;color:var(--ng-text-muted);">#{{ node.id }}</span></span>
                             </label>
                         {% else %}
-                            <p class="text-sm text-slate-700">{{ t('admin_ddos_no_nodes_available', page_locale()) }}</p>
+                            <p style="font-size:13px;color:var(--ng-text-muted);">{{ t('admin_ddos_no_nodes_available', locale) }}</p>
                         {% endfor %}
                     </div>
                 </div>
 
-                <div class="grid gap-6 lg:grid-cols-2">
-                    <div class="flex flex-col gap-3">
+                <div class="ng-layout-2col">
+
+                    {# Ports column #}
+                    <div style="display:flex;flex-direction:column;gap:14px;">
                         <div class="form-field">
-                            <label class="form-label">{{ t('admin_ddos_protected_ports', page_locale()) }}</label>
-                            <select
-                                name="ports[]"
-                                multiple
-                                size="7"
-                                class="form-input"
-                            >
+                            <label class="form-label">{{ t('admin_ddos_protected_ports', locale) }}</label>
+                            <select name="ports[]" multiple size="7" class="form-input">
                                 {% for port in portOptions %}
                                     <option value="{{ port }}" {{ port in formData.ports ? 'selected' : '' }}>{{ port }}</option>
                                 {% endfor %}
                             </select>
-                            <p class="mt-1 text-xs text-slate-500">{{ t('admin_ddos_ports_hint', page_locale()) }}</p>
+                            <p style="margin:4px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_ddos_ports_hint', locale) }}</p>
                         </div>
                         <div class="form-field">
-                            <label class="form-label">{{ t('admin_ddos_custom_ports_label', page_locale()) }}</label>
+                            <label class="form-label">{{ t('admin_ddos_custom_ports_label', locale) }}</label>
                             <input
                                 name="custom_ports"
                                 value="{{ formData.custom_ports }}"
-                                placeholder="{{ t('admin_ddos_custom_ports_placeholder', page_locale()) }}"
+                                placeholder="{{ t('admin_ddos_custom_ports_placeholder', locale) }}"
                                 class="form-input"
                             >
                         </div>
                     </div>
 
-                    <div class="flex flex-col gap-5">
+                    {# Protocols + mode column #}
+                    <div style="display:flex;flex-direction:column;gap:20px;">
                         <div>
-                            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_ddos_protocols', page_locale()) }}</p>
-                            <div class="mt-3 flex flex-wrap gap-3">
+                            <p style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_protocols', locale) }}</p>
+                            <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px;">
                                 {% for protocol in protocolOptions %}
-                                    <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 cursor-pointer">
+                                    <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--ng-border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--ng-text);cursor:pointer;background:var(--ng-surface);">
                                         <input
                                             type="checkbox"
                                             name="protocols[]"
                                             value="{{ protocol }}"
-                                            class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                             {{ protocol in formData.protocols ? 'checked' : '' }}
                                         >
                                         <span>{{ protocol|upper }}</span>
@@ -265,7 +303,7 @@
                             </div>
                         </div>
                         <div class="form-field">
-                            <label class="form-label">{{ t('admin_ddos_mode', page_locale()) }}</label>
+                            <label class="form-label">{{ t('admin_ddos_mode', locale) }}</label>
                             <select name="mode" class="form-input">
                                 {% for mode in modeOptions %}
                                     <option value="{{ mode }}" {{ mode == formData.mode ? 'selected' : '' }}>{{ mode|title }}</option>
@@ -273,11 +311,13 @@
                             </select>
                         </div>
                     </div>
+
                 </div>
 
                 <div>
-                    <button type="submit" class="ui-button ui-button--primary">{{ t('admin_ddos_apply_policy', page_locale()) }}</button>
+                    <button type="submit" class="ui-button ui-button--primary">{{ t('admin_ddos_apply_policy', locale) }}</button>
                 </div>
+
             </form>
         </div>
     </div>

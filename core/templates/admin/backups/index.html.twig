@@ -2,21 +2,78 @@
 
 {% set pageTitle = t('admin_backups_title', page_locale()) %}
 {% set activeNav = 'backups' %}
+{% set locale = page_locale() %}
 {% set topbarActions = [
-    { label: t('admin_backups_nav_targets', page_locale()), href: path('admin_backups_targets'), variant: 'ghost' },
-    { label: t('admin_backups_nav_settings', page_locale()), href: path('admin_settings_backups'), variant: 'ghost' }
+    { label: t('admin_backups_nav_targets', locale), href: path('admin_backups_targets'), variant: 'ghost' },
+    { label: t('admin_backups_nav_settings', locale), href: path('admin_settings_backups'), variant: 'ghost' }
 ] %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+
+{% set totalBackups = backups|length %}
+{% set successCount = 0 %}
+{% set failedCount = 0 %}
+{% set pendingCount = 0 %}
+{% for backup in backups %}
+    {% if backup.status == 'success' %}
+        {% set successCount = successCount + 1 %}
+    {% elseif backup.status == 'failed' %}
+        {% set failedCount = failedCount + 1 %}
+    {% else %}
+        {% set pendingCount = pendingCount + 1 %}
+    {% endif %}
+{% endfor %}
+
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+    {# ── Hero with KPI ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            {{ t('admin_backups_hero_label', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_backups_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_backups_hero_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_backups_title', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ totalBackups }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_backups_status_running', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ pendingCount }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_backups_status_success', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ successCount }}</div>
+                        </div>
+                        <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
+                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_backups_status_failed', locale) }}</div>
+                            <div class="tkt-kpi__value" style="color:#fca5a5;">{{ failedCount }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── Action bar ── #}
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+            <a href="{{ path('admin_backups_targets') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_backups_nav_targets', locale) }}</a>
+            <a href="{{ path('admin_settings_backups') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_backups_nav_settings', locale) }}</a>
+            <span style="margin-left:auto;font-size:12px;color:var(--ng-text-muted);">{{ t('refresh', locale) }}</span>
+        </div>
+    </section>
+
+    {# ── Backup list ── #}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">{{ t('admin_backups_title', page_locale()) }}</h2>
-            </div>
-            <div class="ng-data-card__actions">
-                <a href="{{ path('admin_backups_targets') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_backups_nav_targets', page_locale()) }}</a>
-                <a href="{{ path('admin_settings_backups') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_backups_nav_settings', page_locale()) }}</a>
+                <h2 class="ng-data-card__title">{{ t('admin_backups_title', locale) }}</h2>
             </div>
         </div>
         <div class="ng-data-card__body--flush">
@@ -25,13 +82,13 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>{{ t('admin_backups_col_instance', page_locale()) }}</th>
-                            <th>{{ t('admin_backups_col_customer', page_locale()) }}</th>
-                            <th>{{ t('admin_backups_col_target', page_locale()) }}</th>
-                            <th>{{ t('status', page_locale()) }}</th>
-                            <th>{{ t('size', page_locale()) }}</th>
-                            <th>{{ t('created', page_locale()) }}</th>
-                            <th>{{ t('error', page_locale()) }}</th>
+                            <th>{{ t('admin_backups_col_instance', locale) }}</th>
+                            <th>{{ t('admin_backups_col_customer', locale) }}</th>
+                            <th>{{ t('admin_backups_col_target', locale) }}</th>
+                            <th>{{ t('status', locale) }}</th>
+                            <th>{{ t('size', locale) }}</th>
+                            <th>{{ t('created', locale) }}</th>
+                            <th>{{ t('error', locale) }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -41,18 +98,27 @@
                                 <td>{{ backup.instance_id }}</td>
                                 <td>{{ backup.customer_id }}</td>
                                 <td>{{ backup.target ?: 'default' }}</td>
-                                <td>{{ backup.status }}</td>
+                                <td>
+                                    {% if backup.status == 'success' %}
+                                        <span class="ui-badge ui-badge--success">{{ t('admin_backups_status_success', locale) }}</span>
+                                    {% elseif backup.status == 'failed' %}
+                                        <span class="ui-badge ui-badge--danger">{{ t('admin_backups_status_failed', locale) }}</span>
+                                    {% else %}
+                                        <span class="ui-badge ui-badge--warning">{{ t('admin_backups_status_running', locale) }}</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ backup.size_bytes ?: '—' }}</td>
                                 <td>{{ backup.created_at|date('Y-m-d H:i') }}</td>
                                 <td>{{ backup.error ?: '—' }}</td>
                             </tr>
                         {% else %}
-                            <tr><td colspan="8" class="cust-table__empty">{{ t('admin_backups_list_empty', page_locale()) }}</td></tr>
+                            <tr><td colspan="8" class="cust-table__empty">{{ t('admin_backups_list_empty', locale) }}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+
 </div>
 {% endblock %}

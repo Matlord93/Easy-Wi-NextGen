@@ -1535,6 +1535,143 @@ resolve_latest_release_with_assets() {
   printf '%s\n' "${tag}"
 }
 
+list_agent_release_options() {
+  local token="${1:-}"; shift || true
+  local -a asset_names=("$@")
+  [[ "${#asset_names[@]}" -gt 0 ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  local tmp releases_url names_json
+  tmp="$(mktemp)"
+  releases_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases?per_page=50"
+  if ! curl_github_api "${releases_url}" "${tmp}" "${token}" 2>/dev/null; then
+    rm -f "${tmp}"
+    return 1
+  fi
+
+  names_json="$(printf '%s\n' "${asset_names[@]}" | jq -R . | jq -s .)"
+  jq -r --argjson names "${names_json}" '
+    def release_channel:
+      (((.tag_name // "") + " " + (.name // "")) | ascii_downcase) as $text
+      | if ($text | test("beta")) then "beta"
+        elif ($text | test("dev|alpha|nightly|snapshot")) then "dev"
+        elif (.prerelease // false) then "dev"
+        else "stable"
+        end;
+
+    [ .[]
+      | select((.draft // false) | not)
+      | . as $release
+      | [ .assets[]?.name as $asset_name | select($names | index($asset_name)) | $asset_name ] as $matches
+      | select($matches | length > 0)
+      | {
+          tag: ($release.tag_name // ""),
+          channel: ($release | release_channel),
+          published: ($release.published_at // ""),
+          assets: ($matches | join(", "))
+        }
+    ]
+    | reduce .[] as $release ({};
+        if .[$release.channel] then . else . + {($release.channel): $release} end
+      )
+    | [ .dev?, .beta?, .stable? ][]?
+    | [ .tag, .channel, .published, .assets ]
+    | @tsv
+  ' "${tmp}"
+  local status=$?
+  rm -f "${tmp}"
+  return "${status}"
+}
+
+agent_release_output() {
+  if [[ -e /dev/tty ]]; then cat >/dev/tty; else cat >&2; fi
+}
+
+select_agent_release_option() {
+  local arch="$1" token="${2:-}"; shift 2 || true
+  local -a asset_names=("$@") options=()
+  mapfile -t options < <(list_agent_release_options "${token}" "${asset_names[@]}" 2>/dev/null || true)
+  [[ "${#options[@]}" -gt 0 ]] || return 1
+
+  warn "Kein Agent-Binary für ${arch} in der angeforderten Version gefunden."
+  agent_release_output <<INFO
+
+  Bitte wählen Sie den gewünschten Agent-Kanal für ${arch}:
+
+INFO
+
+  local i tag channel published assets label
+  for i in "${!options[@]}"; do
+    IFS=$'\t' read -r tag channel published assets <<< "${options[$i]}"
+    case "${channel}" in
+      dev)    label="Aktuelle Dev-Version" ;;
+      beta)   label="Aktuelle Beta-Version" ;;
+      stable) label="Aktuelle Stable-Version" ;;
+      *)      label="Aktuelle Version" ;;
+    esac
+    printf '    %2d) %-24s %s\n' "$((i + 1))" "${label}" "${tag}" | agent_release_output
+    [[ -n "${published}" ]] && printf '        veröffentlicht: %s\n' "${published}" | agent_release_output
+  done
+  printf '     0) Abbrechen\n\n' | agent_release_output
+
+  is_tty || {
+    warn "Nicht-interaktive Ausführung: Bitte EASYWI_AGENT_VERSION auf eine der oben genannten Versionen setzen."
+    return 1
+  }
+
+  local choice=""
+  while true; do
+    choice="$(menu_prompt "  Auswahl [0-${#options[@]}]: ")"
+    [[ -z "${choice}" ]] && choice="0"
+    if [[ "${choice}" =~ ^[0-9]+$ ]] && (( choice >= 0 && choice <= ${#options[@]} )); then
+      break
+    fi
+    printf '  Ungültige Auswahl.\n' | agent_release_output
+  done
+
+  [[ "${choice}" -gt 0 ]] || return 1
+  IFS=$'\t' read -r tag channel published assets <<< "${options[$((choice - 1))]}"
+  printf '%s\n' "${tag}"
+}
+
+find_extracted_agent_binary() {
+  local extract_dir="$1" arch="$2" found=""
+  for candidate in \
+    "${extract_dir}/easywi-agent-${arch}" \
+    "${extract_dir}/easywi-agent" \
+    "${extract_dir}/bin/easywi-agent-${arch}" \
+    "${extract_dir}/bin/easywi-agent"; do
+    if [[ -f "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  found="$(find "${extract_dir}" -maxdepth 3 -type f \
+    \( -name "easywi-agent-${arch}" -o -name "easywi-agent" \) \
+    -print -quit 2>/dev/null || true)"
+  [[ -n "${found}" ]] || return 1
+  printf '%s\n' "${found}"
+}
+
+prepare_agent_binary_asset() {
+  local asset_path="$1" asset_name="$2" work_dir="$3" arch="$4"
+  local extract_dir resolved
+  extract_dir="${work_dir}/agent-extract-${asset_name//[^A-Za-z0-9_.-]/_}"
+  mkdir -p "${extract_dir}"
+
+  case "${asset_name}" in
+    *.tar.gz) tar -xzf "${asset_path}" -C "${extract_dir}" ;;
+    *.zip)    command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${asset_path}" -d "${extract_dir}" ;;
+    *)        cp "${asset_path}" "${extract_dir}/easywi-agent-${arch}" ;;
+  esac
+
+  if ! resolved="$(find_extracted_agent_binary "${extract_dir}" "${arch}")"; then
+    fatal "Agent-Archiv ${asset_name} enthält keine ausführbare Agent-Datei für ${arch}."
+  fi
+  printf '%s\n' "${resolved}"
+}
+
 download_release_asset() {
   local asset="$1" dest="$2" version="${3:-latest}" token="${4:-}"
   local base
@@ -1713,12 +1850,7 @@ install_agent_binaries() {
       else
         fatal "Keine Agent-Checksums-Datei im Release gefunden."
       fi
-      case "${asset_name}" in
-        *.tar.gz) tar -xzf "${agent_dest}" -C "${tmp}" ;;
-        *.zip)    command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${agent_dest}" -d "${tmp}" ;;
-        *)         cp "${agent_dest}" "${tmp}/easywi-agent-${arch}" ;;
-      esac
-      agent_resolved="${tmp}/easywi-agent-${arch}"
+      agent_resolved="$(prepare_agent_binary_asset "${agent_dest}" "${asset_name}" "${tmp}" "${arch}")"
       break
     fi
   done
@@ -1733,12 +1865,24 @@ install_agent_binaries() {
           else
             fatal "Keine Agent-Checksums-Datei im Release ${resolved_version} gefunden."
           fi
-          case "${asset_name}" in
-            *.tar.gz) tar -xzf "${agent_dest}" -C "${tmp}" ;;
-            *.zip)    command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${agent_dest}" -d "${tmp}" ;;
-            *)        cp "${agent_dest}" "${tmp}/easywi-agent-${arch}" ;;
-          esac
-          agent_resolved="${tmp}/easywi-agent-${arch}"
+          agent_resolved="$(prepare_agent_binary_asset "${agent_dest}" "${asset_name}" "${tmp}" "${arch}")"
+          break
+        fi
+      done
+    fi
+  fi
+
+  if [[ -z "${agent_resolved}" ]]; then
+    if resolved_version="$(select_agent_release_option "${arch}" "${github_token}" "${asset_candidates[@]}")"; then
+      warn "Verwende ausgewählte Agent-Version ${resolved_version}."
+      for asset_name in "${asset_candidates[@]}"; do
+        if download_optional_asset "${asset_name}" "${agent_dest}" "${resolved_version}" "${github_token}"; then
+          if download_checksums_for_asset "${checksums}" "${resolved_version}" "${github_token}" checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256 >/dev/null; then
+            verify_release_checksum "${checksums}" "${agent_dest}" "${asset_name}"
+          else
+            fatal "Keine Agent-Checksums-Datei im Release ${resolved_version} gefunden."
+          fi
+          agent_resolved="$(prepare_agent_binary_asset "${agent_dest}" "${asset_name}" "${tmp}" "${arch}")"
           break
         fi
       done
@@ -1746,7 +1890,7 @@ install_agent_binaries() {
   fi
 
   [[ -n "${agent_resolved}" && -f "${agent_resolved}" ]] \
-    || fatal "Kein Agent-Binary für ${arch} gefunden (Version: ${version})."
+    || fatal "Kein Agent-Binary für ${arch} gefunden (angefordert: ${version}, zuletzt versucht: ${resolved_version})."
 
   install -m 0755 "${agent_resolved}" /usr/local/bin/easywi-agent
   rm -rf "${tmp}"

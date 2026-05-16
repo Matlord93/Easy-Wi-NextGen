@@ -3,15 +3,43 @@
 {% set pageTitle = t('admin_gdpr_overview_heading', page_locale()) %}
 {% set pageSubtitle = t('admin_gdpr_overview_intro', page_locale()) %}
 {% set activeNav = 'gdpr' %}
+{% set locale = page_locale() %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
 
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot" style="background:#f472b6;"></span>
+                            {{ t('admin_gdpr_overview_heading', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_gdpr_overview_heading', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_gdpr_overview_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_gdpr_inventory_title', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ inventory|length }}</div>
+                        </div>
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_gdpr_overview_audit_title', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ auditEntries|length }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">{{ t('admin_gdpr_inventory_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_gdpr_inventory_intro', page_locale()) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_gdpr_inventory_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_gdpr_inventory_intro', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body--flush">
@@ -19,23 +47,23 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>{{ t('admin_gdpr_inventory_col_entity', page_locale()) }}</th>
-                            <th>{{ t('admin_gdpr_inventory_col_pii', page_locale()) }}</th>
-                            <th>{{ t('admin_gdpr_inventory_col_export', page_locale()) }}</th>
-                            <th>{{ t('admin_gdpr_inventory_col_deletion', page_locale()) }}</th>
+                            <th>{{ t('admin_gdpr_inventory_col_entity', locale) }}</th>
+                            <th>{{ t('admin_gdpr_inventory_col_pii', locale) }}</th>
+                            <th>{{ t('admin_gdpr_inventory_col_export', locale) }}</th>
+                            <th>{{ t('admin_gdpr_inventory_col_deletion', locale) }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in inventory %}
                             <tr>
-                                <td class="font-medium text-slate-900">{{ item.entity }}</td>
+                                <td style="color:var(--ng-text);font-weight:600">{{ item.entity }}</td>
                                 <td>{{ item.pii_fields|join(', ') }}</td>
                                 <td>{{ item.export_scope }}</td>
                                 <td>{{ item.deletion_strategy }}</td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="4" class="cust-table__empty">{{ t('admin_gdpr_inventory_empty', page_locale()) }}</td>
+                                <td colspan="4" class="cust-table__empty">{{ t('admin_gdpr_inventory_empty', locale) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -44,47 +72,47 @@
         </div>
     </div>
 
-    <div class="ng-layout-2col--equal" style="grid-template-columns: repeat(3, 1fr);">
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;">
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_gdpr_overview_retention_title', page_locale()) }}</h2>
+                    <h2 class="ng-data-card__title">{{ t('admin_gdpr_overview_retention_title', locale) }}</h2>
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <ul class="flex flex-col gap-2 text-sm text-slate-700">
-                    <li>{{ t('admin_gdpr_overview_retention_tickets', page_locale()) }}: <strong>{{ policy.ticketRetentionDays }}d</strong></li>
-                    <li>{{ t('admin_gdpr_overview_retention_logs', page_locale()) }}: <strong>{{ policy.logRetentionDays }}d</strong></li>
-                    <li>{{ t('admin_gdpr_overview_retention_sessions', page_locale()) }}: <strong>{{ policy.sessionRetentionDays }}d</strong></li>
+                <ul style="display:flex;flex-direction:column;gap:0.5rem;font-size:0.875rem;color:var(--ng-text-muted)">
+                    <li>{{ t('admin_gdpr_overview_retention_tickets', locale) }}: <strong>{{ policy.ticketRetentionDays }}d</strong></li>
+                    <li>{{ t('admin_gdpr_overview_retention_logs', locale) }}: <strong>{{ policy.logRetentionDays }}d</strong></li>
+                    <li>{{ t('admin_gdpr_overview_retention_sessions', locale) }}: <strong>{{ policy.sessionRetentionDays }}d</strong></li>
                 </ul>
-                <a class="ui-button ui-button--ghost ui-button--sm mt-4 inline-flex" href="/admin/gdpr/retention">{{ t('admin_gdpr_overview_retention_link', page_locale()) }}</a>
+                <a class="ui-button ui-button--ghost ui-button--sm mt-4 inline-flex" href="/admin/gdpr/retention">{{ t('admin_gdpr_overview_retention_link', locale) }}</a>
             </div>
         </div>
 
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_gdpr_overview_export_title', page_locale()) }}</h2>
+                    <h2 class="ng-data-card__title">{{ t('admin_gdpr_overview_export_title', locale) }}</h2>
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <p class="text-sm text-slate-700 mb-3">{{ t('admin_gdpr_overview_export_intro', page_locale()) }}</p>
-                <code class="block rounded bg-slate-100 px-3 py-2 text-xs mb-2">php bin/console app:gdpr:exports:process --limit=25</code>
-                <code class="block rounded bg-slate-100 px-3 py-2 text-xs">php bin/console app:gdpr:exports:cleanup --limit=100</code>
+                <p style="color:var(--ng-text-muted);font-size:0.875rem;margin-bottom:0.75rem">{{ t('admin_gdpr_overview_export_intro', locale) }}</p>
+                <code class="ng-code-block">php bin/console app:gdpr:exports:process --limit=25</code>
+                <code class="ng-code-block">php bin/console app:gdpr:exports:cleanup --limit=100</code>
             </div>
         </div>
 
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_gdpr_overview_delete_title', page_locale()) }}</h2>
+                    <h2 class="ng-data-card__title">{{ t('admin_gdpr_overview_delete_title', locale) }}</h2>
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <p class="text-sm text-slate-700 mb-3">{{ t('admin_gdpr_overview_delete_intro', page_locale()) }}</p>
-                <ul class="list-disc pl-5 text-sm text-slate-700 flex flex-col gap-1">
-                    <li>{{ t('admin_gdpr_overview_delete_mode_account', page_locale()) }}</li>
-                    <li>{{ t('admin_gdpr_overview_delete_mode_anonymize', page_locale()) }}</li>
+                <p style="color:var(--ng-text-muted);font-size:0.875rem;margin-bottom:0.75rem">{{ t('admin_gdpr_overview_delete_intro', locale) }}</p>
+                <ul style="list-style:disc;padding-left:1.25rem;display:flex;flex-direction:column;gap:0.25rem;font-size:0.875rem;color:var(--ng-text-muted)">
+                    <li>{{ t('admin_gdpr_overview_delete_mode_account', locale) }}</li>
+                    <li>{{ t('admin_gdpr_overview_delete_mode_anonymize', locale) }}</li>
                 </ul>
             </div>
         </div>
@@ -93,8 +121,8 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">{{ t('admin_gdpr_overview_audit_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_gdpr_overview_audit_intro', page_locale()) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_gdpr_overview_audit_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_gdpr_overview_audit_intro', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body--flush">
@@ -102,23 +130,23 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>{{ t('admin_gdpr_audit_col_time', page_locale()) }}</th>
-                            <th>{{ t('admin_gdpr_audit_col_action', page_locale()) }}</th>
-                            <th>{{ t('admin_gdpr_audit_col_actor', page_locale()) }}</th>
-                            <th>{{ t('admin_gdpr_audit_col_payload', page_locale()) }}</th>
+                            <th>{{ t('admin_gdpr_audit_col_time', locale) }}</th>
+                            <th>{{ t('admin_gdpr_audit_col_action', locale) }}</th>
+                            <th>{{ t('admin_gdpr_audit_col_actor', locale) }}</th>
+                            <th>{{ t('admin_gdpr_audit_col_payload', locale) }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for entry in auditEntries %}
                             <tr>
                                 <td>{{ entry.createdAt|date('Y-m-d H:i:s') }}</td>
-                                <td class="font-medium text-slate-900">{{ entry.action }}</td>
-                                <td>{{ entry.actor ? entry.actor.email : t('admin_gdpr_audit_actor_system', page_locale()) }}</td>
-                                <td class="text-xs"><pre class="whitespace-pre-wrap">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></td>
+                                <td style="color:var(--ng-text);font-weight:600">{{ entry.action }}</td>
+                                <td>{{ entry.actor ? entry.actor.email : t('admin_gdpr_audit_actor_system', locale) }}</td>
+                                <td style="font-size:0.75rem"><pre class="whitespace-pre-wrap">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="4" class="cust-table__empty">{{ t('admin_gdpr_audit_empty', page_locale()) }}</td>
+                                <td colspan="4" class="cust-table__empty">{{ t('admin_gdpr_audit_empty', locale) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>

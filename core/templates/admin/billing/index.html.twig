@@ -3,136 +3,182 @@
 {% set pageTitle = t('admin_billing_heading', page_locale()) %}
 {% set pageSubtitle = t('admin_billing_intro', page_locale()) %}
 {% set activeNav = 'billing' %}
-{% set topbarActions = [
-    { label: t('admin_billing_create_invoice', page_locale()), href: '/admin/billing/invoices/new', variant: 'ghost' }
-] %}
+{% set locale = page_locale() %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    {# ── KPI Row ── #}
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_billing_open_invoices', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.open }}</div>
-            <div class="ng-kpi-box__sub">{{ t('admin_billing_awaiting_payment', page_locale()) }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_billing_past_due', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ summary.past_due }}</div>
-            <div class="ng-kpi-box__sub">{{ t('admin_billing_requires_dunning', page_locale()) }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_billing_paid', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.paid }}</div>
-            <div class="ng-kpi-box__sub">{{ t('admin_billing_last_30_days', page_locale()) }}</div>
-        </div>
-    </div>
-
-    {# ── Dunning Action ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_billing_heading', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_billing_intro', page_locale()) }}</p>
+    {# ── Hero with KPI ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero" style="background:linear-gradient(135deg,#031a14 0%,#052916 50%,#07101f 100%);">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot" style="background:#34d399;"></span>
+                            {{ t('admin_billing_workbench_label', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_billing_heading', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_billing_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_billing_open_invoices', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.open }}</div>
+                        </div>
+                        <div class="tkt-kpi" style="border-color:rgba(252,165,165,.25);background:rgba(252,165,165,.07);">
+                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_billing_past_due', locale) }}</div>
+                            <div class="tkt-kpi__value" style="color:#fca5a5;">{{ summary.past_due }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_billing_paid', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.paid }}</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="ng-data-card__actions">
-                <a href="/admin/billing/export?type=invoices" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_billing_export_invoices', page_locale()) }}</a>
-                <a href="/admin/billing/export?type=payments" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_billing_export_payments', page_locale()) }}</a>
-                <form method="post" action="/admin/billing/dunning" style="display:inline;">
-                    <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_run_dunning', page_locale()) }}</button>
+        </div>
+
+        {# ── Action bar ── #}
+        <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+            <a href="/admin/billing/invoices/new" class="tkt-oldest">
+                <div style="display:flex;align-items:center;gap:14px;min-width:0;">
+                    <div class="tkt-oldest__icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <div style="min-width:0;">
+                        <div class="tkt-oldest__label">{{ t('admin_billing_create_invoice', locale) }}</div>
+                        <div class="tkt-oldest__subject">{{ t('admin_billing_recent_invoices_intro', locale) }}</div>
+                    </div>
+                </div>
+                <div class="tkt-oldest__btn">
+                    {{ t('admin_billing_create_invoice', locale) }}
+                    <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                </div>
+            </a>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+                <form method="post" action="/admin/billing/dunning" style="display:contents;">
+                    <button type="submit" class="tkt-qa">
+                        <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">⚡</div>
+                        <div class="tkt-qa__title">{{ t('admin_billing_run_dunning', locale) }}</div>
+                        <div class="tkt-qa__sub">{{ t('admin_billing_requires_dunning', locale) }}</div>
+                    </button>
                 </form>
+                <a href="/admin/billing/export?type=invoices" class="tkt-qa">
+                    <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">↓</div>
+                    <div class="tkt-qa__title">{{ t('admin_billing_export_invoices', locale) }}</div>
+                    <div class="tkt-qa__sub">{{ t('admin_billing_last_30_days', locale) }}</div>
+                </a>
+                <a href="/admin/billing/export?type=payments" class="tkt-qa">
+                    <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">↓</div>
+                    <div class="tkt-qa__title">{{ t('admin_billing_export_payments', locale) }}</div>
+                    <div class="tkt-qa__sub">{{ t('admin_billing_awaiting_payment', locale) }}</div>
+                </a>
             </div>
         </div>
-    </div>
+    </section>
 
     {# ── Recent Invoices ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_billing_recent_invoices', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_billing_recent_invoices_intro', page_locale()) }}</p>
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-filter-bar">
+            <div class="tkt-filter-bar__top">
+                <div>
+                    <h2 class="tkt-filter-bar__title">{{ t('admin_billing_recent_invoices', locale) }}</h2>
+                    <p class="tkt-filter-bar__sub">{{ t('admin_billing_recent_invoices_intro', locale) }}</p>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                <div class="form-field" style="flex:1;min-width:200px;">
+                    <label class="form-label">{{ t('admin_billing_filter_search', locale) }}</label>
+                    <input id="invoice-search" type="text" class="form-input" placeholder="{{ t('admin_billing_filter_search_placeholder', locale) }}" oninput="filterInvoices()">
+                </div>
+                <div class="form-field" style="min-width:150px;">
+                    <label class="form-label">{{ t('status', locale) }}</label>
+                    <select id="invoice-status-filter" class="form-input" onchange="filterInvoices()">
+                        <option value="">{{ t('admin_billing_filter_all_statuses', locale) }}</option>
+                        <option value="open">{{ t('admin_billing_status_open', locale) }}</option>
+                        <option value="past_due">{{ t('admin_billing_status_past_due', locale) }}</option>
+                        <option value="paid">{{ t('admin_billing_status_paid', locale) }}</option>
+                    </select>
+                </div>
+                <button type="button" class="ui-button ui-button--ghost" onclick="document.getElementById('invoice-search').value='';document.getElementById('invoice-status-filter').value='';filterInvoices();">{{ t('admin_billing_filter_reset', locale) }}</button>
             </div>
         </div>
-        <div class="ng-data-card__body--flush">
-            <div class="cust-ws-table-wrap">
-                <table class="cust-table">
-                    <thead>
-                        <tr>
-                            <th>{{ t('admin_billing_table_invoice', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_table_customer', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_table_due_date', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_table_amount_due', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_table_status', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_table_archive', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_table_actions', page_locale()) }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+        <div class="cust-ws-table-wrap">
+            <table class="cust-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('admin_billing_table_invoice', locale) }}</th>
+                        <th>{{ t('admin_billing_table_customer', locale) }}</th>
+                        <th>{{ t('admin_billing_table_due_date', locale) }}</th>
+                        <th>{{ t('admin_billing_table_amount_due', locale) }}</th>
+                        <th>{{ t('admin_billing_table_status', locale) }}</th>
+                        <th>{{ t('admin_billing_table_archive', locale) }}</th>
+                        <th>{{ t('admin_billing_table_actions', locale) }}</th>
+                    </tr>
+                </thead>
+                <tbody id="invoices-tbody">
                     {% for invoice in invoices %}
-                        <tr>
+                        <tr data-customer="{{ invoice.customer|lower }}" data-number="{{ invoice.number|lower }}" data-status="{{ invoice.status }}">
                             <td style="font-weight:600;">{{ invoice.number }}</td>
                             <td>{{ invoice.customer }}</td>
                             <td>{{ invoice.due_date|date('Y-m-d') }}</td>
                             <td>{{ invoice.amount_due / 100 }} {{ invoice.currency }}</td>
                             <td>
                                 {% if invoice.status == 'paid' %}
-                                    <span class="ui-badge ui-badge--success">{{ t('admin_billing_status_paid', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--success">{{ t('admin_billing_status_paid', locale) }}</span>
                                 {% elseif invoice.status == 'past_due' %}
-                                    <span class="ui-badge ui-badge--danger">{{ t('admin_billing_status_past_due', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--danger">{{ t('admin_billing_status_past_due', locale) }}</span>
                                 {% elseif invoice.status == 'open' %}
-                                    <span class="ui-badge ui-badge--info">{{ t('admin_billing_status_open', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--info">{{ t('admin_billing_status_open', locale) }}</span>
                                 {% else %}
                                     <span class="ui-badge ui-badge--neutral">{{ invoice.status|replace({'_': ' '})|title }}</span>
                                 {% endif %}
                             </td>
                             <td>
                                 {% if invoice.is_archived %}
-                                    <span class="ui-badge ui-badge--success">{{ t('admin_billing_status_archived', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--success">{{ t('admin_billing_status_archived', locale) }}</span>
                                 {% else %}
-                                    <span class="ui-badge ui-badge--neutral">{{ t('admin_billing_status_pending', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--neutral">{{ t('admin_billing_status_pending', locale) }}</span>
                                 {% endif %}
                             </td>
                             <td>
-                                <a href="/admin/billing/invoices/{{ invoice.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_billing_details', page_locale()) }}</a>
+                                <a href="/admin/billing/invoices/{{ invoice.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_billing_details', locale) }}</a>
                             </td>
                         </tr>
-                    {% else %}
-                        <tr>
-                            <td colspan="7" class="cust-table__empty">{{ t('admin_billing_no_invoices', page_locale()) }}</td>
-                        </tr>
                     {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                    <tr id="no-invoices-row"{% if invoices is not empty %} style="display:none;"{% endif %}>
+                        <td colspan="7" style="text-align:center;padding:40px;color:var(--ng-text-muted);">{{ t('admin_billing_no_invoices', locale) }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
-    </div>
+    </section>
 
     {# ── Credit Notes ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_billing_credit_notes', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_billing_credit_notes_intro', page_locale()) }}</p>
-            </div>
-            <div class="ng-data-card__actions">
-                <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_billing_create_credit', page_locale()) }}</button>
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-filter-bar">
+            <div class="tkt-filter-bar__top">
+                <div>
+                    <h2 class="tkt-filter-bar__title">{{ t('admin_billing_credit_notes', locale) }}</h2>
+                    <p class="tkt-filter-bar__sub">{{ t('admin_billing_credit_notes_intro', locale) }}</p>
+                </div>
+                <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_billing_create_credit', locale) }}</button>
             </div>
         </div>
-        <div class="ng-data-card__body--flush">
-            <div class="cust-ws-table-wrap">
-                <table class="cust-table">
-                    <thead>
-                        <tr>
-                            <th>{{ t('admin_billing_credit_note', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_credit_invoice', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_credit_customer', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_credit_issued', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_credit_amount', page_locale()) }}</th>
-                            <th>{{ t('admin_billing_credit_status', page_locale()) }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+        <div class="cust-ws-table-wrap">
+            <table class="cust-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('admin_billing_credit_note', locale) }}</th>
+                        <th>{{ t('admin_billing_credit_invoice', locale) }}</th>
+                        <th>{{ t('admin_billing_credit_customer', locale) }}</th>
+                        <th>{{ t('admin_billing_credit_issued', locale) }}</th>
+                        <th>{{ t('admin_billing_credit_amount', locale) }}</th>
+                        <th>{{ t('admin_billing_credit_status', locale) }}</th>
+                    </tr>
+                </thead>
+                <tbody>
                     {% for credit in credit_notes %}
                         <tr>
                             <td style="font-weight:600;">{{ credit.number }}</td>
@@ -142,26 +188,51 @@
                             <td>{{ credit.amount / 100 }} {{ credit.currency }}</td>
                             <td>
                                 {% if credit.status == 'issued' %}
-                                    <span class="ui-badge ui-badge--info">{{ t('admin_billing_credit_status_issued', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--info">{{ t('admin_billing_credit_status_issued', locale) }}</span>
                                 {% elseif credit.status == 'applied' %}
-                                    <span class="ui-badge ui-badge--success">{{ t('admin_billing_credit_status_applied', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--success">{{ t('admin_billing_credit_status_applied', locale) }}</span>
                                 {% elseif credit.status == 'voided' %}
-                                    <span class="ui-badge ui-badge--danger">{{ t('admin_billing_credit_status_voided', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--danger">{{ t('admin_billing_credit_status_voided', locale) }}</span>
                                 {% else %}
-                                    <span class="ui-badge ui-badge--neutral">{{ t('admin_billing_credit_status_draft', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--neutral">{{ t('admin_billing_credit_status_draft', locale) }}</span>
                                 {% endif %}
                             </td>
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="6" class="cust-table__empty">{{ t('admin_billing_no_credit_notes', page_locale()) }}</td>
+                            <td colspan="6" style="text-align:center;padding:40px;color:var(--ng-text-muted);">{{ t('admin_billing_no_credit_notes', locale) }}</td>
                         </tr>
                     {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                </tbody>
+            </table>
         </div>
-    </div>
+    </section>
 
 </div>
+
+<script>
+function filterInvoices() {
+    var search = document.getElementById('invoice-search').value.toLowerCase();
+    var statusFilter = document.getElementById('invoice-status-filter').value.toLowerCase();
+    var rows = document.querySelectorAll('#invoices-tbody tr[data-customer]');
+    var visible = 0;
+    rows.forEach(function(row) {
+        var customer = (row.getAttribute('data-customer') || '').toLowerCase();
+        var number = (row.getAttribute('data-number') || '').toLowerCase();
+        var status = (row.getAttribute('data-status') || '').toLowerCase();
+        var matchSearch = !search || customer.indexOf(search) !== -1 || number.indexOf(search) !== -1;
+        var matchStatus = !statusFilter || status === statusFilter;
+        if (matchSearch && matchStatus) {
+            row.style.display = '';
+            visible++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    var emptyRow = document.getElementById('no-invoices-row');
+    if (emptyRow) {
+        emptyRow.style.display = visible === 0 ? '' : 'none';
+    }
+}
+</script>
 {% endblock %}

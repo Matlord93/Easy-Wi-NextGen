@@ -96,14 +96,15 @@
         </p>
     </div>
 
-    {# ── Migration Status ── #}
+    {# ── Post-update checks / Migration status ── #}
     <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
-        <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_migration_dry_run', page_locale()) }}</p>
+        <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_post_update_checks', page_locale()) }}</p>
         {% if coreUpdate.migrationStatus.error %}
-            <p style="margin:0;font-size:13px;color:#f87171;">{{ t('admin_dashboard_core_migration_error', page_locale()) }}</p>
+            <p style="margin:0;font-size:13px;color:#f87171;">{{ t('admin_dashboard_core_migration_status', page_locale()) }}: {{ t('admin_dashboard_core_migration_error', page_locale()) }}</p>
         {% else %}
-            <p style="margin:0;font-size:13px;color:var(--ng-text);">{{ t('admin_dashboard_core_migration_pending', page_locale())|replace({'%count%': coreUpdate.migrationStatus.pending}) }}</p>
+            <p style="margin:0;font-size:13px;color:var(--ng-text);">{{ t('admin_dashboard_core_migration_status', page_locale()) }}: {{ t('admin_dashboard_core_migration_pending', page_locale())|replace({'%count%': coreUpdate.migrationStatus.pending}) }}</p>
         {% endif %}
+        <p style="margin:4px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_standard_update_path', page_locale()) }}: <code>doctrine:migrations:migrate</code> → <code>doctrine:schema:validate</code> → <code>cache:clear</code>. {{ t('admin_dashboard_core_legacy_sql_not_used', page_locale()) }}</p>
     </div>
 
     {# ── Auto-Update Toggles ── #}
@@ -183,13 +184,17 @@
         <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_last_job', page_locale()) }}</p>
         {% if coreUpdate.latestJob %}
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                <div style="font-size:12px;color:var(--ng-text-muted);">ID <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.id }}</span></div>
-                <div style="font-size:12px;color:var(--ng-text-muted);">Status
-                    <span style="font-weight:700;color:{% if coreUpdate.latestJob.status == 'done' %}#4ade80{% elseif coreUpdate.latestJob.status == 'failed' %}#f87171{% else %}var(--ng-text){% endif %};">{{ coreUpdate.latestJob.status }}</span>
+                <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_id', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.id }}</span></div>
+                <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_status', page_locale()) }}
+                    <span style="font-weight:700;color:{% if coreUpdate.latestJob.status in ['done', 'finished'] %}#4ade80{% elseif coreUpdate.latestJob.status == 'failed' %}#f87171{% else %}var(--ng-text){% endif %};">{{ coreUpdate.latestJob.status }}</span>
                 </div>
-                <div style="font-size:12px;color:var(--ng-text-muted);">Typ <span style="font-weight:700;color:var(--ng-text);">{{ coreUpdate.latestJob.type }}</span></div>
-                <div style="font-size:12px;color:var(--ng-text-muted);">Exit <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.exitCode ?? '—' }}</span></div>
+                <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_type', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);">{{ coreUpdate.latestJob.type }}</span></div>
+                <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_exit', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.exitCode ?? '—' }}</span></div>
+                <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_step', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.lastStep ?? '—' }}</span></div>
             </div>
+            {% if coreUpdate.latestJob.status == 'failed' %}
+                <p style="margin:8px 0 0;font-size:12px;color:#fca5a5;">{{ t('admin_dashboard_core_job_failed_detail', page_locale())|replace({'%code%': coreUpdate.latestJob.exitCode ?? '—', '%step%': coreUpdate.latestJob.lastStep ?? '—'}) }}</p>
+            {% endif %}
         {% else %}
             <p style="margin:0;font-size:13px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_no_jobs', page_locale()) }}</p>
         {% endif %}

@@ -8,44 +8,58 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    {# Header actions #}
-    <div class="flex items-center justify-end gap-3">
-        <a href="{{ path('admin_mailboxes') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_nav_mailboxes', locale) }}</a>
-        <a href="{{ path('admin_mail_aliases') }}" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_nav_mail_aliases', locale) }}</a>
-    </div>
-
-    {# KPI summary #}
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">Nodes</div>
-            <div class="ng-kpi-box__value">{{ summary.nodes }}</div>
+    {# ── Hero with KPI ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            {{ t('admin_mail_system_hero_label', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_mail_system_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_mail_system_hero_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_nodes', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.nodes }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_policies', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.policies }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_domains', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.domains }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_mailboxes', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.mailboxes }}</div>
+                        </div>
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_aliases', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.aliases }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start;">
+                    <a href="{{ path('admin_mailboxes') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_nav_mailboxes', locale) }}</a>
+                    <a href="{{ path('admin_mail_aliases') }}" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_nav_mail_aliases', locale) }}</a>
+                </div>
+            </div>
         </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">Policies</div>
-            <div class="ng-kpi-box__value">{{ summary.policies }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">Domains</div>
-            <div class="ng-kpi-box__value">{{ summary.domains }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">Mailboxes</div>
-            <div class="ng-kpi-box__value">{{ summary.mailboxes }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">Aliases</div>
-            <div class="ng-kpi-box__value">{{ summary.aliases }}</div>
-        </div>
-    </div>
+    </section>
 
     {# Mail server status #}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Mail Server Status</h2>
-                <p class="ng-data-card__sub">Letzte {{ status.window_hours }} Stunden (Postfix/Dovecot/OpenDKIM/Agent Logs)</p>
+                <h2 class="ng-data-card__title">{{ t('admin_mail_system_server_status_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_mail_system_server_status_window', locale)|replace({'%hours%': status.window_hours}) }}</p>
             </div>
             <div class="ng-data-card__actions">
                 <a href="/api/v1/admin/mail/logs?limit=100" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_mail_system_json_logs_button', locale) }}</a>
@@ -53,30 +67,30 @@
         </div>
         <div class="ng-data-card__body">
             {# Log level KPIs #}
-            <div class="ng-kpi-row mb-4">
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">Info</div>
-                    <div class="ng-kpi-box__value ng-kpi-box__value--neutral">{{ status.levels.info|default(0) }}</div>
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px;">
+                <div class="tkt-kpi">
+                    <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_info', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ status.levels.info|default(0) }}</div>
                 </div>
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">Warnings</div>
-                    <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ status.levels.warning|default(0) }}</div>
+                <div class="tkt-kpi tkt-kpi--pending">
+                    <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_warnings', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ status.levels.warning|default(0) }}</div>
                 </div>
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">Errors</div>
-                    <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ status.levels.error|default(0) }}</div>
+                <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
+                    <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_mail_system_kpi_errors', locale) }}</div>
+                    <div class="tkt-kpi__value" style="color:#fca5a5;">{{ status.levels.error|default(0) }}</div>
                 </div>
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">Critical</div>
-                    <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ status.levels.critical|default(0) }}</div>
+                <div class="tkt-kpi" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.12);">
+                    <div class="tkt-kpi__label" style="color:rgba(252,165,165,.8);">{{ t('admin_mail_system_kpi_critical', locale) }}</div>
+                    <div class="tkt-kpi__value" style="color:#f87171;">{{ status.levels.critical|default(0) }}</div>
                 </div>
             </div>
 
             {# Sources #}
-            <div class="mb-4">
-                <h3 class="text-sm font-semibold text-slate-900 mb-2">Quellen</h3>
+            <div>
+                <h3 class="text-sm font-semibold mb-2" style="color:var(--ng-text);">{{ t('admin_mail_system_sources_title', locale) }}</h3>
                 {% if status.sources is empty %}
-                    <p class="text-sm text-slate-600">{{ t('admin_mail_no_log_data', locale) }}</p>
+                    <p class="text-sm" style="color:var(--ng-text-muted);">{{ t('admin_mail_no_log_data', locale) }}</p>
                 {% else %}
                     <div class="flex flex-wrap gap-2">
                         {% for source, total in status.sources %}
@@ -93,13 +107,13 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>Zeit</th>
-                            <th>Domain</th>
-                            <th>Source</th>
-                            <th>Level</th>
-                            <th>Event</th>
-                            <th>Message</th>
-                            <th>Action</th>
+                            <th>{{ t('admin_mail_system_col_time', locale) }}</th>
+                            <th>{{ t('admin_dns_table_domain', locale) }}</th>
+                            <th>{{ t('admin_mail_system_col_source', locale) }}</th>
+                            <th>{{ t('status', locale) }}</th>
+                            <th>{{ t('admin_mail_system_col_event', locale) }}</th>
+                            <th>{{ t('admin_mail_system_col_message', locale) }}</th>
+                            <th>{{ t('admin_mail_system_col_action', locale) }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -110,17 +124,17 @@
                         {% else %}
                             {% for row in status.recent %}
                                 <tr>
-                                    <td>{{ row.created_at|date('Y-m-d H:i:s') }}</td>
+                                    <td style="font-size:11px;color:var(--ng-text-muted);">{{ row.created_at|date('Y-m-d H:i:s') }}</td>
                                     <td>{{ row.domain }}</td>
                                     <td>{{ row.source }}</td>
                                     <td>{{ row.level }}</td>
                                     <td>{{ row.event_type }}</td>
-                                    <td>{{ row.message|length > 140 ? row.message|slice(0, 140) ~ '…' : row.message }}</td>
+                                    <td style="font-size:11px;">{{ row.message|length > 140 ? row.message|slice(0, 140) ~ '…' : row.message }}</td>
                                     <td>
                                         <form method="post" action="{{ path('admin_mail_security_contain_domain') }}" onsubmit="return confirm('{{ t('admin_mail_security_contain_confirm', page_locale())|e('js') }}');" class="inline-flex">
                                             <input type="hidden" name="_token" value="{{ csrf.contain_domain }}">
                                             <input type="hidden" name="domain_id" value="{{ row.domain_id }}">
-                                            <button type="submit" class="ui-button ui-button--danger ui-button--sm">Contain Domain</button>
+                                            <button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_mail_system_contain_domain', locale) }}</button>
                                         </form>
                                     </td>
                                 </tr>
@@ -136,31 +150,31 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Mail Gateway Security</h2>
-                <p class="ng-data-card__sub">Anti-Abuse, Anti-Phishing, Malware/Spam Sichtbarkeit wie bei einem Mail Gateway.</p>
+                <h2 class="ng-data-card__title">{{ t('admin_mail_system_gateway_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_mail_system_gateway_intro', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
-            <div class="ng-kpi-row mb-4">
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">Policies</div>
-                    <div class="ng-kpi-box__value">{{ security.policy_posture.total|default(0) }}</div>
+            <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px;">
+                <div class="tkt-kpi">
+                    <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_policies', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ security.policy_posture.total|default(0) }}</div>
                 </div>
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">TLS required</div>
-                    <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ security.policy_posture.strict_tls|default(0) }}</div>
+                <div class="tkt-kpi tkt-kpi--resolved">
+                    <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_tls_required', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ security.policy_posture.strict_tls|default(0) }}</div>
                 </div>
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">External forwarding ON</div>
-                    <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ security.policy_posture.external_forwarding_enabled|default(0) }}</div>
+                <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
+                    <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_mail_system_kpi_ext_fwd', locale) }}</div>
+                    <div class="tkt-kpi__value" style="color:#fca5a5;">{{ security.policy_posture.external_forwarding_enabled|default(0) }}</div>
                 </div>
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">Spam protection high</div>
-                    <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ security.policy_posture.high_spam_protection|default(0) }}</div>
+                <div class="tkt-kpi tkt-kpi--open">
+                    <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_spam_high', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ security.policy_posture.high_spam_protection|default(0) }}</div>
                 </div>
-                <div class="ng-kpi-box">
-                    <div class="ng-kpi-box__label">Suspicious events</div>
-                    <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ security.suspicious_count|default(0) }}</div>
+                <div class="tkt-kpi tkt-kpi--pending">
+                    <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_suspicious', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ security.suspicious_count|default(0) }}</div>
                 </div>
             </div>
         </div>
@@ -169,13 +183,13 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>Zeit</th>
-                            <th>Domain</th>
-                            <th>Source</th>
-                            <th>Level</th>
-                            <th>Event</th>
-                            <th>Threat/Message</th>
-                            <th>Action</th>
+                            <th>{{ t('admin_mail_system_col_time', locale) }}</th>
+                            <th>{{ t('admin_dns_table_domain', locale) }}</th>
+                            <th>{{ t('admin_mail_system_col_source', locale) }}</th>
+                            <th>{{ t('status', locale) }}</th>
+                            <th>{{ t('admin_mail_system_col_event', locale) }}</th>
+                            <th>{{ t('admin_mail_system_col_threat', locale) }}</th>
+                            <th>{{ t('admin_mail_system_col_action', locale) }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -186,17 +200,17 @@
                         {% else %}
                             {% for row in security.suspicious %}
                                 <tr>
-                                    <td>{{ row.created_at|date('Y-m-d H:i:s') }}</td>
+                                    <td style="font-size:11px;color:var(--ng-text-muted);">{{ row.created_at|date('Y-m-d H:i:s') }}</td>
                                     <td>{{ row.domain }}</td>
                                     <td>{{ row.source }}</td>
                                     <td>{{ row.level }}</td>
                                     <td>{{ row.event_type }}</td>
-                                    <td>{{ row.message|length > 140 ? row.message|slice(0, 140) ~ '…' : row.message }}</td>
+                                    <td style="font-size:11px;">{{ row.message|length > 140 ? row.message|slice(0, 140) ~ '…' : row.message }}</td>
                                     <td>
                                         <form method="post" action="{{ path('admin_mail_security_contain_domain') }}" onsubmit="return confirm('{{ t('admin_mail_security_contain_confirm', page_locale())|e('js') }}');" class="inline-flex">
                                             <input type="hidden" name="_token" value="{{ csrf.contain_domain }}">
                                             <input type="hidden" name="domain_id" value="{{ row.domain_id }}">
-                                            <button type="submit" class="ui-button ui-button--danger ui-button--sm">Contain Domain</button>
+                                            <button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_mail_system_contain_domain', locale) }}</button>
                                         </form>
                                     </td>
                                 </tr>
@@ -212,7 +226,7 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">{{ t('admin_mail_system_bindings', page_locale()) }}</h2>
+                <h2 class="ng-data-card__title">{{ t('admin_mail_system_bindings', locale) }}</h2>
             </div>
         </div>
         <div class="ng-data-card__body ng-data-card__body--flush">
@@ -220,27 +234,27 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>Domain</th>
-                            <th>Customer</th>
-                            <th>Node</th>
-                            <th>Policy</th>
+                            <th>{{ t('admin_dns_table_domain', locale) }}</th>
+                            <th>{{ t('admin_mail_system_bindings_col_customer', locale) }}</th>
+                            <th>{{ t('admin_database_nodes_table_agent', locale) }}</th>
+                            <th>{{ t('admin_mail_system_bindings_col_policy', locale) }}</th>
                             <th>DNS</th>
-                            <th>Updated</th>
+                            <th>{{ t('admin_mail_system_bindings_col_updated', locale) }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for binding in bindings %}
                             <tr>
-                                <td class="font-semibold text-slate-900">{{ binding.domain }}</td>
+                                <td class="font-semibold" style="color:var(--ng-text);">{{ binding.domain }}</td>
                                 <td>{{ binding.customer }}</td>
                                 <td>{{ binding.node }}</td>
                                 <td>{{ binding.policy }}</td>
-                                <td class="text-xs">DKIM: {{ binding.dkim }} · SPF: {{ binding.spf }} · DMARC: {{ binding.dmarc }} · MX: {{ binding.mx }} · TLS: {{ binding.tls }}</td>
-                                <td>{{ binding.updated_at|date('Y-m-d H:i') }}</td>
+                                <td style="font-size:11px;">DKIM: {{ binding.dkim }} · SPF: {{ binding.spf }} · DMARC: {{ binding.dmarc }} · MX: {{ binding.mx }} · TLS: {{ binding.tls }}</td>
+                                <td style="font-size:11px;color:var(--ng-text-muted);">{{ binding.updated_at|date('Y-m-d H:i') }}</td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="6" class="cust-table__empty">{{ t('admin_mail_system_empty', page_locale()) }}</td>
+                                <td colspan="6" class="cust-table__empty">{{ t('admin_mail_system_empty', locale) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>

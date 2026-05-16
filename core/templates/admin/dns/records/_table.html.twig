@@ -1,56 +1,56 @@
-<div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+<div class="ng-data-card__header">
     <div>
-        <h2 class="text-lg font-semibold">{{ t('admin_dns_inventory_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('admin_dns_inventory_intro', page_locale()) }}</p>
+        <h2 class="ng-data-card__title">{{ t('admin_dns_inventory_title', page_locale()) }}</h2>
+        <p class="ng-data-card__sub">{{ t('admin_dns_inventory_intro', page_locale()) }}</p>
     </div>
-    <button
-        class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-        hx-get="/admin/dns/records/table"
-        hx-target="#dns-records-table"
-        hx-swap="outerHTML"
-    >{{ t('refresh', page_locale()) }}</button>
+    <div class="ng-data-card__actions">
+        <button
+            class="ui-button ui-button--ghost ui-button--sm"
+            hx-get="/admin/dns/records/table"
+            hx-target="#dns-records-table"
+            hx-swap="outerHTML"
+        >{{ t('refresh', page_locale()) }}</button>
+    </div>
 </div>
-<div class="overflow-x-auto">
-    <table class="min-w-full text-sm">
-        <thead class="bg-slate-50 text-slate-700">
+<div class="cust-ws-table-wrap">
+    <table class="cust-table">
+        <thead>
         <tr>
-            <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_domain', page_locale()) }}</th>
-            <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_name', page_locale()) }}</th>
-            <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_type', page_locale()) }}</th>
-            <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_content', page_locale()) }}</th>
-            <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_ttl', page_locale()) }}</th>
-            <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_priority', page_locale()) }}</th>
-            <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_updated', page_locale()) }}</th>
-            <th class="px-5 py-3 text-right text-xs font-semibold uppercase">{{ t('admin_dns_table_actions', page_locale()) }}</th>
+            <th>{{ t('admin_dns_table_domain', page_locale()) }}</th>
+            <th>{{ t('admin_dns_table_name', page_locale()) }}</th>
+            <th>{{ t('admin_dns_table_type', page_locale()) }}</th>
+            <th>{{ t('admin_dns_table_content', page_locale()) }}</th>
+            <th>{{ t('admin_dns_table_ttl', page_locale()) }}</th>
+            <th>{{ t('admin_dns_table_priority', page_locale()) }}</th>
+            <th>{{ t('admin_dns_table_updated', page_locale()) }}</th>
+            <th>{{ t('admin_dns_table_actions', page_locale()) }}</th>
         </tr>
         </thead>
-        <tbody class="divide-y divide-slate-200">
+        <tbody>
         {% for record in records %}
-            <tr class="text-slate-700">
-                <td class="px-5 py-4">
-                    <div class="font-semibold">{{ record.domain.name }}</div>
-                    <div class="text-xs text-slate-700">{{ t('admin_label_id', page_locale()) }} {{ record.domain.id }}</div>
+            <tr>
+                <td>
+                    <div class="font-semibold" style="color:var(--ng-text);">{{ record.domain.name }}</div>
+                    <div style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_label_id', page_locale()) }} {{ record.domain.id }}</div>
                 </td>
-                <td class="px-5 py-4 font-semibold">{{ record.name }}</td>
-                <td class="px-5 py-4">
-                    <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                        {{ record.type }}
-                    </span>
+                <td class="font-semibold" style="color:var(--ng-text);">{{ record.name }}</td>
+                <td>
+                    <span class="ui-badge ui-badge--info">{{ record.type }}</span>
                 </td>
-                <td class="px-5 py-4 text-slate-600">{{ record.content }}</td>
-                <td class="px-5 py-4 text-slate-600">{{ record.ttl }}</td>
-                <td class="px-5 py-4 text-slate-600">{{ record.priority ?? '—' }}</td>
-                <td class="px-5 py-4 text-xs text-slate-700">{{ record.updatedAt|date('Y-m-d H:i') }}</td>
-                <td class="px-5 py-4 text-right">
-                    <div class="flex items-center justify-end gap-2">
+                <td style="color:var(--ng-text-muted);">{{ record.content }}</td>
+                <td style="color:var(--ng-text-muted);">{{ record.ttl }}</td>
+                <td style="color:var(--ng-text-muted);">{{ record.priority ?? '—' }}</td>
+                <td style="font-size:11px;color:var(--ng-text-muted);">{{ record.updatedAt|date('Y-m-d H:i') }}</td>
+                <td>
+                    <div class="flex items-center gap-2">
                         <button
-                            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+                            class="ui-button ui-button--ghost ui-button--sm"
                             hx-get="/admin/dns/records/{{ record.id }}/edit"
                             hx-target="#dns-record-form"
                             hx-swap="outerHTML"
                         >{{ t('edit', page_locale()) }}</button>
                         <button
-                            class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600"
+                            class="ui-button ui-button--danger ui-button--sm"
                             hx-post="/admin/dns/records/{{ record.id }}/delete"
                             hx-confirm="{{ t('admin_dns_delete_confirm', page_locale()) }}"
                         >{{ t('delete', page_locale()) }}</button>
@@ -59,9 +59,7 @@
             </tr>
         {% else %}
             <tr>
-                <td colspan="8" class="px-5 py-8 text-center text-sm text-slate-700">
-                    {{ t('admin_dns_empty', page_locale()) }}
-                </td>
+                <td colspan="8" class="cust-table__empty">{{ t('admin_dns_empty', page_locale()) }}</td>
             </tr>
         {% endfor %}
         </tbody>

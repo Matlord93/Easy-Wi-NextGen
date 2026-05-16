@@ -96,11 +96,34 @@ jobs:
       - name: Smoke test (agent startup + core connectivity + dummy job)
         run: go test ./cmd/agent -run TestAgentCoreConnectivitySmoke
 
+      - name: Resolve build version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#agent-v}"
+            version="${version#v}"
+          else
+            version="0.0.0-dev.${GITHUB_SHA:0:12}"
+          fi
+
+          if [[ -z "${version}" ]]; then
+            echo "Resolved agent build version is empty." >&2
+            exit 1
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "commit=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "date=${build_date}" >> "$GITHUB_OUTPUT"
+
       - name: Build agent
         shell: bash
         run: |
           mkdir -p ../dist/${{ matrix.target_os }}
-          GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+          ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ steps.version.outputs.commit }} -X main.date=${{ steps.version.outputs.date }}"
+          GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="${ldflags}" \
             -o ../dist/${{ matrix.target_os }}/easywi-agent${{ matrix.artifact_suffix }} ./cmd/agent
 
       - name: Package agent

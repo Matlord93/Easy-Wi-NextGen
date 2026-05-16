@@ -5,18 +5,49 @@
 {% set activeNav = 'metrics' %}
 
 {% block content %}
+{% set locale = page_locale() %}
+
+{# ── Hero ── #}
+<div class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+        <div class="tkt-hero__inner">
+            <div style="display:flex;flex-direction:column;gap:16px;">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot"></span>
+                        {{ t('admin_metrics_heading', locale) }}
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_metrics_heading', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_metrics_intro', locale) }}</p>
+                    <div class="tkt-hero__actions" style="margin-top:10px;">
+                        <span class="ui-badge ui-badge--neutral">
+                            {{ t('admin_metrics_window_since', locale) }}: {{ since|date('Y-m-d H:i') }}
+                        </span>
+                        <span class="ui-badge ui-badge--info">
+                            {{ tab == 'host' ? t('admin_metrics_tab_host', locale) : t('admin_metrics_tab_instances', locale) }}
+                        </span>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__value">{{ agents|length }}</div>
+                        <div class="tkt-kpi__label">{{ t('admin_metrics_filter_node', locale) }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__value">{{ window }}</div>
+                        <div class="tkt-kpi__label">{{ t('admin_metrics_filter_window', locale) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="flex flex-col gap-6">
 
     {% if loadError %}
-        <div class="ng-alert ng-alert--warning">{{ t('admin_metrics_load_error', page_locale()) }}</div>
+        <div class="ng-alert ng-alert--warning">{{ t('admin_metrics_load_error', locale) }}</div>
     {% endif %}
-
-    {# ── Header row with window timestamp ── #}
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <p class="text-xs text-slate-500">
-            {{ t('admin_metrics_window_since', page_locale()) }}: {{ since|date('Y-m-d H:i') }}
-        </p>
-    </div>
 
     {# ── Tab bar ── #}
     <div class="ng-data-card">
@@ -24,12 +55,12 @@
             <div class="flex gap-2">
                 <a
                     href="{{ path('admin_metrics', {tab: 'host', agent: selectedAgent ? selectedAgent.id : '', window: window, per_page: perPage, page: 1}) }}"
-                    class="rounded-lg border px-3 py-2 text-sm {{ tab == 'host' ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700' }}"
-                >{{ t('admin_metrics_tab_host', page_locale()) }}</a>
+                    class="ui-button {{ tab == 'host' ? 'ui-button--primary' : 'ui-button--ghost' }} ui-button--sm"
+                >{{ t('admin_metrics_tab_host', locale) }}</a>
                 <a
                     href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: selectedInstanceId, window: window, per_page: perPage, page: 1}) }}"
-                    class="rounded-lg border px-3 py-2 text-sm {{ tab == 'instances' ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700' }}"
-                >{{ t('admin_metrics_tab_instances', page_locale()) }}</a>
+                    class="ui-button {{ tab == 'instances' ? 'ui-button--primary' : 'ui-button--ghost' }} ui-button--sm"
+                >{{ t('admin_metrics_tab_instances', locale) }}</a>
             </div>
         </div>
     </div>
@@ -43,19 +74,19 @@
                     <input type="hidden" name="tab" value="host">
                     <div class="grid flex-1 gap-4 md:grid-cols-3">
                         <label class="form-field">
-                            <span class="form-label">{{ t('admin_metrics_filter_node', page_locale()) }}</span>
+                            <span class="form-label">{{ t('admin_metrics_filter_node', locale) }}</span>
                             <select name="agent" class="form-input mt-2">
                                 {% for agent in agents %}
                                     <option value="{{ agent.id }}" {{ selectedAgent and selectedAgent.id == agent.id ? 'selected' : '' }}>
-                                        {{ agent.name ?? t('admin_metrics_node_unnamed', page_locale()) }} · {{ agent.id }}
+                                        {{ agent.name ?? t('admin_metrics_node_unnamed', locale) }} · {{ agent.id }}
                                     </option>
                                 {% else %}
-                                    <option value="">{{ t('admin_metrics_no_nodes', page_locale()) }}</option>
+                                    <option value="">{{ t('admin_metrics_no_nodes', locale) }}</option>
                                 {% endfor %}
                             </select>
                         </label>
                         <label class="form-field">
-                            <span class="form-label">{{ t('admin_metrics_filter_window', page_locale()) }}</span>
+                            <span class="form-label">{{ t('admin_metrics_filter_window', locale) }}</span>
                             <select name="window" class="form-input mt-2">
                                 <option value="15m" {{ window == '15m' ? 'selected' : '' }}>15m</option>
                                 <option value="60m" {{ window == '60m' ? 'selected' : '' }}>60m</option>
@@ -65,7 +96,7 @@
                             </select>
                         </label>
                         <label class="form-field">
-                            <span class="form-label">{{ t('admin_metrics_filter_per_page', page_locale()) }}</span>
+                            <span class="form-label">{{ t('admin_metrics_filter_per_page', locale) }}</span>
                             <select name="per_page" class="form-input mt-2">
                                 {% for size in [50, 100, 200] %}
                                     <option value="{{ size }}" {{ perPage == size ? 'selected' : '' }}>{{ size }}</option>
@@ -73,7 +104,7 @@
                             </select>
                         </label>
                     </div>
-                    <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_metrics_filter_apply', page_locale()) }}</button>
+                    <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_metrics_filter_apply', locale) }}</button>
                 </form>
             </div>
         </div>
@@ -81,87 +112,92 @@
         {# ── Node Health Status ── #}
         <div class="ng-data-card">
             <div class="ng-data-card__body">
-                <p class="form-label">Node status</p>
+                <p class="form-label">{{ t('admin_metrics_node_status_label', locale) }}</p>
                 <p class="mt-1 font-semibold {% if nodeHealthStatus == 'critical' %}text-red-600{% elseif nodeHealthStatus == 'warning' %}text-amber-600{% elseif nodeHealthStatus == 'offline' %}text-slate-500{% else %}text-emerald-600{% endif %}">
                     {{ nodeHealthStatus|upper }}
                 </p>
-                <p class="mt-1 text-xs text-slate-500">last_seen: {{ nodeLastSeenAt ? nodeLastSeenAt|date('Y-m-d H:i:s') ~ ' UTC' : 'never' }} · grace {{ heartbeatGraceSeconds }}s</p>
+                <p class="mt-1 text-xs" style="color: var(--ng-text-muted)">
+                    {{ t('admin_metrics_recorded_at', locale) }}: {{ nodeLastSeenAt ? nodeLastSeenAt|date('Y-m-d H:i:s') ~ ' UTC' : '—' }}
+                    · {{ heartbeatGraceSeconds }}s
+                </p>
             </div>
         </div>
 
         {# ── KPI sparkline cards ── #}
-        <div class="overflow-x-auto">
-            <div class="grid min-w-[1500px] grid-cols-5 gap-4">
-                <div class="ng-data-card">
-                    <div class="ng-data-card__body">
-                        <p class="form-label">{{ t('admin_metrics_cpu_usage', page_locale()) }}</p>
-                        <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestCpu is not null ? latestCpu|number_format(1, '.', '') ~ '%' : '—' }}</p>
-                        <p class="text-xs text-slate-500">{{ t('admin_metrics_average', page_locale()) }} {{ aggregate.cpu_avg is not null ? aggregate.cpu_avg|number_format(1, '.', '') ~ '%' : '—' }} · max {{ aggregate.cpu_max is not null ? aggregate.cpu_max|number_format(1, '.', '') ~ '%' : '—' }}</p>
-                        <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
-                            {% if cpuPoints %}
-                                <polyline fill="none" stroke="#6366f1" stroke-width="2" points="{{ cpuPoints }}" />
-                            {% else %}
-                                <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                            {% endif %}
-                        </svg>
+        <div class="ng-card">
+            <div class="overflow-x-auto">
+                <div class="grid min-w-[1500px] grid-cols-5 gap-4 p-4">
+                    <div class="ng-data-card">
+                        <div class="ng-data-card__body">
+                            <p class="form-label">{{ t('admin_metrics_cpu_usage', locale) }}</p>
+                            <p class="mt-2 text-2xl font-semibold" style="color: var(--ng-text)">{{ latestCpu is not null ? latestCpu|number_format(1, '.', '') ~ '%' : '—' }}</p>
+                            <p class="text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ aggregate.cpu_avg is not null ? aggregate.cpu_avg|number_format(1, '.', '') ~ '%' : '—' }} · {{ aggregate.cpu_max is not null ? aggregate.cpu_max|number_format(1, '.', '') ~ '%' : '—' }}</p>
+                            <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
+                                {% if cpuPoints %}
+                                    <polyline fill="none" stroke="#6366f1" stroke-width="2" points="{{ cpuPoints }}" />
+                                {% else %}
+                                    <text x="10" y="30" fill="#94a3b8">{{ t('admin_metrics_no_data', locale) }}</text>
+                                {% endif %}
+                            </svg>
+                        </div>
                     </div>
-                </div>
-                <div class="ng-data-card">
-                    <div class="ng-data-card__body">
-                        <p class="form-label">{{ t('admin_metrics_memory_usage', page_locale()) }}</p>
-                        <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestMemory is not null ? latestMemory|number_format(1, '.', '') ~ '%' : '—' }}</p>
-                        <p class="text-xs text-slate-500">{{ t('admin_metrics_average', page_locale()) }} {{ aggregate.memory_avg is not null ? aggregate.memory_avg|number_format(1, '.', '') ~ '%' : '—' }} · max {{ aggregate.memory_max is not null ? aggregate.memory_max|number_format(1, '.', '') ~ '%' : '—' }}</p>
-                        <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
-                            {% if memoryPoints %}
-                                <polyline fill="none" stroke="#10b981" stroke-width="2" points="{{ memoryPoints }}" />
-                            {% else %}
-                                <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                            {% endif %}
-                        </svg>
+                    <div class="ng-data-card">
+                        <div class="ng-data-card__body">
+                            <p class="form-label">{{ t('admin_metrics_memory_usage', locale) }}</p>
+                            <p class="mt-2 text-2xl font-semibold" style="color: var(--ng-text)">{{ latestMemory is not null ? latestMemory|number_format(1, '.', '') ~ '%' : '—' }}</p>
+                            <p class="text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ aggregate.memory_avg is not null ? aggregate.memory_avg|number_format(1, '.', '') ~ '%' : '—' }} · {{ aggregate.memory_max is not null ? aggregate.memory_max|number_format(1, '.', '') ~ '%' : '—' }}</p>
+                            <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
+                                {% if memoryPoints %}
+                                    <polyline fill="none" stroke="#10b981" stroke-width="2" points="{{ memoryPoints }}" />
+                                {% else %}
+                                    <text x="10" y="30" fill="#94a3b8">{{ t('admin_metrics_no_data', locale) }}</text>
+                                {% endif %}
+                            </svg>
+                        </div>
                     </div>
-                </div>
-                <div class="ng-data-card">
-                    <div class="ng-data-card__body">
-                        <p class="form-label">{{ t('admin_metrics_disk_usage', page_locale()) }}</p>
-                        <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestDisk is not null ? latestDisk|number_format(1, '.', '') ~ '%' : '—' }}</p>
-                        <p class="text-xs text-slate-500">{{ t('admin_metrics_average', page_locale()) }} {{ aggregate.disk_avg is not null ? aggregate.disk_avg|number_format(1, '.', '') ~ '%' : '—' }} · max {{ aggregate.disk_max is not null ? aggregate.disk_max|number_format(1, '.', '') ~ '%' : '—' }}</p>
-                        <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
-                            {% if diskPoints %}
-                                <polyline fill="none" stroke="#f59e0b" stroke-width="2" points="{{ diskPoints }}" />
-                            {% else %}
-                                <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                            {% endif %}
-                        </svg>
+                    <div class="ng-data-card">
+                        <div class="ng-data-card__body">
+                            <p class="form-label">{{ t('admin_metrics_disk_usage', locale) }}</p>
+                            <p class="mt-2 text-2xl font-semibold" style="color: var(--ng-text)">{{ latestDisk is not null ? latestDisk|number_format(1, '.', '') ~ '%' : '—' }}</p>
+                            <p class="text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ aggregate.disk_avg is not null ? aggregate.disk_avg|number_format(1, '.', '') ~ '%' : '—' }} · {{ aggregate.disk_max is not null ? aggregate.disk_max|number_format(1, '.', '') ~ '%' : '—' }}</p>
+                            <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
+                                {% if diskPoints %}
+                                    <polyline fill="none" stroke="#f59e0b" stroke-width="2" points="{{ diskPoints }}" />
+                                {% else %}
+                                    <text x="10" y="30" fill="#94a3b8">{{ t('admin_metrics_no_data', locale) }}</text>
+                                {% endif %}
+                            </svg>
+                        </div>
                     </div>
-                </div>
-                <div class="ng-data-card">
-                    <div class="ng-data-card__body">
-                        <p class="form-label">{{ t('admin_metrics_network_traffic', page_locale()) }}</p>
-                        <p class="mt-2 text-xl font-semibold text-slate-900">
-                            {{ latestNetRecv is not null ? latestNetRecv|number_format(2, '.', '') : '—' }} /
-                            {{ latestNetSent is not null ? latestNetSent|number_format(2, '.', '') : '—' }}
-                            {{ t('admin_metrics_bandwidth_unit', page_locale()) }}
-                        </p>
-                        <p class="text-xs text-slate-500">{{ t('admin_metrics_download', page_locale()) }} · {{ t('admin_metrics_upload', page_locale()) }}</p>
-                        <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
-                            {% if netRecvPoints %}<polyline fill="none" stroke="#06b6d4" stroke-width="2" points="{{ netRecvPoints }}" />{% endif %}
-                            {% if netSentPoints %}<polyline fill="none" stroke="#8b5cf6" stroke-width="2" points="{{ netSentPoints }}" />{% endif %}
-                            {% if not netRecvPoints and not netSentPoints %}<text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>{% endif %}
-                        </svg>
+                    <div class="ng-data-card">
+                        <div class="ng-data-card__body">
+                            <p class="form-label">{{ t('admin_metrics_network_traffic', locale) }}</p>
+                            <p class="mt-2 text-xl font-semibold" style="color: var(--ng-text)">
+                                {{ latestNetRecv is not null ? latestNetRecv|number_format(2, '.', '') : '—' }} /
+                                {{ latestNetSent is not null ? latestNetSent|number_format(2, '.', '') : '—' }}
+                                {{ t('admin_metrics_bandwidth_unit', locale) }}
+                            </p>
+                            <p class="text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_download', locale) }} · {{ t('admin_metrics_upload', locale) }}</p>
+                            <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
+                                {% if netRecvPoints %}<polyline fill="none" stroke="#06b6d4" stroke-width="2" points="{{ netRecvPoints }}" />{% endif %}
+                                {% if netSentPoints %}<polyline fill="none" stroke="#8b5cf6" stroke-width="2" points="{{ netSentPoints }}" />{% endif %}
+                                {% if not netRecvPoints and not netSentPoints %}<text x="10" y="30" fill="#94a3b8">{{ t('admin_metrics_no_data', locale) }}</text>{% endif %}
+                            </svg>
+                        </div>
                     </div>
-                </div>
-                <div class="ng-data-card">
-                    <div class="ng-data-card__body">
-                        <p class="form-label">{{ t('admin_metrics_temperature', page_locale()) }}</p>
-                        <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestTemperature is not null ? latestTemperature|number_format(1, '.', '') ~ ' °C' : '—' }}</p>
-                        <p class="text-xs text-slate-500">{{ t('admin_metrics_average', page_locale()) }} {{ temperatureAggregate.avg is not null ? temperatureAggregate.avg|number_format(1, '.', '') ~ ' °C' : '—' }} · max {{ temperatureAggregate.max is not null ? temperatureAggregate.max|number_format(1, '.', '') ~ ' °C' : '—' }}</p>
-                        <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
-                            {% if temperaturePoints %}
-                                <polyline fill="none" stroke="#ef4444" stroke-width="2" points="{{ temperaturePoints }}" />
-                            {% else %}
-                                <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                            {% endif %}
-                        </svg>
+                    <div class="ng-data-card">
+                        <div class="ng-data-card__body">
+                            <p class="form-label">{{ t('admin_metrics_temperature', locale) }}</p>
+                            <p class="mt-2 text-2xl font-semibold" style="color: var(--ng-text)">{{ latestTemperature is not null ? latestTemperature|number_format(1, '.', '') ~ ' °C' : '—' }}</p>
+                            <p class="text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ temperatureAggregate.avg is not null ? temperatureAggregate.avg|number_format(1, '.', '') ~ ' °C' : '—' }} · {{ temperatureAggregate.max is not null ? temperatureAggregate.max|number_format(1, '.', '') ~ ' °C' : '—' }}</p>
+                            <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
+                                {% if temperaturePoints %}
+                                    <polyline fill="none" stroke="#ef4444" stroke-width="2" points="{{ temperaturePoints }}" />
+                                {% else %}
+                                    <text x="10" y="30" fill="#94a3b8">{{ t('admin_metrics_no_data', locale) }}</text>
+                                {% endif %}
+                            </svg>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -172,7 +208,7 @@
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_metrics_heading', page_locale()) }} — Charts</h2>
+                    <h2 class="ng-data-card__title">{{ t('admin_metrics_charts_title', locale) }}</h2>
                 </div>
             </div>
             <div class="ng-data-card__body">
@@ -201,10 +237,10 @@
                 <div class="mb-6">
                     <div class="flex items-center gap-3 mb-2">
                         <span class="inline-block h-2 w-2 rounded-full bg-indigo-500"></span>
-                        <p class="form-label">{{ t('admin_metrics_cpu_usage', page_locale()) }}</p>
-                        <span class="ml-auto text-xs text-slate-500">avg {{ aggregate.cpu_avg is not null ? aggregate.cpu_avg|number_format(1, '.', '') ~ '%' : '—' }} · max {{ aggregate.cpu_max is not null ? aggregate.cpu_max|number_format(1, '.', '') ~ '%' : '—' }}</span>
+                        <p class="form-label">{{ t('admin_metrics_cpu_usage', locale) }}</p>
+                        <span class="ml-auto text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ aggregate.cpu_avg is not null ? aggregate.cpu_avg|number_format(1, '.', '') ~ '%' : '—' }} · {{ aggregate.cpu_max is not null ? aggregate.cpu_max|number_format(1, '.', '') ~ '%' : '—' }}</span>
                     </div>
-                    <svg viewBox="0 0 1200 120" class="h-40 w-full rounded-lg bg-slate-50" preserveAspectRatio="none">
+                    <svg viewBox="0 0 1200 120" style="height:10rem;width:100%;border-radius:8px;background:var(--ng-surface-soft);" preserveAspectRatio="none">
                         <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
                         <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
                         <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
@@ -218,10 +254,10 @@
                 <div class="mb-6">
                     <div class="flex items-center gap-3 mb-2">
                         <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
-                        <p class="form-label">{{ t('admin_metrics_memory_usage', page_locale()) }}</p>
-                        <span class="ml-auto text-xs text-slate-500">avg {{ aggregate.memory_avg is not null ? aggregate.memory_avg|number_format(1, '.', '') ~ '%' : '—' }} · max {{ aggregate.memory_max is not null ? aggregate.memory_max|number_format(1, '.', '') ~ '%' : '—' }}</span>
+                        <p class="form-label">{{ t('admin_metrics_memory_usage', locale) }}</p>
+                        <span class="ml-auto text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ aggregate.memory_avg is not null ? aggregate.memory_avg|number_format(1, '.', '') ~ '%' : '—' }} · {{ aggregate.memory_max is not null ? aggregate.memory_max|number_format(1, '.', '') ~ '%' : '—' }}</span>
                     </div>
-                    <svg viewBox="0 0 1200 120" class="h-40 w-full rounded-lg bg-slate-50" preserveAspectRatio="none">
+                    <svg viewBox="0 0 1200 120" style="height:10rem;width:100%;border-radius:8px;background:var(--ng-surface-soft);" preserveAspectRatio="none">
                         <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
                         <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
                         <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
@@ -235,14 +271,14 @@
                 <div>
                     <div class="flex items-center gap-4 mb-2">
                         <span class="inline-block h-2 w-2 rounded-full bg-cyan-500"></span>
-                        <p class="form-label">{{ t('admin_metrics_network_traffic', page_locale()) }}</p>
-                        <span class="flex items-center gap-2 text-xs text-slate-500">
-                            <span class="inline-block h-1.5 w-4 rounded bg-cyan-400"></span>{{ t('admin_metrics_download', page_locale()) }}
-                            <span class="inline-block h-1.5 w-4 rounded bg-violet-400"></span>{{ t('admin_metrics_upload', page_locale()) }}
+                        <p class="form-label">{{ t('admin_metrics_network_traffic', locale) }}</p>
+                        <span class="flex items-center gap-2 text-xs" style="color: var(--ng-text-muted)">
+                            <span class="inline-block h-1.5 w-4 rounded bg-cyan-400"></span>{{ t('admin_metrics_download', locale) }}
+                            <span class="inline-block h-1.5 w-4 rounded bg-violet-400"></span>{{ t('admin_metrics_upload', locale) }}
                         </span>
-                        <span class="ml-auto text-xs text-slate-500">{{ t('admin_metrics_bandwidth_unit', page_locale()) }}</span>
+                        <span class="ml-auto text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_bandwidth_unit', locale) }}</span>
                     </div>
-                    <svg viewBox="0 0 1200 120" class="h-40 w-full rounded-lg bg-slate-50" preserveAspectRatio="none">
+                    <svg viewBox="0 0 1200 120" style="height:10rem;width:100%;border-radius:8px;background:var(--ng-surface-soft);" preserveAspectRatio="none">
                         <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
                         <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
                         <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
@@ -261,8 +297,8 @@
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_metrics_recent_samples_host', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_metrics_page_info', page_locale())|replace({'%page%': page, '%total%': hostTotalPages}) }}</p>
+                    <h2 class="ng-data-card__title">{{ t('admin_metrics_recent_samples_host', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_metrics_page_info', locale)|replace({'%page%': page, '%total%': hostTotalPages}) }}</p>
                 </div>
             </div>
             <div class="ng-data-card__body--flush">
@@ -270,12 +306,12 @@
                     <table class="cust-table">
                         <thead>
                             <tr>
-                                <th>{{ t('admin_metrics_recorded_at', page_locale()) }}</th>
+                                <th>{{ t('admin_metrics_recorded_at', locale) }}</th>
                                 <th>CPU %</th>
                                 <th>RAM %</th>
                                 <th>Disk %</th>
-                                <th>{{ t('admin_metrics_upload', page_locale()) }} ({{ t('admin_metrics_bandwidth_unit', page_locale()) }})</th>
-                                <th>{{ t('admin_metrics_download', page_locale()) }} ({{ t('admin_metrics_bandwidth_unit', page_locale()) }})</th>
+                                <th>{{ t('admin_metrics_upload', locale) }} ({{ t('admin_metrics_bandwidth_unit', locale) }})</th>
+                                <th>{{ t('admin_metrics_download', locale) }} ({{ t('admin_metrics_bandwidth_unit', locale) }})</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -290,15 +326,15 @@
                                 </tr>
                             {% else %}
                                 <tr>
-                                    <td colspan="6" class="cust-table__empty">{{ t('admin_metrics_no_data', page_locale()) }}</td>
+                                    <td colspan="6" class="cust-table__empty">{{ t('admin_metrics_no_data', locale) }}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
                 <div class="flex items-center justify-between px-4 py-3 text-sm">
-                    <a class="ui-button ui-button--ghost ui-button--sm {{ page <= 1 ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'host', agent: selectedAgent ? selectedAgent.id : '', window: window, per_page: perPage, page: page - 1}) }}">{{ t('admin_metrics_previous', page_locale()) }}</a>
-                    <a class="ui-button ui-button--ghost ui-button--sm {{ page >= hostTotalPages ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'host', agent: selectedAgent ? selectedAgent.id : '', window: window, per_page: perPage, page: page + 1}) }}">{{ t('admin_metrics_next', page_locale()) }}</a>
+                    <a class="ui-button ui-button--ghost ui-button--sm {{ page <= 1 ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'host', agent: selectedAgent ? selectedAgent.id : '', window: window, per_page: perPage, page: page - 1}) }}">{{ t('admin_metrics_previous', locale) }}</a>
+                    <a class="ui-button ui-button--ghost ui-button--sm {{ page >= hostTotalPages ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'host', agent: selectedAgent ? selectedAgent.id : '', window: window, per_page: perPage, page: page + 1}) }}">{{ t('admin_metrics_next', locale) }}</a>
                 </div>
             </div>
         </div>
@@ -312,29 +348,29 @@
                     <input type="hidden" name="tab" value="instances">
                     <div class="grid flex-1 gap-4 md:grid-cols-5">
                         <label class="form-field">
-                            <span class="form-label">{{ t('admin_metrics_filter_node', page_locale()) }}</span>
+                            <span class="form-label">{{ t('admin_metrics_filter_node', locale) }}</span>
                             <select name="node" class="form-input mt-2">
-                                <option value="">{{ t('admin_metrics_all', page_locale()) }}</option>
+                                <option value="">{{ t('admin_metrics_all', locale) }}</option>
                                 {% for agent in agents %}
-                                    <option value="{{ agent.id }}" {{ nodeFilter == agent.id ? 'selected' : '' }}>{{ agent.name ?? t('admin_metrics_node_unnamed', page_locale()) }} · {{ agent.id }}</option>
+                                    <option value="{{ agent.id }}" {{ nodeFilter == agent.id ? 'selected' : '' }}>{{ agent.name ?? t('admin_metrics_node_unnamed', locale) }} · {{ agent.id }}</option>
                                 {% endfor %}
                             </select>
                         </label>
                         <label class="form-field">
-                            <span class="form-label">{{ t('admin_metrics_filter_customer', page_locale()) }}</span>
-                            <input name="customer" type="text" value="{{ customerFilter }}" class="form-input mt-2" placeholder="{{ t('admin_metrics_customer_placeholder', page_locale()) }}">
+                            <span class="form-label">{{ t('admin_metrics_filter_customer', locale) }}</span>
+                            <input name="customer" type="text" value="{{ customerFilter }}" class="form-input mt-2" placeholder="{{ t('admin_metrics_customer_placeholder', locale) }}">
                         </label>
                         <label class="form-field">
-                            <span class="form-label">{{ t('admin_metrics_filter_instance', page_locale()) }}</span>
+                            <span class="form-label">{{ t('admin_metrics_filter_instance', locale) }}</span>
                             <select name="instance" class="form-input mt-2">
-                                <option value="">{{ t('admin_metrics_all_instances', page_locale()) }}</option>
+                                <option value="">{{ t('admin_metrics_all_instances', locale) }}</option>
                                 {% for instance in instances %}
-                                    <option value="{{ instance.id }}" {{ selectedInstanceId == instance.id ? 'selected' : '' }}>{{ t('admin_metrics_instance_label', page_locale())|replace({'%id%': instance.id}) }}</option>
+                                    <option value="{{ instance.id }}" {{ selectedInstanceId == instance.id ? 'selected' : '' }}>{{ t('admin_metrics_instance_label', locale)|replace({'%id%': instance.id}) }}</option>
                                 {% endfor %}
                             </select>
                         </label>
                         <label class="form-field">
-                            <span class="form-label">{{ t('admin_metrics_filter_window', page_locale()) }}</span>
+                            <span class="form-label">{{ t('admin_metrics_filter_window', locale) }}</span>
                             <select name="window" class="form-input mt-2">
                                 <option value="15m" {{ window == '15m' ? 'selected' : '' }}>15m</option>
                                 <option value="60m" {{ window == '60m' ? 'selected' : '' }}>60m</option>
@@ -344,7 +380,7 @@
                             </select>
                         </label>
                         <label class="form-field">
-                            <span class="form-label">{{ t('admin_metrics_filter_per_page', page_locale()) }}</span>
+                            <span class="form-label">{{ t('admin_metrics_filter_per_page', locale) }}</span>
                             <select name="per_page" class="form-input mt-2">
                                 {% for size in [50, 100, 200] %}
                                     <option value="{{ size }}" {{ perPage == size ? 'selected' : '' }}>{{ size }}</option>
@@ -352,7 +388,7 @@
                             </select>
                         </label>
                     </div>
-                    <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_metrics_filter_apply', page_locale()) }}</button>
+                    <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_metrics_filter_apply', locale) }}</button>
                 </form>
             </div>
         </div>
@@ -361,8 +397,8 @@
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_metrics_instance_metrics_paged', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_metrics_samples_count', page_locale())|replace({'%count%': instanceBrowseTotal}) }} · {{ t('admin_metrics_page_info', page_locale())|replace({'%page%': page, '%total%': instanceBrowsePages}) }}</p>
+                    <h2 class="ng-data-card__title">{{ t('admin_metrics_instance_metrics_paged', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_metrics_samples_count', locale)|replace({'%count%': instanceBrowseTotal}) }} · {{ t('admin_metrics_page_info', locale)|replace({'%page%': page, '%total%': instanceBrowsePages}) }}</p>
                 </div>
             </div>
             <div class="ng-data-card__body--flush">
@@ -370,14 +406,14 @@
                     <table class="cust-table">
                         <thead>
                             <tr>
-                                <th>Instance</th>
-                                <th>Customer</th>
-                                <th>Node</th>
+                                <th>{{ t('admin_metrics_filter_instance', locale) }}</th>
+                                <th>{{ t('admin_metrics_filter_customer', locale) }}</th>
+                                <th>{{ t('admin_nodes_table_node', locale) }}</th>
                                 <th>CPU %</th>
-                                <th>{{ t('admin_metrics_ram_used', page_locale()) }}</th>
-                                <th>{{ t('admin_metrics_booked_cpu_ram', page_locale()) }}</th>
-                                <th>Collected</th>
-                                <th>{{ t('admin_metrics_reason', page_locale()) }}</th>
+                                <th>{{ t('admin_metrics_ram_used', locale) }}</th>
+                                <th>{{ t('admin_metrics_booked_cpu_ram', locale) }}</th>
+                                <th>{{ t('admin_metrics_recorded_at', locale) }}</th>
+                                <th>{{ t('admin_metrics_reason', locale) }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -394,15 +430,15 @@
                                 </tr>
                             {% else %}
                                 <tr>
-                                    <td colspan="8" class="cust-table__empty">{{ t('admin_metrics_no_data', page_locale()) }}</td>
+                                    <td colspan="8" class="cust-table__empty">{{ t('admin_metrics_no_data', locale) }}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
                 <div class="flex items-center justify-between px-4 py-3 text-sm">
-                    <a class="ui-button ui-button--ghost ui-button--sm {{ page <= 1 ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: selectedInstanceId, window: window, per_page: perPage, page: page - 1}) }}">{{ t('admin_metrics_previous', page_locale()) }}</a>
-                    <a class="ui-button ui-button--ghost ui-button--sm {{ page >= instanceBrowsePages ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: selectedInstanceId, window: window, per_page: perPage, page: page + 1}) }}">{{ t('admin_metrics_next', page_locale()) }}</a>
+                    <a class="ui-button ui-button--ghost ui-button--sm {{ page <= 1 ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: selectedInstanceId, window: window, per_page: perPage, page: page - 1}) }}">{{ t('admin_metrics_previous', locale) }}</a>
+                    <a class="ui-button ui-button--ghost ui-button--sm {{ page >= instanceBrowsePages ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: selectedInstanceId, window: window, per_page: perPage, page: page + 1}) }}">{{ t('admin_metrics_next', locale) }}</a>
                 </div>
             </div>
         </div>
@@ -412,38 +448,42 @@
             <div class="ng-data-card">
                 <div class="ng-data-card__header">
                     <div>
-                        <h2 class="ng-data-card__title">{{ t('admin_metrics_instance_detail', page_locale()) }} · #{{ selectedInstance.id }}</h2>
+                        <h2 class="ng-data-card__title">{{ t('admin_metrics_instance_detail', locale) }} · #{{ selectedInstance.id }}</h2>
                         <p class="ng-data-card__sub">
                             {{ selectedInstance.customer_email }} · {{ selectedInstance.node_name ?? selectedInstance.node_id }}
-                            · {{ t('customer_resource_booked_cpu', page_locale()) }} {{ selectedInstance.booked_cpu_cores|number_format(2, '.', '') }} cores
-                            · {{ t('customer_resource_booked_ram', page_locale()) }} {{ selectedInstance.booked_ram_mb }} MiB
+                            · {{ t('customer_resource_booked_cpu', locale) }} {{ selectedInstance.booked_cpu_cores|number_format(2, '.', '') }} cores
+                            · {{ t('customer_resource_booked_ram', locale) }} {{ selectedInstance.booked_ram_mb }} MiB
                         </p>
                     </div>
                     <div class="ng-data-card__actions">
-                        <span class="ui-badge ui-badge--info">{{ t('admin_metrics_samples_count', page_locale())|replace({'%count%': instanceMetricTotal}) }}</span>
+                        <span class="ui-badge ui-badge--info">{{ t('admin_metrics_samples_count', locale)|replace({'%count%': instanceMetricTotal}) }}</span>
                     </div>
                 </div>
                 <div class="ng-data-card__body">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 mb-4">
-                        <div class="rounded border border-slate-200 p-3">
-                            <p class="form-label">{{ t('admin_metrics_cpu_sparkline', page_locale()) }}</p>
-                            <svg viewBox="0 0 240 60" class="mt-2 h-16 w-full">
-                                {% if instanceCpuPoints %}
-                                    <polyline fill="none" stroke="#6366f1" stroke-width="2" points="{{ instanceCpuPoints }}" />
-                                {% else %}
-                                    <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                                {% endif %}
-                            </svg>
+                        <div class="ng-data-card">
+                            <div class="ng-data-card__body">
+                                <p class="form-label">{{ t('admin_metrics_cpu_sparkline', locale) }}</p>
+                                <svg viewBox="0 0 240 60" class="mt-2 h-16 w-full">
+                                    {% if instanceCpuPoints %}
+                                        <polyline fill="none" stroke="#6366f1" stroke-width="2" points="{{ instanceCpuPoints }}" />
+                                    {% else %}
+                                        <text x="10" y="30" fill="#94a3b8">{{ t('admin_metrics_no_data', locale) }}</text>
+                                    {% endif %}
+                                </svg>
+                            </div>
                         </div>
-                        <div class="rounded border border-slate-200 p-3">
-                            <p class="form-label">{{ t('admin_metrics_ram_sparkline', page_locale()) }}</p>
-                            <svg viewBox="0 0 240 60" class="mt-2 h-16 w-full">
-                                {% if instanceMemPoints %}
-                                    <polyline fill="none" stroke="#10b981" stroke-width="2" points="{{ instanceMemPoints }}" />
-                                {% else %}
-                                    <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                                {% endif %}
-                            </svg>
+                        <div class="ng-data-card">
+                            <div class="ng-data-card__body">
+                                <p class="form-label">{{ t('admin_metrics_ram_sparkline', locale) }}</p>
+                                <svg viewBox="0 0 240 60" class="mt-2 h-16 w-full">
+                                    {% if instanceMemPoints %}
+                                        <polyline fill="none" stroke="#10b981" stroke-width="2" points="{{ instanceMemPoints }}" />
+                                    {% else %}
+                                        <text x="10" y="30" fill="#94a3b8">{{ t('admin_metrics_no_data', locale) }}</text>
+                                    {% endif %}
+                                </svg>
+                            </div>
                         </div>
                     </div>
 
@@ -451,12 +491,12 @@
                         <table class="cust-table">
                             <thead>
                                 <tr>
-                                    <th>{{ t('admin_metrics_collected_at', page_locale()) }}</th>
+                                    <th>{{ t('admin_metrics_collected_at', locale) }}</th>
                                     <th>CPU %</th>
-                                    <th>{{ t('admin_metrics_ram_used', page_locale()) }}</th>
-                                    <th>{{ t('admin_metrics_booked_cpu_ram', page_locale()) }}</th>
-                                    <th>{{ t('admin_metrics_tasks', page_locale()) }}</th>
-                                    <th>{{ t('admin_metrics_reason', page_locale()) }}</th>
+                                    <th>{{ t('admin_metrics_ram_used', locale) }}</th>
+                                    <th>{{ t('admin_metrics_booked_cpu_ram', locale) }}</th>
+                                    <th>{{ t('admin_metrics_tasks', locale) }}</th>
+                                    <th>{{ t('admin_metrics_reason', locale) }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -471,7 +511,7 @@
                                     </tr>
                                 {% else %}
                                     <tr>
-                                        <td colspan="6" class="cust-table__empty">{{ t('admin_metrics_no_data', page_locale()) }}</td>
+                                        <td colspan="6" class="cust-table__empty">{{ t('admin_metrics_no_data', locale) }}</td>
                                     </tr>
                                 {% endfor %}
                             </tbody>

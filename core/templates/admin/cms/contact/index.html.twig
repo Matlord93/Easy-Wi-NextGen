@@ -45,7 +45,7 @@
                                         <span class="ui-badge ui-badge--neutral">{{ t('admin_cms_contact_status_read', locale) }}</span>
                                     {% endif %}
                                 </td>
-                                <td class="font-medium text-slate-800">{{ msg.name }}</td>
+                                <td style="color:var(--ng-text);font-weight:600">{{ msg.name }}</td>
                                 <td>{{ msg.email }}</td>
                                 <td>{{ msg.subject|slice(0, 60) }}{% if msg.subject|length > 60 %}…{% endif %}</td>
                                 <td class="whitespace-nowrap">{{ msg.createdAt|date('d.m.Y H:i') }}</td>
@@ -70,15 +70,15 @@
     </div>
 
     {% if total_pages > 1 %}
-    <div class="flex items-center justify-between text-sm text-slate-500">
+    <div class="flex items-center justify-between text-sm" style="color:var(--ng-text-muted)">
         <span>{{ t('admin_cms_contact_total', locale)|replace({'%count%': total}) }}</span>
         <div class="flex gap-2">
             {% if page > 1 %}
-                <a href="?page={{ page - 1 }}" class="ui-button ui-button--ghost ui-button--sm">← Zurück</a>
+                <a href="?page={{ page - 1 }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_cms_contact_pagination_prev', locale) }}</a>
             {% endif %}
-            <span class="px-3 py-1">Seite {{ page }} / {{ total_pages }}</span>
+            <span class="px-3 py-1">{{ t('admin_cms_contact_pagination_page', locale)|replace({'%page%': page, '%total%': total_pages}) }}</span>
             {% if page < total_pages %}
-                <a href="?page={{ page + 1 }}" class="ui-button ui-button--ghost ui-button--sm">Weiter →</a>
+                <a href="?page={{ page + 1 }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_cms_contact_pagination_next', locale) }}</a>
             {% endif %}
         </div>
     </div>

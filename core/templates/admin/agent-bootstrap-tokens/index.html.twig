@@ -6,10 +6,47 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+
+{# ── Hero ── #}
+<div class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+        <div class="tkt-hero__inner">
+            <div style="display:flex;flex-direction:column;gap:16px;">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#60a5fa;"></span>
+                        {{ t('admin_bootstrap_tokens_title', locale) }}
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_bootstrap_tokens_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_bootstrap_tokens_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+                    {% set totalTokens = tokens|length %}
+                    {% set activeTokens = tokens|filter(t => t.status == 'active')|length %}
+                    {% set usedTokens = tokens|filter(t => t.status == 'used')|length %}
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('admin_bootstrap_tokens_list', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ totalTokens }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__label">{{ t('admin_bootstrap_tokens_status_active', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ activeTokens }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--pending">
+                        <div class="tkt-kpi__label">{{ t('admin_bootstrap_tokens_status_used', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ usedTokens }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:20px;margin-top:20px;">
 
     <div class="ng-layout-2col">
 
+        {# ── Create Token Form ── #}
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
@@ -37,7 +74,7 @@
                     </div>
                 {% endif %}
 
-                <form method="post" class="flex flex-col gap-4 mt-4">
+                <form method="post" style="display:flex;flex-direction:column;gap:16px;margin-top:16px;">
                     <div class="form-field">
                         <label class="form-label" for="name">{{ t('admin_bootstrap_tokens_name', locale) }}</label>
                         <input
@@ -94,6 +131,7 @@
             </div>
         </div>
 
+        {# ── Token List ── #}
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
@@ -120,13 +158,13 @@
                             {% for token in tokens %}
                                 <tr>
                                     <td>
-                                        <div class="font-medium">{{ token.name }}</div>
+                                        <div class="font-medium" style="color: var(--ng-text)">{{ token.name }}</div>
                                         {% if token.usedAt %}
-                                            <div class="text-xs text-slate-500">{{ t('admin_bootstrap_tokens_used_at', locale)|replace({'%time%': token.usedAt|date('Y-m-d H:i')}) }}</div>
+                                            <div class="text-xs" style="color: var(--ng-text-muted)">{{ t('admin_bootstrap_tokens_used_at', locale)|replace({'%time%': token.usedAt|date('Y-m-d H:i')}) }}</div>
                                         {% endif %}
                                     </td>
                                     <td class="font-mono text-xs">{{ token.prefix }}</td>
-                                    <td class="text-xs">
+                                    <td class="text-xs" style="color: var(--ng-text)">
                                         {% if token.boundCidr %}
                                             <div>{{ t('admin_bootstrap_tokens_bound_cidr', locale)|replace({'%cidr%': token.boundCidr}) }}</div>
                                         {% endif %}
@@ -134,7 +172,7 @@
                                             <div>{{ t('admin_bootstrap_tokens_bound_node', locale)|replace({'%node%': token.boundNodeName}) }}</div>
                                         {% endif %}
                                         {% if not token.boundCidr and not token.boundNodeName %}
-                                            <span class="text-slate-500">{{ t('admin_bootstrap_tokens_unbound', locale) }}</span>
+                                            <span style="color: var(--ng-text-muted)">{{ t('admin_bootstrap_tokens_unbound', locale) }}</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-xs">{{ token.expiresAt|date('Y-m-d H:i') }}</td>
@@ -155,7 +193,7 @@
                                                 <button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_bootstrap_tokens_revoke', locale) }}</button>
                                             </form>
                                         {% else %}
-                                            <span class="text-xs text-slate-400">—</span>
+                                            <span class="text-xs" style="color: var(--ng-text-muted)">—</span>
                                         {% endif %}
                                     </td>
                                 </tr>

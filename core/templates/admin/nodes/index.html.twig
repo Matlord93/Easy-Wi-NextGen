@@ -7,80 +7,91 @@
 {% block content %}
 {% set selectedNode = selectedNode ?? nodes|first %}
 {% set statusMap = {
-    'online': 'badge--success',
-    'stale': 'badge--warning',
-    'offline': 'badge--danger',
-    'provisioning': 'badge--primary',
-    'maintenance': 'badge--neutral'
+    'online': 'success',
+    'stale': 'warning',
+    'offline': 'danger',
+    'provisioning': 'primary',
+    'maintenance': 'neutral'
 } %}
+
+{# ── Hero ── #}
+<div class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+        <div class="tkt-hero__inner">
+            <div style="display:flex;flex-direction:column;gap:16px;">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot"></span>
+                        {{ t('admin_nodes_title', page_locale()) }}
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_nodes_title', page_locale()) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_nodes_intro', page_locale()) }}</p>
+                    <div class="tkt-hero__actions" style="margin-top:10px;">
+                        {% if summary.latestVersion %}
+                            <span class="ui-badge ui-badge--info">
+                                {{ t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) }} · {{ summary.latestVersion }}
+                            </span>
+                            <span class="ui-badge ui-badge--warning">
+                                {{ t('admin_nodes_updates_available', page_locale())|replace({'%count%': summary.updates}) }}
+                            </span>
+                        {% else %}
+                            <span class="ui-badge ui-badge--neutral">
+                                {{ t('admin_nodes_release_unavailable', page_locale()) }}
+                            </span>
+                        {% endif %}
+                        <button
+                            class="ui-button ui-button--ghost ui-button--sm"
+                            hx-post="/admin/nodes/update"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                        >{{ t('admin_nodes_update_agents', page_locale()) }}</button>
+                        <a href="/admin/nodes/register" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_nodes_register_button', page_locale()) }}</a>
+                        <button
+                            class="ui-button ui-button--primary ui-button--sm"
+                            hx-post="/admin/nodes/provision"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                            hx-confirm="{{ t('admin_nodes_register', page_locale()) }}"
+                        >{{ t('admin_nodes_provision', page_locale()) }}</button>
+                    </div>
+                    <p class="tkt-hero__sub" style="font-size: 0.75rem; margin-top: 0.5rem">
+                        {{ t('admin_nodes_manual_register_hint', page_locale()) }}
+                    </p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__value">{{ summary.total }}</div>
+                        <div class="tkt-kpi__label">{{ t('admin_nodes_total', page_locale()) }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--resolved">
+                        <div class="tkt-kpi__value">{{ summary.online }}</div>
+                        <div class="tkt-kpi__label">{{ t('admin_nodes_online', page_locale()) }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--pending">
+                        <div class="tkt-kpi__value">{{ summary.stale }}</div>
+                        <div class="tkt-kpi__label">{{ t('admin_nodes_stale', page_locale()) }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__value">{{ summary.offline }}</div>
+                        <div class="tkt-kpi__label">{{ t('admin_nodes_offline', page_locale()) }}</div>
+                    </div>
+                    <div class="tkt-kpi" style="border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.07);">
+                        <div class="tkt-kpi__value" style="color:#fbbf24;">{{ summary.updates }}</div>
+                        <div class="tkt-kpi__label">{{ t('admin_nodes_updates_label', page_locale()) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <section class="nodes-page">
-    <header class="nodes-header">
-        <div>
-            <h1 class="nodes-title">{{ t('admin_nodes_title', page_locale()) }}</h1>
-            <p class="nodes-subtitle">{{ t('admin_nodes_intro', page_locale()) }}</p>
-        </div>
-        <div class="nodes-actions">
-            {% if summary.latestVersion %}
-                <span class="badge badge--primary">
-                    {{ t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) }} · {{ summary.latestVersion }}
-                </span>
-                <span class="badge badge--warning">
-                    {{ t('admin_nodes_updates_available', page_locale())|replace({'%count%': summary.updates}) }}
-                </span>
-            {% else %}
-                <span class="badge badge--neutral">
-                    {{ t('admin_nodes_release_unavailable', page_locale()) }}
-                </span>
-            {% endif %}
-            <button
-                class="btn btn--secondary"
-                hx-post="/admin/nodes/update"
-                hx-target="#nodes-table-wrap"
-                hx-swap="innerHTML"
-            >{{ t('admin_nodes_update_agents', page_locale()) }}</button>
-            <a href="/admin/nodes/register" class="btn btn--secondary">{{ t('admin_nodes_register_button', page_locale()) }}</a>
-            <button
-                class="btn btn--primary"
-                hx-post="/admin/nodes/provision"
-                hx-target="#nodes-table-wrap"
-                hx-swap="innerHTML"
-                hx-confirm="{{ t('admin_nodes_register', page_locale()) }}"
-            >{{ t('admin_nodes_provision', page_locale()) }}</button>
-        </div>
-        <p class="mt-3 text-sm text-slate-600">
-            {{ t('admin_nodes_manual_register_hint', page_locale()) }}
-        </p>
-    </header>
 
     {% if diskProtectCount is defined and diskProtectCount > 0 %}
-        <div class="nodes-alert nodes-alert--danger">
+        <div class="ng-alert ng-alert--danger">
             {{ t('admin_nodes_disk_protect_banner', page_locale())|replace({'%count%': diskProtectCount}) }}
         </div>
     {% endif %}
-
-    <div class="nodes-summary">
-        <div class="nodes-stat">
-            <div class="nodes-stat__label">{{ t('admin_nodes_total', page_locale()) }}</div>
-            <div class="nodes-stat__value">{{ summary.total }}</div>
-        </div>
-        <div class="nodes-stat">
-            <div class="nodes-stat__label">{{ t('admin_nodes_online', page_locale()) }}</div>
-            <div class="nodes-stat__value nodes-stat__value--success">{{ summary.online }}</div>
-        </div>
-        <div class="nodes-stat">
-            <div class="nodes-stat__label">{{ t('admin_nodes_stale', page_locale()) }}</div>
-            <div class="nodes-stat__value nodes-stat__value--warning">{{ summary.stale }}</div>
-        </div>
-        <div class="nodes-stat">
-            <div class="nodes-stat__label">{{ t('admin_nodes_offline', page_locale()) }}</div>
-            <div class="nodes-stat__value nodes-stat__value--danger">{{ summary.offline }}</div>
-        </div>
-        <div class="nodes-stat">
-            <div class="nodes-stat__label">{{ t('admin_nodes_updates_label', page_locale()) }}</div>
-            <div class="nodes-stat__value nodes-stat__value--warning">{{ summary.updates }}</div>
-            <div class="nodes-stat__label">{{ summary.latestVersion ?? t('admin_nodes_release_unavailable', page_locale()) }}</div>
-        </div>
-    </div>
 
     <div class="nodes-layout">
         <div class="nodes-card">
@@ -90,7 +101,7 @@
                     <p class="nodes-card__subtitle">{{ t('admin_nodes_fleet_intro', page_locale()) }}</p>
                 </div>
                 <button
-                    class="btn btn--tertiary"
+                    class="ui-button ui-button--ghost ui-button--sm"
                     hx-get="/admin/nodes/table"
                     hx-target="#nodes-table-wrap"
                     hx-swap="innerHTML"
@@ -121,7 +132,7 @@
                                 </select>
                             </div>
                             <div class="form-field">
-                                <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_load_button', page_locale()) }}</button>
+                                <button class="ui-button ui-button--ghost" type="submit">{{ t('admin_nodes_load_button', page_locale()) }}</button>
                             </div>
                         </div>
                     </form>
@@ -133,16 +144,16 @@
                             {{ selectedNode.lastHeartbeatIp ?? '—' }}
                         </div>
                         <div class="nodes-detail__badges">
-                            <span class="badge {{ statusClass }}">{{ selectedNode.status|title }}</span>
+                            <span class="ui-badge ui-badge--{{ statusClass }}">{{ selectedNode.status|title }}</span>
                             {% if selectedNode.updateAvailable is same as(true) %}
-                                <span class="badge badge--warning">{{ t('admin_nodes_update_available', page_locale()) }}</span>
+                                <span class="ui-badge ui-badge--warning">{{ t('admin_nodes_update_available', page_locale()) }}</span>
                             {% elseif selectedNode.updateAvailable is same as(false) and selectedNode.lastHeartbeatVersion %}
-                                <span class="badge badge--success">{{ t('admin_nodes_up_to_date', page_locale()) }}</span>
+                                <span class="ui-badge ui-badge--success">{{ t('admin_nodes_up_to_date', page_locale()) }}</span>
                             {% endif %}
                             {% if selectedNode.serverUpdate is not null and selectedNode.serverUpdate.updatesAvailable is same as(true) %}
-                                <span class="badge badge--warning">{{ t('admin_nodes_server_updates_available', page_locale()) }}</span>
+                                <span class="ui-badge ui-badge--warning">{{ t('admin_nodes_server_updates_available', page_locale()) }}</span>
                             {% elseif selectedNode.serverUpdate is not null and selectedNode.serverUpdate.updatesAvailable is same as(false) %}
-                                <span class="badge badge--success">{{ t('admin_nodes_server_updates_current', page_locale()) }}</span>
+                                <span class="ui-badge ui-badge--success">{{ t('admin_nodes_server_updates_current', page_locale()) }}</span>
                             {% endif %}
                         </div>
                     </div>
@@ -152,7 +163,7 @@
                             <div class="nodes-detail-card__header">
                                 <div class="nodes-detail-card__title">{{ t('status', page_locale()) }}</div>
                                 {% if selectedNode.rebootRequired is same as(true) %}
-                                    <span class="badge badge--warning">{{ t('admin_nodes_reboot_required', page_locale()) }}</span>
+                                    <span class="ui-badge ui-badge--warning">{{ t('admin_nodes_reboot_required', page_locale()) }}</span>
                                 {% endif %}
                             </div>
                             <div class="nodes-metadata">
@@ -188,18 +199,18 @@
                             </div>
                             <div class="nodes-inline-actions">
                                 <button
-                                    class="btn btn--tertiary"
+                                    class="ui-button ui-button--ghost ui-button--sm"
                                     hx-post="/admin/nodes/{{ selectedNode.id }}/reboot-check"
                                     hx-target="#nodes-table-wrap"
                                     hx-swap="innerHTML"
                                 >{{ t('admin_nodes_reboot_check', page_locale()) }}</button>
                                 <button
-                                    class="btn btn--tertiary"
+                                    class="ui-button ui-button--ghost ui-button--sm"
                                     hx-post="/admin/nodes/{{ selectedNode.id }}/update-check"
                                     hx-target="#nodes-table-wrap"
                                     hx-swap="innerHTML"
                                 >{{ t('admin_nodes_update_check', page_locale()) }}</button>
-                                <a class="btn btn--tertiary" href="/admin/nodes/{{ selectedNode.id }}/port-ranges">
+                                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/nodes/{{ selectedNode.id }}/port-ranges">
                                     {{ t('admin_nodes_port_ranges', page_locale()) }}
                                 </a>
                             </div>
@@ -211,7 +222,7 @@
                             </div>
                             <div class="role-toggle-group">
                                 {% if selectedNode.services is empty %}
-                                    <span class="text-xs text-slate-500">{{ t('admin_nodes_services_empty', page_locale()) }}</span>
+                                    <span style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_nodes_services_empty', page_locale()) }}</span>
                                 {% else %}
                                     {% for service, state in selectedNode.services %}
                                         <span class="role-chip {{ state == 'active' ? 'role-chip--active' : '' }}">{{ service }} · {{ state }}</span>
@@ -223,20 +234,20 @@
                         <div class="nodes-detail-card">
                             <div class="nodes-detail-card__header">
                                 <div class="nodes-detail-card__title">{{ t('admin_nodes_roles_active', page_locale()) }}</div>
-                                <a class="btn btn--secondary" href="/admin/nodes/{{ selectedNode.id }}/roles">
+                                <a class="ui-button ui-button--ghost" href="/admin/nodes/{{ selectedNode.id }}/roles">
                                     {{ t('admin_nodes_manage_roles', page_locale()) }}
                                 </a>
                             </div>
                             <div class="role-toggle-group">
                                 {% if selectedNode.roles is empty %}
-                                    <span class="text-xs text-slate-500">{{ t('admin_nodes_roles_empty', page_locale()) }}</span>
+                                    <span style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_nodes_roles_empty', page_locale()) }}</span>
                                 {% else %}
                                     {% for role in selectedNode.roles %}
                                         <span class="role-chip role-chip--active">{{ role }}</span>
                                     {% endfor %}
                                 {% endif %}
                             </div>
-                            <p class="mt-3 text-xs text-slate-500">{{ t('admin_nodes_roles_manage_hint', page_locale()) }}</p>
+                            <p style="margin-top:12px;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_nodes_roles_manage_hint', page_locale()) }}</p>
                         </div>
 
                         <form
@@ -246,11 +257,11 @@
                             hx-swap="innerHTML"
                         >
                             <div class="nodes-detail-card__header">
-                                <div class="nodes-detail-card__title">Agent (TS/Sinusbot)</div>
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_agent_ts_section_title', page_locale()) }}</div>
                                 <div class="nodes-inline-actions">
-                                    <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_save', page_locale()) }}</button>
+                                    <button class="ui-button ui-button--ghost" type="submit">{{ t('admin_nodes_save', page_locale()) }}</button>
                                     <button
-                                        class="btn btn--tertiary"
+                                        class="ui-button ui-button--ghost ui-button--sm"
                                         type="button"
                                         hx-post="/admin/nodes/{{ selectedNode.id }}/rotate-secret"
                                         hx-target="#nodes-table-wrap"
@@ -261,7 +272,7 @@
                             </div>
                             <div class="nodes-form-grid">
                                 <div class="form-field">
-                                    <label class="form-label" for="agent-base-url">Agent Base URL</label>
+                                    <label class="form-label" for="agent-base-url">{{ t('admin_nodes_agent_base_url_label', page_locale()) }}</label>
                                     <input
                                         id="agent-base-url"
                                         name="agent_base_url"
@@ -272,7 +283,7 @@
                                     >
                                 </div>
                                 <div class="form-field">
-                                    <label class="form-label" for="agent-api-token">Agent API Token</label>
+                                    <label class="form-label" for="agent-api-token">{{ t('admin_nodes_agent_api_token_label', page_locale()) }}</label>
                                     <input
                                         id="agent-api-token"
                                         name="agent_api_token"
@@ -280,7 +291,7 @@
                                         placeholder="{{ selectedNode.agent.token_configured ? '••••••••' : '' }}"
                                         class="form-input"
                                     >
-                                    <p class="text-xs text-slate-500">{{ t('admin_nodes_agent_token_hint', page_locale()) }}</p>
+                                    <p style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">{{ t('admin_nodes_agent_token_hint', page_locale()) }}</p>
                                 </div>
                                 <div class="form-field">
                                     <label class="form-label" for="agent-job-concurrency">{{ t('admin_nodes_job_concurrency_label', page_locale()) }}</label>
@@ -292,7 +303,7 @@
                                         value="{{ selectedNode.agent.job_concurrency ?? 50 }}"
                                         class="form-input"
                                     >
-                                    <p class="text-xs text-slate-500">{{ t('admin_nodes_job_concurrency_hint', page_locale()) }}</p>
+                                    <p style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">{{ t('admin_nodes_job_concurrency_hint', page_locale()) }}</p>
                                 </div>
                                 <div class="form-field">
                                     <label class="form-label" for="instance-base-dirs">{{ t('admin_nodes_instance_base_dirs_label', page_locale()) }}</label>
@@ -303,7 +314,7 @@
                                         class="form-input"
                                         placeholder="/home&#10;/mnt/storage"
                                     >{{ selectedNode.agent.instance_base_dirs|default([])|join("\n") }}</textarea>
-                                    <p class="text-xs text-slate-500">{{ t('admin_nodes_instance_base_dirs_hint', page_locale()) }}</p>
+                                    <p style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">{{ t('admin_nodes_instance_base_dirs_hint', page_locale()) }}</p>
                                 </div>
                                 <label class="role-toggle">
                                     <input type="checkbox" name="clear_agent_token" value="1">
@@ -370,7 +381,7 @@
                                 >
                             </div>
                             </div>
-                            <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_disk_save', page_locale()) }}</button>
+                            <button class="ui-button ui-button--ghost" type="submit">{{ t('admin_nodes_disk_save', page_locale()) }}</button>
                         </form>
 
                         <form
@@ -394,7 +405,7 @@
                                         placeholder="mail.example.com"
                                         class="form-input"
                                     >
-                                    <p class="text-xs text-slate-500">{{ t('admin_nodes_mail_host_hint', page_locale()) }}</p>
+                                    <p style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">{{ t('admin_nodes_mail_host_hint', page_locale()) }}</p>
                                 </div>
                                 <div class="form-field">
                                     <label class="form-label" for="mail_imap_host">{{ t('admin_nodes_mail_imap_host_label', page_locale()) }}</label>
@@ -461,7 +472,7 @@
                                     </select>
                                 </div>
                             </div>
-                            <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_mail_save', page_locale()) }}</button>
+                            <button class="ui-button ui-button--ghost" type="submit">{{ t('admin_nodes_mail_save', page_locale()) }}</button>
                         </form>
 
                         <form
@@ -473,7 +484,7 @@
                         >
                             <div class="nodes-detail-card__header">
                                 <div class="nodes-detail-card__title">{{ t('admin_nodes_override_section', page_locale()) }}</div>
-                                <button class="btn btn--tertiary" type="submit">{{ t('admin_nodes_disk_override_apply', page_locale()) }}</button>
+                                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('admin_nodes_disk_override_apply', page_locale()) }}</button>
                             </div>
                             <div class="nodes-form-grid nodes-form-grid--single">
                                 <div class="form-field">
@@ -493,27 +504,27 @@
                         <div class="nodes-detail-card">
                             <div class="nodes-detail-card__header">
                                 <div class="nodes-detail-card__title">{{ t('admin_nodes_logs_title', page_locale()) }}</div>
-                                <a class="btn btn--secondary" href="/admin/jobs">{{ t('admin_nodes_logs_view_all', page_locale()) }}</a>
+                                <a class="ui-button ui-button--ghost" href="/admin/jobs">{{ t('admin_nodes_logs_view_all', page_locale()) }}</a>
                             </div>
                             {% if selectedNode.logs is defined and selectedNode.logs is not empty %}
-                                <div class="divide-y divide-slate-100">
+                                <div style="display:flex;flex-direction:column;">
                                     {% for log in selectedNode.logs %}
-                                        <div class="py-3">
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <span class="badge badge--neutral">{{ log.status|title }}</span>
-                                                <span class="text-sm font-medium text-slate-900">{{ log.type }}</span>
-                                                <span class="text-xs text-slate-500">{{ log.createdAt|date('Y-m-d H:i') }}</span>
+                                        <div style="padding:10px 0;border-top:1px solid var(--ng-border);">
+                                            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+                                                <span class="ui-badge ui-badge--neutral">{{ log.status|title }}</span>
+                                                <span style="font-size:14px;font-weight:500;color:var(--ng-text);">{{ log.type }}</span>
+                                                <span style="font-size:11px;color:var(--ng-text-muted);">{{ log.createdAt|date('Y-m-d H:i') }}</span>
                                             </div>
                                             {% if log.errorText %}
-                                                <div class="mt-2 text-xs text-rose-600 whitespace-pre-line">{{ log.errorText }}</div>
+                                                <div style="font-size:11px;color:var(--ng-danger);white-space:pre-line;margin-top:8px;">{{ log.errorText }}</div>
                                             {% elseif log.logText %}
-                                                <div class="mt-2 text-xs text-slate-600 whitespace-pre-line">{{ log.logText }}</div>
+                                                <div style="font-size:11px;color:var(--ng-text-muted);white-space:pre-line;margin-top:8px;">{{ log.logText }}</div>
                                             {% endif %}
                                         </div>
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <p class="text-xs text-slate-500">{{ t('admin_nodes_logs_empty', page_locale()) }}</p>
+                                <p style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_nodes_logs_empty', page_locale()) }}</p>
                             {% endif %}
                         </div>
 
@@ -526,7 +537,7 @@
                             <div class="nodes-detail-card__header">
                                 <div class="nodes-detail-card__title">{{ t('admin_nodes_delete_title', page_locale()) }}</div>
                                 <button
-                                    class="btn btn--danger"
+                                    class="ui-button ui-button--danger"
                                     type="submit"
                                     {% if selectedNode.delete is defined and selectedNode.delete.allowed is same as(false) %}
                                         disabled
@@ -534,9 +545,9 @@
                                     {% endif %}
                                 >{{ t('admin_nodes_delete', page_locale()) }}</button>
                             </div>
-                            <p class="text-xs text-slate-500">{{ t('admin_nodes_delete_hint', page_locale()) }}</p>
+                            <p style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_nodes_delete_hint', page_locale()) }}</p>
                             {% if selectedNode.delete is defined and selectedNode.delete.allowed is same as(false) %}
-                                <p class="text-xs text-rose-600">{{ selectedNode.delete.message }}</p>
+                                <p style="font-size:11px;color:var(--ng-danger);white-space:pre-line;margin-top:8px;">{{ selectedNode.delete.message }}</p>
                             {% endif %}
                             <div class="nodes-form-grid nodes-form-grid--single">
                                 <div class="form-field">
@@ -556,19 +567,19 @@
 
                     <div class="nodes-actions-row">
                         <button
-                            class="btn btn--primary"
+                            class="ui-button ui-button--primary"
                             hx-post="/admin/nodes/{{ selectedNode.id }}/update"
                             hx-target="#nodes-table-wrap"
                             hx-swap="innerHTML"
                         >{{ t('admin_nodes_update_agent', page_locale()) }}</button>
                         <button
-                            class="btn btn--secondary"
+                            class="ui-button ui-button--ghost"
                             hx-post="/admin/nodes/{{ selectedNode.id }}/update-run"
                             hx-target="#nodes-table-wrap"
                             hx-swap="innerHTML"
                         >{{ t('admin_nodes_server_update_run', page_locale()) }}</button>
                         <button
-                            class="btn btn--danger"
+                            class="ui-button ui-button--danger"
                             hx-post="/admin/nodes/{{ selectedNode.id }}/reboot"
                             hx-target="#nodes-table-wrap"
                             hx-swap="innerHTML"
@@ -586,11 +597,12 @@
     </div>
 </section>
 <script>
+    const pageLocale = '{{ page_locale() }}';
     const formatRelativeTime = (date) => {
         const diffMs = date.getTime() - Date.now();
         const diffSeconds = Math.round(diffMs / 1000);
         const absSeconds = Math.abs(diffSeconds);
-        const rtf = new Intl.RelativeTimeFormat('de', { numeric: 'auto' });
+        const rtf = new Intl.RelativeTimeFormat(pageLocale, { numeric: 'auto' });
         if (absSeconds < 60) {
             return rtf.format(Math.round(diffSeconds), 'second');
         }

@@ -40,7 +40,7 @@ final class TicketApiController
         $actor = $this->requireUser($request);
 
         $tickets = $actor->isAdmin()
-            ? $this->ticketRepository->findBy([], ['lastMessageAt' => 'DESC'])
+            ? $this->ticketRepository->findVisibleForAdminQueue($actor)
             : $this->ticketRepository->findByCustomer($actor);
 
         return new JsonResponse([

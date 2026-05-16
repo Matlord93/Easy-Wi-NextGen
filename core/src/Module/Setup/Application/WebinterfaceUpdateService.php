@@ -9,6 +9,8 @@ use App\Module\Core\Application\PanelUpdateNewsPublisher;
 use App\Module\Core\Update\UpdateManifest;
 use App\Module\Core\Update\UpdateResult;
 use App\Module\Core\Update\UpdateStatus;
+use Psr\Log\LoggerInterface;
+use Symfony\Component\Process\Process;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class WebinterfaceUpdateService
@@ -49,6 +51,7 @@ final class WebinterfaceUpdateService
         private readonly ?PanelUpdateNewsPublisher $panelUpdateNewsPublisher = null,
         private readonly ?CoreReleaseChecker $coreReleaseChecker = null,
         private readonly ?string $githubToken = null,
+        private readonly ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -257,8 +260,8 @@ final class WebinterfaceUpdateService
             }
 
             $appRoot = $this->resolveAppRoot($currentDir);
-            if (!$this->commandExists('php')) {
-                $this->log($logPath, 'PHP nicht gefunden. Migrationen können nicht ausgeführt werden.');
+            if (!is_file(PHP_BINARY) && !$this->commandExists(PHP_BINARY)) {
+                $this->log($logPath, 'PHP-Binary nicht gefunden. Migrationen können nicht ausgeführt werden: ' . PHP_BINARY);
                 return new UpdateResult(
                     false,
                     'PHP nicht gefunden.',
@@ -281,29 +284,39 @@ final class WebinterfaceUpdateService
                 );
             }
 
-            $migrate = $this->runCommand('php bin/console doctrine:migrations:migrate --no-interaction', $appRoot);
+            $migrate = $this->runCommand($this->buildConsoleCommand('doctrine:migrations:migrate', ['--no-interaction']), $appRoot);
             $this->logCommandResult($logPath, 'doctrine:migrations:migrate', $migrate);
             if ($migrate['exitCode'] !== 0) {
                 return new UpdateResult(
                     false,
                     'Migrationen fehlgeschlagen.',
-                    'Doctrine-Migrationen konnten nicht ausgeführt werden.',
+                    $this->formatCommandFailure('doctrine:migrations:migrate', $migrate),
                     $logPath,
                     $this->getInstalledVersion(),
                     null,
                 );
             }
 
-            $schema = $this->runCommand('php bin/console doctrine:schema:validate --no-interaction', $appRoot);
-            $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema, true);
+            $schema = $this->runCommand($this->buildConsoleCommand('doctrine:schema:validate', ['--no-interaction']), $appRoot);
+            $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema);
+            if ($schema['exitCode'] !== 0) {
+                return new UpdateResult(
+                    false,
+                    'Schema-Validierung fehlgeschlagen.',
+                    $this->formatCommandFailure('doctrine:schema:validate', $schema),
+                    $logPath,
+                    $this->getInstalledVersion(),
+                    null,
+                );
+            }
 
-            $seedSettings = $this->runCommand('php bin/console app:settings:ensure-defaults --no-interaction', $appRoot);
+            $seedSettings = $this->runCommand($this->buildConsoleCommand('app:settings:ensure-defaults', ['--no-interaction']), $appRoot);
             $this->logCommandResult($logPath, 'app:settings:ensure-defaults', $seedSettings);
             if ($seedSettings['exitCode'] !== 0) {
                 return new UpdateResult(
                     false,
                     'Settings-Defaults konnten nicht sichergestellt werden.',
-                    'Runtime-Konfigurationsdefaults konnten nicht in app_settings geschrieben werden.',
+                    $this->formatCommandFailure('app:settings:ensure-defaults', $seedSettings),
                     $logPath,
                     $this->getInstalledVersion(),
                     null,
@@ -312,13 +325,13 @@ final class WebinterfaceUpdateService
 
             $this->logMissingEnvSecretsHint($appRoot, $logPath);
 
-            $cache = $this->runCommand('php bin/console cache:clear', $appRoot);
+            $cache = $this->runCommand($this->buildConsoleCommand('cache:clear'), $appRoot);
             $this->logCommandResult($logPath, 'cache:clear', $cache);
             if ($cache['exitCode'] !== 0) {
                 return new UpdateResult(
                     false,
                     'Cache konnte nicht geleert werden.',
-                    'Cache-Reset fehlgeschlagen.',
+                    $this->formatCommandFailure('cache:clear', $cache),
                     $logPath,
                     $this->getInstalledVersion(),
                     null,
@@ -1496,19 +1509,19 @@ final class WebinterfaceUpdateService
             $this->log($logPath, 'Composer nicht gefunden oder composer.json fehlt. Schritt übersprungen.');
         }
 
-        if (!$this->commandExists('php')) {
-            $this->log($logPath, 'PHP nicht gefunden. Migrationen/Cache werden übersprungen.');
-            return true;
+        if (!is_file(PHP_BINARY) && !$this->commandExists(PHP_BINARY)) {
+            $this->log($logPath, 'PHP-Binary nicht gefunden. Migrationen/Cache können nicht ausgeführt werden: ' . PHP_BINARY);
+            return false;
         }
 
         $consolePath = $appRoot . '/bin/console';
         if (!is_file($consolePath)) {
-            $this->log($logPath, 'bin/console nicht gefunden. Migrationen/Cache werden übersprungen.');
-            return true;
+            $this->log($logPath, 'bin/console nicht gefunden. Migrationen/Cache können nicht ausgeführt werden.');
+            return false;
         }
 
         $migrate = $this->runCommand(
-            sprintf('php bin/console doctrine:migrations:migrate --no-interaction%s%s', $envFlag, $debugFlag),
+            $this->buildConsoleCommand('doctrine:migrations:migrate', array_values(array_filter(['--no-interaction', $envFlag, $debugFlag]))),
             $appRoot,
         );
         $this->logCommandResult($logPath, 'doctrine:migrations:migrate', $migrate);
@@ -1517,13 +1530,16 @@ final class WebinterfaceUpdateService
         }
 
         $schema = $this->runCommand(
-            sprintf('php bin/console doctrine:schema:validate --no-interaction%s%s', $envFlag, $debugFlag),
+            $this->buildConsoleCommand('doctrine:schema:validate', array_values(array_filter(['--no-interaction', $envFlag, $debugFlag]))),
             $appRoot,
         );
-        $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema, true);
+        $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema);
+        if ($schema['exitCode'] !== 0) {
+            return false;
+        }
 
         $seedSettings = $this->runCommand(
-            sprintf('php bin/console app:settings:ensure-defaults --no-interaction%s%s', $envFlag, $debugFlag),
+            $this->buildConsoleCommand('app:settings:ensure-defaults', array_values(array_filter(['--no-interaction', $envFlag, $debugFlag]))),
             $appRoot,
         );
         $this->logCommandResult($logPath, 'app:settings:ensure-defaults', $seedSettings);
@@ -1534,7 +1550,7 @@ final class WebinterfaceUpdateService
         $this->logMissingEnvSecretsHint($appRoot, $logPath);
 
         $cache = $this->runCommand(
-            sprintf('php bin/console cache:clear%s%s', $envFlag, $debugFlag),
+            $this->buildConsoleCommand('cache:clear', array_values(array_filter([$envFlag, $debugFlag]))),
             $appRoot,
         );
         $this->logCommandResult($logPath, 'cache:clear', $cache);
@@ -1857,6 +1873,10 @@ final class WebinterfaceUpdateService
     {
         $timestamp = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
         file_put_contents($logPath, sprintf("[%s] %s\n", $timestamp, $message), FILE_APPEND);
+        $this->logger?->info('webinterface_update.' . $this->normalizeLogLabel($message), [
+            'message' => $message,
+            'log_path' => $logPath,
+        ]);
     }
 
     private function commandExists(string $command): bool
@@ -1865,38 +1885,114 @@ final class WebinterfaceUpdateService
         return $result !== '';
     }
 
-    private function runCommand(string $command, string $cwd): array
+    /**
+     * @param list<string> $arguments
+     * @return list<string>
+     */
+    private function buildConsoleCommand(string $name, array $arguments = []): array
     {
-        $descriptor = [
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
-        $process = proc_open($command, $descriptor, $pipes, $cwd);
-        if (!is_resource($process)) {
-            return ['exitCode' => 1, 'output' => 'Process konnte nicht gestartet werden.'];
-        }
-
-        $output = '';
-        foreach ([1, 2] as $index) {
-            $output .= stream_get_contents($pipes[$index]);
-            fclose($pipes[$index]);
-        }
-
-        $exitCode = proc_close($process);
-
-        return ['exitCode' => $exitCode, 'output' => trim($output)];
+        return array_merge([PHP_BINARY, 'bin/console', $name], $arguments);
     }
 
+    /**
+     * @param string|list<string> $command
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string, output: string, command: string}
+     */
+    private function runCommand(string|array $command, string $cwd, int $timeoutSeconds = 600): array
+    {
+        try {
+            $process = is_array($command)
+                ? new Process($command, $cwd, null, null, $timeoutSeconds)
+                : Process::fromShellCommandline($command, $cwd, null, null, $timeoutSeconds);
+            $process->run();
+
+            $stdout = trim($process->getOutput());
+            $stderr = trim($process->getErrorOutput());
+            $output = trim(implode(PHP_EOL, array_filter([$stdout, $stderr], static fn (string $value): bool => $value !== '')));
+
+            return [
+                'exitCode' => $process->getExitCode() ?? 1,
+                'stdout' => $stdout,
+                'stderr' => $stderr,
+                'output' => $output,
+                'command' => $this->stringifyCommand($command),
+            ];
+        } catch (\Throwable $exception) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $exception->getMessage(),
+                'output' => $exception->getMessage(),
+                'command' => $this->stringifyCommand($command),
+            ];
+        }
+    }
+
+    /**
+     * @param array{exitCode: int, stdout?: string, stderr?: string, output: string, command?: string} $result
+     */
     private function logCommandResult(string $logPath, string $label, array $result, bool $warnOnly = false): void
     {
+        $context = [
+            'label' => $label,
+            'exit_code' => $result['exitCode'],
+            'command' => $result['command'] ?? $label,
+            'stdout' => $result['stdout'] ?? '',
+            'stderr' => $result['stderr'] ?? '',
+            'log_path' => $logPath,
+        ];
         $summary = sprintf('%s exit code: %s', $label, (string) $result['exitCode']);
         $this->log($logPath, $summary);
-        if ($result['output'] !== '') {
-            $this->log($logPath, $label . ' output: ' . substr($result['output'], 0, 2000));
+        if (($result['stdout'] ?? '') !== '') {
+            $this->log($logPath, $label . ' stdout: ' . substr((string) $result['stdout'], 0, 4000));
         }
-        if ($warnOnly && $result['exitCode'] !== 0) {
-            $this->log($logPath, $label . ' meldet Warnungen.');
+        if (($result['stderr'] ?? '') !== '') {
+            $this->log($logPath, $label . ' stderr: ' . substr((string) $result['stderr'], 0, 4000));
         }
+        if (($result['stdout'] ?? '') === '' && ($result['stderr'] ?? '') === '' && $result['output'] !== '') {
+            $this->log($logPath, $label . ' output: ' . substr($result['output'], 0, 4000));
+        }
+        if ($result['exitCode'] === 0 || $warnOnly) {
+            $this->logger?->info('webinterface_update.command_finished', $context);
+            if ($warnOnly && $result['exitCode'] !== 0) {
+                $this->log($logPath, $label . ' meldet Warnungen.');
+            }
+            return;
+        }
+
+        $this->logger?->error('webinterface_update.command_failed', $context);
+    }
+
+    /**
+     * @param array{exitCode: int, stdout?: string, stderr?: string, output: string} $result
+     */
+    private function formatCommandFailure(string $label, array $result): string
+    {
+        $detail = trim((string) ($result['output'] ?? ''));
+        if ($detail === '') {
+            $detail = 'Keine Ausgabe.';
+        }
+
+        return sprintf('%s fehlgeschlagen (Exit-Code %d): %s', $label, $result['exitCode'], $detail);
+    }
+
+    /**
+     * @param string|list<string> $command
+     */
+    private function stringifyCommand(string|array $command): string
+    {
+        if (is_string($command)) {
+            return $command;
+        }
+
+        return implode(' ', array_map(static fn (string $part): string => escapeshellarg($part), $command));
+    }
+
+    private function normalizeLogLabel(string $message): string
+    {
+        $label = strtolower((string) preg_replace('/[^a-zA-Z0-9]+/', '_', $message));
+        return trim($label, '_') ?: 'message';
     }
 
     private function runRsync(string $source, string $destination, array $excludes, string $logPath, bool $delete = false): bool
