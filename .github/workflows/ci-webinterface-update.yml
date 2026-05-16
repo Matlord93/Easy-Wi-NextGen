@@ -57,6 +57,8 @@ jobs:
             -x "core/node_modules/*" \
             -x "core/.env.local" \
             -x "core/vendor/*"
+          unzip -l "dist/easywi-webinterface-${VERSION}.zip" core/.env >/dev/null \
+            || { echo 'core/.env missing from easywi-webinterface zip' >&2; exit 1; }
 
       - name: Prepare delta update bundle
         if: env.PREV_TAG != ''

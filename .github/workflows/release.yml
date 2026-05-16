@@ -51,8 +51,8 @@ jobs:
           AGENT_LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=${BUILD_DATE}"
 
           tar \
-            --exclude='.env' \
-            --exclude='.env.*' \
+            --exclude='core/.env.local' \
+            --exclude='core/.env.local.php' \
             --exclude='var' \
             --exclude='storage' \
             --exclude='uploads' \
@@ -62,7 +62,12 @@ jobs:
             --exclude='.git' \
             -czf dist/release/easywi-core.tar.gz core
           (cd . && zip -qr "dist/release/easywi-webinterface-${VERSION}.zip" core \
-            -x 'core/.env' 'core/.env.*' 'core/var/*' 'core/storage/*' 'core/uploads/*' 'core/srv/*' 'core/node_modules/*' 'core/vendor/*')
+            -x 'core/.env.local' 'core/.env.local.php' 'core/var/*' 'core/storage/*' 'core/uploads/*' 'core/srv/*' 'core/node_modules/*' 'core/vendor/*')
+
+          tar -tzf dist/release/easywi-core.tar.gz | grep -Fxq core/.env \
+            || { echo 'core/.env missing from easywi-core.tar.gz' >&2; exit 1; }
+          unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" core/.env >/dev/null \
+            || { echo 'core/.env missing from easywi-webinterface zip' >&2; exit 1; }
 
           if [[ -f agent/go.mod ]]; then
             (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
