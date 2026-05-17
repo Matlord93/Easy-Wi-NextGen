@@ -7,9 +7,12 @@ namespace App\Tests\Controller;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceFileApiController;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
+#[CoversClass(CustomerInstanceFileApiController::class)]
 final class CustomerInstanceFileApiControllerTest extends TestCase
 {
     public function testListUnauthorizedReturnsErrorEnvelope(): void
@@ -17,17 +20,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
         $settings = $this->createMock(AppSettingsService::class);
         $settings->method('isCustomerDataManagerEnabled')->willReturn(true);
 
-        $reflection = new \ReflectionClass(CustomerInstanceFileApiController::class);
-        /** @var CustomerInstanceFileApiController $controller */
-        $controller = $reflection->newInstanceWithoutConstructor();
-
-        $appSettingsProperty = $reflection->getProperty('appSettingsService');
-        $appSettingsProperty->setAccessible(true);
-        $appSettingsProperty->setValue($controller, $settings);
-
-        $envelopeProperty = $reflection->getProperty('responseEnvelopeFactory');
-        $envelopeProperty->setAccessible(true);
-        $envelopeProperty->setValue($controller, new ResponseEnvelopeFactory());
+        $controller = $this->newControllerWithSettings($settings);
 
         $request = Request::create('/api/instances/77/files');
         $request->headers->set('X-Request-ID', 'req-list-schema');
@@ -46,17 +39,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
         $settings = $this->createMock(AppSettingsService::class);
         $settings->method('isCustomerDataManagerEnabled')->willReturn(true);
 
-        $reflection = new \ReflectionClass(CustomerInstanceFileApiController::class);
-        /** @var CustomerInstanceFileApiController $controller */
-        $controller = $reflection->newInstanceWithoutConstructor();
-
-        $appSettingsProperty = $reflection->getProperty('appSettingsService');
-        $appSettingsProperty->setAccessible(true);
-        $appSettingsProperty->setValue($controller, $settings);
-
-        $envelopeProperty = $reflection->getProperty('responseEnvelopeFactory');
-        $envelopeProperty->setAccessible(true);
-        $envelopeProperty->setValue($controller, new ResponseEnvelopeFactory());
+        $controller = $this->newControllerWithSettings($settings);
 
         $request = Request::create('/api/instances/77/files/content?path=test.txt');
         $request->headers->set('X-Request-ID', 'req-content-schema');
@@ -70,4 +53,25 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
         self::assertSame('req-content-schema', $payload['request_id']);
     }
 
+    private function newControllerWithSettings(AppSettingsService $settings): CustomerInstanceFileApiController
+    {
+        $translator = $this->createMock(TranslatorInterface::class);
+        $translator->method('trans')->willReturnCallback(static fn (string|\Stringable $id): string => (string) $id);
+
+        $reflection = new \ReflectionClass(CustomerInstanceFileApiController::class);
+        /** @var CustomerInstanceFileApiController $controller */
+        $controller = $reflection->newInstanceWithoutConstructor();
+
+        foreach ([
+            'appSettingsService' => $settings,
+            'responseEnvelopeFactory' => new ResponseEnvelopeFactory(),
+            'translator' => $translator,
+        ] as $property => $value) {
+            $prop = $reflection->getProperty($property);
+            $prop->setAccessible(true);
+            $prop->setValue($controller, $value);
+        }
+
+        return $controller;
+    }
 }
