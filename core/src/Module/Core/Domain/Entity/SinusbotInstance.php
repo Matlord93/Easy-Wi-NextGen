@@ -10,7 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: SinusbotInstanceRepository::class)]
 #[ORM\Table(name: 'sinusbot_instances')]
-#[ORM\UniqueConstraint(name: 'uniq_sinusbot_instance_customer', columns: ['customer_id'])]
+#[ORM\Index(name: 'idx_sinusbot_instances_customer', columns: ['customer_id'])]
 class SinusbotInstance
 {
     #[ORM\Id]

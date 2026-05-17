@@ -117,6 +117,51 @@ final class Version20250305100000 extends AbstractMigration
     }
 }
 
+
+final class Version20260517120000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Allow customers to have multiple active SinusBot instances.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('sinusbot_instances')) {
+            return;
+        }
+
+        $table = $schema->getTable('sinusbot_instances');
+        if ($table->hasIndex('uniq_sinusbot_instance_customer')) {
+            $this->addSql($this->isSqlite() ? 'DROP INDEX uniq_sinusbot_instance_customer' : 'DROP INDEX uniq_sinusbot_instance_customer ON sinusbot_instances');
+        }
+        if (!$table->hasIndex('idx_sinusbot_instances_customer')) {
+            $this->addSql('CREATE INDEX idx_sinusbot_instances_customer ON sinusbot_instances (customer_id)');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('sinusbot_instances')) {
+            return;
+        }
+
+        $table = $schema->getTable('sinusbot_instances');
+        if ($table->hasIndex('idx_sinusbot_instances_customer')) {
+            $this->addSql($this->isSqlite() ? 'DROP INDEX idx_sinusbot_instances_customer' : 'DROP INDEX idx_sinusbot_instances_customer ON sinusbot_instances');
+        }
+        if (!$table->hasIndex('uniq_sinusbot_instance_customer')) {
+            $this->addSql('CREATE UNIQUE INDEX uniq_sinusbot_instance_customer ON sinusbot_instances (customer_id)');
+        }
+    }
+
+    private function isSqlite(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof SQLitePlatform;
+    }
+}
+
+
 final class Version20260701100000 extends AbstractMigration
 {
     public function getDescription(): string
@@ -3505,7 +3550,7 @@ final class Version20250328150000 extends AbstractMigration
     public function up(Schema $schema): void
     {
         $this->addSql('CREATE TABLE sinusbot_nodes (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(120) NOT NULL, agent_base_url VARCHAR(255) NOT NULL, agent_api_token_encrypted LONGTEXT NOT NULL, download_url VARCHAR(255) NOT NULL, install_path VARCHAR(255) NOT NULL, instance_root VARCHAR(255) NOT NULL, web_bind_ip VARCHAR(64) NOT NULL, web_port_base INT NOT NULL, installed_version VARCHAR(120) DEFAULT NULL, install_status VARCHAR(32) NOT NULL, last_error LONGTEXT DEFAULT NULL, admin_username VARCHAR(120) DEFAULT NULL, admin_password_encrypted LONGTEXT DEFAULT NULL, ts3_client_installed TINYINT(1) NOT NULL, ts3_client_version VARCHAR(120) DEFAULT NULL, ts3_client_path VARCHAR(255) DEFAULT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
-        $this->addSql('CREATE TABLE sinusbot_instances (id INT AUTO_INCREMENT NOT NULL, node_id INT NOT NULL, customer_id INT DEFAULT NULL, instance_id VARCHAR(64) NOT NULL, manage_url VARCHAR(255) DEFAULT NULL, sinusbot_username VARCHAR(120) NOT NULL, sinusbot_password_encrypted LONGTEXT DEFAULT NULL, bot_quota INT NOT NULL, status VARCHAR(16) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', archived_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', UNIQUE INDEX UNIQ_9F589B1B9F16E290 (instance_id), UNIQUE INDEX uniq_sinusbot_instance_customer (customer_id), INDEX IDX_9F589B1B460D9FD (node_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        $this->addSql('CREATE TABLE sinusbot_instances (id INT AUTO_INCREMENT NOT NULL, node_id INT NOT NULL, customer_id INT DEFAULT NULL, instance_id VARCHAR(64) NOT NULL, manage_url VARCHAR(255) DEFAULT NULL, sinusbot_username VARCHAR(120) NOT NULL, sinusbot_password_encrypted LONGTEXT DEFAULT NULL, bot_quota INT NOT NULL, status VARCHAR(16) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', archived_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', UNIQUE INDEX UNIQ_9F589B1B9F16E290 (instance_id), INDEX idx_sinusbot_instances_customer (customer_id), INDEX IDX_9F589B1B460D9FD (node_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
         $this->addSql('ALTER TABLE sinusbot_instances ADD CONSTRAINT FK_9F589B1B460D9FD FOREIGN KEY (node_id) REFERENCES sinusbot_nodes (id)');
     }
 

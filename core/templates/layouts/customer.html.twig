@@ -13,6 +13,7 @@
 {% set moduleDns = module_enabled('dns') %}
 {% set moduleBilling = module_enabled('billing') %}
 {% set moduleShop = module_enabled('shop') %}
+{% set moduleSinusbot = module_enabled('sinusbot') %}
 {% set showVoiceserver = moduleTs6 or moduleTs %}
 {% set extensionItems = extension_menu_items('customer') %}
 {% set gdprItems = extensionItems is not empty
@@ -54,7 +55,7 @@
         items: [
             moduleGame ? { key: 'gameservers',  label: t('customer_nav_game_servers', page_locale()),  href: path('customer_instances'),       iconSvg: iconGamepad } : null,
             showVoiceserver ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl,              iconSvg: iconVoice } : null,
-            moduleGame ? { key: 'sinusbot',     label: t('customer_nav_sinusbot', page_locale()),      href: path('customer_sinusbot_index'),  iconSvg: iconSinusbot } : null
+            moduleSinusbot ? { key: 'sinusbot',     label: t('customer_nav_sinusbot', page_locale()),      href: path('customer_sinusbot_index'),  iconSvg: iconSinusbot } : null
         ]|filter(v => v)
     },
     {

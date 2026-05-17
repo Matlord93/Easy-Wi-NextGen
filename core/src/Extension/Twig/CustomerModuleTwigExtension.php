@@ -13,6 +13,7 @@ use App\Repository\ShopRentalRepository;
 use App\Repository\SinusbotInstanceRepository;
 use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\Ts6VirtualServerRepository;
+use App\Repository\VoiceInstanceRepository;
 use App\Repository\WebspaceRepository;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Twig\Extension\AbstractExtension;
@@ -25,6 +26,7 @@ final class CustomerModuleTwigExtension extends AbstractExtension
         private readonly InstanceRepository $instanceRepository,
         private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
         private readonly Ts6VirtualServerRepository $ts6VirtualServerRepository,
+        private readonly VoiceInstanceRepository $voiceInstanceRepository,
         private readonly SinusbotInstanceRepository $sinusbotInstanceRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DatabaseRepository $databaseRepository,
@@ -57,9 +59,10 @@ final class CustomerModuleTwigExtension extends AbstractExtension
 
         return match (strtolower($moduleKey)) {
             'game' => $this->instanceRepository->count(['customer' => $actor]) > 0,
-            'voice' => $this->ts3VirtualServerRepository->count(['customerId' => $customerId]) > 0
-                || $this->ts6VirtualServerRepository->count(['customerId' => $customerId]) > 0,
-            'sinusbot' => $this->sinusbotInstanceRepository->count(['customer' => $actor]) > 0,
+            'voice' => $this->voiceInstanceRepository->count(['customer' => $actor]) > 0
+                || $this->ts3VirtualServerRepository->count(['customerId' => $customerId, 'archivedAt' => null]) > 0
+                || $this->ts6VirtualServerRepository->count(['customerId' => $customerId, 'archivedAt' => null]) > 0,
+            'sinusbot' => $this->sinusbotInstanceRepository->count(['customer' => $actor, 'archivedAt' => null]) > 0,
             'web' => $this->webspaceRepository->count(['customer' => $actor]) > 0,
             'database' => $this->databaseRepository->count(['customer' => $actor]) > 0,
             'domain' => $this->domainRepository->count(['customer' => $actor]) > 0,

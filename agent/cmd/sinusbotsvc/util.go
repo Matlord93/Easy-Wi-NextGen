@@ -3,7 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"os/user"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -108,4 +112,29 @@ func buildSystemdLimits(cpuLimit, ramLimit int) string {
 		)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func chownRecursiveToUser(path, username string) error {
+	usr, err := user.Lookup(username)
+	if err != nil {
+		return err
+	}
+	uid, err := strconv.Atoi(usr.Uid)
+	if err != nil {
+		return fmt.Errorf("parse uid for %s: %w", username, err)
+	}
+	gid, err := strconv.Atoi(usr.Gid)
+	if err != nil {
+		return fmt.Errorf("parse gid for %s: %w", username, err)
+	}
+
+	return filepath.WalkDir(path, func(entryPath string, _ os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := os.Chown(entryPath, uid, gid); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("chown %s: %w", entryPath, err)
+		}
+		return nil
+	})
 }

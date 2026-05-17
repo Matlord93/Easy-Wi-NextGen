@@ -321,10 +321,21 @@ func (s *sinusbotsvcServer) createInstance(instanceRoot, installDir, webBindIP s
 		return instanceMeta{}, err
 	}
 
+	dataPath := filepath.Join(instancePath, "data")
+	logPath := filepath.Join(instancePath, "logs")
+	if err := os.MkdirAll(dataPath, 0o755); err != nil {
+		return instanceMeta{}, err
+	}
+	if err := os.MkdirAll(logPath, 0o755); err != nil {
+		return instanceMeta{}, err
+	}
+
 	configPath := filepath.Join(instancePath, "config.ini")
-	// Assumption: SinusBot supports "--config" and "--data-dir" flags for per-instance execution.
-	configContent := fmt.Sprintf("ListenPort = %d\nListenHost = \"%s\"\n", port, webBindIP)
+	configContent := fmt.Sprintf("ListenPort = %d\nListenHost = \"%s\"\nDataDir = \"%s\"\nLogFile = \"%s\"\n", port, webBindIP, dataPath, filepath.Join(logPath, "sinusbot.log"))
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		return instanceMeta{}, err
+	}
+	if err := chownRecursiveToUser(instancePath, s.cfg.ServiceUser); err != nil {
 		return instanceMeta{}, err
 	}
 
@@ -332,8 +343,8 @@ func (s *sinusbotsvcServer) createInstance(instanceRoot, installDir, webBindIP s
 		instanceServiceName(instanceID),
 		s.cfg.ServiceUser,
 		installDir,
-		installDir,
-		fmt.Sprintf("%s --config=%s --data-dir=%s", filepath.Join(installDir, "sinusbot"), configPath, instancePath),
+		instancePath,
+		fmt.Sprintf("%s --config=%s", filepath.Join(installDir, "sinusbot"), configPath),
 		"",
 		0,
 		0,
@@ -341,9 +352,15 @@ func (s *sinusbotsvcServer) createInstance(instanceRoot, installDir, webBindIP s
 	if err := os.WriteFile(instanceServicePath(instanceID), []byte(unitContent), 0o644); err != nil {
 		return instanceMeta{}, err
 	}
-	_ = systemctlAction("", "daemon-reload")
-	_ = systemctlAction(instanceServiceName(instanceID), "enable")
-	_ = systemctlAction(instanceServiceName(instanceID), "start")
+	if err := systemctlAction("", "daemon-reload"); err != nil {
+		return instanceMeta{}, err
+	}
+	if err := systemctlAction(instanceServiceName(instanceID), "enable"); err != nil {
+		return instanceMeta{}, err
+	}
+	if err := systemctlAction(instanceServiceName(instanceID), "start"); err != nil {
+		return instanceMeta{}, err
+	}
 
 	manageURL := ""
 	if webBindIP != "" && webBindIP != "0.0.0.0" && webBindIP != "::" {

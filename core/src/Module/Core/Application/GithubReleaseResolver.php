@@ -749,7 +749,7 @@ final class GithubReleaseResolver
         if (!is_dir($dir)) {
             @mkdir($dir, 0770, true);
         }
-        $handle = @fopen($dir . '/' . hash('sha256', $repository . '|' . $channel . '|' . $checkType) . '.lock', 'c');
+        $handle = @fopen($dir . '/' . sha1($repository . '|' . $channel . '|' . $checkType) . '.lock', 'c');
         if ($handle === false) {
             return null;
         }

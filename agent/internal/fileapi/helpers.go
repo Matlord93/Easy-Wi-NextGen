@@ -117,6 +117,7 @@ func ensureParentExists(path string) error {
 
 func writeFileAtomic(target string, reader io.Reader, perm os.FileMode) error {
 	dir := filepath.Dir(target)
+	uid, gid, hasOwner := desiredOwnerForFile(target)
 	tmp, err := os.CreateTemp(dir, ".fileapi-*")
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
@@ -148,8 +149,76 @@ func writeFileAtomic(target string, reader io.Reader, perm os.FileMode) error {
 			return fmt.Errorf("chmod temp file: %w", err)
 		}
 	}
+	if hasOwner {
+		if err := chownPath(tmp.Name(), uid, gid); err != nil && !os.IsPermission(err) {
+			return fmt.Errorf("chown temp file: %w", err)
+		}
+	}
 	if err := os.Rename(tmp.Name(), target); err != nil {
 		return fmt.Errorf("rename temp file: %w", err)
 	}
 	return nil
+}
+
+func desiredOwnerForFile(target string) (int, int, bool) {
+	if uid, gid, ok := fileOwnership(target); ok {
+		return uid, gid, true
+	}
+	return fileOwnership(filepath.Dir(target))
+}
+
+func mkdirAllPreserveOwner(target string, perm os.FileMode) error {
+	if _, err := os.Stat(target); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	ownerRoot, uid, gid, hasOwner := nearestExistingOwner(filepath.Dir(target))
+	firstCreated := target
+	if hasOwner {
+		firstCreated = firstMissingChild(ownerRoot, target)
+	}
+	if err := os.MkdirAll(target, perm); err != nil {
+		return err
+	}
+	if !hasOwner {
+		return nil
+	}
+
+	return filepath.WalkDir(firstCreated, func(path string, _ os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := chownPath(path, uid, gid); err != nil && !os.IsPermission(err) {
+			return fmt.Errorf("chown %s: %w", path, err)
+		}
+		return nil
+	})
+}
+
+func nearestExistingOwner(path string) (string, int, int, bool) {
+	current := filepath.Clean(path)
+	for {
+		if uid, gid, ok := fileOwnership(current); ok {
+			return current, uid, gid, true
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", -1, -1, false
+		}
+		current = parent
+	}
+}
+
+func firstMissingChild(existingRoot, target string) string {
+	rel, err := filepath.Rel(existingRoot, filepath.Clean(target))
+	if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+		return target
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) == 0 || parts[0] == "" {
+		return target
+	}
+	return filepath.Join(existingRoot, parts[0])
 }

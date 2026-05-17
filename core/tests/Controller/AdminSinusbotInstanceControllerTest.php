@@ -30,7 +30,6 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
         $node->method('getId')->willReturn(1);
 
         $instanceRepo = $this->createMock(SinusbotInstanceRepository::class);
-        $instanceRepo->method('findOneBy')->willReturn(null);
 
         $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
         $nodeRepo->method('find')->with(1)->willReturn($node);
@@ -73,4 +72,59 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
         $this->assertSame(302, $response->getStatusCode());
         $this->assertSame('/admin/sinusbot/nodes/1', $response->headers->get('Location'));
     }
+
+    public function testAdminCanCreateAdditionalInstanceForSameCustomer(): void
+    {
+        $admin = new User('admin@example.test', UserType::Admin);
+        $customer = new User('customer@example.test', UserType::Customer);
+
+        $node = $this->createMock(SinusbotNode::class);
+        $node->method('getId')->willReturn(1);
+
+        $instanceRepo = $this->createMock(SinusbotInstanceRepository::class);
+        $instanceRepo->expects($this->never())->method('findOneBy');
+
+        $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
+        $nodeRepo->method('find')->with(1)->willReturn($node);
+
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('find')->with(2)->willReturn($customer);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+
+        $provisioner = $this->createMock(SinusbotInstanceProvisioner::class);
+        $provisioner->expects($this->once())
+            ->method('createInstanceForCustomer')
+            ->with($customer, $node, 3, null);
+
+        $csrfManager = $this->createMock(CsrfTokenManagerInterface::class);
+        $csrfManager->method('isTokenValid')->willReturn(true);
+
+        $controller = new AdminSinusbotInstanceController(
+            $instanceRepo,
+            $nodeRepo,
+            $userRepo,
+            $entityManager,
+            $provisioner,
+            $csrfManager,
+        );
+
+        $session = new Session(new MockArraySessionStorage());
+        $request = Request::create('/admin/sinusbot/instances/create', 'POST', [
+            '_token' => 'csrf-token',
+            'node_id' => 1,
+            'customer_id' => 2,
+            'quota' => 3,
+            'username' => '',
+        ]);
+        $request->setSession($session);
+        $request->attributes->set('current_user', $admin);
+
+        $response = $controller->create($request);
+
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame('/admin/sinusbot/nodes/1', $response->headers->get('Location'));
+        $this->assertSame([], $session->getFlashBag()->peek('error'));
+    }
+
 }

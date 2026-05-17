@@ -170,8 +170,14 @@ func handleInstanceFileWrite(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, fmt.Errorf("decode content: %w", err))
 	}
 
+	uid, gid, hasOwner := desiredInstanceFileOwner(target)
 	if err := os.WriteFile(target, content, instanceFilesFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write file %s: %w", target, err))
+	}
+	if hasOwner {
+		if err := os.Chown(target, uid, gid); err != nil && !os.IsPermission(err) {
+			return failureResult(job.ID, fmt.Errorf("chown file %s: %w", target, err))
+		}
 	}
 
 	info, err := os.Stat(target)
@@ -281,8 +287,14 @@ func handleInstanceFileMkdir(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
+	uid, gid, hasOwner := nearestInstanceFileOwner(filepath.Dir(target))
 	if err := os.MkdirAll(target, 0o750); err != nil {
 		return failureResult(job.ID, fmt.Errorf("create directory %s: %w", target, err))
+	}
+	if hasOwner {
+		if err := chownInstanceFileTree(target, uid, gid); err != nil {
+			return failureResult(job.ID, err)
+		}
 	}
 
 	info, err := os.Stat(target)
@@ -304,6 +316,41 @@ func handleInstanceFileMkdir(job jobs.Job) (jobs.Result, func() error) {
 		Output:    output,
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func desiredInstanceFileOwner(target string) (int, int, bool) {
+	if info, err := os.Stat(target); err == nil {
+		uid, gid := fileOwnerIDs(info)
+		return uid, gid, uid >= 0 && gid >= 0
+	}
+	return nearestInstanceFileOwner(filepath.Dir(target))
+}
+
+func nearestInstanceFileOwner(path string) (int, int, bool) {
+	current := filepath.Clean(path)
+	for {
+		if info, err := os.Stat(current); err == nil {
+			uid, gid := fileOwnerIDs(info)
+			return uid, gid, uid >= 0 && gid >= 0
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return -1, -1, false
+		}
+		current = parent
+	}
+}
+
+func chownInstanceFileTree(path string, uid, gid int) error {
+	return filepath.WalkDir(path, func(entryPath string, _ os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := os.Chown(entryPath, uid, gid); err != nil && !os.IsPermission(err) {
+			return fmt.Errorf("chown %s: %w", entryPath, err)
+		}
+		return nil
+	})
 }
 
 func sanitizeInstancePath(root, relativePath string) (string, error) {

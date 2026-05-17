@@ -133,7 +133,8 @@
     const renderCard = (i) => {
         const sc   = statusConfig[i.status] || statusConfig.unknown;
         const isBusy = busy(i);
-        const detailHref = detailBase ? `${detailBase}/${encodeURIComponent(i.id)}` : null;
+        const detailHref = Object.prototype.hasOwnProperty.call(i, 'detail_url') ? i.detail_url : (detailBase ? `${detailBase}/${encodeURIComponent(i.id)}` : null);
+        const actionsEnabled = i.actions_enabled !== false;
 
         return `<div style="display:flex;gap:0;border-radius:12px;border:1px solid var(--ng-border);background:var(--ng-surface);overflow:hidden;transition:border-color .15s;${isBusy ? 'opacity:.85;' : ''}">
             <div style="width:4px;flex-shrink:0;background:${i.status==='online' ? 'linear-gradient(to bottom,#4ade80,#22c55e)' : i.status==='offline' ? 'linear-gradient(to bottom,#f87171,#ef4444)' : 'var(--ng-border-strong)'};"></div>
@@ -158,10 +159,10 @@
                 </div>
                 <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;">
                     ${detailHref ? `<a href="${esc(detailHref)}" class="ui-button ui-button--ghost ui-button--sm">${MSG_DETAILS}</a>` : ''}
-                    <button type="button" data-action="probe" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${isBusy ? 'disabled' : ''}>${MSG_PROBE}</button>
-                    <button type="button" data-action="start"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${isBusy ? 'disabled' : ''}>${MSG_START}</button>
-                    <button type="button" data-action="stop"    data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${isBusy ? 'disabled' : ''}>${MSG_STOP}</button>
-                    <button type="button" data-action="restart" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${isBusy ? 'disabled' : ''}>${MSG_RESTART}</button>
+                    <button type="button" data-action="probe" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actionsEnabled || isBusy) ? 'disabled' : ''}>${MSG_PROBE}</button>
+                    <button type="button" data-action="start"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actionsEnabled || isBusy) ? 'disabled' : ''}>${MSG_START}</button>
+                    <button type="button" data-action="stop"    data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actionsEnabled || isBusy) ? 'disabled' : ''}>${MSG_STOP}</button>
+                    <button type="button" data-action="restart" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actionsEnabled || isBusy) ? 'disabled' : ''}>${MSG_RESTART}</button>
                 </div>
             </div>
         </div>`;

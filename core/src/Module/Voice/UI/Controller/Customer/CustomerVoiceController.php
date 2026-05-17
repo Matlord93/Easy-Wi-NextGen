@@ -34,7 +34,7 @@ final class CustomerVoiceController
         $instances = $this->repository->findByCustomer($actor, 200);
 
         return new Response($this->twig->render('customer/voice/index.html.twig', [
-            'activeNav' => 'voice',
+            'activeNav' => 'voiceservers',
             'instances' => $instances,
         ]));
     }
@@ -55,7 +55,7 @@ final class CustomerVoiceController
         $apiBase = '/api/v1/customer/voice/' . $id;
 
         return new Response($this->twig->render('customer/voice/show.html.twig', [
-            'activeNav' => 'voice',
+            'activeNav' => 'voiceservers',
             'instance' => $instance,
             'urlDetail' => $apiBase . '/detail',
             'urlProbe' => $apiBase . '/probe',

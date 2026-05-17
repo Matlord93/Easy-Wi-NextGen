@@ -689,7 +689,7 @@ func (s *Server) handleMkdir(w http.ResponseWriter, r *http.Request, instanceID 
 			return nil
 		}
 
-		if err := os.MkdirAll(target, 0o750); err != nil {
+		if err := mkdirAllPreserveOwner(target, 0o750); err != nil {
 			respondError(r, w, statusFromError(err), codeFromError(err), "mkdir failed")
 			return nil
 		}

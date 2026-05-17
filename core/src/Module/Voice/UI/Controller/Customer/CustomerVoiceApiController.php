@@ -71,7 +71,10 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instances = $this->repository->findByCustomer($customer, 200);
 
-        return new JsonResponse(['instances' => array_map(fn ($instance) => $this->normalize($instance), $instances)]);
+        $normalized = array_map(fn ($instance) => $this->normalize($instance), $instances);
+        $normalized = array_merge($normalized, $this->normalizeLegacyTeamspeakServers($customer, $instances));
+
+        return new JsonResponse(['instances' => $normalized]);
     }
 
     #[Route('/{id}/probe', name: 'customer_voice_probe_v1', methods: ['POST'])]
@@ -963,6 +966,104 @@ final class CustomerVoiceApiController
             'active_job_id' => $activeAction?->getId() ?? $activeProbe?->getId(),
             'retry_after' => ($activeAction !== null || $activeProbe !== null) ? 10 : null,
             'connect' => $connect,
+            'actions_enabled' => true,
+        ];
+    }
+
+    /**
+     * @param VoiceInstance[] $voiceInstances
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeLegacyTeamspeakServers(User $customer, array $voiceInstances): array
+    {
+        $customerId = $customer->getId();
+        if (!is_int($customerId)) {
+            return [];
+        }
+
+        $known = [];
+        foreach ($voiceInstances as $instance) {
+            $known[$instance->getNode()->getProviderType() . ':' . $instance->getExternalId()] = true;
+        }
+
+        $rows = [];
+        foreach ($this->ts3Servers->findBy(['customerId' => $customerId, 'archivedAt' => null], ['updatedAt' => 'DESC'], 200) as $server) {
+            $id = $server->getId();
+            if (!is_int($id) || isset($known['ts3:' . $id])) {
+                continue;
+            }
+            $rows[] = $this->normalizeLegacyTs3Server($server);
+        }
+
+        foreach ($this->ts6Servers->findBy(['customerId' => $customerId, 'archivedAt' => null], ['updatedAt' => 'DESC'], 200) as $server) {
+            $id = $server->getId();
+            if (!is_int($id) || isset($known['ts6:' . $id])) {
+                continue;
+            }
+            $rows[] = $this->normalizeLegacyTs6Server($server);
+        }
+
+        return $rows;
+    }
+
+    /** @return array<string, mixed> */
+    private function normalizeLegacyTs3Server(Ts3VirtualServer $server): array
+    {
+        return $this->normalizeLegacyTeamspeakServer(
+            'legacy-ts3-' . $server->getId(),
+            'ts3',
+            $server->getName(),
+            $server->getStatus(),
+            $server->getUpdatedAt(),
+            $server->getPublicHost() ?? $server->getNode()->getQueryConnectIp(),
+            $server->getVoicePort(),
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function normalizeLegacyTs6Server(Ts6VirtualServer $server): array
+    {
+        return $this->normalizeLegacyTeamspeakServer(
+            'legacy-ts6-' . $server->getId(),
+            'ts6',
+            $server->getName(),
+            $server->getStatus(),
+            $server->getUpdatedAt(),
+            $server->getPublicHost() ?? $server->getNode()->getQueryConnectIp(),
+            $server->getVoicePort(),
+            $server->getSlots(),
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function normalizeLegacyTeamspeakServer(
+        string $id,
+        string $providerType,
+        string $name,
+        string $status,
+        \DateTimeImmutable $updatedAt,
+        string $host,
+        ?int $voicePort,
+        ?int $playersMax = null,
+    ): array {
+        return [
+            'id' => $id,
+            'name' => $name,
+            'provider_type' => $providerType,
+            'status' => strtolower($status),
+            'players_online' => null,
+            'players_max' => $playersMax,
+            'reason' => 'Legacy TeamSpeak server without unified voice instance.',
+            'error_code' => 'legacy_teamspeak_instance',
+            'checked_at' => $updatedAt->format(DATE_RFC3339),
+            'stale' => false,
+            'probe_in_progress' => false,
+            'action_in_progress' => false,
+            'active_job_id' => null,
+            'retry_after' => null,
+            'connect' => ['host' => $host, 'port' => $voicePort],
+            'detail_url' => null,
+            'actions_enabled' => false,
         ];
     }
 

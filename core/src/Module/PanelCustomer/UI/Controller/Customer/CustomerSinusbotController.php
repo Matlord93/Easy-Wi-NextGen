@@ -43,16 +43,9 @@ final class CustomerSinusbotController
     public function index(Request $request): Response
     {
         $customer = $this->requireCustomer($request);
-        $instance = $this->loadInstance($customer);
-        $botsUsed = $instance !== null ? $this->instanceRepository->countBotsUsedForInstance($instance) : 0;
+        $instances = $this->loadInstances($customer);
 
-        return new Response($this->twig->render('customer/infrastructure/sinusbot/index.html.twig', [
-            'activeNav' => 'sinusbot',
-            'instance' => $instance,
-            'bots_used' => $botsUsed,
-            'password' => null,
-            'csrf' => $instance ? $this->csrfTokens($instance) : [],
-        ]));
+        return $this->renderInstances($instances);
     }
 
     #[Route(path: '/instances/{id}/start', name: 'customer_sinusbot_instances_start', methods: ['POST'])]
@@ -108,13 +101,14 @@ final class CustomerSinusbotController
 
     private function renderWithPassword(SinusbotInstance $instance, ?string $password): Response
     {
-        return new Response($this->twig->render('customer/infrastructure/sinusbot/index.html.twig', [
-            'activeNav' => 'sinusbot',
-            'instance' => $instance,
-            'bots_used' => $this->instanceRepository->countBotsUsedForInstance($instance),
-            'password' => $password,
-            'csrf' => $this->csrfTokens($instance),
-        ]));
+        $customer = $instance->getCustomer();
+        $instances = $customer !== null ? $this->loadInstances($customer) : [$instance];
+        $passwords = [];
+        if ($instance->getId() !== null) {
+            $passwords[$instance->getId()] = $password;
+        }
+
+        return $this->renderInstances($instances, $passwords);
     }
 
     private function requireCustomer(Request $request): User
@@ -127,12 +121,39 @@ final class CustomerSinusbotController
         return $actor;
     }
 
-    private function loadInstance(User $customer): ?SinusbotInstance
+    /** @return SinusbotInstance[] */
+    private function loadInstances(User $customer): array
     {
-        return $this->instanceRepository->findOneBy(
+        return $this->instanceRepository->findBy(
             ['customer' => $customer, 'archivedAt' => null],
             ['updatedAt' => 'DESC'],
         );
+    }
+
+    /**
+     * @param SinusbotInstance[] $instances
+     * @param array<int, string|null> $passwords
+     */
+    private function renderInstances(array $instances, array $passwords = []): Response
+    {
+        $botsUsed = [];
+        $csrf = [];
+        foreach ($instances as $instance) {
+            $id = $instance->getId();
+            if ($id === null) {
+                continue;
+            }
+            $botsUsed[$id] = $this->instanceRepository->countBotsUsedForInstance($instance);
+            $csrf[$id] = $this->csrfTokens($instance);
+        }
+
+        return new Response($this->twig->render('customer/infrastructure/sinusbot/index.html.twig', [
+            'activeNav' => 'sinusbot',
+            'instances' => $instances,
+            'bots_used' => $botsUsed,
+            'passwords' => $passwords,
+            'csrf' => $csrf,
+        ]));
     }
 
     private function findInstanceForCustomer(User $customer, int $id): SinusbotInstance

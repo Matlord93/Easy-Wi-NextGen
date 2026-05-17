@@ -44,13 +44,13 @@ func extractZip(path, destination string) (err error) {
 			return err
 		}
 		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, 0o750); err != nil {
+			if err := mkdirAllPreserveOwner(target, 0o750); err != nil {
 				return fmt.Errorf("mkdir %s: %w", target, err)
 			}
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
+		if err := mkdirAllPreserveOwner(filepath.Dir(target), 0o750); err != nil {
 			return fmt.Errorf("mkdir %s: %w", target, err)
 		}
 
@@ -117,11 +117,11 @@ func extractTar(path, destination string, gzipCompressed bool) (err error) {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o750); err != nil {
+			if err := mkdirAllPreserveOwner(target, 0o750); err != nil {
 				return fmt.Errorf("mkdir %s: %w", target, err)
 			}
 		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
+			if err := mkdirAllPreserveOwner(filepath.Dir(target), 0o750); err != nil {
 				return fmt.Errorf("mkdir %s: %w", target, err)
 			}
 			if err := writeFileAtomic(target, tarReader, 0o640); err != nil {

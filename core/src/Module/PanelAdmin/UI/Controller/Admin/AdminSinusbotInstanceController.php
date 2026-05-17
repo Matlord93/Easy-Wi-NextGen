@@ -58,15 +58,6 @@ final class AdminSinusbotInstanceController
             throw new NotFoundHttpException('Customer not found.');
         }
 
-        $existing = $this->instanceRepository->findOneBy([
-            'customer' => $customer,
-            'archivedAt' => null,
-        ]);
-        if ($existing !== null) {
-            $request->getSession()->getFlashBag()->add('error', 'Der Kunde besitzt bereits eine SinusBot-Instanz.');
-            return $this->redirectToNode($nodeId);
-        }
-
         try {
             $this->provisioner->createInstanceForCustomer(
                 $customer,
