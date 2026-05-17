@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\Exception\FileServiceException;
-use App\Module\Core\Application\WebspaceFileServiceClient;
+use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Module\PanelCustomer\Form\EditFileType;
@@ -16,6 +16,7 @@ use App\Module\PanelCustomer\Form\UploadFileType;
 use App\Repository\WebspaceRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,7 +24,6 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
-use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/files')]
 #[RequiresModule('web')]
@@ -43,7 +43,6 @@ final class CustomerFileManagerController extends AbstractController
     ];
 
     public function __construct(
-        private readonly WebspaceFileServiceClient $fileService,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly LoggerInterface $logger,
         private readonly AppSettingsService $settingsService,
@@ -69,7 +68,7 @@ final class CustomerFileManagerController extends AbstractController
         if ($webspace === null) {
             return $this->render('customer/files/index.html.twig', [
                 'activeNav' => 'files',
-                'pageTitle' => 'Dateimanager',
+                'pageTitle' => $this->translator->trans('customer_files_page_title', [], 'portal', $request->getLocale()),
                 'currentPath' => '',
                 'breadcrumbs' => [],
                 'entries' => [],
@@ -87,36 +86,16 @@ final class CustomerFileManagerController extends AbstractController
 
         try {
             $path = $this->normalizePath($pathInput);
-            $listing = $this->fileService->list($webspace, $path);
-            $entries = $this->normalizeEntries($listing['entries'], $path);
+            $entries = $this->normalizeSftpEntries($this->sftpService->list($webspace, $path));
         } catch (\Throwable $exception) {
-            if ($exception instanceof FileServiceException) {
-                if ($exception->getErrorCode() === 'AGENT_BASEDIR_MISMATCH') {
-                    $details = $exception->getDetails();
-                    $candidateRoot = (string) ($details['candidate_root'] ?? '');
-                    $agentRoot = (string) ($details['agent_root'] ?? '');
-                    $suggestedBaseDir = $this->suggestedAgentBaseDir($candidateRoot);
-                    $listError = $this->translator->trans(
-                        'customer_files_agent_config_required_full',
-                        [
-                            '%webspace_path%' => $candidateRoot,
-                            '%agent_base%' => $agentRoot,
-                            '%file_base_dir%' => $suggestedBaseDir,
-                            '%reason%' => $exception->getErrorCode(),
-                        ],
-                        'portal',
-                        $request->getLocale(),
-                    );
-                } else {
-                    $listError = sprintf('%s (%s)', $exception->getMessage(), $exception->getErrorCode());
-                }
-            } else {
-                $listError = $exception->getMessage();
-            }
+            $listError = $exception->getMessage();
             $this->logger->error('files.list_failed', [
                 'path' => $pathInput,
                 'webspace_id' => $webspace->getId(),
-                'root_resolution' => $this->fileService->debugRootResolution($webspace),
+                'root_resolution' => [
+                    'path' => $webspace->getPath(),
+                    'docroot' => $webspace->getDocroot(),
+                ],
                 'exception' => $exception,
             ]);
         }
@@ -131,7 +110,7 @@ final class CustomerFileManagerController extends AbstractController
 
         return $this->render('customer/files/index.html.twig', [
             'activeNav' => 'files',
-            'pageTitle' => 'Dateimanager',
+            'pageTitle' => $this->translator->trans('customer_files_page_title', [], 'portal', $request->getLocale()),
             'currentPath' => $path,
             'breadcrumbs' => $this->buildBreadcrumbs($path),
             'entries' => $entries,
@@ -152,45 +131,23 @@ final class CustomerFileManagerController extends AbstractController
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
 
         try {
-            $entries = $this->fileService->list($webspace, '');
-            $sample = array_slice(array_map(static fn (array $entry): string => $entry['name'], $entries['entries']), 0, 25);
+            $entries = $this->sftpService->list($webspace, '');
+            $sample = array_slice(array_map(static fn (array $entry): string => $entry['name'], $entries), 0, 25);
             $this->addFlash('agent_test', [
                 'status' => 'ok',
-                'message' => 'Agent-Verbindung erfolgreich. Root kann gelesen werden.',
+                'message' => $this->translator->trans('customer_files_server_connection_success', [], 'portal', $request->getLocale()),
                 'entries' => $sample,
             ]);
         } catch (\Throwable $exception) {
-            $rootResolution = $this->fileService->debugRootResolution($webspace);
             $this->logger->error('files.test_connection_failed', [
                 'webspace_id' => $webspace->getId(),
-                'root_resolution' => $rootResolution,
+                'root_path' => $webspace->getPath(),
                 'exception' => $exception,
             ]);
             $message = $exception->getMessage();
-            if ($exception instanceof FileServiceException) {
-                if ($exception->getErrorCode() === 'AGENT_BASEDIR_MISMATCH') {
-                    $details = $exception->getDetails();
-                    $candidateRoot = (string) ($details['candidate_root'] ?? '');
-                    $agentRoot = (string) ($details['agent_root'] ?? '');
-                    $suggestedBaseDir = $this->suggestedAgentBaseDir($candidateRoot);
-                    $message = $this->translator->trans(
-                        'customer_files_agent_config_required_short',
-                        [
-                            '%webspace_path%' => $candidateRoot,
-                            '%agent_base%' => $agentRoot,
-                            '%file_base_dir%' => $suggestedBaseDir,
-                            '%reason%' => $exception->getErrorCode(),
-                        ],
-                        'portal',
-                        $request->getLocale(),
-                    );
-                } else {
-                    $message = sprintf('%s (%s)', $exception->getMessage(), $exception->getErrorCode());
-                }
-            }
             $this->addFlash('agent_test', [
                 'status' => 'error',
-                'message' => $this->translator->trans('customer_files_agent_connection_failed', ['%message%' => $message], 'portal', $request->getLocale()),
+                'message' => $this->translator->trans('customer_files_server_connection_failed', ['%message%' => $message], 'portal', $request->getLocale()),
                 'entries' => [],
             ]);
         }
@@ -223,7 +180,7 @@ final class CustomerFileManagerController extends AbstractController
         $path = (string) $form->get('path')->getData();
         $upload = $form->get('upload')->getData();
 
-        if (!$upload instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
+        if (!$upload instanceof UploadedFile) {
             $this->addFlash('error', 'customer_files_upload_no_file');
             return $this->redirectToRoute('customer_files_browse', [
                 'path' => $path,
@@ -232,14 +189,14 @@ final class CustomerFileManagerController extends AbstractController
         }
 
         try {
-            $this->fileService->uploadFile($webspace, $path, $upload);
+            $this->uploadToServer($webspace, $path, $upload);
             $this->addFlash('success', 'customer_files_upload_success');
         } catch (\Throwable $exception) {
             $this->logger->error('files.upload_failed', [
                 'path' => $path,
                 'exception' => $exception,
             ]);
-            $this->addFlash('error', sprintf('Upload fehlgeschlagen: %s', $exception->getMessage()));
+            $this->addFlash('error', $this->translator->trans('customer_files_upload_failed', ['%message%' => $exception->getMessage()], 'portal', $request->getLocale()));
         }
 
         return $this->redirectToRoute('customer_files_browse', [
@@ -260,11 +217,11 @@ final class CustomerFileManagerController extends AbstractController
         try {
             $normalized = $this->normalizePath($path);
             if ($normalized === '') {
-                throw new \RuntimeException('Dateipfad fehlt.');
+                throw new \RuntimeException($this->translator->trans('customer_files_missing_path', [], 'portal', $request->getLocale()));
             }
             $parent = $this->resolveParentPath($normalized);
             $name = basename($normalized);
-            $content = $this->fileService->downloadFile($webspace, $parent, $name);
+            $content = $this->sftpService->read($webspace, $this->buildChildPath($parent, $name));
             $response = new Response($content);
             $disposition = $response->headers->makeDisposition(
                 ResponseHeaderBag::DISPOSITION_ATTACHMENT,
@@ -280,7 +237,7 @@ final class CustomerFileManagerController extends AbstractController
                 'path' => $path,
                 'exception' => $exception,
             ]);
-            $this->addFlash('error', sprintf('Download fehlgeschlagen: %s', $exception->getMessage()));
+            $this->addFlash('error', $this->translator->trans('customer_files_download_failed_message', ['%message%' => $exception->getMessage()], 'portal', $request->getLocale()));
         }
 
         return $this->redirectToRoute('customer_files_browse', [
@@ -306,7 +263,7 @@ final class CustomerFileManagerController extends AbstractController
             $normalized = $this->normalizePath($path);
             $name = basename($normalized);
             $parent = $this->resolveParentPath($normalized);
-            $this->fileService->delete($webspace, $parent, $name);
+            $this->sftpService->delete($webspace, $this->buildChildPath($parent, $name));
             $this->addFlash('success', 'customer_files_delete_success');
         } catch (\Throwable $exception) {
             $this->logger->error('files.delete_failed', [
@@ -348,7 +305,7 @@ final class CustomerFileManagerController extends AbstractController
                 }
                 $parent = $this->resolveParentPath($normalized);
                 $name = basename($normalized);
-                $this->fileService->rename($webspace, $parent, $name, $newName);
+                $this->sftpService->move($webspace, $this->buildChildPath($parent, $name), $this->buildChildPath($parent, $newName));
                 $this->addFlash('success', 'customer_files_rename_success');
                 return $this->redirectToRoute('customer_files_browse', [
                     'path' => $parent,
@@ -359,13 +316,13 @@ final class CustomerFileManagerController extends AbstractController
                     'path' => $path,
                     'exception' => $exception,
                 ]);
-                $this->addFlash('error', sprintf('Umbenennen fehlgeschlagen: %s', $exception->getMessage()));
+                $this->addFlash('error', $this->translator->trans('customer_files_rename_failed', ['%message%' => $exception->getMessage()], 'portal', $request->getLocale()));
             }
         }
 
         return $this->render('customer/files/rename.html.twig', [
             'activeNav' => 'files',
-            'pageTitle' => 'Datei umbenennen',
+            'pageTitle' => $this->translator->trans('customer_files_rename', [], 'portal', $request->getLocale()),
             'path' => $path,
             'form' => $form->createView(),
             'webspace' => $this->normalizeWebspace($webspace),
@@ -387,13 +344,15 @@ final class CustomerFileManagerController extends AbstractController
         if ($request->isMethod('GET')) {
             try {
                 if (trim($path) === '') {
-                    throw new \RuntimeException('Dateipfad fehlt.');
+                    throw new \RuntimeException($this->translator->trans('customer_files_missing_path', [], 'portal', $request->getLocale()));
                 }
                 $normalized = $this->normalizePath($path);
-                $this->assertEditable($normalized, null);
+                $this->assertEditable($normalized, null, $request->getLocale());
                 $parent = $this->resolveParentPath($normalized);
                 $name = basename($normalized);
-                $content = $this->fileService->readFileForEditor($webspace, $parent, $name);
+                $sizeBytes = $this->sftpService->fileSize($webspace, $this->buildChildPath($parent, $name));
+                $this->assertEditable($normalized, $sizeBytes, $request->getLocale());
+                $content = $this->sftpService->read($webspace, $this->buildChildPath($parent, $name));
             } catch (\Throwable $exception) {
                 $error = $exception->getMessage();
                 $this->logger->error('files.edit_load_failed', [
@@ -418,10 +377,10 @@ final class CustomerFileManagerController extends AbstractController
 
             try {
                 $normalized = $this->normalizePath($path);
-                $this->assertEditable($normalized, strlen($content));
+                $this->assertEditable($normalized, strlen($content), $request->getLocale());
                 $parent = $this->resolveParentPath($normalized);
                 $name = basename($normalized);
-                $this->fileService->writeFile($webspace, $parent, $name, $content);
+                $this->sftpService->write($webspace, $this->buildChildPath($parent, $name), $content);
                 $this->addFlash('success', 'customer_files_save_success');
                 return $this->redirectToRoute('customer_files_browse', [
                     'path' => $this->resolveParentPath($normalized),
@@ -438,7 +397,7 @@ final class CustomerFileManagerController extends AbstractController
 
         return $this->render('customer/files/edit.html.twig', [
             'activeNav' => 'files',
-            'pageTitle' => 'Datei bearbeiten',
+            'pageTitle' => $this->translator->trans('customer_files_edit', [], 'portal', $request->getLocale()),
             'path' => $path,
             'error' => $error,
             'form' => $form->createView(),
@@ -453,7 +412,7 @@ final class CustomerFileManagerController extends AbstractController
         if ($sftpHost === null || $sftpHost === '') {
             return new JsonResponse([
                 'ok' => false,
-                'message' => 'SFTP host is not configured.',
+                'message' => $this->translator->trans('customer_files_sftp_host_missing', [], 'portal', $request->getLocale()),
                 'missing' => ['sftp_host'],
             ]);
         }
@@ -462,7 +421,7 @@ final class CustomerFileManagerController extends AbstractController
         if ($webspaceId === '') {
             return new JsonResponse([
                 'ok' => true,
-                'message' => 'SFTP configuration is present.',
+                'message' => $this->translator->trans('customer_files_sftp_config_present', [], 'portal', $request->getLocale()),
                 'missing' => [],
             ]);
         }
@@ -471,14 +430,31 @@ final class CustomerFileManagerController extends AbstractController
         if ($webspace === null) {
             return new JsonResponse([
                 'ok' => false,
-                'message' => 'Webspace not found.',
+                'message' => $this->translator->trans('customer_files_webspace_not_found', [], 'portal', $request->getLocale()),
                 'missing' => [],
                 'root_readable' => false,
             ]);
         }
 
         try {
-            $this->sftpService->testConnection($webspace);
+            $entries = $this->sftpService->list($webspace, '');
+
+            return new JsonResponse([
+                'ok' => true,
+                'message' => $this->translator->trans('customer_files_sftp_root_readable', [], 'portal', $request->getLocale()),
+                'missing' => [],
+                'root_readable' => true,
+                'entries' => $entries,
+                'webspace' => [
+                    'id' => $webspace->getId(),
+                    'path' => $webspace->getPath(),
+                    'docroot' => $webspace->getDocroot(),
+                ],
+                'root_resolution' => [
+                    'path' => $webspace->getPath(),
+                    'docroot' => $webspace->getDocroot(),
+                ],
+            ]);
         } catch (\Throwable $exception) {
             $this->logger->error('files.health_sftp_failed', [
                 'webspace_id' => $webspace->getId(),
@@ -490,60 +466,15 @@ final class CustomerFileManagerController extends AbstractController
                 'message' => $exception->getMessage(),
                 'missing' => [],
                 'root_readable' => false,
-            ]);
-        }
-
-        try {
-            $entries = $this->fileService->list($webspace, '');
-            return new JsonResponse([
-                'ok' => true,
-                'message' => 'Agent reachable and root readable.',
-                'missing' => [],
-                'root_readable' => true,
-                'entries' => $entries,
                 'webspace' => [
                     'id' => $webspace->getId(),
                     'path' => $webspace->getPath(),
                     'docroot' => $webspace->getDocroot(),
                 ],
-                'root_resolution' => $this->fileService->debugRootResolution($webspace),
-            ]);
-        } catch (\Throwable $exception) {
-            $this->logger->error('files.health_failed', [
-                'webspace_id' => $webspace->getId(),
-                'exception' => $exception,
-            ]);
-
-            $errorCode = $exception instanceof FileServiceException ? $exception->getErrorCode() : null;
-            $message = $exception->getMessage();
-            if ($errorCode === 'AGENT_BASEDIR_MISMATCH') {
-                $details = $exception instanceof FileServiceException ? $exception->getDetails() : [];
-                $candidateRoot = (string) ($details['candidate_root'] ?? '');
-                $agentRoot = (string) ($details['agent_root'] ?? '');
-                $suggestedBaseDir = $this->suggestedAgentBaseDir($candidateRoot);
-                $message = sprintf(
-                    'Agent file_base_dir mismatch: webspace root "%s" outside "%s". Set file_base_dir in /etc/easywi/agent.conf to include webspaces (e.g. %s), restart easywi-agent, then retry. (%s)',
-                    $candidateRoot,
-                    $agentRoot,
-                    $suggestedBaseDir,
-                    $errorCode,
-                );
-            } elseif ($errorCode !== null) {
-                $message = sprintf('%s (%s)', $message, $errorCode);
-            }
-
-            return new JsonResponse([
-                'ok' => false,
-                'message' => sprintf('Agent check failed: %s', $message),
-                'missing' => [],
-                'root_readable' => false,
-                'error_code' => $errorCode,
-                'webspace' => [
-                    'id' => $webspace->getId(),
+                'root_resolution' => [
                     'path' => $webspace->getPath(),
                     'docroot' => $webspace->getDocroot(),
                 ],
-                'root_resolution' => $this->fileService->debugRootResolution($webspace),
             ]);
         }
     }
@@ -552,16 +483,16 @@ final class CustomerFileManagerController extends AbstractController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('customer_files_error_unauthorized', [], 'portal'));
         }
 
         return $actor;
     }
 
     /**
-     * @param array<int, \App\Module\Core\Domain\Entity\Webspace> $webspaces
+     * @param array<int, Webspace> $webspaces
      */
-    private function resolveWebspace(array $webspaces, string $selectedId): ?\App\Module\Core\Domain\Entity\Webspace
+    private function resolveWebspace(array $webspaces, string $selectedId): ?Webspace
     {
         if ($selectedId !== '') {
             foreach ($webspaces as $webspace) {
@@ -585,7 +516,7 @@ final class CustomerFileManagerController extends AbstractController
     /**
      * @return array{id: int, domain: string, system_username: string, ftp_enabled: bool, sftp_enabled: bool, ftp_host: string, ftp_port: int, sftp_port: int, root_path: string, docroot: string}
      */
-    private function normalizeWebspace(\App\Module\Core\Domain\Entity\Webspace $webspace): array
+    private function normalizeWebspace(Webspace $webspace): array
     {
         $host = $webspace->getDomain() !== '' ? $webspace->getDomain() : ($webspace->getNode()->getName() ?? $webspace->getNode()->getId());
 
@@ -603,30 +534,14 @@ final class CustomerFileManagerController extends AbstractController
         ];
     }
 
-    private function findCustomerWebspace(User $customer, string $webspaceId): \App\Module\Core\Domain\Entity\Webspace
+    private function findCustomerWebspace(User $customer, string $webspaceId): Webspace
     {
         $webspace = $this->webspaceRepository->find($webspaceId);
         if ($webspace === null || $webspace->getCustomer()->getId() !== $customer->getId()) {
-            throw $this->createNotFoundException('Webspace not found.');
+            throw $this->createNotFoundException($this->translator->trans('customer_files_webspace_not_found', [], 'portal'));
         }
 
         return $webspace;
-    }
-
-    private function suggestedAgentBaseDir(string $candidateRoot): string
-    {
-        if ($candidateRoot === '' || $candidateRoot === '/') {
-            return '/var/www';
-        }
-
-        $normalized = rtrim($candidateRoot, '/');
-        $parent = dirname($normalized);
-
-        if ($parent === '' || $parent === '.' || $parent === '/') {
-            return $normalized;
-        }
-
-        return $parent;
     }
 
     /**
@@ -682,15 +597,15 @@ final class CustomerFileManagerController extends AbstractController
         }
 
         if (str_contains($path, "\0")) {
-            throw new \InvalidArgumentException('Invalid path.');
+            throw new \InvalidArgumentException($this->translator->trans('customer_files_invalid_path', [], 'portal'));
         }
 
         if (str_starts_with($path, '/')) {
-            throw new \InvalidArgumentException('Absolute paths are not allowed.');
+            throw new \InvalidArgumentException($this->translator->trans('customer_files_absolute_path_not_allowed', [], 'portal'));
         }
 
         if (preg_match('/^[A-Za-z]:/', $path) === 1) {
-            throw new \InvalidArgumentException('Absolute paths are not allowed.');
+            throw new \InvalidArgumentException($this->translator->trans('customer_files_absolute_path_not_allowed', [], 'portal'));
         }
 
         $segments = array_filter(explode('/', $path), static fn (string $segment): bool => $segment !== '');
@@ -702,7 +617,7 @@ final class CustomerFileManagerController extends AbstractController
             }
 
             if ($segment === '..') {
-                throw new \InvalidArgumentException('Path traversal is not allowed.');
+                throw new \InvalidArgumentException($this->translator->trans('customer_files_path_traversal_not_allowed', [], 'portal'));
             }
 
             $safe[] = $segment;
@@ -711,27 +626,49 @@ final class CustomerFileManagerController extends AbstractController
         return implode('/', $safe);
     }
 
-    private function normalizeEntries(array $entries, string $path): array
+    /**
+     * @param array<int, array{name: string, path: string, type: string, size: ?int, last_modified: ?int}> $entries
+     * @return array<int, array{name: string, path: string, type: string, size: ?int, last_modified: ?int, editable: bool}>
+     */
+    private function normalizeSftpEntries(array $entries): array
     {
         $normalized = [];
         foreach ($entries as $entry) {
             $name = (string) ($entry['name'] ?? '');
-            if ($name === '') {
+            $path = (string) ($entry['path'] ?? '');
+            $type = (string) ($entry['type'] ?? 'file');
+            if ($name === '' || $path === '') {
                 continue;
             }
-            $entryPath = $this->buildChildPath($path, $name);
-            $type = !empty($entry['is_dir']) ? 'dir' : 'file';
+
+            $normalizedPath = $this->normalizePath($path);
+            $normalizedType = $type === 'dir' ? 'dir' : 'file';
             $normalized[] = [
                 'name' => $name,
-                'path' => $entryPath,
-                'type' => $type,
-                'size' => $type === 'file' ? (int) ($entry['size'] ?? 0) : null,
-                'last_modified' => $this->parseModifiedAt($entry['modified_at'] ?? null),
-                'editable' => $type === 'file' && $this->isEditable($entryPath),
+                'path' => $normalizedPath,
+                'type' => $normalizedType,
+                'size' => $normalizedType === 'file' ? (int) ($entry['size'] ?? 0) : null,
+                'last_modified' => $this->parseModifiedAt($entry['last_modified'] ?? null),
+                'editable' => $normalizedType === 'file' && $this->isEditable($normalizedPath),
             ];
         }
 
         return $normalized;
+    }
+
+    private function uploadToServer(Webspace $webspace, string $path, UploadedFile $upload): void
+    {
+        $targetPath = $this->buildChildPath($path, $upload->getClientOriginalName());
+        $stream = fopen($upload->getPathname(), 'rb');
+        if (!is_resource($stream)) {
+            throw new \RuntimeException($this->translator->trans('customer_files_upload_stream_failed', [], 'portal'));
+        }
+
+        try {
+            $this->sftpService->writeStream($webspace, $targetPath, $stream);
+        } finally {
+            fclose($stream);
+        }
     }
 
     private function buildChildPath(string $directory, string $name): string
@@ -746,11 +683,11 @@ final class CustomerFileManagerController extends AbstractController
     {
         $name = trim($name);
         if ($name === '' || $name === '.' || $name === '..') {
-            throw new \InvalidArgumentException('Invalid name.');
+            throw new \InvalidArgumentException($this->translator->trans('customer_files_invalid_name', [], 'portal'));
         }
 
         if (str_contains($name, '/') || str_contains($name, '\\') || str_contains($name, "\0")) {
-            throw new \InvalidArgumentException('Invalid name.');
+            throw new \InvalidArgumentException($this->translator->trans('customer_files_invalid_name', [], 'portal'));
         }
 
         return $name;
@@ -781,14 +718,14 @@ final class CustomerFileManagerController extends AbstractController
         return in_array($extension, self::ALLOWED_EDIT_EXTENSIONS, true);
     }
 
-    private function assertEditable(string $path, ?int $sizeBytes): void
+    private function assertEditable(string $path, ?int $sizeBytes, ?string $locale = null): void
     {
         if (!$this->isEditable($path)) {
-            throw new \RuntimeException('File type is not editable.');
+            throw new \RuntimeException($this->translator->trans('customer_files_file_type_not_editable', [], 'portal', $locale));
         }
 
         if ($sizeBytes !== null && $sizeBytes > self::MAX_EDIT_SIZE_BYTES) {
-            throw new \RuntimeException('File is too large to edit (max 1 MB).');
+            throw new \RuntimeException($this->translator->trans('customer_files_file_too_large', ['%max%' => '1 MB'], 'portal', $locale));
         }
     }
 }

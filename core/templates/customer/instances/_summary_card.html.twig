@@ -44,6 +44,7 @@
 {% set powerState    = instance.power ?? {} %}
 {% set powerDisabled = powerState.disabled ?? false %}
 {% set powerReason   = powerState.reason ?? '' %}
+{% set installPath   = instance.installPath ?? instance.install_path ?? instance.data_path ?? null %}
 
 <div
     class="group relative flex flex-col rounded-xl border border-slate-700/60 bg-slate-800/40 p-4 transition-all duration-200 hover:border-slate-600/70 hover:bg-slate-800/60"
@@ -67,6 +68,10 @@
                     </span>
                 </div>
                 <p class="mt-0.5 text-[11px] text-slate-500">#{{ instance.id }} · {{ instance.template.game_key }}</p>
+                <p class="mt-1 max-w-full break-all font-mono text-[11px] text-slate-400" title="{{ installPath ?: '—' }}">
+                    <span class="font-sans uppercase tracking-wide text-slate-500">{{ t('customer_instance_install_path', page_locale()) }}:</span>
+                    {{ installPath ?: '—' }}
+                </p>
             </div>
         </div>
         <a href="{{ path('customer_instance_overview_page', {id: instance.id}) }}"

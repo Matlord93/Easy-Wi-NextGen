@@ -17,6 +17,8 @@ final class RenameFileType extends AbstractType
             ->add('path', HiddenType::class)
             ->add('newName', TextType::class, [
                 'required' => true,
+                'label' => 'customer_files_new_name',
+                'translation_domain' => 'portal',
                 'attr' => [
                     'class' => 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm',
                 ],

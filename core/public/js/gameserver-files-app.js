@@ -24,16 +24,65 @@
         missing.push('filesListUrl|urlSlots');
     }
 
+    const hasAccessEndpoints = Boolean(app.dataset.urlAccessHealth && app.dataset.urlAccessReveal && app.dataset.urlAccessReset);
+
+    const defaultI18n = {
+        accessUnavailable: 'Access credentials are unavailable for this instance.',
+        missingMountData: 'Missing mount data: %fields%',
+        saving: 'Saving…',
+        save: 'Save',
+        editTitle: 'Edit %path%',
+        fileSaved: 'File saved successfully.',
+        root: 'root',
+        noFiles: 'No files found.',
+        directory: 'Directory',
+        file: 'File',
+        open: 'Open',
+        download: 'Download',
+        edit: 'Edit',
+        rename: 'Rename',
+        delete: 'Delete',
+        passwordLabel: 'Password',
+        host: 'Host',
+        port: 'Port',
+        backend: 'Backend',
+        user: 'User',
+        rootPath: 'Root',
+        status: 'Status',
+        statusNeedsAttention: 'Needs attention',
+        statusReady: 'Ready',
+        provisioning: 'Provisioning in progress…',
+        accessLoadFailed: 'Access data could not be loaded.',
+        cwd: 'cwd',
+        folderName: 'Folder name',
+        newName: 'New name',
+        deleteConfirm: 'Delete %name%?',
+        revealing: 'Revealing…',
+        revealPassword: 'Reveal password',
+        resetting: 'Resetting…',
+        resetPassword: 'Reset password',
+        passwordCopied: 'Password copied to clipboard.',
+        passwordCopyFailed: 'Password could not be copied automatically. Please copy it manually.',
+    };
+    let i18n = defaultI18n;
+    try {
+        i18n = { ...defaultI18n, ...(app.dataset.i18n ? JSON.parse(app.dataset.i18n) : {}) };
+    } catch (error) {
+        i18n = defaultI18n;
+    }
+    const tr = (key, replacements = {}) => Object.entries(replacements).reduce(
+        (message, [name, value]) => message.replaceAll(`%${name}%`, String(value)),
+        i18n[key] || defaultI18n[key] || key,
+    );
+
     const inlineErrorEl = document.getElementById('gameserver-files-inline-error');
     if (missing.length) {
         errors.showAll(inlineErrorEl, {
             error_code: 'MOUNT_CONFIG_MISSING',
-            message: `Missing mount data: ${missing.join(', ')}`,
+            message: tr('missingMountData', { fields: missing.join(', ') }),
         });
         return;
     }
-
-    const hasAccessEndpoints = Boolean(app.dataset.urlAccessHealth && app.dataset.urlAccessReveal && app.dataset.urlAccessReset);
 
     const EDITABLE_EXTENSIONS = new Set(['cfg', 'ini', 'json', 'yaml', 'yml', 'txt', 'log', 'properties', 'conf', 'env', 'xml']);
 
@@ -69,7 +118,7 @@
 
     const setAccessUnavailable = () => {
         if (accessMetaEl) {
-            accessMetaEl.innerHTML = '<div class="text-slate-400">Access credentials are unavailable for this instance.</div>';
+            accessMetaEl.innerHTML = `<div class="text-slate-400">${tr('accessUnavailable')}</div>`;
         }
         if (accessRevealEl) {
             accessRevealEl.disabled = true;
@@ -108,7 +157,7 @@
         state.editor.isSaving = saving;
         if (editorSaveEl) {
             editorSaveEl.disabled = saving;
-            editorSaveEl.textContent = saving ? 'Saving…' : 'Save';
+            editorSaveEl.textContent = saving ? tr('saving') : tr('save');
         }
     };
 
@@ -131,7 +180,7 @@
             state.editor.etag = payload.etag || '';
             state.editor.isOpen = true;
             errors.clearInline(editorErrorEl);
-            editorTitleEl.textContent = `Edit ${state.editor.path}`;
+            editorTitleEl.textContent = tr('editTitle', { path: state.editor.path });
             editorContentEl.value = payload.content || '';
             editorModalEl.classList.remove('hidden');
             editorModalEl.classList.add('flex');
@@ -161,7 +210,7 @@
             state.editor.etag = payload.new_etag || state.editor.etag;
             errors.clearInline(editorErrorEl);
             errors.showToast({
-                message: 'File saved successfully.',
+                message: tr('fileSaved'),
                 error_code: 'OK',
                 request_id: payload.request_id || '',
             });
@@ -177,7 +226,7 @@
     const renderBreadcrumbs = (cwd) => {
         const parts = cwd.split('/').filter(Boolean);
         let path = '';
-        const links = ['<button data-path="">root</button>'];
+        const links = [`<button data-path="">${tr('root')}</button>`];
         parts.forEach((part) => {
             path = path ? `${path}/${part}` : part;
             links.push(`<span>/</span><button data-path="${path}">${part}</button>`);
@@ -187,17 +236,17 @@
 
     const renderList = (files) => {
         if (!Array.isArray(files) || files.length === 0) {
-            listEl.innerHTML = '<tr><td colspan="5" class="dashboard-table__empty">No files found.</td></tr>';
+            listEl.innerHTML = `<tr><td colspan="5" class="dashboard-table__empty">${tr('noFiles')}</td></tr>`;
             return;
         }
 
         listEl.innerHTML = files.map((entry) => {
-            const type = entry.is_dir ? 'Directory' : 'File';
+            const type = entry.is_dir ? tr('directory') : tr('file');
             const openButton = entry.is_dir
-                ? `<button class="ui-button ui-button--ghost" data-action="open" data-name="${entry.name}">Open</button>`
-                : `<button class="ui-button ui-button--ghost" data-action="download" data-name="${entry.name}">Download</button>`;
+                ? `<button class="ui-button ui-button--ghost" data-action="open" data-name="${entry.name}">${tr('open')}</button>`
+                : `<button class="ui-button ui-button--ghost" data-action="download" data-name="${entry.name}">${tr('download')}</button>`;
             const editButton = isEditableFile(entry)
-                ? `<button class="ui-button ui-button--ghost" data-action="edit" data-name="${entry.name}">Edit</button>`
+                ? `<button class="ui-button ui-button--ghost" data-action="edit" data-name="${entry.name}">${tr('edit')}</button>`
                 : '';
             return `<tr>
                 <td>${entry.name}</td>
@@ -207,8 +256,8 @@
                 <td>
                     ${openButton}
                     ${editButton}
-                    <button class="ui-button ui-button--ghost" data-action="rename" data-name="${entry.name}">Rename</button>
-                    <button class="ui-button ui-button--danger" data-action="delete" data-name="${entry.name}">Delete</button>
+                    <button class="ui-button ui-button--ghost" data-action="rename" data-name="${entry.name}">${tr('rename')}</button>
+                    <button class="ui-button ui-button--danger" data-action="delete" data-name="${entry.name}">${tr('delete')}</button>
                 </td>
             </tr>`;
         }).join('');
@@ -238,7 +287,7 @@
     const showPasswordModal = (credential = {}) => {
         const password = credential.password || '';
         if (!passwordModalEl || !passwordModalValueEl) {
-            window.alert(`Password: ${password}`);
+            window.alert(`${tr('passwordLabel')}: ${password}`);
             return;
         }
 
@@ -264,12 +313,12 @@
             return;
         }
         accessMetaEl.innerHTML = `
-            <div>Host: <span class="font-semibold">${credential.host || '—'}</span></div>
-            <div>Port: <span class="font-semibold">${credential.port || '—'}</span></div>
-            <div>Backend: <span class="font-semibold">${credential.backend || '—'}</span></div>
-            <div>User: <span class="font-semibold">${credential.username || '—'}</span></div>
-            <div>Root: <span class="font-semibold">${credential.root_path || '—'}</span></div>
-            <div>Status: <span class="font-semibold">${credential.last_error_code ? 'Needs attention' : 'Ready'}</span></div>
+            <div>${tr('host')}: <span class="font-semibold">${credential.host || '—'}</span></div>
+            <div>${tr('port')}: <span class="font-semibold">${credential.port || '—'}</span></div>
+            <div>${tr('backend')}: <span class="font-semibold">${credential.backend || '—'}</span></div>
+            <div>${tr('user')}: <span class="font-semibold">${credential.username || '—'}</span></div>
+            <div>${tr('rootPath')}: <span class="font-semibold">${credential.root_path || '—'}</span></div>
+            <div>${tr('status')}: <span class="font-semibold">${credential.last_error_code ? tr('statusNeedsAttention') : tr('statusReady')}</span></div>
             ${credential.last_error_code ? `<div class="text-rose-300">${credential.last_error_code}: ${credential.last_error_message || ''}</div>` : ''}
         `;
 
@@ -290,11 +339,11 @@
             renderAccess(credential);
 
             if (payload?.error_code === 'sftp_provisioning_pending' && accessMetaEl) {
-                accessMetaEl.insertAdjacentHTML('beforeend', '<div class="text-amber-300">Provisioning in progress…</div>');
+                accessMetaEl.insertAdjacentHTML('beforeend', `<div class="text-amber-300">${tr('provisioning')}</div>`);
             }
         } catch (error) {
             if (accessMetaEl) {
-                accessMetaEl.innerHTML = '<div class="text-rose-300">Access data could not be loaded.</div>';
+                accessMetaEl.innerHTML = `<div class="text-rose-300">${tr('accessLoadFailed')}</div>`;
             }
             errors.showAll(inlineErrorEl, error);
         }
@@ -306,7 +355,7 @@
             errors.clearInline(inlineErrorEl);
             const normalized = normalizeListing(payload);
             state.cwd = normalized.cwd;
-            cwdEl.textContent = `cwd: ${state.cwd || '/'}`;
+            cwdEl.textContent = `${tr('cwd')}: ${state.cwd || '/'}`;
             renderBreadcrumbs(state.cwd);
             renderList(normalized.files);
         } catch (error) {
@@ -321,7 +370,7 @@
         loadList(parts.join('/'));
     });
     document.getElementById('gf-mkdir')?.addEventListener('click', async () => {
-        const name = window.prompt('Folder name');
+        const name = window.prompt(tr('folderName'));
         if (!name) {
             return;
         }
@@ -365,7 +414,7 @@
 
         try {
             if (action === 'rename') {
-                const to = window.prompt('New name', name);
+                const to = window.prompt(tr('newName'), name);
                 if (!to || to === name) {
                     return;
                 }
@@ -377,7 +426,7 @@
             }
 
             if (action === 'delete') {
-                if (!window.confirm(`Delete ${name}?`)) {
+                if (!window.confirm(tr('deleteConfirm', { name }))) {
                     return;
                 }
                 await apiClient.request(app.dataset.filesDeleteUrl, {
@@ -426,7 +475,7 @@
         if (!hasAccessEndpoints) {
             return;
         }
-        setButtonBusy(accessRevealEl, true, 'Revealing…', 'Reveal password');
+        setButtonBusy(accessRevealEl, true, tr('revealing'), tr('revealPassword'));
         try {
             const payload = await apiClient.request(app.dataset.urlAccessReveal, { method: 'POST' });
             showPasswordModal({
@@ -439,7 +488,7 @@
         } catch (error) {
             errors.showAll(inlineErrorEl, error);
         } finally {
-            setButtonBusy(accessRevealEl, false, 'Revealing…', 'Reveal password');
+            setButtonBusy(accessRevealEl, false, tr('revealing'), tr('revealPassword'));
         }
     });
 
@@ -447,14 +496,14 @@
         if (!hasAccessEndpoints) {
             return;
         }
-        setButtonBusy(accessResetEl, true, 'Resetting…', 'Reset password');
+        setButtonBusy(accessResetEl, true, tr('resetting'), tr('resetPassword'));
         try {
             await apiClient.request(app.dataset.urlAccessReset, { method: 'POST' });
             await loadAccess();
         } catch (error) {
             errors.showAll(inlineErrorEl, error);
         } finally {
-            setButtonBusy(accessResetEl, false, 'Resetting…', 'Reset password');
+            setButtonBusy(accessResetEl, false, tr('resetting'), tr('resetPassword'));
         }
     });
 
@@ -477,10 +526,10 @@
         try {
             await navigator.clipboard.writeText(passwordModalValueEl.value);
             errors.clearInline(passwordModalErrorEl);
-            errors.showToast({ message: 'Password copied to clipboard.', error_code: 'OK' }, 3000);
+            errors.showToast({ message: tr('passwordCopied'), error_code: 'OK' }, 3000);
         } catch (error) {
             errors.showAll(passwordModalErrorEl, {
-                message: 'Password could not be copied automatically. Please copy it manually.',
+                message: tr('passwordCopyFailed'),
                 error_code: 'CLIPBOARD_UNAVAILABLE',
             });
         }

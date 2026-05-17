@@ -42,6 +42,7 @@
 {% set instanceMemPercent = instance.instance_mem_percent ?? null %}
 {% set bookedCpu   = instance.booked_cpu_cores ?? null %}
 {% set bookedRamMb = instance.booked_ram_mb ?? null %}
+{% set installPath   = instance.installPath ?? instance.install_path ?? instance.data_path ?? null %}
 {% set power         = instance.power ?? {} %}
 {% set powerDisabled = power.disabled ?? false %}
 {% set powerReason   = power.reason ?? null %}
@@ -96,6 +97,10 @@
                             {{ t('customer_instance_id_label', page_locale()) }} #{{ instance.id }}
                             · {{ instance.template.game_key }}
                             · {{ t('customer_instance_node_label', page_locale()) }}: {{ instance.node.name }}
+                        </p>
+                        <p class="mt-1 max-w-full break-all font-mono text-xs text-slate-400" title="{{ installPath ?: '—' }}">
+                            <span class="font-sans uppercase tracking-wide text-slate-500">{{ t('customer_instance_install_path', page_locale()) }}:</span>
+                            {{ installPath ?: '—' }}
                         </p>
                     </div>
                 </div>
@@ -229,6 +234,10 @@
                             {{ t('customer_instance_quick_connect', page_locale()) }}
                         </a>
                     {% endif %}
+                    <div class="flex items-start justify-between gap-2 text-sm">
+                        <span class="shrink-0 text-slate-400">{{ t('customer_instance_install_path', page_locale()) }}</span>
+                        <span class="break-all text-right font-mono text-xs text-slate-200" title="{{ installPath ?: '—' }}">{{ installPath ?: '—' }}</span>
+                    </div>
                     {% if app_setting('gameserver_show_port_range', true) %}
                         {% if instance.connection.port_block %}
                             <p class="text-xs text-slate-500">

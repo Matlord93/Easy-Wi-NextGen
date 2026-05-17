@@ -17,6 +17,8 @@ final class EditFileType extends AbstractType
             ->add('path', HiddenType::class)
             ->add('content', TextareaType::class, [
                 'required' => true,
+                'label' => 'customer_files_content',
+                'translation_domain' => 'portal',
                 'attr' => [
                     'rows' => 22,
                     'class' => 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm',

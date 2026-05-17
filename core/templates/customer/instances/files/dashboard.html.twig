@@ -1,6 +1,45 @@
 {% extends 'customer/base.html.twig' %}
 
 {% block content %}
+    {% set locale = page_locale() %}
+    {% set fileI18n = {
+        accessUnavailable: t('customer_instance_files_access_unavailable', locale),
+        missingMountData: t('customer_instance_files_missing_mount_data', locale),
+        saving: t('customer_instance_files_saving', locale),
+        save: t('customer_instance_files_save', locale),
+        editTitle: t('customer_instance_files_edit_title', locale),
+        fileSaved: t('customer_instance_files_saved', locale),
+        root: t('customer_instance_files_root', locale),
+        noFiles: t('customer_instance_files_none', locale),
+        directory: t('customer_instance_files_type_directory', locale),
+        file: t('customer_instance_files_type_file', locale),
+        open: t('customer_instance_files_open', locale),
+        download: t('customer_instance_files_download', locale),
+        edit: t('customer_instance_files_edit', locale),
+        rename: t('customer_instance_files_rename', locale),
+        delete: t('customer_instance_files_delete', locale),
+        passwordLabel: t('customer_instance_files_sftp_password', locale),
+        host: t('customer_instance_files_sftp_host', locale),
+        port: t('customer_instance_files_sftp_port', locale),
+        backend: t('customer_instance_files_sftp_backend', locale),
+        user: t('customer_instance_files_sftp_username', locale),
+        rootPath: t('customer_instance_files_sftp_root', locale),
+        status: t('customer_instance_files_sftp_status', locale),
+        statusNeedsAttention: t('customer_instance_files_sftp_status_needs_attention', locale),
+        statusReady: t('customer_instance_files_sftp_status_ready', locale),
+        provisioning: t('customer_instance_files_sftp_provisioning', locale),
+        accessLoadFailed: t('customer_instance_files_access_load_failed', locale),
+        cwd: t('customer_instance_files_cwd', locale),
+        folderName: t('customer_instance_files_folder_name_prompt', locale),
+        newName: t('customer_instance_files_new_name_prompt', locale),
+        deleteConfirm: t('customer_instance_files_delete_confirm', locale),
+        revealing: t('customer_instance_files_sftp_revealing', locale),
+        revealPassword: t('customer_instance_files_sftp_reveal_password', locale),
+        resetting: t('customer_instance_files_sftp_resetting', locale),
+        resetPassword: t('customer_instance_files_sftp_reset', locale),
+        passwordCopied: t('customer_instance_files_sftp_password_copied', locale),
+        passwordCopyFailed: t('customer_instance_files_sftp_password_copy_failed', locale)
+    } %}
     <div class="customer-dashboard customer-dashboard--revamp flex flex-col gap-6" id="gameserver-files-app"
          data-instance-id="{{ instance.id }}"
          data-files-list-url="{{ path('customer_instance_files_api_list', {id: instance.id}) }}"
@@ -13,7 +52,8 @@
          data-files-content-url="{{ path('customer_instance_files_api_content', {id: instance.id}) }}"
          data-url-access-health="{{ path('instances_access_health', {id: instance.id}) }}"
          data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
-         data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}">
+         data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
+         data-i18n="{{ fileI18n|json_encode|e('html_attr') }}">
         <div>
             <h2 class="text-3xl font-semibold text-slate-100">{{ instance.template.name }} · #{{ instance.id }}</h2>
             <p class="mt-2 text-base text-slate-400">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
@@ -43,26 +83,26 @@
             </div>
             <div id="gameserver-files-inline-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
             <div class="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-200">
-                <button type="button" class="ui-button ui-button--ghost" id="gf-up">Up</button>
-                <button type="button" class="ui-button ui-button--primary" id="gf-refresh">Refresh</button>
-                <button type="button" class="ui-button ui-button--ghost" id="gf-mkdir">New folder</button>
+                <button type="button" class="ui-button ui-button--ghost" id="gf-up">{{ t('customer_instance_files_up', locale) }}</button>
+                <button type="button" class="ui-button ui-button--primary" id="gf-refresh">{{ t('customer_instance_files_refresh', locale) }}</button>
+                <button type="button" class="ui-button ui-button--ghost" id="gf-mkdir">{{ t('customer_instance_files_new_folder', locale) }}</button>
                 <div class="ml-auto text-xs text-slate-400" id="gf-cwd"></div>
             </div>
             <div class="mt-3 text-sm text-slate-300" id="gf-breadcrumbs"></div>
 
             <div class="mt-4 grid gap-3 lg:grid-cols-2">
                 <div class="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
-                    <p class="text-xs uppercase tracking-wide text-indigo-300">SFTP Login</p>
+                    <p class="text-xs uppercase tracking-wide text-indigo-300">{{ t('customer_instance_files_sftp_title', locale) }}</p>
                     <div id="gf-access-meta" class="mt-2 space-y-1 text-sm text-slate-200">
-                        <div>Loading access data…</div>
+                        <div>{{ t('customer_instance_files_sftp_loading', locale) }}</div>
                     </div>
                     <div class="mt-3 flex flex-wrap gap-2">
-                        <button type="button" class="ui-button ui-button--ghost" id="gf-access-reveal">Reveal password</button>
-                        <button type="button" class="ui-button ui-button--primary" id="gf-access-reset">Reset password</button>
+                        <button type="button" class="ui-button ui-button--ghost" id="gf-access-reveal">{{ t('customer_instance_files_sftp_reveal_password', locale) }}</button>
+                        <button type="button" class="ui-button ui-button--primary" id="gf-access-reset">{{ t('customer_instance_files_sftp_reset', locale) }}</button>
                     </div>
                 </div>
                 <div class="rounded-xl border border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-300">
-                    <p class="text-xs uppercase tracking-wide text-indigo-300">Hinweis</p>
+                    <p class="text-xs uppercase tracking-wide text-indigo-300">{{ t('customer_instance_files_hint_title', locale) }}</p>
                     <p class="mt-2">{{ t('customer_instances_files_sftp_hint', page_locale()) }}</p>
                 </div>
             </div>
@@ -71,21 +111,21 @@
                 <table class="dashboard-table">
                     <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th>Size</th>
-                        <th>Modified</th>
-                        <th>Actions</th>
+                        <th>{{ t('customer_files_name', locale) }}</th>
+                        <th>{{ t('customer_files_type', locale) }}</th>
+                        <th>{{ t('customer_files_size', locale) }}</th>
+                        <th>{{ t('customer_files_modified', locale) }}</th>
+                        <th>{{ t('customer_voice_col_actions', locale) }}</th>
                     </tr>
                     </thead>
                     <tbody id="gf-list">
-                    <tr><td colspan="5" class="dashboard-table__empty">Loading files…</td></tr>
+                    <tr><td colspan="5" class="dashboard-table__empty">{{ t('customer_instance_files_loading', locale) }}</td></tr>
                     </tbody>
                 </table>
             </div>
 
             <div class="mt-4 rounded-lg border border-dashed border-slate-600 p-4">
-                <label class="text-sm text-slate-200">Upload file</label>
+                <label class="text-sm text-slate-200">{{ t('customer_instance_files_upload_file', locale) }}</label>
                 <input type="file" id="gf-upload" class="mt-2 block w-full text-sm text-slate-300">
             </div>
         </section>
@@ -94,14 +134,14 @@
     <div id="gf-editor-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-950/70 p-4">
         <div class="w-full max-w-4xl rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl">
             <div class="flex items-center justify-between">
-                <h4 class="text-base font-semibold text-slate-100" id="gf-editor-title">Edit file</h4>
-                <button type="button" class="ui-button ui-button--ghost" id="gf-editor-close">Close</button>
+                <h4 class="text-base font-semibold text-slate-100" id="gf-editor-title">{{ t('customer_instance_files_edit_file', locale) }}</h4>
+                <button type="button" class="ui-button ui-button--ghost" id="gf-editor-close">{{ t('customer_instance_files_sftp_close', locale) }}</button>
             </div>
             <div id="gf-editor-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
             <textarea id="gf-editor-content" class="mt-3 h-[420px] w-full rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-sm text-slate-100"></textarea>
             <div class="mt-3 flex justify-end gap-2">
-                <button type="button" class="ui-button ui-button--ghost" id="gf-editor-cancel">Cancel</button>
-                <button type="button" class="ui-button ui-button--primary" id="gf-editor-save">Save</button>
+                <button type="button" class="ui-button ui-button--ghost" id="gf-editor-cancel">{{ t('customer_files_cancel', locale) }}</button>
+                <button type="button" class="ui-button ui-button--primary" id="gf-editor-save">{{ t('customer_instance_files_save', locale) }}</button>
             </div>
         </div>
     </div>
@@ -117,9 +157,9 @@
                 <button type="button" class="ui-button ui-button--ghost" data-gf-password-close aria-label="{{ t('customer_instances_files_sftp_close_aria', page_locale()) }}">×</button>
             </div>
             <div class="mt-4 grid gap-2 rounded-lg border border-slate-700 bg-slate-950/60 p-3 text-sm text-slate-200 sm:grid-cols-3">
-                <div>Host: <span class="font-semibold" id="gf-password-host">—</span></div>
-                <div>Port: <span class="font-semibold" id="gf-password-port">—</span></div>
-                <div>User: <span class="font-semibold" id="gf-password-user">—</span></div>
+                <div>{{ t('customer_instance_files_sftp_host', locale) }}: <span class="font-semibold" id="gf-password-host">—</span></div>
+                <div>{{ t('customer_instance_files_sftp_port', locale) }}: <span class="font-semibold" id="gf-password-port">—</span></div>
+                <div>{{ t('customer_instance_files_sftp_username', locale) }}: <span class="font-semibold" id="gf-password-user">—</span></div>
             </div>
             <label for="gf-password-value" class="mt-4 block text-sm font-semibold text-slate-200">{{ t('customer_instances_files_sftp_password_label', page_locale()) }}</label>
             <input id="gf-password-value" type="text" readonly class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-sm text-slate-100">

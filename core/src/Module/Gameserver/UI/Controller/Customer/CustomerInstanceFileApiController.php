@@ -27,6 +27,7 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use App\Module\Core\Attribute\RequiresModule;
 
 #[RequiresModule('game')]
@@ -47,6 +48,7 @@ final class CustomerInstanceFileApiController
         #[Autowire(service: 'limiter.instance_files_commands')]
         private readonly RateLimiterFactory $commandsLimiter,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -58,9 +60,9 @@ final class CustomerInstanceFileApiController
         $source = 'agent';
         $statusCode = JsonResponse::HTTP_OK;
         try {
-            $this->assertDataManagerEnabled();
+            $this->assertDataManagerEnabled($request);
             $customer = $this->requireCustomer($request);
-            $instance = $this->findCustomerInstance($customer, $id);
+            $instance = $this->findCustomerInstance($request, $customer, $id);
             $path = trim((string) $request->query->get('path', ''));
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
             return $this->handleHttpError($request, $exception);
@@ -99,9 +101,9 @@ final class CustomerInstanceFileApiController
     public function health(Request $request, int $id): JsonResponse
     {
         try {
-            $this->assertDataManagerEnabled();
+            $this->assertDataManagerEnabled($request);
             $customer = $this->requireCustomer($request);
-            $instance = $this->findCustomerInstance($customer, $id);
+            $instance = $this->findCustomerInstance($request, $customer, $id);
             $listing = $this->fileService->list($instance, '');
 
             return new JsonResponse([
@@ -130,9 +132,9 @@ final class CustomerInstanceFileApiController
     public function diagnostics(Request $request, int $id): JsonResponse
     {
         try {
-            $this->assertDataManagerEnabled();
+            $this->assertDataManagerEnabled($request);
             $customer = $this->requireCustomer($request);
-            $instance = $this->findCustomerInstance($customer, $id);
+            $instance = $this->findCustomerInstance($request, $customer, $id);
             $path = trim((string) $request->query->get('path', ''));
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
             return $this->handleHttpError($request, $exception);
@@ -153,16 +155,16 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/download', name: 'customer_instance_files_api_download_v1', methods: ['GET'])]
     public function download(Request $request, int $id): Response
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
         $path = trim((string) $request->query->get('path', ''));
         $name = trim((string) $request->query->get('name', ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_file_name'));
         }
 
         try {
@@ -186,21 +188,21 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/read', name: 'customer_instance_files_api_read_v1', methods: ['GET'])]
     public function read(Request $request, int $id): Response
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
         $path = trim((string) $request->query->get('path', ''));
         $name = trim((string) $request->query->get('name', ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_file_name'));
         }
 
         try {
             $content = $this->fileService->readFileForEditor($instance, $path, $name);
-            $this->assertEditorContent($content);
+            $this->assertEditorContent($request, $content);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'read', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $name,
@@ -219,12 +221,12 @@ final class CustomerInstanceFileApiController
     public function content(Request $request, int $id): JsonResponse
     {
         try {
-            $this->assertDataManagerEnabled();
+            $this->assertDataManagerEnabled($request);
             $customer = $this->requireCustomer($request);
-            $instance = $this->findCustomerInstance($customer, $id);
+            $instance = $this->findCustomerInstance($request, $customer, $id);
             $path = trim((string) $request->query->get('path', ''));
             if ($path === '') {
-                throw new BadRequestHttpException('Missing file path.');
+                throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_file_path'));
             }
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
             return $this->handleHttpError($request, $exception);
@@ -251,9 +253,9 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/content', name: 'customer_instance_files_api_content_save_v1', methods: ['PUT'])]
     public function saveContent(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
@@ -267,7 +269,7 @@ final class CustomerInstanceFileApiController
         $content = (string) ($payload['content'] ?? '');
         $etag = isset($payload['etag']) ? trim((string) $payload['etag']) : null;
         if ($path === '') {
-            throw new BadRequestHttpException('Missing file path.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_file_path'));
         }
 
         try {
@@ -295,10 +297,10 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/upload', name: 'customer_instance_files_api_upload_v1', methods: ['POST'])]
     public function upload(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
-        $this->assertFilePushEnabled();
+        $this->assertDataManagerEnabled($request);
+        $this->assertFilePushEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
@@ -310,7 +312,7 @@ final class CustomerInstanceFileApiController
         $path = trim((string) $request->request->get('path', ''));
         $upload = $request->files->get('upload');
         if (!$upload instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
-            throw new BadRequestHttpException('Missing upload.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_upload'));
         }
 
         $uploadBytes = $this->resolveUploadBytes($request, $upload);
@@ -319,7 +321,7 @@ final class CustomerInstanceFileApiController
             return $this->errorResponse(
                 $request,
                 'file_too_large',
-                sprintf('Upload exceeds maximum size of %d bytes.', $maxUploadBytes),
+                $this->t($request, 'customer_instance_files_error_upload_too_large', ['%max_bytes%' => (string) $maxUploadBytes]),
                 JsonResponse::HTTP_REQUEST_ENTITY_TOO_LARGE,
                 [
                     'max_bytes' => $maxUploadBytes,
@@ -343,7 +345,7 @@ final class CustomerInstanceFileApiController
         }
 
         if ($this->isProtectedFilename($upload->getClientOriginalName())) {
-            return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
+            return $this->errorResponse($request, 'files_protected', $this->t($request, 'customer_instance_files_error_file_protected'), JsonResponse::HTTP_FORBIDDEN);
         }
 
         try {
@@ -368,9 +370,9 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/save', name: 'customer_instance_files_api_save_v1', methods: ['POST'])]
     public function save(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
@@ -384,10 +386,10 @@ final class CustomerInstanceFileApiController
         $name = trim((string) ($payload['name'] ?? ''));
         $content = (string) ($payload['content'] ?? '');
         if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_file_name'));
         }
         if ($this->isProtectedFilename($name)) {
-            return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
+            return $this->errorResponse($request, 'files_protected', $this->t($request, 'customer_instance_files_error_file_protected'), JsonResponse::HTTP_FORBIDDEN);
         }
 
         $quotaBlock = $this->diskEnforcementService->guardUpload($instance, strlen($content));
@@ -405,7 +407,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->assertEditorContent($content);
+            $this->assertEditorContent($request, $content);
             $this->fileService->writeFile($instance, $path, $name, $content);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'save', $customer->getId(), $instance->getId(), $path, $exception, [
@@ -427,9 +429,9 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/mkdir', name: 'customer_instance_files_api_mkdir_v1', methods: ['POST'])]
     public function mkdir(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
@@ -442,7 +444,7 @@ final class CustomerInstanceFileApiController
         $path = trim((string) ($payload['path'] ?? ''));
         $name = trim((string) ($payload['name'] ?? ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing folder name.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_folder_name'));
         }
 
         try {
@@ -467,9 +469,9 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/rename', name: 'customer_instance_files_api_rename_v1', methods: ['POST'])]
     public function rename(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
@@ -483,10 +485,10 @@ final class CustomerInstanceFileApiController
         $name = trim((string) ($payload['name'] ?? ''));
         $newName = trim((string) ($payload['new_name'] ?? ''));
         if ($name === '' || $newName === '') {
-            throw new BadRequestHttpException('Missing rename target.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_rename_target'));
         }
         if ($this->isProtectedFilename($name) || $this->isProtectedFilename($newName)) {
-            return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
+            return $this->errorResponse($request, 'files_protected', $this->t($request, 'customer_instance_files_error_file_protected'), JsonResponse::HTTP_FORBIDDEN);
         }
 
         try {
@@ -513,9 +515,9 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/delete', name: 'customer_instance_files_api_delete_v1', methods: ['POST'])]
     public function delete(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
             return $this->rateLimitResponse($request);
@@ -525,10 +527,10 @@ final class CustomerInstanceFileApiController
         $path = trim((string) ($payload['path'] ?? ''));
         $name = trim((string) ($payload['name'] ?? ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing target name.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_target_name'));
         }
         if ($this->isProtectedFilename($name)) {
-            return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
+            return $this->errorResponse($request, 'files_protected', $this->t($request, 'customer_instance_files_error_file_protected'), JsonResponse::HTTP_FORBIDDEN);
         }
 
         try {
@@ -553,9 +555,9 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/chmod', name: 'customer_instance_files_api_chmod_v1', methods: ['POST'])]
     public function chmod(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
             return $this->rateLimitResponse($request);
@@ -566,12 +568,12 @@ final class CustomerInstanceFileApiController
         $name = trim((string) ($payload['name'] ?? ''));
         $modeValue = $payload['mode'] ?? null;
         if ($name === '' || $modeValue === null || $modeValue === '') {
-            throw new BadRequestHttpException('Missing permissions.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_permissions'));
         }
 
         $mode = $this->parseMode($modeValue);
         if ($mode === null) {
-            throw new BadRequestHttpException('Invalid permissions.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_invalid_permissions'));
         }
 
         try {
@@ -598,9 +600,9 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/extract', name: 'customer_instance_files_api_extract_v1', methods: ['POST'])]
     public function extract(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
+        $this->assertDataManagerEnabled($request);
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->findCustomerInstance($request, $customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
             return $this->rateLimitResponse($request);
@@ -611,7 +613,7 @@ final class CustomerInstanceFileApiController
         $name = trim((string) ($payload['name'] ?? ''));
         $destination = trim((string) ($payload['destination'] ?? ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing archive name.');
+            throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_archive_name'));
         }
 
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
@@ -652,21 +654,21 @@ final class CustomerInstanceFileApiController
             !$actor instanceof User
             || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
         ) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->t($request, 'customer_instance_files_error_unauthorized'));
         }
 
         return $actor;
     }
 
-    private function findCustomerInstance(User $customer, int $id): Instance
+    private function findCustomerInstance(Request $request, User $customer, int $id): Instance
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->t($request, 'customer_instance_files_error_instance_not_found'));
         }
 
         if (!$customer->isAdmin() && $instance->getCustomer()->getId() !== $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->t($request, 'customer_instance_files_error_forbidden'));
         }
 
         return $instance;
@@ -678,7 +680,7 @@ final class CustomerInstanceFileApiController
             try {
                 return $request->toArray();
             } catch (\JsonException $exception) {
-                throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+                throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_invalid_json'), $exception);
             }
         }
 
@@ -872,14 +874,14 @@ final class CustomerInstanceFileApiController
         };
     }
 
-    private function assertEditorContent(string $content): void
+    private function assertEditorContent(Request $request, string $content): void
     {
         if (strlen($content) > self::EDITOR_MAX_BYTES) {
-            throw new \RuntimeException('File is too large to edit (max 1 MB).');
+            throw new \RuntimeException($this->t($request, 'customer_instance_files_error_file_too_large', ['%max%' => '1 MB']));
         }
 
         if (!$this->isTextContent($content)) {
-            throw new \RuntimeException('Binary files cannot be edited.');
+            throw new \RuntimeException($this->t($request, 'customer_instance_files_error_binary_file'));
         }
     }
 
@@ -941,7 +943,7 @@ final class CustomerInstanceFileApiController
 
     private function rateLimitResponse(Request $request): JsonResponse
     {
-        return $this->errorResponse($request, 'rate_limited', 'Too Many Requests.', JsonResponse::HTTP_TOO_MANY_REQUESTS);
+        return $this->errorResponse($request, 'rate_limited', $this->t($request, 'customer_instance_files_error_rate_limited'), JsonResponse::HTTP_TOO_MANY_REQUESTS);
     }
 
     /**
@@ -998,18 +1000,26 @@ final class CustomerInstanceFileApiController
         ];
     }
 
-    private function assertDataManagerEnabled(): void
+    private function assertDataManagerEnabled(Request $request): void
     {
         if (!$this->appSettingsService->isCustomerDataManagerEnabled()) {
-            throw new AccessDeniedHttpException('File manager is disabled.');
+            throw new AccessDeniedHttpException($this->t($request, 'customer_instance_files_error_file_manager_disabled'));
         }
     }
 
-    private function assertFilePushEnabled(): void
+    private function assertFilePushEnabled(Request $request): void
     {
         if (!$this->appSettingsService->isCustomerFilePushEnabled()) {
-            throw new AccessDeniedHttpException('File uploads are disabled.');
+            throw new AccessDeniedHttpException($this->t($request, 'customer_instance_files_error_uploads_disabled'));
         }
+    }
+
+    /**
+     * @param array<string, string> $parameters
+     */
+    private function t(Request $request, string $key, array $parameters = []): string
+    {
+        return $this->translator->trans($key, $parameters, 'portal', $request->getLocale());
     }
 
     private function formatBytes(int $bytes): string

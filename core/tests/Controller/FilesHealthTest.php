@@ -56,7 +56,7 @@ final class FilesHealthTest extends WebTestCase
         );
 
         $mock = $this->createMock(SftpFilesystemService::class);
-        $mock->method('testConnection')->with($webspace)->willThrowException(new \RuntimeException('Connection failed'));
+        $mock->method('list')->with($webspace, '')->willThrowException(new \RuntimeException('Connection failed'));
 
         $client = static::createClient();
         static::getContainer()->set(WebspaceRepository::class, $repo);

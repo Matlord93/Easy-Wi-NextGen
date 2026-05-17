@@ -17,6 +17,8 @@ final class UploadFileType extends AbstractType
             ->add('path', HiddenType::class)
             ->add('upload', FileType::class, [
                 'required' => true,
+                'label' => 'customer_files_upload_file',
+                'translation_domain' => 'portal',
                 'attr' => [
                     'class' => 'block w-full text-sm text-slate-700',
                 ],

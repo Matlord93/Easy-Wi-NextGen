@@ -939,6 +939,7 @@ final class CustomerInstanceController
             'instance_metrics_checked_at' => $instanceMetric?->getCollectedAt(),
             'instance_metrics_reason' => $instanceMetric?->getErrorCode(),
             'connection' => $connection,
+            'install_path' => $dataPath,
             'data_path' => $dataPath,
             'ports' => $ports,
             'ports_state' => $ports === [] ? 'pending' : 'ready',
