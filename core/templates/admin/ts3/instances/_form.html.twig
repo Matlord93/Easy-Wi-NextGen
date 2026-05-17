@@ -1,88 +1,93 @@
-<form class="p-6 space-y-4"
-      hx-post="{{ form.action_url }}"
+<form hx-post="{{ form.action_url }}"
       hx-target="#ts3-instance-form"
       hx-swap="outerHTML">
-        {% if form.errors is not empty %}
-        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <ul class="list-disc pl-4 space-y-1">
-                {% for error in form.errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
+    <div class="ng-data-card__body ng-data-card__body--flush">
+        <div style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+
+            {% if form.errors is not empty %}
+                <div class="ng-alert ng-alert--danger">
+                    <ul style="margin:0;padding-left:20px;">
+                        {% for error in form.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_ts3_customer_label', page_locale()) }}</label>
+                <select name="customer_id" class="form-input">
+                    <option value="">{{ t('admin_ts3_customer_select', page_locale()) }}</option>
+                    {% for customer in customers %}
+                        <option value="{{ customer.id }}" {{ customer.id == form.customer_id ? 'selected' : '' }}>{{ customer.email }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_ts3_node_label', page_locale()) }}</label>
+                <select name="node_id" class="form-input">
+                    <option value="">{{ t('admin_ts3_node_select', page_locale()) }}</option>
+                    {% for node in nodes %}
+                        <option value="{{ node.id }}" {{ node.id == form.node_id ? 'selected' : '' }}>{{ node.name ?? node.id }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ t('admin_ts3_instance_name_label', page_locale()) }}</label>
+                <input name="name" value="{{ form.name }}" class="form-input" placeholder="TS3 - EU Central">
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;">
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_voice_port', page_locale()) }}</label>
+                    <input name="voice_port" value="{{ form.voice_port }}" class="form-input" placeholder="9987">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_query_port', page_locale()) }}</label>
+                    <input name="query_port" value="{{ form.query_port }}" class="form-input" placeholder="10011">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_file_port', page_locale()) }}</label>
+                    <input name="file_port" value="{{ form.file_port }}" class="form-input" placeholder="30033">
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_db_mode', page_locale()) }}</label>
+                    <select name="db_mode" class="form-input">
+                        <option value="sqlite" {{ form.db_mode == 'sqlite' ? 'selected' : '' }}>{{ t('admin_ts3_db_mode_sqlite', page_locale()) }}</option>
+                        <option value="mysql" {{ form.db_mode == 'mysql' ? 'selected' : '' }}>{{ t('admin_ts3_db_mode_mysql', page_locale()) }}</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_db_host', page_locale()) }}</label>
+                    <input name="db_host" value="{{ form.db_host }}" class="form-input" placeholder="127.0.0.1">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_db_port', page_locale()) }}</label>
+                    <input name="db_port" value="{{ form.db_port }}" class="form-input" placeholder="3306">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_db_name', page_locale()) }}</label>
+                    <input name="db_name" value="{{ form.db_name }}" class="form-input" placeholder="ts3">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_db_username', page_locale()) }}</label>
+                    <input name="db_username" value="{{ form.db_username }}" class="form-input" placeholder="ts3_user">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_ts3_db_password', page_locale()) }}</label>
+                    <input type="password" name="db_password" class="form-input" placeholder="••••••••">
+                </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+                <button class="ui-button ui-button--primary" type="submit">{{ form.submit_label }}</button>
+            </div>
+
         </div>
-    {% endif %}
-
-    <div class="grid grid-cols-1 gap-4">
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_customer_label', page_locale()) }}
-            <select name="customer_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <option value="">{{ t('admin_ts3_customer_select', page_locale()) }}</option>
-                {% for customer in customers %}
-                    <option value="{{ customer.id }}" {{ customer.id == form.customer_id ? 'selected' : '' }}>{{ customer.email }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_node_label', page_locale()) }}
-            <select name="node_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <option value="">{{ t('admin_ts3_node_select', page_locale()) }}</option>
-                {% for node in nodes %}
-                    <option value="{{ node.id }}" {{ node.id == form.node_id ? 'selected' : '' }}>{{ node.name ?? node.id }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_instance_name_label', page_locale()) }}
-            <input name="name" value="{{ form.name }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="TS3 - EU Central">
-        </label>
     </div>
-
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_voice_port', page_locale()) }}
-            <input name="voice_port" value="{{ form.voice_port }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="9987">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_query_port', page_locale()) }}
-            <input name="query_port" value="{{ form.query_port }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="10011">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_file_port', page_locale()) }}
-            <input name="file_port" value="{{ form.file_port }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="30033">
-        </label>
-    </div>
-
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_db_mode', page_locale()) }}
-            <select name="db_mode" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <option value="sqlite" {{ form.db_mode == 'sqlite' ? 'selected' : '' }}>{{ t('admin_ts3_db_mode_sqlite', page_locale()) }}</option>
-                <option value="mysql" {{ form.db_mode == 'mysql' ? 'selected' : '' }}>{{ t('admin_ts3_db_mode_mysql', page_locale()) }}</option>
-            </select>
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_db_host', page_locale()) }}
-            <input name="db_host" value="{{ form.db_host }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="127.0.0.1">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_db_port', page_locale()) }}
-            <input name="db_port" value="{{ form.db_port }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="3306">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_db_name', page_locale()) }}
-            <input name="db_name" value="{{ form.db_name }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="ts3">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_db_username', page_locale()) }}
-            <input name="db_username" value="{{ form.db_username }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="ts3_user">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_ts3_db_password', page_locale()) }}
-            <input type="password" name="db_password" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="••••••••">
-        </label>
-    </div>
-
-    <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
-        {{ form.submit_label }}
-    </button>
 </form>

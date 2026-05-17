@@ -161,6 +161,80 @@ final class Ts3VirtualServerService
         return $job;
     }
 
+    public function kickClient(Ts3VirtualServer $server, int $clid, string $reason = ''): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'clid' => $clid,
+            'reason' => $reason,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.client.kick', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
+    public function pokeClient(Ts3VirtualServer $server, int $clid, string $message): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'clid' => $clid,
+            'message' => $message,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.client.poke', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
+    public function addBan(Ts3VirtualServer $server, array $banParams): AgentJob
+    {
+        $payload = array_merge([
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ], $banParams);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.ban.add', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
+    public function removeBan(Ts3VirtualServer $server, int $banid): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'banid' => $banid,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.ban.remove', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
+    public function queueSnapshot(Ts3VirtualServer $server, string $cacheKey): AgentJob
+    {
+        return $this->queueServerQuery($server, $cacheKey, 'ts3.virtual.snapshot.create');
+    }
+
     public function queueServerQuery(Ts3VirtualServer $server, string $cacheKey, string $jobType): AgentJob
     {
         $jobPayload = [

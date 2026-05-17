@@ -52,6 +52,34 @@
     const versionLockVersion = document.getElementById('gs-version-lock-version');
     const automationSaveBtn = document.getElementById('gs-automation-save');
 
+    const defaultI18n = {
+        automationSaved: 'Automation settings updated.',
+        saving: 'Saving…',
+        saveAutomationBtn: 'Save automation',
+        configNamePrompt: 'Config name',
+        configFormatPrompt: 'Format (txt,cfg,ini,json,yaml,yml,xml,properties,conf,env,log)',
+        creating: 'Creating…',
+        createBtn: 'Create',
+        configCreated: 'Config created.',
+        configSaved: 'Config saved.',
+        configApplyQueued: 'Config apply queued.',
+        noMatchingConfigs: 'No matching configs.',
+        selectConfigFirst: 'Select a config first.',
+        applying: 'Applying…',
+        applyBtn: 'Apply',
+        saveBtn: 'Save',
+    };
+    let i18n = defaultI18n;
+    try {
+        i18n = { ...defaultI18n, ...(mount.dataset.i18n ? JSON.parse(mount.dataset.i18n) : {}) };
+    } catch (_) {
+        i18n = defaultI18n;
+    }
+    const tr = (key, replacements = {}) => Object.entries(replacements).reduce(
+        (msg, [k, v]) => msg.replaceAll(`%${k}%`, String(v)),
+        i18n[key] || defaultI18n[key] || key,
+    );
+
     const state = {
         activeConfigId: '',
         configs: [],
@@ -59,6 +87,7 @@
         loadingConfig: false,
     };
 
+    const escHtml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
     const DEFAULT_BACKUP_TIME = '03:00';
     const DEFAULT_RESTART_TIME = '04:00';
@@ -116,7 +145,7 @@
         });
 
         if (!visible.length) {
-            configList.innerHTML = '<li class="text-sm text-slate-500">No matching configs.</li>';
+            configList.innerHTML = `<li class="text-sm text-slate-500">${tr('noMatchingConfigs')}</li>`;
             return;
         }
 
@@ -124,10 +153,13 @@
             const isActive = String(cfg.id) === String(state.activeConfigId);
             const sourceBadge = cfg.source === 'instance' ? 'Instance' : 'Template';
             const existsBadge = cfg.exists ? 'override' : 'derived';
+            const safeId = escHtml(String(cfg.id));
+            const safeName = escHtml(cfg.name || cfg.id);
+            const safePath = escHtml(cfg.file_path || '');
             return `<li>
-                <button type="button" class="w-full rounded-lg border px-3 py-2 text-left text-xs ${isActive ? 'border-indigo-500 bg-indigo-500/20 text-slate-100' : 'border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-500'}" data-config-id="${cfg.id}">
-                    <div class="font-semibold">${cfg.name || cfg.id}</div>
-                    <div class="mt-1 text-[11px] text-slate-400">${cfg.file_path || ''}</div>
+                <button type="button" class="w-full rounded-lg border px-3 py-2 text-left text-xs ${isActive ? 'border-indigo-500 bg-indigo-500/20 text-slate-100' : 'border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-500'}" data-config-id="${safeId}">
+                    <div class="font-semibold">${safeName}</div>
+                    <div class="mt-1 text-[11px] text-slate-400">${safePath}</div>
                     <div class="mt-1 flex gap-1 text-[10px] uppercase tracking-wide text-slate-400">
                         <span>${sourceBadge}</span><span>•</span><span>${existsBadge}</span>
                     </div>
@@ -192,7 +224,7 @@
         if (values.length === 0) {
             versionLockVersion.innerHTML = '<option value="">default</option>';
         } else {
-            versionLockVersion.innerHTML = values.map((version) => `<option value="${version}">${version}</option>`).join('');
+            versionLockVersion.innerHTML = values.map((version) => `<option value="${escHtml(version)}">${escHtml(version)}</option>`).join('');
         }
         if (selected) {
             versionLockVersion.value = selected;
@@ -224,7 +256,7 @@
     };
 
     const saveAutomation = async () => {
-        setBusy(automationSaveBtn, true, 'Saving…', 'Automation speichern');
+        setBusy(automationSaveBtn, true, tr('saving'), tr('saveAutomationBtn'));
         try {
             const payload = await apiClient.request(mount.dataset.urlAutomation, {
                 method: 'PATCH',
@@ -254,25 +286,25 @@
             applyAutomationUi(payload.data?.automation || {});
             errors.clearInline(errorPanel);
             errors.showToast({
-                message: 'Automation settings updated.',
+                message: tr('automationSaved'),
                 error_code: 'OK',
                 request_id: payload.request_id || '',
             }, 2000);
         } catch (error) {
             errors.showAll(errorPanel, error);
         } finally {
-            setBusy(automationSaveBtn, false, 'Saving…', 'Automation speichern');
+            setBusy(automationSaveBtn, false, tr('saving'), tr('saveAutomationBtn'));
         }
     };
 
     const createConfig = async () => {
-        const name = window.prompt('Config name');
+        const name = window.prompt(tr('configNamePrompt'));
         if (!name) {
             return;
         }
 
-        const format = window.prompt('Format (txt,cfg,ini,json,yaml,yml,xml,properties,conf,env,log)', 'txt') || 'txt';
-        setBusy(createBtn, true, 'Creating…', 'Create');
+        const format = window.prompt(tr('configFormatPrompt'), 'txt') || 'txt';
+        setBusy(createBtn, true, tr('creating'), tr('createBtn'));
 
         try {
             const payload = await apiClient.request(mount.dataset.urlConfigCreate, {
@@ -283,7 +315,7 @@
 
             const created = payload?.data?.created || null;
             errors.clearInline(errorPanel);
-            errors.showToast({ message: 'Config created.', error_code: 'OK', request_id: payload.request_id || '' });
+            errors.showToast({ message: tr('configCreated'), error_code: 'OK', request_id: payload.request_id || '' });
             state.activeConfigId = '';
             await loadConfigs();
             if (created?.id) {
@@ -292,7 +324,7 @@
         } catch (error) {
             errors.showAll(errorPanel, error);
         } finally {
-            setBusy(createBtn, false, 'Creating…', 'Create');
+            setBusy(createBtn, false, tr('creating'), tr('createBtn'));
         }
     };
 
@@ -310,11 +342,11 @@
 
         if (event.target.id === 'gs-settings-save') {
             if (!state.activeConfigId) {
-                errors.showAll(errorPanel, { error_code: 'INVALID_INPUT', message: 'Select a config first.' });
+                errors.showAll(errorPanel, { error_code: 'INVALID_INPUT', message: tr('selectConfigFirst') });
                 return;
             }
 
-            setBusy(saveBtn, true, 'Saving…', 'Save');
+            setBusy(saveBtn, true, tr('saving'), tr('saveBtn'));
             try {
                 const payload = await apiClient.request(configSaveUrl(state.activeConfigId), {
                     method: 'PUT',
@@ -322,31 +354,31 @@
                     body: JSON.stringify({ content: editor.value }),
                 });
                 errors.clearInline(errorPanel);
-                errors.showToast({ message: 'Config saved.', error_code: 'OK', request_id: payload.request_id || '' });
+                errors.showToast({ message: tr('configSaved'), error_code: 'OK', request_id: payload.request_id || '' });
                 await loadConfigs();
             } catch (error) {
                 errors.showAll(errorPanel, error);
             } finally {
-                setBusy(saveBtn, false, 'Saving…', 'Save');
+                setBusy(saveBtn, false, tr('saving'), tr('saveBtn'));
             }
             return;
         }
 
         if (event.target.id === 'gs-settings-apply') {
             if (!state.activeConfigId) {
-                errors.showAll(errorPanel, { error_code: 'INVALID_INPUT', message: 'Select a config first.' });
+                errors.showAll(errorPanel, { error_code: 'INVALID_INPUT', message: tr('selectConfigFirst') });
                 return;
             }
 
-            setBusy(applyBtn, true, 'Applying…', 'Apply');
+            setBusy(applyBtn, true, tr('applying'), tr('applyBtn'));
             try {
                 const payload = await apiClient.request(configApplyUrl(state.activeConfigId), { method: 'POST' });
                 errors.clearInline(errorPanel);
-                errors.showToast({ message: 'Config apply queued.', error_code: 'OK', request_id: payload.request_id || '' });
+                errors.showToast({ message: tr('configApplyQueued'), error_code: 'OK', request_id: payload.request_id || '' });
             } catch (error) {
                 errors.showAll(errorPanel, error);
             } finally {
-                setBusy(applyBtn, false, 'Applying…', 'Apply');
+                setBusy(applyBtn, false, tr('applying'), tr('applyBtn'));
             }
             return;
         }

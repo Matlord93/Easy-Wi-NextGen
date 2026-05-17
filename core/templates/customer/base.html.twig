@@ -30,10 +30,7 @@
 
 {% set activeNav = activeNav|default('') %}
 
-{% set voiceserverUrl = module_enabled('ts6')
-    ? path('customer_ts6_servers_index')
-    : path('customer_ts3_servers_index')
-%}
+{% set voiceserverUrl = path('customer_voice') %}
 
 {% set moduleGame    = module_enabled('game') %}
 {% set moduleTs      = module_enabled('ts') %}
@@ -42,7 +39,7 @@
 {% set moduleMail    = module_enabled('mail') %}
 {% set moduleDns     = module_enabled('dns') %}
 {% set moduleBilling = module_enabled('billing') %}
-{% set showVoiceserver = moduleTs6 or moduleTs %}
+{% set showVoiceserver = module_enabled('voice') or moduleTs6 or moduleTs %}
 
 {% set customerHasGame     = customer_has_module('game') %}
 {% set customerHasVoice    = customer_has_module('voice') %}

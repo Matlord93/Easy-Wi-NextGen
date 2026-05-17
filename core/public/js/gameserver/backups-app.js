@@ -36,6 +36,30 @@
         return;
     }
 
+    const defaultI18n = {
+        noBackupsYet: 'No backups yet.',
+        failedToLoad: 'Failed to load backups.',
+        restore: 'Restore',
+        download: 'Download',
+        delete: 'Delete',
+        creating: 'Creating…',
+        backupQueued: 'Backup queued.',
+        restoreQueued: 'Restore queued.',
+        backupsUnavailable: 'Backups unavailable.',
+        backupIdRequired: 'Backup ID is required.',
+        modeUpdated: 'Backup mode set to %mode%.',
+    };
+    let i18n = defaultI18n;
+    try {
+        i18n = { ...defaultI18n, ...(root.dataset.i18n ? JSON.parse(root.dataset.i18n) : {}) };
+    } catch (_) {
+        i18n = defaultI18n;
+    }
+    const tr = (key, replacements = {}) => Object.entries(replacements).reduce(
+        (msg, [k, v]) => msg.replaceAll(`%${k}%`, String(v)),
+        i18n[key] || defaultI18n[key] || key,
+    );
+
     const renderEmpty = (message) => {
         listEl.innerHTML = `<tr><td colspan="5" class="dashboard-table__empty">${message}</td></tr>`;
     };
@@ -52,21 +76,24 @@
         return `${mb.toFixed(1)} MB`;
     };
 
+    const escHtml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
     const backupRow = (backup) => {
-        const backupId = backup.id;
-        const created = backup.created_at || '—';
-        const size = formatSize(backup.size_bytes);
+        const backupId = escHtml(String(backup.id));
+        const created = escHtml(backup.created_at || '—');
+        const size = escHtml(formatSize(backup.size_bytes));
+        const status = escHtml(backup.status || 'unknown');
 
         return `<tr>
             <td>${backupId}</td>
-            <td>${backup.status || 'unknown'}</td>
+            <td>${status}</td>
             <td>${created}</td>
             <td>${size}</td>
             <td>
                 <div class="flex gap-2">
-                    <button class="ui-button ui-button--ghost" data-action="restore" data-backup-id="${backupId}">Restore</button>
-                    <button class="ui-button ui-button--ghost" data-action="download" data-backup-id="${backupId}">Download</button>
-                    <button class="ui-button ui-button--danger" data-action="delete" data-backup-id="${backupId}">Delete</button>
+                    <button class="ui-button ui-button--ghost" data-action="restore" data-backup-id="${backupId}">${tr('restore')}</button>
+                    <button class="ui-button ui-button--ghost" data-action="download" data-backup-id="${backupId}">${tr('download')}</button>
+                    <button class="ui-button ui-button--danger" data-action="delete" data-backup-id="${backupId}">${tr('delete')}</button>
                 </div>
             </td>
         </tr>`;
@@ -81,12 +108,12 @@
                 modeSelect.value = payload.data.mode;
             }
             if (!Array.isArray(backups) || backups.length === 0) {
-                renderEmpty('No backups yet.');
+                renderEmpty(tr('noBackupsYet'));
                 return;
             }
             listEl.innerHTML = backups.map(backupRow).join('');
         } catch (error) {
-            renderEmpty('Failed to load backups.');
+            renderEmpty(tr('failedToLoad'));
             errors.showAll(inlineError, error);
         }
     };
@@ -94,7 +121,7 @@
     const postCreate = async () => {
         createButton.disabled = true;
         createButton.dataset.original = createButton.textContent;
-        createButton.textContent = 'Creating…';
+        createButton.textContent = tr('creating');
         try {
             errors.clearInline(inlineError);
             const label = (labelInput.value || '').trim();
@@ -104,7 +131,7 @@
                 body: JSON.stringify(label ? { label } : {}),
             });
             errors.showToast({
-                message: payload.data?.message || 'Backup queued.',
+                message: payload.data?.message || tr('backupQueued'),
                 error_code: 'OK',
                 request_id: payload.request_id || '',
             }, 2000);
@@ -113,10 +140,9 @@
             errors.showAll(inlineError, error);
         } finally {
             createButton.disabled = false;
-            createButton.textContent = createButton.dataset.original || 'Create backup';
+            createButton.textContent = createButton.dataset.original || tr('restore');
         }
     };
-
 
     const updateMode = async () => {
         if (!modeSelect) {
@@ -130,7 +156,7 @@
             });
             errors.clearInline(inlineError);
             errors.showToast({
-                message: `Backup mode set to ${payload.data?.mode || modeSelect.value}.`,
+                message: tr('modeUpdated', { mode: payload.data?.mode || modeSelect.value }),
                 error_code: 'OK',
                 request_id: payload.request_id || '',
             }, 2000);
@@ -143,7 +169,7 @@
         const id = String(backupId || '').trim();
         if (!id) {
             errors.showAll(inlineError, {
-                message: 'Backup id is required.',
+                message: tr('backupIdRequired'),
                 error_code: 'INVALID_INPUT',
                 request_id: '',
             });
@@ -153,7 +179,7 @@
         try {
             errors.clearInline(inlineError);
             if (action === 'restore') {
-                if (!window.confirm('Restore this backup?')) {
+                if (!window.confirm(root.dataset.confirmRestore || tr('restoreQueued'))) {
                     return;
                 }
                 const payload = await apiClient.request(
@@ -165,7 +191,7 @@
                     },
                 );
                 errors.showToast({
-                    message: payload.data?.message || 'Restore queued.',
+                    message: payload.data?.message || tr('restoreQueued'),
                     error_code: 'OK',
                     request_id: payload.request_id || '',
                 }, 2000);
@@ -180,7 +206,7 @@
             }
 
             if (action === 'delete') {
-                if (!window.confirm('Delete this backup?')) {
+                if (!window.confirm(root.dataset.confirmDelete || tr('delete'))) {
                     return;
                 }
                 await apiClient.request(
@@ -213,6 +239,6 @@
         })
         .catch((error) => {
             errors.showAll(inlineError, error);
-            renderEmpty('Backups unavailable.');
+            renderEmpty(tr('backupsUnavailable'));
         });
 })();

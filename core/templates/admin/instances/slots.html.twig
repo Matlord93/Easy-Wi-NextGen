@@ -1,38 +1,49 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Instance Slots · Easy-Wi NextGen{% endblock %}
+{% set activeNav = 'game-instances' %}
 
 {% block content %}
-    <div class="flex flex-col gap-4">
-        <div>
-            <h1 class="text-2xl font-semibold">Instance Slots</h1>
-            <p class="text-sm text-slate-700">Set max slots and lock enforcement for this instance.</p>
-        </div>
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-        {% if notice %}
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ notice }}</div>
-        {% endif %}
-        {% if error %}
-            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</div>
-        {% endif %}
+    {% if notice %}
+        <div class="ng-alert ng-alert--success">{{ notice }}</div>
+    {% endif %}
+    {% if error %}
+        <div class="ng-alert ng-alert--danger">{{ error }}</div>
+    {% endif %}
 
-        <form method="post" class="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="text-sm font-semibold text-slate-700">{{ instance.getServerName() ?? 'Instance' }} (ID {{ instance.getId() }})</div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">Max slots</label>
-                <input type="number" min="1" max="{{ app_setting('gameserver_max_slots', instance.getMaxSlots()) }}" name="max_slots" value="{{ instance.getMaxSlots() }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">Current slots</label>
-                <input type="number" min="1" max="{{ instance.getMaxSlots() }}" name="current_slots" value="{{ instance.getCurrentSlots() }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                </div>
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">Instance Slots</h2>
+                <p class="ng-data-card__sub">{{ instance.getServerName() ?? 'Instance' }} (ID {{ instance.getId() }})</p>
             </div>
-            <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700">
-                <input type="checkbox" name="lock_slots" value="1" {% if instance.isLockSlots() %}checked{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900">
-                Lock slots to max
-            </label>
-            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800">Save</button>
-        </form>
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_instances') }}">Zurück</a>
+            </div>
+        </div>
+        <div class="ng-data-card__body">
+            <form method="post" style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
+                    <div class="form-field">
+                        <label class="form-label">Max slots</label>
+                        <input type="number" min="1" max="{{ app_setting('gameserver_max_slots', instance.getMaxSlots()) }}" name="max_slots" value="{{ instance.getMaxSlots() }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Current slots</label>
+                        <input type="number" min="1" max="{{ instance.getMaxSlots() }}" name="current_slots" value="{{ instance.getCurrentSlots() }}" class="form-input">
+                    </div>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:.875rem;font-weight:500;">
+                    <input type="checkbox" name="lock_slots" value="1" {% if instance.isLockSlots() %}checked{% endif %}>
+                    Lock slots to max
+                </label>
+                <div>
+                    <button type="submit" class="ui-button ui-button--primary">Save</button>
+                </div>
+            </form>
+        </div>
     </div>
+
+</div>
 {% endblock %}

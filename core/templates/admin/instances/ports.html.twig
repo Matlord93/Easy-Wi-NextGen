@@ -1,86 +1,90 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Instance Ports · Easy-Wi NextGen{% endblock %}
+{% set activeNav = 'game-instances' %}
 
 {% block content %}
-    <div class="flex flex-col gap-6">
-        <div>
-            <h1 class="text-2xl font-semibold">Instance Ports</h1>
-            <p class="text-sm text-slate-700">Allocated ports and pool availability for this node.</p>
-        </div>
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-sm font-semibold uppercase text-slate-700">Allocated Ports</h2>
-                <p class="text-xs text-slate-600">Instance {{ instance.getId() }} · {{ instance.getServerName() ?? 'Instance' }}</p>
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">Instance Ports</h2>
+                <p class="ng-data-card__sub">{{ instance.getServerName() ?? 'Instance' }} · #{{ instance.getId() }}</p>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_instances') }}">Zurück</a>
+            </div>
+        </div>
+        <div class="ng-data-card__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
                         <tr>
-                            <th class="px-6 py-3">Role</th>
-                            <th class="px-6 py-3">Proto</th>
-                            <th class="px-6 py-3">Port</th>
-                            <th class="px-6 py-3">Purpose</th>
-                            <th class="px-6 py-3">Pool</th>
-                            <th class="px-6 py-3">Last check</th>
-                            <th class="px-6 py-3">Host free</th>
+                            <th>Role</th>
+                            <th>Proto</th>
+                            <th>Port</th>
+                            <th>Purpose</th>
+                            <th>Pool</th>
+                            <th>Last check</th>
+                            <th>Host free</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-200">
+                    <tbody>
                         {% for allocation in allocations %}
                             <tr>
-                                <td class="px-6 py-3 text-xs font-semibold text-slate-900">{{ allocation.getRoleKey() }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{{ allocation.getProto() }}</td>
-                                <td class="px-6 py-3 text-xs font-semibold text-slate-900">{{ allocation.getPort() }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{{ allocation.getPurpose() ?? '-' }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{{ allocation.getPoolTag() ?? '-' }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{{ allocation.getLastCheckedAt() ? allocation.getLastCheckedAt()|date('Y-m-d H:i') : '-' }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{% if allocation.getLastHostFree() is same as(true) %}Yes{% elseif allocation.getLastHostFree() is same as(false) %}No{% else %}-{% endif %}</td>
+                                <td><span style="font-weight:600;">{{ allocation.getRoleKey() }}</span></td>
+                                <td>{{ allocation.getProto() }}</td>
+                                <td><span style="font-weight:600;">{{ allocation.getPort() }}</span></td>
+                                <td>{{ allocation.getPurpose() ?? '—' }}</td>
+                                <td>{{ allocation.getPoolTag() ?? '—' }}</td>
+                                <td>{{ allocation.getLastCheckedAt() ? allocation.getLastCheckedAt()|date('Y-m-d H:i') : '—' }}</td>
+                                <td>{% if allocation.getLastHostFree() is same as(true) %}Ja{% elseif allocation.getLastHostFree() is same as(false) %}Nein{% else %}—{% endif %}</td>
                             </tr>
                         {% else %}
-                            <tr>
-                                <td colspan="7" class="px-6 py-6 text-center text-sm text-slate-600">No allocations yet.</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-sm font-semibold uppercase text-slate-700">Pool Availability</h2>
-                <p class="text-xs text-slate-600">Counts are based on database allocations.</p>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-                        <tr>
-                            <th class="px-6 py-3">Tag</th>
-                            <th class="px-6 py-3">Name</th>
-                            <th class="px-6 py-3">Total</th>
-                            <th class="px-6 py-3">Allocated</th>
-                            <th class="px-6 py-3">Free</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200">
-                        {% for stat in poolStats %}
-                            <tr>
-                                <td class="px-6 py-3 text-xs font-semibold text-slate-900">{{ stat.tag }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{{ stat.name }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{{ stat.total }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{{ stat.allocated }}</td>
-                                <td class="px-6 py-3 text-xs text-slate-600">{{ stat.free }}</td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="5" class="px-6 py-6 text-center text-sm text-slate-600">No pools configured.</td>
-                            </tr>
+                            <tr><td colspan="7" class="cust-table__empty">Keine Zuweisungen.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">Pool Availability</h2>
+                <p class="ng-data-card__sub">Counts are based on database allocations.</p>
+            </div>
+        </div>
+        <div class="ng-data-card__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
+                        <tr>
+                            <th>Tag</th>
+                            <th>Name</th>
+                            <th>Total</th>
+                            <th>Allocated</th>
+                            <th>Free</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in poolStats %}
+                            <tr>
+                                <td><span style="font-weight:600;">{{ stat.tag }}</span></td>
+                                <td>{{ stat.name }}</td>
+                                <td>{{ stat.total }}</td>
+                                <td>{{ stat.allocated }}</td>
+                                <td>{{ stat.free }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="5" class="cust-table__empty">No pools configured.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
 {% endblock %}

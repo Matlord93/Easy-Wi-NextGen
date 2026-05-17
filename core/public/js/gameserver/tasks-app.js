@@ -25,6 +25,24 @@
         return;
     }
 
+    const defaultI18n = {
+        noTasksFound: 'No tasks found.',
+        logs: 'Logs',
+        cancel: 'Cancel',
+        loadingLogs: 'Loading logs for %id%…',
+        cancelConfirm: 'Cancel task %id%?',
+    };
+    let i18n = defaultI18n;
+    try {
+        i18n = { ...defaultI18n, ...(mount.dataset.i18n ? JSON.parse(mount.dataset.i18n) : {}) };
+    } catch (_) {
+        i18n = defaultI18n;
+    }
+    const tr = (key, replacements = {}) => Object.entries(replacements).reduce(
+        (msg, [k, v]) => msg.replaceAll(`%${k}%`, String(v)),
+        i18n[key] || defaultI18n[key] || key,
+    );
+
     const jobsBody = document.getElementById('gs-tasks-list');
     const logsBox = document.getElementById('gs-tasks-logs');
     let selectedTaskId = null;
@@ -53,24 +71,42 @@
 
     const renderTasks = (tasks) => {
         if (!Array.isArray(tasks) || tasks.length === 0) {
-            jobsBody.innerHTML = '<tr><td colspan="5" class="dashboard-table__empty">No tasks found.</td></tr>';
+            jobsBody.innerHTML = `<tr><td colspan="5" class="dashboard-table__empty">${tr('noTasksFound')}</td></tr>`;
             return;
         }
 
         jobsBody.innerHTML = '';
         tasks.forEach((task) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${task.id}</td>
-                <td>${task.type || '-'}</td>
-                <td>${task.status || '-'}</td>
-                <td>${task.created_at || '-'}</td>
-                <td class="text-right">
-                    <button type="button" class="ui-button ui-button--ghost" data-open="${task.id}">Logs</button>
-                    <button type="button" class="ui-button ui-button--danger" data-cancel="${task.id}">Cancel</button>
-                </td>
-            `;
-            jobsBody.appendChild(tr);
+            const tr_el = document.createElement('tr');
+            const idCell = document.createElement('td');
+            const typeCell = document.createElement('td');
+            const statusCell = document.createElement('td');
+            const createdCell = document.createElement('td');
+            const actionsCell = document.createElement('td');
+
+            idCell.textContent = task.id;
+            typeCell.textContent = task.type || '-';
+            statusCell.textContent = task.status || '-';
+            createdCell.textContent = task.created_at || '-';
+            actionsCell.className = 'text-right';
+
+            const logsBtn = document.createElement('button');
+            logsBtn.type = 'button';
+            logsBtn.className = 'ui-button ui-button--ghost';
+            logsBtn.dataset.open = task.id;
+            logsBtn.textContent = tr('logs');
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'ui-button ui-button--danger';
+            cancelBtn.dataset.cancel = task.id;
+            cancelBtn.textContent = tr('cancel');
+
+            actionsCell.appendChild(logsBtn);
+            actionsCell.appendChild(cancelBtn);
+
+            [idCell, typeCell, statusCell, createdCell, actionsCell].forEach((cell) => tr_el.appendChild(cell));
+            jobsBody.appendChild(tr_el);
         });
     };
 
@@ -79,7 +115,9 @@
             return;
         }
         try {
-            const query = cursor ? `?task_id=${encodeURIComponent(selectedTaskId)}&cursor=${encodeURIComponent(cursor)}` : `?task_id=${encodeURIComponent(selectedTaskId)}`;
+            const query = cursor
+                ? `?task_id=${encodeURIComponent(selectedTaskId)}&cursor=${encodeURIComponent(cursor)}`
+                : `?task_id=${encodeURIComponent(selectedTaskId)}`;
             const payload = await apiClient.request(`${mount.dataset.urlLogs}${query}`);
             errors.clearInline(errorPanel);
             const data = payload.data || {};
@@ -106,7 +144,7 @@
             selectedTaskId = openBtn.dataset.open;
             cursor = '';
             logsBox.dataset.empty = '1';
-            logsBox.textContent = `Loading logs for ${selectedTaskId}...`;
+            logsBox.textContent = tr('loadingLogs', { id: selectedTaskId });
             await loadLogs();
             if (poll) {
                 window.clearInterval(poll);
@@ -119,7 +157,7 @@
         if (!cancelBtn) {
             return;
         }
-        if (!window.confirm(`Cancel ${taskLabel({ id: cancelBtn.dataset.cancel })}?`)) {
+        if (!window.confirm(tr('cancelConfirm', { id: cancelBtn.dataset.cancel }))) {
             return;
         }
 
@@ -134,7 +172,6 @@
             cancelBtn.disabled = false;
         }
     });
-
 
     (async () => {
         try {

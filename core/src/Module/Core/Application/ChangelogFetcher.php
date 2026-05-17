@@ -39,7 +39,7 @@ final class ChangelogFetcher
             return [];
         }
 
-        $item = $this->cache->getItem(self::CACHE_KEY . '.' . md5($this->repository));
+        $item = $this->cache->getItem(self::CACHE_KEY . '.' . hash('sha256', $this->repository));
         $cached = $item->get();
         if ($item->isHit() && is_array($cached)) {
             return $cached;

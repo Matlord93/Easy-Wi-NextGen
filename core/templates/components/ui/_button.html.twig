@@ -5,6 +5,7 @@
 
 <a href="{{ href }}" class="ui-button ui-button--{{ variant }} {{ class|default('') }}">
     {% if icon %}
+        {# icon is an SVG string from PHP code, never from user input #}
         <span class="text-base">{{ icon|raw }}</span>
     {% endif %}
     {{ label }}

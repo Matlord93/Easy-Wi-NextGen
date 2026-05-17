@@ -358,7 +358,12 @@ final class AdminUserManagementController
         ]);
         $this->entityManager->flush();
 
-        $response = new RedirectResponse('/dashboard');
+        $redirectTo = (string) $request->request->get('redirect', '/dashboard');
+        if (!str_starts_with($redirectTo, '/') || str_contains($redirectTo, '//')) {
+            $redirectTo = '/dashboard';
+        }
+
+        $response = new RedirectResponse($redirectTo);
         $response->headers->setCookie(
             Cookie::create(SessionAuthenticator::CUSTOMER_SESSION_COOKIE, $token)
                 ->withPath('/')

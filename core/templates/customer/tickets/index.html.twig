@@ -17,45 +17,43 @@
 } %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    {# ── Hero ── #}
-    <section class="ng-card" style="overflow:hidden;">
+    {# ── Hero / KPI card ── #}
+    <div class="ng-card" style="overflow:hidden;">
         <div class="tkt-hero">
             <div class="tkt-hero__inner">
-                <div class="flex flex-col gap-5" style="gap:20px;">
-                    <div style="display:flex;flex-direction:column;gap:10px;">
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            {{ t('customer_tickets_portal_label', locale) }}
-                        </div>
-                        <h1 class="tkt-hero__title">{{ t('customer_tickets_title', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('customer_tickets_modern_intro', locale) }}</p>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot"></span>
+                        {{ t('customer_tickets_portal_label', locale) }}
                     </div>
-                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">{{ t('customer_tickets_total', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.total }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--open">
-                            <div class="tkt-kpi__label">{{ t('customer_tickets_open', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.open }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--pending">
-                            <div class="tkt-kpi__label">{{ t('customer_tickets_pending', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.pending }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--resolved">
-                            <div class="tkt-kpi__label">{{ t('customer_tickets_resolved', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.resolved }}</div>
-                        </div>
+                    <h1 class="tkt-hero__title">{{ t('customer_tickets_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('customer_tickets_modern_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:16px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('customer_tickets_total', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ summary.total }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__label">{{ t('customer_tickets_open', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ summary.open }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--pending">
+                        <div class="tkt-kpi__label">{{ t('customer_tickets_pending', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ summary.pending }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--resolved">
+                        <div class="tkt-kpi__label">{{ t('customer_tickets_resolved', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ summary.resolved }}</div>
                     </div>
                 </div>
             </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
             <a href="#ticket-form" class="tkt-qa">
-                <div class="tkt-qa__icon">+</div>
+                <div class="tkt-qa__icon" style="background:rgba(99,102,241,0.15);color:#818cf8;">+</div>
                 <div class="tkt-qa__title">{{ t('customer_ticket_new_title', locale) }}</div>
                 <div class="tkt-qa__sub">{{ t('customer_tickets_new_hint', locale) }}</div>
             </a>
@@ -70,38 +68,53 @@
                 <div class="tkt-qa__sub">{{ t('customer_tickets_transparency_hint', locale) }}</div>
             </div>
         </div>
-    </section>
+    </div>
 
-    {# ── Main content ── #}
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;align-items:start;">
+    {# ── Two-column layout: list + form ── #}
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:20px;align-items:start;">
 
-        {# Ticket list #}
-        <section class="ng-card" style="overflow:hidden;">
+        {# ── Ticket list ── #}
+        <div class="ng-card" style="overflow:hidden;">
             <div class="tkt-filter-bar">
                 <div class="tkt-filter-bar__top">
                     <div>
                         <h2 class="tkt-filter-bar__title">{{ t('customer_tickets_list_title', locale) }}</h2>
                         <p class="tkt-filter-bar__sub">{{ t('customer_tickets_list_modern_intro', locale) }}</p>
                     </div>
-                    <a href="#ticket-form" class="ui-button ui-button--primary">{{ t('ticket_ui_create_new_ticket', locale) }}</a>
+                    <a href="#ticket-form" class="ui-button ui-button--primary ui-button--sm">
+                        + {{ t('ticket_ui_create_new_ticket', locale) }}
+                    </a>
                 </div>
-                <form id="customer-ticket-filters" method="get" action="/tickets" style="display:grid;grid-template-columns:minmax(0,1fr) 170px auto;gap:8px;">
-                    <input name="q" value="{{ filters.q|default('') }}" placeholder="{{ t('ticket_ui_customer_search_placeholder', locale) }}">
+                <form id="customer-ticket-filters" method="get" action="/tickets"
+                    style="display:grid;grid-template-columns:minmax(0,1fr) 160px auto;gap:8px;">
+                    <input name="q" value="{{ filters.q|default('') }}"
+                        placeholder="{{ t('ticket_ui_customer_search_placeholder', locale) }}">
                     <select name="status">
                         <option value="">{{ t('ticket_ui_all_statuses', locale) }}</option>
-                        {% for value,label in statusLabels %}<option value="{{ value }}" {{ filters.status|default('') == value ? 'selected' : '' }}>{{ label }}</option>{% endfor %}
+                        {% for value, label in statusLabels %}
+                        <option value="{{ value }}" {{ filters.status|default('') == value ? 'selected' : '' }}>{{ label }}</option>
+                        {% endfor %}
                     </select>
-                    <button type="submit" class="ui-button ui-button--ghost">{{ t('ticket_ui_filter', locale) }}</button>
+                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('ticket_ui_filter', locale) }}</button>
                 </form>
             </div>
-            {% include 'customer/tickets/_table.html.twig' with { tickets: tickets, statusStyles: statusStyles, priorityStyles: priorityStyles, statusLabels: statusLabels, priorityLabels: priorityLabels } %}
-        </section>
+            {% include 'customer/tickets/_table.html.twig' with {
+                tickets: tickets,
+                statusStyles: statusStyles,
+                priorityStyles: priorityStyles,
+                statusLabels: statusLabels,
+                priorityLabels: priorityLabels,
+            } %}
+        </div>
 
-        {# Create ticket form #}
-        <aside id="ticket-form" style="position:sticky;top:20px;" hx-trigger="tickets-changed from:body" hx-get="/tickets/form" hx-swap="outerHTML">
+        {# ── Create form ── #}
+        <aside id="ticket-form" style="position:sticky;top:20px;"
+            hx-trigger="tickets-changed from:body"
+            hx-get="/tickets/form"
+            hx-swap="outerHTML">
             {% include 'customer/tickets/_form.html.twig' with { form: form, locale: locale } %}
         </aside>
-    </div>
 
+    </div>
 </div>
 {% endblock %}

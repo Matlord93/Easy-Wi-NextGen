@@ -184,6 +184,80 @@ final class Ts6VirtualServerService
         return $job;
     }
 
+    public function kickClient(Ts6VirtualServer $server, int $clid, string $reason = ''): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'clid' => $clid,
+            'reason' => $reason,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.client.kick', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
+    public function pokeClient(Ts6VirtualServer $server, int $clid, string $message): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'clid' => $clid,
+            'message' => $message,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.client.poke', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
+    public function addBan(Ts6VirtualServer $server, array $banParams): AgentJob
+    {
+        $payload = array_merge([
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ], $banParams);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.ban.add', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
+    public function removeBan(Ts6VirtualServer $server, int $banid): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'banid' => $banid,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.ban.remove', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
+    public function queueSnapshot(Ts6VirtualServer $server, string $cacheKey): AgentJob
+    {
+        return $this->queueServerQuery($server, $cacheKey, 'ts6.virtual.snapshot.create');
+    }
+
     public function queueServerQuery(Ts6VirtualServer $server, string $cacheKey, string $jobType): AgentJob
     {
         $payload = [

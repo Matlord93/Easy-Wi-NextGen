@@ -12,7 +12,9 @@ final class AdminInstancesUiRefactorSmokeTest extends AbstractWebTestCase
         putenv('APP_UI_REFACTOR_INSTANCES=0');
 
         $this->seedSite();
-        $this->seedInstance();
+        $instance = $this->seedInstance();
+        $instance->setServerName('Smoke Hostname');
+        self::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class)->flush();
         static::ensureKernelShutdown();
         $client = static::createClient();
         $this->loginAsRole($client, 'admin');
@@ -27,6 +29,7 @@ final class AdminInstancesUiRefactorSmokeTest extends AbstractWebTestCase
         self::assertResponseIsSuccessful();
         $table = (string) $client->getResponse()->getContent();
         self::assertStringContainsString('Kunde-Einstellungen', $table);
+        self::assertStringContainsString('Smoke Hostname', $table);
         self::assertStringContainsString('hx-post="/admin/instances/', $table);
     }
 
@@ -36,7 +39,9 @@ final class AdminInstancesUiRefactorSmokeTest extends AbstractWebTestCase
         putenv('APP_UI_REFACTOR_INSTANCES=1');
 
         $this->seedSite();
-        $this->seedInstance();
+        $instance = $this->seedInstance();
+        $instance->setServerName('Refactor Hostname');
+        self::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class)->flush();
         static::ensureKernelShutdown();
         $client = static::createClient();
         $this->loginAsRole($client, 'admin');
@@ -51,6 +56,7 @@ final class AdminInstancesUiRefactorSmokeTest extends AbstractWebTestCase
         self::assertResponseIsSuccessful();
         $table = (string) $client->getResponse()->getContent();
         self::assertStringContainsString('Kunde-Einstellungen', $table);
+        self::assertStringContainsString('Refactor Hostname', $table);
         self::assertStringContainsString('hx-post="/admin/instances/', $table);
     }
 }

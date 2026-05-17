@@ -19,6 +19,23 @@
     const redirectUrl = root.dataset.powerRedirectUrl || '';
     const queryUrl = root.dataset.urlQuery || '';
 
+    const defaultI18n = {
+        working: 'Working…',
+        queryNotSupported: 'Query not supported',
+        unknown: 'Unknown',
+        actionQueued: 'Power action queued: %action%',
+    };
+    let i18n = defaultI18n;
+    try {
+        i18n = { ...defaultI18n, ...(root.dataset.i18n ? JSON.parse(root.dataset.i18n) : {}) };
+    } catch (_) {
+        i18n = defaultI18n;
+    }
+    const tr = (key, replacements = {}) => Object.entries(replacements).reduce(
+        (msg, [k, v]) => msg.replaceAll(`%${k}%`, String(v)),
+        i18n[key] || defaultI18n[key] || key,
+    );
+
     const setLoading = (loading, activeAction = '') => {
         buttons.forEach((button) => {
             const sameAction = button.dataset.powerAction === activeAction;
@@ -26,7 +43,7 @@
             button.classList.toggle('opacity-60', loading && !sameAction);
             if (loading && sameAction) {
                 button.dataset.originalLabel = button.textContent;
-                button.textContent = 'Working…';
+                button.textContent = tr('working');
             } else if (button.dataset.originalLabel) {
                 button.textContent = button.dataset.originalLabel;
             }
@@ -73,7 +90,7 @@
 
         if (query.supported === false) {
             statusEls.forEach((el) => {
-                el.textContent = 'Query not supported';
+                el.textContent = tr('queryNotSupported');
             });
             return;
         }
@@ -89,7 +106,7 @@
         const maxPlayers = Number.isFinite(Number(query.players?.max)) ? Number(query.players.max) : null;
         const playersKnown = players !== null && maxPlayers !== null && maxPlayers > 0;
         playersEls.forEach((el) => {
-            el.textContent = playersKnown ? `${players} / ${maxPlayers}` : 'Unknown';
+            el.textContent = playersKnown ? `${players} / ${maxPlayers}` : tr('unknown');
         });
         mapEls.forEach((el) => {
             el.textContent = query.map || '—';
@@ -153,7 +170,7 @@
                     return;
                 }
                 errors.showToast({
-                    message: `Power action queued: ${action}`,
+                    message: tr('actionQueued', { action }),
                     error_code: 'OK',
                     request_id: payload.request_id || '',
                 }, 2000);

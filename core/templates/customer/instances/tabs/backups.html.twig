@@ -11,6 +11,19 @@
     data-url-health="{{ path('customer_instance_backups_health', {id: instance.id}) }}"
     data-confirm-restore="{{ t('customer_instances_backups_restore_confirm', locale) }}"
     data-confirm-delete="{{ t('customer_instances_backups_delete_confirm', locale) }}"
+    data-i18n="{{ {
+        'noBackupsYet': t('customer_instances_backups_none_js', locale),
+        'failedToLoad': t('customer_instances_backups_load_failed', locale),
+        'restore': t('customer_instances_backups_restore', locale),
+        'download': t('customer_instances_backups_download', locale),
+        'delete': t('customer_instances_backups_delete', locale),
+        'creating': t('customer_instances_backups_creating', locale),
+        'backupQueued': t('customer_instances_backups_queued', locale),
+        'restoreQueued': t('customer_instances_backups_restore_queued', locale),
+        'backupsUnavailable': t('customer_instances_backups_unavailable', locale),
+        'backupIdRequired': t('customer_instances_backups_id_required', locale),
+        'modeUpdated': t('customer_instances_backups_mode_updated', locale)
+    }|json_encode|e('html_attr') }}"
 >
     {# ─── Header + Erstellen ─── #}
     <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">

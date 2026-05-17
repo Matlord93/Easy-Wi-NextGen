@@ -13,6 +13,23 @@
     data-url-access-health="{{ path('instances_access_health', {id: instance.id}) }}"
     data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
     data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
+    data-i18n="{{ {
+        'automationSaved': t('customer_instance_settings_automation_saved', page_locale()),
+        'saving': t('customer_instance_settings_saving', page_locale()),
+        'saveAutomationBtn': t('customer_instance_settings_automation_save_btn', page_locale()),
+        'configNamePrompt': t('customer_instance_settings_config_name_prompt', page_locale()),
+        'configFormatPrompt': t('customer_instance_settings_config_format_prompt', page_locale()),
+        'creating': t('customer_instance_settings_creating', page_locale()),
+        'createBtn': t('customer_instance_settings_create_btn', page_locale()),
+        'configCreated': t('customer_instance_settings_config_created', page_locale()),
+        'configSaved': t('customer_instance_settings_config_saved', page_locale()),
+        'configApplyQueued': t('customer_instance_settings_config_apply_queued', page_locale()),
+        'noMatchingConfigs': t('customer_instance_settings_no_matching_configs', page_locale()),
+        'selectConfigFirst': t('customer_instance_settings_select_config_first', page_locale()),
+        'applying': t('customer_instance_settings_applying', page_locale()),
+        'applyBtn': t('customer_instance_settings_apply_btn', page_locale()),
+        'saveBtn': t('customer_instance_settings_save_btn', page_locale())
+    }|json_encode|e('html_attr') }}"
 >
     <input type="hidden" id="slotInput" value="{{ instance.current_slots }}">
 

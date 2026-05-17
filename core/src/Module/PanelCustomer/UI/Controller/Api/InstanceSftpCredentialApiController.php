@@ -77,10 +77,12 @@ final class InstanceSftpCredentialApiController
                 $this->entityManager->persist($credential);
 
                 $backendPreference = $this->resolvePreferredBackend($instance);
+                $rootPath = $this->resolveInstanceRootPath($instance);
                 $response = $this->agentGameServerClient->provisionInstanceAccess($instance, [
                     'username' => $username,
                     'password' => $generatedPassword,
-                    'root_path' => $this->resolveInstanceRootPath($instance),
+                    'root_path' => $rootPath,
+                    'owner_user' => basename($rootPath),
                     'preferred_backend' => $backendPreference,
                     'host' => $this->resolveHost($instance),
                 ]);
@@ -401,6 +403,7 @@ final class InstanceSftpCredentialApiController
 
     private function queueResetJob(Request $request, User $actor, Instance $instance, InstanceSftpCredential $credential, string $username, string $password, \DateTimeImmutable $expiresAt): Job
     {
+        $rootPath = $this->resolveInstanceRootPath($instance);
         $job = new Job('instance.sftp.credentials.reset', [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $instance->getCustomer()->getId(),
@@ -408,9 +411,10 @@ final class InstanceSftpCredentialApiController
             'credential_id' => $credential->getId(),
             'username' => $username,
             'one_time_password_secret' => $this->encryptionService->encrypt($password),
-            'install_path' => $this->resolveInstanceRootPath($instance),
+            'install_path' => $rootPath,
             'base_dir' => $this->resolveInstanceBaseDir($instance),
-            'root_path' => $this->resolveInstanceRootPath($instance),
+            'root_path' => $rootPath,
+            'owner_user' => basename($rootPath),
             'preferred_backend' => $this->resolvePreferredBackend($instance),
             'os_type' => $this->resolveAgentOsType($instance),
             'rotate' => true,

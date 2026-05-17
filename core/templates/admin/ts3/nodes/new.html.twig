@@ -4,26 +4,25 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-    <div class="ts3-page">
-        <div class="ts3-header">
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
             <div>
-                <h1>{{ t('admin_ts3_node_new_title', locale) }}</h1>
-                <p>{{ t('admin_ts3_node_new_intro', locale) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_ts3_node_new_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_ts3_node_new_intro', locale) }}</p>
             </div>
-            <div class="ts3-actions">
-                <a class="ts3-link" href="/admin/ts3/nodes">{{ t('admin_ts3_node_back', locale) }}</a>
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts3/nodes">{{ t('admin_ts3_node_back', locale) }}</a>
             </div>
         </div>
-
-        <div class="ts3-card">
-            <p class="ts3-muted">{{ t('admin_ts3_node_agent_hint', locale) }}</p>
-            {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
+        <div class="ng-data-card__body">
+            <p style="margin-bottom:16px;color:var(--color-text-muted,#64748b);font-size:.875rem;">{{ t('admin_ts3_node_agent_hint', locale) }}</p>
+            {{ form_start(form) }}
                 {{ form_errors(form) }}
-                <div class="ts3-grid">
+                <div style="display:flex;flex-direction:column;gap:16px;">
                     {{ form_row(form.name, { label: 'Name' }) }}
                     {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
                     {{ form_row(form.downloadUrl, { label: 'Download URL' }) }}
-                    <div class="ts3-muted">{{ t('admin_ts3_node_download_hint', locale) }}</div>
+                    <p style="color:var(--color-text-muted,#64748b);font-size:.875rem;">{{ t('admin_ts3_node_download_hint', locale) }}</p>
                     {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
                     {{ form_row(form.instanceName, { label: 'Instanzname' }) }}
                     {{ form_row(form.serviceName, { label: 'Service Name' }) }}
@@ -31,8 +30,8 @@
                     {{ form_row(form.queryPort, { label: 'Query Port' }) }}
                     {{ form_row(form.filetransferPort, { label: 'Filetransfer Port' }) }}
                 </div>
-                <div class="ts3-actions">
-                    <button class="ts3-button" type="submit">{{ t('admin_ts3_node_save', locale) }}</button>
+                <div style="display:flex;justify-content:flex-end;margin-top:20px;">
+                    <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts3_node_save', locale) }}</button>
                 </div>
             {{ form_end(form) }}
         </div>

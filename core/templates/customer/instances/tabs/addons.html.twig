@@ -1,3 +1,4 @@
+{% set locale = page_locale() %}
 <div
     id="gameserver-addons"
     class="space-y-5"
@@ -6,6 +7,21 @@
     data-url-install-template="{{ path('customer_instance_addons_install_v2', {id: instance.id, addonId: '__ADDON_ID__'}) }}"
     data-url-update-template="{{ path('customer_instance_addons_update_v2', {id: instance.id, addonId: '__ADDON_ID__'}) }}"
     data-url-remove-template="{{ path('customer_instance_addons_remove_v2', {id: instance.id, addonId: '__ADDON_ID__'}) }}"
+    data-i18n="{{ {
+        'incompatible': t('customer_instance_addons_incompatible_badge', locale),
+        'updateAvailable': t('customer_instance_addons_update_badge', locale),
+        'installed': t('customer_instance_addons_installed_badge', locale),
+        'available': t('customer_instance_addons_available_badge', locale),
+        'noAddons': t('customer_instance_addons_none_js', locale),
+        'notSupported': t('customer_instance_addons_not_supported_js', locale),
+        'installedVersion': t('customer_instance_addons_installed_version_js', locale),
+        'notInstalled': t('customer_instance_addons_not_installed_js', locale),
+        'confirmAction': t('customer_instance_addons_confirm_action', locale),
+        'actionQueued': t('customer_instance_addons_action_queued', locale),
+        'install': t('customer_instance_addons_install', locale),
+        'update': t('customer_instance_addons_update', locale),
+        'remove': t('customer_instance_addons_remove', locale)
+    }|json_encode|e('html_attr') }}"
 >
     {# ─── Header ─── #}
     <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
@@ -17,7 +33,7 @@
                     <p class="text-xs text-slate-500">{{ t('customer_instances_addons_intro', page_locale()) }}</p>
                 </div>
             </div>
-            <p id="gs-addons-meta" class="text-xs text-slate-500">Wird geladen…</p>
+            <p id="gs-addons-meta" class="text-xs text-slate-500">{{ t('common_loading', page_locale()) }}</p>
         </div>
         <div id="gs-addons-error" class="hidden mt-3 rounded-lg border border-rose-700/50 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
     </div>
@@ -25,7 +41,7 @@
     {# ─── Addon-Raster ─── #}
     <div id="gs-addons-list" class="grid gap-3 md:grid-cols-2">
         <div class="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4 text-sm text-slate-500 md:col-span-2">
-            Addons werden geladen…
+            {{ t('common_loading', page_locale()) }}
         </div>
     </div>
 </div>

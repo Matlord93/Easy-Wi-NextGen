@@ -40,7 +40,7 @@ final class RunBackupPlanMessageHandler
         $targetLockScope = null;
         $targetLockEnabled = (bool) ($plan->options()['lock_target'] ?? false);
         if ($targetLockEnabled) {
-            $targetLockScope = 'target:'.$plan->target()->type().':'.sha1(json_encode($plan->target()->config(), JSON_THROW_ON_ERROR));
+            $targetLockScope = 'target:'.$plan->target()->type().':'.hash('sha256', json_encode($plan->target()->config(), JSON_THROW_ON_ERROR));
             if (!$this->planStore->acquireLock($targetLockScope, $lockExpiresAt)) {
                 $this->planStore->releaseLock($planLockScope);
                 return;

@@ -15,6 +15,7 @@
             </div>
             {% if actions is defined %}
                 <div class="ng-card__actions">
+                    {# actions contains pre-rendered HTML from PHP templates, never from direct user input #}
                     {{ actions|raw }}
                 </div>
             {% endif %}

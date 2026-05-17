@@ -7,5 +7,6 @@
         theme: theme|default(null)
     } only %}
 {% else %}
+    {# block.html is rendered by BlockRendererRegistry via Twig templates, admin-controlled CMS content #}
     <div class="{{ text_class|default('') }}">{{ block.html|raw }}</div>
 {% endif %}

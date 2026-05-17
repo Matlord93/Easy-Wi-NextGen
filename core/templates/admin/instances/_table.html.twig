@@ -1,146 +1,218 @@
-<div class="border-b border-slate-200 p-6">
-    <div class="space-y-2">
-        <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_instances_table_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('admin_instances_table_intro', page_locale()) }}</p>
+{% set activeFilters = filters|default({'q': '', 'status': '', 'node': ''}) %}
+
+<div id="instances-table">
+
+<div class="tkt-filter-bar">
+    <div class="tkt-filter-bar__top">
+        <form class="tkt-filter-bar__fields"
+              hx-get="{{ path('admin_instances_table') }}"
+              hx-target="#instances-table"
+              hx-swap="outerHTML">
+            <div class="form-field">
+                <input type="text"
+                       name="q"
+                       value="{{ activeFilters.q }}"
+                       placeholder="ID, Kunde, Hostname, Template, Game …"
+                       class="form-input">
+            </div>
+            <div class="form-field">
+                <select name="status" class="form-input">
+                    <option value="">Alle Status</option>
+                    <option value="running" {{ activeFilters.status == 'running' ? 'selected' : '' }}>Running</option>
+                    <option value="stopped" {{ activeFilters.status == 'stopped' ? 'selected' : '' }}>Stopped</option>
+                    <option value="pending_setup" {{ activeFilters.status == 'pending_setup' ? 'selected' : '' }}>Pending setup</option>
+                    <option value="provisioning" {{ activeFilters.status == 'provisioning' ? 'selected' : '' }}>Provisioning</option>
+                    <option value="suspended" {{ activeFilters.status == 'suspended' ? 'selected' : '' }}>Suspended</option>
+                    <option value="error" {{ activeFilters.status == 'error' ? 'selected' : '' }}>Error</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <input type="text"
+                       name="node"
+                       value="{{ activeFilters.node }}"
+                       placeholder="{{ t('admin_instances_node_contains_placeholder', page_locale()) }}"
+                       class="form-input">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button type="submit" class="ui-button ui-button--primary ui-button--sm">Filter</button>
+                <a href="{{ path('admin_instances_table') }}" class="ui-button ui-button--ghost ui-button--sm">Reset</a>
+            </div>
+        </form>
     </div>
-    {% set activeFilters = filters|default({'q': '', 'status': '', 'node': ''}) %}
-    <form class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4"
-          hx-get="{{ path('admin_instances_table') }}"
-          hx-target="#instances-table"
-          hx-swap="outerHTML">
-        <input type="text"
-               name="q"
-               value="{{ activeFilters.q }}"
-               placeholder="ID, Kunde, Template, Game …"
-               class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-        <select name="status" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-            <option value="">Alle Status</option>
-            <option value="running" {{ activeFilters.status == 'running' ? 'selected' : '' }}>Running</option>
-            <option value="stopped" {{ activeFilters.status == 'stopped' ? 'selected' : '' }}>Stopped</option>
-            <option value="pending_setup" {{ activeFilters.status == 'pending_setup' ? 'selected' : '' }}>Pending setup</option>
-            <option value="provisioning" {{ activeFilters.status == 'provisioning' ? 'selected' : '' }}>Provisioning</option>
-            <option value="suspended" {{ activeFilters.status == 'suspended' ? 'selected' : '' }}>Suspended</option>
-            <option value="error" {{ activeFilters.status == 'error' ? 'selected' : '' }}>Error</option>
-        </select>
-        <input type="text"
-               name="node"
-               value="{{ activeFilters.node }}"
-               placeholder="{{ t('admin_instances_node_contains_placeholder', page_locale()) }}"
-               class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-        <div class="flex items-center gap-2">
-            <button class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white">Filter</button>
-            <a href="{{ path('admin_instances_table') }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Reset</a>
-        </div>
-    </form>
+
     {% if errors is defined and errors is not empty %}
-        <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <ul class="list-disc space-y-1 pl-4">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+        <div class="ng-alert ng-alert--danger" style="margin:12px 16px 0;">
+            <ul style="margin:0;padding-left:18px;">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
         </div>
     {% endif %}
 </div>
 
-<div class="overflow-x-auto">
-    <table class="min-w-full divide-y divide-slate-200 text-sm">
-        <thead class="bg-slate-50">
+<div class="cust-ws-table-wrap">
+    <table class="cust-table">
+        <thead>
             <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">ID</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Kunde / Template</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Node</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Ressourcen</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Disk</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Status</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Setup</th>
-                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-700">Aktionen</th>
+                <th>ID</th>
+                <th>{{ t('admin_instances_customer_game', page_locale())|default('Kunde / Gameserver') }}</th>
+                <th>Node</th>
+                <th>{{ t('admin_instances_resources', page_locale())|default('Ressourcen') }}</th>
+                <th>Disk</th>
+                <th>Status</th>
+                <th>Setup</th>
+                <th style="text-align:right;">{{ t('admin_instances_actions', page_locale())|default('Aktionen') }}</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-slate-200 bg-white">
+        <tbody>
             {% for instance in instances %}
                 {% set displayStatus = instance.display_status ?? instance.status %}
-                {% set statusColor = 'text-slate-600 bg-slate-100' %}
-                {% if displayStatus == 'running' %}{% set statusColor = 'text-emerald-700 bg-emerald-50' %}{% endif %}
-                {% if displayStatus in ['error', 'suspended'] %}{% set statusColor = 'text-rose-700 bg-rose-50' %}{% endif %}
-                {% if displayStatus in ['pending_setup', 'provisioning', 'stopped'] %}{% set statusColor = 'text-amber-700 bg-amber-50' %}{% endif %}
+                {% if displayStatus == 'running' %}
+                    {% set statusVariant = 'success' %}
+                {% elseif displayStatus in ['error', 'suspended'] %}
+                    {% set statusVariant = 'danger' %}
+                {% elseif displayStatus in ['pending_setup', 'provisioning', 'stopped'] %}
+                    {% set statusVariant = 'warning' %}
+                {% else %}
+                    {% set statusVariant = 'neutral' %}
+                {% endif %}
 
-                {% set installBadge = instance.install_ready ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50' %}
-                {% set diskStateStyles = {'ok': 'text-emerald-700 bg-emerald-50', 'warning': 'text-amber-700 bg-amber-50', 'over_limit': 'text-rose-700 bg-rose-50', 'hard_block': 'text-rose-700 bg-rose-100'} %}
-                {% set diskBadge = diskStateStyles[instance.disk_state] ?? 'text-slate-600 bg-slate-100' %}
+                {% set installVariant = instance.install_ready ? 'success' : 'warning' %}
+
+                {% if instance.disk_state == 'ok' %}
+                    {% set diskVariant = 'success' %}
+                {% elseif instance.disk_state in ['over_limit', 'hard_block'] %}
+                    {% set diskVariant = 'danger' %}
+                {% elseif instance.disk_state == 'warning' %}
+                    {% set diskVariant = 'warning' %}
+                {% else %}
+                    {% set diskVariant = 'neutral' %}
+                {% endif %}
+
                 {% set diskPercent = instance.disk_percent|default(0) %}
                 {% set diskBarWidth = diskPercent > 100 ? 100 : diskPercent %}
 
-                <tr class="hover:bg-slate-50/70 align-top">
-                    <td class="px-4 py-4 text-slate-700">#{{ instance.id }}<div class="text-[11px] text-slate-500 mt-1">{{ instance.updated_at ? instance.updated_at|date('Y-m-d H:i') : '—' }}</div></td>
-                    <td class="px-4 py-4">
-                        <div class="font-medium text-slate-900">{{ instance.customer_email }}</div>
-                        <div class="mt-1 text-xs text-slate-700">{{ instance.template_name }} ({{ instance.game_key }})</div>
-                        <div class="mt-2 space-y-1 text-xs text-slate-500">
-                            <div>SFTP: {{ instance.sftp_username ?: '—' }} · {{ instance.sftp_host ?: '—' }}:{{ instance.sftp_port ?: '—' }} · {{ instance.sftp_status }}</div>
-                            <div>FTP: {{ instance.ftp_supported ? t('admin_instances_ftp_active', page_locale()) : t('admin_instances_ftp_unavailable', page_locale()) }}</div>
-                            {% if instance.sftp_expires_at %}<div>{{ t('admin_instances_sftp_expires', page_locale()) }}: {{ instance.sftp_expires_at|date('Y-m-d H:i') }}</div>{% endif %}
-                            {% if instance.sftp_last_error %}<div class="text-rose-600">{{ t('admin_instances_sftp_error_label', page_locale()) }}: {{ instance.sftp_last_error }}</div>{% endif %}
+                <tr>
+                    <td>
+                        <span style="font-weight:600;">#{{ instance.id }}</span>
+                        <div style="font-size:11px;color:var(--color-text-muted,#94a3b8);margin-top:2px;">
+                            {{ instance.updated_at ? instance.updated_at|date('Y-m-d H:i') : '—' }}
                         </div>
                     </td>
-                    <td class="px-4 py-4 text-slate-700">{{ instance.node }}</td>
-                    <td class="px-4 py-4">
-                        <div class="text-xs text-slate-700">{{ instance.cpu_limit }} vCPU · {{ instance.ram_limit }} MB · {{ instance.disk_limit }} MB</div>
-                        <details class="mt-2">
-                            <summary class="cursor-pointer text-xs font-semibold text-indigo-600">{{ t('admin_instances_update_resources', page_locale()) }}</summary>
-                            <form class="mt-2 grid gap-2" hx-post="{{ path('admin_instances_update_resources', {id: instance.id}) }}" hx-target="#instances-table" hx-swap="outerHTML">
+                    <td>
+                        <div style="font-weight:600;font-size:14px;">{{ instance.template_name }}</div>
+                        <div style="margin-top:3px;font-size:12px;color:var(--color-text-muted,#64748b);">
+                            {{ t('admin_instances_hostname', page_locale()) }}: <span style="font-weight:600;color:var(--color-text,#0f172a);">{{ instance.server_name ?: '—' }}</span>
+                        </div>
+                        <div style="margin-top:3px;">
+                            <span class="ui-badge ui-badge--neutral" style="font-size:10px;">{{ instance.game_key }}</span>
+                        </div>
+                        <div style="margin-top:6px;font-size:12px;color:var(--color-text-muted,#64748b);">{{ instance.customer_email }}</div>
+                        <div style="margin-top:4px;font-size:11px;color:var(--color-text-muted,#94a3b8);">
+                            SFTP: {{ instance.sftp_username ?: '—' }} · {{ instance.sftp_host ?: '—' }}:{{ instance.sftp_port ?: '—' }} · {{ instance.sftp_status }}
+                        </div>
+                        {% if instance.sftp_expires_at %}
+                            <div style="font-size:11px;color:var(--color-text-muted,#94a3b8);">
+                                {{ t('admin_instances_sftp_expires', page_locale()) }}: {{ instance.sftp_expires_at|date('Y-m-d H:i') }}
+                            </div>
+                        {% endif %}
+                        {% if instance.sftp_last_error %}
+                            <div style="font-size:11px;color:#ef4444;">{{ t('admin_instances_sftp_error_label', page_locale()) }}: {{ instance.sftp_last_error }}</div>
+                        {% endif %}
+                    </td>
+                    <td>{{ instance.node }}</td>
+                    <td>
+                        <div style="font-size:12px;">{{ instance.cpu_limit }} vCPU · {{ instance.ram_limit }} MB · {{ instance.disk_limit }} MB</div>
+                        <details style="margin-top:6px;">
+                            <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#6366f1;">{{ t('admin_instances_update_resources', page_locale()) }}</summary>
+                            <form style="margin-top:8px;display:grid;gap:6px;"
+                                  hx-post="{{ path('admin_instances_update_resources', {id: instance.id}) }}"
+                                  hx-target="#instances-table"
+                                  hx-swap="outerHTML">
                                 <input type="hidden" name="q" value="{{ activeFilters.q }}">
                                 <input type="hidden" name="status" value="{{ activeFilters.status }}">
                                 <input type="hidden" name="node" value="{{ activeFilters.node }}">
-                                <div class="grid grid-cols-3 gap-2">
-                                    <input name="cpu_limit" type="number" min="{{ instance.cpu_limit }}" value="{{ instance.cpu_limit }}" class="rounded-md border border-slate-200 px-2 py-1 text-xs">
-                                    <input name="ram_limit" type="number" min="{{ instance.ram_limit }}" value="{{ instance.ram_limit }}" class="rounded-md border border-slate-200 px-2 py-1 text-xs">
-                                    <input name="disk_limit" type="number" min="{{ instance.disk_limit }}" value="{{ instance.disk_limit }}" class="rounded-md border border-slate-200 px-2 py-1 text-xs">
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+                                    <input name="cpu_limit" type="number" min="{{ instance.cpu_limit }}" value="{{ instance.cpu_limit }}" class="form-input" style="font-size:11px;padding:4px 6px;">
+                                    <input name="ram_limit" type="number" min="{{ instance.ram_limit }}" value="{{ instance.ram_limit }}" class="form-input" style="font-size:11px;padding:4px 6px;">
+                                    <input name="disk_limit" type="number" min="{{ instance.disk_limit }}" value="{{ instance.disk_limit }}" class="form-input" style="font-size:11px;padding:4px 6px;">
                                 </div>
-                                <button class="w-fit rounded-md bg-indigo-600 px-3 py-1 text-[11px] font-semibold uppercase text-white">{{ t('admin_instances_update_resources_submit', page_locale()) }}</button>
+                                <button class="ui-button ui-button--primary ui-button--sm" style="justify-self:start;">{{ t('admin_instances_update_resources_submit', page_locale()) }}</button>
                             </form>
                         </details>
                     </td>
-                    <td class="px-4 py-4">
-                        <div class="flex items-center gap-2">
-                            <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold {{ diskBadge }}">{{ instance.disk_state|replace({'_': ' '})|title }}</span>
-                            <span class="text-xs text-slate-600">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</span>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <span class="ui-badge ui-badge--{{ diskVariant }}">{{ instance.disk_state|replace({'_': ' '})|title }}</span>
+                            <span style="font-size:11px;color:var(--color-text-muted,#64748b);">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</span>
                         </div>
-                        <div class="mt-2 h-2 w-full rounded-full bg-slate-100"><div class="h-2 rounded-full bg-indigo-500" style="width: {{ diskBarWidth }}%"></div></div>
+                        <div style="margin-top:6px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;">
+                            <div style="height:4px;background:#6366f1;border-radius:2px;width:{{ diskBarWidth }}%;"></div>
+                        </div>
                     </td>
-                    <td class="px-4 py-4">
-                        <span class="rounded-full px-3 py-1 text-xs font-semibold {{ statusColor }}">{{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}</span>
+                    <td>
+                        <span class="ui-badge ui-badge--{{ statusVariant }}">
+                            {{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}
+                        </span>
                         {% if instance.runtime_status_reason %}
-                            <div class="mt-1 text-xs text-amber-700">{{ instance.runtime_status_reason }}</div>
+                            <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.runtime_status_reason }}</div>
                         {% endif %}
                         {% if instance.latest_lifecycle_job_id %}
-                            <div class="mt-2 text-[11px] text-slate-600">
-                                Job {{ instance.latest_lifecycle_job_type }} · {{ instance.latest_lifecycle_job_status }}
+                            <div style="margin-top:4px;font-size:11px;color:var(--color-text-muted,#94a3b8);">
+                                {{ instance.latest_lifecycle_job_type }} · {{ instance.latest_lifecycle_job_status }}
                                 {% if instance.latest_lifecycle_job_error_code %}
-                                    <span class="text-rose-700">({{ instance.latest_lifecycle_job_error_code }})</span>
+                                    <span style="color:#ef4444;">({{ instance.latest_lifecycle_job_error_code }})</span>
                                 {% endif %}
                             </div>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-4">
-                        <span class="rounded-full px-3 py-1 text-xs font-semibold {{ installBadge }}">
+                    <td>
+                        <span class="ui-badge ui-badge--{{ installVariant }}">
                             {{ instance.install_ready ? t('admin_instances_install_ready', page_locale()) : t('admin_instances_setup_open', page_locale()) }}
                         </span>
                         {% if instance.install_error_code %}
-                            <div class="mt-1 text-xs text-amber-700">{{ instance.install_error_code }}</div>
+                            <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.install_error_code }}</div>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-4 text-right">
-                        <div class="flex flex-col items-end gap-2">
-                            <a href="{{ path('customer_instance_detail', {id: instance.id, tab: 'settings'}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">{{ t('admin_instances_customer_settings', page_locale()) }}</a>
-                            <a href="{{ path('customer_instance_detail', {id: instance.id, tab: 'files'}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">{{ t('admin_instances_file_manager', page_locale()) }}</a>
+                    <td style="text-align:right;">
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+                            <form method="post"
+                                  action="{{ path('admin_users_impersonate', {id: instance.customer_id}) }}"
+                                  style="display:contents;">
+                                <input type="hidden" name="redirect" value="{{ path('customer_instance_detail', {id: instance.id, tab: 'settings'}) }}">
+                                <button type="submit" class="ui-button ui-button--ghost ui-button--sm">
+                                    {{ t('admin_instances_customer_settings', page_locale()) }}
+                                </button>
+                            </form>
+                            <form method="post"
+                                  action="{{ path('admin_users_impersonate', {id: instance.customer_id}) }}"
+                                  style="display:contents;">
+                                <input type="hidden" name="redirect" value="{{ path('customer_instance_detail', {id: instance.id, tab: 'files'}) }}">
+                                <button type="submit" class="ui-button ui-button--ghost ui-button--sm">
+                                    {{ t('admin_instances_file_manager', page_locale()) }}
+                                </button>
+                            </form>
                             {% if not instance.sftp_ready %}
-                                <div class="text-[11px] text-slate-500">{{ t('admin_instances_sftp_password_once', page_locale()) }}</div>
-                                <button class="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-600" hx-post="{{ path('admin_instances_sftp_provision', {id: instance.id}) }}">{{ t('admin_instances_sftp_provision', page_locale()) }}</button>
+                                <div style="font-size:11px;color:var(--color-text-muted,#94a3b8);">{{ t('admin_instances_sftp_password_once', page_locale()) }}</div>
+                                <button class="ui-button ui-button--ghost ui-button--sm"
+                                        style="border-color:#818cf8;color:#6366f1;"
+                                        hx-post="{{ path('admin_instances_sftp_provision', {id: instance.id}) }}">
+                                    {{ t('admin_instances_sftp_provision', page_locale()) }}
+                                </button>
                             {% endif %}
-                            <button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600" hx-post="{{ path('admin_instances_delete_form', {id: instance.id}) }}" hx-confirm="{{ t('admin_instances_delete_confirm', page_locale()) }}">{{ t('delete', page_locale()) }}</button>
+                            <button class="ui-button ui-button--ghost ui-button--sm"
+                                    style="border-color:#fca5a5;color:#ef4444;"
+                                    hx-post="{{ path('admin_instances_delete_form', {id: instance.id}) }}"
+                                    hx-confirm="{{ t('admin_instances_delete_confirm', page_locale()) }}">
+                                {{ t('delete', page_locale()) }}
+                            </button>
                         </div>
                     </td>
                 </tr>
             {% else %}
-                <tr><td class="px-4 py-8 text-center text-sm text-slate-700" colspan="8">{{ t('admin_instances_empty', page_locale()) }}</td></tr>
+                <tr>
+                    <td colspan="8" class="cust-table__empty">{{ t('admin_instances_empty', page_locale()) }}</td>
+                </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+</div>{# end #instances-table #}

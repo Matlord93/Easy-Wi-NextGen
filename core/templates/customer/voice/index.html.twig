@@ -2,8 +2,11 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="cust-page" id="voice-root" data-api-base="{{ path('customer_voice_list_v1') }}">
+<div class="cust-page" id="voice-root"
+    data-api-base="{{ path('customer_voice_list_v1') }}"
+    data-detail-base="{{ path('customer_voice') }}">
 
+    {# ── Hero ── #}
     <div class="cust-hero">
         <div class="cust-hero__inner">
             <div>
@@ -11,35 +14,73 @@
                 <p class="cust-hero__desc">{{ t('customer_voice_page_desc', locale) }}</p>
             </div>
             <div class="cust-hero__actions">
-                <button type="button" data-refresh class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voice_refresh', locale) }}</button>
+                <button type="button" data-refresh
+                    class="ui-button ui-button--ghost ui-button--sm flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    {{ t('customer_voice_refresh', locale) }}
+                </button>
             </div>
         </div>
     </div>
 
-    <div class="cust-panel">
-        <div class="cust-ws-table-wrap">
-            <table class="cust-table">
-                <thead>
-                    <tr>
-                        <th>{{ t('customer_voice_col_name', locale) }}</th>
-                        <th>{{ t('customer_voice_col_provider', locale) }}</th>
-                        <th>{{ t('customer_voice_col_status', locale) }}</th>
-                        <th>{{ t('customer_voice_col_players', locale) }}</th>
-                        <th>{{ t('customer_voice_col_last_probed', locale) }}</th>
-                        <th>{{ t('customer_voice_col_reason', locale) }}</th>
-                        <th>{{ t('customer_voice_col_actions', locale) }}</th>
-                    </tr>
-                </thead>
-                <tbody data-voice-table>
-                    <tr>
-                        <td colspan="7" class="cust-table__empty">{{ t('customer_voice_loading', locale) }}</td>
-                    </tr>
-                </tbody>
-            </table>
+    {# ── KPI row ── #}
+    <div class="cust-kpi-row" id="voice-kpi-row" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px;">
+        <div class="cust-kpi">
+            <div class="cust-kpi__icon cust-kpi__icon--primary">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>
+            </div>
+            <div>
+                <div class="cust-kpi__label">{{ t('customer_voice_total', locale) }}</div>
+                <div class="cust-kpi__value" id="kpi-total">—</div>
+            </div>
+        </div>
+        <div class="cust-kpi">
+            <div class="cust-kpi__icon cust-kpi__icon--success">
+                <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/></svg>
+            </div>
+            <div>
+                <div class="cust-kpi__label">{{ t('customer_voice_online', locale) }}</div>
+                <div class="cust-kpi__value" id="kpi-online">—</div>
+            </div>
+        </div>
+        <div class="cust-kpi">
+            <div class="cust-kpi__icon cust-kpi__icon--warning">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/></svg>
+            </div>
+            <div>
+                <div class="cust-kpi__label">{{ t('customer_voice_offline', locale) }}</div>
+                <div class="cust-kpi__value" id="kpi-offline">—</div>
+            </div>
+        </div>
+        <div class="cust-kpi">
+            <div class="cust-kpi__icon cust-kpi__icon--info">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+            </div>
+            <div>
+                <div class="cust-kpi__label">{{ t('customer_voice_stale', locale) }}</div>
+                <div class="cust-kpi__value" id="kpi-stale">—</div>
+            </div>
         </div>
     </div>
 
-</div>{# /cust-page #}
+    {# ── Instance list ── #}
+    <div class="cust-panel" style="padding:0;overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div>
+                <h2 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_page_title', locale) }}</h2>
+                <p style="margin:2px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_voice_page_desc', locale) }}</p>
+            </div>
+        </div>
+        <div id="voice-list" style="padding:12px;display:flex;flex-direction:column;gap:8px;min-height:80px;">
+            <div style="padding:24px;text-align:center;color:var(--ng-text-muted);font-size:13px;">
+                {{ t('customer_voice_loading', locale) }}
+            </div>
+        </div>
+    </div>
+
+</div>
 
 <script>
 (() => {
@@ -53,84 +94,114 @@
     const MSG_START   = {{ t('customer_voice_start',   locale)|json_encode|raw }};
     const MSG_STOP    = {{ t('customer_voice_stop',    locale)|json_encode|raw }};
     const MSG_RESTART = {{ t('customer_voice_restart', locale)|json_encode|raw }};
+    const MSG_DETAILS = {{ t('customer_voice_details', locale)|json_encode|raw }};
 
-    const root = document.getElementById('voice-root');
-    if (!root) { return; }
-
-    const table         = root.querySelector('[data-voice-table]');
-    const refreshButton = root.querySelector('[data-refresh]');
-    const apiBase       = root.dataset.apiBase || '';
-    if (!apiBase) { return; }
+    const root          = document.getElementById('voice-root');
+    const listEl        = document.getElementById('voice-list');
+    const refreshButton = root?.querySelector('[data-refresh]');
+    const apiBase       = root?.dataset.apiBase || '';
+    const detailBase    = root?.dataset.detailBase || '';
+    if (!root || !apiBase) { return; }
 
     let instances = [];
 
-    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => (
-        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]
-    ));
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    const fmtDate = (v) => v ? new Date(v).toLocaleString() : '—';
+    const busy = (i) => i.action_in_progress || i.probe_in_progress;
 
-    const fmtDate = (value) => value ? new Date(value).toLocaleString() : '-';
-
-    const disableByState = (instance) => instance.action_in_progress || instance.probe_in_progress;
-
-    const probeBadge = (instance) => {
-        if (instance.probe_in_progress) {
-            return `<span class="ui-badge ui-badge--warning">${MSG_QUEUED}${instance.retry_after ? ` · ${instance.retry_after}s` : ''}</span>`;
-        }
-        return `<span class="ui-badge ${instance.stale ? 'ui-badge--danger' : 'ui-badge--success'}">${instance.stale ? MSG_STALE : MSG_CACHED}</span>`;
+    const statusConfig = {
+        online:   { dot: 'cust-status-dot--success', label: 'Online' },
+        offline:  { dot: 'cust-status-dot--danger',  label: 'Offline' },
+        unknown:  { dot: 'cust-status-dot--warning', label: 'Unknown' },
     };
 
-    const actionButtons = (instance) => {
-        const labels  = { start: MSG_START, stop: MSG_STOP, restart: MSG_RESTART };
-        const disabled = disableByState(instance);
-        const retry    = instance.retry_after ? ` · retry in ${instance.retry_after}s` : '';
+    const probeBadge = (i) => {
+        if (i.probe_in_progress) {
+            return `<span class="ui-badge ui-badge--warning ui-badge--sm">${MSG_QUEUED}</span>`;
+        }
+        return `<span class="ui-badge ${i.stale ? 'ui-badge--danger' : 'ui-badge--success'} ui-badge--sm">${i.stale ? MSG_STALE : MSG_CACHED}</span>`;
+    };
 
-        return ['start', 'stop', 'restart'].map((action) => {
-            const label = labels[action];
-            return `<button type="button" data-action="${action}" data-id="${instance.id}" class="ui-button ui-button--ghost ui-button--sm${disabled ? ' is-disabled' : ''}" ${disabled ? 'disabled' : ''}>${label}${disabled ? retry : ''}</button>`;
-        }).join('');
+    const providerBadge = (type) => {
+        const colors = { ts3: '#818cf8', ts6: '#38bdf8', sinusbot: '#4ade80' };
+        const bg     = { ts3: 'rgba(99,102,241,0.15)', ts6: 'rgba(56,189,248,0.15)', sinusbot: 'rgba(34,197,94,0.12)' };
+        const c = colors[type] || '#94a3b8';
+        const b = bg[type]     || 'rgba(148,163,184,0.12)';
+        return `<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:99px;background:${b};color:${c};">${esc((type||'').toUpperCase())}</span>`;
+    };
+
+    const renderCard = (i) => {
+        const sc   = statusConfig[i.status] || statusConfig.unknown;
+        const isBusy = busy(i);
+        const detailHref = detailBase ? `${detailBase}/${encodeURIComponent(i.id)}` : null;
+
+        return `<div style="display:flex;gap:0;border-radius:12px;border:1px solid var(--ng-border);background:var(--ng-surface);overflow:hidden;transition:border-color .15s;${isBusy ? 'opacity:.85;' : ''}">
+            <div style="width:4px;flex-shrink:0;background:${i.status==='online' ? 'linear-gradient(to bottom,#4ade80,#22c55e)' : i.status==='offline' ? 'linear-gradient(to bottom,#f87171,#ef4444)' : 'var(--ng-border-strong)'};"></div>
+            <div style="flex:1;min-width:0;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:16px;align-items:center;">
+                <div style="min-width:0;">
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:5px;">
+                        ${providerBadge(i.provider_type)}
+                        <span class="cust-status-dot ${esc(sc.dot)}">${esc(sc.label)}</span>
+                        ${probeBadge(i)}
+                        ${isBusy ? `<span class="ui-badge ui-badge--warning ui-badge--sm">⟳ ${i.retry_after ? i.retry_after+'s' : '…'}</span>` : ''}
+                    </div>
+                    <div style="font-size:15px;font-weight:700;color:var(--ng-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        ${detailHref ? `<a href="${esc(detailHref)}" style="color:inherit;text-decoration:none;">${esc(i.name)}</a>` : esc(i.name)}
+                    </div>
+                    <div style="margin-top:3px;font-size:12px;color:var(--ng-text-muted);font-family:monospace;">
+                        ${esc(i.connect?.host || '—')}${i.connect?.port ? ':'+esc(String(i.connect.port)) : ''}
+                    </div>
+                </div>
+                <div style="text-align:center;min-width:64px;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px;">Players</div>
+                    <div style="font-size:18px;font-weight:800;color:var(--ng-text);">${esc(i.players_online ?? '?')}<span style="font-size:12px;font-weight:400;color:var(--ng-text-muted);">/${esc(i.players_max ?? '?')}</span></div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;">
+                    ${detailHref ? `<a href="${esc(detailHref)}" class="ui-button ui-button--ghost ui-button--sm">${MSG_DETAILS}</a>` : ''}
+                    <button type="button" data-action="probe" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${isBusy ? 'disabled' : ''}>${MSG_PROBE}</button>
+                    <button type="button" data-action="start"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${isBusy ? 'disabled' : ''}>${MSG_START}</button>
+                    <button type="button" data-action="stop"    data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${isBusy ? 'disabled' : ''}>${MSG_STOP}</button>
+                    <button type="button" data-action="restart" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${isBusy ? 'disabled' : ''}>${MSG_RESTART}</button>
+                </div>
+            </div>
+        </div>`;
+    };
+
+    const updateKpis = () => {
+        const total   = instances.length;
+        const online  = instances.filter((i) => i.status === 'online').length;
+        const offline = instances.filter((i) => i.status === 'offline').length;
+        const stale   = instances.filter((i) => i.stale).length;
+        document.getElementById('kpi-total'  )?.setText?.(String(total));
+        document.getElementById('kpi-online' )?.setText?.(String(online));
+        document.getElementById('kpi-offline')?.setText?.(String(offline));
+        document.getElementById('kpi-stale'  )?.setText?.(String(stale));
+        ['kpi-total','kpi-online','kpi-offline','kpi-stale'].forEach((id, idx) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = [total,online,offline,stale][idx];
+        });
     };
 
     const render = () => {
+        updateKpis();
         if (!instances.length) {
-            table.innerHTML = `<tr><td colspan="7" class="cust-table__empty">${MSG_NONE}</td></tr>`;
+            listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${MSG_NONE}</div>`;
             return;
         }
-
-        table.innerHTML = instances.map((i) => {
-            const reason = i.reason || i.error_code || '-';
-            return `<tr>
-                <td>${escapeHtml(i.name)}</td>
-                <td>${escapeHtml((i.provider_type || '').toUpperCase())}</td>
-                <td>
-                    <span class="cust-status-dot cust-status-dot--${i.status === 'online' ? 'success' : 'warning'}"></span>
-                    ${escapeHtml(i.status || 'unknown')}
-                </td>
-                <td>${escapeHtml(i.players_online ?? '-')} / ${escapeHtml(i.players_max ?? '-')}</td>
-                <td>
-                    ${escapeHtml(fmtDate(i.checked_at))}
-                    <div>${probeBadge(i)}</div>
-                </td>
-                <td>${escapeHtml(reason)}</td>
-                <td class="cust-table__actions">
-                    <button type="button" data-action="probe" data-id="${i.id}" class="ui-button ui-button--ghost ui-button--sm${disableByState(i) ? ' is-disabled' : ''}" ${disableByState(i) ? 'disabled' : ''}>${MSG_PROBE}</button>
-                    ${actionButtons(i)}
-                </td>
-            </tr>`;
-        }).join('');
+        listEl.innerHTML = instances.map(renderCard).join('');
     };
 
     const load = async () => {
-        const response = await fetch(apiBase, { headers: { 'Accept': 'application/json' } });
-        const payload  = await response.json();
+        const resp    = await fetch(apiBase, { headers: { 'Accept': 'application/json' } });
+        const payload = await resp.json();
         instances = Array.isArray(payload.instances) ? payload.instances : [];
         render();
     };
 
     const mutate = async (id, action) => {
         const url      = action === 'probe' ? `${apiBase}/${id}/probe` : `${apiBase}/${id}/actions/${action}`;
-        const response = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' } });
-        const payload  = await response.json();
-
+        const resp     = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' } });
+        const payload  = await resp.json();
         const row = instances.find((i) => String(i.id) === String(id));
         if (row) {
             row.retry_after = payload.retry_after ?? null;
@@ -138,21 +209,25 @@
             if (payload.error_code === 'voice_action_in_progress') { row.action_in_progress = true; }
             if (payload.message) { row.reason = payload.message; }
         }
-
         render();
-        setTimeout(() => load().catch(() => {}), 1000);
+        setTimeout(() => load().catch(() => {}), 1200);
     };
 
-    root.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-action][data-id]');
-        if (!button || button.disabled) { return; }
-        mutate(button.dataset.id, button.dataset.action).catch(() => { button.disabled = true; });
+    root.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action][data-id]');
+        if (!btn || btn.disabled) { return; }
+        mutate(btn.dataset.id, btn.dataset.action).catch(() => { btn.disabled = true; });
     });
 
-    refreshButton?.addEventListener('click', () => load().catch(() => {}));
+    refreshButton?.addEventListener('click', () => {
+        listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${MSG_LOADING}</div>`;
+        load().catch(() => {
+            listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#f87171;font-size:13px;">${MSG_ERROR}</div>`;
+        });
+    });
 
     load().catch(() => {
-        table.innerHTML = `<tr><td colspan="7" class="cust-table__empty">${MSG_ERROR}</td></tr>`;
+        listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#f87171;font-size:13px;">${MSG_ERROR}</div>`;
     });
 })();
 </script>

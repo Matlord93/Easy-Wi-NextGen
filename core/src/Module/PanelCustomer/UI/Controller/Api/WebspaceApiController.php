@@ -485,6 +485,10 @@ final class WebspaceApiController
         $this->entityManager->persist($webspace);
         $this->entityManager->flush();
 
+        $systemUsername = sprintf('ws%d', $webspace->getId());
+        $webspace->setSystemUsername($systemUsername);
+        $this->entityManager->persist($webspace);
+
         $active = $this->jobRepository->findActiveByTypeAndPayloadField('webspace.provision', 'webspace_id', (string) $webspace->getId());
         if ($active !== null) {
             return $this->responseEnvelopeFactory->error($request, 'Provision already running.', 'webspace_action_in_progress', 409, 10, ['job_id' => $active->getId()]);
@@ -496,6 +500,12 @@ final class WebspaceApiController
             'runtime' => $runtime,
             'web_root' => $path,
             'docroot' => $docroot,
+            'owner_user' => $systemUsername,
+            'owner_group' => $systemUsername,
+            'php_fpm_pool_path' => sprintf('/etc/easywi/web/php-fpm/%s.conf', $systemUsername),
+            'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $systemUsername),
+            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $systemUsername),
+            'pool_name' => $systemUsername,
         ]);
         $this->entityManager->persist($job);
         $this->entityManager->flush();

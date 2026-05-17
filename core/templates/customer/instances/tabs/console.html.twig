@@ -6,9 +6,22 @@
     data-url-logs="{{ path('customer_instance_console_logs_envelope', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_console_health_envelope', {id: instance.id}) }}"
     data-stream-url="{{ path('customer_instance_console_stream', {id: instance.id}) }}"
-    data-stream-unavailable-message="{{ t('customer_instance_console_log_unavailable', locale) }}"
-    data-polling-active-message="{{ t('customer_instance_console_polling_active', locale) }}"
     data-csrf-token="{{ csrf_token('instance_console_' ~ instance.id) }}"
+    data-i18n="{{ {
+        streamUnavailable: t('customer_instance_console_log_unavailable', locale),
+        pollingActive: t('customer_instance_console_polling_active', locale),
+        streamConnected: t('customer_instances_console_stream_connected', locale),
+        streamReconnecting: t('customer_instances_console_stream_reconnecting', locale),
+        relayLost: t('customer_instances_console_relay_lost', locale),
+        streamDisconnected: t('customer_instances_console_stream_disconnected', locale),
+        serverOffline: t('customer_instances_console_server_offline', locale),
+        sending: t('customer_instances_console_sending', locale),
+        commandRequired: t('customer_instance_console_send_command_required', locale),
+        pause: t('customer_instances_console_pause', locale),
+        resume: t('customer_instances_console_resume', locale),
+        autoscrollOn: t('customer_instances_console_autoscroll_on', locale),
+        autoscrollOff: t('customer_instances_console_autoscroll_off', locale),
+    }|json_encode }}"
 >
     {# ─── Konsolen-Ausgabe ─── #}
     <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
@@ -25,11 +38,11 @@
             <div class="ml-auto flex flex-wrap items-center gap-1.5">
                 <button type="button" id="gs-console-pause"
                     class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-700 hover:text-slate-200">
-                    Pause
+                    {{ t('customer_instances_console_pause', locale) }}
                 </button>
                 <button type="button" id="gs-console-autoscroll"
                     class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-700 hover:text-slate-200">
-                    Auto-Scroll: An
+                    {{ t('customer_instances_console_autoscroll_on', locale) }}
                 </button>
                 <button type="button" id="gs-console-clear"
                     class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-700 hover:text-slate-200">

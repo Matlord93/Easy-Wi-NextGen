@@ -6,7 +6,7 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
     {% for message in app.flashes('success') %}
         <div class="ng-alert ng-alert--success">{{ message }}</div>

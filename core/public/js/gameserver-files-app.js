@@ -223,13 +223,15 @@
         }
     };
 
+    const escHtml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
     const renderBreadcrumbs = (cwd) => {
         const parts = cwd.split('/').filter(Boolean);
         let path = '';
         const links = [`<button data-path="">${tr('root')}</button>`];
         parts.forEach((part) => {
             path = path ? `${path}/${part}` : part;
-            links.push(`<span>/</span><button data-path="${path}">${part}</button>`);
+            links.push(`<span>/</span><button data-path="${escHtml(path)}">${escHtml(part)}</button>`);
         });
         breadcrumbsEl.innerHTML = links.join(' ');
     };
@@ -241,23 +243,24 @@
         }
 
         listEl.innerHTML = files.map((entry) => {
+            const safeName = escHtml(entry.name);
             const type = entry.is_dir ? tr('directory') : tr('file');
             const openButton = entry.is_dir
-                ? `<button class="ui-button ui-button--ghost" data-action="open" data-name="${entry.name}">${tr('open')}</button>`
-                : `<button class="ui-button ui-button--ghost" data-action="download" data-name="${entry.name}">${tr('download')}</button>`;
+                ? `<button class="ui-button ui-button--ghost" data-action="open" data-name="${safeName}">${tr('open')}</button>`
+                : `<button class="ui-button ui-button--ghost" data-action="download" data-name="${safeName}">${tr('download')}</button>`;
             const editButton = isEditableFile(entry)
-                ? `<button class="ui-button ui-button--ghost" data-action="edit" data-name="${entry.name}">${tr('edit')}</button>`
+                ? `<button class="ui-button ui-button--ghost" data-action="edit" data-name="${safeName}">${tr('edit')}</button>`
                 : '';
             return `<tr>
-                <td>${entry.name}</td>
+                <td>${safeName}</td>
                 <td>${type}</td>
-                <td>${entry.size_human || '0 B'}</td>
-                <td>${entry.modified_at || ''}</td>
+                <td>${escHtml(entry.size_human || '0 B')}</td>
+                <td>${escHtml(entry.modified_at || '')}</td>
                 <td>
                     ${openButton}
                     ${editButton}
-                    <button class="ui-button ui-button--ghost" data-action="rename" data-name="${entry.name}">${tr('rename')}</button>
-                    <button class="ui-button ui-button--danger" data-action="delete" data-name="${entry.name}">${tr('delete')}</button>
+                    <button class="ui-button ui-button--ghost" data-action="rename" data-name="${safeName}">${tr('rename')}</button>
+                    <button class="ui-button ui-button--danger" data-action="delete" data-name="${safeName}">${tr('delete')}</button>
                 </td>
             </tr>`;
         }).join('');
@@ -313,13 +316,13 @@
             return;
         }
         accessMetaEl.innerHTML = `
-            <div>${tr('host')}: <span class="font-semibold">${credential.host || '—'}</span></div>
-            <div>${tr('port')}: <span class="font-semibold">${credential.port || '—'}</span></div>
-            <div>${tr('backend')}: <span class="font-semibold">${credential.backend || '—'}</span></div>
-            <div>${tr('user')}: <span class="font-semibold">${credential.username || '—'}</span></div>
-            <div>${tr('rootPath')}: <span class="font-semibold">${credential.root_path || '—'}</span></div>
+            <div>${tr('host')}: <span class="font-semibold">${escHtml(credential.host || '—')}</span></div>
+            <div>${tr('port')}: <span class="font-semibold">${escHtml(String(credential.port || '—'))}</span></div>
+            <div>${tr('backend')}: <span class="font-semibold">${escHtml(credential.backend || '—')}</span></div>
+            <div>${tr('user')}: <span class="font-semibold">${escHtml(credential.username || '—')}</span></div>
+            <div>${tr('rootPath')}: <span class="font-semibold">${escHtml(credential.root_path || '—')}</span></div>
             <div>${tr('status')}: <span class="font-semibold">${credential.last_error_code ? tr('statusNeedsAttention') : tr('statusReady')}</span></div>
-            ${credential.last_error_code ? `<div class="text-rose-300">${credential.last_error_code}: ${credential.last_error_message || ''}</div>` : ''}
+            ${credential.last_error_code ? `<div class="text-rose-300">${escHtml(String(credential.last_error_code))}: ${escHtml(credential.last_error_message || '')}</div>` : ''}
         `;
 
         if (accessRevealEl) {
@@ -339,7 +342,7 @@
             renderAccess(credential);
 
             if (payload?.error_code === 'sftp_provisioning_pending' && accessMetaEl) {
-                accessMetaEl.insertAdjacentHTML('beforeend', `<div class="text-amber-300">${tr('provisioning')}</div>`);
+                accessMetaEl.insertAdjacentHTML('beforeend', `<div class="text-amber-300">${escHtml(tr('provisioning'))}</div>`);
             }
         } catch (error) {
             if (accessMetaEl) {

@@ -1,36 +1,32 @@
-<div class="rounded-xl bg-white border border-slate-200" id="plugin-import">
-    <div class="px-5 py-4 border-b border-slate-200">
-        <h2 class="text-lg font-semibold">{{ t('admin_plugins_import_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('admin_plugins_import_intro', page_locale()) }}</p>
-    </div>
-    <div class="p-5 space-y-4">
-        {% if import.success_message is not empty %}
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {{ import.success_message }}
-            </div>
-        {% endif %}
-        {% if import.errors is not empty %}
-            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                <p class="font-semibold mb-1">{{ t('admin_plugins_import_failed', page_locale()) }}</p>
-                <ul class="list-disc list-inside space-y-1">
-                    {% for error in import.errors %}
-                        <li>{{ error }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        {% endif %}
-        <form
-            class="space-y-3"
-            hx-post="/admin/plugins/import"
-            hx-target="#plugin-import"
-            hx-swap="outerHTML"
-        >
-            <div>
-                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_plugins_import_label', page_locale()) }}</label>
-                <textarea name="payload" rows="8" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono" placeholder='[{"game_key":"cs2","name":"Metamod:Source","version":"1.11.0","checksum":"b3c94b...","download_url":"https://example.com/metamod.zip","description":"..."}]'>{{ import.payload }}</textarea>
-            </div>
-            <p class="text-xs text-slate-700">{{ t('admin_plugins_import_required', page_locale()) }}</p>
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('admin_plugins_import_submit', page_locale()) }}</button>
-        </form>
-    </div>
+<div id="plugin-import" style="display:flex;flex-direction:column;gap:16px;">
+    {% if import.success_message is not empty %}
+        <div class="ng-alert ng-alert--success">{{ import.success_message }}</div>
+    {% endif %}
+
+    {% if import.errors is not empty %}
+        <div class="ng-alert ng-alert--danger">
+            <p style="font-weight:600;margin-bottom:4px;">{{ t('admin_plugins_import_failed', page_locale()) }}</p>
+            <ul style="list-style:disc;padding-left:20px;margin-top:4px;">
+                {% for error in import.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form
+        style="display:flex;flex-direction:column;gap:12px;"
+        hx-post="/admin/plugins/import"
+        hx-target="#plugin-import"
+        hx-swap="outerHTML"
+    >
+        <div class="form-field">
+            <label class="form-label">{{ t('admin_plugins_import_label', page_locale()) }}</label>
+            <textarea name="payload" rows="8" class="form-textarea" style="font-family:monospace;" placeholder='[{"game_key":"cs2","name":"Metamod:Source","version":"1.11.0","checksum":"b3c94b...","download_url":"https://example.com/metamod.zip","description":"..."}]'>{{ import.payload }}</textarea>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);">{{ t('admin_plugins_import_required', page_locale()) }}</p>
+        <div>
+            <button type="submit" class="ui-button ui-button--primary">{{ t('admin_plugins_import_submit', page_locale()) }}</button>
+        </div>
+    </form>
 </div>

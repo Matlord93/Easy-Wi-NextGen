@@ -6,26 +6,42 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_ts3_total_instances', locale) }}</div>
-            <div class="ng-kpi-box__value">{{ summary.total }}</div>
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            TeamSpeak 3
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_ts3_heading', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_ts3_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_ts3_total_instances', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.total }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_ts3_running', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.running }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_ts3_stopped', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.stopped }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_ts3_needs_attention', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.error }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_ts3_running', locale) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.running }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_ts3_stopped', locale) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.stopped }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_ts3_needs_attention', locale) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ summary.error }}</div>
-        </div>
-    </div>
+    </section>
 
     <div id="ts3-instances-table"
          hx-get="/admin/ts3/instances/table"

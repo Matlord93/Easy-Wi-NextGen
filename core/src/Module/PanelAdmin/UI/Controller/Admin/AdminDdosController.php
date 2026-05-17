@@ -108,7 +108,7 @@ final class AdminDdosController
             $job = new Job('ddos.policy.apply', $payload);
             $this->entityManager->persist($job);
 
-            $statusJob = new Job('ddos.status.check', $payload);
+            $statusJob = new Job('ddos.status.check', ['agent_id' => $node->getId()]);
             $this->entityManager->persist($statusJob);
             $this->entityManager->flush();
 

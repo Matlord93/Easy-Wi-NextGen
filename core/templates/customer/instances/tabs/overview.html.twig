@@ -7,6 +7,12 @@
     data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}"
     data-power-redirect-url="{{ path('customer_instance_tasks_page', {id: instance.id}) }}"
     data-url-query="{{ path('customer_instance_query_api_v2', {id: instance.id}) }}"
+    data-i18n="{{ {
+        working: t('customer_instances_overview_working', locale),
+        queryNotSupported: t('customer_instances_overview_query_not_supported', locale),
+        unknown: t('customer_instances_overview_unknown', locale),
+        actionQueued: t('customer_instances_overview_action_queued', locale),
+    }|json_encode }}"
 >
     <div class="flex flex-wrap items-center gap-3">
         <div class="flex items-center gap-2">

@@ -14,6 +14,7 @@
             {% for row in rows %}
                 <tr>
                     {% for cell in row %}
+                        {# cells contain pre-rendered HTML (buttons, badges) built by PHP, never raw user input #}
                         <td>{{ cell|raw }}</td>
                     {% endfor %}
                 </tr>

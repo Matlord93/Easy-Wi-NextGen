@@ -1,42 +1,60 @@
 {% extends 'admin/base.html.twig' %}
 
 {% set pageTitle = t('admin_instances_title', page_locale()) %}
-{% set pageSubtitle = 'Status, Ressourcen, SFTP und Setup auf einen Blick.' %}
 {% set activeNav = 'game-instances' %}
-{% set topbarActions = [
-    { label: t('admin_instances_new', page_locale()), href: path('admin_instances_provision'), variant: 'primary' }
-] %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    {# ── KPI Row ── #}
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_instances_total', page_locale()) }}</div>
-            <div class="ng-kpi-box__value">{{ summary.total }}</div>
+    {% if createNotice %}
+        <div class="ng-alert ng-alert--{{ createNotice.type == 'success' ? 'success' : 'warning' }}">
+            {{ createNotice.message }}
         </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_instances_running', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.running }}</div>
+    {% endif %}
+
+    {# ── Hero with KPI ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            {{ t('admin_instances_ops_overview_title', page_locale())|default('Game-Server Übersicht') }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_instances_title', page_locale()) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_instances_ops_overview_intro', page_locale())|default('Status, Ressourcen, SFTP und Setup auf einen Blick.') }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_instances_total', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.total }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_instances_running', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.running }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_instances_pending_setup', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.pending_setup }}</div>
+                        </div>
+                        <div class="tkt-kpi" style="border-color:rgba(99,102,241,.25);background:rgba(99,102,241,.07);">
+                            <div class="tkt-kpi__label" style="color:rgba(165,180,252,.7);">{{ t('admin_instances_provisioning', page_locale()) }}</div>
+                            <div class="tkt-kpi__value" style="color:#a5b4fc;">{{ summary.provisioning }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_instances_suspended', page_locale()) }}</div>
+                            <div class="tkt-kpi__value">{{ summary.suspended }}</div>
+                        </div>
+                        <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
+                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_instances_needs_attention', page_locale()) }}</div>
+                            <div class="tkt-kpi__value" style="color:#fca5a5;">{{ summary.error }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_instances_pending_setup', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.pending_setup }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_instances_provisioning', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ summary.provisioning }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_instances_suspended', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.suspended }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_instances_needs_attention', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ summary.error }}</div>
-        </div>
-    </div>
+    </section>
 
     {# ── Ops Overview ── #}
     <div class="ng-data-card">
@@ -68,13 +86,6 @@
         </div>
     </div>
 
-    {# ── Flash notice ── #}
-    {% if createNotice %}
-        <div class="ng-alert ng-alert--{{ createNotice.type == 'success' ? 'success' : 'warning' }}">
-            {{ createNotice.message }}
-        </div>
-    {% endif %}
-
     {# ── Instances Table ── #}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
@@ -99,12 +110,7 @@
             </div>
         </div>
         <div class="ng-data-card__body--flush">
-            <div id="instances-table"
-                 hx-get="{{ path('admin_instances_table') }}"
-                 hx-trigger="instances-changed from:body"
-                 hx-swap="outerHTML">
-                {% include 'admin/instances/_table.html.twig' with { instances: instances } %}
-            </div>
+            {% include 'admin/instances/_table.html.twig' with { instances: instances } %}
         </div>
     </div>
 

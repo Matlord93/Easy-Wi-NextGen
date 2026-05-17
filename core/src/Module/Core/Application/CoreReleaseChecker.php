@@ -50,7 +50,7 @@ final class CoreReleaseChecker
         }
 
         $channel = $this->resolver()->normalizeChannel($channel);
-        $cacheKey = sprintf('%s.%s.%s', self::CACHE_KEY, sha1($this->repository), $channel);
+        $cacheKey = sprintf('%s.%s.%s', self::CACHE_KEY, hash('sha256', $this->repository), $channel);
         $item = $this->cache->getItem($cacheKey);
         $cached = $item->get();
         if (!$force && $item->isHit() && is_string($cached) && $cached !== '') {

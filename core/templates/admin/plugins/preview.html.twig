@@ -1,21 +1,28 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_plugins_preview_title', page_locale()) %}
+{% set activeNav = 'plugins' %}
 
 {% block content %}
-<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
-    <div>
-        <a class="text-sm text-slate-700 hover:text-slate-700" href="/admin/plugins">{{ t('back', page_locale()) }}</a>
-        <h1 class="text-2xl font-semibold">{{ t('admin_plugins_preview_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('admin_plugins_preview_intro', page_locale()) }}</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <a class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700" href="/admin/plugins/{{ plugin.id }}/edit">
-            {{ t('edit', page_locale()) }}
-        </a>
-    </div>
-</div>
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-<div class="rounded-xl bg-white border border-slate-200">
-    {% include 'admin/plugins/_preview.html.twig' with { plugin: plugin } %}
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/plugins">{{ t('back', page_locale()) }}</a>
+                <h2 class="ng-data-card__title" style="margin-top:8px;">{{ t('admin_plugins_preview_title', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_plugins_preview_intro', page_locale()) }}</p>
+            </div>
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/plugins/{{ plugin.id }}/edit">
+                    {{ t('edit', page_locale()) }}
+                </a>
+            </div>
+        </div>
+        <div class="ng-data-card__body">
+            {% include 'admin/plugins/_preview.html.twig' with { plugin: plugin } %}
+        </div>
+    </div>
+
 </div>
 {% endblock %}

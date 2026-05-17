@@ -562,7 +562,9 @@ final class FileServiceClient
         $headers = $this->buildAuthHeaders($instance, $method, $endpointWithQuery);
         $headers['Accept'] = 'application/json';
         try {
-            $headers['X-Server-Root'] = $this->resolveServerRoot($instance);
+            $serverRoot = $this->resolveServerRoot($instance);
+            $headers['X-Server-Root'] = $serverRoot;
+            $headers['X-Owner-User'] = basename($serverRoot);
         } catch (\RuntimeException $exception) {
             throw new FileServiceException('INVALID_SERVER_ROOT', 'Canonical server root is invalid or missing.', 422, [], $exception);
         }

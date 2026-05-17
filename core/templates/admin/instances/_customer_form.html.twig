@@ -1,20 +1,19 @@
-<div class="p-6 border-b border-slate-200">
-    <h2 class="text-lg font-semibold">{{ t('admin_instances_customer_create_title', page_locale()) }}</h2>
-    <p class="text-sm text-slate-700">{{ t('admin_instances_customer_create_intro', page_locale()) }}</p>
+<div style="padding:20px;border-bottom:1px solid var(--color-border,#e2e8f0);">
+    <h2 style="font-size:1rem;font-weight:600;margin-bottom:4px;">{{ t('admin_instances_customer_create_title', page_locale()) }}</h2>
+    <p style="font-size:.875rem;color:var(--color-text-muted,#64748b);">{{ t('admin_instances_customer_create_intro', page_locale()) }}</p>
 </div>
-<form class="p-6 space-y-4"
+<form style="padding:20px;display:flex;flex-direction:column;gap:16px;"
       hx-post="{{ path('admin_instances_customers_create') }}"
       hx-target="#instance-customer-form"
       hx-swap="outerHTML">
+
     {% if customerForm.success %}
-        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {{ customerForm.success }}
-        </div>
+        <div class="ng-alert ng-alert--success">{{ customerForm.success }}</div>
     {% endif %}
 
     {% if customerForm.errors is not empty %}
-        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <ul class="list-disc pl-4 space-y-1">
+        <div class="ng-alert ng-alert--danger">
+            <ul style="margin:0;padding-left:18px;">
                 {% for error in customerForm.errors %}
                     <li>{{ error }}</li>
                 {% endfor %}
@@ -22,16 +21,16 @@
         </div>
     {% endif %}
 
-    <label class="block text-sm font-medium text-slate-700">
-        {{ t('admin_instances_customer_email', page_locale()) }}
-        <input name="email" value="{{ customerForm.email }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_customer_email_placeholder', page_locale()) }}">
-    </label>
-    <label class="block text-sm font-medium text-slate-700">
-        {{ t('admin_instances_customer_password', page_locale()) }}
-        <input type="password" name="password" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_customer_password_placeholder', page_locale()) }}">
-    </label>
+    <div class="form-field">
+        <label class="form-label">{{ t('admin_instances_customer_email', page_locale()) }}</label>
+        <input name="email" value="{{ customerForm.email }}" class="form-input" placeholder="{{ t('admin_instances_customer_email_placeholder', page_locale()) }}">
+    </div>
+    <div class="form-field">
+        <label class="form-label">{{ t('admin_instances_customer_password', page_locale()) }}</label>
+        <input type="password" name="password" class="form-input" placeholder="{{ t('admin_instances_customer_password_placeholder', page_locale()) }}">
+    </div>
 
-    <button class="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-        {{ t('admin_instances_customer_submit', page_locale()) }}
-    </button>
+    <div>
+        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_instances_customer_submit', page_locale()) }}</button>
+    </div>
 </form>

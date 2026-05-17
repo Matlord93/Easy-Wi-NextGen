@@ -1,6 +1,7 @@
 {% extends 'themes/titan-squad/base.html.twig' %}
 {% block body %}
 <section class="content-grid">
+  {# block.html is rendered by BlockRendererRegistry via Twig templates, admin-controlled CMS content #}
   {% for block in blocks %}<article class="card">{{ block.html|raw }}</article>{% else %}<article class="card"><h2>{{ page.title }}</h2><p>Noch keine Inhalte.</p></article>{% endfor %}
 </section>
 {% endblock %}

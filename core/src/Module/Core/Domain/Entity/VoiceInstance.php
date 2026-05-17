@@ -80,6 +80,12 @@ class VoiceInstance
     {
         return $this->externalId;
     }
+
+    public function setExternalId(string $externalId): void
+    {
+        $this->externalId = $externalId;
+        $this->touch();
+    }
     public function getName(): string
     {
         return $this->name;

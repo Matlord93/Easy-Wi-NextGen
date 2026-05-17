@@ -1,32 +1,34 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set activeNav = 'game-instances' %}
 
 {% block content %}
-<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('admin_instances_new_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('admin_instances_new_intro', page_locale()) }}</p>
-    </div>
-    <a class="text-sm font-medium text-slate-600 hover:text-slate-900" href="{{ path('admin_instances') }}">
-        {{ t('admin_instances_back', page_locale()) }}
-    </a>
-</div>
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-    <div class="space-y-6 lg:col-span-2">
-        <div class="rounded-xl border border-slate-200 bg-white p-6">
-            <h2 class="text-lg font-semibold">{{ t('admin_instances_new_overview_title', page_locale()) }}</h2>
-            <p class="mt-2 text-sm text-slate-700">{{ t('admin_instances_new_overview_intro', page_locale()) }}</p>
-            <ul class="mt-4 space-y-2 text-sm text-slate-600">
-                <li>• {{ t('admin_instances_new_overview_step_template', page_locale()) }}</li>
-                <li>• {{ t('admin_instances_new_overview_step_customer', page_locale()) }}</li>
-                <li>• {{ t('admin_instances_new_overview_step_resources', page_locale()) }}</li>
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">{{ t('admin_instances_new_title', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_instances_new_intro', page_locale()) }}</p>
+            </div>
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_instances') }}">{{ t('admin_instances_back', page_locale()) }}</a>
+            </div>
+        </div>
+        <div class="ng-data-card__body">
+            <h2 style="font-size:1rem;font-weight:600;margin-bottom:8px;">{{ t('admin_instances_new_overview_title', page_locale()) }}</h2>
+            <p style="font-size:.875rem;color:var(--color-text-muted,#64748b);margin-bottom:12px;">{{ t('admin_instances_new_overview_intro', page_locale()) }}</p>
+            <ul style="font-size:.875rem;color:var(--color-text-muted,#64748b);display:flex;flex-direction:column;gap:6px;margin-bottom:16px;padding-left:18px;">
+                <li>{{ t('admin_instances_new_overview_step_template', page_locale()) }}</li>
+                <li>{{ t('admin_instances_new_overview_step_customer', page_locale()) }}</li>
+                <li>{{ t('admin_instances_new_overview_step_resources', page_locale()) }}</li>
             </ul>
-            <p class="mt-4 text-sm text-slate-700">{{ t('admin_instances_new_overview_note', page_locale()) }}</p>
-            <a class="mt-6 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white" href="{{ path('admin_instances_provision') }}">
+            <p style="font-size:.875rem;color:var(--color-text-muted,#64748b);margin-bottom:20px;">{{ t('admin_instances_new_overview_note', page_locale()) }}</p>
+            <a class="ui-button ui-button--primary" href="{{ path('admin_instances_provision') }}">
                 {{ t('admin_instances_new_action', page_locale()) }}
             </a>
         </div>
     </div>
+
 </div>
 {% endblock %}

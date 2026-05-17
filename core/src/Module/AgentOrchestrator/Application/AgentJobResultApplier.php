@@ -49,11 +49,11 @@ final class AgentJobResultApplier
     {
         $type = $job->getType();
 
-        if (str_starts_with($type, 'ts3.') && str_contains($type, 'instance')) {
+        if ($type === 'ts3.instance.create' || $type === 'ts3.instance.action') {
             $this->applyTs3InstanceResult($job, $status);
         }
 
-        if (str_starts_with($type, 'ts6.instance')) {
+        if ($type === 'ts6.instance.create' || $type === 'ts6.instance.action') {
             $this->applyTs6InstanceResult($job, $status);
         }
 
@@ -73,13 +73,15 @@ final class AgentJobResultApplier
             $this->applyTs6VirtualServerResult($job, $status, $payload);
         }
 
-        if (str_starts_with($type, 'sinusbot.')) {
+        if (str_starts_with($type, 'sinusbot.') && !in_array($type, ['sinusbot.instance.create', 'sinusbot.instance.action'], true)) {
             $this->applySinusbotNodeResult($job, $status, $payload);
         }
 
         if ($type === 'admin.ssh_key.store') {
             $this->applyAdminSshKeyResult($job, $status);
         }
+
+        // core.ssh.policy.apply is a fire-and-forget job; no domain state to update on completion.
 
         $this->entityManager->flush();
     }
@@ -103,6 +105,9 @@ final class AgentJobResultApplier
             }
             if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
                 $node->setInstalledVersion($payload['installed_version']);
+            }
+            if (is_array($payload) && isset($payload['install_dir']) && is_string($payload['install_dir'])) {
+                $node->setInstallPath($payload['install_dir']);
             }
             if (is_array($payload) && array_key_exists('running', $payload)) {
                 $node->setRunning((bool) $payload['running']);

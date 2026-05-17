@@ -6,7 +6,7 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
     {% for message in app.flashes('success') %}
         <div class="ng-alert ng-alert--success">{{ message }}</div>
@@ -47,23 +47,23 @@
                             <tr>
                                 <td>
                                     <div>{{ server.name }}</div>
-                                    <div class="text-xs text-slate-500">SID {{ server.sid }} · #{{ server.id }}</div>
+                                    <div style="font-size:.75rem;color:var(--color-text-muted,#64748b);">SID {{ server.sid }} · #{{ server.id }}</div>
                                 </td>
                                 <td>
                                     {% if customer %}
                                         <div>{{ customer.name ?? customer.email }}</div>
-                                        <div class="text-xs text-slate-500">#{{ customer.id }}</div>
+                                        <div style="font-size:.75rem;color:var(--color-text-muted,#64748b);">#{{ customer.id }}</div>
                                     {% else %}
-                                        <span class="text-slate-500 text-xs">{{ t('admin_ts3_servers_unknown_customer', locale) }}</span>
+                                        <span style="font-size:.75rem;color:var(--color-text-muted,#64748b);">{{ t('admin_ts3_servers_unknown_customer', locale) }}</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     <div>{{ server.node.name }}</div>
-                                    <div class="text-xs text-slate-500">#{{ server.node.id }}</div>
+                                    <div style="font-size:.75rem;color:var(--color-text-muted,#64748b);">#{{ server.node.id }}</div>
                                 </td>
-                                <td class="text-xs">
+                                <td style="font-size:.75rem;">
                                     <div>Voice: {{ server.voicePort ?? '—' }}</div>
-                                    <div class="text-slate-500">File: {{ server.filetransferPort ?? '—' }}</div>
+                                    <div style="color:var(--color-text-muted,#64748b);">File: {{ server.filetransferPort ?? '—' }}</div>
                                 </td>
                                 <td>
                                     {% set statusBadge = server.status == 'running' ? 'success' : (server.status == 'stopped' ? 'warning' : (server.status == 'error' ? 'danger' : 'neutral')) %}
@@ -71,9 +71,9 @@
                                 </td>
                                 <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
                                 <td>
-                                    <form method="post" action="/admin/ts3/servers/{{ server.id }}/assign" class="flex gap-2 items-center">
+                                    <form method="post" action="/admin/ts3/servers/{{ server.id }}/assign" style="display:flex;gap:8px;align-items:center;">
                                         <input type="hidden" name="_token" value="{{ csrf[server.id] ?? '' }}">
-                                        <select name="customer_id" class="form-input text-xs py-1 px-2">
+                                        <select name="customer_id" class="form-input" style="font-size:.75rem;padding:4px 8px;">
                                             {% for customerOption in customers %}
                                                 <option value="{{ customerOption.id }}" {{ customerOption.id == server.customerId ? 'selected' : '' }}>
                                                     {{ customerOption.name ?? customerOption.email }}

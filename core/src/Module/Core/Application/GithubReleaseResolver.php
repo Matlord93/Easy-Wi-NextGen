@@ -699,7 +699,7 @@ final class GithubReleaseResolver
 
     private function cacheKey(string $repository, string $channel, string $checkType): string
     {
-        return 'github_release.' . sha1($repository . '|' . $channel . '|' . $checkType);
+        return 'github_release.' . hash('sha256', $repository . '|' . $channel . '|' . $checkType);
     }
 
     private function readCache(string $repository, string $channel, string $checkType): ?array
@@ -749,7 +749,7 @@ final class GithubReleaseResolver
         if (!is_dir($dir)) {
             @mkdir($dir, 0770, true);
         }
-        $handle = @fopen($dir . '/' . sha1($repository . '|' . $channel . '|' . $checkType) . '.lock', 'c');
+        $handle = @fopen($dir . '/' . hash('sha256', $repository . '|' . $channel . '|' . $checkType) . '.lock', 'c');
         if ($handle === false) {
             return null;
         }

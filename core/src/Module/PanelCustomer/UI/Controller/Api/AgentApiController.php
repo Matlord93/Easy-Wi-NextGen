@@ -1719,11 +1719,23 @@ final class AgentApiController
             ->execute();
     }
 
+    private const POLICY_REVISION_JOB_TYPES = [
+        'ddos.policy.apply',
+        'firewall.open_ports',
+        'firewall.close_ports',
+        'fail2ban.policy.apply',
+        'core.ssh.policy.apply',
+    ];
+
     private function applyPolicyRevisionStatusFromJob(
         \App\Module\Core\Domain\Entity\Job $job,
         JobResultStatus $resultStatus,
         DateTimeImmutable $completedAt,
     ): void {
+        if (!in_array($job->getType(), self::POLICY_REVISION_JOB_TYPES, true)) {
+            return;
+        }
+
         $payload = $job->getPayload();
         $revisionId = $payload['policy_revision_id'] ?? null;
         if (!is_int($revisionId) && !is_string($revisionId)) {

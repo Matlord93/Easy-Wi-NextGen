@@ -14,7 +14,7 @@
         <thead class="bg-slate-50">
         <tr>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">ID</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Kunde / Template</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Kunde / Gameserver</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Status</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Setup</th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-700">Aktionen</th>
@@ -29,6 +29,7 @@
                 <td class="px-4 py-4">
                     <div class="font-medium text-slate-900">{{ instance.customer_email }}</div>
                     <div class="mt-1 text-xs text-slate-700">{{ instance.template_name }} ({{ instance.game_key }})</div>
+                    <div class="mt-1 text-xs text-slate-600">{{ t('admin_instances_hostname', page_locale()) }}: <span class="font-semibold text-slate-800">{{ instance.server_name ?: '—' }}</span></div>
                     <div class="mt-2 space-y-1 text-xs text-slate-500">
                         <div>SFTP: {{ instance.sftp_username ?: '—' }} · {{ instance.sftp_host ?: '—' }}:{{ instance.sftp_port ?: '—' }} · {{ instance.sftp_status }}</div>
                         <div>FTP: {{ instance.ftp_supported ? t('admin_instances_ftp_active', page_locale()) : t('admin_instances_ftp_unavailable', page_locale()) }}</div>

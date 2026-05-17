@@ -1,52 +1,82 @@
 {% set locale = locale ?? page_locale() %}
 <div class="ng-card" style="overflow:hidden;">
-    <div style="padding:18px 20px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:12px;">
-        <div style="width:40px;height:40px;border-radius:10px;background:var(--ng-primary-soft);color:var(--ng-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px;">?</div>
+
+    {# Header #}
+    <div style="padding:16px 20px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:12px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:rgba(99,102,241,0.15);color:#818cf8;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg style="width:18px;height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
         <div>
-            <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--ng-text);">{{ t('ticket_ui_need_help', locale) }}</h3>
-            <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('ticket_ui_customer_form_intro', locale) }}</p>
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('ticket_ui_need_help', locale) }}</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('ticket_ui_customer_form_intro', locale) }}</p>
         </div>
     </div>
-    <form style="padding:20px;display:flex;flex-direction:column;gap:14px;" method="post" action="/tickets" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="/tickets" hx-target="#ticket-form" hx-swap="outerHTML">
+
+    {# Form #}
+    <form style="padding:18px 20px;display:flex;flex-direction:column;gap:14px;"
+        method="post" action="/tickets"
+        enctype="multipart/form-data"
+        hx-encoding="multipart/form-data"
+        hx-post="/tickets"
+        hx-target="#ticket-form"
+        hx-swap="outerHTML">
         <input type="hidden" name="_token" value="{{ csrf_token('customer_ticket_create') }}">
+
         {% if form.errors is not empty %}
-            <div class="ng-alert ng-alert--danger">
-                <ul style="margin:0;padding-left:18px;">{% for error in form.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            </div>
+        <div class="ng-alert ng-alert--danger">
+            <ul style="margin:0;padding-left:18px;">
+                {% for error in form.errors %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+        </div>
         {% endif %}
+
         <div class="form-field">
             <label class="form-label">{{ t('customer_ticket_subject', locale) }}</label>
-            <input name="subject" value="{{ form.subject }}" placeholder="{{ t('ticket_ui_subject_placeholder', locale) }}">
+            <input name="subject" value="{{ form.subject }}"
+                placeholder="{{ t('ticket_ui_subject_placeholder', locale) }}">
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div class="form-field">
                 <label class="form-label">{{ t('customer_ticket_category', locale) }}</label>
                 <select name="category">
-                    <option value="general" {{ form.category == 'general' ? 'selected' : '' }}>{{ t('customer_ticket_category_general', locale) }}</option>
-                    <option value="billing" {{ form.category == 'billing' ? 'selected' : '' }}>{{ t('customer_ticket_category_billing', locale) }}</option>
+                    <option value="general"   {{ form.category == 'general'   ? 'selected' : '' }}>{{ t('customer_ticket_category_general', locale) }}</option>
+                    <option value="billing"   {{ form.category == 'billing'   ? 'selected' : '' }}>{{ t('customer_ticket_category_billing', locale) }}</option>
                     <option value="technical" {{ form.category == 'technical' ? 'selected' : '' }}>{{ t('customer_ticket_category_technical', locale) }}</option>
-                    <option value="abuse" {{ form.category == 'abuse' ? 'selected' : '' }}>{{ t('customer_ticket_category_abuse', locale) }}</option>
+                    <option value="abuse"     {{ form.category == 'abuse'     ? 'selected' : '' }}>{{ t('customer_ticket_category_abuse', locale) }}</option>
                 </select>
             </div>
             <div class="form-field">
                 <label class="form-label">{{ t('customer_ticket_priority', locale) }}</label>
                 <select name="priority">
-                    <option value="low" {{ form.priority == 'low' ? 'selected' : '' }}>{{ t('customer_ticket_priority_low', locale) }}</option>
+                    <option value="low"    {{ form.priority == 'low'    ? 'selected' : '' }}>{{ t('customer_ticket_priority_low', locale) }}</option>
                     <option value="normal" {{ form.priority == 'normal' ? 'selected' : '' }}>{{ t('customer_ticket_priority_normal', locale) }}</option>
-                    <option value="high" {{ form.priority == 'high' ? 'selected' : '' }}>{{ t('customer_ticket_priority_high', locale) }}</option>
+                    <option value="high"   {{ form.priority == 'high'   ? 'selected' : '' }}>{{ t('customer_ticket_priority_high', locale) }}</option>
                     <option value="urgent" {{ form.priority == 'urgent' ? 'selected' : '' }}>{{ t('customer_ticket_priority_urgent', locale) }}</option>
                 </select>
             </div>
         </div>
+
         <div class="form-field">
             <label class="form-label">{{ t('customer_ticket_message', locale) }}</label>
-            <textarea name="message" rows="6" placeholder="{{ t('ticket_ui_message_placeholder', locale) }}">{{ form.message }}</textarea>
+            <textarea name="message" rows="6"
+                placeholder="{{ t('ticket_ui_message_placeholder', locale) }}"
+                style="resize:vertical;">{{ form.message }}</textarea>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--ng-radius-sm);border:1px dashed var(--ng-border);background:var(--ng-surface-soft);font-size:12px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;transition:border-color .15s;">
+
+        <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--ng-radius-sm);border:1px dashed var(--ng-border);background:var(--ng-surface-soft);font-size:12px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;transition:border-color .15s,background .15s;">
             <input type="file" name="attachments[]" style="display:none;" multiple>
-            <svg style="width:15px;height:15px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
-            {{ t('ticket_ui_attach_file', locale) }} <span style="font-weight:400;opacity:.7;">({{ t('ticket_ui_attachment_limits', locale) }})</span>
+            <svg style="width:14px;height:14px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/>
+            </svg>
+            {{ t('ticket_ui_attach_file', locale) }}
+            <span style="font-weight:400;opacity:.6;">({{ t('ticket_ui_attachment_limits', locale) }})</span>
         </label>
-        <button type="submit" class="ui-button ui-button--primary" style="width:100%;min-height:42px;">{{ t('customer_ticket_submit', locale) }}</button>
+
+        <button type="submit" class="ui-button ui-button--primary" style="width:100%;min-height:40px;">
+            {{ t('customer_ticket_submit', locale) }}
+        </button>
     </form>
 </div>

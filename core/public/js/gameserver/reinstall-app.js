@@ -19,6 +19,7 @@
     const submitBtn = document.getElementById('gs-reinstall-submit');
     const jobLabel = document.getElementById('gs-reinstall-job');
     const label = (key, fallback) => root.dataset[key] || fallback;
+    const escHtml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
     if (!required.ok) {
         errors.showAll(inlineError, {
@@ -43,7 +44,7 @@
                 return;
             }
 
-            optionSelect.innerHTML = options.map((entry) => `<option value="${entry.id}">${entry.label || entry.id}</option>`).join('');
+            optionSelect.innerHTML = options.map((entry) => `<option value="${escHtml(entry.id)}">${escHtml(entry.label || entry.id)}</option>`).join('');
             errors.clearInline(inlineError);
         } catch (error) {
             errors.showAll(inlineError, error);

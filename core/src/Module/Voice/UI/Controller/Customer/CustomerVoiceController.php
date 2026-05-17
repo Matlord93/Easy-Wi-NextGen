@@ -10,6 +10,7 @@ use App\Repository\VoiceInstanceRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Twig\Environment;
 
 #[Route('/customer/voice')]
@@ -18,6 +19,7 @@ final class CustomerVoiceController
     public function __construct(
         private readonly VoiceInstanceRepository $repository,
         private readonly Environment $twig,
+        private readonly UrlGeneratorInterface $urlGenerator,
     ) {
     }
 
@@ -34,6 +36,42 @@ final class CustomerVoiceController
         return new Response($this->twig->render('customer/voice/index.html.twig', [
             'activeNav' => 'voice',
             'instances' => $instances,
+        ]));
+    }
+
+    #[Route('/{id}', name: 'customer_voice_show', methods: ['GET'])]
+    public function show(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
+            return new Response('Unauthorized.', 401);
+        }
+
+        $instance = $this->repository->find($id);
+        if ($instance === null || $instance->getCustomer()->getId() !== $actor->getId()) {
+            return new Response('Not found.', 404);
+        }
+
+        $apiBase = '/api/v1/customer/voice/' . $id;
+
+        return new Response($this->twig->render('customer/voice/show.html.twig', [
+            'activeNav' => 'voice',
+            'instance' => $instance,
+            'urlDetail' => $apiBase . '/detail',
+            'urlProbe' => $apiBase . '/probe',
+            'urlActions' => $apiBase . '/actions',
+            'urlTokens' => $apiBase . '/tokens',
+            'urlTokensRotate' => $apiBase . '/tokens/rotate',
+            'urlSummary' => $apiBase . '/summary',
+            'urlGroups' => $apiBase . '/groups',
+            'urlQueryBase' => $apiBase . '/query',
+            'urlSettings' => $apiBase . '/settings',
+            'urlViewer' => $apiBase . '/viewer',
+            'urlRecreate' => $apiBase . '/recreate',
+            'urlSnapshot' => $apiBase . '/snapshot',
+            'urlClientsBase' => $apiBase . '/clients',
+            'urlBans' => $apiBase . '/bans',
+            'urlList' => $this->urlGenerator->generate('customer_voice'),
         ]));
     }
 }

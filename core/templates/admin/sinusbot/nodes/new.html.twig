@@ -4,27 +4,27 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-    <div class="sinusbot-page">
-        <div class="sinusbot-header">
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
             <div>
-                <h1>{{ t('admin_sinusbot_node_add_title', locale) }}</h1>
-                <p>{{ t('admin_sinusbot_node_add_desc', locale) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_sinusbot_node_add_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_sinusbot_node_add_desc', locale) }}</p>
+            </div>
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/sinusbot/nodes">{{ t('admin_sinusbot_back_to_overview', locale) }}</a>
             </div>
         </div>
-
-        <div class="sinusbot-card">
-            {{ form_start(form, { attr: { class: 'sinusbot-form' } }) }}
+        <div class="ng-data-card__body">
+            {{ form_start(form) }}
                 {{ form_errors(form) }}
-                <div class="sinusbot-grid">
-                    {{ form_row(form.name, { label: 'Name' }) }}
-                    {{ form_row(form.customerId, { label: t('admin_sinusbot_customer_label', locale) }) }}
-                    {{ form_row(form.downloadUrl, { label: 'SinusBot Download URL' }) }}
-                    {{ form_row(form.installPath, { label: t('admin_sinusbot_install_path_label', locale) }) }}
-                    {{ form_row(form.webBindIp, { label: t('admin_sinusbot_web_bind_label', locale) }) }}
-                    {{ form_row(form.webPortBase, { label: 'Web Port Basis' }) }}
-                </div>
-                <div class="sinusbot-actions">
-                    <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_node_save', locale) }}</button>
+                {{ form_row(form.name, { label: 'Name' }) }}
+                {{ form_row(form.customerId, { label: t('admin_sinusbot_customer_label', locale) }) }}
+                {{ form_row(form.downloadUrl, { label: 'SinusBot Download URL' }) }}
+                {{ form_row(form.installPath, { label: t('admin_sinusbot_install_path_label', locale) }) }}
+                {{ form_row(form.webBindIp, { label: t('admin_sinusbot_web_bind_label', locale) }) }}
+                {{ form_row(form.webPortBase, { label: 'Web Port Basis' }) }}
+                <div style="margin-top:20px;">
+                    <button class="ui-button ui-button--primary" type="submit">{{ t('admin_sinusbot_node_save', locale) }}</button>
                 </div>
             {{ form_end(form) }}
         </div>

@@ -21,23 +21,36 @@
 {% endset %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_plugins_total_label', page_locale()) }}</div>
-            <div class="ng-kpi-box__value">{{ summary.total }}</div>
+    {# hero section #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div>
+                    <div class="tkt-hero__pill"><span class="tkt-hero__pill-dot"></span> {{ t('admin_plugins_heading', page_locale()) }}</div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_plugins_catalog_entries', page_locale()) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_plugins_intro', page_locale()) }}</p>
+                </div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('admin_plugins_total_label', page_locale()) }}</div>
+                        <div class="tkt-kpi__value">{{ summary.total }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__label">{{ t('admin_plugins_templates_covered', page_locale()) }}</div>
+                        <div class="tkt-kpi__value">{{ summary.game_keys }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--resolved">
+                        <div class="tkt-kpi__label">{{ t('admin_plugins_integrity', page_locale()) }}</div>
+                        <div class="tkt-kpi__value">{{ t('admin_plugins_checksums', page_locale()) }}</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_plugins_templates_covered', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--primary">{{ summary.game_keys }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_plugins_integrity', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ t('admin_plugins_checksums', page_locale()) }}</div>
-        </div>
-    </div>
+    </section>
 
+    {# data card with table #}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>

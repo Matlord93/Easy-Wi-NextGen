@@ -5,33 +5,39 @@
     'technical': t('admin_tickets_category_label_technical', locale),
     'abuse':     t('admin_tickets_category_label_abuse', locale),
 } %}
-<div id="tickets-table" style="background:var(--ng-surface-soft);" hx-get="/tickets/table" hx-include="#customer-ticket-filters" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
+<div id="tickets-table" style="background:var(--ng-surface-soft);"
+    hx-get="/tickets/table"
+    hx-include="#customer-ticket-filters"
+    hx-trigger="tickets-changed from:body"
+    hx-swap="outerHTML">
     {% if tickets is empty %}
         <div style="padding:16px;">
             {% include 'components/tickets/_empty_state.html.twig' with {
                 title: t('ticket_ui_empty_title', locale),
                 text: t('ticket_ui_customer_empty_text', locale),
                 actionHref: '#ticket-form',
-                actionLabel: t('ticket_ui_create_first_ticket', locale)
+                actionLabel: t('ticket_ui_create_first_ticket', locale),
             } %}
         </div>
     {% else %}
-        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;">
+        <div style="display:flex;flex-direction:column;gap:6px;padding:10px;">
             {% for ticket in tickets %}
                 {% set nowTs = date()|date('U') %}
                 {% set ageDays = ((nowTs - ticket.created_at|date('U')) / 86400)|round(0, 'floor') %}
-                {% set ageLabel = ageDays == 0 ? t('customer_tickets_age_today', locale) : ageDays ~ t('customer_tickets_age_days_suffix', locale) %}
+                {% set ageLabel = ageDays == 0
+                    ? t('customer_tickets_age_today', locale)
+                    : ageDays ~ t('customer_tickets_age_days_suffix', locale) %}
                 <a href="{{ path('customer_ticket_show', {id: ticket.id}) }}" class="tkt-item">
                     <div class="tkt-item__bar tkt-item__bar--{{ ticket.priority }}"></div>
-                    <div style="display:grid;grid-template-columns:minmax(0,1fr) 140px auto;gap:12px;align-items:center;">
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) 130px auto;gap:12px;align-items:center;">
                         <div style="min-width:0;">
-                            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;">
+                            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:4px;">
                                 <span class="tkt-item__id">#{{ ticket.id }}</span>
                                 <span class="ui-badge ui-badge--neutral ui-badge--sm">{{ categoryLabels[ticket.category] ?? ticket.category|title }}</span>
                                 {% include 'components/tickets/_priority_badge.html.twig' with { ticket: ticket, priorityLabels: priorityLabels } %}
                             </div>
                             <div class="tkt-item__subject">{{ ticket.subject }}</div>
-                            <div class="tkt-item__meta">{{ t('ticket_ui_created', locale) }} {{ ticket.created_at|date('d.m.Y') }} · {{ t('customer_tickets_age_label', locale) }}: {{ ageLabel }}</div>
+                            <div class="tkt-item__meta">{{ t('ticket_ui_created', locale) }} {{ ticket.created_at|date('d.m.Y') }} · {{ ageLabel }}</div>
                         </div>
                         <div class="tkt-item__date-box">
                             <div class="tkt-item__date-label">{{ t('ticket_ui_last_reply', locale) }}</div>

@@ -151,6 +151,7 @@
                            class="cmd-palette__item"
                            data-label="{{ item.label|lower }}"
                            data-desc="{{ item.desc|lower }}">
+                            {# icon is an SVG string from PHP registry, never from user input #}
                             <span class="cmd-palette__item-icon" aria-hidden="true">{{ item.icon|raw }}</span>
                             <span class="cmd-palette__item-body">
                                 <span class="cmd-palette__item-label">{{ item.label }}</span>

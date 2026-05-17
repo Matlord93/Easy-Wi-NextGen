@@ -1146,8 +1146,10 @@ final class AdminInstanceController
 
             return [
                 'id' => $instance->getId(),
+                'customer_id' => $instance->getCustomer()->getId(),
                 'customer_email' => $instance->getCustomer()->getEmail(),
                 'template_name' => $instance->getTemplate()->getDisplayName(),
+                'server_name' => $instance->getServerName(),
                 'game_key' => $instance->getTemplate()->getGameKey(),
                 'node' => $instance->getNode()->getName() ?? $instance->getNode()->getId(),
                 'cpu_limit' => $instance->getCpuLimit(),
@@ -1686,6 +1688,7 @@ final class AdminInstanceController
                 strtolower((string) ($instance['id'] ?? '')),
                 strtolower((string) ($instance['customer_email'] ?? '')),
                 strtolower((string) ($instance['template_name'] ?? '')),
+                strtolower((string) ($instance['server_name'] ?? '')),
                 strtolower((string) ($instance['game_key'] ?? '')),
                 strtolower((string) ($instance['node'] ?? '')),
             ];

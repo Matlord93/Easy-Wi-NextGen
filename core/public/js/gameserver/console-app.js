@@ -24,8 +24,32 @@
     }
 
     const streamUrl = (root.dataset.streamUrl || '').trim();
-    const streamUnavailableMessage = (root.dataset.streamUnavailableMessage || 'Live stream unavailable.').trim();
-    const pollingActiveMessage = (root.dataset.pollingActiveMessage || 'Live stream unavailable. Polling mode active.').trim();
+
+    const defaultI18n = {
+        streamUnavailable: 'Live stream unavailable.',
+        pollingActive: 'Live stream unavailable. Polling mode active.',
+        streamConnected: 'Live stream connected',
+        streamReconnecting: 'Live stream reconnecting… attempt %attempt%',
+        relayLost: 'Connection to relay lost. Polling mode active.',
+        streamDisconnected: 'Live stream disconnected, reconnecting…',
+        serverOffline: 'Server is offline.',
+        sending: 'Sending…',
+        commandRequired: 'Command is required.',
+        pause: 'Pause',
+        resume: 'Resume',
+        autoscrollOn: 'Auto-scroll: On',
+        autoscrollOff: 'Auto-scroll: Off',
+    };
+    let i18n = defaultI18n;
+    try {
+        i18n = { ...defaultI18n, ...(root.dataset.i18n ? JSON.parse(root.dataset.i18n) : {}) };
+    } catch (_) {
+        i18n = defaultI18n;
+    }
+    const tr = (key, replacements = {}) => Object.entries(replacements).reduce(
+        (msg, [k, v]) => msg.replaceAll(`%${k}%`, String(v)),
+        i18n[key] || defaultI18n[key] || key,
+    );
 
     const SCROLLBACK_LIMIT = 1500;
     const logEl = document.getElementById('gs-console-log');
@@ -73,7 +97,7 @@
         }
         errors.clearInline(inlineError);
         if (healthEl) {
-            healthEl.textContent = 'Live stream connected';
+            healthEl.textContent = tr('streamConnected');
         }
     };
 
@@ -110,7 +134,7 @@
         reconnectAttempt += 1;
         const delay = Math.min(10000, 500 * Math.pow(2, Math.min(reconnectAttempt, 6)));
         if (healthEl) {
-            healthEl.textContent = `Live stream reconnecting… attempt ${reconnectAttempt}`;
+            healthEl.textContent = tr('streamReconnecting', { attempt: reconnectAttempt });
         }
         reconnectTimer = window.setTimeout(() => {
             reconnectTimer = null;
@@ -118,7 +142,7 @@
         }, delay);
     };
 
-    const activatePollingFallback = async (reason = streamUnavailableMessage, softFallback = false) => {
+    const activatePollingFallback = async (reason = tr('streamUnavailable'), softFallback = false) => {
         if (fallbackActive) {
             return;
         }
@@ -208,7 +232,7 @@
 
             if (/^(verbindung geschlossen|connection closed)$/i.test(normalized)) {
                 if (!relayDisconnectNoticeShown) {
-                    appendLine('Connection to relay lost. Polling mode active.', 'meta');
+                    appendLine(tr('relayLost'), 'meta');
                     relayDisconnectNoticeShown = true;
                 }
                 return;
@@ -228,7 +252,7 @@
         try {
             url = new URL(streamUrl, window.location.origin);
         } catch (error) {
-            void activatePollingFallback(streamUnavailableMessage);
+            void activatePollingFallback(tr('streamUnavailable'));
             return;
         }
 
@@ -282,7 +306,7 @@
             if (payload.type === 'status' && payload.status) {
                 const degradedStatuses = ['backend_not_configured', 'redis_unavailable', 'relay_stale', 'stream_unavailable', 'node_endpoint_missing'];
                 if (degradedStatuses.includes(payload.status)) {
-                    const message = payload.message || streamUnavailableMessage;
+                    const message = payload.message || tr('streamUnavailable');
                     void activatePollingFallback(message, payload.status === 'relay_stale');
                     return;
                 }
@@ -310,19 +334,19 @@
             const shouldFallback = !healthyRecently && !healthLiveOk;
             if (source && source.readyState === EventSource.CLOSED) {
                 if (shouldFallback) {
-                    void activatePollingFallback(streamUnavailableMessage);
+                    void activatePollingFallback(tr('streamUnavailable'));
                 }
                 return;
             }
             if (reconnectFailures >= MAX_STREAM_FAILURES) {
                 if (shouldFallback) {
-                    void activatePollingFallback(streamUnavailableMessage);
+                    void activatePollingFallback(tr('streamUnavailable'));
                 }
                 return;
             }
             scheduleReconnect();
             if (reconnectAttempt >= 3) {
-                errors.showInline(inlineError, { message: 'Live stream disconnected, reconnecting…', error_code: 'STREAM_RECONNECT', request_id: '' });
+                errors.showInline(inlineError, { message: tr('streamDisconnected'), error_code: 'STREAM_RECONNECT', request_id: '' });
             } else {
                 errors.clearInline(inlineError);
             }
@@ -331,7 +355,7 @@
 
     const startPollingFallback = async () => {
         if (healthEl) {
-            healthEl.textContent = pollingActiveMessage;
+            healthEl.textContent = tr('pollingActive');
         }
 
         const poll = async () => {
@@ -341,16 +365,16 @@
                 errors.clearInline(inlineError);
                 if (healthEl) {
                     if (source && source.readyState === EventSource.OPEN) {
-                        healthEl.textContent = 'Live stream connected';
+                        healthEl.textContent = tr('streamConnected');
                     } else if (isConsoleAvailableFromHealth(health)) {
-                        healthEl.textContent = pollingActiveMessage;
+                        healthEl.textContent = tr('pollingActive');
                     } else {
-                        healthEl.textContent = 'Server is offline.';
+                        healthEl.textContent = tr('serverOffline');
                     }
                 }
             } catch (error) {
                 if (healthEl) {
-                    healthEl.textContent = pollingActiveMessage;
+                    healthEl.textContent = tr('pollingActive');
                 }
             }
         };
@@ -363,7 +387,7 @@
         sendEl.disabled = loading;
         if (loading) {
             sendEl.dataset.original = sendEl.textContent;
-            sendEl.textContent = 'Sending…';
+            sendEl.textContent = tr('sending');
         } else if (sendEl.dataset.original) {
             sendEl.textContent = sendEl.dataset.original;
         }
@@ -372,7 +396,7 @@
     sendEl.addEventListener('click', async () => {
         const command = (commandEl.value || '').trim();
         if (!command) {
-            errors.showAll(inlineError, { message: 'Command is required.', error_code: 'INVALID_INPUT', request_id: '' });
+            errors.showAll(inlineError, { message: tr('commandRequired'), error_code: 'INVALID_INPUT', request_id: '' });
             return;
         }
 
@@ -404,12 +428,12 @@
 
     pauseEl.addEventListener('click', () => {
         paused = !paused;
-        pauseEl.textContent = paused ? 'Resume' : 'Pause';
+        pauseEl.textContent = paused ? tr('resume') : tr('pause');
     });
 
     autoScrollEl.addEventListener('click', () => {
         autoScroll = !autoScroll;
-        autoScrollEl.textContent = `Auto-scroll: ${autoScroll ? 'On' : 'Off'}`;
+        autoScrollEl.textContent = autoScroll ? tr('autoscrollOn') : tr('autoscrollOff');
     });
 
     clearEl.addEventListener('click', () => {
@@ -426,7 +450,7 @@
         try {
             const health = await loadHealth();
             if (health && health.supports_live_output === false) {
-                const reason = (health.live_output_message || '').trim() || streamUnavailableMessage;
+                const reason = (health.live_output_message || '').trim() || tr('streamUnavailable');
                 await activatePollingFallback(reason);
                 return;
             }

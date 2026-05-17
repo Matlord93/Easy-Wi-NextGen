@@ -38,6 +38,7 @@
                         {% set isActive = activeNav == itemKey %}
                         <a href="{{ item.href }}" class="ng-sidebar__item {{ isActive ? 'is-active' : '' }}" {% if isActive %}aria-current="page"{% endif %}>
                             <span class="ng-sidebar__icon" aria-hidden="true">
+                                {# iconSvg and icon are SVG strings from PHP MenuItem objects, never from user input #}
                                 {% if item.iconSvg is defined and item.iconSvg %}
                                     {{ item.iconSvg|raw }}
                                 {% elseif item.icon is defined and item.icon %}
