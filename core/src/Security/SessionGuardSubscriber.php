@@ -114,6 +114,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             || str_starts_with($path, '/docs')
             || str_starts_with($path, '/servers')
             || str_starts_with($path, '/pages/')
+            || str_starts_with($path, '/viewer/')
             || str_starts_with($path, '/_')
             || str_starts_with($path, '/assets/')
             || str_starts_with($path, '/css/')
