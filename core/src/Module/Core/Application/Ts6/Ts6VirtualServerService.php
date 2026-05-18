@@ -258,6 +258,23 @@ final class Ts6VirtualServerService
         return $this->queueServerQuery($server, $cacheKey, 'ts6.virtual.snapshot.create');
     }
 
+    public function queueSnapshotRestore(Ts6VirtualServer $server, string $snapshotContent): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'snapshot_content' => $snapshotContent,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.snapshot.restore', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
     public function queueServerQuery(Ts6VirtualServer $server, string $cacheKey, string $jobType): AgentJob
     {
         $payload = [

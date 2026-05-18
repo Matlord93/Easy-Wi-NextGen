@@ -10,7 +10,6 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
@@ -56,12 +55,12 @@ final class Ts6ViewerController
         return $response;
     }
 
-    #[Route(path: '/viewer/ts6/{publicId}', name: 'ts6_viewer_page', methods: ['GET'])]
+    #[Route(path: '/viewer/ts6/{publicId}', name: 'ts6_viewer_page', requirements: ['publicId' => '[^/.]+'], methods: ['GET'])]
     public function page(string $publicId): Response
     {
         $viewer = $this->viewerRepository->findOneBy(['publicId' => $publicId]);
         if ($viewer === null || !$viewer->isEnabled()) {
-            throw new NotFoundHttpException('Viewer not found.');
+            return $this->viewerNotFoundResponse();
         }
 
         $server = $viewer->getVirtualServer();
@@ -77,7 +76,7 @@ final class Ts6ViewerController
     {
         $viewer = $this->viewerRepository->findOneBy(['publicId' => $publicId]);
         if ($viewer === null || !$viewer->isEnabled()) {
-            throw new NotFoundHttpException('Viewer not found.');
+            return $this->viewerNotFoundResponse();
         }
 
         $script = <<<JS
@@ -120,6 +119,13 @@ JS;
 
         return new Response($script, Response::HTTP_OK, [
             'Content-Type' => 'application/javascript',
+        ]);
+    }
+
+    private function viewerNotFoundResponse(): Response
+    {
+        return new Response('Viewer not found.', Response::HTTP_NOT_FOUND, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
         ]);
     }
 }

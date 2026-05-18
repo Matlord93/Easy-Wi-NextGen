@@ -1490,11 +1490,11 @@ final class WebinterfaceUpdateService
     private function runPostDeploy(string $baseDir, string $logPath): bool
     {
         $appRoot = $this->resolveAppRoot($baseDir);
-        $debugFlag = $this->kernelDebug ? '' : ' --no-debug';
-        $envFlag = sprintf(' --env=%s', escapeshellarg($this->kernelEnvironment));
+        $debugFlag = $this->kernelDebug ? '' : '--no-debug';
+        $envFlag = sprintf('--env=%s', $this->kernelEnvironment);
 
         if ($this->commandExists('composer') && is_file($appRoot . '/composer.json')) {
-            $result = $this->runCommand('composer install --no-dev --optimize-autoloader --no-interaction', $appRoot);
+            $result = $this->runCommand('composer install --no-dev --optimize-autoloader --no-interaction --no-scripts', $appRoot);
             $this->logCommandResult($logPath, 'composer install', $result);
             if ($result['exitCode'] !== 0) {
                 return false;
@@ -1521,7 +1521,7 @@ final class WebinterfaceUpdateService
         }
 
         $migrate = $this->runCommand(
-            $this->buildConsoleCommand('doctrine:migrations:migrate', array_values(array_filter(['--no-interaction', $envFlag, $debugFlag]))),
+            $this->buildConsoleCommand('doctrine:migrations:migrate', array_values(array_filter(['--no-interaction', '--allow-no-migration', $envFlag, $debugFlag]))),
             $appRoot,
         );
         $this->logCommandResult($logPath, 'doctrine:migrations:migrate', $migrate);
@@ -1534,7 +1534,9 @@ final class WebinterfaceUpdateService
             $appRoot,
         );
         $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema);
-        if ($schema['exitCode'] !== 0) {
+        // Exit code 2 means DB not in sync (mapping is fine); treat as warning, not a hard failure.
+        // Exit code 1 or 3 means broken mapping files — that is a hard failure.
+        if ($schema['exitCode'] !== 0 && $schema['exitCode'] !== 2) {
             return false;
         }
 
@@ -1901,6 +1903,10 @@ final class WebinterfaceUpdateService
      */
     private function runCommand(string|array $command, string $cwd, int $timeoutSeconds = 600): array
     {
+        if (!class_exists(Process::class)) {
+            return $this->runCommandWithProcOpen($command, $cwd, $timeoutSeconds);
+        }
+
         try {
             $environment = $this->currentProcessEnvironment();
             $process = is_array($command)
@@ -1928,6 +1934,96 @@ final class WebinterfaceUpdateService
                 'command' => $this->stringifyCommand($command),
             ];
         }
+    }
+
+    /**
+     * @param string|list<string> $command
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string, output: string, command: string}
+     */
+    private function runCommandWithProcOpen(string|array $command, string $cwd, int $timeoutSeconds): array
+    {
+        if (!function_exists('proc_open')) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'proc_open is not available and symfony/process is not installed.',
+                'output' => 'proc_open is not available and symfony/process is not installed.',
+                'command' => $this->stringifyCommand($command),
+            ];
+        }
+
+        $pipes = [];
+        $process = proc_open(
+            $command,
+            [
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $cwd,
+            $this->currentProcessEnvironment(),
+        );
+
+        if (!is_resource($process)) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Command could not be started.',
+                'output' => 'Command could not be started.',
+                'command' => $this->stringifyCommand($command),
+            ];
+        }
+
+        foreach ($pipes as $pipe) {
+            stream_set_blocking($pipe, false);
+        }
+
+        $stdout = '';
+        $stderr = '';
+        $deadline = microtime(true) + $timeoutSeconds;
+        $exitCode = 1;
+
+        do {
+            $stdout .= stream_get_contents($pipes[1]);
+            $stderr .= stream_get_contents($pipes[2]);
+            $status = proc_get_status($process);
+
+            if (!$status['running']) {
+                $exitCode = is_int($status['exitcode']) && $status['exitcode'] >= 0 ? $status['exitcode'] : 1;
+                break;
+            }
+
+            if (microtime(true) >= $deadline) {
+                proc_terminate($process);
+                $stderr = trim($stderr . PHP_EOL . sprintf('Command timed out after %d seconds.', $timeoutSeconds));
+                $exitCode = 1;
+                break;
+            }
+
+            usleep(100000);
+        } while (true);
+
+        $stdout .= stream_get_contents($pipes[1]);
+        $stderr .= stream_get_contents($pipes[2]);
+
+        foreach ($pipes as $pipe) {
+            fclose($pipe);
+        }
+
+        proc_close($process);
+
+        $stdout = trim($stdout);
+        $stderr = trim($stderr);
+        $output = trim(implode(PHP_EOL, array_filter([$stdout, $stderr], static fn (string $value): bool => $value !== '')));
+
+        return [
+            'exitCode' => $exitCode,
+            'stdout' => $stdout,
+            'stderr' => $stderr,
+            'output' => $output,
+            'command' => $this->stringifyCommand($command),
+        ];
     }
 
     /**

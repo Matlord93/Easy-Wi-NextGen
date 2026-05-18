@@ -2,7 +2,7 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div id="voice-show-root"
+<div id="vs-root"
     data-url-detail="{{ urlDetail }}"
     data-url-probe="{{ urlProbe }}"
     data-url-actions="{{ urlActions }}"
@@ -15,258 +15,655 @@
     data-url-viewer="{{ urlViewer }}"
     data-url-recreate="{{ urlRecreate }}"
     data-url-snapshot="{{ urlSnapshot }}"
+    data-url-snapshot-poll="{{ urlSnapshotPoll }}"
+    data-url-snapshot-restore="{{ urlSnapshotRestore }}"
     data-url-clients-base="{{ urlClientsBase }}"
     data-url-bans="{{ urlBans }}"
     data-url-list="{{ urlList }}"
-    style="display:flex;flex-direction:column;gap:16px;">
+    class="vs-root">
 
-    {# ── Header card ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div style="padding:20px 24px;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px;">
-            <div style="display:flex;flex-direction:column;gap:8px;">
-                <a href="{{ urlList }}" style="font-size:12px;color:var(--ng-text-muted);text-decoration:none;display:flex;align-items:center;gap:4px;">
-                    <svg style="width:12px;height:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-                    {{ t('customer_voice_page_title', locale) }}
-                </a>
-                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
-                    <span id="vs-provider-badge" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:99px;background:rgba(99,102,241,0.15);color:#818cf8;">
-                        {{ instance.node.providerType|upper }}
-                    </span>
-                    <span id="vs-status-badge" class="cust-status-dot cust-status-dot--warning">—</span>
-                    <span id="vs-probe-badge"></span>
-                </div>
-                <h1 style="margin:0;font-size:22px;font-weight:800;color:var(--ng-text);letter-spacing:-.02em;">{{ instance.name }}</h1>
-                <div style="font-size:12px;color:var(--ng-text-muted);">
-                    ID {{ instance.id }} · {{ instance.node.providerType|upper }}
-                    <span id="vs-connect-inline" style="font-family:monospace;margin-left:8px;color:var(--ng-text-muted);"></span>
-                </div>
+{# ── Back + Header ── #}
+<div class="vs-header-bar">
+    <div class="vs-header-bar__left">
+        <a href="{{ urlList }}" class="vs-back-link">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            {{ t('customer_voice_back', locale) }}
+        </a>
+        <div class="vs-header-title">
+            <div class="vs-header-title__badges">
+                <span id="vs-provider-badge" class="vs-badge vs-badge--provider">{{ instance.node.providerType|upper }}</span>
+                <span id="vs-status-badge" class="vs-status-dot vs-status-dot--warning">—</span>
+                <span id="vs-probe-badge"></span>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                <button type="button" id="vs-btn-probe"    class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voice_probe', locale) }}</button>
-                <button type="button" id="vs-btn-start"    class="ui-button ui-button--ghost ui-button--sm" style="color:#4ade80;border-color:rgba(34,197,94,0.3);">{{ t('customer_voice_start', locale) }}</button>
-                <button type="button" id="vs-btn-stop"     class="ui-button ui-button--ghost ui-button--sm" style="color:#f87171;border-color:rgba(239,68,68,0.3);">{{ t('customer_voice_stop', locale) }}</button>
-                <button type="button" id="vs-btn-restart"  class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voice_restart', locale) }}</button>
-                <button type="button" id="vs-btn-snapshot" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voice_snapshot', locale) }}</button>
-                <button type="button" id="vs-btn-recreate" class="ui-button ui-button--ghost ui-button--sm" style="color:#fb923c;border-color:rgba(251,146,60,0.3);">{{ t('customer_voice_recreate', locale) }}</button>
-            </div>
-        </div>
-        <div id="vs-error" class="hidden" style="padding:10px 24px;border-top:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.08);font-size:13px;color:#fca5a5;"></div>
-    </div>
-
-    {# ── Stats strip ── #}
-    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
-        <div class="cust-kpi">
-            <div class="cust-kpi__icon cust-kpi__icon--success">
-                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
-            </div>
-            <div>
-                <div class="cust-kpi__label">{{ t('customer_voice_col_players', locale) }}</div>
-                <div class="cust-kpi__value" id="vs-kpi-players">—</div>
-            </div>
-        </div>
-        <div class="cust-kpi">
-            <div class="cust-kpi__icon cust-kpi__icon--info">
-                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/></svg>
-            </div>
-            <div>
-                <div class="cust-kpi__label">{{ t('customer_voice_col_status', locale) }}</div>
-                <div class="cust-kpi__value" id="vs-kpi-status">—</div>
-            </div>
-        </div>
-        <div class="cust-kpi">
-            <div class="cust-kpi__icon cust-kpi__icon--primary">
-                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>
-            </div>
-            <div>
-                <div class="cust-kpi__label">{{ t('customer_voice_connect_info', locale) }}</div>
-                <div class="cust-kpi__value" id="vs-kpi-host" style="font-size:13px;font-family:monospace;">—</div>
-            </div>
+            <h1 class="vs-header-title__name">{{ instance.name }}</h1>
+            <div class="vs-header-title__sub" id="vs-connect-inline">—</div>
         </div>
     </div>
-
-    {# ── Tabbed panel ── #}
-    <div class="ng-card" style="overflow:hidden;">
-
-        {# Tab nav #}
-        <div style="display:flex;border-bottom:1px solid var(--ng-border);overflow-x:auto;" id="vs-tab-nav">
-            {% set tabs = [
-                ['overview', 'customer_voice_tab_overview', '<path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>'],
-                ['tokens',   'customer_voice_tab_tokens',   '<path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>'],
-                ['groups',   'customer_voice_tab_groups',   '<path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>'],
-                ['query',    'customer_voice_tab_query',    '<path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>'],
-                ['viewer',   'customer_voice_tab_viewer',   '<path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>'],
-                ['settings', 'customer_voice_tab_settings', '<path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>'],
-            ] %}
-            {% for tab in tabs %}
-            <button type="button" data-tab="{{ tab[0] }}"
-                class="vs-tab-btn"
-                style="display:flex;align-items:center;gap:6px;padding:13px 18px;border:none;background:none;font-size:13px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;flex-shrink:0;{% if loop.first %}color:var(--ng-primary);border-bottom-color:var(--ng-primary);{% endif %}">
-                <svg style="width:14px;height:14px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">{{ tab[2]|raw }}</svg>
-                {{ t(tab[1], locale) }}
-            </button>
-            {% endfor %}
+    <div class="vs-header-bar__actions">
+        <button type="button" id="vs-btn-start"   class="vs-btn vs-btn--success vs-btn--sm">▶ {{ t('customer_voice_start', locale) }}</button>
+        <button type="button" id="vs-btn-stop"    class="vs-btn vs-btn--danger  vs-btn--sm">■ {{ t('customer_voice_stop', locale) }}</button>
+        <button type="button" id="vs-btn-restart" class="vs-btn vs-btn--ghost   vs-btn--sm">↺ {{ t('customer_voice_restart', locale) }}</button>
+        <div class="vs-btn-group">
+            <button type="button" id="vs-btn-probe"    class="vs-btn vs-btn--ghost vs-btn--sm">{{ t('customer_voice_probe', locale) }}</button>
+            <button type="button" id="vs-btn-snapshot" class="vs-btn vs-btn--ghost vs-btn--sm">{{ t('customer_voice_snapshot', locale) }}</button>
         </div>
-
-        {# ── Overview tab ── #}
-        <div id="vs-tab-overview" class="vs-tab-panel" style="padding:20px;display:flex;flex-direction:column;gap:16px;">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                <div style="border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:16px;">
-                    <h3 style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);">{{ t('customer_voice_connect_info', locale) }}</h3>
-                    <div id="vs-connect-details" style="font-size:13px;color:var(--ng-text);display:flex;flex-direction:column;gap:5px;">
-                        <span style="color:var(--ng-text-muted);">{{ t('customer_voice_loading', locale) }}</span>
-                    </div>
-                </div>
-                <div style="border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:16px;">
-                    <h3 style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);">{{ t('customer_voice_active_token', locale) }}</h3>
-                    <div id="vs-active-token" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--ng-text);">
-                        <span style="color:var(--ng-text-muted);">—</span>
-                    </div>
-                    <button type="button" id="vs-copy-token" class="ui-button ui-button--ghost ui-button--sm" style="margin-top:8px;display:none;">
-                        <svg style="width:12px;height:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                        Copy
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        {# ── Tokens tab ── #}
-        <div id="vs-tab-tokens" class="vs-tab-panel hidden" style="padding:20px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
-                <div>
-                    <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_tokens_title', locale) }}</h3>
-                    <p style="margin:2px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_voice_tab_tokens', locale) }}</p>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <select id="vs-token-group" style="border-radius:var(--ng-radius-sm);border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:6px 10px;font-size:12px;color:var(--ng-text);">
-                        <option value="6">{{ t('customer_voice_group_default', locale) }} (6)</option>
-                    </select>
-                    <button type="button" id="vs-btn-rotate" class="ui-button ui-button--primary ui-button--sm">
-                        {{ t('customer_voice_rotate_token', locale) }}
-                    </button>
-                </div>
-            </div>
-            <div id="vs-tokens-list" style="display:flex;flex-direction:column;gap:8px;">
-                <p style="font-size:13px;color:var(--ng-text-muted);">{{ t('customer_voice_loading', locale) }}</p>
-            </div>
-        </div>
-
-        {# ── Groups tab ── #}
-        <div id="vs-tab-groups" class="vs-tab-panel hidden" style="padding:20px;">
-            <div id="vs-groups-list" style="font-size:13px;color:var(--ng-text-muted);">
-                <p>{{ t('customer_voice_loading', locale) }}</p>
-            </div>
-        </div>
-
-        {# ── Query tab ── #}
-        <div id="vs-tab-query" class="vs-tab-panel hidden" style="padding:20px;">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
-                {% for qtype in ['channels', 'clients', 'bans', 'logs'] %}
-                <button type="button" data-query-type="{{ qtype }}"
-                    class="vs-query-btn ui-button ui-button--ghost ui-button--sm {% if qtype == 'channels' %}vs-query-active{% endif %}"
-                    style="{% if qtype == 'channels' %}background:rgba(99,102,241,0.15);color:#818cf8;border-color:rgba(99,102,241,0.4);{% endif %}">
-                    {{ t('customer_voice_query_' ~ qtype, locale) }}
-                </button>
-                {% endfor %}
-                <button type="button" id="vs-btn-query-refresh" class="ui-button ui-button--ghost ui-button--sm" style="margin-left:auto;" title="{{ t('customer_voice_refresh', locale) }}">
-                    <svg style="width:13px;height:13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                </button>
-            </div>
-
-            {# Add-ban form (visible only when bans tab active) #}
-            <div id="vs-ban-form" style="display:none;margin-bottom:16px;padding:14px;border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-                <h4 style="margin:0 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('customer_voice_ban_add', locale) }}</h4>
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:10px;">
-                    <input type="text" id="vs-ban-ip"     placeholder="IP" class="form-control" style="border-radius:var(--ng-radius-sm);border:1px solid var(--ng-border);background:var(--ng-surface);padding:6px 10px;font-size:12px;color:var(--ng-text);font-family:monospace;">
-                    <input type="text" id="vs-ban-uid"    placeholder="UID" class="form-control" style="border-radius:var(--ng-radius-sm);border:1px solid var(--ng-border);background:var(--ng-surface);padding:6px 10px;font-size:12px;color:var(--ng-text);font-family:monospace;">
-                    <input type="text" id="vs-ban-name"   placeholder="{{ t('customer_voice_ban_name', locale) }}" class="form-control" style="border-radius:var(--ng-radius-sm);border:1px solid var(--ng-border);background:var(--ng-surface);padding:6px 10px;font-size:12px;color:var(--ng-text);">
-                    <input type="number" id="vs-ban-time" placeholder="{{ t('customer_voice_ban_duration', locale) }}" min="0" class="form-control" style="border-radius:var(--ng-radius-sm);border:1px solid var(--ng-border);background:var(--ng-surface);padding:6px 10px;font-size:12px;color:var(--ng-text);">
-                    <input type="text" id="vs-ban-reason" placeholder="{{ t('customer_voice_ban_reason', locale) }}" class="form-control" style="border-radius:var(--ng-radius-sm);border:1px solid var(--ng-border);background:var(--ng-surface);padding:6px 10px;font-size:12px;color:var(--ng-text);">
-                </div>
-                <button type="button" id="vs-btn-ban-add" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_voice_ban_add', locale) }}</button>
-            </div>
-
-            <div id="vs-query-result" style="font-size:13px;color:var(--ng-text-muted);">
-                <p>{{ t('customer_voice_select_query', locale) }}</p>
-            </div>
-        </div>
-
-        {# ── Viewer tab ── #}
-        <div id="vs-tab-viewer" class="vs-tab-panel hidden" style="padding:20px;">
-            <div style="max-width:520px;display:flex;flex-direction:column;gap:16px;">
-                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-                    <input type="checkbox" id="vs-viewer-enabled" style="width:16px;height:16px;accent-color:var(--ng-primary);">
-                    <div>
-                        <div style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ t('customer_voice_viewer_enabled', locale) }}</div>
-                        <div style="font-size:11px;color:var(--ng-text-muted);margin-top:1px;">{{ t('customer_voice_viewer_allowlist_hint', locale) }}</div>
-                    </div>
-                </label>
-                <div class="form-field">
-                    <label class="form-label">{{ t('customer_voice_viewer_ttl', locale) }}</label>
-                    <input type="number" id="vs-viewer-ttl" min="500" max="60000" value="1500">
-                </div>
-                <div class="form-field">
-                    <label class="form-label">{{ t('customer_voice_viewer_domain_allowlist', locale) }}</label>
-                    <textarea id="vs-viewer-allowlist" rows="3" placeholder="example.com&#10;*.mydomain.com" style="font-family:monospace;font-size:12px;resize:vertical;"></textarea>
-                </div>
-                <div id="vs-viewer-url" class="hidden" style="padding:10px 14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);font-size:12px;">
-                    <span style="color:var(--ng-text-muted);">{{ t('customer_voice_viewer_url', locale) }}:</span>
-                    <span id="vs-viewer-url-val" style="font-family:monospace;color:#818cf8;margin-left:6px;word-break:break-all;"></span>
-                </div>
-                <button type="button" id="vs-btn-save-viewer" class="ui-button ui-button--primary ui-button--sm" style="align-self:flex-start;">{{ t('customer_voice_save', locale) }}</button>
-            </div>
-        </div>
-
-        {# ── Settings tab ── #}
-        <div id="vs-tab-settings" class="vs-tab-panel hidden" style="padding:20px;">
-            <div style="max-width:520px;display:flex;flex-direction:column;gap:16px;">
-                <div class="form-field">
-                    <label class="form-label">{{ t('customer_voice_public_host', locale) }}</label>
-                    <input type="text" id="vs-settings-host" placeholder="{{ t('customer_voice_public_host_placeholder', locale) }}" style="font-family:monospace;">
-                    <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_voice_public_host_hint', locale) }}</p>
-                </div>
-                <button type="button" id="vs-btn-save-settings" class="ui-button ui-button--primary ui-button--sm" style="align-self:flex-start;">{{ t('customer_voice_save', locale) }}</button>
-            </div>
-        </div>
-
-    </div>{# /ng-card #}
-
+    </div>
 </div>
+
+{# Error bar #}
+<div id="vs-error" class="vs-error-bar hidden"></div>
+
+{# ── KPI Strip ── #}
+<div class="vs-kpi-strip">
+    <div class="vs-kpi-card">
+        <div class="vs-kpi-card__icon vs-kpi-card__icon--primary">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm-7 9a7 7 0 0 1 14 0H2z"/></svg>
+        </div>
+        <div>
+            <div class="vs-kpi-card__label">{{ t('customer_voice_col_players', locale) }}</div>
+            <div class="vs-kpi-card__value" id="vs-kpi-players">—</div>
+        </div>
+    </div>
+    <div class="vs-kpi-card">
+        <div class="vs-kpi-card__icon vs-kpi-card__icon--success">
+            <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4"/></svg>
+        </div>
+        <div>
+            <div class="vs-kpi-card__label">{{ t('customer_voice_col_status', locale) }}</div>
+            <div class="vs-kpi-card__value" id="vs-kpi-status">—</div>
+        </div>
+    </div>
+    <div class="vs-kpi-card">
+        <div class="vs-kpi-card__icon vs-kpi-card__icon--info">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5zm0 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2z"/></svg>
+        </div>
+        <div>
+            <div class="vs-kpi-card__label">{{ t('customer_voice_kpi_address', locale) }}</div>
+            <div class="vs-kpi-card__value" id="vs-kpi-host" style="font-size:12px;font-family:monospace;">—</div>
+        </div>
+    </div>
+    <div class="vs-kpi-card">
+        <div class="vs-kpi-card__icon vs-kpi-card__icon--warning">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+            <div class="vs-kpi-card__label">{{ t('customer_voice_active_token', locale) }}</div>
+            <div class="vs-kpi-card__value vs-token-preview" id="vs-kpi-token">—</div>
+        </div>
+    </div>
+</div>
+
+{# ── Main Panel with Tabs ── #}
+<div class="vs-panel">
+
+    {# Tab navigation #}
+    <div class="vs-tabs" id="vs-tab-nav" role="tablist">
+        <button type="button" class="vs-tab vs-tab--active" data-tab="overview" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            {{ t('customer_voice_tab_overview', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="clients" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            {{ t('customer_voice_tab_clients', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="channels" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
+            {{ t('customer_voice_tab_channels', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="groups" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            {{ t('customer_voice_tab_groups', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="bans" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+            {{ t('customer_voice_tab_bans', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="tokens" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            {{ t('customer_voice_tab_tokens', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="backup" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            {{ t('customer_voice_tab_backup', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="logs" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            {{ t('customer_voice_tab_logs', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="viewer" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            {{ t('customer_voice_tab_viewer', locale) }}
+        </button>
+        <button type="button" class="vs-tab" data-tab="settings" role="tab">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            {{ t('customer_voice_tab_settings', locale) }}
+        </button>
+    </div>
+
+    {# ── Overview Tab ── #}
+    <div id="vs-tab-overview" class="vs-tab-panel" role="tabpanel">
+        <div class="vs-overview-grid">
+            <div class="vs-info-block">
+                <div class="vs-info-block__title">{{ t('customer_voice_connect_info', locale) }}</div>
+                <div id="vs-connect-details" class="vs-info-block__content">
+                    <div class="vs-info-row vs-info-row--loading">{{ t('customer_voice_loading_short', locale) }}</div>
+                </div>
+            </div>
+            <div class="vs-info-block">
+                <div class="vs-info-block__title">{{ t('customer_voice_active_token', locale) }}</div>
+                <div id="vs-active-token" class="vs-info-block__content">
+                    <span class="vs-muted">—</span>
+                </div>
+                <button type="button" id="vs-copy-token" class="vs-btn vs-btn--ghost vs-btn--xs" style="margin-top:8px;display:none;">
+                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    {{ t('customer_voice_copy', locale) }}
+                </button>
+            </div>
+            <div class="vs-info-block">
+                <div class="vs-info-block__title">{{ t('customer_voice_block_status', locale) }}</div>
+                <div id="vs-status-details" class="vs-info-block__content">
+                    <div class="vs-info-row vs-info-row--loading">{{ t('customer_voice_loading_short', locale) }}</div>
+                </div>
+            </div>
+            <div class="vs-info-block">
+                <div class="vs-info-block__title">{{ t('customer_voice_quick_actions', locale) }}</div>
+                <div class="vs-info-block__content">
+                    <div class="vs-quick-actions">
+                        <button type="button" id="vs-qa-recreate" class="vs-btn vs-btn--danger vs-btn--sm" style="width:100%;">
+                            {{ t('customer_voice_reset', locale) }}
+                        </button>
+                        <p class="vs-muted" style="font-size:11px;margin:4px 0 0;">{{ t('customer_voice_reset_hint', locale) }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Clients Tab ── #}
+    <div id="vs-tab-clients" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_clients_heading', locale) }}</h3>
+            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="clients">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                {{ t('customer_voice_refresh', locale) }}
+            </button>
+        </div>
+        <div id="vs-clients-list" class="vs-table-wrapper">
+            <div class="vs-loading-state">{{ t('customer_voice_clients_loading', locale) }}</div>
+        </div>
+    </div>
+
+    {# ── Channels Tab ── #}
+    <div id="vs-tab-channels" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_channels_heading', locale) }}</h3>
+            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="channels">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                {{ t('customer_voice_refresh', locale) }}
+            </button>
+        </div>
+        <div id="vs-channels-list" class="vs-table-wrapper">
+            <div class="vs-loading-state">{{ t('customer_voice_channels_loading', locale) }}</div>
+        </div>
+    </div>
+
+    {# ── Groups Tab ── #}
+    <div id="vs-tab-groups" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_groups_heading', locale) }}</h3>
+            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="groups">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                {{ t('customer_voice_refresh', locale) }}
+            </button>
+        </div>
+        <p class="vs-muted" style="font-size:12px;padding:0 20px 12px;">{{ t('customer_voice_groups_note', locale) }}</p>
+        <div id="vs-groups-list" class="vs-table-wrapper">
+            <div class="vs-loading-state">{{ t('customer_voice_groups_loading', locale) }}</div>
+        </div>
+    </div>
+
+    {# ── Bans Tab ── #}
+    <div id="vs-tab-bans" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_bans_heading', locale) }}</h3>
+            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="bans">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                {{ t('customer_voice_refresh', locale) }}
+            </button>
+        </div>
+
+        {# Add ban form #}
+        <div class="vs-form-card" style="margin:0 20px 20px;">
+            <div class="vs-form-card__title">{{ t('customer_voice_ban_add', locale) }}</div>
+            <div class="vs-form-row">
+                <div class="vs-form-field">
+                    <label class="vs-form-label">{{ t('customer_voice_ban_ip', locale) }}</label>
+                    <input type="text" id="vs-ban-ip" placeholder="1.2.3.4" class="vs-input" style="font-family:monospace;">
+                </div>
+                <div class="vs-form-field">
+                    <label class="vs-form-label">{{ t('customer_voice_ban_uid_label', locale) }}</label>
+                    <input type="text" id="vs-ban-uid" placeholder="Client-UID" class="vs-input" style="font-family:monospace;">
+                </div>
+                <div class="vs-form-field">
+                    <label class="vs-form-label">{{ t('customer_voice_ban_name', locale) }}</label>
+                    <input type="text" id="vs-ban-name" placeholder="Nickname" class="vs-input">
+                </div>
+                <div class="vs-form-field">
+                    <label class="vs-form-label">{{ t('customer_voice_ban_duration', locale) }}</label>
+                    <input type="number" id="vs-ban-time" placeholder="0" min="0" class="vs-input">
+                </div>
+                <div class="vs-form-field" style="flex:2;">
+                    <label class="vs-form-label">{{ t('customer_voice_ban_reason', locale) }}</label>
+                    <input type="text" id="vs-ban-reason" placeholder="{{ t('customer_voice_ban_reason', locale) }}" class="vs-input">
+                </div>
+            </div>
+            <div style="margin-top:10px;">
+                <button type="button" id="vs-btn-ban-add" class="vs-btn vs-btn--primary vs-btn--sm">{{ t('customer_voice_ban_add', locale) }}</button>
+            </div>
+        </div>
+
+        <div id="vs-bans-list" class="vs-table-wrapper">
+            <div class="vs-loading-state">{{ t('customer_voice_bans_loading', locale) }}</div>
+        </div>
+    </div>
+
+    {# ── Tokens Tab ── #}
+    <div id="vs-tab-tokens" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_tokens_heading', locale) }}</h3>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <select id="vs-token-group" class="vs-select">
+                    <option value="6">{{ t('customer_voice_channel_default', locale) }} (6)</option>
+                </select>
+                <button type="button" id="vs-btn-rotate" class="vs-btn vs-btn--primary vs-btn--sm">{{ t('customer_voice_token_create', locale) }}</button>
+            </div>
+        </div>
+        <div id="vs-tokens-list" class="vs-token-list">
+            <div class="vs-loading-state">{{ t('customer_voice_tokens_loading', locale) }}</div>
+        </div>
+    </div>
+
+    {# ── Backup Tab ── #}
+    <div id="vs-tab-backup" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_backup_heading', locale) }}</h3>
+        </div>
+
+        {# Create backup #}
+        <div class="vs-backup-section">
+            <div class="vs-form-card">
+                <div class="vs-form-card__title">{{ t('customer_voice_backup_create_title', locale) }}</div>
+                <p class="vs-muted" style="font-size:12px;margin:0 0 12px;">{{ t('customer_voice_backup_create_desc', locale) }}</p>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <button type="button" id="vs-btn-create-backup" class="vs-btn vs-btn--primary vs-btn--sm">
+                        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        {{ t('customer_voice_backup_create_btn', locale) }}
+                    </button>
+                    <span id="vs-backup-status" class="vs-muted" style="font-size:12px;"></span>
+                </div>
+                <div id="vs-backup-progress" class="vs-backup-progress hidden">
+                    <div class="vs-backup-progress__bar">
+                        <div class="vs-backup-progress__fill"></div>
+                    </div>
+                    <span class="vs-muted" style="font-size:11px;">{{ t('customer_voice_backup_waiting_progress', locale) }}</span>
+                </div>
+            </div>
+        </div>
+
+        {# Restore backup #}
+        <div class="vs-backup-section">
+            <div class="vs-form-card">
+                <div class="vs-form-card__title">{{ t('customer_voice_restore_title', locale) }}</div>
+                <p class="vs-muted" style="font-size:12px;margin:0 0 12px;">{{ t('customer_voice_restore_desc', locale) }} <strong style="color:#f87171;">{{ t('customer_voice_restore_warning', locale) }}</strong></p>
+                <div class="vs-restore-drop" id="vs-restore-dropzone">
+                    <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="color:var(--ng-text-muted);margin-bottom:8px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    <div style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ t('customer_voice_restore_drop', locale) }}</div>
+                    <div class="vs-muted" style="font-size:11px;margin-top:4px;">{{ t('customer_voice_restore_or', locale) }}</div>
+                    <label class="vs-btn vs-btn--ghost vs-btn--sm" style="margin-top:8px;cursor:pointer;">
+                        {{ t('customer_voice_restore_select', locale) }}
+                        <input type="file" id="vs-restore-file" accept=".snapshot,.txt,.xml,text/plain,application/xml" style="display:none;">
+                    </label>
+                    <div id="vs-restore-filename" class="vs-muted" style="font-size:11px;margin-top:6px;"></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;">
+                    <button type="button" id="vs-btn-restore-backup" class="vs-btn vs-btn--danger vs-btn--sm" disabled>
+                        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        {{ t('customer_voice_restore_btn', locale) }}
+                    </button>
+                    <span id="vs-restore-status" class="vs-muted" style="font-size:12px;"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Logs Tab ── #}
+    <div id="vs-tab-logs" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_logs_heading', locale) }}</h3>
+            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="logs">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                {{ t('customer_voice_refresh', locale) }}
+            </button>
+        </div>
+        <div id="vs-logs-list" class="vs-log-output">
+            <div class="vs-loading-state">{{ t('customer_voice_logs_loading', locale) }}</div>
+        </div>
+    </div>
+
+    {# ── Viewer Tab ── #}
+    <div id="vs-tab-viewer" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_viewer_heading', locale) }}</h3>
+        </div>
+        <div class="vs-form-section">
+            <label class="vs-toggle-row">
+                <input type="checkbox" id="vs-viewer-enabled" class="vs-toggle">
+                <div>
+                    <div class="vs-toggle-row__title">{{ t('customer_voice_viewer_toggle_title', locale) }}</div>
+                    <div class="vs-toggle-row__hint">{{ t('customer_voice_viewer_toggle_hint', locale) }}</div>
+                </div>
+            </label>
+            <div class="vs-form-field">
+                <label class="vs-form-label">{{ t('customer_voice_viewer_cache_interval', locale) }}</label>
+                <input type="number" id="vs-viewer-ttl" min="500" max="60000" value="1500" class="vs-input">
+            </div>
+            <div class="vs-form-field">
+                <label class="vs-form-label">{{ t('customer_voice_viewer_domains_label', locale) }}</label>
+                <textarea id="vs-viewer-allowlist" rows="4" placeholder="example.com&#10;*.meinedomain.de" class="vs-input" style="resize:vertical;font-family:monospace;font-size:12px;"></textarea>
+            </div>
+            <div id="vs-viewer-url" class="vs-viewer-url-box hidden">
+                <span class="vs-muted">{{ t('customer_voice_viewer_url_label', locale) }}</span>
+                <span id="vs-viewer-url-val" class="vs-viewer-url-val"></span>
+                <button type="button" id="vs-copy-viewer-url" class="vs-btn vs-btn--ghost vs-btn--xs">{{ t('customer_voice_copy', locale) }}</button>
+            </div>
+            <div>
+                <button type="button" id="vs-btn-save-viewer" class="vs-btn vs-btn--primary vs-btn--sm">{{ t('customer_voice_save', locale) }}</button>
+            </div>
+        </div>
+    </div>
+
+    {# ── Settings Tab ── #}
+    <div id="vs-tab-settings" class="vs-tab-panel hidden" role="tabpanel">
+        <div class="vs-tab-toolbar">
+            <h3 class="vs-tab-heading">{{ t('customer_voice_settings_heading', locale) }}</h3>
+        </div>
+        <div class="vs-form-section">
+            <div class="vs-form-field">
+                <label class="vs-form-label">{{ t('customer_voice_public_host', locale) }}</label>
+                <input type="text" id="vs-settings-host" placeholder="{{ t('customer_voice_public_host_placeholder', locale) }}" class="vs-input" style="font-family:monospace;">
+                <p class="vs-form-hint">{{ t('customer_voice_public_host_hint', locale) }}</p>
+            </div>
+            <div>
+                <button type="button" id="vs-btn-save-settings" class="vs-btn vs-btn--primary vs-btn--sm">{{ t('customer_voice_save', locale) }}</button>
+            </div>
+        </div>
+    </div>
+
+</div>{# /vs-panel #}
+</div>{# /vs-root #}
+
+<style>
+/* ── Voice Server Show – scoped styles ── */
+.vs-root { display:flex;flex-direction:column;gap:14px;padding-bottom:32px; }
+
+/* Header */
+.vs-header-bar { display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 0 4px; }
+.vs-header-bar__left { display:flex;flex-direction:column;gap:6px; }
+.vs-header-bar__actions { display:flex;flex-wrap:wrap;gap:6px;align-items:center; }
+.vs-back-link { display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ng-text-muted);text-decoration:none;margin-bottom:4px; }
+.vs-back-link:hover { color:var(--ng-primary); }
+.vs-header-title__badges { display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px; }
+.vs-header-title__name { margin:0;font-size:22px;font-weight:800;color:var(--ng-text);letter-spacing:-.02em; }
+.vs-header-title__sub { font-size:12px;color:var(--ng-text-muted);font-family:monospace;margin-top:2px; }
+.vs-badge--provider { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:99px;background:rgba(99,102,241,0.15);color:#818cf8; }
+
+/* Status dots */
+.vs-status-dot { display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px; }
+.vs-status-dot::before { content:'';width:7px;height:7px;border-radius:50%;flex-shrink:0; }
+.vs-status-dot--success { background:rgba(34,197,94,.12);color:#4ade80; }
+.vs-status-dot--success::before { background:#4ade80; }
+.vs-status-dot--danger { background:rgba(239,68,68,.12);color:#f87171; }
+.vs-status-dot--danger::before { background:#f87171; }
+.vs-status-dot--warning { background:rgba(245,158,11,.12);color:#fbbf24; }
+.vs-status-dot--warning::before { background:#fbbf24; }
+
+/* KPI strip */
+.vs-kpi-strip { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }
+@media(max-width:900px) { .vs-kpi-strip { grid-template-columns:repeat(2,1fr); } }
+@media(max-width:560px) { .vs-kpi-strip { grid-template-columns:1fr; } }
+.vs-kpi-card { display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:var(--ng-radius);border:1px solid var(--ng-border);background:var(--ng-surface); }
+.vs-kpi-card__icon { width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+.vs-kpi-card__icon svg { width:16px;height:16px; }
+.vs-kpi-card__icon--primary { background:rgba(100,115,255,.15);color:#818cf8; }
+.vs-kpi-card__icon--success { background:rgba(34,197,94,.12);color:#4ade80; }
+.vs-kpi-card__icon--info    { background:rgba(56,189,248,.12);color:#38bdf8; }
+.vs-kpi-card__icon--warning { background:rgba(245,158,11,.12);color:#fbbf24; }
+.vs-kpi-card__label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px; }
+.vs-kpi-card__value { font-size:17px;font-weight:800;color:var(--ng-text); }
+.vs-token-preview { font-size:10px;font-family:monospace;word-break:break-all;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+
+/* Error bar */
+.vs-error-bar { padding:10px 16px;border-radius:var(--ng-radius);background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;font-size:13px; }
+
+/* Panel */
+.vs-panel { border-radius:var(--ng-radius-lg);border:1px solid var(--ng-border);background:var(--ng-surface);overflow:hidden; }
+
+/* Tabs */
+.vs-tabs { display:flex;border-bottom:1px solid var(--ng-border);overflow-x:auto;scrollbar-width:none; }
+.vs-tabs::-webkit-scrollbar { display:none; }
+.vs-tab { display:inline-flex;align-items:center;gap:6px;padding:13px 16px;border:none;background:none;font-size:12.5px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;flex-shrink:0; }
+.vs-tab:hover { color:var(--ng-text); }
+.vs-tab--active { color:var(--ng-primary);border-bottom-color:var(--ng-primary); }
+
+/* Tab panels */
+.vs-tab-panel { animation:vs-fadein .15s ease; }
+.vs-tab-panel.hidden { display:none; }
+@keyframes vs-fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+.vs-tab-toolbar { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border); }
+.vs-tab-heading { margin:0;font-size:14px;font-weight:700;color:var(--ng-text); }
+
+/* Buttons */
+.vs-btn { display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;border:1px solid transparent;white-space:nowrap; }
+.vs-btn:disabled { opacity:.5;cursor:not-allowed; }
+.vs-btn--sm { padding:5px 11px;font-size:12px; }
+.vs-btn--xs { padding:3px 8px;font-size:11px; }
+.vs-btn--primary { background:var(--ng-primary);color:#fff;border-color:var(--ng-primary); }
+.vs-btn--primary:hover:not(:disabled) { filter:brightness(1.1); }
+.vs-btn--success { background:rgba(34,197,94,.15);color:#4ade80;border-color:rgba(34,197,94,.3); }
+.vs-btn--success:hover:not(:disabled) { background:rgba(34,197,94,.25); }
+.vs-btn--danger  { background:rgba(239,68,68,.15);color:#f87171;border-color:rgba(239,68,68,.3); }
+.vs-btn--danger:hover:not(:disabled) { background:rgba(239,68,68,.25); }
+.vs-btn--ghost   { background:transparent;color:var(--ng-text-muted);border-color:var(--ng-border); }
+.vs-btn--ghost:hover:not(:disabled) { background:var(--ng-surface-soft);color:var(--ng-text); }
+.vs-btn-group { display:flex;gap:6px; }
+
+/* Overview grid */
+.vs-overview-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:20px; }
+@media(max-width:700px) { .vs-overview-grid { grid-template-columns:1fr; } }
+.vs-info-block { border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:16px; }
+.vs-info-block__title { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:10px; }
+.vs-info-block__content { font-size:13px;color:var(--ng-text); }
+
+/* Info rows */
+.vs-info-row { display:flex;gap:8px;margin-bottom:6px;font-size:13px; }
+.vs-info-row:last-child { margin-bottom:0; }
+.vs-info-row__label { color:var(--ng-text-muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;width:64px;flex-shrink:0;padding-top:1px; }
+.vs-info-row--loading { color:var(--ng-text-muted); }
+.vs-muted { color:var(--ng-text-muted); }
+
+/* Quick actions */
+.vs-quick-actions { display:flex;flex-direction:column;gap:8px; }
+
+/* Table wrapper */
+.vs-table-wrapper { overflow-x:auto;padding:0; }
+.vs-data-table { width:100%;border-collapse:collapse;font-size:12.5px; }
+.vs-data-table th { padding:9px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);border-bottom:1px solid var(--ng-border);background:var(--ng-surface-soft);white-space:nowrap; }
+.vs-data-table td { padding:9px 14px;border-bottom:1px solid var(--ng-border);color:var(--ng-text);vertical-align:middle; }
+.vs-data-table tr:last-child td { border-bottom:none; }
+.vs-data-table tr:hover td { background:var(--ng-surface-soft); }
+.vs-data-table .vs-td-actions { display:flex;gap:4px;flex-wrap:wrap; }
+
+/* Loading / empty */
+.vs-loading-state,.vs-empty-state { padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px; }
+
+/* Token list */
+.vs-token-list { padding:16px 20px;display:flex;flex-direction:column;gap:10px; }
+.vs-token-item { border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:14px 16px; }
+.vs-token-item__row { display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap; }
+.vs-token-item__code { flex:1;min-width:0;word-break:break-all;font-size:11.5px;color:var(--ng-text);background:var(--ng-surface);padding:7px 10px;border-radius:6px;font-family:monospace;display:block; }
+.vs-token-item__active { padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase; }
+.vs-token-item__active--yes { background:rgba(34,197,94,.15);color:#4ade80; }
+.vs-token-item__active--no  { background:var(--ng-surface);color:var(--ng-text-muted); }
+.vs-token-item__meta { margin-top:6px;font-size:11px;color:var(--ng-text-muted); }
+
+/* Log output */
+.vs-log-output { padding:16px 20px; }
+.vs-log-pre { background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:14px;font-family:monospace;font-size:11.5px;color:var(--ng-text-muted);overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto; }
+
+/* Form section */
+.vs-form-section { padding:20px;display:flex;flex-direction:column;gap:16px;max-width:560px; }
+.vs-form-row { display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px; }
+.vs-form-field { display:flex;flex-direction:column;gap:4px; }
+.vs-form-label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted); }
+.vs-form-hint { margin:3px 0 0;font-size:11px;color:var(--ng-text-muted); }
+.vs-input { border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:7px 10px;font-size:12.5px;color:var(--ng-text);outline:none;transition:.15s; }
+.vs-input:focus { border-color:var(--ng-primary);box-shadow:0 0 0 2px rgba(100,115,255,.15); }
+.vs-select { border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:6px 10px;font-size:12px;color:var(--ng-text); }
+.vs-form-card { border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:14px 16px; }
+.vs-form-card__title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:12px; }
+
+/* Toggle */
+.vs-toggle-row { display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);cursor:pointer; }
+.vs-toggle { width:18px;height:18px;accent-color:var(--ng-primary);margin-top:1px;flex-shrink:0; }
+.vs-toggle-row__title { font-size:13px;font-weight:600;color:var(--ng-text); }
+.vs-toggle-row__hint { font-size:11px;color:var(--ng-text-muted);margin-top:2px; }
+
+/* Viewer URL box */
+.vs-viewer-url-box { padding:10px 14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
+.vs-viewer-url-val { font-family:monospace;color:var(--ng-primary);word-break:break-all; }
+
+/* Backup tab */
+.vs-backup-section { padding:20px;border-bottom:1px solid var(--ng-border); }
+.vs-backup-section:last-child { border-bottom:none; }
+.vs-backup-progress { margin-top:12px;display:flex;flex-direction:column;gap:4px; }
+.vs-backup-progress__bar { height:4px;border-radius:2px;background:var(--ng-border);overflow:hidden; }
+.vs-backup-progress__fill { height:100%;width:30%;background:var(--ng-primary);animation:vs-bar-slide 1.2s ease-in-out infinite; }
+@keyframes vs-bar-slide { 0%{transform:translateX(-100%)} 100%{transform:translateX(400%)} }
+.vs-restore-drop { border:2px dashed var(--ng-border);border-radius:10px;padding:28px 20px;text-align:center;transition:border-color .15s,background .15s; }
+.vs-restore-drop.dragover { border-color:var(--ng-primary);background:var(--ng-primary-soft); }
+.vs-restore-drop.has-file { border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05); }
+</style>
 
 <script>
 (() => {
-    const root = document.getElementById('voice-show-root');
-    if (!root) { return; }
+    const i18n = {
+        stale:              {{ t('customer_voice_stale', locale)|json_encode|raw }},
+        fresh:              {{ t('customer_voice_fresh', locale)|json_encode|raw }},
+        timeout:            {{ t('customer_voice_timeout', locale)|json_encode|raw }},
+        clientsLoading:     {{ t('customer_voice_clients_loading', locale)|json_encode|raw }},
+        clientsEmpty:       {{ t('customer_voice_clients_empty', locale)|json_encode|raw }},
+        channelsLoading:    {{ t('customer_voice_channels_loading', locale)|json_encode|raw }},
+        channelsEmpty:      {{ t('customer_voice_channels_empty', locale)|json_encode|raw }},
+        groupsLoading:      {{ t('customer_voice_groups_loading', locale)|json_encode|raw }},
+        groupsEmpty:        {{ t('customer_voice_groups_empty', locale)|json_encode|raw }},
+        bansLoading:        {{ t('customer_voice_bans_loading', locale)|json_encode|raw }},
+        bansEmpty:          {{ t('customer_voice_bans_empty', locale)|json_encode|raw }},
+        tokensLoading:      {{ t('customer_voice_tokens_loading', locale)|json_encode|raw }},
+        tokensEmpty:        {{ t('customer_voice_tokens_empty', locale)|json_encode|raw }},
+        logsLoading:        {{ t('customer_voice_logs_loading', locale)|json_encode|raw }},
+        logsEmpty:          {{ t('customer_voice_logs_empty', locale)|json_encode|raw }},
+        loadingShort:       {{ t('customer_voice_loading_short', locale)|json_encode|raw }},
+        refresh:            {{ t('customer_voice_refresh', locale)|json_encode|raw }},
+        copy:               {{ t('customer_voice_copy', locale)|json_encode|raw }},
+        copied:             {{ t('customer_voice_copied', locale)|json_encode|raw }},
+        save:               {{ t('customer_voice_save', locale)|json_encode|raw }},
+        saved:              {{ t('customer_voice_saved', locale)|json_encode|raw }},
+        snapshotCreated:    {{ t('customer_voice_snapshot_created', locale)|json_encode|raw }},
+        noActiveToken:      {{ t('customer_voice_no_active_token', locale)|json_encode|raw }},
+        tokenActive:        {{ t('customer_voice_token_active', locale)|json_encode|raw }},
+        tokenRevoked:       {{ t('customer_voice_token_revoked', locale)|json_encode|raw }},
+        tokenTypeLabel:     {{ t('customer_voice_token_type_label', locale)|json_encode|raw }},
+        tokenCreatedLabel:  {{ t('customer_voice_token_created_label', locale)|json_encode|raw }},
+        tokenRevokedLabel:  {{ t('customer_voice_token_revoked_label', locale)|json_encode|raw }},
+        colName:            {{ t('customer_voice_col_name', locale)|json_encode|raw }},
+        colChannel:         {{ t('customer_voice_col_channel', locale)|json_encode|raw }},
+        colIdle:            {{ t('customer_voice_col_idle', locale)|json_encode|raw }},
+        colCountry:         {{ t('customer_voice_col_country', locale)|json_encode|raw }},
+        colType:            {{ t('customer_voice_col_type', locale)|json_encode|raw }},
+        colActions:         {{ t('customer_voice_col_actions', locale)|json_encode|raw }},
+        colMax:             {{ t('customer_voice_col_max', locale)|json_encode|raw }},
+        colPermission:      {{ t('customer_voice_col_permission', locale)|json_encode|raw }},
+        colDuration:        {{ t('customer_voice_col_duration', locale)|json_encode|raw }},
+        colCreated:         {{ t('customer_voice_col_created', locale)|json_encode|raw }},
+        colAction:          {{ t('customer_voice_col_action', locale)|json_encode|raw }},
+        colChecked:         {{ t('customer_voice_col_checked', locale)|json_encode|raw }},
+        colReason:          {{ t('customer_voice_col_reason', locale)|json_encode|raw }},
+        channelDefault:     {{ t('customer_voice_channel_default', locale)|json_encode|raw }},
+        channelPermanent:   {{ t('customer_voice_channel_permanent', locale)|json_encode|raw }},
+        channelTemp:        {{ t('customer_voice_channel_temp', locale)|json_encode|raw }},
+        permanent:          {{ t('customer_voice_permanent', locale)|json_encode|raw }},
+        clientQuery:        {{ t('customer_voice_client_query', locale)|json_encode|raw }},
+        clientNormal:       {{ t('customer_voice_client_normal', locale)|json_encode|raw }},
+        kick:               {{ t('customer_voice_kick', locale)|json_encode|raw }},
+        kickReasonPrompt:   {{ t('customer_voice_kick_reason_prompt', locale)|json_encode|raw }},
+        poke:               {{ t('customer_voice_poke', locale)|json_encode|raw }},
+        pokeMsgPrompt:      {{ t('customer_voice_poke_msg_prompt', locale)|json_encode|raw }},
+        banFromClientReasonPrompt: {{ t('customer_voice_ban_from_client_reason_prompt', locale)|json_encode|raw }},
+        banDurationPrompt:  {{ t('customer_voice_ban_duration_prompt', locale)|json_encode|raw }},
+        banRemove:          {{ t('customer_voice_ban_remove', locale)|json_encode|raw }},
+        banRemoveConfirm:   {{ t('customer_voice_ban_remove_confirm', locale)|json_encode|raw }},
+        banCriteriaRequired:{{ t('customer_voice_ban_criteria_required', locale)|json_encode|raw }},
+        backupCreating:     {{ t('customer_voice_backup_creating', locale)|json_encode|raw }},
+        backupWaiting:      {{ t('customer_voice_backup_waiting', locale)|json_encode|raw }},
+        backupNoCacheKey:   {{ t('customer_voice_backup_no_cache_key', locale)|json_encode|raw }},
+        backupTimeout:      {{ t('customer_voice_backup_timeout', locale)|json_encode|raw }},
+        backupDownloaded:   {{ t('customer_voice_backup_downloaded', locale)|json_encode|raw }},
+        restoreReady:       {{ t('customer_voice_restore_ready', locale)|json_encode|raw }},
+        restoreNoFile:      {{ t('customer_voice_restore_no_file', locale)|json_encode|raw }},
+        restoreConfirm:     {{ t('customer_voice_restore_confirm', locale)|json_encode|raw }},
+        restoreSending:     {{ t('customer_voice_restore_sending', locale)|json_encode|raw }},
+        restoreStarted:     {{ t('customer_voice_restore_started', locale)|json_encode|raw }},
+        errorPrefix:        {{ t('customer_voice_error_prefix', locale)|json_encode|raw }},
+        resetConfirm:       {{ t('customer_voice_reset_confirm', locale)|json_encode|raw }},
+        resetStarted:       {{ t('customer_voice_reset_started', locale)|json_encode|raw }},
+        resetBtn:           {{ t('customer_voice_reset', locale)|json_encode|raw }},
+        snapshot:           {{ t('customer_voice_snapshot', locale)|json_encode|raw }},
+    };
+
+    const root = document.getElementById('vs-root');
+    if (!root) return;
     const d = root.dataset;
+    const instance = { node: { providerType: {{ instance.node.providerType|json_encode|raw }} } };
 
-    // Elements
-    const statusBadge    = document.getElementById('vs-status-badge');
-    const probeBadge     = document.getElementById('vs-probe-badge');
-    const connectInline  = document.getElementById('vs-connect-inline');
-    const connectDetails = document.getElementById('vs-connect-details');
-    const activeTokenEl  = document.getElementById('vs-active-token');
-    const copyTokenBtn   = document.getElementById('vs-copy-token');
-    const errorEl        = document.getElementById('vs-error');
-    const kpiPlayers     = document.getElementById('vs-kpi-players');
-    const kpiStatus      = document.getElementById('vs-kpi-status');
-    const kpiHost        = document.getElementById('vs-kpi-host');
-
-    const settingsHostEl    = document.getElementById('vs-settings-host');
-    const viewerEnabledEl   = document.getElementById('vs-viewer-enabled');
-    const viewerTtlEl       = document.getElementById('vs-viewer-ttl');
-    const viewerAllowlistEl = document.getElementById('vs-viewer-allowlist');
-    const viewerUrlEl       = document.getElementById('vs-viewer-url');
-    const viewerUrlValEl    = document.getElementById('vs-viewer-url-val');
-    const tokenGroupSelect  = document.getElementById('vs-token-group');
-    const tokensListEl      = document.getElementById('vs-tokens-list');
-    const groupsListEl      = document.getElementById('vs-groups-list');
-    const queryResultEl     = document.getElementById('vs-query-result');
-
+    // ── Helpers ──
+    const $ = (id) => document.getElementById(id);
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-    const fmtDate = (v) => v ? new Date(v).toLocaleString() : '—';
+    const fmtDate = (v) => v ? new Date(v).toLocaleString('de-DE') : '—';
+    const fmtDuration = (secs) => {
+        if (!secs) return '—';
+        const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+        return h ? `${h}h ${m}m` : m ? `${m}m ${s}s` : `${s}s`;
+    };
+    const showError = (msg) => { const el=$('vs-error'); if(el){el.textContent=msg;el.classList.remove('hidden');} };
+    const clearError = () => { const el=$('vs-error'); if(el) el.classList.add('hidden'); };
+    const setGlobalBusy = (b) => ['vs-btn-probe','vs-btn-start','vs-btn-stop','vs-btn-restart','vs-btn-snapshot','vs-qa-recreate'].forEach(id=>{const el=$(id);if(el)el.disabled=b;});
 
-    const showError = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
-    const clearError = () => errorEl.classList.add('hidden');
-    const setActionBusy = (b) => ['vs-btn-probe','vs-btn-start','vs-btn-stop','vs-btn-restart','vs-btn-snapshot','vs-btn-recreate'].forEach((id) => { const el = document.getElementById(id); if (el) el.disabled = b; });
+    const apiFetch = async (url, opts={}) => {
+        const r = await fetch(url, {headers:{'Accept':'application/json','Content-Type':'application/json'},...opts});
+        const j = await r.json();
+        if(!r.ok) throw new Error(j.message||j.error||`HTTP ${r.status}`);
+        return j;
+    };
+    const pollUntilDone = async (url, ms=2200, max=15) => {
+        for(let i=0;i<max;i++){
+            await new Promise(r=>setTimeout(r,ms));
+            const data = await apiFetch(url);
+            const st = data.status||data.data?.status;
+            if(st==='ok') return data;
+        }
+        throw new Error(i18n.timeout);
+    };
 
     // ── Tab switching ──
     let activeTab = 'overview';
@@ -274,412 +671,624 @@
 
     const switchTab = (tab) => {
         activeTab = tab;
-        document.querySelectorAll('.vs-tab-panel').forEach((p) => { p.style.display = 'none'; p.classList.add('hidden'); });
-        document.querySelectorAll('.vs-tab-btn').forEach((b) => {
-            const on = b.dataset.tab === tab;
-            b.style.color = on ? 'var(--ng-primary)' : 'var(--ng-text-muted)';
-            b.style.borderBottomColor = on ? 'var(--ng-primary)' : 'transparent';
+        document.querySelectorAll('.vs-tab').forEach(b=>{
+            b.classList.toggle('vs-tab--active', b.dataset.tab===tab);
         });
-        const panel = document.getElementById('vs-tab-' + tab);
-        if (panel) { panel.style.display = ''; panel.classList.remove('hidden'); }
-        if (!tabLoaded[tab]) { tabLoaded[tab] = true; loadTab(tab); }
+        document.querySelectorAll('.vs-tab-panel').forEach(p=>{
+            p.classList.toggle('hidden', p.id!=='vs-tab-'+tab);
+        });
+        if(!tabLoaded[tab]){ tabLoaded[tab]=true; loadTab(tab); }
     };
 
-    document.getElementById('vs-tab-nav')?.addEventListener('click', (e) => {
+    $('vs-tab-nav')?.addEventListener('click', e=>{
         const btn = e.target.closest('[data-tab]');
-        if (btn) switchTab(btn.dataset.tab);
+        if(btn) switchTab(btn.dataset.tab);
     });
 
-    // ── Query sub-tabs ──
-    let activeQueryType = 'channels';
-    const queryLoaded = {};
-    const banFormEl = document.getElementById('vs-ban-form');
-
-    const switchQueryType = (type) => {
-        activeQueryType = type;
-        document.querySelectorAll('.vs-query-btn').forEach((b) => {
-            const on = b.dataset.queryType === type;
-            b.style.background = on ? 'rgba(99,102,241,0.15)' : '';
-            b.style.color = on ? '#818cf8' : '';
-            b.style.borderColor = on ? 'rgba(99,102,241,0.4)' : '';
+    // Refresh buttons
+    document.querySelectorAll('.vs-refresh-btn[data-refresh-tab]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+            const tab = btn.dataset.refreshTab;
+            tabLoaded[tab] = false;
+            loadTab(tab);
         });
-        if (banFormEl) banFormEl.style.display = type === 'bans' ? '' : 'none';
-        if (!queryLoaded[type]) { queryLoaded[type] = true; loadQuery(type); }
-    };
-
-    document.getElementById('vs-tab-query')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-query-type]');
-        if (btn) { switchQueryType(btn.dataset.queryType); return; }
-        if (e.target.closest('#vs-btn-query-refresh')) {
-            queryLoaded[activeQueryType] = false;
-            switchQueryType(activeQueryType);
-        }
     });
 
-    // ── API helpers ──
-    const apiFetch = async (url, options = {}) => {
-        const resp = await fetch(url, { headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, ...options });
-        const json = await resp.json();
-        if (!resp.ok) throw new Error(json.message || json.error || `HTTP ${resp.status}`);
-        return json;
-    };
-
-    const pollUntilDone = async (url, ms = 2200, max = 15) => {
-        for (let i = 0; i < max; i++) {
-            await new Promise((r) => setTimeout(r, ms));
-            const data = await apiFetch(url);
-            const st = data.status || data.data?.status;
-            if (st === 'ok') return data;
+    // ── Live player count via summary endpoint ──
+    const loadSummary = async () => {
+        if (!d.urlSummary) return;
+        for (let i = 0; i < 12; i++) {
+            await new Promise(r => setTimeout(r, i === 0 ? 800 : 2500));
+            try {
+                const data = await apiFetch(d.urlSummary);
+                if (data.status === 'ok') {
+                    const online = data.clients_online ?? 0;
+                    const max = data.max_clients ?? 0;
+                    const kpiP = $('vs-kpi-players');
+                    if (kpiP) kpiP.textContent = `${online} / ${max}`;
+                    const sd = $('vs-status-details');
+                    if (sd) {
+                        sd.innerHTML = [
+                            `<div class="vs-info-row"><span class="vs-info-row__label">Online</span><span>${esc(String(online))}</span></div>`,
+                            `<div class="vs-info-row"><span class="vs-info-row__label">Max</span><span>${esc(String(max))}</span></div>`,
+                        ].join('');
+                    }
+                    return;
+                }
+            } catch (_) { return; }
         }
-        throw new Error('Query timed out.');
     };
 
-    // ── Detail ──
+    // ── Overview ──
     const loadDetail = async () => {
         try {
             const data = await apiFetch(d.urlDetail);
-            const inst   = data.data?.instance || {};
-            const connect = data.data?.connect  || {};
-            const token  = data.data?.active_token;
-            const viewer = data.data?.viewer;
+            const inst   = data.instance || {};
+            const connect = data.connect  || {};
+            const token  = data.active_token;
+            const viewer = data.viewer;
 
-            const host = connect.host || '—';
-            const port = connect.port ?? '';
+            const host = connect.host||'—';
+            const port = connect.port??'';
+            const addr = port ? `${host}:${port}` : host;
 
-            if (statusBadge) {
-                const colors = { online:'cust-status-dot--success', offline:'cust-status-dot--danger', unknown:'cust-status-dot--warning' };
-                statusBadge.className = 'cust-status-dot ' + (colors[inst.status] || 'cust-status-dot--warning');
-                statusBadge.textContent = esc(inst.status || 'unknown');
+            // Header badges
+            const sb = $('vs-status-badge');
+            if(sb){
+                const colors={online:'vs-status-dot--success',offline:'vs-status-dot--danger',unknown:'vs-status-dot--warning'};
+                sb.className='vs-status-dot '+(colors[inst.status]||'vs-status-dot--warning');
+                sb.textContent=inst.status||'unknown';
             }
-            if (probeBadge) {
-                probeBadge.innerHTML = inst.stale
-                    ? '<span class="ui-badge ui-badge--danger ui-badge--sm">stale</span>'
-                    : '<span class="ui-badge ui-badge--success ui-badge--sm">cached</span>';
-            }
-            if (connectInline) connectInline.textContent = port ? `${host}:${port}` : host;
-            if (kpiPlayers)    kpiPlayers.textContent = `${inst.players_online ?? '?'} / ${inst.players_max ?? '?'}`;
-            if (kpiStatus)     kpiStatus.textContent  = inst.status || '—';
-            if (kpiHost)       kpiHost.textContent    = port ? `${host}:${port}` : host;
+            const pb = $('vs-probe-badge');
+            if(pb){ pb.dataset.stale=inst.stale?'1':'0'; pb.innerHTML=inst.stale?`<span class="vs-status-dot vs-status-dot--warning" style="font-size:11px;">${esc(i18n.stale)}</span>`:`<span class="vs-status-dot vs-status-dot--success" style="font-size:11px;">${esc(i18n.fresh)}</span>`; }
+            const ci=$('vs-connect-inline'); if(ci) ci.textContent=addr;
 
-            if (connectDetails) {
-                connectDetails.innerHTML = [
-                    `<div style="display:flex;gap:8px;"><span style="color:var(--ng-text-muted);width:56px;flex-shrink:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Host</span><span style="font-family:monospace;">${esc(host)}</span></div>`,
-                    port ? `<div style="display:flex;gap:8px;"><span style="color:var(--ng-text-muted);width:56px;flex-shrink:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Port</span><span style="font-family:monospace;">${esc(String(port))}</span></div>` : '',
-                    `<div style="display:flex;gap:8px;"><span style="color:var(--ng-text-muted);width:56px;flex-shrink:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Status</span><span>${esc(inst.status || '—')}</span></div>`,
-                    inst.reason ? `<div style="display:flex;gap:8px;"><span style="color:var(--ng-text-muted);width:56px;flex-shrink:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Reason</span><span style="color:#fca5a5;">${esc(inst.reason)}</span></div>` : '',
-                    `<div style="display:flex;gap:8px;"><span style="color:var(--ng-text-muted);width:56px;flex-shrink:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Checked</span><span>${esc(fmtDate(inst.checked_at))}</span></div>`,
+            // KPIs
+            const kpiP=$('vs-kpi-players'); if(kpiP) kpiP.textContent=`${inst.players_online??'?'} / ${inst.players_max??'?'}`;
+            const kpiS=$('vs-kpi-status');  if(kpiS) kpiS.textContent=inst.status||'—';
+            const kpiH=$('vs-kpi-host');    if(kpiH) kpiH.textContent=addr;
+            const kpiT=$('vs-kpi-token');
+            if(kpiT) kpiT.textContent=token?token.substring(0,20)+'…':'—';
+
+            // Connect details
+            const cd=$('vs-connect-details');
+            if(cd){
+                const hostDisplay = host!=='—'?`<span style="font-family:monospace;">${esc(host)}</span>`:`<span class="vs-muted" style="font-size:11px;">— Öffentlichen Host in Einstellungen konfigurieren</span>`;
+                cd.innerHTML=[
+                    `<div class="vs-info-row"><span class="vs-info-row__label">Host</span>${hostDisplay}</div>`,
+                    port?`<div class="vs-info-row"><span class="vs-info-row__label">Port</span><span style="font-family:monospace;">${esc(String(port))}</span></div>`:'',
+                    `<div class="vs-info-row"><span class="vs-info-row__label">Status</span><span>${esc(inst.status||'—')}</span></div>`,
+                    inst.reason?`<div class="vs-info-row"><span class="vs-info-row__label">${esc(i18n.colReason)}</span><span style="color:#fca5a5;">${esc(inst.reason)}</span></div>`:'',
+                    `<div class="vs-info-row"><span class="vs-info-row__label">${esc(i18n.colChecked)}</span><span>${esc(fmtDate(inst.checked_at))}</span></div>`,
                 ].filter(Boolean).join('');
             }
 
-            let tokenVal = null;
-            if (activeTokenEl) {
-                if (token) {
-                    tokenVal = token;
-                    activeTokenEl.innerHTML = `<code style="display:block;word-break:break-all;padding:8px;border-radius:6px;background:var(--ng-surface);font-size:11.5px;">${esc(token)}</code>`;
-                    if (copyTokenBtn) copyTokenBtn.style.display = '';
+            // Status details
+            const sd=$('vs-status-details');
+            if(sd){
+                sd.innerHTML=[
+                    `<div class="vs-info-row"><span class="vs-info-row__label">Online</span><span>${esc(String(inst.players_online??'?'))}</span></div>`,
+                    `<div class="vs-info-row"><span class="vs-info-row__label">Max</span><span>${esc(String(inst.players_max??'?'))}</span></div>`,
+                ].join('');
+            }
+
+            // Token
+            const tokenEl=$('vs-active-token'), copyBtn=$('vs-copy-token');
+            let tokenVal=null;
+            if(tokenEl){
+                if(token){
+                    tokenVal=token;
+                    tokenEl.innerHTML=`<code style="display:block;word-break:break-all;padding:8px;border-radius:6px;background:var(--ng-surface);font-size:11px;">${esc(token)}</code>`;
+                    if(copyBtn) copyBtn.style.display='';
                 } else {
-                    activeTokenEl.innerHTML = '<span style="color:var(--ng-text-muted);">—</span>';
-                    if (copyTokenBtn) copyTokenBtn.style.display = 'none';
+                    tokenEl.innerHTML=`<span class="vs-muted">${esc(i18n.noActiveToken)}</span>`;
+                    if(copyBtn) copyBtn.style.display='none';
+                }
+            }
+            if(copyBtn&&tokenVal){
+                copyBtn.onclick=()=>{ navigator.clipboard?.writeText(tokenVal).then(()=>{ copyBtn.textContent=i18n.copied; setTimeout(()=>{ copyBtn.textContent=i18n.copy; },1800); }); };
+            }
+
+            // Viewer settings prefill
+            if(viewer){
+                const ve=$('vs-viewer-enabled'); if(ve) ve.checked=Boolean(viewer.enabled);
+                const vt=$('vs-viewer-ttl');     if(vt) vt.value=viewer.cache_ttl_ms??1500;
+                const va=$('vs-viewer-allowlist'); if(va) va.value=viewer.domain_allowlist??'';
+                if(viewer.public_id){
+                    const vu=$('vs-viewer-url'), vv=$('vs-viewer-url-val');
+                    if(vv) vv.textContent=location.origin+'/viewer/'+(instance.node?.providerType||'ts3')+'/'+viewer.public_id;
+                    if(vu) vu.classList.remove('hidden');
                 }
             }
 
-            if (copyTokenBtn && tokenVal) {
-                copyTokenBtn.onclick = () => {
-                    navigator.clipboard?.writeText(tokenVal).then(() => {
-                        copyTokenBtn.textContent = '✓ Copied';
-                        setTimeout(() => { copyTokenBtn.innerHTML = '<svg style="width:12px;height:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copy'; }, 1500);
-                    });
-                };
-            }
-
-            if (viewer) {
-                if (viewerEnabledEl)   viewerEnabledEl.checked   = Boolean(viewer.enabled);
-                if (viewerTtlEl)       viewerTtlEl.value          = viewer.cache_ttl_ms ?? 1500;
-                if (viewerAllowlistEl) viewerAllowlistEl.value    = viewer.domain_allowlist ?? '';
-                if (viewer.public_id && viewerUrlValEl) {
-                    viewerUrlValEl.textContent = location.origin + '/ts3viewer/' + viewer.public_id;
-                    if (viewerUrlEl) viewerUrlEl.classList.remove('hidden');
-                }
-            }
-
-            if (settingsHostEl && connect.host && connect.host !== '—') {
-                settingsHostEl.placeholder = connect.host;
+            if($('vs-settings-host')&&connect.host&&connect.host!=='—'){
+                $('vs-settings-host').placeholder=connect.host;
             }
 
             clearError();
-        } catch (err) {
-            showError(err.message);
-        }
+            loadSummary();
+        } catch(err){ showError(err.message); }
     };
 
-    // ── Tab loaders ──
-    const loadTab = (tab) => {
-        if (tab === 'overview') { loadDetail(); return; }
-        if (tab === 'tokens')   { loadTokens(); return; }
-        if (tab === 'groups')   { loadGroups(); return; }
-        if (tab === 'query')    { loadQuery(activeQueryType); return; }
-    };
-
-    const loadTokens = async () => {
-        if (!tokensListEl) return;
-        tokensListEl.innerHTML = '<p style="color:var(--ng-text-muted);font-size:13px;">Loading…</p>';
+    // ── Clients ──
+    const loadClients = async () => {
+        const el=$('vs-clients-list');
+        if(!el) return;
+        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.clientsLoading)}</div>`;
         try {
-            const data   = await apiFetch(d.urlTokens);
-            const tokens = data.data?.tokens || [];
-            if (!tokens.length) {
-                tokensListEl.innerHTML = '<p style="color:var(--ng-text-muted);font-size:13px;">No tokens found.</p>';
-                return;
-            }
-            tokensListEl.innerHTML = tokens.map((t) => `
-                <div style="border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:12px 14px;">
-                    <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
-                        <code style="flex:1;min-width:0;word-break:break-all;font-size:11.5px;color:var(--ng-text);background:var(--ng-surface);padding:6px 10px;border-radius:6px;display:block;">${esc(t.token)}</code>
-                        <span style="flex-shrink:0;padding:3px 8px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase;${t.active ? 'background:rgba(34,197,94,0.15);color:#4ade80;' : 'background:var(--ng-surface);color:var(--ng-text-muted);'}">${t.active ? 'Active' : 'Revoked'}</span>
-                    </div>
-                    <div style="margin-top:6px;font-size:11px;color:var(--ng-text-muted);">
-                        Type: ${esc(t.type)} · Created: ${esc(fmtDate(t.created_at))}${t.revoked_at ? ' · Revoked: ' + esc(fmtDate(t.revoked_at)) : ''}
-                    </div>
-                </div>
-            `).join('');
-        } catch (err) {
-            tokensListEl.innerHTML = `<p style="color:#f87171;font-size:13px;">${esc(err.message)}</p>`;
-        }
+            let data = await apiFetch(`${d.urlQueryBase}/clients`);
+            if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/clients`);
+            const rawClients=data.data?.payload??data.payload??[];
+            const rows=Array.isArray(rawClients)?rawClients:(rawClients?.clients??rawClients?.items??[]);
+            if(!rows.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.clientsEmpty)}</div>`; return; }
+            el.innerHTML=`<table class="vs-data-table">
+                <thead><tr>
+                    <th>${esc(i18n.colName)}</th><th>${esc(i18n.colChannel)}</th><th>${esc(i18n.colIdle)}</th><th>${esc(i18n.colCountry)}</th><th>${esc(i18n.colType)}</th><th>${esc(i18n.colActions)}</th>
+                </tr></thead>
+                <tbody>${rows.map(r=>{
+                    const clid=r.clid??r.client_id??'';
+                    const nick=esc(r.client_nickname??r.nickname??clid);
+                    const chan=esc(r.client_channel_id??r.cid??'—');
+                    const idle=r.client_idle_time!==undefined?fmtDuration(Math.floor(r.client_idle_time/1000)):'—';
+                    const country=esc(r.client_country??'—');
+                    const ctype=r.client_type===1?`<span class="vs-muted" style="font-size:10px;">${esc(i18n.clientQuery)}</span>`:`<span style="font-size:10px;color:var(--ng-primary);">${esc(i18n.clientNormal)}</span>`;
+                    return `<tr>
+                        <td><strong>${nick}</strong></td>
+                        <td class="vs-muted">${chan}</td>
+                        <td class="vs-muted">${idle}</td>
+                        <td class="vs-muted">${country}</td>
+                        <td>${ctype}</td>
+                        <td><div class="vs-td-actions">
+                            <button class="vs-btn vs-btn--ghost vs-btn--xs vs-kick-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.kick)}</button>
+                            <button class="vs-btn vs-btn--ghost vs-btn--xs vs-poke-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.poke)}</button>
+                            <button class="vs-btn vs-btn--danger vs-btn--xs vs-ban-from-client-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">Ban</button>
+                        </div></td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table>`;
+        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
     };
 
+    // ── Channels ──
+    const loadChannels = async () => {
+        const el=$('vs-channels-list');
+        if(!el) return;
+        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.channelsLoading)}</div>`;
+        try {
+            let data = await apiFetch(`${d.urlQueryBase}/channels`);
+            if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/channels`);
+            const rawChannels=data.data?.payload??data.payload??[];
+            const rows=Array.isArray(rawChannels)?rawChannels:(rawChannels?.channels??rawChannels?.items??[]);
+            if(!rows.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.channelsEmpty)}</div>`; return; }
+            el.innerHTML=`<table class="vs-data-table">
+                <thead><tr>
+                    <th>CID</th><th>${esc(i18n.colName)}</th><th>Clients</th><th>${esc(i18n.colMax)}</th><th>${esc(i18n.colType)}</th>
+                </tr></thead>
+                <tbody>${rows.map(r=>{
+                    const cid=esc(String(r.cid??r.channel_id??''));
+                    const name=esc(r.channel_name??r.name??'—');
+                    const clients=esc(String(r.total_clients??r.clients??0));
+                    const max=r.channel_maxclients!==-1?esc(String(r.channel_maxclients??'∞')):'∞';
+                    const flag=r.channel_flag_default==='1'?`<span style="font-size:10px;color:var(--ng-primary);">${esc(i18n.channelDefault)}</span>`:
+                               r.channel_flag_permanent==='1'?`<span style="font-size:10px;color:var(--ng-text-muted);">${esc(i18n.channelPermanent)}</span>`:
+                               `<span style="font-size:10px;color:var(--ng-text-muted);">${esc(i18n.channelTemp)}</span>`;
+                    return `<tr>
+                        <td class="vs-muted" style="font-family:monospace;">${cid}</td>
+                        <td><strong>${name}</strong></td>
+                        <td class="vs-muted">${clients}</td>
+                        <td class="vs-muted">${max}</td>
+                        <td>${flag}</td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table>`;
+        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+    };
+
+    // ── Groups – only type=1 (regular), hide type=0 (template) & type=2 (query) ──
     const loadGroups = async () => {
-        if (!groupsListEl) return;
-        groupsListEl.innerHTML = '<p style="color:var(--ng-text-muted);font-size:13px;">Loading…</p>';
+        const el=$('vs-groups-list');
+        if(!el) return;
+        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.groupsLoading)}</div>`;
         try {
             let data = await apiFetch(d.urlGroups);
-            if ((data.status || 'pending') === 'pending') data = await pollUntilDone(d.urlGroups);
-            const groups = data.data?.groups || data.groups || [];
-            if (!groups.length) {
-                groupsListEl.innerHTML = '<p style="color:var(--ng-text-muted);font-size:13px;">No server groups found.</p>';
-                return;
-            }
-            groupsListEl.innerHTML = `
-                <div class="ui-table-wrapper">
-                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                        <thead><tr style="border-bottom:1px solid var(--ng-border);">
-                            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">ID</th>
-                            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">Name</th>
-                            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">Type</th>
-                        </tr></thead>
-                        <tbody>${groups.map((g) => `<tr style="border-bottom:1px solid var(--ng-border);">
-                            <td style="padding:8px 12px;font-family:monospace;color:var(--ng-text-muted);">${esc(String(g.id ?? g.sgid ?? ''))}</td>
-                            <td style="padding:8px 12px;font-weight:600;color:var(--ng-text);">${esc(g.name ?? '')}</td>
-                            <td style="padding:8px 12px;color:var(--ng-text-muted);">${esc(String(g.type ?? ''))}</td>
-                        </tr>`).join('')}</tbody>
-                    </table>
-                </div>`;
-            if (tokenGroupSelect && groups.length) {
-                const cur = tokenGroupSelect.value;
-                tokenGroupSelect.innerHTML = groups.map((g) => {
-                    const gid = String(g.id ?? g.sgid ?? '');
-                    return `<option value="${esc(gid)}"${gid === cur ? ' selected' : ''}>${esc(g.name ?? gid)} (${esc(gid)})</option>`;
+            if((data.status||'pending')==='pending') data=await pollUntilDone(d.urlGroups);
+            const allGroups = data.data?.groups||data.groups||[];
+            const TEMPLATE_GROUP_IDS = new Set([3, 4, 5]);
+            const groups = allGroups.filter(g => {
+                const gid = parseInt(String(g.id??g.sgid??''), 10);
+                if(TEMPLATE_GROUP_IDS.has(gid)) return false;
+                const tRaw = g.type??g.sgtype??g.groupType??g.group_type;
+                if(tRaw!==undefined&&tRaw!==null){
+                    const t = parseInt(String(tRaw), 10);
+                    return t === 1;
+                }
+                // type field missing: filter by name pattern for known query/template groups
+                const name = String(g.name??'').toLowerCase();
+                return !name.includes('query') && !name.includes('template') && !name.endsWith(' template');
+            });
+
+            // Also populate token group select
+            const sel=$('vs-token-group');
+            if(sel&&groups.length){
+                const cur=sel.value;
+                sel.innerHTML=groups.map(g=>{
+                    const gid=String(g.id??g.sgid??'');
+                    return `<option value="${esc(gid)}"${gid===cur?' selected':''}>${esc(g.name??gid)} (${esc(gid)})</option>`;
                 }).join('');
             }
-        } catch (err) {
-            groupsListEl.innerHTML = `<p style="color:#f87171;font-size:13px;">${esc(err.message)}</p>`;
-        }
+
+            if(!groups.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.groupsEmpty)}</div>`; return; }
+            el.innerHTML=`<table class="vs-data-table">
+                <thead><tr>
+                    <th>ID</th><th>${esc(i18n.colName)}</th><th>${esc(i18n.colPermission)}</th>
+                </tr></thead>
+                <tbody>${groups.map(g=>{
+                    const gid=esc(String(g.id??g.sgid??''));
+                    const name=esc(g.name??'');
+                    const perm=esc(String(g.n_member_addp??'—'));
+                    return `<tr>
+                        <td class="vs-muted" style="font-family:monospace;">${gid}</td>
+                        <td><strong>${name}</strong></td>
+                        <td class="vs-muted">${perm}</td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table>`;
+        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
     };
 
-    const loadQuery = async (type) => {
-        if (!queryResultEl) return;
-        queryResultEl.innerHTML = '<p style="color:var(--ng-text-muted);font-size:13px;">Loading…</p>';
+    // ── Bans ──
+    const loadBans = async () => {
+        const el=$('vs-bans-list');
+        if(!el) return;
+        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.bansLoading)}</div>`;
         try {
-            let data = await apiFetch(`${d.urlQueryBase}/${type}`);
-            if ((data.status || 'pending') === 'pending') data = await pollUntilDone(`${d.urlQueryBase}/${type}`);
-            const rows = data.data?.payload || data.payload || [];
-            if (!rows.length) {
-                queryResultEl.innerHTML = '<p style="color:var(--ng-text-muted);font-size:13px;">No data.</p>';
-                return;
-            }
-            const keys = Object.keys(rows[0]);
-            const hasActions = type === 'clients' || type === 'bans';
-            queryResultEl.innerHTML = `
-                <div style="overflow-x:auto;">
-                    <table style="width:100%;border-collapse:collapse;font-size:12px;">
-                        <thead><tr style="border-bottom:1px solid var(--ng-border);">
-                            ${keys.map((k) => `<th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);white-space:nowrap;">${esc(k)}</th>`).join('')}
-                            ${hasActions ? '<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">Actions</th>' : ''}
-                        </tr></thead>
-                        <tbody>${rows.map((row) => {
-                            const cells = keys.map((k) => `<td style="padding:7px 10px;font-family:monospace;color:var(--ng-text);">${esc(String(row[k] ?? ''))}</td>`).join('');
-                            let actionCell = '';
-                            if (type === 'clients') {
-                                const clid = row.clid ?? row.client_id ?? '';
-                                const nick = esc(String(row.client_nickname ?? row.nickname ?? clid));
-                                actionCell = `<td style="padding:7px 10px;white-space:nowrap;display:flex;gap:4px;">
-                                    <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-kick-btn" data-clid="${esc(String(clid))}" data-nick="${nick}" style="font-size:11px;padding:3px 8px;">Kick</button>
-                                    <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-poke-btn" data-clid="${esc(String(clid))}" data-nick="${nick}" style="font-size:11px;padding:3px 8px;">Poke</button>
-                                </td>`;
-                            } else if (type === 'bans') {
-                                const banid = row.banid ?? row.ban_id ?? '';
-                                actionCell = `<td style="padding:7px 10px;">
-                                    <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-ban-remove-btn" data-banid="${esc(String(banid))}" style="font-size:11px;padding:3px 8px;color:#f87171;border-color:rgba(239,68,68,0.3);">Remove</button>
-                                </td>`;
-                            }
-                            return `<tr style="border-bottom:1px solid var(--ng-border);">${cells}${actionCell}</tr>`;
-                        }).join('')}</tbody>
-                    </table>
-                </div>`;
-        } catch (err) {
-            queryResultEl.innerHTML = `<p style="color:#f87171;font-size:13px;">${esc(err.message)}</p>`;
-        }
+            let data = await apiFetch(`${d.urlQueryBase}/bans`);
+            if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/bans`);
+            const rows=data.data?.payload||data.payload||[];
+            if(!rows.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.bansEmpty)}</div>`; return; }
+            el.innerHTML=`<table class="vs-data-table">
+                <thead><tr>
+                    <th>IP</th><th>${esc(i18n.colName)}</th><th>${esc(i18n.colReason)}</th><th>${esc(i18n.colDuration)}</th><th>${esc(i18n.colCreated)}</th><th>${esc(i18n.colAction)}</th>
+                </tr></thead>
+                <tbody>${rows.map(r=>{
+                    const banid=r.banid??r.ban_id??'';
+                    return `<tr>
+                        <td style="font-family:monospace;">${esc(r.ip??'—')}</td>
+                        <td>${esc(r.name??'—')}</td>
+                        <td class="vs-muted">${esc(r.banreason??r.reason??'—')}</td>
+                        <td class="vs-muted">${r.duration?fmtDuration(r.duration):esc(i18n.permanent)}</td>
+                        <td class="vs-muted">${esc(fmtDate(r.created??r.invoketime_utc))}</td>
+                        <td><button class="vs-btn vs-btn--danger vs-btn--xs vs-ban-remove-btn" data-banid="${esc(String(banid))}">${esc(i18n.banRemove)}</button></td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table>`;
+        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
     };
 
-    // ── Client actions (kick / poke) via event delegation ──
-    queryResultEl?.addEventListener('click', async (e) => {
-        const kickBtn = e.target.closest('.vs-kick-btn');
-        if (kickBtn) {
-            const clid = parseInt(kickBtn.dataset.clid, 10);
-            const nick = kickBtn.dataset.nick;
-            const reason = prompt(`Kick "${nick}" — reason (optional):`, '') ?? null;
-            if (reason === null) return;
-            kickBtn.disabled = true;
-            try {
-                await apiFetch(`${d.urlClientsBase}/${clid}/kick`, { method: 'POST', body: JSON.stringify({ reason }) });
-                queryLoaded['clients'] = false;
-                await loadQuery('clients');
-            } catch (err) { showError(err.message); kickBtn.disabled = false; }
+    // ── Tokens ──
+    const loadTokens = async () => {
+        const el=$('vs-tokens-list');
+        if(!el) return;
+        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.tokensLoading)}</div>`;
+        try {
+            const data=await apiFetch(d.urlTokens);
+            const tokens=data.tokens||[];
+            if(!tokens.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.tokensEmpty)}</div>`; return; }
+            el.innerHTML=tokens.map(t=>`
+                <div class="vs-token-item">
+                    <div class="vs-token-item__row">
+                        <code class="vs-token-item__code">${esc(t.token)}</code>
+                        <span class="vs-token-item__active ${t.active?'vs-token-item__active--yes':'vs-token-item__active--no'}">${t.active?esc(i18n.tokenActive):esc(i18n.tokenRevoked)}</span>
+                    </div>
+                    <div class="vs-token-item__meta">${esc(i18n.tokenTypeLabel)} ${esc(t.type)} · ${esc(i18n.tokenCreatedLabel)} ${esc(fmtDate(t.created_at))}${t.revoked_at?' · '+esc(i18n.tokenRevokedLabel)+' '+esc(fmtDate(t.revoked_at)):''}</div>
+                </div>
+            `).join('');
+        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+    };
+
+    // ── Logs ──
+    const loadLogs = async () => {
+        const el=$('vs-logs-list');
+        if(!el) return;
+        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.logsLoading)}</div>`;
+        try {
+            let data = await apiFetch(`${d.urlQueryBase}/logs`);
+            if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/logs`);
+            const rows=data.data?.payload||data.payload||[];
+            if(!rows.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.logsEmpty)}</div>`; return; }
+            const text=rows.map(r=>esc(typeof r==='string'?r:JSON.stringify(r))).join('\n');
+            el.innerHTML=`<pre class="vs-log-pre">${text}</pre>`;
+        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+    };
+
+    // ── Tab loader dispatch ──
+    const loadTab = (tab) => {
+        if(tab==='overview')  { loadDetail();  return; }
+        if(tab==='clients')   { loadClients(); return; }
+        if(tab==='channels')  { loadChannels();return; }
+        if(tab==='groups')    { loadGroups();  return; }
+        if(tab==='bans')      { loadBans();    return; }
+        if(tab==='tokens')    { loadTokens();  return; }
+        if(tab==='logs')      { loadLogs();    return; }
+    };
+
+    // ── Client actions (event delegation on clients list) ──
+    $('vs-clients-list')?.addEventListener('click', async e=>{
+        const kickBtn=e.target.closest('.vs-kick-btn');
+        if(kickBtn){
+            const clid=parseInt(kickBtn.dataset.clid,10);
+            const nick=kickBtn.dataset.nick;
+            const reason=prompt(i18n.kickReasonPrompt.replace('{nick}',nick),'')??null;
+            if(reason===null) return;
+            kickBtn.disabled=true;
+            try{
+                await apiFetch(`${d.urlClientsBase}/${clid}/kick`,{method:'POST',body:JSON.stringify({reason})});
+                tabLoaded['clients']=false; await loadClients();
+            }catch(err){showError(err.message);kickBtn.disabled=false;}
             return;
         }
-        const pokeBtn = e.target.closest('.vs-poke-btn');
-        if (pokeBtn) {
-            const clid = parseInt(pokeBtn.dataset.clid, 10);
-            const nick = pokeBtn.dataset.nick;
-            const message = prompt(`Poke "${nick}" — message:`, '');
-            if (!message) return;
-            pokeBtn.disabled = true;
-            try {
-                await apiFetch(`${d.urlClientsBase}/${clid}/poke`, { method: 'POST', body: JSON.stringify({ message }) });
-            } catch (err) { showError(err.message); }
-            pokeBtn.disabled = false;
+        const pokeBtn=e.target.closest('.vs-poke-btn');
+        if(pokeBtn){
+            const clid=parseInt(pokeBtn.dataset.clid,10);
+            const nick=pokeBtn.dataset.nick;
+            const message=prompt(i18n.pokeMsgPrompt.replace('{nick}',nick),'');
+            if(!message) return;
+            pokeBtn.disabled=true;
+            try{ await apiFetch(`${d.urlClientsBase}/${clid}/poke`,{method:'POST',body:JSON.stringify({message})}); }
+            catch(err){showError(err.message);}
+            pokeBtn.disabled=false;
             return;
         }
-        const removeBtn = e.target.closest('.vs-ban-remove-btn');
-        if (removeBtn) {
-            const banid = parseInt(removeBtn.dataset.banid, 10);
-            if (!confirm(`Remove ban #${banid}?`)) return;
-            removeBtn.disabled = true;
-            try {
-                await apiFetch(`${d.urlBans}/${banid}/remove`, { method: 'POST' });
-                queryLoaded['bans'] = false;
-                await loadQuery('bans');
-            } catch (err) { showError(err.message); removeBtn.disabled = false; }
+        const banBtn=e.target.closest('.vs-ban-from-client-btn');
+        if(banBtn){
+            const nick=banBtn.dataset.nick;
+            const reason=prompt(i18n.banFromClientReasonPrompt.replace('{nick}',nick),'')??null;
+            if(reason===null) return;
+            const durationStr=prompt(i18n.banDurationPrompt,'0');
+            if(durationStr===null) return;
+            banBtn.disabled=true;
+            try{
+                await apiFetch(d.urlBans,{method:'POST',body:JSON.stringify({name:nick,banreason:reason,time:parseInt(durationStr,10)||0})});
+                tabLoaded['clients']=false; await loadClients();
+            }catch(err){showError(err.message);banBtn.disabled=false;}
         }
     });
 
-    // ── Action buttons ──
-    const sendAction = async (action) => {
-        setActionBusy(true); clearError();
-        try {
-            await apiFetch(action === 'probe' ? d.urlProbe : `${d.urlActions}/${action}`, { method: 'POST' });
-            await loadDetail();
-        } catch (err) { showError(err.message); }
-        finally { setActionBusy(false); }
-    };
-
-    document.getElementById('vs-btn-probe'   )?.addEventListener('click', () => sendAction('probe'));
-    document.getElementById('vs-btn-start'   )?.addEventListener('click', () => sendAction('start'));
-    document.getElementById('vs-btn-stop'    )?.addEventListener('click', () => sendAction('stop'));
-    document.getElementById('vs-btn-restart' )?.addEventListener('click', () => sendAction('restart'));
-
-    // ── Snapshot ──
-    document.getElementById('vs-btn-snapshot')?.addEventListener('click', async () => {
-        const btn = document.getElementById('vs-btn-snapshot');
-        btn.disabled = true; clearError();
-        try {
-            await apiFetch(d.urlSnapshot, { method: 'POST' });
-            btn.textContent = '✓ Queued';
-            setTimeout(() => { btn.textContent = 'Snapshot'; btn.disabled = false; }, 3000);
-        } catch (err) { showError(err.message); btn.disabled = false; }
+    // ── Ban remove (event delegation on bans list) ──
+    $('vs-bans-list')?.addEventListener('click', async e=>{
+        const removeBtn=e.target.closest('.vs-ban-remove-btn');
+        if(removeBtn){
+            const banid=parseInt(removeBtn.dataset.banid,10);
+            if(!confirm(i18n.banRemoveConfirm.replace('{id}',banid))) return;
+            removeBtn.disabled=true;
+            try{
+                await apiFetch(`${d.urlBans}/${banid}/remove`,{method:'POST'});
+                tabLoaded['bans']=false; await loadBans();
+            }catch(err){showError(err.message);removeBtn.disabled=false;}
+        }
     });
 
-    // ── Recreate (destructive — requires confirmation) ──
-    document.getElementById('vs-btn-recreate')?.addEventListener('click', async () => {
-        if (!confirm('This will archive the current server and create a fresh one.\nAll data, channels and users will be reset. Continue?')) return;
-        const btn = document.getElementById('vs-btn-recreate');
-        btn.disabled = true; clearError();
-        try {
-            await apiFetch(d.urlRecreate, { method: 'POST' });
-            btn.textContent = '✓ Initiated';
-            setTimeout(() => { btn.textContent = 'Recreate'; btn.disabled = false; loadDetail(); }, 4000);
-        } catch (err) { showError(err.message); btn.disabled = false; }
+    // ── Add ban form ──
+    $('vs-btn-ban-add')?.addEventListener('click', async ()=>{
+        const btn=$('vs-btn-ban-add');
+        const ip=$('vs-ban-ip')?.value?.trim()||'';
+        const uid=$('vs-ban-uid')?.value?.trim()||'';
+        const name=$('vs-ban-name')?.value?.trim()||'';
+        const time=$('vs-ban-time')?.value?.trim()||'';
+        const reason=$('vs-ban-reason')?.value?.trim()||'';
+        const body={};
+        if(ip) body.ip=ip; if(uid) body.uid=uid; if(name) body.name=name;
+        if(time) body.time=parseInt(time,10); if(reason) body.banreason=reason;
+        if(!Object.keys(body).length){showError(i18n.banCriteriaRequired);return;}
+        btn.disabled=true; clearError();
+        try{
+            await apiFetch(d.urlBans,{method:'POST',body:JSON.stringify(body)});
+            ['vs-ban-ip','vs-ban-uid','vs-ban-name','vs-ban-time','vs-ban-reason'].forEach(id=>{const el=$(id);if(el)el.value='';});
+            tabLoaded['bans']=false; await loadBans();
+        }catch(err){showError(err.message);}
+        finally{btn.disabled=false;}
     });
 
     // ── Rotate token ──
-    document.getElementById('vs-btn-rotate')?.addEventListener('click', async () => {
-        const btn = document.getElementById('vs-btn-rotate');
-        btn.disabled = true; clearError();
-        try {
-            const gid = parseInt(tokenGroupSelect?.value || '6', 10) || 6;
-            await apiFetch(d.urlTokensRotate, { method: 'POST', body: JSON.stringify({ server_group_id: gid }) });
-            tabLoaded['tokens'] = false;
-            await loadTokens();
-        } catch (err) { showError(err.message); }
-        finally { btn.disabled = false; }
+    $('vs-btn-rotate')?.addEventListener('click', async ()=>{
+        const btn=$('vs-btn-rotate');
+        btn.disabled=true; clearError();
+        try{
+            const gid=parseInt($('vs-token-group')?.value||'6',10)||6;
+            await apiFetch(d.urlTokensRotate,{method:'POST',body:JSON.stringify({server_group_id:gid})});
+            tabLoaded['tokens']=false; await loadTokens();
+        }catch(err){showError(err.message);}
+        finally{btn.disabled=false;}
+    });
+
+    // ── Server actions ──
+    const sendAction = async (action) => {
+        setGlobalBusy(true); clearError();
+        try{
+            await apiFetch(action==='probe'?d.urlProbe:`${d.urlActions}/${action}`,{method:'POST'});
+            await loadDetail();
+        }catch(err){showError(err.message);}
+        finally{setGlobalBusy(false);}
+    };
+    $('vs-btn-probe'   )?.addEventListener('click',()=>sendAction('probe'));
+    $('vs-btn-start'   )?.addEventListener('click',()=>sendAction('start'));
+    $('vs-btn-stop'    )?.addEventListener('click',()=>sendAction('stop'));
+    $('vs-btn-restart' )?.addEventListener('click',()=>sendAction('restart'));
+
+    $('vs-btn-snapshot')?.addEventListener('click', async ()=>{
+        const btn=$('vs-btn-snapshot');
+        btn.disabled=true; clearError();
+        try{
+            await apiFetch(d.urlSnapshot,{method:'POST'});
+            btn.textContent=i18n.snapshotCreated; setTimeout(()=>{btn.textContent=i18n.snapshot;btn.disabled=false;},3000);
+        }catch(err){showError(err.message);btn.disabled=false;}
+    });
+
+    $('vs-qa-recreate')?.addEventListener('click', async ()=>{
+        if(!confirm(i18n.resetConfirm)) return;
+        const btn=$('vs-qa-recreate');
+        btn.disabled=true; clearError();
+        try{
+            await apiFetch(d.urlRecreate,{method:'POST'});
+            btn.textContent=i18n.resetStarted; setTimeout(()=>{btn.textContent=i18n.resetBtn;btn.disabled=false;loadDetail();},5000);
+        }catch(err){showError(err.message);btn.disabled=false;}
     });
 
     // ── Save viewer ──
-    document.getElementById('vs-btn-save-viewer')?.addEventListener('click', async () => {
-        const btn = document.getElementById('vs-btn-save-viewer');
-        btn.disabled = true; clearError();
-        try {
-            const data = await apiFetch(d.urlViewer, { method: 'PUT', body: JSON.stringify({
-                enabled: viewerEnabledEl?.checked ?? true,
-                cache_ttl_ms: parseInt(viewerTtlEl?.value || '1500', 10),
-                domain_allowlist: viewerAllowlistEl?.value?.trim() || null,
-            }) });
-            const viewer = data.data?.viewer || {};
-            if (viewer.public_id && viewerUrlValEl) {
-                viewerUrlValEl.textContent = location.origin + '/ts3viewer/' + viewer.public_id;
-                if (viewerUrlEl) viewerUrlEl.classList.remove('hidden');
+    $('vs-btn-save-viewer')?.addEventListener('click', async ()=>{
+        const btn=$('vs-btn-save-viewer');
+        btn.disabled=true; clearError();
+        try{
+            const data=await apiFetch(d.urlViewer,{method:'PUT',body:JSON.stringify({
+                enabled:$('vs-viewer-enabled')?.checked??true,
+                cache_ttl_ms:parseInt($('vs-viewer-ttl')?.value||'1500',10),
+                domain_allowlist:$('vs-viewer-allowlist')?.value?.trim()||null,
+            })});
+            const viewer=data.viewer||{};
+            if(viewer.public_id){
+                const vv=$('vs-viewer-url-val'); if(vv) vv.textContent=location.origin+'/viewer/'+(instance.node?.providerType||'ts3')+'/'+viewer.public_id;
+                const vu=$('vs-viewer-url'); if(vu) vu.classList.remove('hidden');
             }
-        } catch (err) { showError(err.message); }
-        finally { btn.disabled = false; }
+            btn.textContent=i18n.saved; setTimeout(()=>btn.textContent=i18n.save,1800);
+        }catch(err){showError(err.message);}
+        finally{btn.disabled=false;}
+    });
+
+    // Copy viewer URL
+    $('vs-copy-viewer-url')?.addEventListener('click',()=>{
+        const val=$('vs-viewer-url-val')?.textContent||'';
+        navigator.clipboard?.writeText(val).then(()=>{
+            const btn=$('vs-copy-viewer-url'); if(btn){btn.textContent=i18n.copied;setTimeout(()=>btn.textContent=i18n.copy,1800);}
+        });
     });
 
     // ── Save settings ──
-    document.getElementById('vs-btn-save-settings')?.addEventListener('click', async () => {
-        const btn = document.getElementById('vs-btn-save-settings');
-        btn.disabled = true; clearError();
-        try {
-            await apiFetch(d.urlSettings, { method: 'PUT', body: JSON.stringify({ public_host: settingsHostEl?.value?.trim() || null }) });
+    $('vs-btn-save-settings')?.addEventListener('click', async ()=>{
+        const btn=$('vs-btn-save-settings');
+        btn.disabled=true; clearError();
+        try{
+            await apiFetch(d.urlSettings,{method:'PUT',body:JSON.stringify({public_host:$('vs-settings-host')?.value?.trim()||null})});
             await loadDetail();
-        } catch (err) { showError(err.message); }
-        finally { btn.disabled = false; }
+            btn.textContent=i18n.saved; setTimeout(()=>btn.textContent=i18n.save,1800);
+        }catch(err){showError(err.message);}
+        finally{btn.disabled=false;}
     });
 
-    // ── Add ban ──
-    document.getElementById('vs-btn-ban-add')?.addEventListener('click', async () => {
-        const btn = document.getElementById('vs-btn-ban-add');
-        const ip     = document.getElementById('vs-ban-ip')?.value?.trim() || '';
-        const uid    = document.getElementById('vs-ban-uid')?.value?.trim() || '';
-        const name   = document.getElementById('vs-ban-name')?.value?.trim() || '';
-        const time   = document.getElementById('vs-ban-time')?.value?.trim() || '';
-        const reason = document.getElementById('vs-ban-reason')?.value?.trim() || '';
-        const body = {};
-        if (ip)     body.ip        = ip;
-        if (uid)    body.uid       = uid;
-        if (name)   body.name      = name;
-        if (time)   body.time      = parseInt(time, 10);
-        if (reason) body.banreason = reason;
-        if (Object.keys(body).length === 0) { showError('Enter at least one ban criterion.'); return; }
-        btn.disabled = true; clearError();
+    // ── Backup: Create & Download ──
+    let restoreFileContent = null;
+
+    const backupStatus  = $('vs-backup-status');
+    const backupProgress= $('vs-backup-progress');
+    const restoreStatus = $('vs-restore-status');
+    const restoreBtn    = $('vs-btn-restore-backup');
+    const fileInput     = $('vs-restore-file');
+    const dropzone      = $('vs-restore-dropzone');
+    const filenameEl    = $('vs-restore-filename');
+
+    const setBackupStatus = (msg, color='') => { if(backupStatus){ backupStatus.textContent=msg; backupStatus.style.color=color||''; } };
+    const setRestoreStatus = (msg, color='') => { if(restoreStatus){ restoreStatus.textContent=msg; restoreStatus.style.color=color||''; } };
+
+    const downloadText = (content, filename) => {
+        const blob = new Blob([content], {type:'text/plain'});
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    };
+
+    $('vs-btn-create-backup')?.addEventListener('click', async () => {
+        const btn=$('vs-btn-create-backup');
+        btn.disabled=true; clearError();
+        setBackupStatus(i18n.backupCreating);
+        if(backupProgress) backupProgress.classList.remove('hidden');
+
         try {
-            await apiFetch(d.urlBans, { method: 'POST', body: JSON.stringify(body) });
-            ['vs-ban-ip','vs-ban-uid','vs-ban-name','vs-ban-time','vs-ban-reason'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
-            queryLoaded['bans'] = false;
-            await loadQuery('bans');
-        } catch (err) { showError(err.message); }
-        finally { btn.disabled = false; }
+            const resp = await apiFetch(d.urlSnapshot, {method:'POST'});
+            const cacheKey = resp.cache_key || resp.data?.cache_key;
+            if(!cacheKey) throw new Error(i18n.backupNoCacheKey);
+
+            setBackupStatus(i18n.backupWaiting);
+
+            let snapshotContent = null;
+            for(let i=0;i<20;i++){
+                await new Promise(r=>setTimeout(r,2500));
+                const poll = await fetch(`${d.urlSnapshotPoll}?key=${encodeURIComponent(cacheKey)}`,{headers:{'Accept':'application/json'}});
+                const pollData = await poll.json();
+                if(pollData.status==='ok' && pollData.snapshot){
+                    snapshotContent=pollData.snapshot;
+                    break;
+                }
+            }
+
+            if(!snapshotContent) throw new Error(i18n.backupTimeout);
+
+            const ts  = new Date().toISOString().slice(0,19).replace(/[T:]/g,'-');
+            const ext = instance.node?.providerType==='ts6'?'ts6snapshot':'ts3snapshot';
+            downloadText(snapshotContent, `backup-${ts}.${ext}`);
+            setBackupStatus(i18n.backupDownloaded, '#4ade80');
+        } catch(err) {
+            setBackupStatus(i18n.errorPrefix+err.message, '#f87171');
+            showError(err.message);
+        } finally {
+            btn.disabled=false;
+            if(backupProgress) backupProgress.classList.add('hidden');
+        }
+    });
+
+    // Drag & drop + file input
+    const handleFile = (file) => {
+        if(!file) return;
+        const reader=new FileReader();
+        reader.onload=(e)=>{
+            restoreFileContent=e.target?.result||null;
+            if(filenameEl) filenameEl.textContent=file.name+' ('+Math.round(file.size/1024)+' KB)';
+            if(dropzone) dropzone.classList.add('has-file');
+            if(restoreBtn) restoreBtn.disabled=false;
+            setRestoreStatus(i18n.restoreReady);
+        };
+        reader.readAsText(file);
+    };
+
+    fileInput?.addEventListener('change', ()=>{ if(fileInput.files?.[0]) handleFile(fileInput.files[0]); });
+
+    if(dropzone){
+        dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', e=>{ e.preventDefault(); dropzone.classList.remove('dragover'); const f=e.dataTransfer?.files?.[0]; if(f) handleFile(f); });
+    }
+
+    restoreBtn?.addEventListener('click', async ()=>{
+        if(!restoreFileContent){ setRestoreStatus(i18n.restoreNoFile, '#f87171'); return; }
+        if(!confirm(i18n.restoreConfirm)) return;
+        restoreBtn.disabled=true; clearError();
+        setRestoreStatus(i18n.restoreSending);
+        try {
+            const formData=new FormData();
+            const blob=new Blob([restoreFileContent],{type:'text/plain'});
+            formData.append('snapshot', blob, 'backup.snapshot');
+            const resp=await fetch(d.urlSnapshotRestore,{method:'POST',body:formData,headers:{'Accept':'application/json'}});
+            const data=await resp.json();
+            if(!resp.ok) throw new Error(data.message||`HTTP ${resp.status}`);
+            setRestoreStatus(i18n.restoreStarted, '#4ade80');
+            restoreFileContent=null;
+            if(dropzone) dropzone.classList.remove('has-file');
+            if(filenameEl) filenameEl.textContent='';
+        } catch(err) {
+            setRestoreStatus(i18n.errorPrefix+err.message, '#f87171');
+            showError(err.message);
+        } finally {
+            restoreBtn.disabled=false;
+        }
     });
 
     // ── Bootstrap ──
-    tabLoaded['overview'] = true;
-    loadDetail();
+    tabLoaded['overview']=true;
+    loadDetail().then(async ()=>{
+        // auto-probe once when checkedAt is missing or stale so GEPRÜFT shows immediately
+        if(document.getElementById('vs-probe-badge')?.dataset?.stale==='1'){
+            try{ await fetch(d.urlProbe,{method:'POST',headers:{'Accept':'application/json'}}); await loadDetail(); }catch(_){}
+        }
+    }).catch(()=>{});
 })();
 </script>
 {% endblock %}

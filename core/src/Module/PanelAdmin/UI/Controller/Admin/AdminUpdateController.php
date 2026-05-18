@@ -116,10 +116,14 @@ final class AdminUpdateController
         }
 
         $job = $this->updateJobService->createJob($type, $createdBy, $payload);
-        $this->updateJobService->triggerRunner($job['id']);
+        $triggered = $this->updateJobService->triggerRunner($job['id']);
 
         $summary = $this->buildCoreUpdateSummary();
-        $summary['notice'] = 'Job wurde gestartet.';
+        if ($triggered) {
+            $summary['notice'] = $this->translateUpdateMessage('admin_updates_job_started', $request->getLocale());
+        } else {
+            $summary['error'] = $this->translateUpdateMessage('admin_updates_runner_not_found', $request->getLocale());
+        }
 
         return $this->renderUpdateCard($summary);
     }

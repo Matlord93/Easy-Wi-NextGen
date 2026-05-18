@@ -242,7 +242,7 @@ perform_update() {
     log "PHP binary not found."
     return 1
   fi
-  run_step "composer install" bash -lc 'cd "$1" && composer install --no-dev --no-interaction --optimize-autoloader' bash "$CORE_DIR" || return $?
+  run_step "composer install" bash -lc 'COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --optimize-autoloader --no-scripts -d "$1"' bash "$CORE_DIR" || return $?
   perform_post_update_tasks
 }
 

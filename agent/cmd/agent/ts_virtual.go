@@ -483,6 +483,41 @@ func handleTs6VirtualSnapshot(job jobs.Job) orchestratorResult {
 	return handleTsSnapshot(job, withTs6Client)
 }
 
+func handleTs3VirtualSnapshotRestore(job jobs.Job) orchestratorResult {
+	return handleTsSnapshotRestore(job, withTs3Client)
+}
+
+func handleTs6VirtualSnapshotRestore(job jobs.Job) orchestratorResult {
+	return handleTsSnapshotRestore(job, withTs6Client)
+}
+
+func handleTsSnapshotRestore(job jobs.Job, withClient func(map[string]any, func(*ts3QueryClient) error) error) orchestratorResult {
+	sid := payloadValue(job.Payload, "sid")
+	snapshotContent := payloadValue(job.Payload, "snapshot_content")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+	if snapshotContent == "" {
+		return orchestratorResult{status: "failed", errorText: "missing snapshot_content"}
+	}
+
+	err := withClient(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		_, err := client.command(fmt.Sprintf("serversnapshotdeploy %s", snapshotContent))
+		return err
+	})
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	return orchestratorResult{
+		status:        "success",
+		resultPayload: map[string]any{"restored": true, "sid": sid},
+	}
+}
+
 func handleTsQueryList(job jobs.Job, withClient func(map[string]any, func(*ts3QueryClient) error) error, command, key string) orchestratorResult {
 	sid := payloadValue(job.Payload, "sid")
 	if sid == "" {
@@ -525,6 +560,7 @@ func handleTsSnapshot(job jobs.Job, withClient func(map[string]any, func(*ts3Que
 		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
 			return err
 		}
+		client.commandTimeout = 120 * time.Second
 		response, err := client.command("serversnapshotcreate")
 		if err != nil {
 			return err

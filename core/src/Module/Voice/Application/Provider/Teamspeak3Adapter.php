@@ -54,8 +54,14 @@ final class Teamspeak3Adapter implements VoiceProviderAdapter
     public function getConnectInfo(VoiceInstance $instance): array
     {
         $server = $this->lookup->find($instance->getExternalId());
+        $nodeHost = $instance->getNode()->getHost();
+        $nodeHost = (str_starts_with($nodeHost, '127.') || $nodeHost === '::1' || $nodeHost === 'localhost') ? null : $nodeHost;
+
+        if ($server === null) {
+            return ['host' => $nodeHost, 'port' => null];
+        }
         return [
-            'host' => $server['public_host'] ?? $instance->getNode()->getHost(),
+            'host' => $server['public_host'] ?? $server['node_public_ip'] ?? $nodeHost,
             'port' => $server['voice_port'] ?? null,
         ];
     }

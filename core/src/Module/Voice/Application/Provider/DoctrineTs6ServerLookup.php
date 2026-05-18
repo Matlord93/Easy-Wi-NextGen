@@ -19,9 +19,13 @@ final class DoctrineTs6ServerLookup implements Ts6ServerLookupInterface
             return null;
         }
 
+        $agentIp = $server->getNode()->getAgent()->getLastHeartbeatIp();
+        $publicIp = ($agentIp !== null && !str_starts_with($agentIp, '127.') && $agentIp !== '::1' && $agentIp !== 'localhost') ? $agentIp : null;
+
         return [
             'status' => strtolower($server->getStatus()),
             'public_host' => $server->getPublicHost(),
+            'node_public_ip' => $publicIp,
             'voice_port' => $server->getVoicePort(),
             'slots' => $server->getSlots(),
         ];

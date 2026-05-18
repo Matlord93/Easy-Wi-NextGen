@@ -98,7 +98,16 @@ final class AgentJobController
             default => throw new BadRequestHttpException('Invalid status.'),
         };
 
-        $resultPayload = is_array($payload['result_payload'] ?? null) ? $payload['result_payload'] : null;
+        $rawResultPayload = $payload['result_payload'] ?? null;
+        $resultPayload = is_array($rawResultPayload) ? $rawResultPayload : null;
+
+        // Snapshot agents may return the snapshot content as a raw string instead of a wrapped array.
+        if ($resultPayload === null && is_string($rawResultPayload) && $rawResultPayload !== '') {
+            if (str_contains($job->getType(), 'snapshot.create')) {
+                $resultPayload = ['snapshot' => $rawResultPayload];
+            }
+        }
+
         $job->setLogText(is_string($payload['log_text'] ?? null) ? $payload['log_text'] : null);
         $job->setErrorText(is_string($payload['error_text'] ?? null) ? $payload['error_text'] : null);
         $job->setResultPayload($resultPayload);
@@ -277,9 +286,25 @@ final class AgentJobController
             return;
         }
 
+        // Normalize: if the agent returned a keyed object instead of a flat list,
+        // extract the relevant array based on the job type.
+        $payloadArray = $resultPayload;
+        if (!isset($resultPayload[0]) && !empty($resultPayload)) {
+            $jobType = $job->getType();
+            if (str_contains($jobType, 'client')) {
+                $payloadArray = $resultPayload['clients'] ?? $resultPayload;
+            } elseif (str_contains($jobType, 'channel')) {
+                $payloadArray = $resultPayload['channels'] ?? $resultPayload;
+            } elseif (str_contains($jobType, 'ban')) {
+                $payloadArray = $resultPayload['bans'] ?? $resultPayload;
+            } elseif (str_contains($jobType, 'log')) {
+                $payloadArray = $resultPayload['logs'] ?? $resultPayload['entries'] ?? $resultPayload;
+            }
+        }
+
         $snapshot = [
             'status' => 'ok',
-            'payload' => $resultPayload,
+            'payload' => $payloadArray,
         ];
 
         $this->cache->delete($cacheKey);

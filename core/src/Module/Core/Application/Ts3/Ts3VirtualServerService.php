@@ -235,6 +235,24 @@ final class Ts3VirtualServerService
         return $this->queueServerQuery($server, $cacheKey, 'ts3.virtual.snapshot.create');
     }
 
+    public function queueSnapshotRestore(Ts3VirtualServer $server, string $snapshotContent): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'snapshot_content' => $snapshotContent,
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.snapshot.restore', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
     public function queueServerQuery(Ts3VirtualServer $server, string $cacheKey, string $jobType): AgentJob
     {
         $jobPayload = [

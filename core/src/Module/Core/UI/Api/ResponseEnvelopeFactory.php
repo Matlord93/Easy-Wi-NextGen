@@ -14,7 +14,7 @@ final class ResponseEnvelopeFactory
      */
     public function success(
         Request $request,
-        string $jobId,
+        ?string $jobId,
         string $message,
         int $statusCode = JsonResponse::HTTP_ACCEPTED,
         array $extra = [],
@@ -61,6 +61,6 @@ final class ResponseEnvelopeFactory
 
         $traceId = trim((string) ($request->attributes->get('request_id') ?? ''));
 
-        return $traceId;
+        return $traceId !== '' ? $traceId : 'req-' . bin2hex(random_bytes(6));
     }
 }

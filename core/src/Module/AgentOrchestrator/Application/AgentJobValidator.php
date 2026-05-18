@@ -29,6 +29,7 @@ final class AgentJobValidator
             'ts3.virtual.client.list', 'ts6.virtual.client.list' => $this->requireKeys($payload, ['virtual_server_id', 'cache_key']),
             'ts3.virtual.log.view', 'ts6.virtual.log.view' => $this->requireKeys($payload, ['virtual_server_id', 'cache_key']),
             'ts3.virtual.snapshot.create', 'ts6.virtual.snapshot.create' => $this->requireKeys($payload, ['virtual_server_id', 'cache_key']),
+            'ts3.virtual.snapshot.restore', 'ts6.virtual.snapshot.restore' => $this->requireKeys($payload, ['virtual_server_id', 'snapshot_content']),
             'ts3.virtual.client.kick', 'ts6.virtual.client.kick' => $this->requireKeys($payload, ['virtual_server_id', 'sid', 'clid']),
             'ts3.virtual.client.poke', 'ts6.virtual.client.poke' => $this->requireKeys($payload, ['virtual_server_id', 'sid', 'clid', 'message']),
             'ts3.virtual.ban.add', 'ts6.virtual.ban.add' => $this->requireKeys($payload, ['virtual_server_id', 'sid']),

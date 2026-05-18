@@ -5,23 +5,23 @@
     <div class="cust-hero">
         <div class="cust-hero__inner">
             <div>
-                <div class="cust-hero__label">Voice-Server</div>
+                <div class="cust-hero__label">{{ t('customer_voice_page_title', locale) }}</div>
                 <h1 class="cust-hero__title">{{ title }}</h1>
                 <p class="cust-hero__desc">{{ intro }}</p>
             </div>
         </div>
 
         {% set onlineServers = servers|filter(row => row.server.status is defined and row.server.status in ['online', 'running', 'active'])|length %}
-        <div class="cust-hero__stats" style="grid-template-columns:repeat(2,1fr);max-width:320px;">
+        <div class="cust-hero__stats" style="grid-template-columns:repeat(2,1fr);max-width:280px;">
             <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">Gesamt</div>
+                <div class="cust-hero__stat-label">{{ t('customer_voice_total', locale) }}</div>
                 <div class="cust-hero__stat-value">{{ servers|length }}</div>
-                <div class="cust-hero__stat-sub">Server</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_voice_col_server', locale) }}</div>
             </div>
             <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">Online</div>
+                <div class="cust-hero__stat-label">{{ t('customer_voice_online', locale) }}</div>
                 <div class="cust-hero__stat-value" style="color:#4ade80;">{{ onlineServers }}</div>
-                <div class="cust-hero__stat-sub">Aktiv</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_voice_active', locale) }}</div>
             </div>
         </div>
     </div>
@@ -34,7 +34,7 @@
         <div class="cust-alert cust-alert--error">{{ message }}</div>
     {% endfor %}
 
-    {# ── Server cards ── #}
+    {# ── Server list ── #}
     {% if servers is empty %}
         <div class="cust-panel">
             <div class="cust-panel__body">
@@ -45,88 +45,103 @@
             </div>
         </div>
     {% else %}
-        <div class="cust-ts-grid">
+        <div class="cust-panel" style="padding:0;overflow:hidden;">
             {% for row in servers %}
                 {% set server = row.server %}
                 {% set status = server.status|default('unknown')|lower %}
                 {% set isOnline  = status in ['online', 'running', 'active'] %}
                 {% set isOffline = status in ['offline', 'stopped', 'stopping'] %}
-                {% set dotClass = isOnline ? 'success' : (isOffline ? 'danger' : 'warning') %}
-                <article class="cust-ts-card">
-                    <div class="cust-ts-card__head">
-                        <div>
-                            <h3 class="cust-ts-card__name">{{ server.name }}</h3>
-                            <div style="font-size:11px;color:var(--ng-text-muted);margin-top:3px;">SID #{{ server.sid }}</div>
-                        </div>
-                        <span class="cust-status-dot cust-status-dot--{{ dotClass }}">{{ status|title }}</span>
-                    </div>
 
-                    <div class="cust-ts-card__meta">
-                        <div class="cust-ts-card__meta-row">
-                            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" style="flex-shrink:0"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077z"/></svg>
-                            IP / Connect:
-                            <strong>{{ row.connectIp ?? server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}</strong>
+                <div class="tsi-row">
+                    <div class="tsi-row__stripe" style="background:{{ isOnline ? 'linear-gradient(to bottom,#4ade80,#22c55e)' : (isOffline ? 'linear-gradient(to bottom,#f87171,#ef4444)' : 'var(--ng-border-strong)') }};"></div>
+                    <div class="tsi-row__body">
+                        <div class="tsi-row__identity">
+                            <div class="tsi-row__name">{{ server.name }}</div>
+                            <div class="tsi-row__sub">
+                                SID #{{ server.sid }} ·
+                                {{ row.connectIp ?? server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}
+                                {% if server.filetransferPort is defined %}· FT {{ server.filetransferPort ?? 30033 }}{% endif %}
+                            </div>
                         </div>
-                        <div class="cust-ts-card__meta-row">
-                            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" style="flex-shrink:0"><path d="M9.669.864 8 0 6.331.864l-1.858.282-.842 1.68-1.337 1.32L2.6 6l-.306 1.854 1.337 1.32.842 1.68 1.858.282L8 12l1.669-.864 1.858-.282.842-1.68 1.337-1.32L13.4 6l.306-1.854-1.337-1.32-.842-1.68L9.669.864z"/></svg>
-                            Filetransfer:
-                            <strong>{{ server.filetransferPort ?? 30033 }}</strong>
-                        </div>
-                        <div class="cust-ts-card__meta-row">
-                            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" style="flex-shrink:0"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4z"/></svg>
-                            Slots:
-                            <strong class="cust-ts-card__slots" data-summary-url="{{ row.summaryUrl }}" data-slots>—</strong>
-                        </div>
-                    </div>
 
-                    <div class="cust-ts-card__actions">
-                        <form method="post" action="{{ detailBase }}/{{ server.id }}/start">
-                            <input type="hidden" name="_token" value="{{ row.csrf.start }}">
-                            <button class="ui-button ui-button--primary ui-button--sm" type="submit">{{ t('customer_' ~ variant ~ '_server_start', locale) }}</button>
-                        </form>
-                        <form method="post" action="{{ detailBase }}/{{ server.id }}/stop">
-                            <input type="hidden" name="_token" value="{{ row.csrf.stop }}">
-                            <button class="ui-button ui-button--danger ui-button--sm" type="submit">{{ t('customer_' ~ variant ~ '_server_stop', locale) }}</button>
-                        </form>
-                        <form method="post" action="{{ detailBase }}/{{ server.id }}/restart">
-                            <input type="hidden" name="_token" value="{{ row.csrf.restart }}">
-                            <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_' ~ variant ~ '_server_restart', locale) }}</button>
-                        </form>
-                        <a class="ui-button ui-button--ghost ui-button--sm" href="{{ detailBase }}/{{ server.id }}" style="margin-left:auto;">{{ t('customer_' ~ variant ~ '_server_details', locale) }}</a>
+                        <div class="tsi-row__meta">
+                            <span class="tsi-dot tsi-dot--{{ isOnline ? 'success' : (isOffline ? 'danger' : 'warning') }}">{{ status|title }}</span>
+                            <span class="tsi-slots" data-summary-url="{{ row.summaryUrl }}" data-slots>—/—</span>
+                        </div>
+
+                        <div class="tsi-row__actions">
+                            <a class="ui-button ui-button--primary ui-button--sm" href="{{ detailBase }}/{{ server.id }}">{{ t('customer_voice_manage', locale) }}</a>
+                            <form method="post" action="{{ detailBase }}/{{ server.id }}/start" style="display:contents;">
+                                <input type="hidden" name="_token" value="{{ row.csrf.start }}">
+                                <button class="ui-button ui-button--ghost ui-button--sm" style="color:#4ade80;border-color:rgba(34,197,94,.3);" type="submit">{{ t('customer_' ~ variant ~ '_server_start', locale) }}</button>
+                            </form>
+                            <form method="post" action="{{ detailBase }}/{{ server.id }}/stop" style="display:contents;">
+                                <input type="hidden" name="_token" value="{{ row.csrf.stop }}">
+                                <button class="ui-button ui-button--ghost ui-button--sm" style="color:#f87171;border-color:rgba(239,68,68,.3);" type="submit">{{ t('customer_' ~ variant ~ '_server_stop', locale) }}</button>
+                            </form>
+                            <form method="post" action="{{ detailBase }}/{{ server.id }}/restart" style="display:contents;">
+                                <input type="hidden" name="_token" value="{{ row.csrf.restart }}">
+                                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_' ~ variant ~ '_server_restart', locale) }}</button>
+                            </form>
+                        </div>
                     </div>
-                </article>
+                </div>
             {% endfor %}
         </div>
     {% endif %}
 
 </div>
+
+<style>
+.tsi-row { display:flex;border-bottom:1px solid var(--ng-border);transition:background .12s; }
+.tsi-row:last-child { border-bottom:none; }
+.tsi-row:hover { background:var(--ng-surface-soft); }
+.tsi-row__stripe { width:3px;flex-shrink:0; }
+.tsi-row__body { flex:1;min-width:0;padding:14px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:12px; }
+.tsi-row__identity { flex:1;min-width:160px; }
+.tsi-row__name { font-size:14px;font-weight:700;color:var(--ng-text); }
+.tsi-row__sub { font-size:11px;color:var(--ng-text-muted);font-family:monospace;margin-top:3px; }
+.tsi-row__meta { display:flex;align-items:center;gap:10px;flex-wrap:wrap; }
+.tsi-row__actions { display:flex;gap:6px;flex-wrap:wrap;align-items:center; }
+.tsi-dot { display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px; }
+.tsi-dot::before { content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0; }
+.tsi-dot--success { background:rgba(34,197,94,.12);color:#4ade80; }
+.tsi-dot--success::before { background:#4ade80; }
+.tsi-dot--danger  { background:rgba(239,68,68,.12);color:#f87171; }
+.tsi-dot--danger::before  { background:#f87171; }
+.tsi-dot--warning { background:rgba(245,158,11,.12);color:#fbbf24; }
+.tsi-dot--warning::before { background:#fbbf24; }
+.tsi-slots { font-size:12px;font-weight:700;color:var(--ng-text-muted); }
+</style>
+
 <script>
-    (function () {
-        const rows = document.querySelectorAll('[data-summary-url][data-slots]');
-        if (!rows.length) { return; }
-        rows.forEach((slotCell) => {
-            const url = slotCell.dataset.summaryUrl;
-            if (!url) { return; }
-            let attempts = 0;
-            const maxAttempts = 6;
-            const delayMs = 1500;
-            const loadSummary = () => {
-                fetch(url)
-                    .then((r) => r.json())
-                    .then((data) => {
-                        if (!data) { return; }
-                        if (data.status === 'pending' && attempts < maxAttempts) {
-                            attempts += 1;
-                            setTimeout(loadSummary, delayMs);
-                            return;
-                        }
-                        if (data.status === 'pending') { slotCell.textContent = '—'; return; }
-                        if (data.status !== 'ok') { return; }
-                        slotCell.textContent = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
-                    })
-                    .catch(() => {});
-            };
-            loadSummary();
-        });
-    })();
+(function () {
+    const rows = document.querySelectorAll('[data-summary-url][data-slots]');
+    if (!rows.length) { return; }
+    rows.forEach((slotCell) => {
+        const url = slotCell.dataset.summaryUrl;
+        if (!url) { return; }
+        let attempts = 0;
+        const maxAttempts = 6;
+        const delayMs = 1500;
+        const loadSummary = () => {
+            fetch(url)
+                .then((r) => r.json())
+                .then((data) => {
+                    if (!data) { return; }
+                    if (data.status === 'pending' && attempts < maxAttempts) {
+                        attempts += 1;
+                        setTimeout(loadSummary, delayMs);
+                        return;
+                    }
+                    if (data.status === 'pending') { slotCell.textContent = '—/—'; return; }
+                    if (data.status !== 'ok') { return; }
+                    slotCell.textContent = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
+                    if ((data.clients_online ?? 0) > 0) slotCell.style.color = '#4ade80';
+                })
+                .catch(() => {});
+        };
+        loadSummary();
+    });
+})();
 </script>

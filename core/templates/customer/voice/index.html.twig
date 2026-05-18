@@ -2,11 +2,12 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="cust-page" id="voice-root"
+<div id="voice-root"
     data-api-base="{{ path('customer_voice_list_v1') }}"
-    data-detail-base="{{ path('customer_voice') }}">
+    data-detail-base="{{ path('customer_voice') }}"
+    class="cust-page">
 
-    {# ── Hero ── #}
+    {# ── Header ── #}
     <div class="cust-hero">
         <div class="cust-hero__inner">
             <div>
@@ -14,9 +15,9 @@
                 <p class="cust-hero__desc">{{ t('customer_voice_page_desc', locale) }}</p>
             </div>
             <div class="cust-hero__actions">
-                <button type="button" data-refresh
-                    class="ui-button ui-button--ghost ui-button--sm flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <button type="button" id="vl-refresh"
+                    class="ui-button ui-button--ghost ui-button--sm" style="display:flex;align-items:center;gap:6px;">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                     </svg>
                     {{ t('customer_voice_refresh', locale) }}
@@ -26,23 +27,23 @@
     </div>
 
     {# ── KPI row ── #}
-    <div class="cust-kpi-row" id="voice-kpi-row" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px;">
+    <div class="vl-kpi-row">
         <div class="cust-kpi">
             <div class="cust-kpi__icon cust-kpi__icon--primary">
                 <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>
             </div>
             <div>
                 <div class="cust-kpi__label">{{ t('customer_voice_total', locale) }}</div>
-                <div class="cust-kpi__value" id="kpi-total">—</div>
+                <div class="cust-kpi__value" id="vl-kpi-total">—</div>
             </div>
         </div>
         <div class="cust-kpi">
             <div class="cust-kpi__icon cust-kpi__icon--success">
-                <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/></svg>
+                <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="4"/></svg>
             </div>
             <div>
                 <div class="cust-kpi__label">{{ t('customer_voice_online', locale) }}</div>
-                <div class="cust-kpi__value" id="kpi-online">—</div>
+                <div class="cust-kpi__value" id="vl-kpi-online">—</div>
             </div>
         </div>
         <div class="cust-kpi">
@@ -51,7 +52,7 @@
             </div>
             <div>
                 <div class="cust-kpi__label">{{ t('customer_voice_offline', locale) }}</div>
-                <div class="cust-kpi__value" id="kpi-offline">—</div>
+                <div class="cust-kpi__value" id="vl-kpi-offline">—</div>
             </div>
         </div>
         <div class="cust-kpi">
@@ -60,21 +61,15 @@
             </div>
             <div>
                 <div class="cust-kpi__label">{{ t('customer_voice_stale', locale) }}</div>
-                <div class="cust-kpi__value" id="kpi-stale">—</div>
+                <div class="cust-kpi__value" id="vl-kpi-stale">—</div>
             </div>
         </div>
     </div>
 
-    {# ── Instance list ── #}
+    {# ── Server list ── #}
     <div class="cust-panel" style="padding:0;overflow:hidden;">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div>
-                <h2 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_page_title', locale) }}</h2>
-                <p style="margin:2px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_voice_page_desc', locale) }}</p>
-            </div>
-        </div>
-        <div id="voice-list" style="padding:12px;display:flex;flex-direction:column;gap:8px;min-height:80px;">
-            <div style="padding:24px;text-align:center;color:var(--ng-text-muted);font-size:13px;">
+        <div id="vl-list" style="display:flex;flex-direction:column;gap:0;min-height:80px;">
+            <div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">
                 {{ t('customer_voice_loading', locale) }}
             </div>
         </div>
@@ -82,87 +77,131 @@
 
 </div>
 
+<style>
+.vl-kpi-row { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:4px; }
+@media(max-width:900px){ .vl-kpi-row{grid-template-columns:repeat(2,1fr);} }
+@media(max-width:560px){ .vl-kpi-row{grid-template-columns:1fr;} }
+
+.vl-server-card { display:flex;gap:0;border-bottom:1px solid var(--ng-border);background:var(--ng-surface);transition:background .12s; }
+.vl-server-card:last-child { border-bottom:none; }
+.vl-server-card:hover { background:var(--ng-surface-soft); }
+.vl-server-card__stripe { width:3px;flex-shrink:0; }
+.vl-server-card__body { flex:1;min-width:0;padding:14px 18px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center; }
+@media(max-width:640px){ .vl-server-card__body{grid-template-columns:1fr;} }
+.vl-server-card__info { min-width:0; }
+.vl-server-card__badges { display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:5px; }
+.vl-server-card__name { font-size:15px;font-weight:700;color:var(--ng-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.vl-server-card__addr { margin-top:3px;font-size:12px;color:var(--ng-text-muted);font-family:monospace; }
+.vl-server-card__players { text-align:center;min-width:72px; }
+.vl-server-card__players-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px; }
+.vl-server-card__players-val { font-size:20px;font-weight:800;color:var(--ng-text); }
+.vl-server-card__actions { display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;align-items:center; }
+
+/* Status dot */
+.vl-status-dot { display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px; }
+.vl-status-dot::before { content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0; }
+.vl-status-dot--success { background:rgba(34,197,94,.12);color:#4ade80; }
+.vl-status-dot--success::before { background:#4ade80; }
+.vl-status-dot--danger { background:rgba(239,68,68,.12);color:#f87171; }
+.vl-status-dot--danger::before { background:#f87171; }
+.vl-status-dot--warning { background:rgba(245,158,11,.12);color:#fbbf24; }
+.vl-status-dot--warning::before { background:#fbbf24; }
+
+/* Provider badge */
+.vl-provider-badge { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:99px; }
+.vl-provider-badge--ts3 { background:rgba(99,102,241,.15);color:#818cf8; }
+.vl-provider-badge--ts6 { background:rgba(56,189,248,.15);color:#38bdf8; }
+.vl-provider-badge--other { background:rgba(148,163,184,.12);color:#94a3b8; }
+
+/* Busy badge */
+.vl-busy-badge { font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(245,158,11,.12);color:#fbbf24; }
+
+/* Probe/stale badge */
+.vl-probe-badge--stale { font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(239,68,68,.1);color:#fca5a5; }
+.vl-probe-badge--fresh { font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(34,197,94,.1);color:#86efac; }
+</style>
+
 <script>
 (() => {
-    const MSG_LOADING = {{ t('customer_voice_loading', locale)|json_encode|raw }};
-    const MSG_NONE    = {{ t('customer_voice_none',    locale)|json_encode|raw }};
-    const MSG_ERROR   = {{ t('customer_voice_error',   locale)|json_encode|raw }};
-    const MSG_PROBE   = {{ t('customer_voice_probe',   locale)|json_encode|raw }};
-    const MSG_CACHED  = {{ t('customer_voice_cached',  locale)|json_encode|raw }};
-    const MSG_STALE   = {{ t('customer_voice_stale',   locale)|json_encode|raw }};
-    const MSG_QUEUED  = {{ t('customer_voice_queued',  locale)|json_encode|raw }};
-    const MSG_START   = {{ t('customer_voice_start',   locale)|json_encode|raw }};
-    const MSG_STOP    = {{ t('customer_voice_stop',    locale)|json_encode|raw }};
-    const MSG_RESTART = {{ t('customer_voice_restart', locale)|json_encode|raw }};
-    const MSG_DETAILS = {{ t('customer_voice_details', locale)|json_encode|raw }};
+    const i18n = {
+        online:      {{ t('customer_voice_online', locale)|json_encode|raw }},
+        offline:     {{ t('customer_voice_offline', locale)|json_encode|raw }},
+        unknown:     {{ t('customer_voice_unknown', locale)|json_encode|raw }},
+        checking:    {{ t('customer_voice_probe_checking', locale)|json_encode|raw }},
+        stale:       {{ t('customer_voice_stale', locale)|json_encode|raw }},
+        fresh:       {{ t('customer_voice_probe_fresh', locale)|json_encode|raw }},
+        players:     {{ t('customer_voice_col_players', locale)|json_encode|raw }},
+        manage:      {{ t('customer_voice_manage', locale)|json_encode|raw }},
+        none:        {{ t('customer_voice_none', locale)|json_encode|raw }},
+        loading:     {{ t('customer_voice_loading_short', locale)|json_encode|raw }},
+        loadError:   {{ t('customer_voice_load_error', locale)|json_encode|raw }},
+    };
 
-    const root          = document.getElementById('voice-root');
-    const listEl        = document.getElementById('voice-list');
-    const refreshButton = root?.querySelector('[data-refresh]');
-    const apiBase       = root?.dataset.apiBase || '';
-    const detailBase    = root?.dataset.detailBase || '';
-    if (!root || !apiBase) { return; }
+    const root       = document.getElementById('voice-root');
+    const listEl     = document.getElementById('vl-list');
+    const refreshBtn = document.getElementById('vl-refresh');
+    if(!root||!listEl) return;
+    const apiBase    = root.dataset.apiBase||'';
+    const detailBase = root.dataset.detailBase||'';
 
     let instances = [];
 
-    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-    const fmtDate = (v) => v ? new Date(v).toLocaleString() : '—';
-    const busy = (i) => i.action_in_progress || i.probe_in_progress;
+    const esc = (v) => String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
-    const statusConfig = {
-        online:   { dot: 'cust-status-dot--success', label: 'Online' },
-        offline:  { dot: 'cust-status-dot--danger',  label: 'Offline' },
-        unknown:  { dot: 'cust-status-dot--warning', label: 'Unknown' },
-    };
-
-    const probeBadge = (i) => {
-        if (i.probe_in_progress) {
-            return `<span class="ui-badge ui-badge--warning ui-badge--sm">${MSG_QUEUED}</span>`;
-        }
-        return `<span class="ui-badge ${i.stale ? 'ui-badge--danger' : 'ui-badge--success'} ui-badge--sm">${i.stale ? MSG_STALE : MSG_CACHED}</span>`;
+    const statusConf = {
+        online:  {cls:'vl-status-dot--success', label:i18n.online},
+        offline: {cls:'vl-status-dot--danger',  label:i18n.offline},
+        unknown: {cls:'vl-status-dot--warning', label:i18n.unknown},
     };
 
     const providerBadge = (type) => {
-        const colors = { ts3: '#818cf8', ts6: '#38bdf8', sinusbot: '#4ade80' };
-        const bg     = { ts3: 'rgba(99,102,241,0.15)', ts6: 'rgba(56,189,248,0.15)', sinusbot: 'rgba(34,197,94,0.12)' };
-        const c = colors[type] || '#94a3b8';
-        const b = bg[type]     || 'rgba(148,163,184,0.12)';
-        return `<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:99px;background:${b};color:${c};">${esc((type||'').toUpperCase())}</span>`;
+        const cls=type==='ts3'?'vl-provider-badge--ts3':type==='ts6'?'vl-provider-badge--ts6':'vl-provider-badge--other';
+        return `<span class="vl-provider-badge ${cls}">${esc((type||'').toUpperCase())}</span>`;
     };
 
-    const renderCard = (i) => {
-        const sc   = statusConfig[i.status] || statusConfig.unknown;
-        const isBusy = busy(i);
-        const detailHref = Object.prototype.hasOwnProperty.call(i, 'detail_url') ? i.detail_url : (detailBase ? `${detailBase}/${encodeURIComponent(i.id)}` : null);
-        const actionsEnabled = i.actions_enabled !== false;
+    const stripeColor = (st) =>
+        st==='online' ?'linear-gradient(to bottom,#4ade80,#22c55e)':
+        st==='offline'?'linear-gradient(to bottom,#f87171,#ef4444)':
+        'var(--ng-border-strong)';
 
-        return `<div style="display:flex;gap:0;border-radius:12px;border:1px solid var(--ng-border);background:var(--ng-surface);overflow:hidden;transition:border-color .15s;${isBusy ? 'opacity:.85;' : ''}">
-            <div style="width:4px;flex-shrink:0;background:${i.status==='online' ? 'linear-gradient(to bottom,#4ade80,#22c55e)' : i.status==='offline' ? 'linear-gradient(to bottom,#f87171,#ef4444)' : 'var(--ng-border-strong)'};"></div>
-            <div style="flex:1;min-width:0;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:16px;align-items:center;">
-                <div style="min-width:0;">
-                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:5px;">
+    const renderCard = (i) => {
+        const sc  = statusConf[i.status]||statusConf.unknown;
+        const isBusy = i.action_in_progress||i.probe_in_progress;
+        const addr = i.connect?.host ? (i.connect.port?`${i.connect.host}:${i.connect.port}`:i.connect.host):'—';
+        const detailHref = i.detail_url!==undefined?i.detail_url:(detailBase?`${detailBase}/${encodeURIComponent(i.id)}`:null);
+        const actEnabled = i.actions_enabled!==false;
+
+        const probeBadge = i.probe_in_progress
+            ? `<span class="vl-busy-badge">${esc(i18n.checking)}</span>`
+            : i.stale ? `<span class="vl-probe-badge--stale">${esc(i18n.stale)}</span>` : `<span class="vl-probe-badge--fresh">${esc(i18n.fresh)}</span>`;
+
+        return `<div class="vl-server-card" style="${isBusy?'opacity:.85;':''}">
+            <div class="vl-server-card__stripe" style="background:${stripeColor(i.status)};"></div>
+            <div class="vl-server-card__body">
+                <div class="vl-server-card__info">
+                    <div class="vl-server-card__badges">
                         ${providerBadge(i.provider_type)}
-                        <span class="cust-status-dot ${esc(sc.dot)}">${esc(sc.label)}</span>
-                        ${probeBadge(i)}
-                        ${isBusy ? `<span class="ui-badge ui-badge--warning ui-badge--sm">⟳ ${i.retry_after ? i.retry_after+'s' : '…'}</span>` : ''}
+                        <span class="vl-status-dot ${esc(sc.cls)}">${esc(sc.label)}</span>
+                        ${probeBadge}
+                        ${isBusy?`<span class="vl-busy-badge">⟳ ${i.retry_after?i.retry_after+'s':'…'}</span>`:''}
                     </div>
-                    <div style="font-size:15px;font-weight:700;color:var(--ng-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                        ${detailHref ? `<a href="${esc(detailHref)}" style="color:inherit;text-decoration:none;">${esc(i.name)}</a>` : esc(i.name)}
+                    <div class="vl-server-card__name">
+                        ${detailHref?`<a href="${esc(detailHref)}" style="color:inherit;text-decoration:none;">${esc(i.name)}</a>`:esc(i.name)}
                     </div>
-                    <div style="margin-top:3px;font-size:12px;color:var(--ng-text-muted);font-family:monospace;">
-                        ${esc(i.connect?.host || '—')}${i.connect?.port ? ':'+esc(String(i.connect.port)) : ''}
-                    </div>
+                    <div class="vl-server-card__addr">${esc(addr)}</div>
                 </div>
-                <div style="text-align:center;min-width:64px;">
-                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px;">Players</div>
-                    <div style="font-size:18px;font-weight:800;color:var(--ng-text);">${esc(i.players_online ?? '?')}<span style="font-size:12px;font-weight:400;color:var(--ng-text-muted);">/${esc(i.players_max ?? '?')}</span></div>
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;">
-                    ${detailHref ? `<a href="${esc(detailHref)}" class="ui-button ui-button--ghost ui-button--sm">${MSG_DETAILS}</a>` : ''}
-                    <button type="button" data-action="probe" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actionsEnabled || isBusy) ? 'disabled' : ''}>${MSG_PROBE}</button>
-                    <button type="button" data-action="start"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actionsEnabled || isBusy) ? 'disabled' : ''}>${MSG_START}</button>
-                    <button type="button" data-action="stop"    data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actionsEnabled || isBusy) ? 'disabled' : ''}>${MSG_STOP}</button>
-                    <button type="button" data-action="restart" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actionsEnabled || isBusy) ? 'disabled' : ''}>${MSG_RESTART}</button>
+                <div style="display:flex;align-items:center;gap:20px;">
+                    <div class="vl-server-card__players">
+                        <div class="vl-server-card__players-label">${esc(i18n.players)}</div>
+                        <div class="vl-server-card__players-val">${esc(String(i.players_online??'?'))}<span style="font-size:12px;font-weight:400;color:var(--ng-text-muted);">/${esc(String(i.players_max??'?'))}</span></div>
+                    </div>
+                    <div class="vl-server-card__actions">
+                        ${detailHref?`<a href="${esc(detailHref)}" class="ui-button ui-button--primary ui-button--sm">${esc(i18n.manage)}</a>`:''}
+                        <button type="button" data-action="probe"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''}>Probe</button>
+                        <button type="button" data-action="start"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''} style="${actEnabled?'color:#4ade80;border-color:rgba(34,197,94,.3);':''}">Start</button>
+                        <button type="button" data-action="stop"    data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''} style="${actEnabled?'color:#f87171;border-color:rgba(239,68,68,.3);':''}">Stop</button>
+                        <button type="button" data-action="restart" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''}>Restart</button>
+                    </div>
                 </div>
             </div>
         </div>`;
@@ -170,65 +209,52 @@
 
     const updateKpis = () => {
         const total   = instances.length;
-        const online  = instances.filter((i) => i.status === 'online').length;
-        const offline = instances.filter((i) => i.status === 'offline').length;
-        const stale   = instances.filter((i) => i.stale).length;
-        document.getElementById('kpi-total'  )?.setText?.(String(total));
-        document.getElementById('kpi-online' )?.setText?.(String(online));
-        document.getElementById('kpi-offline')?.setText?.(String(offline));
-        document.getElementById('kpi-stale'  )?.setText?.(String(stale));
-        ['kpi-total','kpi-online','kpi-offline','kpi-stale'].forEach((id, idx) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = [total,online,offline,stale][idx];
-        });
+        const online  = instances.filter(i=>i.status==='online').length;
+        const offline = instances.filter(i=>i.status==='offline').length;
+        const stale   = instances.filter(i=>i.stale).length;
+        [['vl-kpi-total',total],['vl-kpi-online',online],['vl-kpi-offline',offline],['vl-kpi-stale',stale]]
+            .forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.textContent=String(val); });
     };
 
     const render = () => {
         updateKpis();
-        if (!instances.length) {
-            listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${MSG_NONE}</div>`;
+        if(!instances.length){
+            listEl.innerHTML=`<div style="padding:40px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.none)}</div>`;
             return;
         }
-        listEl.innerHTML = instances.map(renderCard).join('');
+        listEl.innerHTML=instances.map(renderCard).join('');
     };
 
     const load = async () => {
-        const resp    = await fetch(apiBase, { headers: { 'Accept': 'application/json' } });
+        const resp = await fetch(apiBase,{headers:{'Accept':'application/json'}});
         const payload = await resp.json();
-        instances = Array.isArray(payload.instances) ? payload.instances : [];
+        instances = Array.isArray(payload.instances)?payload.instances:[];
         render();
     };
 
     const mutate = async (id, action) => {
-        const url      = action === 'probe' ? `${apiBase}/${id}/probe` : `${apiBase}/${id}/actions/${action}`;
-        const resp     = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' } });
-        const payload  = await resp.json();
-        const row = instances.find((i) => String(i.id) === String(id));
-        if (row) {
-            row.retry_after = payload.retry_after ?? null;
-            if (payload.error_code === 'voice_probe_in_progress')  { row.probe_in_progress  = true; }
-            if (payload.error_code === 'voice_action_in_progress') { row.action_in_progress = true; }
-            if (payload.message) { row.reason = payload.message; }
-        }
-        render();
-        setTimeout(() => load().catch(() => {}), 1200);
+        const inst = instances.find(i => String(i.id) === String(id));
+        const base = inst?.api_base_url || `${apiBase}/${id}`;
+        const url = action==='probe' ? `${base}/probe` : `${base}/actions/${action}`;
+        await fetch(url,{method:'POST',headers:{'Accept':'application/json'}});
+        await load();
     };
 
-    root.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-action][data-id]');
-        if (!btn || btn.disabled) { return; }
-        mutate(btn.dataset.id, btn.dataset.action).catch(() => { btn.disabled = true; });
+    listEl.addEventListener('click', e=>{
+        const btn=e.target.closest('[data-action][data-id]');
+        if(!btn||btn.disabled) return;
+        mutate(btn.dataset.id, btn.dataset.action).catch(()=>{btn.disabled=true;});
     });
 
-    refreshButton?.addEventListener('click', () => {
-        listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${MSG_LOADING}</div>`;
-        load().catch(() => {
-            listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#f87171;font-size:13px;">${MSG_ERROR}</div>`;
+    refreshBtn?.addEventListener('click', ()=>{
+        listEl.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.loading)}</div>`;
+        load().catch(()=>{
+            listEl.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(i18n.loadError)}</div>`;
         });
     });
 
-    load().catch(() => {
-        listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#f87171;font-size:13px;">${MSG_ERROR}</div>`;
+    load().catch(()=>{
+        listEl.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(i18n.loadError)}</div>`;
     });
 })();
 </script>

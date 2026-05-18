@@ -123,26 +123,28 @@ final class CustomerVoiceApiController
         }
 
         try {
-            $active = $this->findActiveProbeJob((string) $instance->getId());
-            if ($active !== null) {
-                return $this->responseEnvelopeFactory->success(
-                    $request,
-                    $active->getId(),
-                    'Probe already queued.',
-                    202,
-                    ['status' => 'running', 'error_code' => 'voice_probe_in_progress', 'retry_after' => 10, 'details' => ['stale' => true]],
-                );
+            $providerType = $instance->getNode()->getProviderType();
+            try {
+                $adapter = $this->providers->forType($providerType);
+                $result = $adapter->probeStatus($instance);
+            } catch (\RuntimeException) {
+                $result = ['status' => 'unknown', 'players_online' => null, 'players_max' => null, 'reason' => 'Provider unsupported.', 'error_code' => 'voice_provider_unsupported'];
             }
 
-            $job = new Job('voice.probe', [
-                'voice_instance_id' => (string) $instance->getId(),
-                'provider_type' => $instance->getNode()->getProviderType(),
-                'external_id' => $instance->getExternalId(),
-                'node_id' => (string) $instance->getNode()->getId(),
-                'query_host' => $instance->getNode()->getHost(),
-                'query_port' => (string) $instance->getNode()->getQueryPort(),
-            ]);
-            $this->entityManager->persist($job);
+            $rawStatus = strtolower((string) ($result['status'] ?? 'unknown'));
+            $normalizedStatus = match ($rawStatus) {
+                'running', 'online', 'started', 'up' => 'online',
+                'stopped', 'offline', 'down', 'stopping', 'starting' => 'offline',
+                default => 'unknown',
+            };
+
+            $instance->updateStatus(
+                $normalizedStatus,
+                is_numeric($result['players_online'] ?? null) ? (int) $result['players_online'] : null,
+                is_numeric($result['players_max'] ?? null) ? (int) $result['players_max'] : $instance->getPlayersMax(),
+                $result['reason'] ?? null,
+                $result['error_code'] ?? null,
+            );
             $this->entityManager->flush();
         } finally {
             $this->releaseInstanceLock($lockHandle);
@@ -150,10 +152,10 @@ final class CustomerVoiceApiController
 
         return $this->responseEnvelopeFactory->success(
             $request,
-            $job->getId(),
-            'Probe queued. Returning stale status.',
-            202,
-            ['status' => 'pending', 'details' => ['stale' => true, 'instance' => $this->normalize($instance)]],
+            null,
+            'Probe completed.',
+            200,
+            ['status' => 'succeeded', 'details' => ['instance' => $this->normalize($instance)]],
         );
     }
 
@@ -754,7 +756,7 @@ final class CustomerVoiceApiController
             }
             $job = $this->ts3Service->queueSnapshot($server, $cacheKey);
             $this->auditLogger->log($customer, 'voice.ts3.snapshot', ['voice_instance_id' => $instance->getId(), 'job_id' => $job->getId()]);
-            return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Snapshot queued.', 202);
+            return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Snapshot queued.', 202, ['cache_key' => $cacheKey]);
         }
 
         if ($providerType === 'ts6') {
@@ -764,7 +766,104 @@ final class CustomerVoiceApiController
             }
             $job = $this->ts6Service->queueSnapshot($server, $cacheKey);
             $this->auditLogger->log($customer, 'voice.ts6.snapshot', ['voice_instance_id' => $instance->getId(), 'job_id' => $job->getId()]);
-            return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Snapshot queued.', 202);
+            return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Snapshot queued.', 202, ['cache_key' => $cacheKey]);
+        }
+
+        return $this->responseEnvelopeFactory->error($request, 'Unsupported provider.', 'voice_provider_unsupported', 400);
+    }
+
+    #[Route('/{id}/snapshot/poll', name: 'customer_voice_snapshot_poll_v1', methods: ['GET'])]
+    public function snapshotPoll(Request $request, int $id): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerVoiceInstance($customer, $id);
+        if ($instance === null) {
+            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+        }
+
+        $cacheKey = trim((string) $request->query->get('key', ''));
+        if ($cacheKey === '') {
+            return $this->responseEnvelopeFactory->error($request, 'Missing cache key.', 'voice_snapshot_key_missing', 400);
+        }
+
+        if (!str_starts_with($cacheKey, sprintf('voice_%d_snapshot_', $id))) {
+            return $this->responseEnvelopeFactory->error($request, 'Invalid cache key.', 'voice_snapshot_key_invalid', 400);
+        }
+
+        $payload = $this->cache->get($cacheKey, static function (\Symfony\Contracts\Cache\ItemInterface $item): array {
+            $item->expiresAfter(30);
+            return ['status' => 'pending'];
+        });
+
+        $status = is_array($payload) ? ($payload['status'] ?? 'pending') : 'pending';
+
+        if ($status !== 'ok') {
+            return new JsonResponse(['status' => 'pending']);
+        }
+
+        $snapshotContent = $payload['payload']['snapshot'] ?? null;
+        if (!is_string($snapshotContent) || $snapshotContent === '') {
+            return $this->responseEnvelopeFactory->error($request, 'Snapshot content empty.', 'voice_snapshot_empty', 500);
+        }
+
+        return new JsonResponse(['status' => 'ok', 'snapshot' => $snapshotContent]);
+    }
+
+    #[Route('/{id}/snapshot/restore', name: 'customer_voice_snapshot_restore_v1', methods: ['POST'])]
+    public function snapshotRestore(Request $request, int $id): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerVoiceInstance($customer, $id);
+        if ($instance === null) {
+            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+        }
+
+        $uploadedFile = $request->files->get('snapshot');
+        $snapshotContent = null;
+
+        if ($uploadedFile instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
+            $content = file_get_contents($uploadedFile->getPathname());
+            if ($content !== false && $content !== '') {
+                $snapshotContent = trim($content);
+            }
+        }
+
+        if ($snapshotContent === null || $snapshotContent === '') {
+            $body = json_decode((string) $request->getContent(), true) ?? [];
+            $snapshotContent = isset($body['snapshot']) ? trim((string) $body['snapshot']) : null;
+        }
+
+        if ($snapshotContent === null || $snapshotContent === '') {
+            return $this->responseEnvelopeFactory->error($request, 'No snapshot content provided.', 'voice_snapshot_content_missing', 400);
+        }
+
+        $maxSize = 10 * 1024 * 1024;
+        if (strlen($snapshotContent) > $maxSize) {
+            return $this->responseEnvelopeFactory->error($request, 'Snapshot file too large (max 10 MB).', 'voice_snapshot_too_large', 413);
+        }
+
+        $providerType = $instance->getNode()->getProviderType();
+
+        if ($providerType === 'ts3') {
+            $server = $this->ts3Servers->find((int) $instance->getExternalId());
+            if ($server === null) {
+                return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
+            }
+            $job = $this->ts3Service->queueSnapshotRestore($server, $snapshotContent);
+            $this->auditLogger->log($customer, 'voice.ts3.snapshot.restore', ['voice_instance_id' => $instance->getId(), 'job_id' => $job->getId()]);
+            $this->entityManager->flush();
+            return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Snapshot restore queued.', 202);
+        }
+
+        if ($providerType === 'ts6') {
+            $server = $this->ts6Servers->find((int) $instance->getExternalId());
+            if ($server === null) {
+                return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
+            }
+            $job = $this->ts6Service->queueSnapshotRestore($server, $snapshotContent);
+            $this->auditLogger->log($customer, 'voice.ts6.snapshot.restore', ['voice_instance_id' => $instance->getId(), 'job_id' => $job->getId()]);
+            $this->entityManager->flush();
+            return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Snapshot restore queued.', 202);
         }
 
         return $this->responseEnvelopeFactory->error($request, 'Unsupported provider.', 'voice_provider_unsupported', 400);
@@ -1009,61 +1108,58 @@ final class CustomerVoiceApiController
     /** @return array<string, mixed> */
     private function normalizeLegacyTs3Server(Ts3VirtualServer $server): array
     {
-        return $this->normalizeLegacyTeamspeakServer(
-            'legacy-ts3-' . $server->getId(),
-            'ts3',
-            $server->getName(),
-            $server->getStatus(),
-            $server->getUpdatedAt(),
-            $server->getPublicHost() ?? $server->getNode()->getQueryConnectIp(),
-            $server->getVoicePort(),
-        );
-    }
-
-    /** @return array<string, mixed> */
-    private function normalizeLegacyTs6Server(Ts6VirtualServer $server): array
-    {
-        return $this->normalizeLegacyTeamspeakServer(
-            'legacy-ts6-' . $server->getId(),
-            'ts6',
-            $server->getName(),
-            $server->getStatus(),
-            $server->getUpdatedAt(),
-            $server->getPublicHost() ?? $server->getNode()->getQueryConnectIp(),
-            $server->getVoicePort(),
-            $server->getSlots(),
-        );
-    }
-
-    /** @return array<string, mixed> */
-    private function normalizeLegacyTeamspeakServer(
-        string $id,
-        string $providerType,
-        string $name,
-        string $status,
-        \DateTimeImmutable $updatedAt,
-        string $host,
-        ?int $voicePort,
-        ?int $playersMax = null,
-    ): array {
+        $id = $server->getId();
         return [
-            'id' => $id,
-            'name' => $name,
-            'provider_type' => $providerType,
-            'status' => strtolower($status),
+            'id' => 'legacy-ts3-' . $id,
+            'name' => $server->getName(),
+            'provider_type' => 'ts3',
+            'status' => strtolower($server->getStatus()),
             'players_online' => null,
-            'players_max' => $playersMax,
-            'reason' => 'Legacy TeamSpeak server without unified voice instance.',
-            'error_code' => 'legacy_teamspeak_instance',
-            'checked_at' => $updatedAt->format(DATE_RFC3339),
+            'players_max' => null,
+            'reason' => null,
+            'error_code' => null,
+            'checked_at' => $server->getUpdatedAt()->format(DATE_RFC3339),
             'stale' => false,
             'probe_in_progress' => false,
             'action_in_progress' => false,
             'active_job_id' => null,
             'retry_after' => null,
-            'connect' => ['host' => $host, 'port' => $voicePort],
-            'detail_url' => null,
-            'actions_enabled' => false,
+            'connect' => [
+                'host' => $server->getPublicHost() ?? $server->getNode()->getQueryConnectIp(),
+                'port' => $server->getVoicePort(),
+            ],
+            'detail_url' => '/customer/voice/legacy/ts3/' . $id,
+            'api_base_url' => '/api/v1/customer/voice/legacy/ts3/' . $id,
+            'actions_enabled' => true,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function normalizeLegacyTs6Server(Ts6VirtualServer $server): array
+    {
+        $id = $server->getId();
+        return [
+            'id' => 'legacy-ts6-' . $id,
+            'name' => $server->getName(),
+            'provider_type' => 'ts6',
+            'status' => strtolower($server->getStatus()),
+            'players_online' => null,
+            'players_max' => $server->getSlots(),
+            'reason' => null,
+            'error_code' => null,
+            'checked_at' => $server->getUpdatedAt()->format(DATE_RFC3339),
+            'stale' => false,
+            'probe_in_progress' => false,
+            'action_in_progress' => false,
+            'active_job_id' => null,
+            'retry_after' => null,
+            'connect' => [
+                'host' => $server->getPublicHost() ?? $server->getNode()->getQueryConnectIp(),
+                'port' => $server->getVoicePort(),
+            ],
+            'detail_url' => '/customer/voice/legacy/ts6/' . $id,
+            'api_base_url' => '/api/v1/customer/voice/legacy/ts6/' . $id,
+            'actions_enabled' => true,
         ];
     }
 

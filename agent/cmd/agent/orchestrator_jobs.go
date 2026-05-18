@@ -131,6 +131,10 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleTs3VirtualSnapshot(job)
 	case "ts6.virtual.snapshot.create":
 		return handleTs6VirtualSnapshot(job)
+	case "ts3.virtual.snapshot.restore":
+		return handleTs3VirtualSnapshotRestore(job)
+	case "ts6.virtual.snapshot.restore":
+		return handleTs6VirtualSnapshotRestore(job)
 	case "ts3.viewer.snapshot", "ts6.viewer.snapshot":
 		return handleViewerSnapshot(job)
 	case "admin.ssh_key.store":

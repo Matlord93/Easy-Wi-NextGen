@@ -49,6 +49,9 @@ final class SshQueryTransport implements QueryTransportInterface
         );
 
         $output = $sftp->exec($command);
+        if ($output === false) {
+            throw new QueryTransportException('Remote query runner execution failed.');
+        }
 
         // Best-effort cleanup — do not throw if this fails.
         try {
