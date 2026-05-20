@@ -75,7 +75,7 @@ func writeStartScript(instanceDir, startCommand string) (string, error) {
 	}
 
 	scriptPath := filepath.Join(scriptDir, "start.sh")
-	content := fmt.Sprintf("#!/bin/bash\ncd \"%s\"\nexec %s\n", instanceDir, startCommand)
+	content := fmt.Sprintf("#!/bin/bash\ncd %q\nexec /bin/bash -lc %q\n", instanceDir, startCommand)
 	if err := os.WriteFile(scriptPath, []byte(content), instanceFileMode); err != nil {
 		return "", fmt.Errorf("write start script: %w", err)
 	}
