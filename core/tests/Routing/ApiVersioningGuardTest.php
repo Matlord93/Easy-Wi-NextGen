@@ -26,6 +26,7 @@ final class ApiVersioningGuardTest extends KernelTestCase
             '#^/api/admin/instances$#',
             '#^/api/admin/instances/\\{id\\}$#',
             '#^/api/admin/instances/\\{id\\}/update-settings$#',
+            '#^/api/admin/instances/\\{id\\}/provision-template$#',
             '#^/api/admin/webspaces$#',
             '#^/api/admin/webspaces/\\{id\\}(?:/(?:resume|suspend))?$#',
             '#^/api/ts3/instances$#',

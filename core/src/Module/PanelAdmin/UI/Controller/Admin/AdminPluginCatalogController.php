@@ -714,7 +714,7 @@ final class AdminPluginCatalogController
                 'name' => 'Metamod:Source',
                 'version' => '2.0-stable',
                 'checksum' => 'manual-verification-required',
-                'download_url' => 'https://mms.alliedmods.net/mmsdrop/2.0/mmsource-latest-linux',
+                'download_url' => 'https://github.com/alliedmodders/metamod-source/releases/latest/download/mmsource-latest-linux',
                 'description' => 'Core mod loader for CS2/Source2. Nach Installation muss game/csgo/gameinfo.gi den Eintrag "Game csgo/addons/metamod" enthalten (zwischen Game_LowViolence csgo_lv und Game csgo).',
             ],
             [
@@ -762,7 +762,7 @@ final class AdminPluginCatalogController
                 'name' => 'SourceMod',
                 'version' => 'latest',
                 'checksum' => 'manual-verification-required',
-                'download_url' => 'https://sm.alliedmods.net/smdrop/1.12/sourcemod-latest-linux',
+                'download_url' => 'https://github.com/alliedmodders/sourcemod/releases/latest/download/sourcemod-latest-linux',
                 'description' => 'TF2 plugin framework (requires Metamod).',
             ],
             [

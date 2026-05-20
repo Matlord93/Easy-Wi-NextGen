@@ -30,7 +30,7 @@ final class AccountSecurityFlowTest extends WebTestCase
         $client->request('GET', '/account/security');
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('Sicherheitsbestätigung', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('Identität bestätigen', (string) $client->getResponse()->getContent());
     }
 
     public function testConfirmThenPasswordChangeWorks(): void
