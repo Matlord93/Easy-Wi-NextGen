@@ -126,3 +126,17 @@ func TestStripWineBootstrapRemovesPrivilegedSetupAfterPrefixCommand(t *testing.T
 		t.Fatalf("expected steamcmd command to be preserved, got %q", stripped)
 	}
 }
+
+func TestStripWineBootstrapRemovesDanglingQuoteAfterBootstrapRemoval(t *testing.T) {
+	command := `bash -lc "set -e; if ! command -v wine >/dev/null 2>&1; then if command -v apt-get >/dev/null 2>&1; then export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y --no-install-recommends wine-stable screen; elif command -v dnf >/dev/null 2>&1; then dnf install -y wine screen; else echo \"wine missing\" >&2; exit 1; fi; fi; steamcmd +force_install_dir /home/gs46 +login anonymous +app_update 4129620 validate +quit; cd /home/gs46; if [ ! -f R5/ServerDescription.json ]; then timeout 30s env DISPLAY=:0 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe >/dev/null 2>&1 || true; fi"`
+	stripped := stripWineBootstrap(command)
+	if strings.Count(stripped, `"`)%2 == 1 {
+		t.Fatalf("expected balanced quotes after stripping bootstrap, got %q", stripped)
+	}
+	if strings.Contains(stripped, "command -v wine") || strings.Contains(stripped, "apt-get") {
+		t.Fatalf("expected bootstrap setup to be removed, got %q", stripped)
+	}
+	if !strings.Contains(stripped, "steamcmd +force_install_dir /home/gs46 +login anonymous +app_update 4129620 validate +quit") {
+		t.Fatalf("expected steamcmd command to remain, got %q", stripped)
+	}
+}

@@ -292,6 +292,12 @@ func stripWineBootstrap(command string) string {
 	if stripped == "" {
 		return trimmed
 	}
+	if strings.Contains(strings.ToLower(trimmed), "bash -lc") {
+		quoteCount := strings.Count(stripped, `"`)
+		if quoteCount%2 == 1 {
+			stripped = strings.TrimSuffix(stripped, `"`)
+		}
+	}
 	return stripped
 }
 
