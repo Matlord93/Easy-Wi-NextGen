@@ -268,7 +268,21 @@ func stripWineBootstrap(command string) string {
 		return command
 	}
 	stripped := wineBootstrapRegex.ReplaceAllString(trimmed, "")
-	stripped = strings.TrimSpace(stripped)
+	if stripped == trimmed {
+		candidate := strings.ReplaceAll(trimmed, `\"`, `"`)
+		marker := "if ! command -v wine"
+		if idx := strings.Index(strings.ToLower(candidate), marker); idx >= 0 {
+			prefixStart := idx
+			if b := strings.LastIndex(candidate[:idx], "bash -lc"); b >= 0 {
+				prefixStart = b
+			}
+			if end := strings.Index(strings.ToLower(candidate[idx:]), "fi; fi;"); end >= 0 {
+				endPos := idx + end + len("fi; fi;")
+				candidate = candidate[:prefixStart] + candidate[endPos:]
+			}
+		}
+		stripped = candidate
+	}
 	if strings.HasSuffix(stripped, "\"") && strings.Count(trimmed, "\"")%2 == 1 {
 		stripped = strings.TrimSuffix(stripped, "\"")
 	}

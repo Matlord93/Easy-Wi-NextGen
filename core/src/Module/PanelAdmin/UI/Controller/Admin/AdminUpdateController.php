@@ -122,6 +122,7 @@ final class AdminUpdateController
         if ($triggered) {
             $summary['notice'] = $this->translateUpdateMessage('admin_updates_job_started', $request->getLocale());
         } else {
+            $this->updateJobService->markJobFailedToStart($job['id'], 'Update-Runner konnte nicht gestartet werden.');
             $summary['error'] = $this->translateUpdateMessage('admin_updates_runner_not_found', $request->getLocale());
         }
 
@@ -276,10 +277,23 @@ final class AdminUpdateController
             return $this->renderAgentUpdateCard($summary);
         }
 
-        $updateJobs = $this->agentUpdateQueueService->buildUpdateJobIndex($agents);
-        $queued = $this->agentUpdateQueueService->queueAgentUpdates($agents, $latestVersion, $updateJobs, $agentChannel);
+        $analysis = $this->agentUpdateQueueService->analyzeManualUpdateCandidates($agents, $latestVersion, $agentChannel);
+        $queued = $this->agentUpdateQueueService->queueAgentUpdates($analysis['eligible'], $latestVersion, [], $agentChannel);
 
-        $summary['notice'] = $queued > 0;
+        if ($queued > 0) {
+            $summary['notice'] = $this->translateUpdateMessage('admin_updates_agents_notice_count', $request->getLocale(), ['%count%' => (string) $queued]);
+            if ($analysis['blocked'] !== []) {
+                $summary['error'] = $this->translateUpdateMessage('admin_updates_agents_partially_blocked', $request->getLocale(), ['%count%' => (string) count($analysis['blocked'])]);
+            }
+        } else {
+            if ($analysis['blocked'] !== []) {
+                $summary['error'] = $this->translateUpdateMessage('admin_updates_agents_blocked_only', $request->getLocale(), ['%count%' => (string) count($analysis['blocked'])]);
+            } else {
+                $summary['error'] = $this->translateUpdateMessage('admin_updates_agents_nothing_queued', $request->getLocale());
+            }
+        }
+
+        $summary['blockedJobs'] = $analysis['blocked'];
 
         return $this->renderAgentUpdateCard($summary);
     }
@@ -381,6 +395,7 @@ final class AdminUpdateController
             'cacheStatus' => $cacheStatus,
             'channels' => AgentReleaseChecker::channels(),
             'notice' => null,
+            'blockedJobs' => [],
             'csrf' => [
                 'agents_channel' => $this->csrfTokenManager->getToken('admin_update_agents_channel')->getValue(),
             ],

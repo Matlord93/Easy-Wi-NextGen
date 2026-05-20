@@ -112,3 +112,17 @@ func TestStripWineBootstrapRemovesPrivilegedSetup(t *testing.T) {
 		t.Fatalf("expected steamcmd command to be preserved, got %q", stripped)
 	}
 }
+
+func TestStripWineBootstrapRemovesPrivilegedSetupAfterPrefixCommand(t *testing.T) {
+	command := `rm -rf /tmp/dumps /tmp/dumps-* 2>/dev/null || true; bash -lc "set -e; if ! command -v wine >/dev/null 2>&1; then if command -v apt-get >/dev/null 2>&1; then export DEBIAN_FRONTEND=noninteractive; apt-get update -y; apt-get install -y wine; fi; fi; steamcmd +login anonymous +quit"`
+	stripped := stripWineBootstrap(command)
+	if strings.Contains(stripped, "apt-get") || strings.Contains(stripped, "command -v wine") {
+		t.Fatalf("expected bootstrap to be removed, got %q", stripped)
+	}
+	if !strings.Contains(stripped, "rm -rf /tmp/dumps") {
+		t.Fatalf("expected prefix command to be preserved, got %q", stripped)
+	}
+	if !strings.Contains(stripped, "steamcmd +login anonymous +quit") {
+		t.Fatalf("expected steamcmd command to be preserved, got %q", stripped)
+	}
+}

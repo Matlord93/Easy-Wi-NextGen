@@ -206,4 +206,39 @@ final class AgentUpdateQueueService
 
         return $os === 'windows' ? 'agent.self_update' : 'agent.update';
     }
+
+    /**
+     * @param Agent[] $agents
+     *
+     * @return array{eligible: array<int, Agent>, blocked: array<int, array<string, string>>}
+     */
+    public function analyzeManualUpdateCandidates(array $agents, ?string $latestVersion, string $channel): array
+    {
+        $existingJobs = $this->buildUpdateJobIndex($agents);
+        $eligible = [];
+        $blocked = [];
+
+        foreach ($agents as $agent) {
+            if ($this->buildAgentUpdatePayload($agent, $latestVersion, $channel) === null) {
+                continue;
+            }
+
+            $existingJob = $existingJobs[$agent->getId()] ?? null;
+            if ($existingJob !== null && in_array($existingJob->getStatus(), [JobStatus::Queued, JobStatus::Running], true)) {
+                $blocked[] = [
+                    'jobId' => $existingJob->getId(),
+                    'agentId' => $agent->getId(),
+                    'agentName' => $agent->getName(),
+                    'status' => $existingJob->getStatus()->value,
+                    'createdAt' => $existingJob->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                    'updatedAt' => $existingJob->getUpdatedAt()->format(\DateTimeInterface::ATOM),
+                ];
+                continue;
+            }
+
+            $eligible[] = $agent;
+        }
+
+        return ['eligible' => $eligible, 'blocked' => $blocked];
+    }
 }

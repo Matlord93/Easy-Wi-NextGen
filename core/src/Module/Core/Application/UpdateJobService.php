@@ -145,28 +145,50 @@ final class UpdateJobService implements MigrationStatusProviderInterface
 
     public function triggerRunner(string $jobId): bool
     {
-        if (trim($this->runnerCommand) === '') {
-            return false;
+        $commands = [];
+        if (trim($this->runnerCommand) !== '') {
+            $commands[] = sprintf('%s --run-job %s', $this->runnerCommand, escapeshellarg($jobId));
+        }
+        $commands[] = sprintf('%s bin/console app:update:run %s --no-interaction', escapeshellarg(PHP_BINARY), escapeshellarg($jobId));
+
+        foreach ($commands as $command) {
+            try {
+                $process = Process::fromShellCommandline($command, $this->coreDir, ['EASYWI_PHP_BIN' => PHP_BINARY], null, null);
+                $process->start();
+
+                return true;
+            } catch (\Throwable $exception) {
+                $this->logger->warning('update.runner_failed', [
+                    'job_id' => $jobId,
+                    'command' => $command,
+                    'exception' => $exception,
+                ]);
+            }
         }
 
-        try {
-            $process = Process::fromShellCommandline(
-                sprintf('%s --run-job %s', $this->runnerCommand, escapeshellarg($jobId)),
-                $this->coreDir,
-                ['EASYWI_PHP_BIN' => PHP_BINARY],
-                null,
-                1,
-            );
-            $process->start();
-        } catch (\Throwable $exception) {
-            $this->logger->warning('update.runner_failed', [
-                'job_id' => $jobId,
-                'exception' => $exception,
-            ]);
-            return false;
+        return false;
+    }
+
+    public function markJobFailedToStart(string $jobId, string $message): void
+    {
+        $path = $this->jobsDir . '/' . $jobId . '.json';
+        $job = $this->readJob($path);
+        if ($job === null) {
+            return;
         }
 
-        return true;
+        $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+        $job['status'] = 'failed';
+        $job['startedAt'] = $job['startedAt'] ?? $now;
+        $job['finishedAt'] = $now;
+        $job['exitCode'] = 1;
+        $job['error'] = $message;
+        $this->writeJob($path, $job);
+
+        $logPath = is_string($job['logPath'] ?? null) ? $job['logPath'] : null;
+        if ($logPath !== null && $logPath !== '') {
+            @file_put_contents($logPath, '[' . date('c') . '] ' . $message . PHP_EOL, FILE_APPEND);
+        }
     }
 
     /**

@@ -88,12 +88,25 @@
     {# ── Notices ── #}
     {% if agentUpdate.notice %}
         <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);font-size:13px;color:#4ade80;">
-            {{ t('admin_updates_agents_notice', page_locale()) }}
+            {{ agentUpdate.notice }}
         </div>
     {% endif %}
     {% if agentUpdate.error %}
         <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);font-size:13px;color:#fcd34d;">
             {{ agentUpdate.error }}
+        </div>
+    {% endif %}
+
+    {% if agentUpdate.blockedJobs is defined and agentUpdate.blockedJobs is not empty %}
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);font-size:12px;color:#bfdbfe;">
+            <strong>{{ t('admin_updates_agents_blocked_jobs_title', page_locale()) }}</strong>
+            <ul style="margin:8px 0 0 16px;padding:0;display:flex;flex-direction:column;gap:4px;">
+                {% for row in agentUpdate.blockedJobs %}
+                    <li>
+                        {{ row.agentName ?: row.agentId }} · Job <code>{{ row.jobId }}</code> · {{ row.status }} · {{ row.createdAt|date('Y-m-d H:i:s') }} / {{ row.updatedAt|date('Y-m-d H:i:s') }}
+                    </li>
+                {% endfor %}
+            </ul>
         </div>
     {% endif %}
 
