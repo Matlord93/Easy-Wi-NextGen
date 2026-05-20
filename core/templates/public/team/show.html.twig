@@ -2,7 +2,7 @@
 {% block title %}{{ group.name }} · Team{% endblock %}
 {% block content %}
 <div class="ng-container ng-section">
-  <a href="/teams" class="text-sm text-cyan-400">← Zurück zu Teams</a>
+  <a href="/teams" class="text-sm text-cyan-400">{{ t('public_team_back', page_locale()) }}</a>
   <h1 class="text-3xl font-bold mt-2">{{ group.name }}</h1>
   <p class="text-slate-400">Spiel: {{ group.game }}</p>
   <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -11,7 +11,7 @@
         {% if member.avatarPath %}<img src="{{ member.avatarPath }}" class="h-44 w-full object-cover" alt="{{ member.name }}">{% endif %}
         <div class="p-4"><h2 class="font-semibold">{{ member.name }}</h2><p class="text-sm text-slate-400">{{ member.roleTitle }}</p></div>
       </article>
-    {% else %}<p>Keine Mitglieder für dieses Team.</p>{% endfor %}
+    {% else %}<p>{{ t('public_team_no_members', page_locale()) }}</p>{% endfor %}
   </div>
 </div>
 {% endblock %}

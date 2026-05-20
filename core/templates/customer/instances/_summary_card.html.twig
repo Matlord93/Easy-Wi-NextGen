@@ -113,7 +113,7 @@
                 <strong class="block text-slate-200">{{ connection.address ?? '—' }}</strong>
             </div>
             <div>
-                <span class="text-slate-500">Map</span>
+                <span class="text-slate-500">{{ t('customer_instance_map_label', page_locale()) }}</span>
                 <strong class="block text-slate-200" data-query-map>{{ query.map ?? '—' }}</strong>
             </div>
         </div>
@@ -125,11 +125,11 @@
         </div>
 
         <details class="mt-1" data-query-details>
-            <summary class="cursor-pointer text-slate-600 hover:text-slate-400">Debug-Details</summary>
+            <summary class="cursor-pointer text-slate-600 hover:text-slate-400">{{ t('customer_instance_debug_details', page_locale()) }}</summary>
             <div class="mt-1 space-y-0.5 text-slate-600">
-                <div>Host-Quelle: <span data-debug-host-source>{{ queryDebug.resolved_host_source ?? '—' }}</span></div>
-                <div>Port-Quelle: <span data-debug-port-source>{{ queryDebug.port_source ?? '—' }}</span></div>
-                <div>Timeout: <span data-debug-timeout>{{ queryDebug.timeout_ms ?? '—' }}</span> ms · Fehler: <span data-debug-error>{{ queryDebug.last_error_code ?? '—' }}</span></div>
+                <div>{{ t('customer_instance_debug_host_source', page_locale()) }}: <span data-debug-host-source>{{ queryDebug.resolved_host_source ?? '—' }}</span></div>
+                <div>{{ t('customer_instance_debug_port_source', page_locale()) }}: <span data-debug-port-source>{{ queryDebug.port_source ?? '—' }}</span></div>
+                <div>{{ t('customer_instance_debug_timeout_ms', page_locale()) }}: <span data-debug-timeout>{{ queryDebug.timeout_ms ?? '—' }}</span> ms · {{ t('customer_instance_debug_error_code', page_locale()) }}: <span data-debug-error>{{ queryDebug.last_error_code ?? '—' }}</span></div>
             </div>
         </details>
 

@@ -1,7 +1,7 @@
 <div class="p-6">
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-lg font-semibold">{{ form.action == 'create' ? 'New Window' : 'Edit Window' }}</h2>
+            <h2 class="text-lg font-semibold">{{ form.action == 'create' ? t('admin_status_new_window', page_locale()) : t('admin_status_edit_window', page_locale()) }}</h2>
             <p class="text-sm text-slate-700">Schedule planned work and let customers know.</p>
         </div>
     </div>

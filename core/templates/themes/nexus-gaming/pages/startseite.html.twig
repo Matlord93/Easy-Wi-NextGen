@@ -146,7 +146,7 @@
         </a>
       {% else %}
         <div class="ng-panel__empty">
-          <p>Keine Events geplant.</p>
+          <p>{{ t('cms_no_events', page_locale()) }}</p>
           <a href="/events" class="ng-link">Alle Events →</a>
         </div>
       {% endfor %}
@@ -187,7 +187,7 @@
           </div>
         </div>
       {% else %}
-        <div class="ng-panel__empty"><p>Keine freigegebenen Server.</p></div>
+        <div class="ng-panel__empty"><p>{{ t('cms_no_servers', page_locale()) }}</p></div>
       {% endfor %}
     </div>
   </div>
@@ -218,7 +218,7 @@
             </span>
           </div>
         {% else %}
-          <div class="ng-panel__empty"><p>Keine aktuellen Aktivitäten.</p></div>
+          <div class="ng-panel__empty"><p>{{ t('cms_no_activity', page_locale()) }}</p></div>
         {% endfor %}
       </div>
     </div>

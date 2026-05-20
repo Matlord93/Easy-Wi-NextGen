@@ -1,262 +1,340 @@
 {% extends 'admin/base.html.twig' %}
-
-{% set pageTitle = t('admin_profile_title', page_locale()) %}
-{% set pageSubtitle = t('admin_profile_description', page_locale()) %}
+{% set pageTitle = t('prof_hero_title', page_locale()) %}
+{% set pageSubtitle = t('admin_prof_hero_intro', page_locale()) %}
 {% set activeNav = 'profile' %}
+{% set locale = page_locale() %}
+
+{# Default to security tab when a 2FA or password action just completed #}
+{% set defaultTab = (twoFactor.success is not empty or (errors is not empty and form.password is defined)) ? 'security' : 'profile' %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    {% if errors is not empty %}
-        <div class="ng-alert ng-alert--danger">
-            <ul class="list-disc space-y-1 pl-4">
-                {% for error in errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% elseif form.success %}
-        <div class="ng-alert ng-alert--success">
-            {{ t('admin_profile_success', page_locale()) }}
-        </div>
-    {% endif %}
-
-    {# ── Profile Details ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_profile_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_profile_description', page_locale()) }}</p>
+    {# ── Hero / KPI card ── #}
+    <div class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#6366f1;"></span>
+                        {{ t('admin_prof_hero_label', locale) }}
+                    </div>
+                    <h1 class="tkt-hero__title">{{ t('prof_hero_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_prof_hero_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px;">
+                    <div class="tkt-kpi tkt-kpi--resolved">
+                        <div class="tkt-kpi__label">{{ t('admin_prof_kpi_account', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ form.email }}</div>
+                    </div>
+                    <div class="tkt-kpi {{ twoFactor.enabled ? 'tkt-kpi--resolved' : 'tkt-kpi--pending' }}">
+                        <div class="tkt-kpi__label">{{ t('admin_prof_kpi_2fa', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;">{{ twoFactor.enabled ? t('two_factor_enabled_badge', locale) : t('two_factor_disabled_badge', locale) }}</div>
+                    </div>
+                    <div class="tkt-kpi {{ form.ssh_key_set ? 'tkt-kpi--resolved' : '' }}">
+                        <div class="tkt-kpi__label">{{ t('admin_prof_kpi_ssh', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;">{{ form.ssh_key_set ? t('admin_prof_kpi_ssh_set', locale) : t('admin_prof_kpi_ssh_unset', locale) }}</div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="ng-data-card__body">
-            <form method="post" action="/admin/profile">
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="form-field">
-                        <label class="form-label">Name</label>
-                        <input
-                            type="text"
-                            name="name"
-                            value="{{ form.name }}"
-                            class="form-input"
-                        >
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('email_address', page_locale()) }}</label>
-                        <input
-                            type="email"
-                            name="email"
-                            required
-                            value="{{ form.email }}"
-                            class="form-input"
-                        >
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_profile_password_label', page_locale()) }}</label>
-                        <input
-                            type="password"
-                            name="password"
-                            placeholder="{{ t('admin_profile_password_placeholder', page_locale()) }}"
-                            class="form-input"
-                        >
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_profile_password_confirm_label', page_locale()) }}</label>
-                        <input
-                            type="password"
-                            name="password_confirm"
-                            placeholder="{{ t('admin_profile_password_confirm_placeholder', page_locale()) }}"
-                            class="form-input"
-                        >
-                    </div>
-                    <div class="form-field col-span-2">
-                        <label class="form-label">{{ t('admin_profile_signature_label', page_locale()) }}</label>
-                        <textarea
-                            name="signature"
-                            rows="4"
-                            placeholder="{{ t('admin_profile_signature_placeholder', page_locale()) }}"
-                            class="form-input"
-                        >{{ form.signature }}</textarea>
-                    </div>
-                    <div class="form-field col-span-2">
-                        <label class="form-label">{{ t('admin_profile_ssh_key_label', page_locale()) }}</label>
-                        {% if form.ssh_key_set %}
-                            <textarea rows="4" class="form-input bg-slate-50 text-slate-500" readonly disabled>{{ form.ssh_key }}</textarea>
-                            <p class="mt-2 text-xs text-slate-600">{{ t('admin_profile_ssh_key_help_locked', page_locale()) }}</p>
-                        {% elseif form.ssh_key_pending %}
-                            <textarea rows="4" class="form-input bg-slate-50 text-slate-500" readonly disabled>{{ form.ssh_key_pending_value }}</textarea>
-                            <p class="mt-2 text-xs text-slate-600">{{ t('admin_profile_ssh_key_help_pending', page_locale()) }}</p>
-                        {% elseif form.ssh_key_enabled %}
-                            <textarea
-                                name="ssh_key"
-                                rows="4"
-                                placeholder="{{ t('admin_profile_ssh_key_placeholder', page_locale()) }}"
-                                class="form-input"
-                            >{{ form.ssh_key }}</textarea>
-                            <p class="mt-2 text-xs text-slate-600">{{ t('admin_profile_ssh_key_help', page_locale()) }}</p>
-                            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                                <p class="font-semibold text-slate-700">{{ t('admin_profile_ssh_key_instruction_title', page_locale()) }}</p>
-                                <ul class="mt-2 list-disc space-y-1 pl-4">
-                                    <li>{{ t('admin_profile_ssh_key_instruction_generate', page_locale()) }}</li>
-                                    <li>{{ t('admin_profile_ssh_key_instruction_copy', page_locale()) }}</li>
-                                </ul>
-                            </div>
-                        {% else %}
-                            <textarea rows="4" class="form-input bg-slate-50 text-slate-500" readonly disabled></textarea>
-                            <p class="mt-2 text-xs text-slate-600">{{ t('admin_profile_ssh_key_help_disabled', page_locale()) }}</p>
-                            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                                <p class="font-semibold text-slate-700">{{ t('admin_profile_ssh_key_instruction_title', page_locale()) }}</p>
-                                <ul class="mt-2 list-disc space-y-1 pl-4">
-                                    <li>{{ t('admin_profile_ssh_key_instruction_generate', page_locale()) }}</li>
-                                    <li>{{ t('admin_profile_ssh_key_instruction_copy', page_locale()) }}</li>
-                                </ul>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="mt-6 flex flex-wrap items-center gap-3">
-                    <button type="submit" class="ui-button ui-button--primary">{{ t('admin_profile_save_changes', page_locale()) }}</button>
-                    <a href="/admin" class="ui-button ui-button--ghost">{{ t('admin_profile_back_dashboard', page_locale()) }}</a>
-                </div>
-            </form>
+
+        {# ── Tab navigation ── #}
+        <div class="prof-tabs">
+            <button type="button" class="prof-tab-btn" data-tab-btn="profile">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
+                {{ t('admin_prof_tab_profile', locale) }}
+            </button>
+            <button type="button" class="prof-tab-btn" data-tab-btn="security">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524z"/></svg>
+                {{ t('admin_prof_tab_security', locale) }}
+            </button>
         </div>
     </div>
 
-    {# ── Two-Factor Authentication ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('two_factor_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('two_factor_admin_description', page_locale()) }}</p>
+    {# ── Alerts ── #}
+    {% if errors is not empty %}
+        <div class="ng-alert ng-alert--danger">
+            <ul style="margin:0;padding-left:18px;">
+                {% for error in errors %}<li>{{ t(error, locale) }}</li>{% endfor %}
+            </ul>
+        </div>
+    {% elseif form.success %}
+        <div class="ng-alert ng-alert--success">{{ t('admin_profile_success', locale) }}</div>
+    {% endif %}
+
+    {% if twoFactor.success %}
+        <div class="ng-alert ng-alert--success">{{ t(twoFactor.success, locale) }}</div>
+    {% endif %}
+
+    {# ══════════════════════════════════════════════════
+       TAB: PROFILE
+       ══════════════════════════════════════════════════ #}
+    <div data-tab-panel="profile" style="display:flex;flex-direction:column;gap:20px;">
+
+        <div class="prof-section">
+            <div class="prof-section__head">
+                <div>
+                    <div class="prof-section__title">{{ t('admin_prof_section_details', locale) }}</div>
+                    <div class="prof-section__sub">{{ t('admin_prof_section_details_sub', locale) }}</div>
+                </div>
+                <span class="ui-badge ui-badge--neutral">{{ t('admin_profile_title', locale) }}</span>
             </div>
-            <div class="ng-data-card__actions">
-                {% if twoFactor.required and not twoFactor.enabled %}
-                    <span class="ui-badge ui-badge--warning">{{ t('two_factor_required_badge', page_locale()) }}</span>
-                {% elseif twoFactor.enabled %}
-                    <span class="ui-badge ui-badge--success">{{ t('two_factor_enabled_badge', page_locale()) }}</span>
-                {% else %}
-                    <span class="ui-badge ui-badge--neutral">{{ t('two_factor_disabled_badge', page_locale()) }}</span>
-                {% endif %}
+            <div class="prof-section__body">
+                <form method="post" action="/admin/profile">
+                    {# Hidden password fields so they're submitted as empty (won't change password) #}
+                    <input type="hidden" name="password" value="">
+                    <input type="hidden" name="password_confirm" value="">
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('name', locale) }}</label>
+                            <input type="text" name="name" value="{{ form.name }}" class="form-input">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('email_address', locale) }}</label>
+                            <input type="email" name="email" required value="{{ form.email }}" class="form-input">
+                        </div>
+                    </div>
+
+                    <div class="form-field" style="margin-top:12px;">
+                        <label class="form-label">{{ t('admin_profile_signature_label', locale) }}</label>
+                        <textarea name="signature" rows="4" placeholder="{{ t('admin_profile_signature_placeholder', locale) }}" class="form-input">{{ form.signature }}</textarea>
+                    </div>
+
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;gap:10px;">
+                        <a href="/admin" class="ui-button ui-button--ghost">{{ t('admin_profile_back_dashboard', locale) }}</a>
+                        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_profile_save_changes', locale) }}</button>
+                    </div>
+                </form>
             </div>
         </div>
-        <div class="ng-data-card__body">
-            {% if twoFactor.success %}
-                <div class="ng-alert ng-alert--success mb-4">
-                    {{ t(twoFactor.success, page_locale()) }}
+
+        {# ── SSH Public Key ── #}
+        <div class="prof-section">
+            <div class="prof-section__head">
+                <div>
+                    <div class="prof-section__title">{{ t('admin_prof_section_ssh', locale) }}</div>
+                    <div class="prof-section__sub">{{ t('admin_profile_ssh_key_label', locale) }}</div>
                 </div>
-            {% endif %}
+                <span class="ui-badge {{ form.ssh_key_set ? 'ui-badge--success' : 'ui-badge--neutral' }}">
+                    {{ form.ssh_key_set ? t('admin_prof_kpi_ssh_set', locale) : t('admin_prof_kpi_ssh_unset', locale) }}
+                </span>
+            </div>
+            <div class="prof-section__body">
+                <form method="post" action="/admin/profile">
+                    {# Preserve other fields unchanged when submitting SSH key #}
+                    <input type="hidden" name="name" value="{{ form.name }}">
+                    <input type="hidden" name="email" value="{{ form.email }}">
+                    <input type="hidden" name="signature" value="{{ form.signature }}">
+                    <input type="hidden" name="password" value="">
+                    <input type="hidden" name="password_confirm" value="">
 
-            {% if twoFactor.enabled %}
-                <div class="flex flex-col gap-5">
-                    <p class="text-sm text-slate-700">{{ t('two_factor_enabled_intro', page_locale()) }}</p>
-
-                    <form method="post" action="/admin/profile/2fa/recovery" class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                        <div class="form-field">
-                            <label class="form-label">{{ t('two_factor_code_label', page_locale()) }}</label>
-                            <input type="text" name="otp" placeholder="123456" class="form-input w-48">
+                    {% if form.ssh_key_set %}
+                        <div class="prof-secret-bar" style="margin-bottom:10px;">
+                            <span class="prof-secret-bar__value" style="font-size:12px;opacity:0.7;">{{ form.ssh_key }}</span>
                         </div>
-                        <div class="text-xs text-slate-600 self-end pb-2">{{ t('two_factor_regenerate_hint', page_locale()) }}</div>
-                        <button type="submit" class="ui-button ui-button--ghost self-end">{{ t('two_factor_regenerate', page_locale()) }}</button>
-                    </form>
-
-                    <form method="post" action="/admin/profile/2fa/disable" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <p style="font-size:13px;color:var(--ng-text-muted);margin:0;">{{ t('admin_profile_ssh_key_help_locked', locale) }}</p>
+                    {% elseif form.ssh_key_pending %}
+                        <div class="prof-secret-bar" style="margin-bottom:10px;">
+                            <span class="prof-secret-bar__value" style="font-size:12px;opacity:0.7;">{{ form.ssh_key_pending_value }}</span>
+                        </div>
+                        <p style="font-size:13px;color:var(--ng-text-muted);margin:0;">{{ t('admin_profile_ssh_key_help_pending', locale) }}</p>
+                    {% elseif form.ssh_key_enabled %}
                         <div class="form-field">
-                            <label class="form-label">{{ t('two_factor_code_or_recovery', page_locale()) }}</label>
-                            <input type="text" name="otp" placeholder="123456" class="form-input w-48">
+                            <label class="form-label">{{ t('admin_profile_ssh_key_label', locale) }}</label>
+                            <textarea name="ssh_key" rows="4" placeholder="{{ t('admin_profile_ssh_key_placeholder', locale) }}" class="form-input">{{ form.ssh_key }}</textarea>
+                            <p class="form-hint">{{ t('admin_profile_ssh_key_help', locale) }}</p>
+                        </div>
+                        <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:14px;margin-top:12px;">
+                            <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:var(--ng-text);">{{ t('admin_profile_ssh_key_instruction_title', locale) }}</p>
+                            <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ng-text-muted);display:flex;flex-direction:column;gap:4px;">
+                                <li>{{ t('admin_profile_ssh_key_instruction_generate', locale) }}</li>
+                                <li>{{ t('admin_profile_ssh_key_instruction_copy', locale) }}</li>
+                            </ul>
+                        </div>
+                        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                            <button type="submit" class="ui-button ui-button--primary">{{ t('admin_profile_save_changes', locale) }}</button>
+                        </div>
+                    {% else %}
+                        <textarea rows="3" class="form-input" readonly disabled style="opacity:0.5;cursor:not-allowed;"></textarea>
+                        <p style="font-size:13px;color:var(--ng-text-muted);margin:8px 0 0;">{{ t('admin_profile_ssh_key_help_disabled', locale) }}</p>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+
+    </div>{# /tab panel: profile #}
+
+    {# ══════════════════════════════════════════════════
+       TAB: SECURITY
+       ══════════════════════════════════════════════════ #}
+    <div data-tab-panel="security" style="display:none;flex-direction:column;gap:20px;">
+
+        {# ── Password change ── #}
+        <div class="prof-section">
+            <div class="prof-section__head">
+                <div>
+                    <div class="prof-section__title">{{ t('admin_prof_section_password', locale) }}</div>
+                    <div class="prof-section__sub">{{ t('admin_prof_section_password_sub', locale) }}</div>
+                </div>
+                <span class="ui-badge ui-badge--neutral">
+                    <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px;margin-right:4px;"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+                    {{ t('password', locale) }}
+                </span>
+            </div>
+            <div class="prof-section__body">
+                <form method="post" action="/admin/profile">
+                    {# Preserve other fields when only changing password #}
+                    <input type="hidden" name="name" value="{{ form.name }}">
+                    <input type="hidden" name="email" value="{{ form.email }}">
+                    <input type="hidden" name="signature" value="{{ form.signature }}">
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_profile_password_label', locale) }}</label>
+                            <input type="password" name="password" placeholder="{{ t('admin_profile_password_placeholder', locale) }}" class="form-input">
                         </div>
                         <div class="form-field">
-                            <label class="form-label">{{ t('two_factor_recovery_label', page_locale()) }}</label>
-                            <input type="text" name="recovery_code" placeholder="0000-0000" class="form-input w-48">
+                            <label class="form-label">{{ t('admin_profile_password_confirm_label', locale) }}</label>
+                            <input type="password" name="password_confirm" placeholder="{{ t('admin_profile_password_confirm_placeholder', locale) }}" class="form-input">
                         </div>
-                        <button type="submit" class="ui-button ui-button--danger self-end">{{ t('two_factor_disable', page_locale()) }}</button>
-                    </form>
+                    </div>
+                    <p class="form-hint" style="margin-top:6px;">{{ t('password_minimum', locale) }}</p>
 
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_profile_save_changes', locale) }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {# ── Two-factor authentication ── #}
+        <div class="prof-section">
+            <div class="prof-section__head">
+                <div>
+                    <div class="prof-section__title">{{ t('admin_prof_section_2fa', locale) }}</div>
+                    <div class="prof-section__sub">{{ t('admin_prof_section_2fa_sub', locale) }}</div>
+                </div>
+                {% if twoFactor.required and not twoFactor.enabled %}
+                    <span class="ui-badge ui-badge--warning">{{ t('two_factor_required_badge', locale) }}</span>
+                {% elseif twoFactor.enabled %}
+                    <span class="ui-badge ui-badge--success">{{ t('two_factor_enabled_badge', locale) }}</span>
+                {% else %}
+                    <span class="ui-badge ui-badge--neutral">{{ t('two_factor_disabled_badge', locale) }}</span>
+                {% endif %}
+            </div>
+            <div class="prof-section__body">
+
+                {% if twoFactor.enabled %}
+
+                    <p style="font-size:13px;color:var(--ng-text-muted);margin:0;">{{ t('two_factor_enabled_intro', locale) }}</p>
+
+                    {# ── Regenerate recovery codes ── #}
+                    <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:16px;">
+                        <div style="font-size:12px;font-weight:700;color:var(--ng-text);margin-bottom:10px;">{{ t('two_factor_regenerate', locale) }}</div>
+                        <form method="post" action="/admin/profile/2fa/recovery" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                            <div class="form-field" style="flex:1;min-width:160px;">
+                                <label class="form-label">{{ t('two_factor_code_label', locale) }}</label>
+                                <input type="text" name="otp" placeholder="123456" class="form-input" autocomplete="one-time-code">
+                            </div>
+                            <p style="font-size:11px;color:var(--ng-text-muted);align-self:flex-end;padding-bottom:10px;margin:0;">{{ t('two_factor_regenerate_hint', locale) }}</p>
+                            <button type="submit" class="ui-button ui-button--ghost">{{ t('two_factor_regenerate', locale) }}</button>
+                        </form>
+                    </div>
+
+                    {# ── Disable 2FA ── #}
+                    <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.18);border-radius:var(--ng-radius);padding:16px;">
+                        <div style="font-size:12px;font-weight:700;color:var(--ng-text);margin-bottom:10px;">{{ t('two_factor_disable', locale) }}</div>
+                        <form method="post" action="/admin/profile/2fa/disable" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                            <div class="form-field" style="flex:1;min-width:160px;">
+                                <label class="form-label">{{ t('two_factor_code_or_recovery', locale) }}</label>
+                                <input type="text" name="otp" placeholder="123456" class="form-input" autocomplete="one-time-code">
+                            </div>
+                            <div class="form-field" style="flex:1;min-width:160px;">
+                                <label class="form-label">{{ t('two_factor_recovery_label', locale) }}</label>
+                                <input type="text" name="recovery_code" placeholder="0000-0000" class="form-input">
+                            </div>
+                            <button type="submit" class="ui-button ui-button--danger">{{ t('two_factor_disable', locale) }}</button>
+                        </form>
+                    </div>
+
+                    {# ── Recovery codes shown once ── #}
                     {% if twoFactor.recovery_codes is not empty %}
-                        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                            <p class="font-semibold">{{ t('two_factor_recovery_show_once', page_locale()) }}</p>
-                            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                        <div class="ng-alert ng-alert--warning">
+                            <p style="margin:0 0 8px;font-weight:700;">{{ t('two_factor_recovery_show_once', locale) }}</p>
+                            <div class="prof-recovery-grid">
                                 {% for code in twoFactor.recovery_codes %}
-                                    <div class="rounded bg-white px-3 py-2 font-mono text-sm text-slate-700">{{ code }}</div>
+                                    <div class="prof-recovery-grid__code">{{ code }}</div>
                                 {% endfor %}
                             </div>
                         </div>
                     {% endif %}
-                </div>
-            {% else %}
-                <div class="grid gap-6 lg:grid-cols-[1fr,240px]">
-                    <div>
-                        <p class="text-sm text-slate-700">{{ t('two_factor_setup_intro', page_locale()) }}</p>
-                        <div class="mt-4 flex flex-col gap-4">
-                            <div>
-                                <p class="form-label">{{ t('two_factor_secret_label', page_locale()) }}</p>
-                                <div class="mt-2 flex flex-wrap items-center gap-2">
-                                    <span class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-700">{{ twoFactor.secret }}</span>
-                                    <button type="button" data-copy-value="{{ twoFactor.secret }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('copy', page_locale()) }}</button>
+
+                {% else %}
+
+                    {# ── Setup 2FA ── #}
+                    <p style="font-size:13px;color:var(--ng-text-muted);margin:0;">{{ t('two_factor_setup_intro', locale) }}</p>
+
+                    <div class="prof-2fa-grid">
+                        <div style="display:flex;flex-direction:column;gap:14px;">
+                            <div class="form-field">
+                                <label class="form-label">{{ t('two_factor_secret_label', locale) }}</label>
+                                <div class="prof-secret-bar">
+                                    <span class="prof-secret-bar__value">{{ twoFactor.secret }}</span>
+                                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ twoFactor.secret }}">{{ t('copy', locale) }}</button>
                                 </div>
                             </div>
-                            <form method="post" action="/admin/profile/2fa/enable" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                            <form method="post" action="/admin/profile/2fa/enable">
                                 <div class="form-field">
-                                    <label class="form-label">{{ t('two_factor_code_label', page_locale()) }}</label>
-                                    <input type="text" name="otp" placeholder="123456" class="form-input w-48">
+                                    <label class="form-label">{{ t('two_factor_code_label', locale) }}</label>
+                                    <input type="text" name="otp" placeholder="123456" class="form-input" autocomplete="one-time-code">
                                 </div>
-                                <button type="submit" class="ui-button ui-button--primary self-end">{{ t('two_factor_enable', page_locale()) }}</button>
+                                <div style="margin-top:12px;">
+                                    <button type="submit" class="ui-button ui-button--primary">{{ t('two_factor_enable', locale) }}</button>
+                                </div>
                             </form>
                         </div>
+                        {% if twoFactor.qr %}
+                            <div class="prof-2fa-qr">
+                                <img src="{{ twoFactor.qr }}" alt="QR Code" class="prof-2fa-qr__img">
+                                <p class="prof-2fa-qr__hint">{{ t('two_factor_scan_qr', locale) }}</p>
+                            </div>
+                        {% endif %}
                     </div>
-                    <div class="flex flex-col items-center gap-2">
-                        <img src="{{ twoFactor.qr }}" alt="QR" class="h-44 w-44 rounded-lg border border-slate-200 bg-white p-2">
-                        <p class="text-xs text-slate-600">{{ t('two_factor_scan_qr', page_locale()) }}</p>
-                    </div>
-                </div>
-            {% endif %}
+
+                {% endif %}
+
+            </div>
         </div>
-    </div>
 
-</div>
+    </div>{# /tab panel: security #}
+
+</div>{# /page #}
+
 <script>
-    const copyText = async (value) => {
-        if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(value);
-            return true;
-        }
+(function () {
+    var defaultTab = '{{ defaultTab }}';
+    var buttons = document.querySelectorAll('[data-tab-btn]');
+    var panels = document.querySelectorAll('[data-tab-panel]');
 
-        const textarea = document.createElement('textarea');
-        textarea.value = value;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        const success = document.execCommand('copy');
-        textarea.remove();
-        return success;
-    };
-
-    document.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-copy-value]');
-        if (!button) {
-            return;
-        }
-
-        const value = button.dataset.copyValue;
-        if (!value) {
-            return;
-        }
-
-        const originalText = button.dataset.copyOriginal ?? button.textContent?.trim() ?? '';
-        button.dataset.copyOriginal = originalText;
-
-        copyText(value).then((success) => {
-            if (!success) {
-                return;
-            }
-            button.textContent = '{{ t('customer_copy_success', page_locale()) }}';
-            window.setTimeout(() => {
-                button.textContent = originalText;
-            }, 1200);
-        }).catch(() => {
-            return;
+    function activate(tab) {
+        buttons.forEach(function (btn) {
+            btn.classList.toggle('prof-tab-btn--active', btn.dataset.tabBtn === tab);
         });
+        panels.forEach(function (panel) {
+            var show = panel.dataset.tabPanel === tab;
+            panel.style.display = show ? 'flex' : 'none';
+        });
+        try { history.replaceState(null, '', location.pathname + '?tab=' + tab); } catch (e) {}
+    }
+
+    buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () { activate(btn.dataset.tabBtn); });
     });
+
+    var urlTab = new URLSearchParams(location.search).get('tab');
+    activate(urlTab === 'security' ? 'security' : defaultTab);
+})();
 </script>
 {% endblock %}

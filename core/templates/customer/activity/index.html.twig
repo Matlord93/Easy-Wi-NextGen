@@ -1,42 +1,50 @@
 {% extends 'customer/base.html.twig' %}
 
+{% set activeNav = 'activity' %}
+{% set locale = page_locale() %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h1 class="text-2xl font-semibold">{{ t('customer_activity_welcome', page_locale()) }}</h1>
-            <p class="text-sm text-slate-700">{{ t('customer_activity_intro', page_locale()) }}</p>
-        </div>
-        <div class="flex flex-wrap items-center gap-3">
-            <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('customer_activity_new_ticket', page_locale()) }}</button>
-            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">{{ t('customer_activity_upgrade_plan', page_locale()) }}</button>
+<div class="cust-page">
+
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <div class="cust-hero__label">{{ t('customer_nav_group_overview', locale) }}</div>
+                <h1 class="cust-hero__title">{{ t('customer_nav_activity', locale) }}</h1>
+                <p class="cust-hero__desc">{{ t('customer_activity_recent_activity_description', locale) }}</p>
+            </div>
         </div>
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
-        <div class="border-b border-slate-200 px-5 py-4">
-            <h2 class="text-lg font-semibold">{{ t('customer_activity_recent_activity', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('customer_activity_recent_activity_description', page_locale()) }}</p>
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h3 class="cust-panel__title">{{ t('customer_activity_recent_activity', locale) }}</h3>
+                <p class="cust-panel__sub">{{ t('customer_activity_recent_activity_description', locale) }}</p>
+            </div>
         </div>
-        <div class="space-y-4 px-5 py-4">
+        <div class="cust-panel__body--flush">
             {% for entry in entries %}
-                <div class="rounded-xl border border-slate-200 bg-slate-100 px-5 py-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
+                <div style="padding:14px 18px;border-bottom:1px solid var(--ng-border);">
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
                         <div>
-                            <p class="text-sm font-semibold text-slate-900">{{ entry.action }}</p>
-                            <p class="text-xs text-slate-700">{{ entry.actor }}</p>
+                            <p style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ entry.action }}</p>
+                            <p style="margin:2px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ entry.actor }}</p>
                         </div>
-                        <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-700">{{ entry.created_at|date('Y-m-d H:i') }}</span>
+                        <span class="ui-badge ui-badge--neutral">{{ entry.created_at|date('Y-m-d H:i') }}</span>
                     </div>
-                    <pre class="mt-3 rounded-lg bg-slate-100 p-3 text-xs text-slate-700">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                    {% if entry.payload %}
+                        <pre style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:var(--ng-surface-soft);font-size:11px;color:var(--ng-text-muted);overflow-x:auto;white-space:pre-wrap;word-break:break-all;">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                    {% endif %}
                 </div>
             {% else %}
-                <div class="rounded-xl border border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-600">
-                    {{ t('no_results', page_locale()) }}
+                <div class="cust-empty" style="padding:48px;">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 10.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/><path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm0 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3z"/></svg>
+                    {{ t('no_results', locale) }}
                 </div>
             {% endfor %}
         </div>
     </div>
+
 </div>
 {% endblock %}

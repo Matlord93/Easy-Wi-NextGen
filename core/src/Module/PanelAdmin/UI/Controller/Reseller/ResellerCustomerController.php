@@ -54,7 +54,7 @@ final class ResellerCustomerController
         $errors = [];
 
         if ($email === '') {
-            $errors[] = 'Email is required.';
+            $errors[] = 'error_email_required';
         }
 
         if ($password === '') {
@@ -62,7 +62,7 @@ final class ResellerCustomerController
         }
 
         if ($email !== '' && $this->userRepository->findOneByEmail($email) !== null) {
-            $errors[] = 'Email already exists.';
+            $errors[] = 'error_email_exists';
         }
 
         if ($errors !== []) {

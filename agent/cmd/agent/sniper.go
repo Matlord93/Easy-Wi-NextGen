@@ -23,6 +23,7 @@ var (
 	steamcmdInjectRegex          = regexp.MustCompile(`(?i)(^|\s)([^\s]*steamcmd(?:\.sh|\.exe)?)(\s)`)
 	steamcmdCommandRegex         = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
 	steamcmdArchiveURL           = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
+	wineBootstrapRegex           = regexp.MustCompile(`(?is)^\s*(?:bash\s+-lc\s+)?["']?\s*set\s+-e\s*;\s*if\s+!\s+command\s+-v\s+wine\b.*?\bfi\s*;\s*`)
 )
 
 const steamCmdRetryLimit = 3
@@ -140,6 +141,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	command = renderedCommand
+	command = stripWineBootstrap(command)
 	command = normalizeSteamCmdInstallDir(command, instanceDir)
 
 	if !usesSteamCmd && steamcmdCommandRegex.MatchString(command) {
@@ -258,6 +260,25 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		Output:    resultOutput,
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func stripWineBootstrap(command string) string {
+	trimmed := strings.TrimSpace(command)
+	if trimmed == "" {
+		return command
+	}
+	stripped := wineBootstrapRegex.ReplaceAllString(trimmed, "")
+	stripped = strings.TrimSpace(stripped)
+	if strings.HasSuffix(stripped, "\"") && strings.Count(trimmed, "\"")%2 == 1 {
+		stripped = strings.TrimSuffix(stripped, "\"")
+	}
+	if strings.HasSuffix(stripped, "'") && strings.Count(trimmed, "'")%2 == 1 {
+		stripped = strings.TrimSuffix(stripped, "'")
+	}
+	if stripped == "" {
+		return trimmed
+	}
+	return stripped
 }
 
 func buildSteamCmdCommand(steamCmdPath, instanceDir, steamAppID string, validate bool) string {

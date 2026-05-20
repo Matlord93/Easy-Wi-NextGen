@@ -1,81 +1,124 @@
 {% extends 'customer/base.html.twig' %}
+{% set activeNav = 'profile' %}
+{% set locale = page_locale() %}
+
+{% block title %}{{ t('prof_hero_title', locale) }}{% endblock %}
 
 {% block content %}
-<div class="cust-page">
+{% set profileComplete = profile.firstname is not empty and profile.lastname is not empty and profile.address is not empty %}
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    <div class="cust-hero">
-        <div class="cust-hero__inner">
-            <div>
-                <div class="cust-hero__label">{{ t('profile_billing_title', page_locale()) }}</div>
-                <h1 class="cust-hero__title">{{ t('customer_profile_title', page_locale()) }}</h1>
-                <p class="cust-hero__desc">{{ t('profile_billing_description', page_locale()) }}</p>
+    {# ── Hero / KPI card ── #}
+    <div class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#6366f1;"></span>
+                        {{ t('prof_hero_label', locale) }}
+                    </div>
+                    <h1 class="tkt-hero__title">{{ t('prof_hero_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('prof_hero_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px;">
+                    <div class="tkt-kpi {{ profileComplete ? 'tkt-kpi--resolved' : 'tkt-kpi--pending' }}">
+                        <div class="tkt-kpi__label">{{ t('prof_kpi_profile_complete', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;">{{ profileComplete ? t('prof_kpi_profile_complete_yes', locale) : t('prof_kpi_profile_complete_no', locale) }}</div>
+                    </div>
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('prof_kpi_language', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:14px;">{{ preferences.portal_language|upper }}</div>
+                    </div>
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('prof_kpi_payment', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;">{{ paymentMethods[preferences.payment_method]|default('—') }}</div>
+                    </div>
+                </div>
             </div>
-            <div class="cust-hero__actions">
-                <span class="ui-badge ui-badge--success">{{ t('invoice_ready', page_locale()) }}</span>
-            </div>
+        </div>
+
+        {# ── Tab navigation ── #}
+        <div class="prof-tabs">
+            <a href="{{ path('customer_profile') }}" class="prof-tab-btn prof-tab-btn--active">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
+                {{ t('prof_tab_profile', locale) }}
+            </a>
+            <a href="{{ path('customer_security') }}" class="prof-tab-btn">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524z"/></svg>
+                {{ t('prof_tab_security', locale) }}
+            </a>
         </div>
     </div>
 
-    <div class="cust-grid-2">
+    {# ── Alerts ── #}
+    {% if profile.success %}
+        <div class="ng-alert ng-alert--success">{{ t('profile_saved_successfully', locale) }}</div>
+    {% endif %}
+    {% if profile.errors %}
+        <div class="ng-alert ng-alert--danger">
+            <strong>{{ t('please_fix_following', locale) }}</strong>
+            <ul style="margin:6px 0 0;padding-left:18px;">
+                {% for error in profile.errors %}<li>{{ t(error, locale) }}</li>{% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+    {% if preferences.success %}
+        <div class="ng-alert ng-alert--success">{{ t('preferences_updated', locale) }}</div>
+    {% endif %}
+    {% if preferences.errors %}
+        <div class="ng-alert ng-alert--danger">
+            <strong>{{ t('please_fix_following', locale) }}</strong>
+            <ul style="margin:6px 0 0;padding-left:18px;">
+                {% for error in preferences.errors %}<li>{{ t(error, locale) }}</li>{% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {# ── Two-column content ── #}
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;">
 
         {# ── Customer Profile ── #}
-        <div class="cust-panel">
-            <div class="cust-panel__header">
+        <div class="prof-section">
+            <div class="prof-section__head">
                 <div>
-                    <div class="cust-panel__title">{{ t('customer_profile_title', page_locale()) }}</div>
-                    <div class="cust-panel__sub">{{ t('customer_profile_description', page_locale()) }}</div>
+                    <div class="prof-section__title">{{ t('customer_profile_title', locale) }}</div>
+                    <div class="prof-section__sub">{{ t('customer_profile_description', locale) }}</div>
                 </div>
-                <span class="ui-badge ui-badge--neutral">{{ t('required', page_locale()) }}</span>
+                <span class="ui-badge {{ profileComplete ? 'ui-badge--success' : 'ui-badge--warning' }}">
+                    {{ profileComplete ? t('prof_kpi_profile_complete_yes', locale) : t('required', locale) }}
+                </span>
             </div>
-            <div class="cust-panel__body">
+            <div class="prof-section__body">
                 <form method="post" action="/customer/profile/customer">
-
-                    {% if profile.success %}
-                        <div class="ng-alert ng-alert--success">
-                            {{ t('profile_saved_successfully', page_locale()) }}
-                        </div>
-                    {% endif %}
-
-                    {% if profile.errors %}
-                        <div class="ng-alert ng-alert--danger">
-                            <p><strong>{{ t('please_fix_following', page_locale()) }}</strong></p>
-                            <ul>
-                                {% for error in profile.errors %}
-                                    <li>{{ t(error, page_locale()) }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endif %}
-
-                    <div class="cust-grid-2">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div class="form-field">
-                            <label class="form-label">{{ t('first_name', page_locale()) }}</label>
+                            <label class="form-label">{{ t('first_name', locale) }}</label>
                             <input class="form-input" name="firstname" value="{{ profile.firstname }}" required>
                         </div>
                         <div class="form-field">
-                            <label class="form-label">{{ t('last_name', page_locale()) }}</label>
+                            <label class="form-label">{{ t('last_name', locale) }}</label>
                             <input class="form-input" name="lastname" value="{{ profile.lastname }}" required>
                         </div>
                     </div>
 
-                    <div class="form-field">
-                        <label class="form-label">{{ t('street_address', page_locale()) }}</label>
+                    <div class="form-field" style="margin-top:12px;">
+                        <label class="form-label">{{ t('street_address', locale) }}</label>
                         <input class="form-input" name="address" value="{{ profile.address }}" required>
                     </div>
 
-                    <div class="cust-grid-2">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
                         <div class="form-field">
-                            <label class="form-label">{{ t('postal_code', page_locale()) }}</label>
+                            <label class="form-label">{{ t('postal_code', locale) }}</label>
                             <input class="form-input" name="postal" value="{{ profile.postal }}" required>
                         </div>
                         <div class="form-field">
-                            <label class="form-label">{{ t('city', page_locale()) }}</label>
+                            <label class="form-label">{{ t('city', locale) }}</label>
                             <input class="form-input" name="city" value="{{ profile.city }}" required>
                         </div>
                     </div>
 
-                    <div class="form-field">
-                        <label class="form-label">{{ t('country', page_locale()) }}</label>
+                    <div class="form-field" style="margin-top:12px;">
+                        <label class="form-label">{{ t('country', locale) }}</label>
                         <select class="form-input" name="country" required>
                             {% for code, label in countries %}
                                 <option value="{{ code }}" {{ profile.country == code ? 'selected' : '' }}>{{ label }}</option>
@@ -83,62 +126,43 @@
                         </select>
                     </div>
 
-                    <div class="cust-grid-2">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
                         <div class="form-field">
-                            <label class="form-label">{{ t('phone_optional', page_locale()) }}</label>
+                            <label class="form-label">{{ t('phone_optional', locale) }}</label>
                             <input class="form-input" name="phone" value="{{ profile.phone }}">
                         </div>
                         <div class="form-field">
-                            <label class="form-label">{{ t('company_optional', page_locale()) }}</label>
+                            <label class="form-label">{{ t('company_optional', locale) }}</label>
                             <input class="form-input" name="company" value="{{ profile.company }}">
                         </div>
                     </div>
 
-                    <div class="form-field">
-                        <label class="form-label">{{ t('vat_id_optional', page_locale()) }}</label>
+                    <div class="form-field" style="margin-top:12px;">
+                        <label class="form-label">{{ t('vat_id_optional', locale) }}</label>
                         <input class="form-input" name="vat_id" value="{{ profile.vat_id }}">
-                        <p class="form-hint">{{ t('vat_id_help', page_locale()) }}</p>
+                        <p class="form-hint">{{ t('vat_id_help', locale) }}</p>
                     </div>
 
-                    <div style="display:flex;justify-content:flex-end;">
-                        <button type="submit" class="ui-button ui-button--primary">{{ t('save_profile', page_locale()) }}</button>
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                        <button type="submit" class="ui-button ui-button--primary">{{ t('save_profile', locale) }}</button>
                     </div>
-
                 </form>
             </div>
         </div>
 
         {# ── Invoice Preferences ── #}
-        <div class="cust-panel">
-            <div class="cust-panel__header">
+        <div class="prof-section">
+            <div class="prof-section__head">
                 <div>
-                    <div class="cust-panel__title">{{ t('invoice_preferences_title', page_locale()) }}</div>
-                    <div class="cust-panel__sub">{{ t('invoice_preferences_description', page_locale()) }}</div>
+                    <div class="prof-section__title">{{ t('invoice_preferences_title', locale) }}</div>
+                    <div class="prof-section__sub">{{ t('invoice_preferences_description', locale) }}</div>
                 </div>
-                <span class="ui-badge ui-badge--neutral">{{ t('preferences', page_locale()) }}</span>
+                <span class="ui-badge ui-badge--neutral">{{ t('preferences', locale) }}</span>
             </div>
-            <div class="cust-panel__body">
+            <div class="prof-section__body">
                 <form method="post" action="/customer/profile/invoice">
-
-                    {% if preferences.success %}
-                        <div class="ng-alert ng-alert--success">
-                            {{ t('preferences_updated', page_locale()) }}
-                        </div>
-                    {% endif %}
-
-                    {% if preferences.errors %}
-                        <div class="ng-alert ng-alert--danger">
-                            <p><strong>{{ t('please_fix_following', page_locale()) }}</strong></p>
-                            <ul>
-                                {% for error in preferences.errors %}
-                                    <li>{{ t(error, page_locale()) }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endif %}
-
                     <div class="form-field">
-                        <label class="form-label">{{ t('portal_language', page_locale()) }}</label>
+                        <label class="form-label">{{ t('portal_language', locale) }}</label>
                         <select class="form-input" name="portal_language" required>
                             {% for code, label in portalLanguages %}
                                 <option value="{{ code }}" {{ preferences.portal_language == code ? 'selected' : '' }}>{{ label }}</option>
@@ -146,8 +170,8 @@
                         </select>
                     </div>
 
-                    <div class="form-field">
-                        <label class="form-label">{{ t('invoice_locale', page_locale()) }}</label>
+                    <div class="form-field" style="margin-top:12px;">
+                        <label class="form-label">{{ t('invoice_locale', locale) }}</label>
                         <select class="form-input" name="locale" required>
                             {% for code, label in locales %}
                                 <option value="{{ code }}" {{ preferences.locale == code ? 'selected' : '' }}>{{ label }}</option>
@@ -155,19 +179,19 @@
                         </select>
                     </div>
 
-                    <div class="cust-form-card">
-                        <label class="cust-form-card__check">
-                            <input type="checkbox" name="email_delivery" value="1" {{ preferences.email_delivery ? 'checked' : '' }}>
-                            {{ t('email_delivery_label', page_locale()) }}
+                    <div style="margin-top:12px;background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:14px;display:flex;flex-direction:column;gap:10px;">
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--ng-text);">
+                            <input type="checkbox" name="email_delivery" value="1" {{ preferences.email_delivery ? 'checked' : '' }} style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                            {{ t('email_delivery_label', locale) }}
                         </label>
-                        <label class="cust-form-card__check">
-                            <input type="checkbox" name="pdf_download_history" value="1" {{ preferences.pdf_download_history ? 'checked' : '' }}>
-                            {{ t('pdf_download_history_label', page_locale()) }}
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--ng-text);">
+                            <input type="checkbox" name="pdf_download_history" value="1" {{ preferences.pdf_download_history ? 'checked' : '' }} style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                            {{ t('pdf_download_history_label', locale) }}
                         </label>
                     </div>
 
-                    <div class="form-field">
-                        <label class="form-label">{{ t('default_payment_method', page_locale()) }}</label>
+                    <div class="form-field" style="margin-top:12px;">
+                        <label class="form-label">{{ t('default_payment_method', locale) }}</label>
                         <select class="form-input" name="payment_method" required>
                             {% for code, label in paymentMethods %}
                                 <option value="{{ code }}" {{ preferences.payment_method == code ? 'selected' : '' }}>{{ label }}</option>
@@ -175,15 +199,14 @@
                         </select>
                     </div>
 
-                    <div style="display:flex;justify-content:flex-end;">
-                        <button type="submit" class="ui-button ui-button--primary">{{ t('save_preferences', page_locale()) }}</button>
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                        <button type="submit" class="ui-button ui-button--primary">{{ t('save_preferences', locale) }}</button>
                     </div>
-
                 </form>
             </div>
         </div>
 
-    </div>{# /cust-grid-2 #}
+    </div>{# /grid #}
 
-</div>{# /cust-page #}
+</div>{# /page #}
 {% endblock %}

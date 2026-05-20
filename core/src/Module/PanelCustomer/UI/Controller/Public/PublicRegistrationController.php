@@ -119,7 +119,7 @@ final class PublicRegistrationController
             $limit = $this->registrationLimiter->create($request->getClientIp() ?? 'public')->consume(1);
             if (!$limit->isAccepted()) {
                 $status = Response::HTTP_TOO_MANY_REQUESTS;
-                $errors[] = 'Too many registration attempts. Please try again in a moment.';
+                $errors[] = 'error_too_many_registration';
                 $retryAfter = $limit->getRetryAfter();
                 $this->antiAbuse->log('registration_rate_limited', $request, $email);
             } else {
@@ -136,19 +136,19 @@ final class PublicRegistrationController
                 $form = ['email' => $email, 'pow_solution' => '', 'captcha_answer' => ''];
 
                 if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = 'Enter a valid email address.';
+                    $errors[] = 'error_invalid_email';
                 }
                 if (mb_strlen($password) < 8) {
-                    $errors[] = 'Password must be at least 8 characters long.';
+                    $errors[] = 'error_password_too_short';
                 }
                 if ($password !== $passwordConfirm) {
-                    $errors[] = 'Passwords do not match.';
+                    $errors[] = 'error_passwords_dont_match';
                 }
                 if (!in_array($portalLanguage, ['de', 'en'], true)) {
                     $portalLanguage = 'de';
                 }
                 if ($email !== '' && $this->users->findOneByEmail($email) !== null) {
-                    $errors[] = 'An account with this email already exists.';
+                    $errors[] = 'error_email_exists';
                 }
 
                 if ($errors === []) {

@@ -1523,6 +1523,75 @@ final class GameTemplateSeedCatalog
                 [],
             ),
             $this->template(
+                'windrose',
+                'Windrose Dedicated Server (Linux via Wine)',
+                'Install the Windows dedicated server via SteamCMD and run it headless on Linux with Wine Stable. Requires AVX2-capable CPU.',
+                4129620,
+                'steam',
+                [
+                    ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
+                ],
+                'cd {{INSTANCE_DIR}} && DISPLAY=:0 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe',
+                [
+                    ['key' => 'MAX_PLAYERS', 'value' => '8'],
+                ],
+                [
+                    [
+                        'path' => 'R5/ServerDescription.json',
+                        'description' => 'Windrose server configuration (generated after first start)',
+                        'contents' => "{
+  \"ServerName\": \"Easy-Wi Windrose\",
+  \"MaxPlayerCount\": {{MAX_PLAYERS}},
+  \"IsPasswordProtected\": false,
+  \"Password\": \"\",
+  \"UseDirectConnection\": true,
+  \"DirectConnectionServerPort\": {{PORT_GAME}}
+}
+",
+                    ],
+                ],
+                [],
+                $fastdl,
+                'bash -lc "set -e; if ! command -v wine >/dev/null 2>&1; then if command -v apt-get >/dev/null 2>&1; then export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y --no-install-recommends wine-stable screen; elif command -v dnf >/dev/null 2>&1; then dnf install -y wine screen; elif command -v yum >/dev/null 2>&1; then yum install -y wine screen; elif command -v zypper >/dev/null 2>&1; then zypper --non-interactive install wine screen; else echo \"wine is required but no supported package manager found\" >&2; exit 1; fi; fi; steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 validate +quit; cd {{INSTANCE_DIR}}; if [ ! -f R5/ServerDescription.json ]; then timeout 30s env DISPLAY=:0 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe >/dev/null 2>&1 || true; fi"',
+                'bash -lc "set -e; if ! command -v wine >/dev/null 2>&1; then if command -v apt-get >/dev/null 2>&1; then export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y --no-install-recommends wine-stable screen; elif command -v dnf >/dev/null 2>&1; then dnf install -y wine screen; elif command -v yum >/dev/null 2>&1; then yum install -y wine screen; elif command -v zypper >/dev/null 2>&1; then zypper --non-interactive install wine screen; else echo \"wine is required but no supported package manager found\" >&2; exit 1; fi; fi; steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 +quit"',
+                [],
+                ['linux'],
+            ),
+            $this->template(
+                'windrose_windows',
+                'Windrose Dedicated Server (Windows)',
+                'Install and run the Windows dedicated server via SteamCMD. Requires AVX2-capable CPU.',
+                4129620,
+                'steam',
+                [
+                    ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
+                ],
+                '{{INSTANCE_DIR}}/R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe',
+                [
+                    ['key' => 'MAX_PLAYERS', 'value' => '8'],
+                ],
+                [
+                    [
+                        'path' => 'R5/ServerDescription.json',
+                        'description' => 'Windrose server configuration (generated after first start)',
+                        'contents' => "{
+  \"ServerName\": \"Easy-Wi Windrose\",
+  \"MaxPlayerCount\": {{MAX_PLAYERS}},
+  \"IsPasswordProtected\": false,
+  \"Password\": \"\",
+  \"UseDirectConnection\": true,
+  \"DirectConnectionServerPort\": {{PORT_GAME}}
+}
+",
+                    ],
+                ],
+                [],
+                $fastdl,
+                'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 validate +quit',
+                'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 +quit',
+                [],
+            ),
+            $this->template(
                 'fivem_windows',
                 'FiveM (FXServer) (Windows)',
                 'Download latest FXServer Windows artifacts and run server.cfg.',

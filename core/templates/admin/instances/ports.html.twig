@@ -12,7 +12,7 @@
                 <p class="ng-data-card__sub">{{ instance.getServerName() ?? 'Instance' }} · #{{ instance.getId() }}</p>
             </div>
             <div class="ng-data-card__actions">
-                <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_instances') }}">Zurück</a>
+                <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_instances') }}">{{ t('admin_back_btn', page_locale()) }}</a>
             </div>
         </div>
         <div class="ng-data-card__body--flush">
@@ -41,7 +41,7 @@
                                 <td>{% if allocation.getLastHostFree() is same as(true) %}Ja{% elseif allocation.getLastHostFree() is same as(false) %}Nein{% else %}—{% endif %}</td>
                             </tr>
                         {% else %}
-                            <tr><td colspan="7" class="cust-table__empty">Keine Zuweisungen.</td></tr>
+                            <tr><td colspan="7" class="cust-table__empty">{{ t('admin_no_assignments', page_locale()) }}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

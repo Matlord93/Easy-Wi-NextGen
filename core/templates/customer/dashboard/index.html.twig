@@ -30,7 +30,7 @@
         <div class="cust-hero__inner">
             <div>
                 <div class="cust-hero__label">{{ t('customer_dashboard_title', page_locale()) }}</div>
-                <h1 class="cust-hero__title">Willkommen zurück, {{ customerName }}</h1>
+                <h1 class="cust-hero__title">{{ t('customer_dashboard_welcome', page_locale()) }} {{ customerName }}</h1>
                 <p class="cust-hero__desc">{{ customerEmail }} · {{ t('customer_dashboard_subtitle', page_locale()) }}</p>
             </div>
             <div class="cust-hero__actions">
@@ -170,7 +170,7 @@
                                         <input type="hidden" name="action" value="restart">
                                         <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_dashboard_server_restart', page_locale()) }}</button>
                                     </form>
-                                    <a href="{{ path('customer_instance_detail', {id: instance.id}) }}" class="ui-button ui-button--ghost ui-button--sm" style="margin-left:auto;">Details</a>
+                                    <a href="{{ path('customer_instance_detail', {id: instance.id}) }}" class="ui-button ui-button--ghost ui-button--sm" style="margin-left:auto;">{{ t('details', page_locale()) }}</a>
                                 </div>
                             </article>
                         {% else %}
@@ -178,7 +178,7 @@
                                 <div class="cust-server-card__head">
                                     <div>
                                         <h4 class="cust-server-card__name">{{ t('customer_dashboard_no_instances', page_locale()) }}</h4>
-                                        <p class="cust-server-card__id">Slot {{ slot + 1 }}</p>
+                                        <p class="cust-server-card__id">{{ t('customer_dashboard_slot', page_locale()) }} {{ slot + 1 }}</p>
                                     </div>
                                 </div>
                             </article>
@@ -194,33 +194,33 @@
             {# Quick-Links #}
             <div class="cust-panel">
                 <div class="cust-panel__head">
-                    <h3 class="cust-panel__title">Schnellzugriff</h3>
+                    <h3 class="cust-panel__title">{{ t('customer_dashboard_quick_links', page_locale()) }}</h3>
                 </div>
                 <div class="cust-panel__body">
                     <div class="cust-quick-links">
                         <a href="{{ path('customer_instances') }}" class="cust-quick-link">
                             <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/></svg>
-                            Game-Server
+                            {{ t('customer_nav_game_servers', page_locale()) }}
                         </a>
                         <a href="{{ path('customer_voice') }}" class="cust-quick-link">
                             <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>
-                            TeamSpeak
+                            {{ t('customer_nav_voice_servers', page_locale()) }}
                         </a>
                         <a href="{{ path('customer_webspace') }}" class="cust-quick-link">
                             <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49z"/></svg>
-                            Webspace
+                            {{ t('customer_nav_webspace', page_locale()) }}
                         </a>
                         <a href="{{ path('customer_mail') }}" class="cust-quick-link">
                             <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/></svg>
-                            E-Mail
+                            {{ t('customer_nav_mail', page_locale()) }}
                         </a>
                         <a href="{{ path('customer_tickets') }}" class="cust-quick-link">
                             <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4.5A1.5 1.5 0 0 1 1.5 3h13A1.5 1.5 0 0 1 16 4.5V6a.5.5 0 0 1-.5.5 1.5 1.5 0 0 0 0 3 .5.5 0 0 1 .5.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 11.5V10a.5.5 0 0 1 .5-.5 1.5 1.5 0 1 0 0-3A.5.5 0 0 1 0 6V4.5z"/></svg>
-                            Tickets
+                            {{ t('customer_nav_tickets', page_locale()) }}
                         </a>
                         <a href="{{ path('customer_profile') }}" class="cust-quick-link">
                             <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
-                            Profil
+                            {{ t('customer_nav_profile', page_locale()) }}
                         </a>
                     </div>
                 </div>

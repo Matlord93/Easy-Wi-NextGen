@@ -20,30 +20,30 @@
 <div class="ng-container ng-section">
     {% if can_post %}
         <div class="mb-8 rounded-xl border border-slate-800 bg-slate-900/70 p-6 backdrop-blur-sm">
-            <h2 class="mb-4 text-base font-semibold text-slate-200">Neues Thema erstellen</h2>
+            <h2 class="mb-4 text-base font-semibold text-slate-200">{{ t('public_forum_new_topic_heading', page_locale()) }}</h2>
             <form method="post" action="/forum/board/{{ board.slug }}/new-thread" class="space-y-3">
                 <input type="hidden" name="_token" value="{{ csrf_token('forum_new_thread_' ~ board.id) }}">
                 <input type="hidden" name="form_rendered_at" value="{{ 'now'|date('U') }}">
                 <input type="text" name="website" value="" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
-                <input type="text" name="title" placeholder="Titel des Themas"
+                <input type="text" name="title" placeholder="{{ t('public_forum_title_placeholder', page_locale()) }}"
                        class="ng-input w-full" required>
-                <textarea name="content" rows="4" placeholder="Dein Beitrag …"
+                <textarea name="content" rows="4" placeholder="{{ t('public_forum_post_placeholder', page_locale()) }}"
                           class="ng-input w-full resize-y" required></textarea>
                 <button class="ng-btn ng-btn--primary">
-                    Thema erstellen
+                    {{ t('public_forum_create_topic_btn', page_locale()) }}
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                 </button>
             </form>
         </div>
     {% else %}
         <div class="mb-8 rounded-xl border border-slate-700/60 bg-slate-900/40 px-5 py-4 text-sm text-slate-400">
-            <a href="/login" class="text-cyan-400 hover:text-cyan-300">Einloggen</a>, um neue Themen zu erstellen.
+            <a href="/login" class="text-cyan-400 hover:text-cyan-300">{{ t('public_forum_login_to_post', page_locale()) }}</a>, um neue Themen zu erstellen.
         </div>
     {% endif %}
 
     <div class="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
         <div class="border-b border-slate-800 px-5 py-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold uppercase tracking-widest text-slate-400">Themen</h2>
+            <h2 class="text-sm font-semibold uppercase tracking-widest text-slate-400">{{ t('public_forum_topics_col', page_locale()) }}</h2>
         </div>
 
         {% for thread in threads %}
@@ -62,20 +62,20 @@
                     <div class="flex flex-wrap items-center gap-2">
                         <p class="font-semibold text-slate-100 group-hover:text-cyan-300 transition-colors truncate">{{ thread.title }}</p>
                         {% if thread.isPinned %}
-                            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">Pinned</span>
+                            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">{{ t('public_forum_pinned', page_locale()) }}</span>
                         {% endif %}
                         {% if thread.isClosed %}
-                            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-400 border border-amber-500/30">Geschlossen</span>
+                            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-400 border border-amber-500/30">{{ t('public_forum_closed', page_locale()) }}</span>
                         {% endif %}
                     </div>
-                    <p class="mt-0.5 text-xs text-slate-500">Zuletzt aktiv: {{ thread.lastActivityAt|date('d.m.Y H:i') }}</p>
+                    <p class="mt-0.5 text-xs text-slate-500">{{ t('public_forum_last_active', page_locale()) }} {{ thread.lastActivityAt|date('d.m.Y H:i') }}</p>
                 </div>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-shrink-0 mt-1 text-slate-600 group-hover:text-slate-400 transition-colors"><path d="M9 18l6-6-6-6"/></svg>
             </a>
         {% else %}
             <div class="ng-empty-state py-10">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                <p>Noch keine Themen. Starte die Diskussion!</p>
+                <p>{{ t('public_forum_empty', page_locale()) }}</p>
             </div>
         {% endfor %}
     </div>
@@ -83,10 +83,10 @@
     {% if total_pages > 1 %}
         <div class="mt-5 flex items-center justify-between text-sm">
             <a href="/forum/board/{{ board.slug }}?page={{ page - 1 }}"
-               class="ng-btn ng-btn--ghost {% if page <= 1 %}pointer-events-none opacity-40{% endif %}">← Zurück</a>
-            <span class="text-slate-400">Seite {{ page }} / {{ total_pages }}</span>
+               class="ng-btn ng-btn--ghost {% if page <= 1 %}pointer-events-none opacity-40{% endif %}">{{ t('public_forum_prev', page_locale()) }}</a>
+            <span class="text-slate-400">{{ t('public_forum_page_indicator', page_locale())|replace({'%current%': page, '%total%': total_pages}) }}</span>
             <a href="/forum/board/{{ board.slug }}?page={{ page + 1 }}"
-               class="ng-btn ng-btn--ghost {% if page >= total_pages %}pointer-events-none opacity-40{% endif %}">Weiter →</a>
+               class="ng-btn ng-btn--ghost {% if page >= total_pages %}pointer-events-none opacity-40{% endif %}">{{ t('public_forum_next', page_locale()) }}</a>
         </div>
     {% endif %}
 </div>

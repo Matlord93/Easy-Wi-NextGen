@@ -1,70 +1,94 @@
 {% extends 'customer/base.html.twig' %}
 
-{% block title %}Shop · Easy-Wi NextGen{% endblock %}
+{% set activeNav = 'shop' %}
+{% set locale = page_locale() %}
+{% block title %}{{ t('customer_shop_title', locale) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
-{% set locale = page_locale() %}
-<div class="space-y-8">
-    <div>
-        <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_shop_title', locale) }}</h1>
-        <p class="text-sm text-slate-600">{{ t('customer_shop_desc', locale) }}</p>
-    </div>
+<div class="cust-page">
 
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-lg font-semibold text-slate-900">Aktive Laufzeiten</h2>
-        <div class="mt-4 grid gap-4 md:grid-cols-2">
-            {% for rental in rentals %}
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p class="text-sm font-semibold text-slate-900">{{ rental.product_name }}</p>
-                    <p class="mt-1 text-xs text-slate-600">Instance #{{ rental.instance_id }}</p>
-                    <p class="mt-2 text-xs text-slate-700">{{ t('customer_shop_period', locale) }}: {{ rental.expires_at }}</p>
-                    <form class="mt-3 flex items-center gap-2" method="post" action="/marketplace/rentals/{{ rental.id }}/extend">
-                        <input type="number" name="months" min="1" value="1" class="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
-                        <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">{{ t('customer_shop_extend_button', locale) }}</button>
-                    </form>
-                </div>
-            {% else %}
-                <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-                    Noch keine aktiven Laufzeiten.
-                </div>
-            {% endfor %}
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <div class="cust-hero__label">{{ t('customer_nav_group_marketplace', locale) }}</div>
+                <h1 class="cust-hero__title">{{ t('customer_shop_title', locale) }}</h1>
+                <p class="cust-hero__desc">{{ t('customer_shop_desc', locale) }}</p>
+            </div>
         </div>
     </div>
 
-    <div class="space-y-6">
-        {% for category in categories %}
-            <section class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ category.name }}</h2>
-                </div>
-                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {% for product in category.products %}
-                        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                            {% if product.image_url %}
-                                <img src="{{ product.image_url }}" alt="{{ product.name }}" class="h-32 w-full rounded-xl object-cover">
-                            {% endif %}
-                            <h3 class="mt-4 text-base font-semibold text-slate-900">{{ product.name }}</h3>
-                            <p class="mt-2 text-sm text-slate-600">{{ product.description }}</p>
-                            <div class="mt-4 text-xs text-slate-600">
-                                <p>{{ product.cpu_limit }} CPU · {{ product.ram_limit }} GB RAM · {{ product.disk_limit }} GB SSD</p>
-                            </div>
-                            <div class="mt-4 flex items-center justify-between">
-                                <span class="text-sm font-semibold text-slate-900">{{ t('customer_shop_price', locale) }}: € {{ product.price_monthly }} / {{ t('customer_shop_period', locale) }}</span>
-                            </div>
-                            <form class="mt-4 flex items-center gap-2" method="post" action="/marketplace/order">
-                                <input type="hidden" name="product_id" value="{{ product.id }}">
-                                <input type="number" name="months" min="1" value="1" class="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
-                                <button type="submit" class="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">{{ t('customer_shop_order', locale) }}</button>
+    {# ── Active rentals ── #}
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h3 class="cust-panel__title">{{ t('customer_shop_active_rentals', locale) }}</h3>
+            </div>
+        </div>
+        <div class="cust-panel__body">
+            {% if rentals is not empty %}
+                <div class="cust-server-grid">
+                    {% for rental in rentals %}
+                        <div style="border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:16px;">
+                            <p style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ rental.product_name }}</p>
+                            <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">Instance #{{ rental.instance_id }}</p>
+                            <p style="margin:6px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_shop_period', locale) }}: {{ rental.expires_at }}</p>
+                            <form class="ng-form" style="margin-top:12px;display:flex;align-items:center;gap:8px;" method="post" action="/marketplace/rentals/{{ rental.id }}/extend">
+                                <input type="number" name="months" min="1" value="1" class="form-input" style="width:72px;padding:5px 8px;font-size:12px;" aria-label="{{ t('customer_shop_months_label', locale) }}">
+                                <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_shop_extend_button', locale) }}</button>
                             </form>
-                        </div>
-                    {% else %}
-                        <div class="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-600">
-                            {{ t('customer_shop_none', locale) }}
                         </div>
                     {% endfor %}
                 </div>
-            </section>
-        {% endfor %}
+            {% else %}
+                <div class="cust-empty">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5z"/></svg>
+                    {{ t('customer_shop_no_rentals', locale) }}
+                </div>
+            {% endif %}
+        </div>
     </div>
+
+    {# ── Product catalog ── #}
+    {% for category in categories %}
+        <div class="cust-panel">
+            <div class="cust-panel__head">
+                <h3 class="cust-panel__title">{{ category.name }}</h3>
+            </div>
+            <div class="cust-panel__body">
+                {% if category.products is not empty %}
+                    <div class="cust-server-grid">
+                        {% for product in category.products %}
+                            <div style="border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:16px;display:flex;flex-direction:column;gap:8px;">
+                                {% if product.image_url %}
+                                    <img src="{{ product.image_url }}" alt="{{ product.name }}" style="width:100%;height:120px;border-radius:8px;object-fit:cover;">
+                                {% endif %}
+                                <h4 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ product.name }}</h4>
+                                {% if product.description %}
+                                    <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">{{ product.description }}</p>
+                                {% endif %}
+                                <div style="font-size:11px;color:var(--ng-text-muted);">
+                                    {{ product.cpu_limit }} CPU · {{ product.ram_limit }} GB RAM · {{ product.disk_limit }} GB SSD
+                                </div>
+                                <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--ng-border);">
+                                    <span style="font-size:13px;font-weight:700;color:var(--ng-text);">€ {{ product.price_monthly }} / {{ t('customer_shop_period', locale) }}</span>
+                                </div>
+                                <form style="display:flex;align-items:center;gap:8px;" method="post" action="/marketplace/order">
+                                    <input type="hidden" name="product_id" value="{{ product.id }}">
+                                    <input type="number" name="months" min="1" value="1" class="form-input" style="width:72px;padding:5px 8px;font-size:12px;" aria-label="{{ t('customer_shop_months_label', locale) }}">
+                                    <button type="submit" class="ui-button ui-button--primary ui-button--sm" style="flex:1;">{{ t('customer_shop_order', locale) }}</button>
+                                </form>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="cust-empty">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5z"/></svg>
+                        {{ t('customer_shop_none', locale) }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+
 </div>
 {% endblock %}

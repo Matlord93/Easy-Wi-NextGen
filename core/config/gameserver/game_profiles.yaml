@@ -698,3 +698,21 @@ profiles:
       config_file: "server.cfg"
       config_key: "sv_maxclients"
   fivem_windows: { inherit: fivem }
+
+  windrose:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 7777
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "R5/ServerDescription.json"
+      config_key: "MaxPlayerCount"
+  windrose_windows: { inherit: windrose }
+

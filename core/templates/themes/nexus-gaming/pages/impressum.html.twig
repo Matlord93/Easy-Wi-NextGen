@@ -12,7 +12,7 @@
       {# cms_impressum_content is stored and managed by admins via CmsSettingsProvider, intentional HTML #}
       {{ cms_impressum_content|raw }}
     {% else %}
-      <p class="ng-legal-page__empty">Kein Impressum hinterlegt. Bitte trage den Text unter <strong>Admin → CMS Einstellungen → Impressum</strong> ein.</p>
+      <p class="ng-legal-page__empty">{{ t('cms_impressum_empty', page_locale()) }}</p>
     {% endif %}
   </div>
 </div>

@@ -10,7 +10,7 @@
     <div class="cust-hero">
         <div class="cust-hero__inner">
             <div>
-                <div class="cust-hero__label">Infrastruktur</div>
+                <div class="cust-hero__label">{{ t('customer_instances_infrastructure', page_locale()) }}</div>
                 <h1 class="cust-hero__title">{{ t('customer_instances_title', page_locale()) }}</h1>
                 <p class="cust-hero__desc">{{ t('customer_instances_intro', page_locale()) }}</p>
             </div>
@@ -33,19 +33,19 @@
         {% set offlineCount = instances|filter(i => (i.display_status ?? i.status) in ['stopped', 'offline'])|length %}
         <div class="cust-hero__stats" style="grid-template-columns:repeat(3,1fr);">
             <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">Gesamt</div>
+                <div class="cust-hero__stat-label">{{ t('customer_instances_kpi_total', page_locale()) }}</div>
                 <div class="cust-hero__stat-value">{{ instances|length }}</div>
-                <div class="cust-hero__stat-sub">Server</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_instances_kpi_total_sub', page_locale()) }}</div>
             </div>
             <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">Online</div>
+                <div class="cust-hero__stat-label">{{ t('customer_instances_kpi_online', page_locale()) }}</div>
                 <div class="cust-hero__stat-value" style="color:#4ade80;">{{ onlineCount }}</div>
-                <div class="cust-hero__stat-sub">Aktiv</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_instances_kpi_online_sub', page_locale()) }}</div>
             </div>
             <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">Offline</div>
+                <div class="cust-hero__stat-label">{{ t('customer_instances_kpi_offline', page_locale()) }}</div>
                 <div class="cust-hero__stat-value" style="color:#f87171;">{{ offlineCount }}</div>
-                <div class="cust-hero__stat-sub">Gestoppt</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_instances_kpi_offline_sub', page_locale()) }}</div>
             </div>
         </div>
     </div>
@@ -57,8 +57,8 @@
     <div class="cust-panel">
         <div class="cust-panel__head">
             <div>
-                <h3 class="cust-panel__title">Deine Server</h3>
-                <p class="cust-panel__sub">Live-Status · wird alle 12 Sekunden aktualisiert</p>
+                <h3 class="cust-panel__title">{{ t('customer_instances_panel_title', page_locale()) }}</h3>
+                <p class="cust-panel__sub">{{ t('customer_instances_panel_sub', page_locale()) }}</p>
             </div>
         </div>
         <div class="cust-panel__body">

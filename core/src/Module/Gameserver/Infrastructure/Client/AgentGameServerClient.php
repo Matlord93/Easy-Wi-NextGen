@@ -136,6 +136,15 @@ class AgentGameServerClient
 
     /**
      * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function createFromMasterTemplate(Instance $instance, array $payload): array
+    {
+        return $this->requestJson($instance, 'POST', '/api/server/create', $payload);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
      */
     public function startInstance(Instance $instance, array $payload): array
     {
@@ -277,12 +286,21 @@ class AgentGameServerClient
         );
         $signature = hash_hmac('sha256', $payload, $secret);
 
-        return [
+        $headers = [
             self::HEADER_AGENT_ID => $agentId,
             self::HEADER_CUSTOMER_ID => $customerId,
             self::HEADER_TIMESTAMP => $timestamp,
             self::HEADER_SIGNATURE => $signature,
         ];
+
+        $metadata = $agent->getMetadata();
+        $metadata = is_array($metadata) ? $metadata : [];
+        $bearerToken = trim((string) ($metadata['gamesvc_bearer_token'] ?? ''));
+        if ($bearerToken !== '') {
+            $headers['Authorization'] = 'Bearer ' . $bearerToken;
+        }
+
+        return $headers;
     }
 
     private function resolveBaseUrl(Agent $node): string

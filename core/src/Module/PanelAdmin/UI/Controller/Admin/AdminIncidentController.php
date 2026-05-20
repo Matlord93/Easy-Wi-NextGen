@@ -301,7 +301,7 @@ final class AdminIncidentController
             $errors[] = 'Status is invalid.';
         }
         if ($message === '') {
-            $errors[] = 'Message is required.';
+            $errors[] = 'error_message_required';
         }
 
         if ($errors !== []) {

@@ -54,7 +54,7 @@
             {% else %}
                 <div class="ng-empty-state py-10">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                    <p>Keine Treffer für „{{ q }}"</p>
+                    <p>{{ t('public_forum_no_results', page_locale())|replace({'%q%': q}) }}</p>
                 </div>
             {% endfor %}
         </div>

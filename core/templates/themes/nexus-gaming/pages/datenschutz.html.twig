@@ -12,7 +12,7 @@
       {# cms_datenschutz_content is stored and managed by admins via CmsSettingsProvider, intentional HTML #}
       {{ cms_datenschutz_content|raw }}
     {% else %}
-      <p class="ng-legal-page__empty">Keine Datenschutzerklärung hinterlegt. Bitte trage den Text unter <strong>Admin → CMS Einstellungen → Datenschutz</strong> ein.</p>
+      <p class="ng-legal-page__empty">{{ t('cms_datenschutz_empty', page_locale()) }}</p>
     {% endif %}
   </div>
 </div>

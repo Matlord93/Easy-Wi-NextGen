@@ -108,7 +108,7 @@ final class CustomerMailController
             $errors[] = 'Invalid mailbox name.';
         }
         if ($password === '' || mb_strlen($password) < 8) {
-            $errors[] = 'Password must be at least 8 characters.';
+            $errors[] = 'error_password_too_short';
         }
         if (mb_strlen($password) > 72) {
             $errors[] = 'Password must not exceed 72 characters.';
@@ -285,7 +285,7 @@ final class CustomerMailController
             return $this->renderWithErrors($customer, ['Password is required.']);
         }
         if (mb_strlen($password) < 8) {
-            return $this->renderWithErrors($customer, ['Password must be at least 8 characters.']);
+            return $this->renderWithErrors($customer, ['error_password_too_short']);
         }
         if (mb_strlen($password) > 72) {
             return $this->renderWithErrors($customer, ['Password must not exceed 72 characters.']);

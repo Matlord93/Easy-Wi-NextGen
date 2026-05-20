@@ -46,13 +46,13 @@
             </div>
 
             <div class="ng-field">
-                <label class="ng-label" for="reg-password">Passwort</label>
+                <label class="ng-label" for="reg-password">{{ t('theme_register_password', page_locale()) }}</label>
                 <input class="ng-input" id="reg-password" name="password" type="password"
-                       placeholder="Mindestens 8 Zeichen" required autocomplete="new-password">
+                       placeholder="{{ t('theme_register_password_placeholder', page_locale()) }}" required autocomplete="new-password">
             </div>
 
             <div class="ng-field">
-                <label class="ng-label" for="reg-password2">Passwort wiederholen</label>
+                <label class="ng-label" for="reg-password2">{{ t('theme_register_password_repeat', page_locale()) }}</label>
                 <input class="ng-input" id="reg-password2" name="password_repeat" type="password"
                        placeholder="••••••••" required autocomplete="new-password">
             </div>

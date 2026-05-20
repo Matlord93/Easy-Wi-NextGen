@@ -8,9 +8,9 @@
         <nav class="ng-breadcrumb">
             <a href="/">Home</a>
             <a href="/profile">Mein Profil</a>
-            <span>Bearbeiten</span>
+            <span>{{ t('public_profile_edit_breadcrumb', page_locale()) }}</span>
         </nav>
-        <h1 class="text-3xl font-bold ng-gradient-text">Profil bearbeiten</h1>
+        <h1 class="text-3xl font-bold ng-gradient-text">{{ t('public_profile_edit_title', page_locale()) }}</h1>
     </div>
 </div>
 
@@ -20,7 +20,7 @@
         {% set isNexus = (active_theme|default('minimal')) == 'nexus-gaming' %}
         <div class="rounded-xl border p-6 {% if isNexus %}border-cyan-500/30 bg-slate-950/70 ng-glow{% else %}border-slate-800 bg-slate-900/60{% endif %}">
             {% if success %}
-                <div class="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">Profil gespeichert.</div>
+                <div class="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">{{ t('public_profile_saved', page_locale()) }}</div>
             {% endif %}
             {% if errors is not empty %}
                 <div class="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
@@ -38,8 +38,8 @@
                     <input name="email" type="email" value="{{ form.email }}" required class="ng-input w-full">
                 </div>
                 <div class="flex gap-3 pt-2">
-                    <button type="submit" class="ng-btn">Speichern</button>
-                    <a href="/profile" class="ng-btn ng-btn--ghost">Abbrechen</a>
+                    <button type="submit" class="ng-btn">{{ t('action_save', page_locale()) }}</button>
+                    <a href="/profile" class="ng-btn ng-btn--ghost">{{ t('public_profile_cancel', page_locale()) }}</a>
                 </div>
             </form>
         </div>

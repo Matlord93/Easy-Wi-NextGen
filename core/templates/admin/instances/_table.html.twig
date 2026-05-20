@@ -12,18 +12,18 @@
                 <input type="text"
                        name="q"
                        value="{{ activeFilters.q }}"
-                       placeholder="ID, Kunde, Hostname, Template, Game …"
+                       placeholder="{{ t('admin_instances_search_placeholder', page_locale()) }}"
                        class="form-input">
             </div>
             <div class="form-field">
                 <select name="status" class="form-input">
-                    <option value="">Alle Status</option>
-                    <option value="running" {{ activeFilters.status == 'running' ? 'selected' : '' }}>Running</option>
-                    <option value="stopped" {{ activeFilters.status == 'stopped' ? 'selected' : '' }}>Stopped</option>
-                    <option value="pending_setup" {{ activeFilters.status == 'pending_setup' ? 'selected' : '' }}>Pending setup</option>
-                    <option value="provisioning" {{ activeFilters.status == 'provisioning' ? 'selected' : '' }}>Provisioning</option>
-                    <option value="suspended" {{ activeFilters.status == 'suspended' ? 'selected' : '' }}>Suspended</option>
-                    <option value="error" {{ activeFilters.status == 'error' ? 'selected' : '' }}>Error</option>
+                    <option value="">{{ t('admin_instances_all_statuses', page_locale()) }}</option>
+                    <option value="running" {{ activeFilters.status == 'running' ? 'selected' : '' }}>{{ t('customer_instance_status_running', page_locale()) }}</option>
+                    <option value="stopped" {{ activeFilters.status == 'stopped' ? 'selected' : '' }}>{{ t('customer_instance_status_stopped', page_locale()) }}</option>
+                    <option value="pending_setup" {{ activeFilters.status == 'pending_setup' ? 'selected' : '' }}>{{ t('customer_instance_status_pending_setup', page_locale()) }}</option>
+                    <option value="provisioning" {{ activeFilters.status == 'provisioning' ? 'selected' : '' }}>{{ t('customer_instance_status_provisioning', page_locale()) }}</option>
+                    <option value="suspended" {{ activeFilters.status == 'suspended' ? 'selected' : '' }}>{{ t('customer_instance_status_suspended', page_locale()) }}</option>
+                    <option value="error" {{ activeFilters.status == 'error' ? 'selected' : '' }}>{{ t('customer_instance_status_error', page_locale()) }}</option>
                 </select>
             </div>
             <div class="form-field">
@@ -34,8 +34,8 @@
                        class="form-input">
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
-                <button type="submit" class="ui-button ui-button--primary ui-button--sm">Filter</button>
-                <a href="{{ path('admin_instances_table') }}" class="ui-button ui-button--ghost ui-button--sm">Reset</a>
+                <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('filter', page_locale()) }}</button>
+                <a href="{{ path('admin_instances_table') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('reset', page_locale()) }}</a>
             </div>
         </form>
     </div>
@@ -52,13 +52,13 @@
         <thead>
             <tr>
                 <th>ID</th>
-                <th>{{ t('admin_instances_customer_game', page_locale())|default('Kunde / Gameserver') }}</th>
+                <th>{{ t('admin_instances_customer_game', page_locale()) }}</th>
                 <th>Node</th>
-                <th>{{ t('admin_instances_resources', page_locale())|default('Ressourcen') }}</th>
+                <th>{{ t('admin_instances_resources', page_locale()) }}</th>
                 <th>Disk</th>
                 <th>Status</th>
                 <th>Setup</th>
-                <th style="text-align:right;">{{ t('admin_instances_actions', page_locale())|default('Aktionen') }}</th>
+                <th style="text-align:right;">{{ t('admin_instances_actions', page_locale()) }}</th>
             </tr>
         </thead>
         <tbody>

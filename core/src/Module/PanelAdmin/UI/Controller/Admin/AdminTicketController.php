@@ -1033,23 +1033,23 @@ final class AdminTicketController
         $message = trim((string) $request->request->get('message', ''));
 
         if ($customerId === '' || !is_numeric($customerId)) {
-            $errors[] = 'Customer is required.';
+            $errors[] = 'error_customer_required';
         }
         if ($subject === '') {
-            $errors[] = 'Subject is required.';
+            $errors[] = 'error_subject_required';
         }
         if ($message === '') {
-            $errors[] = 'Message is required.';
+            $errors[] = 'error_message_required';
         }
 
         $category = TicketCategory::tryFrom($categoryValue);
         if ($category === null) {
-            $errors[] = 'Category is required.';
+            $errors[] = 'error_category_required';
         }
 
         $priority = TicketPriority::tryFrom($priorityValue);
         if ($priority === null) {
-            $errors[] = 'Priority is required.';
+            $errors[] = 'error_priority_required';
         }
 
         $customer = null;

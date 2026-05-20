@@ -16,8 +16,8 @@
       <input type="text" name="website" class="hidden" tabindex="-1" autocomplete="off">
       <input type="hidden" name="pow_solution" id="pow_solution">
       <input name="email" type="email" value="{{ form.email }}" placeholder="E-Mail" required>
-      <input name="password" type="password" placeholder="Passwort" required>
-      <input name="password_confirm" type="password" placeholder="Passwort wiederholen" required>
+      <input name="password" type="password" placeholder="{{ t('theme_register_password_placeholder', page_locale()) }}" required>
+      <input name="password_confirm" type="password" placeholder="{{ t('theme_register_password_repeat_placeholder', page_locale()) }}" required>
       {% if captcha_question %}
         <label>{{ captcha_question }} <input name="captcha_answer" required></label>
       {% endif %}

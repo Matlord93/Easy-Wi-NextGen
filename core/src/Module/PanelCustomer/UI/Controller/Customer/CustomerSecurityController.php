@@ -66,12 +66,12 @@ final class CustomerSecurityController
         $ip = $request->getClientIp() ?? 'public';
         $limiter = $this->confirmLimiter->create($ip . ':' . ($user->getId() ?? 0))->consume(1);
         if (!$limiter->isAccepted()) {
-            return $this->renderPage($request, $user, ['Too many confirmation attempts.'], Response::HTTP_TOO_MANY_REQUESTS, ['confirm_required' => true]);
+            return $this->renderPage($request, $user, ['error_too_many_attempts'], Response::HTTP_TOO_MANY_REQUESTS, ['confirm_required' => true]);
         }
 
         $currentPassword = (string) $request->request->get('current_password', '');
         if ($currentPassword === '' || !$this->passwordHasher->isPasswordValid($user, $currentPassword)) {
-            return $this->renderPage($request, $user, ['Current password is invalid.'], Response::HTTP_BAD_REQUEST, ['confirm_required' => true]);
+            return $this->renderPage($request, $user, ['error_current_password_invalid'], Response::HTTP_BAD_REQUEST, ['confirm_required' => true]);
         }
 
         $request->getSession()->set(self::SESSION_REAUTH_KEY, time());
@@ -89,7 +89,7 @@ final class CustomerSecurityController
         }
 
         if (!$this->hasFreshReauth($request)) {
-            return $this->renderPage($request, $user, ['Please confirm your password first.'], Response::HTTP_FORBIDDEN, ['confirm_required' => true]);
+            return $this->renderPage($request, $user, ['error_confirm_password_first'], Response::HTTP_FORBIDDEN, ['confirm_required' => true]);
         }
 
         $currentPassword = (string) $request->request->get('current_password', '');
@@ -98,13 +98,13 @@ final class CustomerSecurityController
 
         $errors = [];
         if (!$this->passwordHasher->isPasswordValid($user, $currentPassword)) {
-            $errors[] = 'Current password is invalid.';
+            $errors[] = 'error_current_password_invalid';
         }
         if (mb_strlen($newPassword) < 8) {
-            $errors[] = 'Password must be at least 8 characters long.';
+            $errors[] = 'error_password_too_short';
         }
         if ($newPassword !== $confirmPassword) {
-            $errors[] = 'Passwords do not match.';
+            $errors[] = 'error_passwords_dont_match';
         }
 
         if ($errors !== []) {
@@ -145,7 +145,7 @@ final class CustomerSecurityController
         }
 
         if (!$this->consumeTwoFactorLimit($request, $user)) {
-            return $this->renderPage($request, $user, ['Too many authentication attempts.'], Response::HTTP_TOO_MANY_REQUESTS);
+            return $this->renderPage($request, $user, ['error_2fa_too_many'], Response::HTTP_TOO_MANY_REQUESTS);
         }
 
         $otp = trim((string) $request->request->get('otp', ''));
@@ -153,7 +153,7 @@ final class CustomerSecurityController
         $secret = $user->getTotpSecret($this->secretsCrypto) ?? $this->ensureTotpSecret($user);
 
         if ($secret === null || !$this->twoFactorService->verifyCode($secret, $otp)) {
-            return $this->renderPage($request, $user, ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+            return $this->renderPage($request, $user, ['error_invalid_code'], Response::HTTP_BAD_REQUEST);
         }
 
         $user->setTotpEnabled(true);
@@ -182,18 +182,18 @@ final class CustomerSecurityController
         }
 
         if (!$this->hasFreshReauth($request)) {
-            return $this->renderPage($request, $user, ['Please confirm your password first.'], Response::HTTP_FORBIDDEN, ['confirm_required' => true]);
+            return $this->renderPage($request, $user, ['error_confirm_password_first'], Response::HTTP_FORBIDDEN, ['confirm_required' => true]);
         }
 
         if (!$this->consumeTwoFactorLimit($request, $user)) {
-            return $this->renderPage($request, $user, ['Too many authentication attempts.'], Response::HTTP_TOO_MANY_REQUESTS);
+            return $this->renderPage($request, $user, ['error_2fa_too_many'], Response::HTTP_TOO_MANY_REQUESTS);
         }
 
         $otp = trim((string) $request->request->get('otp', ''));
         $recoveryCode = trim((string) $request->request->get('recovery_code', ''));
 
         if (!$this->verifyTwoFactorChallenge($user, $otp, $recoveryCode)) {
-            return $this->renderPage($request, $user, ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+            return $this->renderPage($request, $user, ['error_invalid_code'], Response::HTTP_BAD_REQUEST);
         }
 
         $user->setTotpEnabled(false);
@@ -221,18 +221,18 @@ final class CustomerSecurityController
         }
 
         if (!$this->hasFreshReauth($request)) {
-            return $this->renderPage($request, $user, ['Please confirm your password first.'], Response::HTTP_FORBIDDEN, ['confirm_required' => true]);
+            return $this->renderPage($request, $user, ['error_confirm_password_first'], Response::HTTP_FORBIDDEN, ['confirm_required' => true]);
         }
 
         if (!$this->consumeTwoFactorLimit($request, $user)) {
-            return $this->renderPage($request, $user, ['Too many authentication attempts.'], Response::HTTP_TOO_MANY_REQUESTS);
+            return $this->renderPage($request, $user, ['error_2fa_too_many'], Response::HTTP_TOO_MANY_REQUESTS);
         }
 
         $otp = trim((string) $request->request->get('otp', ''));
         $recoveryCode = trim((string) $request->request->get('recovery_code', ''));
 
         if (!$this->verifyTwoFactorChallenge($user, $otp, $recoveryCode)) {
-            return $this->renderPage($request, $user, ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+            return $this->renderPage($request, $user, ['error_invalid_code'], Response::HTTP_BAD_REQUEST);
         }
 
         $codes = $this->twoFactorService->generateRecoveryCodes();

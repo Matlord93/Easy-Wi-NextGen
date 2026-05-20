@@ -501,10 +501,10 @@ final class AdminUserManagementController
 
         if ($password !== '') {
             if (mb_strlen($password) < 8) {
-                $errors[] = 'Password must be at least 8 characters long.';
+                $errors[] = 'error_password_too_short';
             }
             if ($password !== $passwordConfirm) {
-                $errors[] = 'Passwords do not match.';
+                $errors[] = 'error_passwords_dont_match';
             }
         }
 

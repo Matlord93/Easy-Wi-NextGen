@@ -64,6 +64,17 @@
                     hx-target="#plugins-table"
                     hx-swap="outerHTML"
                 >{{ t('refresh', page_locale()) }}</button>
+                <button
+                    class="ui-button ui-button--ghost ui-button--sm"
+                    hx-post="/admin/plugins/seed"
+                    hx-target="#plugins-table"
+                    hx-swap="none"
+                >{{ t('admin_plugins_add_standard_button', page_locale()) }}</button>
+                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/plugins/import">{{ t('admin_plugins_import_button', page_locale()) }}</a>
+                <a class="ui-button ui-button--primary ui-button--sm" href="/admin/plugins/new">
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+                    {{ t('admin_plugins_create_button', page_locale()) }}
+                </a>
             </div>
         </div>
         <div class="ng-data-card__body--flush">

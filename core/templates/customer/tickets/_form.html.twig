@@ -27,7 +27,7 @@
         {% if form.errors is not empty %}
         <div class="ng-alert ng-alert--danger">
             <ul style="margin:0;padding-left:18px;">
-                {% for error in form.errors %}<li>{{ error }}</li>{% endfor %}
+                {% for error in form.errors %}<li>{{ t(error, locale) }}</li>{% endfor %}
             </ul>
         </div>
         {% endif %}

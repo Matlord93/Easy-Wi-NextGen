@@ -1,27 +1,40 @@
 {% extends 'customer/base.html.twig' %}
 
+{% set activeNav = 'notifications' %}
+{% set locale = page_locale() %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('notifications', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('customer_notifications_intro', page_locale()) }}</p>
-    </div>
-    <div>
-        <form method="post" action="{{ path('customer_notifications_read_all') }}">
-            <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                {{ t('admin_notifications_mark_all_read', page_locale()) }}
-            </button>
-        </form>
-    </div>
-    <div class="space-y-4">
-        {% for notification in notifications %}
-            {% include 'customer/notifications/_item.html.twig' with { notification: notification } %}
-        {% else %}
-            <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-600">
-                {{ t('no_results', page_locale()) }}
+<div class="cust-page">
+
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <div class="cust-hero__label">{{ t('customer_nav_group_overview', locale) }}</div>
+                <h1 class="cust-hero__title">{{ t('notifications', locale) }}</h1>
+                <p class="cust-hero__desc">{{ t('customer_notifications_intro', locale) }}</p>
             </div>
-        {% endfor %}
+            <div class="cust-hero__actions">
+                <form method="post" action="{{ path('customer_notifications_read_all') }}">
+                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">
+                        {{ t('admin_notifications_mark_all_read', locale) }}
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
+
+    <div class="cust-panel">
+        <div class="cust-panel__body--flush">
+            {% for notification in notifications %}
+                {% include 'customer/notifications/_item.html.twig' with { notification: notification } %}
+            {% else %}
+                <div class="cust-empty" style="padding:48px;">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/></svg>
+                    {{ t('no_results', locale) }}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
 </div>
 {% endblock %}

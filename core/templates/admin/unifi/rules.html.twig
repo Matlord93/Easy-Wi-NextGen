@@ -92,9 +92,9 @@
                                     <span class="rounded-full px-2 py-1 text-xs {{ rule.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ rule.enabled ? 'aktiv' : 'inaktiv' }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <a href="/admin/unifi/rules/{{ rule.id }}/edit" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500">Edit</a>
+                                    <a href="/admin/unifi/rules/{{ rule.id }}/edit" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500">{{ t('admin_unifi_edit', locale) }}</a>
                                     <form method="post" action="/admin/unifi/rules/{{ rule.id }}/delete" class="inline">
-                                        <button type="submit" class="ml-3 text-xs font-semibold text-rose-600 hover:text-rose-500">Delete</button>
+                                        <button type="submit" class="ml-3 text-xs font-semibold text-rose-600 hover:text-rose-500">{{ t('admin_unifi_delete', locale) }}</button>
                                     </form>
                                 </td>
                             </tr>

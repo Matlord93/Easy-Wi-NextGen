@@ -52,7 +52,7 @@
                 {% if instance.schedule %}
                     <div class="mt-1 space-y-0.5 text-[11px] text-slate-500">
                         <div>Letzter Lauf: {{ instance.schedule.last_run_at ? instance.schedule.last_run_at|date('Y-m-d H:i:s') : '—' }}</div>
-                        <div>Status: {{ instance.schedule.last_status ?: '—' }}{% if instance.schedule.last_error_code %} (Fehler: {{ instance.schedule.last_error_code }}){% endif %}</div>
+                        <div>Status: {{ instance.schedule.last_status ?: '—' }}{% if instance.schedule.last_error_code %} ({{ t('customer_instance_schedule_error_label', page_locale())|replace({'%code%': instance.schedule.last_error_code}) }}){% endif %}</div>
                         {% if instance.schedule.next_run_at %}
                             <div>Nächster Lauf: {{ instance.schedule.next_run_at|date('Y-m-d H:i:s') }}</div>
                         {% endif %}

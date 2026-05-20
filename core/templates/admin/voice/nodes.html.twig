@@ -30,7 +30,7 @@
         </select>
         <input name="host" placeholder="Host" class="rounded border border-slate-300 px-3 py-2" required>
         <input name="query_port" placeholder="Query Port" type="number" class="rounded border border-slate-300 px-3 py-2" required>
-        <button class="rounded bg-indigo-600 text-white px-3 py-2">Create</button>
+        <button class="rounded bg-indigo-600 text-white px-3 py-2">{{ t('admin_create_btn', page_locale()) }}</button>
         <input name="query_user" placeholder="Query User" class="rounded border border-slate-300 px-3 py-2 md:col-span-2">
         <input name="query_secret" placeholder="Query Secret" type="password" class="rounded border border-slate-300 px-3 py-2 md:col-span-2">
     </form>

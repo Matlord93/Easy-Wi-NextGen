@@ -17,7 +17,7 @@
           {% if member.role %}<p class="text-sm text-slate-300">{{ member.role }}</p>{% endif %}
           {% if member.teamName %}<p class="text-xs text-slate-400">{{ member.teamName }}</p>{% endif %}
         </article>
-      {% else %}<p>Keine Teams vorhanden.</p>{% endfor %}
+      {% else %}<p>{{ t('public_teams_empty', page_locale()) }}</p>{% endfor %}
     {% endfor %}
   </div>
 </div>

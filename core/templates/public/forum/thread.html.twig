@@ -14,7 +14,7 @@
         <div class="flex flex-wrap items-start gap-3">
             <h1 class="text-3xl font-bold ng-gradient-text flex-1">{{ thread.title }}</h1>
             {% if thread.isClosed %}
-                <span class="mt-1 rounded-full px-3 py-1 text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">Geschlossen</span>
+                <span class="mt-1 rounded-full px-3 py-1 text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">{{ t('public_forum_closed', page_locale()) }}</span>
             {% endif %}
         </div>
     </div>
@@ -55,19 +55,19 @@
                                 <input type="text" name="reason_details" placeholder="Details (optional)"
                                        class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-300">
                                 <button class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1 text-xs text-slate-400 hover:border-slate-600 hover:text-slate-200 transition-colors">
-                                    Melden
+                                    {{ t('public_forum_report', page_locale()) }}
                                 </button>
                             </form>
                         </div>
                     {% endif %}
                 {% else %}
-                    <div class="px-5 py-4 text-sm italic text-slate-600">[Beitrag gelöscht]</div>
+                    <div class="px-5 py-4 text-sm italic text-slate-600">{{ t('public_forum_post_deleted', page_locale()) }}</div>
                 {% endif %}
             </article>
         {% else %}
             <div class="ng-empty-state">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                <p>Keine Beiträge.</p>
+                <p>{{ t('public_forum_no_posts', page_locale()) }}</p>
             </div>
         {% endfor %}
     </div>
@@ -75,10 +75,10 @@
     {% if total_pages > 1 %}
         <div class="mb-8 flex items-center justify-between text-sm">
             <a href="/forum/thread/{{ thread.id }}?page={{ page - 1 }}"
-               class="ng-btn ng-btn--ghost {% if page <= 1 %}pointer-events-none opacity-40{% endif %}">← Zurück</a>
-            <span class="text-slate-400">Seite {{ page }} / {{ total_pages }}</span>
+               class="ng-btn ng-btn--ghost {% if page <= 1 %}pointer-events-none opacity-40{% endif %}">{{ t('public_forum_prev', page_locale()) }}</a>
+            <span class="text-slate-400">{{ t('public_forum_page_indicator', page_locale())|replace({'%current%': page, '%total%': total_pages}) }}</span>
             <a href="/forum/thread/{{ thread.id }}?page={{ page + 1 }}"
-               class="ng-btn ng-btn--ghost {% if page >= total_pages %}pointer-events-none opacity-40{% endif %}">Weiter →</a>
+               class="ng-btn ng-btn--ghost {% if page >= total_pages %}pointer-events-none opacity-40{% endif %}">{{ t('public_forum_next', page_locale()) }}</a>
         </div>
     {% endif %}
 

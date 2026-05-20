@@ -1,75 +1,234 @@
 {% extends 'customer/base.html.twig' %}
+{% set activeNav = 'profile' %}
+{% set locale = page_locale() %}
+
+{% block title %}{{ t('customer_security_hero_title', locale) }}{% endblock %}
 
 {% block content %}
-  <div class="space-y-6">
-    {% if errors is not empty %}
-      <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
-    {% endif %}
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    {% if confirmRequired %}
-      <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 class="text-xl font-semibold text-slate-900">Sicherheitsbestätigung</h1>
-        <p class="mt-2 text-sm text-slate-600">Bitte bestätige dein aktuelles Passwort, um sensible Aktionen auszuführen.</p>
-        <form method="post" action="/account/security/confirm" class="mt-4 space-y-3">
-          <input type="hidden" name="_token" value="{{ csrf_token('account_security_confirm') }}">
-          <input type="password" name="current_password" required class="w-full rounded border border-slate-200 px-3 py-2" placeholder="Aktuelles Passwort">
-          <button type="submit" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Bestätigen</button>
-        </form>
-      </div>
-    {% endif %}
-
-    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-slate-900">Passwort ändern</h2>
-      <form method="post" action="/account/security/password" class="mt-4 grid gap-3 sm:grid-cols-2">
-        <input type="hidden" name="_token" value="{{ csrf_token('account_security_password') }}">
-        <input type="password" name="current_password" required class="rounded border border-slate-200 px-3 py-2" placeholder="Aktuelles Passwort">
-        <div></div>
-        <input type="password" name="new_password" required minlength="8" class="rounded border border-slate-200 px-3 py-2" placeholder="Neues Passwort">
-        <input type="password" name="new_password_confirm" required minlength="8" class="rounded border border-slate-200 px-3 py-2" placeholder="Neues Passwort wiederholen">
-        <button type="submit" class="w-fit rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Passwort speichern</button>
-      </form>
-    </div>
-
-    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-slate-900">Zwei-Faktor-Authentifizierung</h2>
-      {% if twoFactor.success %}<p class="mt-2 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{{ t(twoFactor.success, page_locale()) }}</p>{% endif %}
-
-      {% if twoFactor.enabled %}
-        <div class="mt-4 space-y-4">
-          <form method="post" action="/account/security/2fa/recovery" class="space-y-2">
-            <input type="hidden" name="_token" value="{{ csrf_token('account_security_recovery_2fa') }}">
-            <input type="text" name="otp" placeholder="123456" class="rounded border border-slate-200 px-3 py-2">
-            <input type="text" name="recovery_code" placeholder="0000-0000" class="rounded border border-slate-200 px-3 py-2">
-            <button type="submit" class="rounded border border-slate-300 px-4 py-2 text-sm">Recovery-Codes regenerieren</button>
-          </form>
-
-          <form method="post" action="/account/security/2fa/disable" class="space-y-2">
-            <input type="hidden" name="_token" value="{{ csrf_token('account_security_disable_2fa') }}">
-            <input type="text" name="otp" placeholder="123456" class="rounded border border-slate-200 px-3 py-2">
-            <input type="text" name="recovery_code" placeholder="0000-0000" class="rounded border border-slate-200 px-3 py-2">
-            <button type="submit" class="rounded border border-rose-200 px-4 py-2 text-sm text-rose-700">2FA deaktivieren</button>
-          </form>
-
-          {% if twoFactor.recovery_codes is not empty %}
-            <div class="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
-              <p class="font-semibold">Neue Recovery-Codes (einmalig sichtbar):</p>
-              <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                {% for code in twoFactor.recovery_codes %}<span class="rounded bg-white px-2 py-1 font-mono">{{ code }}</span>{% endfor %}
-              </div>
+    {# ── Hero / KPI card ── #}
+    <div class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#ef4444;"></span>
+                        {{ t('customer_security_hero_label', locale) }}
+                    </div>
+                    <h1 class="tkt-hero__title">{{ t('customer_security_hero_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('customer_security_hero_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px;">
+                    <div class="tkt-kpi tkt-kpi--resolved">
+                        <div class="tkt-kpi__label">{{ t('customer_security_kpi_password', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;">{{ t('customer_security_kpi_password_active', locale) }}</div>
+                    </div>
+                    <div class="tkt-kpi {{ twoFactor.enabled ? 'tkt-kpi--resolved' : 'tkt-kpi--pending' }}">
+                        <div class="tkt-kpi__label">{{ t('customer_security_kpi_2fa', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;">{{ twoFactor.enabled ? t('two_factor_enabled_badge', locale) : t('two_factor_disabled_badge', locale) }}</div>
+                    </div>
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('prof_kpi_profile_complete', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:12px;">
+                            <a href="{{ path('customer_profile') }}" style="color:inherit;text-decoration:none;">{{ t('prof_tab_profile', locale) }} →</a>
+                        </div>
+                    </div>
+                </div>
             </div>
-          {% endif %}
         </div>
-      {% else %}
-        <div class="mt-4 space-y-3">
-          <p class="text-sm text-slate-600">Secret: <span class="font-mono">{{ twoFactor.secret }}</span></p>
-          {% if twoFactor.qr %}<img src="{{ twoFactor.qr }}" alt="2FA QR" class="h-44 w-44 rounded border border-slate-200 p-2">{% endif %}
-          <form method="post" action="/account/security/2fa/enable" class="flex gap-2">
-            <input type="hidden" name="_token" value="{{ csrf_token('account_security_enable_2fa') }}">
-            <input type="text" name="otp" placeholder="123456" class="rounded border border-slate-200 px-3 py-2">
-            <button type="submit" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">2FA aktivieren</button>
-          </form>
+
+        {# ── Tab navigation ── #}
+        <div class="prof-tabs">
+            <a href="{{ path('customer_profile') }}" class="prof-tab-btn">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
+                {{ t('prof_tab_profile', locale) }}
+            </a>
+            <a href="{{ path('customer_security') }}" class="prof-tab-btn prof-tab-btn--active">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524z"/></svg>
+                {{ t('prof_tab_security', locale) }}
+            </a>
         </div>
-      {% endif %}
     </div>
-  </div>
+
+    {# ── Global errors ── #}
+    {% if errors is not empty %}
+        <div class="ng-alert ng-alert--danger">
+            <ul style="margin:0;padding-left:18px;">
+                {% for error in errors %}<li>{{ t(error, locale) }}</li>{% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {# ── 2FA success ── #}
+    {% if twoFactor.success %}
+        <div class="ng-alert ng-alert--success">{{ t(twoFactor.success, locale) }}</div>
+    {% endif %}
+
+    {# ── Re-auth gate ── #}
+    {% if confirmRequired %}
+        <div class="prof-reauth">
+            <div>
+                <p class="prof-reauth__title">{{ t('customer_security_confirm_title', locale) }}</p>
+                <p class="prof-reauth__intro">{{ t('customer_security_confirm_intro', locale) }}</p>
+            </div>
+            <form method="post" action="/account/security/confirm" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                <input type="hidden" name="_token" value="{{ csrf_token('account_security_confirm') }}">
+                <div class="form-field" style="flex:1;min-width:200px;">
+                    <label class="form-label">{{ t('customer_security_confirm_current_password', locale) }}</label>
+                    <input type="password" name="current_password" required class="form-input" autofocus>
+                </div>
+                <button type="submit" class="ui-button ui-button--primary">{{ t('customer_security_confirm_submit', locale) }}</button>
+            </form>
+        </div>
+    {% endif %}
+
+    {# ── Two-column layout ── #}
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;">
+
+        {# ── Password change ── #}
+        <div class="prof-section">
+            <div class="prof-section__head">
+                <div>
+                    <div class="prof-section__title">{{ t('customer_security_password_title', locale) }}</div>
+                    <div class="prof-section__sub">{{ t('customer_security_password_sub', locale) }}</div>
+                </div>
+                <span class="ui-badge ui-badge--neutral">
+                    <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px;margin-right:4px;"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+                    {{ t('password', locale) }}
+                </span>
+            </div>
+            <div class="prof-section__body">
+                <form method="post" action="/account/security/password">
+                    <input type="hidden" name="_token" value="{{ csrf_token('account_security_password') }}">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('customer_security_current_password', locale) }}</label>
+                        <input type="password" name="current_password" required class="form-input">
+                    </div>
+                    <div class="form-field" style="margin-top:12px;">
+                        <label class="form-label">{{ t('customer_security_new_password', locale) }}</label>
+                        <input type="password" name="new_password" required minlength="8" class="form-input">
+                        <p class="form-hint">{{ t('password_minimum', locale) }}</p>
+                    </div>
+                    <div class="form-field" style="margin-top:12px;">
+                        <label class="form-label">{{ t('customer_security_confirm_password', locale) }}</label>
+                        <input type="password" name="new_password_confirm" required minlength="8" class="form-input">
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                        <button type="submit" class="ui-button ui-button--primary"{% if confirmRequired %} disabled title="{{ t('customer_security_confirm_intro', locale) }}"{% endif %}>
+                            {{ t('customer_security_password_save', locale) }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {# ── Two-factor authentication ── #}
+        <div class="prof-section">
+            <div class="prof-section__head">
+                <div>
+                    <div class="prof-section__title">{{ t('customer_security_2fa_section_title', locale) }}</div>
+                    <div class="prof-section__sub">{{ t('customer_security_2fa_section_sub', locale) }}</div>
+                </div>
+                {% if twoFactor.required and not twoFactor.enabled %}
+                    <span class="ui-badge ui-badge--warning">{{ t('two_factor_required_badge', locale) }}</span>
+                {% elseif twoFactor.enabled %}
+                    <span class="ui-badge ui-badge--success">{{ t('two_factor_enabled_badge', locale) }}</span>
+                {% else %}
+                    <span class="ui-badge ui-badge--neutral">{{ t('two_factor_disabled_badge', locale) }}</span>
+                {% endif %}
+            </div>
+            <div class="prof-section__body">
+
+                {% if twoFactor.enabled %}
+
+                    <p style="font-size:13px;color:var(--ng-text-muted);margin:0;">{{ t('two_factor_enabled_intro', locale) }}</p>
+
+                    {# ── Regenerate recovery codes ── #}
+                    <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:16px;margin-top:4px;">
+                        <div style="font-size:12px;font-weight:700;color:var(--ng-text);margin-bottom:10px;">{{ t('two_factor_regenerate', locale) }}</div>
+                        <form method="post" action="/account/security/2fa/recovery" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                            <input type="hidden" name="_token" value="{{ csrf_token('account_security_recovery_2fa') }}">
+                            <div class="form-field" style="flex:1;min-width:160px;">
+                                <label class="form-label">{{ t('two_factor_code_label', locale) }}</label>
+                                <input type="text" name="otp" placeholder="123456" class="form-input" autocomplete="one-time-code">
+                            </div>
+                            <div class="form-field" style="flex:1;min-width:160px;">
+                                <label class="form-label">{{ t('two_factor_recovery_label', locale) }}</label>
+                                <input type="text" name="recovery_code" placeholder="0000-0000" class="form-input">
+                            </div>
+                            <button type="submit" class="ui-button ui-button--ghost"{% if confirmRequired %} disabled{% endif %}>{{ t('two_factor_regenerate', locale) }}</button>
+                        </form>
+                    </div>
+
+                    {# ── Disable 2FA ── #}
+                    <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.18);border-radius:var(--ng-radius);padding:16px;">
+                        <div style="font-size:12px;font-weight:700;color:var(--ng-text);margin-bottom:10px;">{{ t('two_factor_disable', locale) }}</div>
+                        <form method="post" action="/account/security/2fa/disable" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                            <input type="hidden" name="_token" value="{{ csrf_token('account_security_disable_2fa') }}">
+                            <div class="form-field" style="flex:1;min-width:160px;">
+                                <label class="form-label">{{ t('two_factor_code_or_recovery', locale) }}</label>
+                                <input type="text" name="otp" placeholder="123456" class="form-input" autocomplete="one-time-code">
+                            </div>
+                            <div class="form-field" style="flex:1;min-width:160px;">
+                                <label class="form-label">{{ t('two_factor_recovery_label', locale) }}</label>
+                                <input type="text" name="recovery_code" placeholder="0000-0000" class="form-input">
+                            </div>
+                            <button type="submit" class="ui-button ui-button--danger"{% if confirmRequired %} disabled{% endif %}>{{ t('two_factor_disable', locale) }}</button>
+                        </form>
+                    </div>
+
+                    {# ── Recovery codes (shown once after regeneration) ── #}
+                    {% if twoFactor.recovery_codes is not empty %}
+                        <div class="ng-alert ng-alert--warning">
+                            <p style="margin:0 0 8px;font-weight:700;">{{ t('two_factor_recovery_show_once', locale) }}</p>
+                            <div class="prof-recovery-grid">
+                                {% for code in twoFactor.recovery_codes %}
+                                    <div class="prof-recovery-grid__code">{{ code }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+
+                {% else %}
+
+                    {# ── Setup 2FA ── #}
+                    <p style="font-size:13px;color:var(--ng-text-muted);margin:0;">{{ t('two_factor_setup_intro', locale) }}</p>
+
+                    <div class="prof-2fa-grid">
+                        <div style="display:flex;flex-direction:column;gap:14px;">
+                            <div class="form-field">
+                                <label class="form-label">{{ t('two_factor_secret_label', locale) }}</label>
+                                <div class="prof-secret-bar">
+                                    <span class="prof-secret-bar__value">{{ twoFactor.secret }}</span>
+                                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ twoFactor.secret }}">{{ t('copy', locale) }}</button>
+                                </div>
+                            </div>
+                            <form method="post" action="/account/security/2fa/enable">
+                                <input type="hidden" name="_token" value="{{ csrf_token('account_security_enable_2fa') }}">
+                                <div class="form-field">
+                                    <label class="form-label">{{ t('two_factor_code_label', locale) }}</label>
+                                    <input type="text" name="otp" placeholder="123456" class="form-input" autocomplete="one-time-code">
+                                </div>
+                                <div style="margin-top:12px;">
+                                    <button type="submit" class="ui-button ui-button--primary">{{ t('two_factor_enable', locale) }}</button>
+                                </div>
+                            </form>
+                        </div>
+                        {% if twoFactor.qr %}
+                            <div class="prof-2fa-qr">
+                                <img src="{{ twoFactor.qr }}" alt="QR Code" class="prof-2fa-qr__img">
+                                <p class="prof-2fa-qr__hint">{{ t('two_factor_scan_qr', locale) }}</p>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                {% endif %}
+
+            </div>
+        </div>
+
+    </div>{# /grid #}
+
+</div>{# /page #}
 {% endblock %}

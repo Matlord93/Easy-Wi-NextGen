@@ -76,7 +76,7 @@ final class CustomerDatabaseController
             $errors[] = 'Database name is required.';
         }
         if ($username === '') {
-            $errors[] = 'Username is required.';
+            $errors[] = 'error_username_required';
         }
         if (mb_strlen($password) < 8) {
             $errors[] = 'Password must contain at least 8 characters.';

@@ -1,7 +1,7 @@
 <div class="p-6">
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-lg font-semibold">{{ form.action == 'create' ? 'New Incident' : 'Edit Incident' }}</h2>
+            <h2 class="text-lg font-semibold">{{ form.action == 'create' ? t('admin_status_new_incident', page_locale()) : t('admin_status_edit_incident', page_locale()) }}</h2>
             <p class="text-sm text-slate-700">Keep customers updated on active incidents.</p>
         </div>
     </div>

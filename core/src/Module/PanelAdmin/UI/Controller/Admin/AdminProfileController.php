@@ -61,23 +61,23 @@ final class AdminProfileController
 
         $errors = [];
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Enter a valid email address.';
+            $errors[] = 'error_invalid_email';
         }
 
         if ($email !== '' && $email !== $admin->getEmail()) {
             $existing = $this->userRepository->findOneByEmail($email);
             if ($existing !== null && $existing->getId() !== $admin->getId()) {
-                $errors[] = 'An account with this email already exists.';
+                $errors[] = 'error_email_exists';
             }
         }
 
         if ($password !== '') {
             if (mb_strlen($password) < 8) {
-                $errors[] = 'Password must be at least 8 characters long.';
+                $errors[] = 'error_password_too_short';
             }
 
             if ($password !== $passwordConfirm) {
-                $errors[] = 'Passwords do not match.';
+                $errors[] = 'error_passwords_dont_match';
             }
         }
 
@@ -85,12 +85,12 @@ final class AdminProfileController
         $canManageSshKey = $this->canManageSshKey($admin);
         if ($sshKey !== '') {
             if (!$canManageSshKey) {
-                $errors[] = 'SSH key access is not enabled for this account yet. Please contact a super admin to enable it.';
+                $errors[] = 'error_ssh_key_not_enabled';
             }
             if ($currentSshKey !== null) {
-                $errors[] = 'An SSH public key is already stored for this account. Please contact a super admin to change it.';
+                $errors[] = 'error_ssh_key_already_set';
             } elseif (!$this->isValidSshPublicKey($sshKey)) {
-                $errors[] = 'Enter a valid SSH public key.';
+                $errors[] = 'error_ssh_key_invalid';
             }
         }
 
@@ -181,7 +181,7 @@ final class AdminProfileController
         }
 
         if ($secret === null || !$this->twoFactorService->verifyCode($secret, $otp)) {
-            return $this->renderPage($admin, [], ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+            return $this->renderPage($admin, [], ['error_invalid_code'], Response::HTTP_BAD_REQUEST);
         }
 
         $admin->setTotpEnabled(true);
@@ -209,7 +209,7 @@ final class AdminProfileController
         $recoveryCode = trim((string) $request->request->get('recovery_code', ''));
 
         if (!$this->verifyTwoFactorChallenge($admin, $otp, $recoveryCode)) {
-            return $this->renderPage($admin, [], ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+            return $this->renderPage($admin, [], ['error_invalid_code'], Response::HTTP_BAD_REQUEST);
         }
 
         $admin->setTotpEnabled(false);
@@ -236,7 +236,7 @@ final class AdminProfileController
         $recoveryCode = trim((string) $request->request->get('recovery_code', ''));
 
         if (!$this->verifyTwoFactorChallenge($admin, $otp, $recoveryCode)) {
-            return $this->renderPage($admin, [], ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+            return $this->renderPage($admin, [], ['error_invalid_code'], Response::HTTP_BAD_REQUEST);
         }
 
         $codes = $this->twoFactorService->generateRecoveryCodes();

@@ -46,7 +46,7 @@
                         <thead class="bg-slate-50 text-xs uppercase text-slate-600">
                             <tr>
                                 <th class="px-6 py-3 text-left font-semibold">Customer</th>
-                                <th class="px-6 py-3 text-left font-semibold">Created</th>
+                                <th class="px-6 py-3 text-left font-semibold">{{ t('reseller_customers_created_col', page_locale()) }}</th>
                                 <th class="px-6 py-3 text-left font-semibold">Status</th>
                             </tr>
                         </thead>
@@ -78,14 +78,14 @@
 
             <div class="space-y-4">
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h2 class="text-lg font-semibold text-slate-900">Create customer</h2>
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('reseller_create_customer_heading', page_locale()) }}</h2>
                     <p class="mt-1 text-xs text-slate-700">Provision a new customer linked to your reseller account.</p>
 
                     {% if errors is not empty %}
                         <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                             <ul class="list-disc space-y-1 pl-5">
                                 {% for error in errors %}
-                                    <li>{{ error }}</li>
+                                    <li>{{ t(error, page_locale()) }}</li>
                                 {% endfor %}
                             </ul>
                         </div>
@@ -100,7 +100,7 @@
                             <label class="text-xs font-semibold uppercase text-slate-700">Temporary password</label>
                             <input type="password" name="password" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
                         </div>
-                        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Create customer</button>
+                        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('reseller_create_customer_btn', page_locale()) }}</button>
                     </form>
                 </div>
 

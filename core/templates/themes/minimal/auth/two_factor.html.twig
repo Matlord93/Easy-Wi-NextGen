@@ -9,7 +9,7 @@
   <form method="post" action="/2fa_check">
     <input type="hidden" name="_token" value="{{ csrf_token('public_2fa_check') }}">
     <input name="otp" inputmode="numeric" pattern="[0-9]{6}" placeholder="Authenticator-Code" required>
-    <button type="submit">Bestätigen</button>
+    <button type="submit">{{ t('theme_2fa_confirm', page_locale()) }}</button>
   </form>
 </section>
 {% endblock %}

@@ -10,6 +10,7 @@ type gamesvcConfig struct {
 	ListenAddr   string        `json:"listen_addr"`
 	TemplateDir  string        `json:"template_dir"`
 	BaseDir      string        `json:"base_dir"`
+	BearerToken  string        `json:"bearer_token"`
 	ReadTimeout  time.Duration `json:"read_timeout"`
 	WriteTimeout time.Duration `json:"write_timeout"`
 	IdleTimeout  time.Duration `json:"idle_timeout"`

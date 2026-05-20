@@ -33,6 +33,7 @@ func newGameServer(cfg gamesvcConfig) *gameServer {
 
 func (s *gameServer) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/server/create", s.handleCreateServer)
 	mux.HandleFunc("/ports/check-free", s.handleCheckFree)
 	mux.HandleFunc("/instance/render-config", s.handleRenderConfig)
 	mux.HandleFunc("/instance/start", s.handleStartInstance)
@@ -46,6 +47,128 @@ func (s *gameServer) routes() http.Handler {
 		w.Header().Set(trace.CorrelationHeader, correlationID)
 		mux.ServeHTTP(w, r.WithContext(trace.WithIDs(r.Context(), requestID, correlationID)))
 	})
+}
+
+type createServerRequest struct {
+	GameType  string `json:"game_type"`
+	ServerID  string `json:"server_id"`
+	MasterDir string `json:"master_dir"`
+	TargetDir string `json:"target_dir"`
+}
+
+type gameTemplateProfile struct {
+	SymlinkPaths []string
+	CopyPaths    []string
+	WriteDirs    []string
+}
+
+var gameTemplateProfiles = map[string]gameTemplateProfile{
+	"cs2": {
+		SymlinkPaths: []string{"game/csgo/maps", "game/csgo/pak01.vpk"},
+		CopyPaths:    []string{"bin", "game/bin", "srcds_run"},
+		WriteDirs:    []string{"game/csgo/cfg", "game/csgo/logs", "game/csgo/addons"},
+	},
+	"palworld": {
+		SymlinkPaths: []string{"Pal/Content"},
+		CopyPaths:    []string{"Pal/Binaries", "PalServer.sh"},
+		WriteDirs:    []string{"Pal/Saved/Config", "Pal/Saved/Logs", "Pal/Saved/SaveGames"},
+	},
+	"rust": {
+		SymlinkPaths: []string{"Bundles"},
+		CopyPaths:    []string{"RustDedicated"},
+		WriteDirs:    []string{"server", "logs"},
+	},
+}
+
+func (s *gameServer) handleCreateServer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
+		return
+	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
+		return
+	}
+
+	var req createServerRequest
+	if err := readJSON(r.Body, &req); err != nil {
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
+		return
+	}
+	if req.GameType == "" || req.ServerID == "" || req.MasterDir == "" || req.TargetDir == "" {
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, "game_type, server_id, master_dir and target_dir are required", nil)
+		return
+	}
+
+	profile, ok := gameTemplateProfiles[strings.ToLower(req.GameType)]
+	if !ok {
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, "unsupported game_type", map[string]any{"game_type": req.GameType})
+		return
+	}
+
+	actions, err := applyGameTemplateProfile(req.MasterDir, req.TargetDir, profile)
+	if err != nil {
+		apienvelope.WriteError(w, r, http.StatusInternalServerError, apienvelope.ErrorInternal, err.Error(), map[string]any{"actions": actions})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "actions": actions})
+}
+
+func (s *gameServer) validateBearerToken(r *http.Request) bool {
+	expected := strings.TrimSpace(s.config.BearerToken)
+	if expected == "" {
+		return false
+	}
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return false
+	}
+	received := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	return received == expected
+}
+
+func applyGameTemplateProfile(masterDir, targetDir string, profile gameTemplateProfile) ([]string, error) {
+	actions := make([]string, 0, len(profile.CopyPaths)+len(profile.SymlinkPaths)+len(profile.WriteDirs)+1)
+	if err := os.MkdirAll(targetDir, 0750); err != nil {
+		return actions, err
+	}
+	actions = append(actions, "mkdir "+targetDir)
+
+	for _, rel := range profile.CopyPaths {
+		src := filepath.Join(masterDir, rel)
+		dst := filepath.Join(targetDir, rel)
+		if err := os.MkdirAll(filepath.Dir(dst), 0750); err != nil {
+			return actions, err
+		}
+		if output, err := exec.Command("cp", "-r", src, dst).CombinedOutput(); err != nil {
+			return actions, errors.New("copy failed for " + rel + ": " + strings.TrimSpace(string(output)))
+		}
+		actions = append(actions, "copy "+rel)
+	}
+
+	for _, rel := range profile.SymlinkPaths {
+		src := filepath.Join(masterDir, rel)
+		dst := filepath.Join(targetDir, rel)
+		if err := os.MkdirAll(filepath.Dir(dst), 0750); err != nil {
+			return actions, err
+		}
+		_ = os.RemoveAll(dst)
+		if err := os.Symlink(src, dst); err != nil {
+			return actions, err
+		}
+		actions = append(actions, "symlink "+rel)
+	}
+
+	for _, rel := range profile.WriteDirs {
+		dst := filepath.Join(targetDir, rel)
+		if err := os.MkdirAll(dst, 0750); err != nil {
+			return actions, err
+		}
+		actions = append(actions, "mkdir-write "+rel)
+	}
+
+	return actions, nil
 }
 
 type checkFreeRequest struct {

@@ -6,7 +6,7 @@
   {% for block in blocks %}
     <article class="theme-card">{% include 'public/blocks/_block.html.twig' with { block: block } only %}</article>
   {% else %}
-    <article class="theme-card">Keine Inhalte vorhanden.</article>
+    <article class="theme-card">{{ t('public_no_content', page_locale()) }}</article>
   {% endfor %}
   </div>
 </section>

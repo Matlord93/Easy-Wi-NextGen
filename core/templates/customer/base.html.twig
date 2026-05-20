@@ -144,8 +144,7 @@
         label: t('customer_nav_group_account', page_locale()),
         open: false,
         items: [
-            { key: 'profile',  label: t('customer_nav_profile', page_locale()),  href: path('customer_profile'),  iconSvg: icon.user },
-            { key: 'security', label: t('customer_nav_security', page_locale()), href: path('customer_security'), iconSvg: icon.shield }
+            { key: 'profile', label: t('prof_hero_title', page_locale()), href: path('customer_profile'), iconSvg: icon.user }
         ]
     },
     gdprItems is not empty ? {

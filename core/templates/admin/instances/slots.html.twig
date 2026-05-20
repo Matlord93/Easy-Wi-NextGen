@@ -19,7 +19,7 @@
                 <p class="ng-data-card__sub">{{ instance.getServerName() ?? 'Instance' }} (ID {{ instance.getId() }})</p>
             </div>
             <div class="ng-data-card__actions">
-                <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_instances') }}">Zurück</a>
+                <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_instances') }}">{{ t('admin_back_btn', page_locale()) }}</a>
             </div>
         </div>
         <div class="ng-data-card__body">
@@ -39,7 +39,7 @@
                     Lock slots to max
                 </label>
                 <div>
-                    <button type="submit" class="ui-button ui-button--primary">Save</button>
+                    <button type="submit" class="ui-button ui-button--primary">{{ t('action_save', page_locale()) }}</button>
                 </div>
             </form>
         </div>
