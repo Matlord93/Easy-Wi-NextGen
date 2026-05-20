@@ -2195,7 +2195,8 @@ final class AgentApiController
         } elseif ($resultStatus === JobResultStatus::Succeeded) {
             $newStatus = match ($job->getType()) {
                 'instance.create', 'instance.start', 'instance.restart' => \App\Module\Core\Domain\Enum\InstanceStatus::Running,
-                'instance.stop', 'instance.reinstall', 'sniper.install', 'sniper.update' => \App\Module\Core\Domain\Enum\InstanceStatus::Stopped,
+                'instance.stop', 'instance.reinstall', 'sniper.install' => \App\Module\Core\Domain\Enum\InstanceStatus::Stopped,
+                'sniper.update' => $this->resolvePostUpdateInstanceStatus($job, $output),
                 default => null,
             };
         }
@@ -2252,6 +2253,33 @@ final class AgentApiController
             'version' => $version,
             'completed_at' => $completedAt->format(DATE_RFC3339),
         ]);
+    }
+
+    private function resolvePostUpdateInstanceStatus(\App\Module\Core\Domain\Entity\Job $job, array $output): \App\Module\Core\Domain\Enum\InstanceStatus
+    {
+        $runtimeStatus = strtolower(trim((string) ($output['status'] ?? '')));
+        if (in_array($runtimeStatus, ['online', 'running', 'up', 'started', 'success'], true)) {
+            return \App\Module\Core\Domain\Enum\InstanceStatus::Running;
+        }
+        if (in_array($runtimeStatus, ['offline', 'stopped', 'down'], true)) {
+            return \App\Module\Core\Domain\Enum\InstanceStatus::Stopped;
+        }
+
+        foreach (['running', 'online', 'started'] as $flag) {
+            $parsed = filter_var($output[$flag] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($parsed === true) {
+                return \App\Module\Core\Domain\Enum\InstanceStatus::Running;
+            }
+            if ($parsed === false) {
+                return \App\Module\Core\Domain\Enum\InstanceStatus::Stopped;
+            }
+        }
+
+        $payloadAutostart = filter_var($job->getPayload()['autostart'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        return $payloadAutostart === true
+            ? \App\Module\Core\Domain\Enum\InstanceStatus::Running
+            : \App\Module\Core\Domain\Enum\InstanceStatus::Stopped;
     }
 
 

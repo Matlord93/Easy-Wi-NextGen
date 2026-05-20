@@ -18,6 +18,7 @@ use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\InstanceInstallService;
+use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\InstanceRepository;
@@ -46,6 +47,7 @@ final class CustomerJobApiController
         private readonly AppSettingsService $appSettingsService,
         private readonly SetupChecker $setupChecker,
         private readonly InstanceInstallService $instanceInstallService,
+        private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
@@ -129,6 +131,13 @@ final class CustomerJobApiController
                 ], JsonResponse::HTTP_CONFLICT);
             }
             $jobPayload = array_merge($this->buildBasePayload($instance), $install['payload'] ?? []);
+        } elseif (in_array($jobType, ['instance.start', 'instance.restart'], true)) {
+            $extraPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
+            $jobPayload = array_merge(
+                $extraPayload,
+                $this->instanceJobPayloadBuilder->buildRuntimePayload($instance),
+                $this->buildBasePayload($instance),
+            );
         } else {
             $extraPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
             $jobPayload = array_merge($extraPayload, $this->buildBasePayload($instance));
