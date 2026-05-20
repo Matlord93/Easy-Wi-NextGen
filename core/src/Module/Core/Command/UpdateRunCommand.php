@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\UpdateJobService;
-use App\Module\Setup\Application\WebinterfaceUpdateService;
+use App\Module\Core\Application\UpdateJobServiceInterface;
+use App\Module\Setup\Application\WebinterfaceUpdateServiceInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -19,8 +19,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class UpdateRunCommand extends Command
 {
     public function __construct(
-        private readonly UpdateJobService $updateJobService,
-        private readonly WebinterfaceUpdateService $updateService,
+        private readonly UpdateJobServiceInterface $updateJobService,
+        private readonly WebinterfaceUpdateServiceInterface $updateService,
     ) {
         parent::__construct();
     }

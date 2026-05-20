@@ -13,7 +13,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\Process\Process;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class WebinterfaceUpdateService
+final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterface
 {
     private const RUNTIME_MAINTENANCE_FILE = 'var/update-maintenance.flag';
 
