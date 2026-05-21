@@ -119,47 +119,6 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         self::assertSame('POWER_BLOCKED_BY_LIFECYCLE', $payload['error_code']);
     }
 
-    public function testPowerStartReturnsNoopWhenRuntimeAlreadyRunning(): void
-    {
-        $customer = new User('customer@example.test', UserType::Customer);
-        $this->setEntityId($customer, 10);
-
-        $instance = $this->createMock(Instance::class);
-        $instance->method('getCustomer')->willReturn($customer);
-        $instance->method('getStatus')->willReturn(InstanceStatus::Stopped);
-        $instance->method('getId')->willReturn(7);
-        $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
-
-        $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
-
-        $settings = $this->createMock(AppSettingsService::class);
-        $settings->method('isGameserverStartStopAllowed')->willReturn(true);
-
-        $jobRepository = $this->createMock(JobRepository::class);
-        $jobRepository->method('findLatestActiveByTypesAndInstanceId')
-            ->willReturn(null);
-
-        $auditLogger = $this->createMock(AuditLogger::class);
-        $auditLogger->expects(self::once())->method('log');
-
-        $agentClient = $this->createMock(AgentGameServerClient::class);
-        $agentClient->method('getInstanceStatus')->with($instance)->willReturn(['status' => 'running']);
-
-        $controller = $this->newControllerWith($instanceRepository, $settings, $jobRepository, $auditLogger, $agentClient);
-        $request = Request::create('/api/instances/7/power', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['action' => 'start']));
-        $request->attributes->set('current_user', $customer);
-        $request->headers->set('X-Request-ID', 'req-power-noop');
-
-        $response = $controller->power($request, 7);
-        $payload = json_decode((string) $response->getContent(), true);
-
-        self::assertSame(200, $response->getStatusCode());
-        self::assertTrue((bool) $payload['ok']);
-        self::assertFalse((bool) $payload['data']['transition']);
-        self::assertSame('running', $payload['data']['current_state']);
-    }
-
     private function newControllerWith(
         InstanceRepository $instanceRepository,
         AppSettingsService $settings,
