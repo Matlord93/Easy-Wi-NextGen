@@ -21,6 +21,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 final class CustomerInstancePowerApiControllerTest extends TestCase
@@ -171,6 +172,9 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         /** @var CustomerInstanceActionApiController $controller */
         $controller = $reflection->newInstanceWithoutConstructor();
 
+        $messageBus = $this->createMock(MessageBusInterface::class);
+        $messageBus->method('dispatch')->willReturn(new Envelope(new \stdClass()));
+
         foreach ([
             'instanceRepository' => $instanceRepository,
             'appSettingsService' => $settings,
@@ -178,7 +182,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
             'auditLogger' => $auditLogger ?? $this->createMock(AuditLogger::class),
             'diskEnforcementService' => $this->buildDiskEnforcementService(),
             'agentGameServerClient' => $agentClient,
-            'messageBus' => $this->createMock(MessageBusInterface::class),
+            'messageBus' => $messageBus,
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
             $prop->setAccessible(true);
