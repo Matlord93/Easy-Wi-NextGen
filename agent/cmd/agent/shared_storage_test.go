@@ -189,6 +189,24 @@ func TestApplySharedPathsRejectsReadOnlyFalse(t *testing.T) {
 	}
 }
 
+
+func TestSharedStorageBaseDirPrefersEnv(t *testing.T) {
+	base := t.TempDir()
+	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
+	got := sharedStorageBaseDir("/home/gs211/game")
+	if got != base {
+		t.Fatalf("expected env base %q, got %q", base, got)
+	}
+}
+
+func TestSharedStorageBaseDirFallsBackToInstanceParent(t *testing.T) {
+	t.Setenv("EASYWI_INSTANCE_BASE_DIR", "")
+	got := sharedStorageBaseDir("/home/gs211/game")
+	if got != "/home/gs211" {
+		t.Fatalf("expected instance parent /home/gs211, got %q", got)
+	}
+}
+
 func TestSensitiveSubpathBlocked(t *testing.T) {
 	if !isSensitiveSharedPath("cfg/server.cfg") {
 		t.Fatalf("expected cfg/server.cfg to be blocked")

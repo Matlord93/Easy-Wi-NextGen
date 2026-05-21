@@ -75,7 +75,7 @@ func applySharedPaths(instanceDir, templateID string, specs []sharedPathSpec) er
 		return err
 	}
 	defer lockRelease()
-	sharedRoot := filepath.Join(defaultInstanceBaseDir(), "shared", templateSafe)
+	sharedRoot := filepath.Join(sharedStorageBaseDir(instanceSafe), "shared", templateSafe)
 	if err := os.MkdirAll(sharedRoot, instanceDirMode); err != nil {
 		return fmt.Errorf("create shared root: %w", err)
 	}
@@ -85,6 +85,19 @@ func applySharedPaths(instanceDir, templateID string, specs []sharedPathSpec) er
 		}
 	}
 	return nil
+}
+
+
+func sharedStorageBaseDir(instanceDir string) string {
+	baseDir := strings.TrimSpace(os.Getenv("EASYWI_INSTANCE_BASE_DIR"))
+	if baseDir != "" {
+		return baseDir
+	}
+	parent := filepath.Dir(filepath.Clean(instanceDir))
+	if parent == "." || parent == string(filepath.Separator) || parent == "" {
+		return defaultInstanceBaseDir()
+	}
+	return parent
 }
 
 func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) error {
