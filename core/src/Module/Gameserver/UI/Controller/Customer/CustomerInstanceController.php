@@ -884,11 +884,13 @@ final class CustomerInstanceController
         return [
             'id' => $instance->getId(),
             'template' => [
-                'name' => $instance->getTemplate()->getDisplayName(),
+                'name' => $instance->getTemplate()->getGameKey(),
                 'game_key' => $instance->getTemplate()->getGameKey(),
                 'install_resolver' => $instance->getTemplate()->getInstallResolver(),
             ],
             'server_name' => $instance->getServerName(),
+            'hostname' => $connection['host'] ?? null,
+            'game_address' => $connection['address'] ?? null,
             'node' => [
                 'id' => $instance->getNode()->getId(),
                 'name' => $instance->getNode()->getName(),
