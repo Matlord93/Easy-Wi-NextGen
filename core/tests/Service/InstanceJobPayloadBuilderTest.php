@@ -16,8 +16,7 @@ use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Ports\Infrastructure\Repository\PortBlockFinderInterface;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
-use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\Persistence\ManagerRegistry;
+use App\Repository\SharedStorageTemplateLocatorInterface;
 use PHPUnit\Framework\TestCase;
 
 final class InstanceJobPayloadBuilderTest extends TestCase
@@ -461,45 +460,14 @@ final class InstanceJobPayloadBuilderTest extends TestCase
     }
 
 
-    private static function buildTemplateRepository(): \App\Repository\TemplateRepository
+    private static function buildTemplateRepository(): SharedStorageTemplateLocatorInterface
     {
-        $entityManager = new class () implements EntityManagerInterface {
-            public function getClassMetadata(string $className): \Doctrine\ORM\Mapping\ClassMetadata
+        return new class () implements SharedStorageTemplateLocatorInterface {
+            public function findSharedStorageVariantForIdentity(\App\Module\Core\Domain\Entity\Template $template): ?\App\Module\Core\Domain\Entity\Template
             {
-                return new \Doctrine\ORM\Mapping\ClassMetadata($className);
-            }
-
-            public function getRepository(string $className): \Doctrine\ORM\EntityRepository
-            {
-                throw new \BadMethodCallException('Not implemented.');
-            }
-
-            public function __call(string $name, array $arguments): mixed
-            {
-                throw new \BadMethodCallException('Not implemented.');
+                return null;
             }
         };
-
-        $registry = new class ($entityManager) implements ManagerRegistry {
-            public function __construct(private readonly EntityManagerInterface $entityManager)
-            {
-            }
-
-            public function getDefaultConnectionName(): string { throw new \BadMethodCallException('Not implemented.'); }
-            public function getConnection(?string $name = null): object { throw new \BadMethodCallException('Not implemented.'); }
-            public function getConnections(): array { return []; }
-            public function getConnectionNames(): array { return []; }
-            public function getDefaultManagerName(): string { return 'default'; }
-            public function getManager(?string $name = null): object { return $this->entityManager; }
-            public function getManagers(): array { return ['default' => $this->entityManager]; }
-            public function resetManager(?string $name = null): object { return $this->entityManager; }
-            public function getAliasNamespace(string $alias): string { throw new \BadMethodCallException('Not implemented.'); }
-            public function getManagerNames(): array { return ['default' => 'default']; }
-            public function getRepository(string $persistentObject, ?string $persistentManagerName = null): object { throw new \BadMethodCallException('Not implemented.'); }
-            public function getManagerForClass(string $class): ?object { return $this->entityManager; }
-        };
-
-        return new \App\Repository\TemplateRepository($registry);
     }
 
 }

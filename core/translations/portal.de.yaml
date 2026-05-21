@@ -992,6 +992,8 @@ admin_templates_requirement_vars_hint: "JSON-Array der Setup-Variablen. Felder: 
 admin_templates_requirement_secrets: "Setup-Secrets (JSON)"
 admin_templates_requirement_secrets_placeholder: '[{"key":"gslt","label":"GSLT","type":"password","required":true,"scope":"customer_allowed","validation":null,"helptext":"Game Server Login Token."}]'
 admin_templates_requirement_secrets_hint: "JSON-Array der Setup-Secrets. Secrets werden verschlüsselt gespeichert und nie im Klartext angezeigt."
+admin_templates_shared_paths: "Shared Storage Pfade (JSON)"
+admin_templates_shared_paths_hint: "JSON-Array der Pfade, die vom Shared-Storage-Template geteilt werden. Jeder Eintrag benötigt source, target, mode (symlink/bind) und readonly (true/false)."
 admin_templates_config_files: "Config-Dateien (Pfad | Beschreibung)"
 admin_templates_config_files_placeholder: "game/csgo/cfg/server.cfg | Standard server.cfg"
 admin_templates_plugin_paths: "Plugin-Pfade (eine pro Zeile)"

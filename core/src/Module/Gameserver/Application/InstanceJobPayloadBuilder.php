@@ -6,14 +6,14 @@ namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Infrastructure\Repository\PortBlockFinderInterface;
-use App\Repository\TemplateRepository;
+use App\Repository\SharedStorageTemplateLocatorInterface;
 
 final class InstanceJobPayloadBuilder
 {
     public function __construct(
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly PortBlockFinderInterface $portBlockRepository,
-        private readonly TemplateRepository $templateRepository,
+        private readonly SharedStorageTemplateLocatorInterface $templateRepository,
     ) {
     }
 

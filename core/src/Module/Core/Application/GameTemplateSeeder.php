@@ -59,6 +59,11 @@ final class GameTemplateSeeder
                 $requirementSecrets,
             );
 
+            $sharedPaths = $templateData['shared_paths'] ?? [];
+            if (is_array($sharedPaths) && $sharedPaths !== []) {
+                $requirements['shared_paths'] = $sharedPaths;
+            }
+
             $template = new Template(
                 $gameKey,
                 (string) ($templateData['display_name'] ?? $gameKey),

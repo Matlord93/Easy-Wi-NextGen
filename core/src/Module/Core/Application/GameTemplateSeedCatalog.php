@@ -13,7 +13,7 @@ final class GameTemplateSeedCatalog
     {
         $fastdl = $this->defaultFastdlSettings();
 
-        return [
+        $templates = [
             $this->template(
                 'cs2',
                 'Counter-Strike 2 Dedicated Server',
@@ -1617,6 +1617,17 @@ final class GameTemplateSeedCatalog
                 [],
             ),
         ];
+
+        $catalog = $this->sharedPathCatalog();
+        foreach ($templates as &$tpl) {
+            $gameKey = (string) ($tpl['game_key'] ?? '');
+            if ($gameKey !== '' && isset($catalog[$gameKey])) {
+                $tpl['shared_paths'] = $catalog[$gameKey];
+            }
+        }
+        unset($tpl);
+
+        return $templates;
     }
 
     /**
@@ -1874,6 +1885,87 @@ final class GameTemplateSeedCatalog
             'enabled' => false,
             'base_url' => '',
             'root_path' => '',
+        ];
+    }
+
+    /**
+     * @return array<string, list<array{source:string,target:string,mode:string,readonly:bool}>>
+     */
+    private function sharedPathCatalog(): array
+    {
+        $sym = static fn (string $path): array => [
+            'source' => $path,
+            'target' => $path,
+            'mode' => 'symlink',
+            'readonly' => true,
+        ];
+
+        $binPlatform = [$sym('bin'), $sym('platform')];
+        $cs2BinPlatform = [$sym('game/bin'), $sym('game/platform')];
+        $engineBinaries = [$sym('Engine/Binaries')];
+        $rustManaged = [$sym('RustDedicated_Data/Managed')];
+
+        return [
+            // CS2 / Source 2
+            'cs2'                   => $cs2BinPlatform,
+            'cs2_windows'           => $cs2BinPlatform,
+
+            // Source 1 engine family
+            'csgo_legacy'           => $binPlatform,
+            'csgo_legacy_windows'   => $binPlatform,
+            'css'                   => $binPlatform,
+            'css_windows'           => $binPlatform,
+            'tf2'                   => $binPlatform,
+            'tf2_windows'           => $binPlatform,
+            'hl2dm'                 => $binPlatform,
+            'hl2dm_windows'         => $binPlatform,
+            'l4d'                   => $binPlatform,
+            'l4d_windows'           => $binPlatform,
+            'l4d2'                  => $binPlatform,
+            'l4d2_windows'          => $binPlatform,
+            'dods'                  => $binPlatform,
+            'dods_windows'          => $binPlatform,
+            'garrys_mod'            => $binPlatform,
+
+            // Rust (.NET managed assemblies)
+            'rust'                  => $rustManaged,
+            'rust_windows'          => $rustManaged,
+
+            // Unreal Engine games (engine binaries)
+            'ark'                   => $engineBinaries,
+            'ark_windows'           => $engineBinaries,
+            'satisfactory'          => $engineBinaries,
+            'satisfactory_windows'  => $engineBinaries,
+            'palworld'              => $engineBinaries,
+            'palworld_windows'      => $engineBinaries,
+            'conan_exiles'          => $engineBinaries,
+            'conan_exiles_windows'  => $engineBinaries,
+            'squad'                 => [$sym('SquadGame/Content/Paks')],
+            'squad_windows'         => [$sym('SquadGame/Content/Paks')],
+
+            // Unity games (managed assemblies)
+            'valheim'               => [$sym('valheim_server_Data/Managed')],
+            'valheim_windows'       => [$sym('valheim_server_Data/Managed')],
+            'v_rising'              => [$sym('VRisingServer_Data/Managed')],
+            'v_rising_windows'      => [$sym('VRisingServer_Data/Managed')],
+
+            // Minecraft
+            'minecraft_vanilla_all' => [$sym('libraries')],
+            'minecraft_paper_all'   => [$sym('libraries')],
+            'minecraft_bedrock'     => [$sym('behavior_packs'), $sym('resource_packs')],
+
+            // Other
+            'arma3'                 => [$sym('dta'), $sym('addons')],
+            'arma3_windows'         => [$sym('dta'), $sym('addons')],
+            'factorio'              => [$sym('data')],
+            'terraria'              => [$sym('Content')],
+            'project_zomboid'       => [$sym('java')],
+            'project_zomboid_windows' => [$sym('java')],
+            'windrose'              => [$sym('R5/Content/Paks')],
+            'windrose_windows'      => [$sym('R5/Content/Paks')],
+            'hytale'                => [$sym('hytale-downloader')],
+
+            // FiveM, 7 Days to Die, DayZ, Enshrouded: no safe static shared paths
         ];
     }
 

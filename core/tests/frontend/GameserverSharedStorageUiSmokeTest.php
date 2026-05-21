@@ -36,4 +36,32 @@ final class GameserverSharedStorageUiSmokeTest extends TestCase
         self::assertStringContainsString('data-shared-storage-supported', $template);
         self::assertStringContainsString("admin_instances_shared_storage_hint_unsupported", $template);
     }
+
+    public function testInstanceEntityTracksSharedStorageFlag(): void
+    {
+        $instance = $this->buildMinimalInstance();
+
+        self::assertFalse($instance->isSharedStorageEnabled());
+
+        $instance->setSharedStorageEnabled(true);
+        self::assertTrue($instance->isSharedStorageEnabled());
+
+        $instance->setSharedStorageEnabled(false);
+        self::assertFalse($instance->isSharedStorageEnabled());
+    }
+
+    private function buildMinimalInstance(): \App\Module\Core\Domain\Entity\Instance
+    {
+        $template = new \App\Module\Core\Domain\Entity\Template(
+            'game', 'Game', null, null, null, [], 'start', [], [], [], [], 'install', 'update',
+            [], [], [], [], ['linux'], [], [],
+        );
+        $customer = new \App\Module\Core\Domain\Entity\User('test@example.com', \App\Module\Core\Domain\Enum\UserType::Customer);
+        $agent = new \App\Module\Core\Domain\Entity\Agent('node-1', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
+
+        return new \App\Module\Core\Domain\Entity\Instance(
+            $customer, $template, $agent, 100, 1024, 10240, null,
+            \App\Module\Core\Domain\Enum\InstanceStatus::PendingSetup,
+        );
+    }
 }

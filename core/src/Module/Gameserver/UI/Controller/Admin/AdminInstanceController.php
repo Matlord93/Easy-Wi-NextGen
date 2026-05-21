@@ -126,10 +126,13 @@ final class AdminInstanceController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $templates = $this->listDistinctTemplates();
+
         return new Response($this->twig->render('admin/instances/provision.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
-            'templates' => $this->listDistinctTemplates(),
+            'templates' => $templates,
+            'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
             'form' => $this->buildFormContext(),
             'activeNav' => 'game-instances',
             'createNotice' => $this->buildCreateNotice($request),
@@ -306,6 +309,7 @@ final class AdminInstanceController
 
             $installJob = new Job('sniper.install', $installPayload);
             $this->entityManager->persist($installJob);
+            $instance->setSharedStorageEnabled((bool) ($formData['use_shared_storage'] ?? false));
             $instance->setStatus(InstanceStatus::Provisioning);
             $this->entityManager->persist($instance);
         } else {
@@ -1233,6 +1237,7 @@ final class AdminInstanceController
                 'ftp_supported' => false,
                 'install_ready' => $installStatus['is_ready'] ?? false,
                 'install_error_code' => $installStatus['error_code'] ?? null,
+                'shared_storage_enabled' => $instance->isSharedStorageEnabled(),
             ];
         }, $instances);
     }

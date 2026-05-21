@@ -142,6 +142,9 @@ class Instance implements ResourceEventSource
     #[ORM\Column(options: ['default' => false])]
     private bool $watchdogEnabled = false;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $sharedStorageEnabled = false;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -672,6 +675,17 @@ class Instance implements ResourceEventSource
     public function setWatchdogEnabled(bool $watchdogEnabled): void
     {
         $this->watchdogEnabled = $watchdogEnabled;
+        $this->touch();
+    }
+
+    public function isSharedStorageEnabled(): bool
+    {
+        return $this->sharedStorageEnabled;
+    }
+
+    public function setSharedStorageEnabled(bool $sharedStorageEnabled): void
+    {
+        $this->sharedStorageEnabled = $sharedStorageEnabled;
         $this->touch();
     }
 

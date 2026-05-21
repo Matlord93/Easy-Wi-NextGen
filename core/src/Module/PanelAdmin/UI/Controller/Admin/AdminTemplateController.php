@@ -215,6 +215,7 @@ final class AdminTemplateController
                 $formData['env_vars'],
                 $formData['requirement_vars_parsed'],
                 $formData['requirement_secrets_parsed'],
+                $formData['shared_paths_parsed'],
             ),
         );
 
@@ -281,6 +282,7 @@ final class AdminTemplateController
             $formData['env_vars'],
             $formData['requirement_vars_parsed'],
             $formData['requirement_secrets_parsed'],
+            $formData['shared_paths_parsed'],
         ));
         $this->entityManager->flush();
 
@@ -370,6 +372,7 @@ final class AdminTemplateController
                     $templateData['env_vars'],
                     $templateData['requirement_vars'],
                     $templateData['requirement_secrets'],
+                    $templateData['shared_paths'],
                 ),
             );
 
@@ -489,6 +492,7 @@ final class AdminTemplateController
             'allowed_switch_flags' => '',
             'requirement_vars' => '',
             'requirement_secrets' => '',
+            'shared_paths' => '',
         ];
 
         return array_merge($defaults, $overrides ?? []);
@@ -522,6 +526,7 @@ final class AdminTemplateController
             'allowed_switch_flags' => implode(',', $template->getAllowedSwitchFlags()),
             'requirement_vars' => $this->normalizeJsonInput($template->getRequirementVars()),
             'requirement_secrets' => $this->normalizeJsonInput($template->getRequirementSecrets()),
+            'shared_paths' => $this->normalizeJsonInput($template->getSharedPaths()),
         ]);
     }
 
@@ -561,11 +566,13 @@ final class AdminTemplateController
         $allowedSwitchFlagsRaw = $request->request->get('allowed_switch_flags', '');
         $requirementVarsRaw = $request->request->get('requirement_vars', '');
         $requirementSecretsRaw = $request->request->get('requirement_secrets', '');
+        $sharedPathsRaw = $request->request->get('shared_paths', '');
         // Array to string conversion guard (HTMX/JSON payloads may submit arrays)
         $installResolverRaw = is_array($installResolverRaw) ? (string) json_encode($installResolverRaw, JSON_UNESCAPED_SLASHES) : trim((string) $installResolverRaw);
         $allowedSwitchFlagsRaw = is_array($allowedSwitchFlagsRaw) ? implode(',', array_map('strval', $allowedSwitchFlagsRaw)) : trim((string) $allowedSwitchFlagsRaw);
         $requirementVarsRaw = is_array($requirementVarsRaw) ? (string) json_encode($requirementVarsRaw, JSON_UNESCAPED_SLASHES) : trim((string) $requirementVarsRaw);
         $requirementSecretsRaw = is_array($requirementSecretsRaw) ? (string) json_encode($requirementSecretsRaw, JSON_UNESCAPED_SLASHES) : trim((string) $requirementSecretsRaw);
+        $sharedPathsRaw = is_array($sharedPathsRaw) ? (string) json_encode($sharedPathsRaw, JSON_UNESCAPED_SLASHES) : trim((string) $sharedPathsRaw);
 
 
         if ($gameKey === '') {
@@ -606,6 +613,7 @@ final class AdminTemplateController
         $configFiles = $this->parseConfigFiles($configFilesRaw, $entryErrors);
         $requirementVarsParsed = $this->parseRequirements($requirementVarsRaw, $entryErrors, 'vars');
         $requirementSecretsParsed = $this->parseRequirements($requirementSecretsRaw, $entryErrors, 'secrets');
+        $sharedPathsParsed = $this->parseSharedPaths($sharedPathsRaw, $entryErrors);
         $installResolver = $this->parseInstallResolver($installResolverRaw, $entryErrors);
         foreach ($entryErrors as $entryError) {
             $errors[] = $entryError;
@@ -645,6 +653,8 @@ final class AdminTemplateController
             'requirement_secrets' => $requirementSecretsRaw,
             'requirement_vars_parsed' => $requirementVarsParsed,
             'requirement_secrets_parsed' => $requirementSecretsParsed,
+            'shared_paths' => $sharedPathsRaw,
+            'shared_paths_parsed' => $sharedPathsParsed,
             'required_ports_raw' => $requiredPortsRaw,
             'allowed_switch_flags_raw' => $allowedSwitchFlagsRaw,
             'install_resolver_raw' => $installResolverRaw,
@@ -654,6 +664,7 @@ final class AdminTemplateController
             'plugin_paths_raw' => $pluginPathsRaw,
             'requirement_vars_raw' => $requirementVarsRaw,
             'requirement_secrets_raw' => $requirementSecretsRaw,
+            'shared_paths_raw' => $sharedPathsRaw,
             'fastdl_enabled' => $fastdlEnabled,
             'fastdl_base_url' => $fastdlBaseUrl,
             'fastdl_root_path' => $fastdlRootPath,
@@ -699,6 +710,7 @@ final class AdminTemplateController
         $allowedSwitchFlagsRaw = $this->normalizeListInput($entry['allowed_switch_flags'] ?? '');
         $requirementVarsRaw = $entry['requirement_vars'] ?? [];
         $requirementSecretsRaw = $entry['requirement_secrets'] ?? [];
+        $sharedPathsRaw = $entry['shared_paths'] ?? [];
 
         $entryErrors = [];
         if ($gameKey === '') {
@@ -746,6 +758,7 @@ final class AdminTemplateController
         $configFiles = $this->parseConfigFiles($configFilesRaw, $entryErrors);
         $requirementVars = $this->parseRequirements($requirementVarsRaw, $entryErrors, 'vars');
         $requirementSecrets = $this->parseRequirements($requirementSecretsRaw, $entryErrors, 'secrets');
+        $sharedPaths = $this->parseSharedPaths($sharedPathsRaw, $entryErrors);
         $installResolver = $this->parseInstallResolver($installResolverRaw, $entryErrors);
         $pluginPaths = $this->parseLines($pluginPathsRaw);
         $allowedSwitchFlags = $this->parseList($allowedSwitchFlagsRaw);
@@ -787,6 +800,7 @@ final class AdminTemplateController
             'allowed_switch_flags' => $allowedSwitchFlags,
             'requirement_vars' => $requirementVars,
             'requirement_secrets' => $requirementSecrets,
+            'shared_paths' => $sharedPaths,
         ];
     }
 
@@ -1144,6 +1158,7 @@ final class AdminTemplateController
      * @param array<int, array<string, mixed>> $envVars
      * @param array<int, array<string, mixed>> $requirementVars
      * @param array<int, array<string, mixed>> $requirementSecrets
+     * @param array<int, array<string, mixed>> $sharedPaths
      * @return array<string, mixed>
      */
     private function buildRequirements(
@@ -1152,6 +1167,7 @@ final class AdminTemplateController
         array $envVars,
         array $requirementVars,
         array $requirementSecrets,
+        array $sharedPaths = [],
     ): array {
         $envVarKeys = $this->extractEnvVarKeys($envVars);
         $requiredVars = $this->normalizeRequirementKeys($requirementVars);
@@ -1160,13 +1176,19 @@ final class AdminTemplateController
         }
         $requiredSecrets = $this->normalizeSecretKeys($requirementSecrets, $gameKey);
 
-        return [
+        $requirements = [
             'required_vars' => $requiredVars,
             'required_secrets' => $requiredSecrets,
             'steam_install_mode' => $this->resolveSteamInstallMode($gameKey, $steamAppId),
             'customer_allowed_vars' => $envVarKeys,
             'customer_allowed_secrets' => $requiredSecrets,
         ];
+
+        if ($sharedPaths !== []) {
+            $requirements['shared_paths'] = $sharedPaths;
+        }
+
+        return $requirements;
     }
 
     /**
@@ -1297,6 +1319,7 @@ final class AdminTemplateController
                 'update_command' => $formData['update_command'],
                 'install_resolver' => $formData['install_resolver_raw'],
                 'allowed_switch_flags' => $formData['allowed_switch_flags_raw'],
+                'shared_paths' => $formData['shared_paths_raw'],
             ]),
         ]), $status);
     }
@@ -1329,6 +1352,57 @@ final class AdminTemplateController
         }
 
         return $decoded;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>>|string $raw
+     * @param array<int, string> $errors
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseSharedPaths(array|string $raw, array &$errors): array
+    {
+        if (is_string($raw)) {
+            if (trim($raw) === '') {
+                return [];
+            }
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) {
+                $errors[] = 'Shared paths must be valid JSON.';
+                return [];
+            }
+            $raw = $decoded;
+        }
+
+        $normalized = [];
+        foreach ($raw as $entry) {
+            if (!is_array($entry)) {
+                $errors[] = 'Each shared path entry must be an object.';
+                continue;
+            }
+            $source = trim((string) ($entry['source'] ?? ''));
+            $target = trim((string) ($entry['target'] ?? ''));
+            if ($source === '') {
+                $errors[] = 'Shared path entry is missing "source".';
+                continue;
+            }
+            if ($target === '') {
+                $errors[] = 'Shared path entry is missing "target".';
+                continue;
+            }
+            $mode = trim((string) ($entry['mode'] ?? 'symlink'));
+            if (!in_array($mode, ['symlink', 'bind'], true)) {
+                $errors[] = sprintf('Shared path mode "%s" must be "symlink" or "bind".', $mode);
+                continue;
+            }
+            $normalized[] = [
+                'source' => $source,
+                'target' => $target,
+                'mode' => $mode,
+                'readonly' => (bool) ($entry['readonly'] ?? true),
+            ];
+        }
+
+        return $normalized;
     }
 
     private function validateMinecraftInstallResolver(string $gameKey, array $installResolver, array &$errors): void

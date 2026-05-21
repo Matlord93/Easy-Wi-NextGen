@@ -359,7 +359,15 @@ final class CustomerInstanceController
             return $this->renderInstanceCard($instance, null, $blocked);
         }
 
-        $install = $this->instanceInstallService->prepareInstall($instance);
+        $useSharedStorage = $request->request->getBoolean('use_shared_storage', false);
+        if ($useSharedStorage && !$this->supportsSharedStorage($instance)) {
+            if ($this->prefersJsonResponse($request)) {
+                return new JsonResponse(['error' => 'Shared storage is not supported for this template.', 'error_code' => 'SHARED_STORAGE_NOT_SUPPORTED'], JsonResponse::HTTP_CONFLICT);
+            }
+            return $this->renderInstanceCard($instance, null, 'Shared storage is not supported for this template.');
+        }
+
+        $install = $this->instanceInstallService->prepareInstall($instance, $useSharedStorage);
         if (!$install['ok']) {
             $installError = $this->resolveInstallErrorMessage($install['error_code'] ?? null);
             if ($this->prefersJsonResponse($request)) {
@@ -388,6 +396,7 @@ final class CustomerInstanceController
         $job = new Job('sniper.install', array_merge($installPayload, $install['payload'] ?? []));
         $this->entityManager->persist($job);
 
+        $instance->setSharedStorageEnabled($useSharedStorage);
         $instance->setStatus(InstanceStatus::Provisioning);
         $this->entityManager->persist($instance);
 
@@ -395,6 +404,7 @@ final class CustomerInstanceController
             'instance_id' => $instance->getId(),
             'customer_id' => $customer->getId(),
             'job_id' => $job->getId(),
+            'use_shared_storage' => $useSharedStorage,
         ]);
 
         $this->entityManager->flush();
@@ -442,10 +452,14 @@ final class CustomerInstanceController
         $job = new Job('instance.reinstall', $payload);
         $this->entityManager->persist($job);
 
+        $instance->setSharedStorageEnabled($useSharedStorage);
+        $this->entityManager->persist($instance);
+
         $this->auditLogger->log($customer, 'instance.reinstall.queued', [
             'instance_id' => $instance->getId(),
             'customer_id' => $customer->getId(),
             'job_id' => $job->getId(),
+            'use_shared_storage' => $useSharedStorage,
         ]);
 
         $this->entityManager->flush();
@@ -925,6 +939,7 @@ final class CustomerInstanceController
             'is_installed' => $instance->getCurrentBuildId() !== null
                 || $instance->getCurrentVersion() !== null
                 || $instance->getStartScriptPath() !== null,
+            'shared_storage_enabled' => $instance->isSharedStorageEnabled(),
             'disk_limit_bytes' => $diskLimitBytes,
             'disk_used_bytes' => $diskUsedBytes,
             'disk_limit_human' => $this->diskUsageFormatter->formatBytes($diskLimitBytes),
@@ -1820,7 +1835,8 @@ final class CustomerInstanceController
             'customer_instance_restart_planner_error_timezone',
             'customer_instance_reinstall_error_confirm',
             'customer_instance_reinstall_error_blocked',
-            'customer_instance_settings_error' => $error,
+            'customer_instance_settings_error',
+            'customer_instances_shared_storage_not_supported' => $error,
             default => null,
         };
     }

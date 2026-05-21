@@ -61,15 +61,83 @@ final class InstanceInstallServiceTest extends TestCase
         self::assertSame('TEMPLATE_OS_MISMATCH', $status['error_code'] ?? null);
     }
 
-    private function buildService(): InstanceInstallService
+    public function testPrepareInstallWithSharedStorageReturnsErrorWhenNotSupported(): void
     {
+        $locator = $this->createMock(SharedStorageTemplateLocatorInterface::class);
+        $locator->method('findSharedStorageVariantForIdentity')->willReturn(null);
+
+        $service = $this->buildService(sharedStorageLocator: $locator);
+        $instance = $this->buildInstance(
+            requirementVars: [],
+            supportedOs: ['linux'],
+            nodeOs: 'linux',
+            installCommand: 'install',
+            startParams: 'start',
+        );
+
+        $result = $service->prepareInstall($instance, true);
+
+        self::assertFalse($result['ok']);
+        self::assertSame('SHARED_STORAGE_NOT_SUPPORTED', $result['error_code'] ?? null);
+    }
+
+    public function testPrepareInstallWithSharedStorageIncludesPayloadWhenSupported(): void
+    {
+        $sharedTemplate = new Template(
+            'game',
+            'Game',
+            null,
+            null,
+            null,
+            [],
+            'start',
+            [],
+            [],
+            [],
+            [],
+            'install',
+            'update',
+            [],
+            [],
+            [],
+            [],
+            ['linux'],
+            [],
+            ['shared_paths' => [['source' => 'maps', 'target' => 'maps', 'mode' => 'symlink', 'readonly' => true]]],
+        );
+
+        $locator = $this->createMock(SharedStorageTemplateLocatorInterface::class);
+        $locator->method('findSharedStorageVariantForIdentity')->willReturn($sharedTemplate);
+
+        $service = $this->buildService(sharedStorageLocator: $locator);
+        $instance = $this->buildInstance(
+            requirementVars: [],
+            supportedOs: ['linux'],
+            nodeOs: 'linux',
+            installCommand: 'install',
+            startParams: 'start',
+        );
+
+        $result = $service->prepareInstall($instance, true);
+
+        self::assertTrue($result['ok']);
+        self::assertSame('true', $result['payload']['use_shared_storage'] ?? null);
+        self::assertNotEmpty($result['payload']['shared_paths'] ?? []);
+    }
+
+    private function buildService(?SharedStorageTemplateLocatorInterface $sharedStorageLocator = null): InstanceInstallService
+    {
+        $resolver = $this->createMock(TemplateInstallResolver::class);
+        $resolver->method('resolveInstallCommand')->willReturn('install');
+        $resolver->method('resolveUpdateCommand')->willReturn('update');
+
         return new InstanceInstallService(
             new SetupChecker(),
             $this->createMock(PortPoolRepository::class),
             $this->createMock(PortBlockRepository::class),
             $this->createMock(PortLeaseManager::class),
-            $this->createMock(TemplateInstallResolver::class),
-            $this->createMock(SharedStorageTemplateLocatorInterface::class),
+            $resolver,
+            $sharedStorageLocator ?? $this->createMock(SharedStorageTemplateLocatorInterface::class),
             $this->createMock(EntityManagerInterface::class),
         );
     }
@@ -78,23 +146,26 @@ final class InstanceInstallServiceTest extends TestCase
      * @param array<int, array<string, mixed>> $requirementVars
      * @param string[] $supportedOs
      */
-    private function buildInstance(array $requirementVars, array $supportedOs, string $nodeOs): Instance
-    {
+    private function buildInstance(
+        array $requirementVars,
+        array $supportedOs,
+        string $nodeOs,
+        string $installCommand = 'install',
+        string $startParams = 'start',
+    ): Instance {
         $template = new Template(
             'game',
             'Game',
             null,
             null,
             null,
-            [
-                ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
-            ],
-            'start',
+            [],
+            $startParams,
             [],
             [],
             [],
             [],
-            'install',
+            $installCommand,
             'update',
             [],
             [],

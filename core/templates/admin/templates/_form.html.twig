@@ -81,6 +81,12 @@
     </div>
 
     <div class="form-field">
+        <label class="form-label">{{ t('admin_templates_shared_paths', page_locale()) }}</label>
+        <textarea name="shared_paths" rows="4" class="form-textarea" placeholder='[{"source":"maps","target":"maps","mode":"symlink","readonly":true}]'>{{ form.shared_paths }}</textarea>
+        <p style="margin-top:4px;font-size:12px;color:var(--text-muted);">{{ t('admin_templates_shared_paths_hint', page_locale()) }}</p>
+    </div>
+
+    <div class="form-field">
         <label class="form-label">{{ t('admin_templates_config_files', page_locale()) }}</label>
         <textarea name="config_files" rows="3" class="form-textarea" placeholder="{{ t('admin_templates_config_files_placeholder', page_locale()) }}">{{ form.config_files }}</textarea>
     </div>

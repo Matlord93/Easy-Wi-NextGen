@@ -36,7 +36,7 @@ class MailMetricBucket
     private float $metricValue;
 
     /** @var array<string,mixed> */
-    #[ORM\Column(type: 'json', options: ['jsonb' => true])]
+    #[ORM\Column(type: 'jsonb')]
     private array $dimensions = [];
 
     #[ORM\Column]

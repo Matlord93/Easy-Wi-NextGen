@@ -21,7 +21,7 @@
         <div id="instance-form"
              hx-get="{{ path('admin_instances_form') }}"
              hx-trigger="instances-form-refresh from:body"
-             hx-swap="outerHTML">
+             hx-swap="innerHTML">
             {% include 'admin/instances/_form.html.twig' with { customers: customers, nodes: nodes, templates: templates, form: form } %}
         </div>
     </div>

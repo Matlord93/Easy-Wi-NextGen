@@ -66,7 +66,7 @@ class MailLog
     private string $eventType;
 
     /** @var array<string,mixed> */
-    #[ORM\Column(type: 'json', options: ['jsonb' => true])]
+    #[ORM\Column(type: 'jsonb')]
     private array $payload = [];
 
     #[ORM\Column]

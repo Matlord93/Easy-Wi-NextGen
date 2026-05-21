@@ -53,8 +53,8 @@ class Incident
      */
     #[ORM\ManyToMany(targetEntity: StatusComponent::class)]
     #[ORM\JoinTable(name: 'incident_components')]
-    #[ORM\JoinColumn(name: 'incident_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
-    #[ORM\InverseJoinColumn(name: 'status_component_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
+    #[ORM\JoinColumn(name: 'incident_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
+    #[ORM\InverseJoinColumn(name: 'status_component_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
     private Collection $affectedComponents;
 
     public function __construct(

@@ -1486,16 +1486,20 @@ final class CustomerInstanceActionApiController
         if ($useSharedStorage && !$this->supportsSharedStorage($instance)) {
             return $this->apiError($request, 'INVALID_INPUT', 'Shared storage is not supported for this template.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
-        $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage);
-        $payload['autostart'] = 'false';
+        $jobPayload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage);
+        $jobPayload['autostart'] = 'false';
 
-        $message = new InstanceActionMessage('instance.reinstall', $customer->getId(), $instance->getId(), $payload);
+        $message = new InstanceActionMessage('instance.reinstall', $customer->getId(), $instance->getId(), $jobPayload);
 
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
         $result = json_decode((string) $response->getContent(), true);
         if (!is_array($result) || !is_string($result['job_id'] ?? null)) {
             return $this->apiError($request, 'INTERNAL_ERROR', 'Unable to queue reinstall job.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
+
+        $instance->setSharedStorageEnabled($useSharedStorage);
+        $this->entityManager->persist($instance);
+        $this->entityManager->flush();
 
         return $this->apiOk($request, [
             'job_id' => $result['job_id'],
@@ -1547,23 +1551,7 @@ final class CustomerInstanceActionApiController
 
     private function instanceUsesSharedStorage(Instance $instance): bool
     {
-        $installPath = trim((string) ($instance->getInstallPath() ?? ''));
-        if ($installPath === '') {
-            return false;
-        }
-        $template = $this->templateRepository->findSharedStorageVariantForIdentity($instance->getTemplate()) ?? $instance->getTemplate();
-        foreach ($template->getSharedPaths() as $sharedPath) {
-            $target = trim((string) ($sharedPath['target'] ?? ''));
-            if ($target === '') {
-                continue;
-            }
-            $candidate = rtrim($installPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($target, DIRECTORY_SEPARATOR);
-            if (is_link($candidate)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $instance->isSharedStorageEnabled();
     }
 
     private function supportsSharedStorage(Instance $instance): bool
