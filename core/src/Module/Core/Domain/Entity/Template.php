@@ -373,6 +373,42 @@ class Template
         $this->touch();
     }
 
+    /**
+     * @return array<int, array{source:string,target:string,mode?:string,readonly?:bool}>
+     */
+    public function getSharedPaths(): array
+    {
+        $shared = $this->requirements['shared_paths'] ?? [];
+        if (!is_array($shared)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($shared as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $source = trim((string) ($entry['source'] ?? ''));
+            $target = trim((string) ($entry['target'] ?? ''));
+            if ($source === '' || $target === '') {
+                continue;
+            }
+            $normalized[] = [
+                'source' => $source,
+                'target' => $target,
+                'mode' => (string) ($entry['mode'] ?? 'symlink'),
+                'readonly' => (bool) ($entry['readonly'] ?? true),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    public function supportsSharedStorage(): bool
+    {
+        return $this->getSharedPaths() !== [];
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;

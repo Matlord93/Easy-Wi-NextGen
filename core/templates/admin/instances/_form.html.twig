@@ -42,6 +42,7 @@
                     <option value="{{ template.id }}"
                             data-game-key="{{ template.gameKey|lower }}"
                             data-supported-os="{{ supportedOs|map(v => v|lower)|join(',') }}"
+                            data-shared-storage-supported="{{ template.supportsSharedStorage ? '1' : '0' }}"
                             {{ template.id == form.template_id ? 'selected' : '' }}>
                         {{ template.displayName }} ({{ template.gameKey }})
                     </option>
@@ -100,6 +101,20 @@
         {% for dir in form.instance_base_dirs %}<option value="{{ dir }}"></option>{% endfor %}
     </datalist>
 
+    <div class="form-field" data-shared-storage-row>
+        <label class="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2 text-sm text-slate-300">
+            <input name="use_shared_storage" type="checkbox" value="1" {{ form.use_shared_storage ? 'checked' : '' }} data-shared-storage-checkbox
+                   class="rounded border-slate-500 bg-slate-800 text-indigo-500 focus:ring-indigo-500">
+            {{ t('admin_instances_shared_storage_label', page_locale()) }}
+        </label>
+        <p class="mt-2 text-xs text-slate-400" data-shared-storage-hint-supported hidden>
+            {{ t('admin_instances_shared_storage_hint_supported', page_locale()) }}
+        </p>
+        <p class="mt-2 text-xs text-amber-400" data-shared-storage-hint-unsupported hidden>
+            {{ t('admin_instances_shared_storage_hint_unsupported', page_locale()) }}
+        </p>
+    </div>
+
     <details style="border:1px solid var(--color-border,#e2e8f0);border-radius:8px;padding:16px;">
         <summary style="cursor:pointer;font-size:.875rem;font-weight:600;">Erweiterte Werte (optional)</summary>
         <div style="margin-top:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
@@ -155,6 +170,9 @@
     const nodeSelect = form.querySelector('[data-node-select]');
     const templateSelect = form.querySelector('[data-template-select]');
     const baseDirInput = form.querySelector('[data-instance-base-dir]');
+    const sharedStorageCheckbox = form.querySelector('[data-shared-storage-checkbox]');
+    const sharedHintSupported = form.querySelector('[data-shared-storage-hint-supported]');
+    const sharedHintUnsupported = form.querySelector('[data-shared-storage-hint-unsupported]');
     if (!(nodeSelect instanceof HTMLSelectElement) || !(templateSelect instanceof HTMLSelectElement) || !(baseDirInput instanceof HTMLInputElement)) {
         return;
     }
@@ -221,11 +239,28 @@
         }
     };
 
+    const updateSharedStorageState = () => {
+        if (!(sharedStorageCheckbox instanceof HTMLInputElement)) {
+            return;
+        }
+        const selected = templateSelect.selectedOptions[0] ?? null;
+        const supported = (selected?.dataset.sharedStorageSupported || '0') === '1';
+        sharedStorageCheckbox.disabled = !supported;
+        if (!supported) {
+            sharedStorageCheckbox.checked = false;
+        }
+        if (sharedHintSupported) sharedHintSupported.hidden = !supported;
+        if (sharedHintUnsupported) sharedHintUnsupported.hidden = supported;
+    };
+
     nodeSelect.addEventListener('change', () => {
         updateTemplates();
         updateBaseDir();
+        updateSharedStorageState();
     });
+    templateSelect.addEventListener('change', updateSharedStorageState);
 
     updateTemplates();
+    updateSharedStorageState();
 })();
 </script>

@@ -13,6 +13,9 @@
     data-label-job-queued="{{ t('common_job_queued', locale) }}"
     data-label-reinstall-queued="{{ t('common_reinstall_queued', locale) }}"
     data-label-scheduled="{{ t('customer_reinstall_scheduled', locale) }}"
+    data-label-shared-storage-hint-supported="{{ t('customer_instances_shared_storage_hint_supported', locale) }}"
+    data-label-shared-storage-hint-unsupported="{{ t('customer_instances_shared_storage_hint_unsupported', locale) }}"
+    data-label-shared-storage-hint-migrate="{{ t('customer_instances_shared_storage_hint_migrate', locale) }}"
 >
     {# ─── Warnung ─── #}
     <div class="rounded-xl border border-rose-700/60 bg-rose-500/10 p-4">
@@ -43,6 +46,16 @@
                 class="rounded border-slate-500 bg-slate-800 text-indigo-500 focus:ring-indigo-500">
             {{ t('customer_instances_reinstall_confirm', locale) }}
         </label>
+
+        <div class="rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2">
+            <label class="flex cursor-pointer items-center gap-2.5 text-sm text-slate-300">
+                <input type="checkbox" id="gs-reinstall-use-shared-storage"
+                    class="rounded border-slate-500 bg-slate-800 text-indigo-500 focus:ring-indigo-500">
+                {{ t('customer_instances_shared_storage_reinstall_label', locale) }}
+            </label>
+            <p id="gs-reinstall-shared-storage-hint" class="mt-2 text-xs text-slate-400"></p>
+            <p id="gs-reinstall-shared-storage-status" class="mt-1 text-xs text-indigo-300 hidden">{{ t('customer_instances_shared_storage_already_enabled', locale) }}</p>
+        </div>
 
         <div class="flex flex-wrap items-center gap-3">
             <button type="button" id="gs-reinstall-submit"

@@ -134,6 +134,10 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
 	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
 	if err != nil {
 		return failureResult(job.ID, err)
@@ -144,6 +148,9 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 	startCommand := startScriptPath
 	startParams = ""
+	if err := applySharedPaths(instanceDir, payloadValue(job.Payload, "template_id"), sharedSpecs); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
@@ -815,6 +822,10 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 
 	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
 	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
 	if err != nil {
 		return failureResult(job.ID, err)
@@ -878,6 +889,9 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 			}
 		}
 		diagnostics["install_log"] = trimOutput(installOutput, 4000)
+	}
+	if err := applySharedPaths(instanceDir, payloadValue(job.Payload, "template_id"), sharedSpecs); err != nil {
+		return failureResult(job.ID, err)
 	}
 	if err := validateBinaryExists(instanceDir, renderedStartParams); err != nil {
 		return failureResult(job.ID, err)

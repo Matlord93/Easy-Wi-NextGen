@@ -18,9 +18,20 @@ final class InstanceJobPayloadBuilder
     /**
      * @return array<string, string>
      */
-    public function buildSniperInstallPayload(Instance $instance): array
+    public function buildSniperInstallPayload(Instance $instance, bool $useSharedStorage = false): array
     {
-        return $this->buildBasePayload($instance);
+        $payload = $this->buildBasePayload($instance);
+        if ($useSharedStorage) {
+            $sharedPaths = $instance->getTemplate()->getSharedPaths();
+            if ($sharedPaths === []) {
+                throw new \RuntimeException('Template does not support shared storage.');
+            }
+            $payload['template_id'] = (string) ($instance->getTemplate()->getId() ?? '');
+            $payload['shared_paths'] = $sharedPaths;
+            $payload['use_shared_storage'] = 'true';
+        }
+
+        return $payload;
     }
 
     /**

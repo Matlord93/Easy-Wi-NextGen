@@ -523,23 +523,28 @@ final class InstanceApiController
         foreach ($instances as $instance) {
             $node = $instance->getNode();
             $template = $instance->getTemplate();
+            $host = $node->getLastHeartbeatIp();
+            $port = $instance->getAssignedPort();
+            $gameAddress = ($host !== null && $port !== null && $port > 0) ? sprintf('%s:%d', $host, $port) : null;
             $payload[] = [
                 'id' => $instance->getId(),
                 'template' => [
                     'id' => $template->getId(),
-                    'name' => $template->getDisplayName(),
+                    'name' => $template->getGameKey(),
                     'game_key' => $template->getGameKey(),
                 ],
                 'node' => [
                     'id' => $node->getId(),
                     'name' => $node->getName(),
                 ],
+                'hostname' => $instance->getServerName(),
+                'game_address' => $gameAddress,
                 'cpu_limit' => $instance->getCpuLimit(),
                 'ram_limit' => $instance->getRamLimit(),
                 'disk_limit' => $instance->getDiskLimit(),
                 'port_block_id' => $instance->getPortBlockId(),
                 'status' => $instance->getStatus()->value,
-            'install_path' => $instance->getInstallPath(),
+                'install_path' => $instance->getInstallPath(),
             ];
         }
 

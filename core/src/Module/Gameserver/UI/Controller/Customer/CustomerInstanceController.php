@@ -428,7 +428,12 @@ final class CustomerInstanceController
             return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
         }
 
-        $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance);
+        $useSharedStorage = $request->request->getBoolean('use_shared_storage', false);
+        if ($useSharedStorage && !$instance->getTemplate()->supportsSharedStorage()) {
+            return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instances_shared_storage_not_supported');
+        }
+
+        $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage);
         $payload['base_dir'] = $instance->getInstanceBaseDir() ?? $this->appSettingsService->getInstanceBaseDir();
         $payload['autostart'] = 'false';
 

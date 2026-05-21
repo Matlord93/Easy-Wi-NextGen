@@ -1,0 +1,36 @@
+# Conservative shared path candidates per template.
+# Only include immutable/read-mostly game assets.
+# Do NOT share config, logs, saves, worlds, databases, caches, temp, bans, permissions.
+
+minecraft_vanilla_all:
+  shared_paths:
+    - source: "libraries"
+      target: "libraries"
+      mode: "symlink"
+      readonly: true
+
+minecraft_paper_all:
+  shared_paths:
+    - source: "cache/paperclip" # candidate only; validate write-behavior before enabling in production.
+      target: "cache/paperclip"
+      mode: "symlink"
+      readonly: true
+
+minecraft_bedrock:
+  shared_paths:
+    - source: "behavior_packs"
+      target: "behavior_packs"
+      mode: "symlink"
+      readonly: true
+    - source: "resource_packs"
+      target: "resource_packs"
+      mode: "symlink"
+      readonly: true
+
+fivem:
+  # No automatic defaults: resource trees are frequently modified per instance.
+  shared_paths: []
+
+seven_days_to_die:
+  # No automatic defaults: worlds/mods/config are often mutable.
+  shared_paths: []

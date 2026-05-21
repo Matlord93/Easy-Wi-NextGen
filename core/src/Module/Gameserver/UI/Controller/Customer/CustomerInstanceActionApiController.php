@@ -110,6 +110,7 @@ final class CustomerInstanceActionApiController
 
     #[Route(path: '/api/instances/{id}/power', name: 'customer_instance_power_api', methods: ['POST'])]
     #[Route(path: '/api/v1/customer/instances/{id}/power', name: 'customer_instance_power_api_v1', methods: ['POST'])]
+    #[Route(path: '/api/v1/integrations/gameservers/{id}/power', name: 'integration_gameserver_power_api_v1', methods: ['POST'])]
     public function power(Request $request, int $id): JsonResponse
     {
         try {
@@ -200,59 +201,6 @@ final class CustomerInstanceActionApiController
                     'job_type' => $blockingLifecycleJob->getType(),
                 ],
             );
-        }
-
-        if ($this->agentGameServerClient instanceof AgentGameServerClient) {
-            try {
-                $runtimePayload = $this->agentGameServerClient->getInstanceStatus($instance);
-                $runtimeStatus = $this->normalizeAgentRuntimeStatus(
-                    $runtimePayload['status'] ?? null,
-                    $runtimePayload['running'] ?? null,
-                    $runtimePayload['online'] ?? null,
-                );
-                if ($runtimeStatus === InstanceStatus::Running && $action === 'start') {
-                    $this->auditLogger->log($customer, 'instance.power.noop', [
-                        'instance_id' => $instance->getId(),
-                        'action' => $action,
-                        'runtime_status' => $runtimeStatus->value,
-                    ]);
-
-                    return $this->apiOk($request, [
-                        'current_state' => InstanceStatus::Running->value,
-                        'desired_state' => 'running',
-                        'transition' => false,
-                        'message' => 'Instance is already running.',
-                    ]);
-                }
-                if ($runtimeStatus === InstanceStatus::Stopped && $action === 'stop') {
-                    $this->auditLogger->log($customer, 'instance.power.noop', [
-                        'instance_id' => $instance->getId(),
-                        'action' => $action,
-                        'runtime_status' => $runtimeStatus->value,
-                    ]);
-
-                    return $this->apiOk($request, [
-                        'current_state' => InstanceStatus::Stopped->value,
-                        'desired_state' => 'stopped',
-                        'transition' => false,
-                        'message' => 'Instance is already stopped.',
-                    ]);
-                }
-                if ($runtimeStatus === InstanceStatus::Stopped && $action === 'restart') {
-                    return $this->apiError(
-                        $request,
-                        'INSTANCE_OFFLINE',
-                        'Cannot restart a stopped instance. Start it instead.',
-                        JsonResponse::HTTP_CONFLICT,
-                    );
-                }
-            } catch (\Throwable $exception) {
-                $this->auditLogger->log($customer, 'instance.power.runtime_probe_failed', [
-                    'instance_id' => $instance->getId(),
-                    'action' => $action,
-                    'error' => $exception->getMessage(),
-                ]);
-            }
         }
 
         $message = new InstanceActionMessage(sprintf('instance.%s', $action), $customer->getId(), $instance->getId(), [
@@ -797,6 +745,13 @@ final class CustomerInstanceActionApiController
             'instance_id' => $instance->getId(),
             'warnings' => ['customer_instances_reinstall_warning_data_loss'],
             'options' => $options,
+            'shared_storage' => [
+                'supported' => $instance->getTemplate()->supportsSharedStorage(),
+                'already_enabled' => $this->instanceUsesSharedStorage($instance),
+                'hint_key' => $instance->getTemplate()->supportsSharedStorage()
+                    ? 'customer_instances_shared_storage_hint_supported'
+                    : 'customer_instances_shared_storage_hint_unsupported',
+            ],
         ]);
     }
 
@@ -1507,7 +1462,11 @@ final class CustomerInstanceActionApiController
             $this->entityManager->flush();
         }
 
-        $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance);
+        $useSharedStorage = (bool) ($payload['use_shared_storage'] ?? false);
+        if ($useSharedStorage && !$instance->getTemplate()->supportsSharedStorage()) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Shared storage is not supported for this template.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage);
         $payload['autostart'] = 'false';
 
         $message = new InstanceActionMessage('instance.reinstall', $customer->getId(), $instance->getId(), $payload);
@@ -1564,6 +1523,26 @@ final class CustomerInstanceActionApiController
         }
 
         return is_array($payload) ? $payload : [];
+    }
+
+    private function instanceUsesSharedStorage(Instance $instance): bool
+    {
+        $installPath = trim((string) ($instance->getInstallPath() ?? ''));
+        if ($installPath === '') {
+            return false;
+        }
+        foreach ($instance->getTemplate()->getSharedPaths() as $sharedPath) {
+            $target = trim((string) ($sharedPath['target'] ?? ''));
+            if ($target === '') {
+                continue;
+            }
+            $candidate = rtrim($installPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($target, DIRECTORY_SEPARATOR);
+            if (is_link($candidate)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

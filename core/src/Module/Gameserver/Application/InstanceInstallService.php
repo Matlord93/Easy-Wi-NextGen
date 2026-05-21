@@ -110,7 +110,7 @@ final class InstanceInstallService
     /**
      * @return array{ok: bool, error_code?: string, missing?: array<int, array{key: string, label: string, type: string}>, payload?: array<string, mixed>}
      */
-    public function prepareInstall(Instance $instance): array
+    public function prepareInstall(Instance $instance, bool $useSharedStorage = false): array
     {
         $status = $this->getInstallStatus($instance);
         if (!$status['is_ready']) {
@@ -163,6 +163,18 @@ final class InstanceInstallService
             'secrets' => $this->buildSecretPlaceholders($instance),
             'port_block_id' => $portAllocation['port_block_id'],
         ];
+        if ($useSharedStorage) {
+            $sharedPaths = $instance->getTemplate()->getSharedPaths();
+            if ($sharedPaths === []) {
+                return [
+                    'ok' => false,
+                    'error_code' => 'SHARED_STORAGE_NOT_SUPPORTED',
+                ];
+            }
+            $payload['template_id'] = (string) ($instance->getTemplate()->getId() ?? '');
+            $payload['shared_paths'] = $sharedPaths;
+            $payload['use_shared_storage'] = 'true';
+        }
 
         return [
             'ok' => true,

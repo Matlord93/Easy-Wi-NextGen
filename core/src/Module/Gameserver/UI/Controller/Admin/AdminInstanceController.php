@@ -281,7 +281,7 @@ final class AdminInstanceController
         $installJob = null;
         $installDeferredReason = null;
         if ($installPathDeferredReason === null) {
-            $installPreparation = $this->instanceInstallService->prepareInstall($instance);
+            $installPreparation = $this->instanceInstallService->prepareInstall($instance, (bool) ($formData['use_shared_storage'] ?? false));
         } else {
             $installPreparation = ['ok' => false, 'error_code' => $installPathDeferredReason];
         }
@@ -630,6 +630,7 @@ final class AdminInstanceController
         $steamAccount = trim((string) $request->request->get('steam_account', ''));
         $steamPassword = (string) $request->request->get('steam_password', '');
         $instanceBaseDir = trim((string) $request->request->get('instance_base_dir', ''));
+        $useSharedStorage = $request->request->getBoolean('use_shared_storage', false);
 
         if ($customerId === null || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
             $errors[] = 'Customer, template, node, and resource limits are required.';
@@ -690,6 +691,8 @@ final class AdminInstanceController
         $template = $templateId !== null ? $this->templateRepository->find($templateId) : null;
         if ($template === null) {
             $errors[] = 'Template not found.';
+        } elseif ($useSharedStorage && !$template->supportsSharedStorage()) {
+            $errors[] = 'Shared storage is not supported for this template.';
         }
 
         $node = $nodeId !== '' ? $this->agentRepository->find($nodeId) : null;
@@ -783,6 +786,7 @@ final class AdminInstanceController
             'steam_password' => $steamPassword,
             'setup_vars' => $setupVars,
             'instance_base_dir' => $instanceBaseDir,
+            'use_shared_storage' => $useSharedStorage,
         ];
     }
 
@@ -817,6 +821,7 @@ final class AdminInstanceController
             'steam_account' => '',
             'steam_password' => '',
             'instance_base_dir' => $this->appSettingsService->getInstanceBaseDir(),
+            'use_shared_storage' => false,
             'instance_base_dirs' => $this->getKnownInstanceBaseDirs(),
             'errors' => [],
             'port_pool_notice' => $portPoolNotice,
@@ -888,6 +893,7 @@ final class AdminInstanceController
                 'steam_account' => $formData['steam_account'],
                 'steam_password' => $formData['steam_password'],
                 'instance_base_dir' => $formData['instance_base_dir'],
+                'use_shared_storage' => (bool) ($formData['use_shared_storage'] ?? false),
                 'errors' => $formData['errors'],
             ]),
         ]), $status);

@@ -221,6 +221,50 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         self::assertSame('false', $updatePayload['autostart'] ?? null);
     }
 
+    public function testSniperPayloadIncludesSharedStorageWhenEnabled(): void
+    {
+        $template = new Template(
+            'game',
+            'Game',
+            null,
+            null,
+            null,
+            [],
+            '{{SERVER_NAME}}',
+            [['key' => 'SERVER_NAME', 'value' => 'Default Name']],
+            [],
+            [],
+            [],
+            'install',
+            'update',
+            [],
+            [],
+            [],
+            [],
+            ['linux'],
+            [],
+            ['shared_paths' => [['source' => 'maps', 'target' => 'maps', 'mode' => 'symlink', 'readonly' => true]]],
+        );
+        $customer = new User('customer@example.com', UserType::Customer);
+        $agent = new Agent('node-1', ['key_id' => 'key-1', 'nonce' => 'nonce', 'ciphertext' => 'ciphertext']);
+        $instance = new Instance($customer, $template, $agent, 100, 1024, 10240, null, InstanceStatus::Stopped, InstanceUpdatePolicy::Manual);
+        $resolver = new TemplateInstallResolver(new MinecraftCatalogService(new class () implements MinecraftVersionCatalogRepositoryInterface {
+            public function findVersionsByChannel(string $channel): array { return []; }
+            public function findBuildsGroupedByVersion(string $channel): array { return []; }
+            public function findLatestVersion(string $channel): ?string { return null; }
+            public function findLatestBuild(string $channel, string $version): ?string { return null; }
+            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog { return null; }
+            public function versionExists(string $channel, string $version): bool { return false; }
+            public function buildExists(string $channel, string $version, string $build): bool { return false; }
+        }));
+        $builder = new InstanceJobPayloadBuilder($resolver, new class () implements PortBlockFinderInterface {
+            public function findByInstance(Instance $instance): ?\App\Module\Ports\Domain\Entity\PortBlock { return null; }
+        });
+        $payload = $builder->buildSniperInstallPayload($instance, true);
+        self::assertArrayHasKey('template_id', $payload);
+        self::assertNotEmpty($payload['shared_paths'] ?? []);
+    }
+
 
 
     public function testSniperPayloadIncludesInstallPathWhenSet(): void
