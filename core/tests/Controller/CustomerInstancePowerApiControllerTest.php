@@ -126,7 +126,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
 
         $instance = $this->createMock(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
-        $instance->method('getStatus')->willReturn(InstanceStatus::Stopped);
+        $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getId')->willReturn(7);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 

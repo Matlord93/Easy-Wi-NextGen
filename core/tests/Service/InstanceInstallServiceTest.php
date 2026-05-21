@@ -17,6 +17,7 @@ use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
+use App\Repository\TemplateRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -68,6 +69,7 @@ final class InstanceInstallServiceTest extends TestCase
             $this->createMock(PortBlockRepository::class),
             $this->createMock(PortLeaseManager::class),
             $this->createMock(TemplateInstallResolver::class),
+            $this->createMock(TemplateRepository::class),
             $this->createMock(EntityManagerInterface::class),
         );
     }

@@ -35,6 +35,7 @@ use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobLogRepository;
 use App\Repository\JobRepository;
+use App\Repository\TemplateRepository;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -93,7 +94,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
                 return null;
             }
         };
-        $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder);
+        $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder, $this->newInstanceWithoutConstructor(\App\Repository\TemplateRepository::class));
 
         $messageBus = $this->createMock(MessageBusInterface::class);
         $captured = null;
@@ -128,6 +129,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
             $templateResolver,
             $payloadBuilder,
+            $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
@@ -177,7 +179,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
                 return null;
             }
         };
-        $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder);
+        $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder, $this->newInstanceWithoutConstructor(\App\Repository\TemplateRepository::class));
         $appSettings = $this->createMock(AppSettingsService::class);
 
         $messageBus = $this->createMock(MessageBusInterface::class);
@@ -207,6 +209,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
             $templateResolver,
             $payloadBuilder,
+            $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
@@ -258,6 +261,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
             $templateResolver,
             $payloadBuilder,
+            $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $this->createMock(MessageBusInterface::class),

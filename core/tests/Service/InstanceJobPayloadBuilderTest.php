@@ -115,7 +115,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
                 return null;
             }
         };
-        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository);
+        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, $this->createMock(\App\Repository\TemplateRepository::class));
 
         $payload = $builder->buildRuntimePayload($instance);
 
@@ -212,7 +212,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
                 return null;
             }
         };
-        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository);
+        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, $this->createMock(\App\Repository\TemplateRepository::class));
 
         $installPayload = $builder->buildSniperInstallPayload($instance);
         $updatePayload = $builder->buildSniperUpdatePayload($instance);
@@ -259,7 +259,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         }));
         $builder = new InstanceJobPayloadBuilder($resolver, new class () implements PortBlockFinderInterface {
             public function findByInstance(Instance $instance): ?\App\Module\Ports\Domain\Entity\PortBlock { return null; }
-        });
+        }, $this->createMock(\App\Repository\TemplateRepository::class));
         $payload = $builder->buildSniperInstallPayload($instance, true);
         self::assertArrayHasKey('template_id', $payload);
         self::assertNotEmpty($payload['shared_paths'] ?? []);
@@ -350,7 +350,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
                 return null;
             }
         };
-        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository);
+        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, $this->createMock(\App\Repository\TemplateRepository::class));
 
         $installPayload = $builder->buildSniperInstallPayload($instance);
 
@@ -445,7 +445,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
                 return null;
             }
         };
-        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository);
+        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, $this->createMock(\App\Repository\TemplateRepository::class));
 
         $payload = $builder->buildRuntimePayload($instance);
 
