@@ -16,6 +16,8 @@ use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Ports\Infrastructure\Repository\PortBlockFinderInterface;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
 
 final class InstanceJobPayloadBuilderTest extends TestCase
@@ -115,7 +117,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
                 return null;
             }
         };
-        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, $this->createMock(\App\Repository\TemplateRepository::class));
+        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, self::buildTemplateRepository());
 
         $payload = $builder->buildRuntimePayload($instance);
 
@@ -212,7 +214,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
                 return null;
             }
         };
-        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, $this->createMock(\App\Repository\TemplateRepository::class));
+        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, self::buildTemplateRepository());
 
         $installPayload = $builder->buildSniperInstallPayload($instance);
         $updatePayload = $builder->buildSniperUpdatePayload($instance);
@@ -259,7 +261,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         }));
         $builder = new InstanceJobPayloadBuilder($resolver, new class () implements PortBlockFinderInterface {
             public function findByInstance(Instance $instance): ?\App\Module\Ports\Domain\Entity\PortBlock { return null; }
-        }, $this->createMock(\App\Repository\TemplateRepository::class));
+        }, self::buildTemplateRepository());
         $payload = $builder->buildSniperInstallPayload($instance, true);
         self::assertArrayHasKey('template_id', $payload);
         self::assertNotEmpty($payload['shared_paths'] ?? []);
@@ -350,7 +352,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
                 return null;
             }
         };
-        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, $this->createMock(\App\Repository\TemplateRepository::class));
+        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, self::buildTemplateRepository());
 
         $installPayload = $builder->buildSniperInstallPayload($instance);
 
@@ -445,7 +447,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
                 return null;
             }
         };
-        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, $this->createMock(\App\Repository\TemplateRepository::class));
+        $builder = new InstanceJobPayloadBuilder($resolver, $portBlockRepository, self::buildTemplateRepository());
 
         $payload = $builder->buildRuntimePayload($instance);
 
@@ -456,6 +458,48 @@ final class InstanceJobPayloadBuilderTest extends TestCase
 
         self::assertArrayHasKey('RCON_PASSWORD', $envVars);
         self::assertSame('', $envVars['RCON_PASSWORD']);
+    }
+
+
+    private static function buildTemplateRepository(): \App\Repository\TemplateRepository
+    {
+        $entityManager = new class () implements EntityManagerInterface {
+            public function getClassMetadata(string $className): \Doctrine\ORM\Mapping\ClassMetadata
+            {
+                return new \Doctrine\ORM\Mapping\ClassMetadata($className);
+            }
+
+            public function getRepository(string $className): \Doctrine\ORM\EntityRepository
+            {
+                throw new \BadMethodCallException('Not implemented.');
+            }
+
+            public function __call(string $name, array $arguments): mixed
+            {
+                throw new \BadMethodCallException('Not implemented.');
+            }
+        };
+
+        $registry = new class ($entityManager) implements ManagerRegistry {
+            public function __construct(private readonly EntityManagerInterface $entityManager)
+            {
+            }
+
+            public function getDefaultConnectionName(): string { throw new \BadMethodCallException('Not implemented.'); }
+            public function getConnection(?string $name = null): object { throw new \BadMethodCallException('Not implemented.'); }
+            public function getConnections(): array { return []; }
+            public function getConnectionNames(): array { return []; }
+            public function getDefaultManagerName(): string { return 'default'; }
+            public function getManager(?string $name = null): object { return $this->entityManager; }
+            public function getManagers(): array { return ['default' => $this->entityManager]; }
+            public function resetManager(?string $name = null): object { return $this->entityManager; }
+            public function getAliasNamespace(string $alias): string { throw new \BadMethodCallException('Not implemented.'); }
+            public function getManagerNames(): array { return ['default' => 'default']; }
+            public function getRepository(string $persistentObject, ?string $persistentManagerName = null): object { throw new \BadMethodCallException('Not implemented.'); }
+            public function getManagerForClass(string $class): ?object { return $this->entityManager; }
+        };
+
+        return new \App\Repository\TemplateRepository($registry);
     }
 
 }

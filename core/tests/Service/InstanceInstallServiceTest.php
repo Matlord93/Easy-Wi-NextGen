@@ -19,6 +19,7 @@ use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\TemplateRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
 
 final class InstanceInstallServiceTest extends TestCase
@@ -69,9 +70,51 @@ final class InstanceInstallServiceTest extends TestCase
             $this->createMock(PortBlockRepository::class),
             $this->createMock(PortLeaseManager::class),
             $this->createMock(TemplateInstallResolver::class),
-            $this->createMock(TemplateRepository::class),
+            self::buildTemplateRepository(),
             $this->createMock(EntityManagerInterface::class),
         );
+    }
+
+
+    private static function buildTemplateRepository(): TemplateRepository
+    {
+        $entityManager = new class () implements EntityManagerInterface {
+            public function getClassMetadata(string $className): \Doctrine\ORM\Mapping\ClassMetadata
+            {
+                return new \Doctrine\ORM\Mapping\ClassMetadata($className);
+            }
+
+            public function getRepository(string $className): \Doctrine\ORM\EntityRepository
+            {
+                throw new \BadMethodCallException('Not implemented.');
+            }
+
+            public function __call(string $name, array $arguments): mixed
+            {
+                throw new \BadMethodCallException('Not implemented.');
+            }
+        };
+
+        $registry = new class ($entityManager) implements ManagerRegistry {
+            public function __construct(private readonly EntityManagerInterface $entityManager)
+            {
+            }
+
+            public function getDefaultConnectionName(): string { throw new \BadMethodCallException('Not implemented.'); }
+            public function getConnection(?string $name = null): object { throw new \BadMethodCallException('Not implemented.'); }
+            public function getConnections(): array { return []; }
+            public function getConnectionNames(): array { return []; }
+            public function getDefaultManagerName(): string { return 'default'; }
+            public function getManager(?string $name = null): object { return $this->entityManager; }
+            public function getManagers(): array { return ['default' => $this->entityManager]; }
+            public function resetManager(?string $name = null): object { return $this->entityManager; }
+            public function getAliasNamespace(string $alias): string { throw new \BadMethodCallException('Not implemented.'); }
+            public function getManagerNames(): array { return ['default' => 'default']; }
+            public function getRepository(string $persistentObject, ?string $persistentManagerName = null): object { throw new \BadMethodCallException('Not implemented.'); }
+            public function getManagerForClass(string $class): ?object { return $this->entityManager; }
+        };
+
+        return new TemplateRepository($registry);
     }
 
     /**
