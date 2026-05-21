@@ -189,7 +189,6 @@ func TestApplySharedPathsRejectsReadOnlyFalse(t *testing.T) {
 	}
 }
 
-
 func TestSharedStorageBaseDirPrefersEnv(t *testing.T) {
 	base := t.TempDir()
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)

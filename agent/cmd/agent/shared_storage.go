@@ -87,7 +87,6 @@ func applySharedPaths(instanceDir, templateID string, specs []sharedPathSpec) er
 	return nil
 }
 
-
 func sharedStorageBaseDir(instanceDir string) string {
 	baseDir := strings.TrimSpace(os.Getenv("EASYWI_INSTANCE_BASE_DIR"))
 	if baseDir != "" {
