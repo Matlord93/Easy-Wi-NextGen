@@ -6,12 +6,14 @@ namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Infrastructure\Repository\PortBlockFinderInterface;
+use App\Repository\TemplateRepository;
 
 final class InstanceJobPayloadBuilder
 {
     public function __construct(
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly PortBlockFinderInterface $portBlockRepository,
+        private readonly TemplateRepository $templateRepository,
     ) {
     }
 
@@ -22,11 +24,15 @@ final class InstanceJobPayloadBuilder
     {
         $payload = $this->buildBasePayload($instance);
         if ($useSharedStorage) {
-            $sharedPaths = $instance->getTemplate()->getSharedPaths();
+            $template = $instance->getTemplate();
+            $sharedTemplate = $template->supportsSharedStorage()
+                ? $template
+                : ($this->templateRepository->findSharedStorageVariantForIdentity($template) ?? $template);
+            $sharedPaths = $sharedTemplate->getSharedPaths();
             if ($sharedPaths === []) {
                 throw new \RuntimeException('Template does not support shared storage.');
             }
-            $payload['template_id'] = (string) ($instance->getTemplate()->getId() ?? '');
+            $payload['template_id'] = (string) ($sharedTemplate->getId() ?? '');
             $payload['shared_paths'] = $sharedPaths;
             $payload['use_shared_storage'] = 'true';
         }

@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
+use App\Repository\TemplateRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class InstanceInstallService
@@ -20,6 +21,7 @@ final class InstanceInstallService
         private readonly PortBlockRepository $portBlockRepository,
         private readonly PortLeaseManager $portLeaseManager,
         private readonly TemplateInstallResolver $templateInstallResolver,
+        private readonly TemplateRepository $templateRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -164,14 +166,18 @@ final class InstanceInstallService
             'port_block_id' => $portAllocation['port_block_id'],
         ];
         if ($useSharedStorage) {
-            $sharedPaths = $instance->getTemplate()->getSharedPaths();
+            $template = $instance->getTemplate();
+            $sharedTemplate = $template->supportsSharedStorage()
+                ? $template
+                : ($this->templateRepository->findSharedStorageVariantForIdentity($template) ?? $template);
+            $sharedPaths = $sharedTemplate->getSharedPaths();
             if ($sharedPaths === []) {
                 return [
                     'ok' => false,
                     'error_code' => 'SHARED_STORAGE_NOT_SUPPORTED',
                 ];
             }
-            $payload['template_id'] = (string) ($instance->getTemplate()->getId() ?? '');
+            $payload['template_id'] = (string) ($sharedTemplate->getId() ?? '');
             $payload['shared_paths'] = $sharedPaths;
             $payload['use_shared_storage'] = 'true';
         }

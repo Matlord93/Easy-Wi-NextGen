@@ -37,6 +37,7 @@ use App\Repository\InstanceMetricSampleRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\JobRepository;
+use App\Repository\TemplateRepository;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -73,6 +74,7 @@ final class CustomerInstanceController
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly InstanceInstallService $instanceInstallService,
+        private readonly TemplateRepository $templateRepository,
         private readonly MinecraftCatalogService $minecraftCatalogService,
         private readonly EncryptionService $encryptionService,
         private readonly AgentGameServerClient $agentGameServerClient,
@@ -429,7 +431,7 @@ final class CustomerInstanceController
         }
 
         $useSharedStorage = $request->request->getBoolean('use_shared_storage', false);
-        if ($useSharedStorage && !$instance->getTemplate()->supportsSharedStorage()) {
+        if ($useSharedStorage && !$this->supportsSharedStorage($instance)) {
             return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instances_shared_storage_not_supported');
         }
 
@@ -819,6 +821,15 @@ final class CustomerInstanceController
         }
 
         return $instance;
+    }
+
+    private function supportsSharedStorage(Instance $instance): bool
+    {
+        if ($instance->getTemplate()->supportsSharedStorage()) {
+            return true;
+        }
+
+        return $this->templateRepository->findSharedStorageVariantForIdentity($instance->getTemplate()) !== null;
     }
 
     /**

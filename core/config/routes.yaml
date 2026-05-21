@@ -104,4 +104,5 @@ module_panel_admin_controllers:
   resource:
     path: ../src/Module/PanelAdmin/UI/Controller/
     namespace: App\Module\PanelAdmin\UI\Controller
+    exclude: ../src/Module/PanelAdmin/UI/Controller/Admin/AdminNavigationPlan.php
   type: attribute

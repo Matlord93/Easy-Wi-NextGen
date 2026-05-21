@@ -37,6 +37,7 @@ use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobLogRepository;
 use App\Repository\JobRepository;
+use App\Repository\TemplateRepository;
 use Cron\CronExpression;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -76,6 +77,7 @@ final class CustomerInstanceActionApiController
         private readonly MinecraftCatalogService $minecraftCatalogService,
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
+        private readonly TemplateRepository $templateRepository,
         #[Autowire(service: 'limiter.instance_console_commands')]
         private readonly RateLimiterFactory $consoleLimiter,
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
@@ -203,6 +205,21 @@ final class CustomerInstanceActionApiController
             );
         }
 
+        $instanceState = strtolower($instance->getStatus()->value);
+        if (($action === 'start' && $instance->getStatus() === InstanceStatus::Running) || ($action === 'stop' && $instance->getStatus() === InstanceStatus::Stopped)) {
+            $this->auditLogger->log($customer, 'instance.power.noop', [
+                'instance_id' => $instance->getId(),
+                'action' => $action,
+                'runtime_status' => $instanceState,
+            ]);
+
+            return $this->apiOk($request, [
+                'current_state' => $instanceState,
+                'desired_state' => $action === 'stop' ? 'stopped' : 'running',
+                'transition' => false,
+            ]);
+        }
+
         $message = new InstanceActionMessage(sprintf('instance.%s', $action), $customer->getId(), $instance->getId(), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
@@ -227,6 +244,7 @@ final class CustomerInstanceActionApiController
             'job_id' => $result['job_id'],
         ]);
 
+        $supportsSharedStorage = $this->supportsSharedStorage($instance);
         return $this->apiOk($request, [
             'current_state' => strtolower($instance->getStatus()->value),
             'desired_state' => $action === 'stop' ? 'stopped' : 'running',
@@ -741,14 +759,16 @@ final class CustomerInstanceActionApiController
             $options[] = ['id' => $fallback, 'label' => $fallback, 'version' => $fallback];
         }
 
+        $supportsSharedStorage = $this->supportsSharedStorage($instance);
+
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
             'warnings' => ['customer_instances_reinstall_warning_data_loss'],
             'options' => $options,
             'shared_storage' => [
-                'supported' => $instance->getTemplate()->supportsSharedStorage(),
+                'supported' => $supportsSharedStorage,
                 'already_enabled' => $this->instanceUsesSharedStorage($instance),
-                'hint_key' => $instance->getTemplate()->supportsSharedStorage()
+                'hint_key' => $supportsSharedStorage
                     ? 'customer_instances_shared_storage_hint_supported'
                     : 'customer_instances_shared_storage_hint_unsupported',
             ],
@@ -1463,7 +1483,7 @@ final class CustomerInstanceActionApiController
         }
 
         $useSharedStorage = (bool) ($payload['use_shared_storage'] ?? false);
-        if ($useSharedStorage && !$instance->getTemplate()->supportsSharedStorage()) {
+        if ($useSharedStorage && !$this->supportsSharedStorage($instance)) {
             return $this->apiError($request, 'INVALID_INPUT', 'Shared storage is not supported for this template.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
         $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage);
@@ -1531,7 +1551,8 @@ final class CustomerInstanceActionApiController
         if ($installPath === '') {
             return false;
         }
-        foreach ($instance->getTemplate()->getSharedPaths() as $sharedPath) {
+        $template = $this->templateRepository->findSharedStorageVariantForIdentity($instance->getTemplate()) ?? $instance->getTemplate();
+        foreach ($template->getSharedPaths() as $sharedPath) {
             $target = trim((string) ($sharedPath['target'] ?? ''));
             if ($target === '') {
                 continue;
@@ -1543,6 +1564,15 @@ final class CustomerInstanceActionApiController
         }
 
         return false;
+    }
+
+    private function supportsSharedStorage(Instance $instance): bool
+    {
+        if ($instance->getTemplate()->supportsSharedStorage()) {
+            return true;
+        }
+
+        return $this->templateRepository->findSharedStorageVariantForIdentity($instance->getTemplate()) !== null;
     }
 
     /**

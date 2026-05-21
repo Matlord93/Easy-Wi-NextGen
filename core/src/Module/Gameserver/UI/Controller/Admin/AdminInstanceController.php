@@ -156,10 +156,13 @@ final class AdminInstanceController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $templates = $this->listDistinctTemplates();
+
         return new Response($this->twig->render('admin/instances/_form.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
-            'templates' => $this->listDistinctTemplates(),
+            'templates' => $templates,
+            'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
             'form' => $this->buildFormContext(),
         ]));
     }
@@ -691,7 +694,7 @@ final class AdminInstanceController
         $template = $templateId !== null ? $this->templateRepository->find($templateId) : null;
         if ($template === null) {
             $errors[] = 'Template not found.';
-        } elseif ($useSharedStorage && !$template->supportsSharedStorage()) {
+        } elseif ($useSharedStorage && !$this->supportsSharedStorage($template)) {
             $errors[] = 'Shared storage is not supported for this template.';
         }
 
@@ -870,10 +873,13 @@ final class AdminInstanceController
             $status = Response::HTTP_OK;
         }
 
+        $templates = $this->listDistinctTemplates();
+
         return new Response($this->twig->render('admin/instances/_form.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
-            'templates' => $this->listDistinctTemplates(),
+            'templates' => $templates,
+            'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
             'form' => $this->buildFormContext([
                 'customer_id' => $formData['customer_id'],
                 'template_id' => $formData['template_id'],
@@ -910,14 +916,41 @@ final class AdminInstanceController
 
         foreach ($templates as $template) {
             $identity = strtolower(trim($template->getDisplayName())) . '::' . strtolower(trim($template->getGameKey()));
-            if (isset($distinct[$identity])) {
+            if (!isset($distinct[$identity])) {
+                $distinct[$identity] = $template;
                 continue;
             }
 
-            $distinct[$identity] = $template;
+            $current = $distinct[$identity];
+            if (!$current->supportsSharedStorage() && $template->supportsSharedStorage()) {
+                $distinct[$identity] = $template;
+            }
         }
 
         return array_values($distinct);
+    }
+
+    /**
+     * @param array<int, \App\Module\Core\Domain\Entity\Template> $templates
+     * @return array<string, bool>
+     */
+    private function buildTemplateSharedStorageSupportMap(array $templates): array
+    {
+        $support = [];
+        foreach ($templates as $template) {
+            $support[(string) $template->getId()] = $this->supportsSharedStorage($template);
+        }
+
+        return $support;
+    }
+
+    private function supportsSharedStorage(\App\Module\Core\Domain\Entity\Template $template): bool
+    {
+        if ($template->supportsSharedStorage()) {
+            return true;
+        }
+
+        return $this->templateRepository->findSharedStorageVariantForIdentity($template) !== null;
     }
 
     /**

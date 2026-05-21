@@ -21,6 +21,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 final class CustomerInstancePowerApiControllerTest extends TestCase
@@ -88,7 +89,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
 
         $instance = $this->createMock(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
-        $instance->method('getStatus')->willReturn(InstanceStatus::Stopped);
+        $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getId')->willReturn(7);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
@@ -142,10 +143,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $auditLogger = $this->createMock(AuditLogger::class);
         $auditLogger->expects(self::once())->method('log');
 
-        $agentClient = $this->createMock(AgentGameServerClient::class);
-        $agentClient->method('getInstanceStatus')->with($instance)->willReturn(['status' => 'running']);
-
-        $controller = $this->newControllerWith($instanceRepository, $settings, $jobRepository, $auditLogger, $agentClient);
+        $controller = $this->newControllerWith($instanceRepository, $settings, $jobRepository, $auditLogger);
         $request = Request::create('/api/instances/7/power', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['action' => 'start']));
         $request->attributes->set('current_user', $customer);
         $request->headers->set('X-Request-ID', 'req-power-noop');
@@ -171,6 +169,9 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         /** @var CustomerInstanceActionApiController $controller */
         $controller = $reflection->newInstanceWithoutConstructor();
 
+        $messageBus = $this->createMock(MessageBusInterface::class);
+        $messageBus->method('dispatch')->willReturn(new Envelope(new \stdClass()));
+
         foreach ([
             'instanceRepository' => $instanceRepository,
             'appSettingsService' => $settings,
@@ -178,7 +179,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
             'auditLogger' => $auditLogger ?? $this->createMock(AuditLogger::class),
             'diskEnforcementService' => $this->buildDiskEnforcementService(),
             'agentGameServerClient' => $agentClient,
-            'messageBus' => $this->createMock(MessageBusInterface::class),
+            'messageBus' => $messageBus,
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
             $prop->setAccessible(true);

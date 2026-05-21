@@ -14,4 +14,27 @@ final class TemplateRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Template::class);
     }
+
+    public function findSharedStorageVariantForIdentity(Template $template): ?Template
+    {
+        $displayName = trim($template->getDisplayName());
+        $gameKey = trim($template->getGameKey());
+        if ($displayName === '' || $gameKey === '') {
+            return null;
+        }
+
+        /** @var list<Template> $matches */
+        $matches = $this->findBy([
+            'displayName' => $displayName,
+            'gameKey' => $gameKey,
+        ], ['id' => 'ASC']);
+
+        foreach ($matches as $candidate) {
+            if ($candidate->supportsSharedStorage()) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
 }

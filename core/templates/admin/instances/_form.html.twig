@@ -41,8 +41,9 @@
                     {% set supportedOs = template.supportedOs ?? [] %}
                     <option value="{{ template.id }}"
                             data-game-key="{{ template.gameKey|lower }}"
+                            data-template-identity="{{ (template.displayName ~ '::' ~ template.gameKey)|lower|trim }}"
                             data-supported-os="{{ supportedOs|map(v => v|lower)|join(',') }}"
-                            data-shared-storage-supported="{{ template.supportsSharedStorage ? '1' : '0' }}"
+                            data-shared-storage-supported="{{ ((template.supportsSharedStorage ?? false) or (template_shared_storage_support[template.id]|default(false))) ? '1' : '0' }}"
                             {{ template.id == form.template_id ? 'selected' : '' }}>
                         {{ template.displayName }} ({{ template.gameKey }})
                     </option>
@@ -204,15 +205,15 @@
                 .split(',')
                 .map((value) => value.trim().toLowerCase())
                 .filter(Boolean);
-            const gameKey = (option.dataset.gameKey || '').trim().toLowerCase();
+            const templateIdentity = (option.dataset.templateIdentity || '').trim().toLowerCase();
             const osCompatible = nodeOs === '' || supportedOs.length === 0 || supportedOs.includes(nodeOs);
 
             let duplicateForNode = false;
-            if (osCompatible && nodeOs !== '' && gameKey !== '') {
-                if (seenByGameKey.has(gameKey)) {
+            if (osCompatible && nodeOs !== '' && templateIdentity !== '') {
+                if (seenByGameKey.has(templateIdentity)) {
                     duplicateForNode = true;
                 } else {
-                    seenByGameKey.add(gameKey);
+                    seenByGameKey.add(templateIdentity);
                 }
             }
 
@@ -244,7 +245,8 @@
             return;
         }
         const selected = templateSelect.selectedOptions[0] ?? null;
-        const supported = (selected?.dataset.sharedStorageSupported || '0') === '1';
+        const rawSupported = (selected?.dataset.sharedStorageSupported || '0').toString().trim().toLowerCase();
+        const supported = rawSupported === '1' || rawSupported === 'true' || rawSupported === 'yes';
         sharedStorageCheckbox.disabled = !supported;
         if (!supported) {
             sharedStorageCheckbox.checked = false;
