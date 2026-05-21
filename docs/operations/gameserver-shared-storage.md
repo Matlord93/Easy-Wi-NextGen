@@ -85,6 +85,15 @@ Hinweis: `shared_paths` werden serverseitig aus dem Template geladen, **nicht** 
 - Die Option ist nur verfügbar, wenn das gewählte Template `shared_paths` definiert.
 - Ohne explizite Auswahl bleibt das Verhalten unverändert (kein Shared Storage).
 - Eine automatische Deaktivierung/Rückmigration bestehender Shared-Symlinks ist aktuell nicht implementiert.
+- Die UI-Meldung „Diese Instanz nutzt Shared Storage bereits.“ basiert auf dem Instanz-Flag `shared_storage_enabled` (aktivierter Flow), nicht auf einer Byte-genauen Live-Diskanalyse.
+
+## Erwartetes Verhalten bei Speichergröße
+
+- Shared Storage teilt **nur** die in `shared_paths` definierten Zielordner (typisch immutable Assets wie `libraries`, `maps`, `mods` je nach Template).
+- Konfiguration, Saves/World-Daten, Logs, Caches und Backups bleiben weiterhin instanzlokal und können die gemeldete Größe deutlich hoch halten.
+- Bei Migration per Reinstall werden bestehende lokale Zielordner vor dem Verlinken als `*.instance-backup.<timestamp>` umbenannt; diese Backups zählen ebenfalls zur Instanzgröße, bis sie bewusst gelöscht werden.
+- Deshalb ist es normal, dass die Instanz nach Aktivierung nicht sofort „klein“ wirkt, obwohl Shared Storage technisch genutzt wird.
+- Verifizieren sollte man über Symlinks statt über die Gesamtgröße: `readlink -f <instance-path>/<target>` muss auf `$EASYWI_INSTANCE_BASE_DIR/shared/<template-id>/<source>` zeigen.
 
 ## Troubleshooting
 

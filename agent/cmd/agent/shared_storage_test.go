@@ -117,6 +117,37 @@ func TestApplySharedPathsExistingEmptyDirReplaced(t *testing.T) {
 	}
 }
 
+func TestApplySharedPathsSeedsSharedFromExistingTarget(t *testing.T) {
+	base := t.TempDir()
+	instanceDir := filepath.Join(base, "servers", "s1")
+	targetPath := filepath.Join(instanceDir, "maps")
+	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
+	_ = os.MkdirAll(targetPath, 0o755)
+	if err := os.WriteFile(filepath.Join(targetPath, "asset.dat"), []byte("seed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := applySharedPaths(instanceDir, "minecraft", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	info, err := os.Lstat(targetPath)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected target path to become symlink")
+	}
+	linked, err := os.Readlink(targetPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Clean(linked) != filepath.Clean(filepath.Join(base, "shared", "minecraft", "maps")) {
+		t.Fatalf("unexpected symlink target %q", linked)
+	}
+	if _, err := os.Stat(filepath.Join(base, "shared", "minecraft", "maps", "asset.dat")); err != nil {
+		t.Fatalf("expected seeded asset in shared storage: %v", err)
+	}
+}
+
 func TestUniqueBackupPathIsUnique(t *testing.T) {
 	base := t.TempDir()
 	path := filepath.Join(base, "maps")

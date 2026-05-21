@@ -106,11 +106,6 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 	if err := os.MkdirAll(filepath.Dir(sharedSource), instanceDirMode); err != nil {
 		return err
 	}
-	if _, err := os.Stat(sharedSource); os.IsNotExist(err) {
-		if err := os.MkdirAll(sharedSource, instanceDirMode); err != nil {
-			return fmt.Errorf("create shared source %s: %w", sharedSource, err)
-		}
-	}
 	targetPath := filepath.Join(instanceDir, targetRel)
 	if err := ensurePathInsideRoot(instanceDir, targetPath); err != nil {
 		return err
@@ -118,6 +113,39 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 	if err := os.MkdirAll(filepath.Dir(targetPath), instanceDirMode); err != nil {
 		return err
 	}
+
+	sharedExists := false
+	if info, err := os.Stat(sharedSource); err == nil && info.IsDir() {
+		sharedExists = true
+	} else if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("stat shared source %s: %w", sharedSource, err)
+	}
+
+	// Seed shared storage from existing instance data on first migration.
+	// This avoids forcing a full reinstall download when the instance already has the assets locally.
+	if !sharedExists {
+		if info, err := os.Lstat(targetPath); err == nil && info.IsDir() {
+			empty, emptyErr := dirEmpty(targetPath)
+			if emptyErr != nil {
+				return emptyErr
+			}
+			if !empty {
+				if err := os.Rename(targetPath, sharedSource); err != nil {
+					return fmt.Errorf("seed shared source %s from %s: %w", sharedSource, targetPath, err)
+				}
+				sharedExists = true
+			}
+		} else if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("stat target path %s: %w", targetPath, err)
+		}
+	}
+
+	if !sharedExists {
+		if err := os.MkdirAll(sharedSource, instanceDirMode); err != nil {
+			return fmt.Errorf("create shared source %s: %w", sharedSource, err)
+		}
+	}
+
 	if info, err := os.Lstat(targetPath); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
 			if existing, readErr := os.Readlink(targetPath); readErr == nil {
