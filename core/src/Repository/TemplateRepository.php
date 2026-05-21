@@ -8,7 +8,7 @@ use App\Module\Core\Domain\Entity\Template;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class TemplateRepository extends ServiceEntityRepository
+final class TemplateRepository extends ServiceEntityRepository implements SharedStorageTemplateLocatorInterface
 {
     public function __construct(ManagerRegistry $registry)
     {

@@ -10,7 +10,7 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Repository\TemplateRepository;
+use App\Repository\SharedStorageTemplateLocatorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class InstanceInstallService
@@ -21,7 +21,7 @@ final class InstanceInstallService
         private readonly PortBlockRepository $portBlockRepository,
         private readonly PortLeaseManager $portLeaseManager,
         private readonly TemplateInstallResolver $templateInstallResolver,
-        private readonly TemplateRepository $templateRepository,
+        private readonly SharedStorageTemplateLocatorInterface $templateRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -165,6 +165,7 @@ final class InstanceInstallService
             'secrets' => $this->buildSecretPlaceholders($instance),
             'port_block_id' => $portAllocation['port_block_id'],
         ];
+
         if ($useSharedStorage) {
             $template = $instance->getTemplate();
             $sharedTemplate = $template->supportsSharedStorage()
