@@ -262,7 +262,7 @@ func acquireSharedStorageLock(lockPath string) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("shared storage lock busy (%s): %w", lockPath, err)
 	}
-	_, _ = lockFile.WriteString(fmt.Sprintf("%d\n", os.Getpid()))
+	_, _ = fmt.Fprintf(lockFile, "%d\n", os.Getpid())
 	return func() {
 		_ = lockFile.Close()
 		_ = os.Remove(lockPath)
