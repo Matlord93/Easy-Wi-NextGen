@@ -397,7 +397,8 @@ class Template
                 'source' => $source,
                 'target' => $target,
                 'mode' => (string) ($entry['mode'] ?? 'symlink'),
-                'readonly' => (bool) ($entry['readonly'] ?? true),
+                'readonly' => (bool) ($entry['readonly'] ?? $entry['read_only'] ?? true),
+                'exclude' => array_values(array_filter((array) ($entry['exclude'] ?? []), static fn (mixed $value): bool => is_string($value) && trim($value) !== '')),
             ];
         }
 

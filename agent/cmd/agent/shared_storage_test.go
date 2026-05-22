@@ -371,21 +371,30 @@ func TestCopyNonSharedFromServerSharedTreeUsesSourcePathNotTargetPath(t *testing
 	}
 }
 
-
 func TestChownInstanceTreeNoFollowUsesLchownForSymlink(t *testing.T) {
 	base := t.TempDir()
 	root := filepath.Join(base, "inst")
-	if err := os.MkdirAll(root, 0o755); err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("x"), 0o644); err != nil { t.Fatal(err) }
-	if err := os.Symlink(filepath.Join(base, "target"), filepath.Join(root, "link")); err != nil { t.Fatal(err) }
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(base, "target"), filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
 	origChown, origLchown := osChownFn, osLchownFn
-	defer func(){ osChownFn, osLchownFn = origChown, origLchown }()
+	defer func() { osChownFn, osLchownFn = origChown, origLchown }()
 	chownCalls := 0
 	lchownCalls := 0
 	osChownFn = func(name string, uid, gid int) error { chownCalls++; return nil }
 	osLchownFn = func(name string, uid, gid int) error { lchownCalls++; return nil }
-	if err := chownInstanceTreeNoFollow(root, "root"); err != nil { t.Fatal(err) }
-	if chownCalls == 0 || lchownCalls == 0 { t.Fatalf("expected chown and lchown calls, got %d/%d", chownCalls, lchownCalls) }
+	if err := chownInstanceTreeNoFollow(root, "root"); err != nil {
+		t.Fatal(err)
+	}
+	if chownCalls == 0 || lchownCalls == 0 {
+		t.Fatalf("expected chown and lchown calls, got %d/%d", chownCalls, lchownCalls)
+	}
 }
 func TestParseSharedPathSpecsRejectsExcludeTraversal(t *testing.T) {
 	_, err := parseSharedPathSpecs(map[string]any{"shared_paths": []any{map[string]any{

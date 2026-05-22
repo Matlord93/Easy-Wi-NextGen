@@ -215,14 +215,25 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	osUsername := buildInstanceUsername(customerID, instanceID)
-	instanceDir := fmt.Sprintf("%s/%s", strings.TrimRight(baseDir, "/"), osUsername)
+	defaultHomeDir := fmt.Sprintf("%s/%s", strings.TrimRight(baseDir, "/"), osUsername)
+	payloadInstallPath := strings.TrimSpace(payloadValue(job.Payload, "install_path", "instance_dir"))
+	if payloadInstallPath == "" {
+		payloadInstallPath = defaultHomeDir
+	}
+	userHomeDir, instanceDir, err := resolveSniperUserHomeAndGameDir(payloadInstallPath, osUsername)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureUser(osUsername, osUsername, instanceDir); err != nil {
+	if err := ensureUser(osUsername, osUsername, userHomeDir); err != nil {
 		return failureResult(job.ID, err)
 	}
 	if err := ensureBaseDir(baseDir); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureInstanceDir(userHomeDir); err != nil {
 		return failureResult(job.ID, err)
 	}
 	if err := ensureInstanceDir(instanceDir); err != nil {
@@ -232,8 +243,14 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
+	if err := os.Chown(userHomeDir, uid, gid); err != nil {
+		return failureResult(job.ID, fmt.Errorf("chown %s: %w", userHomeDir, err))
+	}
 	if err := os.Chown(instanceDir, uid, gid); err != nil {
 		return failureResult(job.ID, fmt.Errorf("chown %s: %w", instanceDir, err))
+	}
+	if err := os.Chmod(userHomeDir, instanceDirMode); err != nil {
+		return failureResult(job.ID, fmt.Errorf("chmod %s: %w", userHomeDir, err))
 	}
 	if err := os.Chmod(instanceDir, instanceDirMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("chmod %s: %w", instanceDir, err))
@@ -316,10 +333,12 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 	}
 
-		if logSender != nil && job.ID != "" {
+	if logSender != nil && job.ID != "" {
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("shared_enabled=%t", sharedEnabled),
 			fmt.Sprintf("shared_key=%s", sharedKey),
+			fmt.Sprintf("user_home_dir=%s", userHomeDir),
+			fmt.Sprintf("game_dir=%s", instanceDir),
 			fmt.Sprintf("shared_server_dir=%s", installTargetDir),
 			fmt.Sprintf("instance_dir=%s", instanceDir),
 		}, nil)
@@ -328,10 +347,13 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 	}
 
-command = normalizeSteamCmdInstallDir(command, installTargetDir)
+	command = normalizeSteamCmdInstallDir(command, installTargetDir)
 	commandWorkDir := instanceDir
 	if sharedEnabled {
 		commandWorkDir = installTargetDir
+	}
+	if logSender != nil && job.ID != "" {
+		logSender.Send(job.ID, []string{fmt.Sprintf("command_work_dir=%s", commandWorkDir)}, nil)
 	}
 	installSnippet := ""
 	postInstallSnippet := ""
@@ -407,6 +429,10 @@ command = normalizeSteamCmdInstallDir(command, installTargetDir)
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("INSTANCE_LINK_FAILED: %w", err))
 		}
+		if err := validateSharedInstanceLayout(instanceDir, sharedSpecs); err != nil {
+			markSharedFailure(err)
+			return failureResult(job.ID, fmt.Errorf("SHARED_INSTANCE_PREPARE_FAILED: %w", err))
+		}
 		manifestPath := sharedManifestPath(baseDir, sharedKey)
 		if mf, err := readSharedManifest(manifestPath); err == nil {
 			mf.Status = "ready"
@@ -440,7 +466,7 @@ command = normalizeSteamCmdInstallDir(command, installTargetDir)
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
 	}
-	startScriptPath, err := writeStartScript(instanceDir, renderedStartParams)
+	startScriptPath, err := writeStartScript(userHomeDir, renderedStartParams)
 	if err != nil {
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
@@ -478,6 +504,10 @@ command = normalizeSteamCmdInstallDir(command, installTargetDir)
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
 	}
+	if err := chownInstanceTreeNoFollow(userHomeDir, osUsername); err != nil {
+		markSharedFailure(err)
+		return failureResult(job.ID, err)
+	}
 
 	maskedCommand := maskSensitiveValues(renderedStartParams, templateValues)
 	log.Printf("instance=%s template=%s start_command=%s start_script_path=%s", instanceID, templateKey, maskedCommand, startScriptPath)
@@ -511,6 +541,44 @@ command = normalizeSteamCmdInstallDir(command, installTargetDir)
 		Output:    resultOutput,
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func resolveSniperUserHomeAndGameDir(payloadInstallPath string, osUsername string) (string, string, error) {
+	installPath := filepath.Clean(strings.TrimSpace(payloadInstallPath))
+	if installPath == "" || !filepath.IsAbs(installPath) {
+		return "", "", fmt.Errorf("invalid install_path")
+	}
+	userHome := filepath.Clean(filepath.Join("/home", osUsername))
+	gameDir := ""
+	if strings.EqualFold(filepath.Base(installPath), "game") {
+		userHome = filepath.Dir(installPath)
+		gameDir = installPath
+	} else if installPath == userHome {
+		gameDir = filepath.Join(installPath, "game")
+	} else {
+		gameDir = filepath.Join(installPath, "game")
+	}
+	rel, err := filepath.Rel(userHome, gameDir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", "", fmt.Errorf("game dir must be inside user home")
+	}
+	if err := ensureInstanceDir(userHome); err != nil {
+		return "", "", err
+	}
+	if err := ensureInstanceDir(gameDir); err != nil {
+		return "", "", err
+	}
+	return userHome, gameDir, nil
+}
+
+func validateSharedInstanceLayout(gameDir string, specs []sharedPathSpec) error {
+	for _, sp := range specs {
+		target := filepath.Join(gameDir, sp.Target)
+		if _, err := os.Lstat(target); err != nil {
+			return fmt.Errorf("missing shared target %s: %w", target, err)
+		}
+	}
+	return nil
 }
 
 func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (string, error) {

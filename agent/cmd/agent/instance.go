@@ -871,7 +871,6 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 
-
 	if installCommand != "" {
 		renderedInstallCommand, err := renderTemplateStrict(installCommand, templateValues)
 		if err != nil {

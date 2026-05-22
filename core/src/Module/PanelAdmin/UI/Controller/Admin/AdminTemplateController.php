@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\GameTemplateSeedSyncService;
 use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\TemplateRepository;
@@ -21,6 +22,7 @@ final class AdminTemplateController
         private readonly TemplateRepository $templateRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly GameTemplateSeedSyncService $seedSyncService,
         private readonly Environment $twig,
     ) {
     }
@@ -303,6 +305,33 @@ final class AdminTemplateController
         return $response;
     }
 
+
+    #[Route(path: '/{id<\d+>}/sync-shared-paths', name: 'admin_templates_sync_shared_paths', methods: ['POST'])]
+    public function syncSharedPaths(Request $request, string $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $template = $this->templateRepository->find((int) $id);
+        if (!$template instanceof Template) {
+            return new Response('Template not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $changed = $this->seedSyncService->syncSharedPaths($template);
+        if ($changed) {
+            $this->entityManager->persist($template);
+            $this->entityManager->flush();
+            $this->auditLogger->log('template.shared_paths_synced', ['template_id' => $template->getId(), 'game_key' => $template->getGameKey()], $actor);
+            $request->getSession()?->getFlashBag()->add('success', 'Shared paths wurden aktualisiert.');
+        } else {
+            $request->getSession()?->getFlashBag()->add('info', 'Keine Aktualisierung erforderlich oder kein Seed-Match gefunden.');
+        }
+
+        return new Response('', Response::HTTP_NO_CONTENT, ['HX-Trigger' => 'templates-changed']);
+    }
+
     #[Route(path: '/import', name: 'admin_templates_import', methods: ['POST'])]
     public function import(Request $request): Response
     {
@@ -441,7 +470,7 @@ final class AdminTemplateController
             $filtered[$gameKey] = $template;
         }
 
-        return array_map(static function (Template $template): array {
+        return array_map(function (Template $template): array {
             return [
                 'id' => $template->getId(),
                 'game_key' => $template->getGameKey(),
@@ -461,6 +490,7 @@ final class AdminTemplateController
                 'allowed_switch_flags' => $template->getAllowedSwitchFlags(),
                 'supported_os' => $template->getSupportedOs(),
                 'updated_at' => $template->getUpdatedAt(),
+                'shared_paths_sync' => $this->seedSyncService->compareSharedPaths($template),
             ];
         }, array_values($filtered));
     }

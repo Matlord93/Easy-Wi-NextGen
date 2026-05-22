@@ -52,6 +52,12 @@
                         <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
                             {{ t('updated', page_locale()) }} {{ template.updated_at|date('Y-m-d H:i') }}
                         </div>
+                    {% set sync = template.shared_paths_sync ?? null %}
+                        {% if sync and sync.seed is not empty %}
+                            <div style="margin-top:6px;">
+                                {% if sync.outdated %}<span class="ui-badge ui-badge--warning">shared_paths veraltet</span>{% else %}<span class="ui-badge ui-badge--success">shared_paths aktuell</span>{% endif %}
+                            </div>
+                        {% endif %}
                     </td>
                     <td>
                         <div style="display:flex;flex-wrap:wrap;gap:6px;">
@@ -70,9 +76,6 @@
                             <p><span style="font-weight:600;">{{ t('admin_templates_install_label', page_locale()) }}:</span> {{ template.install_command }}</p>
                             <p style="margin-top:6px;"><span style="font-weight:600;">{{ t('admin_templates_update_label', page_locale()) }}:</span> {{ template.update_command }}</p>
                         </div>
-                    </td>
-                    <td>
-                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
                             {% for flag in template.allowed_switch_flags %}
                                 <span class="ui-badge ui-badge--primary">{{ flag }}</span>
                             {% else %}
@@ -89,6 +92,11 @@
                             class="ui-button ui-button--ghost ui-button--sm"
                             href="/admin/templates/{{ template.id }}/edit"
                         >{{ t('edit', page_locale()) }}</a>
+                        {% if template.shared_paths_sync.seed is not empty %}
+                        <button class="ui-button ui-button--ghost ui-button--sm"
+                            hx-post="/admin/templates/{{ template.id }}/sync-shared-paths"
+                            hx-swap="none">shared_paths aus Standard aktualisieren</button>
+                        {% endif %}
                     </td>
                 </tr>
             {% else %}

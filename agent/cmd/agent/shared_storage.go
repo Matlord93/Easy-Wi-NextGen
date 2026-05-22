@@ -44,7 +44,6 @@ var sensitiveSharedPathTokens = []string{
 }
 var protectedNonSymlinkPatterns = []string{"cfg", "*/cfg", "gameinfo.gi", "*/gameinfo.gi", "gameinfo_branchspecific.gi", "*/gameinfo_branchspecific.gi"}
 
-
 var osChownFn = os.Chown
 var osLchownFn = os.Lchown
 
@@ -164,45 +163,77 @@ func readSharedManifest(path string) (*sharedManifest, error) {
 
 func mapSharedSourceRelToInstanceTargetRel(rel string, spec sharedPathSpec) (string, bool, error) {
 	src, err := validateSharedRelativePath(spec.Source)
-	if err != nil { return "", false, err }
+	if err != nil {
+		return "", false, err
+	}
 	tgt, err := validateSharedRelativePath(spec.Target)
-	if err != nil { return "", false, err }
+	if err != nil {
+		return "", false, err
+	}
 	rel = filepath.Clean(rel)
 	if rel != src && !strings.HasPrefix(rel, src+string(filepath.Separator)) {
 		return "", false, nil
 	}
 	sub := strings.TrimPrefix(rel, src)
 	sub = strings.TrimPrefix(sub, string(filepath.Separator))
-	if sub == "" { return tgt, true, nil }
+	if sub == "" {
+		return tgt, true, nil
+	}
 	return filepath.Join(tgt, sub), true, nil
 }
 
 func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPathSpec) error {
 	return filepath.WalkDir(sharedServer, func(path string, d os.DirEntry, err error) error {
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		rel, _ := filepath.Rel(sharedServer, path)
-		if rel == "." { return nil }
+		if rel == "." {
+			return nil
+		}
 		rel = filepath.Clean(rel)
 		for _, spec := range specs {
-			if spec.Mode != "shared_tree" { continue }
+			if spec.Mode != "shared_tree" {
+				continue
+			}
 			mapped, ok, mapErr := mapSharedSourceRelToInstanceTargetRel(rel, spec)
-			if mapErr != nil { return mapErr }
-			if !ok { continue }
+			if mapErr != nil {
+				return mapErr
+			}
+			if !ok {
+				continue
+			}
 			excludes, exErr := normalizeExcludes(spec.Exclude)
-			if exErr != nil { return exErr }
+			if exErr != nil {
+				return exErr
+			}
 			sub := strings.TrimPrefix(rel, filepath.Clean(spec.Source))
 			sub = strings.TrimPrefix(sub, string(filepath.Separator))
-			if sub == "" { return nil }
+			if sub == "" {
+				return nil
+			}
 			if !isSubpathExcluded(sub, excludes) {
-				if d.IsDir() { return filepath.SkipDir }
-				if strings.HasSuffix(strings.ToLower(sub), ".vpk") { log.Printf("shared copy decision: skip shared-linked file %s", rel) }
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				if strings.HasSuffix(strings.ToLower(sub), ".vpk") {
+					log.Printf("shared copy decision: skip shared-linked file %s", rel)
+				}
 				return nil
 			}
 			dst := filepath.Join(instanceDir, mapped)
-			if d.IsDir() { return os.MkdirAll(dst, instanceDirMode) }
-			if err := os.MkdirAll(filepath.Dir(dst), instanceDirMode); err != nil { return err }
-			if _, err := os.Stat(dst); err == nil { return nil }
-			if strings.HasSuffix(strings.ToLower(sub), ".cfg") || strings.HasSuffix(strings.ToLower(sub), "gameinfo.gi") { log.Printf("shared copy decision: copy excluded file %s -> %s", rel, mapped) }
+			if d.IsDir() {
+				return os.MkdirAll(dst, instanceDirMode)
+			}
+			if err := os.MkdirAll(filepath.Dir(dst), instanceDirMode); err != nil {
+				return err
+			}
+			if _, err := os.Stat(dst); err == nil {
+				return nil
+			}
+			if strings.HasSuffix(strings.ToLower(sub), ".cfg") || strings.HasSuffix(strings.ToLower(sub), "gameinfo.gi") {
+				log.Printf("shared copy decision: copy excluded file %s -> %s", rel, mapped)
+			}
 			return copyPathRecursive(path, dst)
 		}
 		return nil
@@ -415,8 +446,12 @@ func applySharedTree(sourceDir, targetDir string, spec sharedPathSpec) error {
 		if excluded {
 			if info, err := os.Lstat(dstChild); err == nil {
 				if info.Mode()&os.ModeSymlink != 0 {
-					if err := os.Remove(dstChild); err != nil { return err }
-				} else if err := os.RemoveAll(dstChild); err != nil { return err }
+					if err := os.Remove(dstChild); err != nil {
+						return err
+					}
+				} else if err := os.RemoveAll(dstChild); err != nil {
+					return err
+				}
 			}
 			if err := copyPathRecursive(srcChild, dstChild); err != nil {
 				return err
