@@ -297,7 +297,6 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			return failureResult(job.ID, err)
 		}
 		sharedKey = k
-		installTargetDir = sharedServerDir(baseDir, sharedKey)
 		commandWorkDir, prepErr := prepareSharedStoragePermissions(baseDir, sharedKey, osUsername)
 		if prepErr != nil {
 			return failureResult(job.ID, prepErr)
