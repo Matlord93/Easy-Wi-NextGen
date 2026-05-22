@@ -275,12 +275,12 @@ func TestApplySharedPathsSharedTreeCreatesRealDirAndSymlinks(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(source, "pak01_001.vpk"), []byte("vpk"), 0o644)
 	_ = os.WriteFile(filepath.Join(source, "pak01_dir.vpk"), []byte("vpk"), 0o644)
 	_ = os.MkdirAll(filepath.Join(source, "maps"), 0o755)
-	target := filepath.Join(instanceDir, "game", "csgo")
+	target := filepath.Join(instanceDir, "csgo")
 	_ = os.MkdirAll(filepath.Join(target, "cfg"), 0o755)
 	_ = os.WriteFile(filepath.Join(target, "cfg", "local.cfg"), []byte("local"), 0o644)
 	_ = os.WriteFile(filepath.Join(target, "gameinfo.gi"), []byte("local-gi"), 0o644)
 	_ = os.WriteFile(filepath.Join(target, "pak01_000.vpk"), []byte("old-local-vpk"), 0o644)
-	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "game/csgo", Target: "game/csgo", Mode: "shared_tree", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "game/csgo", Target: "csgo", Mode: "shared_tree", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -360,17 +360,33 @@ func TestCopyNonSharedFromServerSharedTreeUsesSourcePathNotTargetPath(t *testing
 	if err := copyNonSharedFromServer(shared, instance, []sharedPathSpec{{Source: "game/csgo", Target: "csgo", Mode: "shared_tree", Exclude: []string{"cfg", "gameinfo.gi"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(instance, "game", "csgo", "cfg", "server.cfg")); err != nil {
+	if _, err := os.Stat(filepath.Join(instance, "csgo", "cfg", "server.cfg")); err != nil {
 		t.Fatalf("expected copied exclude from source path: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(instance, "game", "csgo", "gameinfo.gi")); err != nil {
+	if _, err := os.Stat(filepath.Join(instance, "csgo", "gameinfo.gi")); err != nil {
 		t.Fatalf("expected copied exclude file from source path: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(instance, "game", "csgo", "pak01_000.vpk")); err == nil {
+	if _, err := os.Stat(filepath.Join(instance, "csgo", "pak01_000.vpk")); err == nil {
 		t.Fatalf(".vpk must not be copied from shared_tree source path")
 	}
 }
 
+
+func TestChownInstanceTreeNoFollowUsesLchownForSymlink(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "inst")
+	if err := os.MkdirAll(root, 0o755); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("x"), 0o644); err != nil { t.Fatal(err) }
+	if err := os.Symlink(filepath.Join(base, "target"), filepath.Join(root, "link")); err != nil { t.Fatal(err) }
+	origChown, origLchown := osChownFn, osLchownFn
+	defer func(){ osChownFn, osLchownFn = origChown, origLchown }()
+	chownCalls := 0
+	lchownCalls := 0
+	osChownFn = func(name string, uid, gid int) error { chownCalls++; return nil }
+	osLchownFn = func(name string, uid, gid int) error { lchownCalls++; return nil }
+	if err := chownInstanceTreeNoFollow(root, "root"); err != nil { t.Fatal(err) }
+	if chownCalls == 0 || lchownCalls == 0 { t.Fatalf("expected chown and lchown calls, got %d/%d", chownCalls, lchownCalls) }
+}
 func TestParseSharedPathSpecsRejectsExcludeTraversal(t *testing.T) {
 	_, err := parseSharedPathSpecs(map[string]any{"shared_paths": []any{map[string]any{
 		"source": "game/csgo", "target": "csgo", "mode": "shared_tree", "readonly": true, "exclude": []any{"../cfg"},

@@ -158,6 +158,9 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	if err := applySharedPaths(instanceDir, sharedRoot, sharedSpecs); err != nil {
 		return failureResult(job.ID, err)
 	}
+	if err := chownInstanceTreeNoFollow(instanceDir, osUsername); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
@@ -864,6 +867,10 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	if err := applySharedPaths(instanceDir, sharedRoot, sharedSpecs); err != nil {
 		return failureResult(job.ID, err)
 	}
+	if err := chownInstanceTreeNoFollow(instanceDir, osUsername); err != nil {
+		return failureResult(job.ID, err)
+	}
+
 
 	if installCommand != "" {
 		renderedInstallCommand, err := renderTemplateStrict(installCommand, templateValues)

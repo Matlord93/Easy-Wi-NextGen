@@ -316,7 +316,19 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 	}
 
-	command = normalizeSteamCmdInstallDir(command, installTargetDir)
+		if logSender != nil && job.ID != "" {
+		logSender.Send(job.ID, []string{
+			fmt.Sprintf("shared_enabled=%t", sharedEnabled),
+			fmt.Sprintf("shared_key=%s", sharedKey),
+			fmt.Sprintf("shared_server_dir=%s", installTargetDir),
+			fmt.Sprintf("instance_dir=%s", instanceDir),
+		}, nil)
+		for i, sp := range sharedSpecs {
+			logSender.Send(job.ID, []string{fmt.Sprintf("shared_paths[%d]: source=%s target=%s mode=%s exclude=%v", i, sp.Source, sp.Target, sp.Mode, sp.Exclude)}, nil)
+		}
+	}
+
+command = normalizeSteamCmdInstallDir(command, installTargetDir)
 	commandWorkDir := instanceDir
 	if sharedEnabled {
 		commandWorkDir = installTargetDir
@@ -460,6 +472,11 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			markSharedFailure(err)
 			return failureResult(job.ID, err)
 		}
+	}
+
+	if err := chownInstanceTreeNoFollow(instanceDir, osUsername); err != nil {
+		markSharedFailure(err)
+		return failureResult(job.ID, err)
 	}
 
 	maskedCommand := maskSensitiveValues(renderedStartParams, templateValues)
