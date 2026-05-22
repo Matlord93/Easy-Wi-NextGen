@@ -798,6 +798,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleSniperInstall(job, logSender)
 	case "sniper.update":
 		return handleSniperUpdate(job, logSender)
+	case "sniper.shared_update":
+		return handleSniperSharedUpdate(job, logSender)
 	case "node.disk.stat":
 		return handleNodeDiskStat(job)
 	case "webspace.files.list":

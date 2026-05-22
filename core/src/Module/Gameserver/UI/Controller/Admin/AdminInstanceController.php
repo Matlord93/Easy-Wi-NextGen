@@ -615,6 +615,67 @@ final class AdminInstanceController
         return $this->renderInstancesTable($instances, [], Response::HTTP_OK, $filters);
     }
 
+    #[Route(path: '/{id}/shared-update', name: 'admin_instances_shared_update', methods: ['POST'])]
+    public function sharedUpdate(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+        $instance = $this->instanceRepository->find($id);
+        if ($instance === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+        if (!$instance->isSharedStorageEnabled()) {
+            return new Response('Shared storage disabled for this instance.', Response::HTTP_BAD_REQUEST);
+        }
+        $template = $instance->getTemplate();
+        $sharedKey = $this->resolveSharedKeyForInstance($instance);
+        $updateCommand = $template->getUpdateCommand();
+        if ($sharedKey === '' || trim($updateCommand) === '') {
+            return new Response('Shared update is not available for this instance/template.', Response::HTTP_BAD_REQUEST);
+        }
+        $payload = [
+            'instance_id' => (string) ($instance->getId() ?? ''),
+            'customer_id' => (string) $instance->getCustomer()->getId(),
+            'template_id' => (string) ($template->getId() ?? ''),
+            'template_key' => $template->getGameKey(),
+            'template_slug' => $template->getDisplayName(),
+            'shared_key' => $sharedKey,
+            'base_dir' => (string) ($instance->getInstanceBaseDir() ?? ''),
+            'update_command' => $updateCommand,
+            'required_ports' => implode(',', $template->getRequiredPortLabels()),
+        ];
+        $job = new Job('sniper.shared_update', $payload);
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+        return new Response('', Response::HTTP_NO_CONTENT);
+    }
+
+    private function resolveSharedKeyForInstance(Instance $instance): string
+    {
+        $id = (int) ($instance->getId() ?? 0);
+        if ($id <= 0) {
+            return '';
+        }
+        foreach ($this->jobRepository->findLatest(400) as $job) {
+            $jobInstanceId = (int) ($job->getPayload()['instance_id'] ?? 0);
+            if ($jobInstanceId !== $id) {
+                continue;
+            }
+            $outputKey = trim((string) ($job->getOutput()['shared_key'] ?? ''));
+            if ($outputKey !== '') {
+                return $outputKey;
+            }
+            $payloadKey = trim((string) ($job->getPayload()['shared_key'] ?? ''));
+            if ($payloadKey !== '') {
+                return $payloadKey;
+            }
+        }
+
+        return '';
+    }
+
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -1238,6 +1299,10 @@ final class AdminInstanceController
                 'install_ready' => $installStatus['is_ready'] ?? false,
                 'install_error_code' => $installStatus['error_code'] ?? null,
                 'shared_storage_enabled' => $instance->isSharedStorageEnabled(),
+                'shared_storage_key' => (string) (($latestLifecycleJob?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')),
+                'shared_storage_status' => (string) (($latestLifecycleJob?->getOutput()['shared_status'] ?? $latestLifecycleJob?->getOutput()['shared_result'] ?? '')),
+                'shared_storage_last_update_at' => (string) (($latestLifecycleJob?->getOutput()['last_successful_update_at'] ?? '')),
+                'shared_update_available' => (bool) ($instance->isSharedStorageEnabled() && trim((string) ($latestLifecycleJob?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')) !== '' && trim($instance->getTemplate()->getUpdateCommand()) !== ''),
             ];
         }, $instances);
     }
@@ -1260,6 +1325,7 @@ final class AdminInstanceController
             'instance.addon.update',
             'instance.addon.remove',
             'sniper.update',
+            'sniper.shared_update',
         ];
 
         $map = [];

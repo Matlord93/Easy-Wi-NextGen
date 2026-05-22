@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,12 +21,105 @@ type sharedPathSpec struct {
 	ReadOnly bool
 }
 
+type sharedManifest struct {
+	SharedKey                string          `json:"shared_key"`
+	TemplateID               string          `json:"template_id"`
+	TemplateName             string          `json:"template_name,omitempty"`
+	CreatedAt                string          `json:"created_at"`
+	UpdatedAt                string          `json:"updated_at"`
+	InstallCommandHash       string          `json:"install_command_hash"`
+	SharedPaths              []sharedPathSpec `json:"shared_paths"`
+	LastSuccessfulInstallAt  string          `json:"last_successful_install_at,omitempty"`
+	LastSuccessfulUpdateAt   string          `json:"last_successful_update_at,omitempty"`
+	Status                   string          `json:"status"`
+	FailureReason            string          `json:"failure_reason,omitempty"`
+}
+
 var sensitiveSharedPathTokens = []string{
 	"config", "cfg", "server.cfg", "secrets", "secret", "token", "key", "api_key", "apikey", "password", "passwd", "credential", "credentials",
 	"database", "db", "sqlite", "logs", "log", "saves", "save", "worlds", "world", "users", "permissions", "whitelist", "banlist", "cache", "tmp", "temp", "rcon",
 }
 
 var templateIDPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+func buildSharedKey(payload map[string]any) (string, error) {
+	for _, k := range []string{"template_slug", "template_key", "game_key", "template_tag", "template_name", "template_id"} {
+		v := strings.TrimSpace(payloadString(payload[k]))
+		if v == "" { continue }
+		clean := strings.ToLower(v)
+		clean = regexp.MustCompile(`[^a-z0-9._-]+`).ReplaceAllString(clean, "-")
+		clean = strings.Trim(clean, "-._")
+		if clean != "" {
+			return clean, nil
+		}
+	}
+	return "", errors.New("SHARED_PATH_INVALID: missing template identifier for shared key")
+}
+
+func sharedRootFor(baseDir, sharedKey string) string { return filepath.Join(baseDir, "Shared", sharedKey) }
+func sharedServerDir(baseDir, sharedKey string) string { return filepath.Join(sharedRootFor(baseDir, sharedKey), "server") }
+func sharedManifestPath(baseDir, sharedKey string) string { return filepath.Join(sharedRootFor(baseDir, sharedKey), ".shared-manifest.json") }
+func sharedLockPath(baseDir, sharedKey string) string { return filepath.Join(baseDir, "Shared", ".locks", sharedKey+".lock") }
+
+func acquireSharedStorageLockWithTimeout(lockPath string, timeout time.Duration) (func(), error) {
+	deadline := time.Now().Add(timeout)
+	if err := os.MkdirAll(filepath.Dir(lockPath), instanceDirMode); err != nil { return nil, err }
+	for {
+		lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, instanceFileMode)
+		if err == nil {
+			_, _ = fmt.Fprintf(lockFile, "%d\n%d\n", os.Getpid(), time.Now().UTC().Unix())
+			return func() { _ = lockFile.Close(); _ = os.Remove(lockPath) }, nil
+		}
+		if !os.IsExist(err) { return nil, fmt.Errorf("SHARED_LOCK_TIMEOUT: %w", err) }
+		if time.Now().After(deadline) { return nil, fmt.Errorf("SHARED_LOCK_TIMEOUT: timeout waiting for lock %s", lockPath) }
+		_ = cleanupStaleLock(lockPath, timeout)
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+func cleanupStaleLock(lockPath string, timeout time.Duration) error {
+	b, err := os.ReadFile(lockPath); if err != nil { return err }
+	parts := strings.Split(strings.TrimSpace(string(b)), "\n")
+	if len(parts) < 2 { return nil }
+	ts, err := strconv.ParseInt(parts[1], 10, 64); if err != nil { return nil }
+	if time.Since(time.Unix(ts,0)) > timeout { _ = os.Remove(lockPath) }
+	return nil
+}
+
+func writeSharedManifest(path string, mf sharedManifest) error {
+	mf.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	data, _ := json.MarshalIndent(mf, "", "  ")
+	return os.WriteFile(path, append(data, '\n'), instanceFileMode)
+}
+
+func readSharedManifest(path string) (*sharedManifest, error) {
+	b, err := os.ReadFile(path); if err != nil { return nil, err }
+	var mf sharedManifest
+	if err := json.Unmarshal(b, &mf); err != nil { return nil, err }
+	return &mf, nil
+}
+
+func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPathSpec) error {
+	sharedTargets := map[string]struct{}{}
+	for _, s := range specs { t, _ := validateSharedRelativePath(s.Target); sharedTargets[t] = struct{}{} }
+	return filepath.WalkDir(sharedServer, func(path string, d os.DirEntry, err error) error {
+		if err != nil { return err }
+		rel, _ := filepath.Rel(sharedServer, path)
+		if rel == "." { return nil }
+		rel = filepath.Clean(rel)
+		for t := range sharedTargets { if rel == t || strings.HasPrefix(rel, t+string(filepath.Separator)) { if d.IsDir(){return filepath.SkipDir}; return nil } }
+		dst := filepath.Join(instanceDir, rel)
+		if d.IsDir() { return os.MkdirAll(dst, instanceDirMode) }
+		if _, err := os.Stat(dst); err == nil { return nil }
+		if err := os.MkdirAll(filepath.Dir(dst), instanceDirMode); err != nil { return err }
+		srcf, err := os.Open(path); if err != nil { return err }
+		defer srcf.Close()
+		dstf, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, instanceFileMode); if err != nil { return err }
+		defer dstf.Close()
+		_, err = io.Copy(dstf, srcf)
+		return err
+	})
+}
 
 func parseSharedPathSpecs(payload map[string]any) ([]sharedPathSpec, error) {
 	raw, ok := payload["shared_paths"]

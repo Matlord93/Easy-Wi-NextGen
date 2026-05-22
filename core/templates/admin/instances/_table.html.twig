@@ -167,6 +167,15 @@
                         <span class="ui-badge ui-badge--{{ installVariant }}">
                             {{ instance.install_ready ? t('admin_instances_install_ready', page_locale()) : t('admin_instances_setup_open', page_locale()) }}
                         </span>
+                        <div style="margin-top:6px;font-size:11px;color:var(--color-text-muted,#64748b);">
+                            Shared: {{ instance.shared_storage_enabled ? 'yes' : 'no' }}
+                            {% if instance.shared_storage_key %}
+                                · key={{ instance.shared_storage_key }}
+                            {% endif %}
+                        </div>
+                        {% if instance.shared_storage_status %}
+                            <div style="margin-top:2px;font-size:11px;color:#6366f1;">{{ instance.shared_storage_status }}</div>
+                        {% endif %}
                         {% if instance.install_error_code %}
                             <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.install_error_code }}</div>
                         {% endif %}
@@ -195,6 +204,14 @@
                                         style="border-color:#818cf8;color:#6366f1;"
                                         hx-post="{{ path('admin_instances_sftp_provision', {id: instance.id}) }}">
                                     {{ t('admin_instances_sftp_provision', page_locale()) }}
+                                </button>
+                            {% endif %}
+                            {% if instance.shared_storage_enabled and instance.shared_storage_key and instance.shared_update_available %}
+                                <button class="ui-button ui-button--ghost ui-button--sm"
+                                        style="border-color:#818cf8;color:#4f46e5;"
+                                        hx-post="{{ path('admin_instances_shared_update', {id: instance.id}) }}"
+                                        hx-confirm="Shared-Server zentral aktualisieren?">
+                                    Shared aktualisieren
                                 </button>
                             {% endif %}
                             <button class="ui-button ui-button--ghost ui-button--sm"

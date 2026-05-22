@@ -1,9 +1,15 @@
 package main
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+
+	"easywi/agent/internal/jobs"
 )
 
 func TestParseSharedPathSpecs_Empty(t *testing.T) {
@@ -247,5 +253,130 @@ func TestApplySharedPathsSeedsSharedFromExistingFileTarget(t *testing.T) {
 	}
 	if string(data) != "seed-file" {
 		t.Fatalf("unexpected seeded file content: %q", string(data))
+	}
+}
+
+func TestBuildSharedKeyPrefersTemplateSlug(t *testing.T) {
+	key, err := buildSharedKey(map[string]any{"template_slug": "CS2 Dedicated/Release"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key != "cs2-dedicated-release" {
+		t.Fatalf("unexpected key %q", key)
+	}
+}
+
+func TestAcquireSharedStorageLockWithTimeoutRemovesStale(t *testing.T) {
+	base := t.TempDir()
+	lock := filepath.Join(base, "x.lock")
+	if err := os.WriteFile(lock, []byte("1\n1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	release, err := acquireSharedStorageLockWithTimeout(lock, 10*time.Millisecond)
+	if err != nil {
+		t.Fatalf("expected stale lock cleanup: %v", err)
+	}
+	release()
+}
+
+func TestSharedManifestWriteReadRoundTrip(t *testing.T) {
+	base := t.TempDir()
+	path := filepath.Join(base, ".shared-manifest.json")
+	in := sharedManifest{
+		SharedKey:          "minecraft",
+		TemplateID:         "42",
+		Status:             "updating",
+		InstallCommandHash: "abc",
+		SharedPaths:        []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}},
+	}
+	if err := writeSharedManifest(path, in); err != nil {
+		t.Fatal(err)
+	}
+	out, err := readSharedManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.SharedKey != in.SharedKey || out.Status != in.Status {
+		t.Fatalf("unexpected manifest roundtrip: %#v", out)
+	}
+}
+
+func TestSniperSharedUpdateFailsWhenManifestMissing(t *testing.T) {
+	base := t.TempDir()
+	job := jobs.Job{ID: "1", Payload: map[string]any{
+		"base_dir":       base,
+		"shared_key":     "minecraft",
+		"update_command": "echo ok",
+	}}
+	res, _ := handleSniperSharedUpdate(job, nil)
+	if res.Status != "failed" || !strings.Contains(res.Output["message"], "SHARED_MANIFEST_INVALID") {
+		t.Fatalf("expected SHARED_MANIFEST_INVALID, got %#v", res.Output)
+	}
+}
+
+func TestSniperSharedUpdateFailsWhenServerMissing(t *testing.T) {
+	base := t.TempDir()
+	key := "minecraft"
+	manifest := sharedManifest{SharedKey: key, TemplateID: "1", Status: "ready"}
+	if err := os.MkdirAll(sharedRootFor(base, key), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSharedManifest(sharedManifestPath(base, key), manifest); err != nil {
+		t.Fatal(err)
+	}
+	job := jobs.Job{ID: "2", Payload: map[string]any{"base_dir": base, "shared_key": key, "update_command": "echo ok"}}
+	res, _ := handleSniperSharedUpdate(job, nil)
+	if res.Status != "failed" || !strings.Contains(res.Output["message"], "SHARED_SERVER_MISSING") {
+		t.Fatalf("expected SHARED_SERVER_MISSING, got %#v", res.Output)
+	}
+}
+
+func TestSniperSharedUpdateMissingCommandSetsManifestFailed(t *testing.T) {
+	base := t.TempDir()
+	key := "minecraft"
+	root := sharedRootFor(base, key)
+	if err := os.MkdirAll(filepath.Join(root, "server"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSharedManifest(sharedManifestPath(base, key), sharedManifest{SharedKey: key, TemplateID: "1", Status: "ready"}); err != nil {
+		t.Fatal(err)
+	}
+	job := jobs.Job{ID: "3", Payload: map[string]any{"base_dir": base, "shared_key": key}}
+	res, _ := handleSniperSharedUpdate(job, nil)
+	if res.Status != "failed" {
+		t.Fatalf("expected failed")
+	}
+	mf, err := readSharedManifest(sharedManifestPath(base, key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mf.Status != "failed" {
+		t.Fatalf("expected failed manifest, got %s", mf.Status)
+	}
+}
+
+func TestEvaluateSharedInstallReuseReadyManifest(t *testing.T) {
+	base := t.TempDir()
+	manifestPath := filepath.Join(base, ".shared-manifest.json")
+	serverDir := filepath.Join(base, "server")
+	if err := os.MkdirAll(serverDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	command := "echo install"
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(command)))
+	initial := sharedManifest{SharedKey: "minecraft", TemplateID: "1", Status: "ready", InstallCommandHash: hash}
+	if err := writeSharedManifest(manifestPath, initial); err != nil {
+		t.Fatal(err)
+	}
+
+	mf, reused, err := evaluateSharedInstallReuse(manifestPath, serverDir, "install", command, nil, map[string]any{"template_id": "1"}, "minecraft")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reused {
+		t.Fatalf("expected reused=true")
+	}
+	if mf.Status != "ready" {
+		t.Fatalf("expected status ready, got %s", mf.Status)
 	}
 }
