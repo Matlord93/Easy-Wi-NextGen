@@ -116,14 +116,14 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	_ = writeSharedManifest(manifestPath, *mf)
 
 	return jobs.Result{JobID: job.ID, Status: "success", Completed: time.Now().UTC(), Output: map[string]string{
-		"message":       "shared update completed",
-		"shared_key":    sharedKey,
-		"shared_result": "SHARED_UPDATE_SUCCESS",
-		"shared_status": "ready",
+		"message":                   "shared update completed",
+		"shared_key":                sharedKey,
+		"shared_result":             "SHARED_UPDATE_SUCCESS",
+		"shared_status":             "ready",
 		"last_successful_update_at": now,
-		"shared_server_path": sharedServer,
-		"manifest_path": manifestPath,
-		"install_log":   trimOutput(output, 4000),
+		"shared_server_path":        sharedServer,
+		"manifest_path":             manifestPath,
+		"install_log":               trimOutput(output, 4000),
 	}}, nil
 }
 
@@ -301,10 +301,14 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	sharedKey := ""
 	if sharedEnabled {
 		k, err := buildSharedKey(job.Payload)
-		if err != nil { return failureResult(job.ID, err) }
+		if err != nil {
+			return failureResult(job.ID, err)
+		}
 		sharedKey = k
 		installTargetDir = sharedServerDir(baseDir, sharedKey)
-		if err := os.MkdirAll(installTargetDir, instanceDirMode); err != nil { return failureResult(job.ID, err) }
+		if err := os.MkdirAll(installTargetDir, instanceDirMode); err != nil {
+			return failureResult(job.ID, err)
+		}
 	}
 
 	command = normalizeSteamCmdInstallDir(command, installTargetDir)
@@ -322,7 +326,9 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	sharedManifestFile := ""
 	if sharedEnabled {
 		lockRelease, err := acquireSharedStorageLockWithTimeout(sharedLockPath(baseDir, sharedKey), 2*time.Minute)
-		if err != nil { return failureResult(job.ID, err) }
+		if err != nil {
+			return failureResult(job.ID, err)
+		}
 		defer lockRelease()
 		manifestPath := sharedManifestPath(baseDir, sharedKey)
 		sharedManifestFile = manifestPath
@@ -351,7 +357,10 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if !sharedEnabled || action != "install" || sharedResult != "SHARED_INSTALL_REUSED" {
 		var err error
 		output, err = runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
-		if err != nil { markSharedFailure(err); return failureResult(job.ID, err) }
+		if err != nil {
+			markSharedFailure(err)
+			return failureResult(job.ID, err)
+		}
 	}
 	if usesSteamCmd {
 		for attempts := 0; attempts < steamCmdRetryLimit && shouldRetrySteamCmd(output, steamAppID); attempts++ {
@@ -370,16 +379,29 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 	}
 	if sharedEnabled {
-		if err := copyNonSharedFromServer(installTargetDir, instanceDir, sharedSpecs); err != nil { markSharedFailure(err); return failureResult(job.ID, fmt.Errorf("SHARED_INSTALL_FAILED: %w", err)) }
-		if err := applySharedPaths(instanceDir, sharedKey, sharedSpecs); err != nil { markSharedFailure(err); return failureResult(job.ID, fmt.Errorf("INSTANCE_LINK_FAILED: %w", err)) }
+		if err := copyNonSharedFromServer(installTargetDir, instanceDir, sharedSpecs); err != nil {
+			markSharedFailure(err)
+			return failureResult(job.ID, fmt.Errorf("SHARED_INSTALL_FAILED: %w", err))
+		}
+		if err := applySharedPaths(instanceDir, sharedKey, sharedSpecs); err != nil {
+			markSharedFailure(err)
+			return failureResult(job.ID, fmt.Errorf("INSTANCE_LINK_FAILED: %w", err))
+		}
 		manifestPath := sharedManifestPath(baseDir, sharedKey)
 		if mf, err := readSharedManifest(manifestPath); err == nil {
 			mf.Status = "ready"
 			mf.FailureReason = ""
 			now := time.Now().UTC().Format(time.RFC3339)
-			if action == "install" { mf.LastSuccessfulInstallAt = now }
-			if action == "update" { mf.LastSuccessfulUpdateAt = now; sharedResult = "SHARED_INSTALL_UPDATED" }
-			if sharedResult == "" { sharedResult = "SHARED_INSTALL_CREATED" }
+			if action == "install" {
+				mf.LastSuccessfulInstallAt = now
+			}
+			if action == "update" {
+				mf.LastSuccessfulUpdateAt = now
+				sharedResult = "SHARED_INSTALL_UPDATED"
+			}
+			if sharedResult == "" {
+				sharedResult = "SHARED_INSTALL_CREATED"
+			}
 			_ = writeSharedManifest(manifestPath, *mf)
 		}
 	}
@@ -450,7 +472,10 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if version != "" {
 		resultOutput["version"] = version
 	}
-	if sharedResult != "" { resultOutput["shared_result"] = sharedResult; resultOutput["shared_key"] = sharedKey }
+	if sharedResult != "" {
+		resultOutput["shared_result"] = sharedResult
+		resultOutput["shared_key"] = sharedKey
+	}
 
 	return jobs.Result{
 		JobID:     job.ID,

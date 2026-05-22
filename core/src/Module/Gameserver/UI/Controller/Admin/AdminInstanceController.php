@@ -663,7 +663,8 @@ final class AdminInstanceController
             if ($jobInstanceId !== $id) {
                 continue;
             }
-            $outputKey = trim((string) ($job->getOutput()['shared_key'] ?? ''));
+            $output = $job->getResult()?->getOutput() ?? [];
+            $outputKey = trim((string) ($output['shared_key'] ?? ''));
             if ($outputKey !== '') {
                 return $outputKey;
             }
@@ -1299,10 +1300,10 @@ final class AdminInstanceController
                 'install_ready' => $installStatus['is_ready'] ?? false,
                 'install_error_code' => $installStatus['error_code'] ?? null,
                 'shared_storage_enabled' => $instance->isSharedStorageEnabled(),
-                'shared_storage_key' => (string) (($latestLifecycleJob?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')),
-                'shared_storage_status' => (string) (($latestLifecycleJob?->getOutput()['shared_status'] ?? $latestLifecycleJob?->getOutput()['shared_result'] ?? '')),
-                'shared_storage_last_update_at' => (string) (($latestLifecycleJob?->getOutput()['last_successful_update_at'] ?? '')),
-                'shared_update_available' => (bool) ($instance->isSharedStorageEnabled() && trim((string) ($latestLifecycleJob?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')) !== '' && trim($instance->getTemplate()->getUpdateCommand()) !== ''),
+                'shared_storage_key' => (string) (($latestLifecycleJob?->getResult()?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')),
+                'shared_storage_status' => (string) (($latestLifecycleJob?->getResult()?->getOutput()['shared_status'] ?? $latestLifecycleJob?->getResult()?->getOutput()['shared_result'] ?? '')),
+                'shared_storage_last_update_at' => (string) (($latestLifecycleJob?->getResult()?->getOutput()['last_successful_update_at'] ?? '')),
+                'shared_update_available' => (bool) ($instance->isSharedStorageEnabled() && trim((string) ($latestLifecycleJob?->getResult()?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')) !== '' && trim($instance->getTemplate()->getUpdateCommand()) !== ''),
             ];
         }, $instances);
     }
