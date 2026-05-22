@@ -562,12 +562,6 @@ func resolveSniperUserHomeAndGameDir(payloadInstallPath string, osUsername strin
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", "", fmt.Errorf("game dir must be inside user home")
 	}
-	if err := ensureInstanceDir(userHome); err != nil {
-		return "", "", err
-	}
-	if err := ensureInstanceDir(gameDir); err != nil {
-		return "", "", err
-	}
 	return userHome, gameDir, nil
 }
 
