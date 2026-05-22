@@ -12,7 +12,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.4
 	golang.org/x/crypto v0.52.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.45.0
 )
 
 require (
