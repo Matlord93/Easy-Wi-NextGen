@@ -1390,15 +1390,26 @@ final class AdminTemplateController
                 continue;
             }
             $mode = trim((string) ($entry['mode'] ?? 'symlink'));
-            if (!in_array($mode, ['symlink', 'bind'], true)) {
-                $errors[] = sprintf('Shared path mode "%s" must be "symlink" or "bind".', $mode);
+            if (!in_array($mode, ['symlink', 'bind', 'shared_tree'], true)) {
+                $errors[] = sprintf('Shared path mode "%s" must be "symlink", "bind" or "shared_tree".', $mode);
                 continue;
+            }
+            $exclude = [];
+            if (isset($entry['exclude'])) {
+                if (!is_array($entry['exclude'])) {
+                    $errors[] = 'Shared path "exclude" must be an array.';
+                    continue;
+                }
+                $exclude = array_values(array_map(static fn ($item) => trim((string) $item), $entry['exclude']));
             }
             $normalized[] = [
                 'source' => $source,
                 'target' => $target,
                 'mode' => $mode,
                 'readonly' => (bool) ($entry['readonly'] ?? true),
+                'read_only' => (bool) ($entry['read_only'] ?? ($entry['readonly'] ?? true)),
+                'exclude' => $exclude,
+                'unsafe_override' => (bool) ($entry['unsafe_override'] ?? false),
             ];
         }
 

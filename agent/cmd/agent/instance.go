@@ -148,7 +148,14 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 	startCommand := startScriptPath
 	startParams = ""
-	if err := applySharedPaths(instanceDir, payloadValue(job.Payload, "template_id"), sharedSpecs); err != nil {
+	sharedRoot := payloadValue(job.Payload, "shared_server_dir")
+	if sharedRoot == "" {
+		sharedKey := payloadValue(job.Payload, "shared_key")
+		if sharedKey != "" {
+			sharedRoot = sharedServerDir(baseDir, sharedKey)
+		}
+	}
+	if err := applySharedPaths(instanceDir, sharedRoot, sharedSpecs); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -847,7 +854,14 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
-	if err := applySharedPaths(instanceDir, payloadValue(job.Payload, "template_id"), sharedSpecs); err != nil {
+	sharedRoot := payloadValue(job.Payload, "shared_server_dir")
+	if sharedRoot == "" {
+		sharedKey := payloadValue(job.Payload, "shared_key")
+		if sharedKey != "" {
+			sharedRoot = sharedServerDir(baseDir, sharedKey)
+		}
+	}
+	if err := applySharedPaths(instanceDir, sharedRoot, sharedSpecs); err != nil {
 		return failureResult(job.ID, err)
 	}
 

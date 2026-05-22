@@ -22,13 +22,14 @@ func TestParseSharedPathSpecs_Empty(t *testing.T) {
 func TestApplySharedPaths_CreatesSymlink(t *testing.T) {
 	base := t.TempDir()
 	instanceDir := filepath.Join(base, "servers", "s1")
+	_ = os.MkdirAll(instanceDir, 0o755)
 	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
 
-	err := applySharedPaths(instanceDir, "minecraft", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
 	if err != nil {
 		t.Fatalf("applySharedPaths failed: %v", err)
 	}
@@ -65,9 +66,9 @@ func TestApplySharedPathsRejectsInvalidTemplateID(t *testing.T) {
 	instanceDir := filepath.Join(base, "servers", "s1")
 	_ = os.MkdirAll(instanceDir, 0o755)
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
-	err := applySharedPaths(instanceDir, "../evil", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
+	err := applySharedPaths(instanceDir, "", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
 	if err == nil {
-		t.Fatalf("expected invalid template_id error")
+		t.Fatalf("expected missing shared root error")
 	}
 }
 
@@ -75,7 +76,7 @@ func TestApplySharedPathsExistingCorrectSymlinkUntouched(t *testing.T) {
 	base := t.TempDir()
 	instanceDir := filepath.Join(base, "servers", "s1")
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
-	shared := filepath.Join(base, "shared", "minecraft", "maps")
+	shared := filepath.Join(base, "Shared", "1", "server", "maps")
 	_ = os.MkdirAll(shared, 0o755)
 	_ = os.MkdirAll(instanceDir, 0o755)
 	target := filepath.Join(instanceDir, "maps")
@@ -83,7 +84,7 @@ func TestApplySharedPathsExistingCorrectSymlinkUntouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, _ := os.Readlink(target)
-	err := applySharedPaths(instanceDir, "minecraft", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -102,7 +103,7 @@ func TestApplySharedPathsExistingWrongSymlinkRejected(t *testing.T) {
 	if err := os.Symlink(filepath.Join(base, "elsewhere"), filepath.Join(instanceDir, "maps")); err != nil {
 		t.Fatal(err)
 	}
-	err := applySharedPaths(instanceDir, "minecraft", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
 	if err == nil {
 		t.Fatalf("expected wrong symlink rejection")
 	}
@@ -113,7 +114,7 @@ func TestApplySharedPathsExistingEmptyDirReplaced(t *testing.T) {
 	instanceDir := filepath.Join(base, "servers", "s1")
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
 	_ = os.MkdirAll(filepath.Join(instanceDir, "maps"), 0o755)
-	err := applySharedPaths(instanceDir, "minecraft", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -133,7 +134,7 @@ func TestApplySharedPathsSeedsSharedFromExistingTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := applySharedPaths(instanceDir, "minecraft", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -146,10 +147,10 @@ func TestApplySharedPathsSeedsSharedFromExistingTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filepath.Clean(linked) != filepath.Clean(filepath.Join(base, "shared", "minecraft", "maps")) {
+	if filepath.Clean(linked) != filepath.Clean(filepath.Join(base, "Shared", "1", "server", "maps")) {
 		t.Fatalf("unexpected symlink target %q", linked)
 	}
-	if _, err := os.Stat(filepath.Join(base, "shared", "minecraft", "maps", "asset.dat")); err != nil {
+	if _, err := os.Stat(filepath.Join(base, "Shared", "1", "server", "maps", "asset.dat")); err != nil {
 		t.Fatalf("expected seeded asset in shared storage: %v", err)
 	}
 }
@@ -178,7 +179,7 @@ func TestApplySharedPathsRejectsUnsupportedMode(t *testing.T) {
 	instanceDir := filepath.Join(base, "servers", "s1")
 	_ = os.MkdirAll(instanceDir, 0o755)
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
-	err := applySharedPaths(instanceDir, "minecraft", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "hardlink", ReadOnly: true}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "hardlink", ReadOnly: true}})
 	if err == nil {
 		t.Fatalf("expected unsupported mode rejection")
 	}
@@ -189,26 +190,31 @@ func TestApplySharedPathsRejectsReadOnlyFalse(t *testing.T) {
 	instanceDir := filepath.Join(base, "servers", "s1")
 	_ = os.MkdirAll(instanceDir, 0o755)
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
-	err := applySharedPaths(instanceDir, "minecraft", []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: false}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: false}})
 	if err == nil {
 		t.Fatalf("expected readonly=false rejection")
 	}
 }
 
-func TestSharedStorageBaseDirPrefersEnv(t *testing.T) {
+func TestApplySharedPathsUsesProvidedSharedRootUppercase(t *testing.T) {
 	base := t.TempDir()
-	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
-	got := sharedStorageBaseDir("/home/gs211/game")
-	if got != base {
-		t.Fatalf("expected env base %q, got %q", base, got)
+	instanceDir := filepath.Join(base, "servers", "s1")
+	_ = os.MkdirAll(instanceDir, 0o755)
+	sharedRoot := filepath.Join(base, "Shared", "1", "server")
+	err := applySharedPaths(instanceDir, sharedRoot, []sharedPathSpec{{Source: "game/core", Target: "core", Mode: "symlink", ReadOnly: true}})
+	if err != nil {
+		t.Fatalf("applySharedPaths failed: %v", err)
 	}
-}
-
-func TestSharedStorageBaseDirFallsBackToInstanceParent(t *testing.T) {
-	t.Setenv("EASYWI_INSTANCE_BASE_DIR", "")
-	got := sharedStorageBaseDir("/home/gs211/game")
-	if got != "/home/gs211" {
-		t.Fatalf("expected instance parent /home/gs211, got %q", got)
+	linkTarget, err := os.Readlink(filepath.Join(instanceDir, "core"))
+	if err != nil {
+		t.Fatalf("readlink failed: %v", err)
+	}
+	expected := filepath.Join(base, "Shared", "1", "server", "game", "core")
+	if filepath.Clean(linkTarget) != filepath.Clean(expected) {
+		t.Fatalf("unexpected symlink target %q expected %q", linkTarget, expected)
+	}
+	if _, err := os.Stat(filepath.Join(base, "shared")); !os.IsNotExist(err) {
+		t.Fatalf("did not expect lowercase shared dir to be created")
 	}
 }
 
@@ -230,7 +236,7 @@ func TestApplySharedPathsSeedsSharedFromExistingFileTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := applySharedPaths(instanceDir, "cs2", []sharedPathSpec{{Source: "game/csgo/pak01.vpk", Target: "game/csgo/pak01.vpk", Mode: "symlink", ReadOnly: true}})
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "game/csgo/pak01.vpk", Target: "game/csgo/pak01.vpk", Mode: "symlink", ReadOnly: true}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -243,16 +249,76 @@ func TestApplySharedPathsSeedsSharedFromExistingFileTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filepath.Clean(linked) != filepath.Clean(filepath.Join(base, "shared", "cs2", "game", "csgo", "pak01.vpk")) {
+	if filepath.Clean(linked) != filepath.Clean(filepath.Join(base, "Shared", "1", "server", "game", "csgo", "pak01.vpk")) {
 		t.Fatalf("unexpected symlink target %q", linked)
 	}
-	seeded := filepath.Join(base, "shared", "cs2", "game", "csgo", "pak01.vpk")
+	seeded := filepath.Join(base, "Shared", "1", "server", "game", "csgo", "pak01.vpk")
 	data, err := os.ReadFile(seeded)
 	if err != nil {
 		t.Fatalf("expected seeded file in shared storage: %v", err)
 	}
 	if string(data) != "seed-file" {
 		t.Fatalf("unexpected seeded file content: %q", string(data))
+	}
+}
+
+func TestApplySharedPathsSharedTreeCreatesRealDirAndSymlinks(t *testing.T) {
+	base := t.TempDir()
+	instanceDir := filepath.Join(base, "servers", "s1")
+	_ = os.MkdirAll(instanceDir, 0o755)
+	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
+	source := filepath.Join(base, "Shared", "1", "server", "game", "csgo")
+	_ = os.MkdirAll(filepath.Join(source, "cfg"), 0o755)
+	_ = os.WriteFile(filepath.Join(source, "cfg", "server.cfg"), []byte("local"), 0o644)
+	_ = os.WriteFile(filepath.Join(source, "gameinfo.gi"), []byte("gi"), 0o644)
+	_ = os.WriteFile(filepath.Join(source, "pak01_000.vpk"), []byte("vpk"), 0o644)
+	_ = os.MkdirAll(filepath.Join(source, "maps"), 0o755)
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "game/csgo", Target: "game/csgo", Mode: "shared_tree", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	target := filepath.Join(instanceDir, "game", "csgo")
+	if info, _ := os.Lstat(target); info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("expected real target directory")
+	}
+	if info, _ := os.Lstat(filepath.Join(target, "cfg")); info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("cfg must stay local")
+	}
+	if info, _ := os.Lstat(filepath.Join(target, "gameinfo.gi")); info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("gameinfo.gi must stay local")
+	}
+	if info, _ := os.Lstat(filepath.Join(target, "maps")); info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("maps should be symlink")
+	}
+}
+
+func TestCopyNonSharedFromServerSharedTreeCopiesOnlyExcludes(t *testing.T) {
+	shared := t.TempDir()
+	instance := filepath.Join(t.TempDir(), "inst")
+	_ = os.MkdirAll(filepath.Join(shared, "csgo", "cfg"), 0o755)
+	_ = os.WriteFile(filepath.Join(shared, "csgo", "cfg", "server.cfg"), []byte("x"), 0o644)
+	_ = os.WriteFile(filepath.Join(shared, "csgo", "gameinfo.gi"), []byte("x"), 0o644)
+	_ = os.WriteFile(filepath.Join(shared, "csgo", "pak01.vpk"), []byte("x"), 0o644)
+	if err := copyNonSharedFromServer(shared, instance, []sharedPathSpec{{Source: "csgo", Target: "csgo", Mode: "shared_tree", Exclude: []string{"cfg", "gameinfo.gi"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(instance, "csgo", "cfg", "server.cfg")); err != nil {
+		t.Fatalf("expected copied exclude: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(instance, "csgo", "gameinfo.gi")); err != nil {
+		t.Fatalf("expected copied exclude file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(instance, "csgo", "pak01.vpk")); err == nil {
+		t.Fatalf("non-excluded file must not be copied")
+	}
+}
+
+func TestParseSharedPathSpecsRejectsExcludeTraversal(t *testing.T) {
+	_, err := parseSharedPathSpecs(map[string]any{"shared_paths": []any{map[string]any{
+		"source": "game/csgo", "target": "csgo", "mode": "shared_tree", "readonly": true, "exclude": []any{"../cfg"},
+	}}})
+	if err == nil {
+		t.Fatalf("expected traversal error")
 	}
 }
 

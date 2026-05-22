@@ -15,10 +15,12 @@ import (
 )
 
 type sharedPathSpec struct {
-	Source   string
-	Target   string
-	Mode     string
-	ReadOnly bool
+	Source         string   `json:"source"`
+	Target         string   `json:"target"`
+	Mode           string   `json:"mode"`
+	ReadOnly       bool     `json:"read_only"`
+	Exclude        []string `json:"exclude,omitempty"`
+	UnsafeOverride bool     `json:"unsafe_override,omitempty"`
 }
 
 type sharedManifest struct {
@@ -39,6 +41,7 @@ var sensitiveSharedPathTokens = []string{
 	"config", "cfg", "server.cfg", "secrets", "secret", "token", "key", "api_key", "apikey", "password", "passwd", "credential", "credentials",
 	"database", "db", "sqlite", "logs", "log", "saves", "save", "worlds", "world", "users", "permissions", "whitelist", "banlist", "cache", "tmp", "temp", "rcon",
 }
+var protectedNonSymlinkPatterns = []string{"cfg", "*/cfg", "gameinfo.gi", "*/gameinfo.gi"}
 
 var templateIDPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
@@ -132,9 +135,17 @@ func readSharedManifest(path string) (*sharedManifest, error) {
 
 func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPathSpec) error {
 	sharedTargets := map[string]struct{}{}
+	sharedTreeExcludes := map[string]map[string]struct{}{}
 	for _, s := range specs {
 		t, _ := validateSharedRelativePath(s.Target)
 		sharedTargets[t] = struct{}{}
+		if s.Mode == "shared_tree" {
+			excludes, err := normalizeExcludes(s.Exclude)
+			if err != nil {
+				return err
+			}
+			sharedTreeExcludes[t] = excludes
+		}
 	}
 	return filepath.WalkDir(sharedServer, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -147,6 +158,16 @@ func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPat
 		rel = filepath.Clean(rel)
 		for t := range sharedTargets {
 			if rel == t || strings.HasPrefix(rel, t+string(filepath.Separator)) {
+				if excludes, ok := sharedTreeExcludes[t]; ok {
+					sub := strings.TrimPrefix(rel, t)
+					sub = strings.TrimPrefix(sub, string(filepath.Separator))
+					if sub == "" {
+						break
+					}
+					if isSubpathExcluded(sub, excludes) {
+						break
+					}
+				}
 				if d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -207,56 +228,51 @@ func parseSharedPathSpecs(payload map[string]any) ([]sharedPathSpec, error) {
 			mode = "symlink"
 		}
 		readonly := parsePayloadBool(payloadString(entry["readonly"]), false)
+		if !readonly {
+			readonly = parsePayloadBool(payloadString(entry["read_only"]), false)
+		}
+		unsafeOverride := parsePayloadBool(payloadString(entry["unsafe_override"]), false)
+		exclude, err := parseExcludeList(entry["exclude"], i)
+		if err != nil {
+			return nil, err
+		}
 		if source == "" || target == "" {
 			return nil, fmt.Errorf("shared_paths[%d] requires source and target", i)
 		}
-		specs = append(specs, sharedPathSpec{Source: source, Target: target, Mode: mode, ReadOnly: readonly})
+		specs = append(specs, sharedPathSpec{Source: source, Target: target, Mode: mode, ReadOnly: readonly, Exclude: exclude, UnsafeOverride: unsafeOverride})
 	}
 	return specs, nil
 }
 
-func applySharedPaths(instanceDir, templateID string, specs []sharedPathSpec) error {
+func applySharedPaths(instanceDir, sharedRoot string, specs []sharedPathSpec) error {
 	if len(specs) == 0 {
 		return nil
 	}
-	if templateID == "" {
-		return errors.New("template_id is required when shared_paths are configured")
-	}
-	templateSafe, err := validateTemplateID(templateID)
-	if err != nil {
-		return err
+	if strings.TrimSpace(sharedRoot) == "" {
+		return errors.New("shared root is required when shared_paths are configured")
 	}
 	instanceSafe, err := filepath.Abs(filepath.Clean(instanceDir))
 	if err != nil {
 		return fmt.Errorf("resolve instance dir: %w", err)
+	}
+	sharedRootSafe, err := filepath.Abs(filepath.Clean(sharedRoot))
+	if err != nil {
+		return fmt.Errorf("resolve shared root: %w", err)
 	}
 	lockRelease, err := acquireSharedStorageLock(filepath.Join(instanceSafe, ".shared-storage.lock"))
 	if err != nil {
 		return err
 	}
 	defer lockRelease()
-	sharedRoot := filepath.Join(sharedStorageBaseDir(instanceSafe), "shared", templateSafe)
-	if err := os.MkdirAll(sharedRoot, instanceDirMode); err != nil {
+	if err := os.MkdirAll(sharedRootSafe, instanceDirMode); err != nil {
 		return fmt.Errorf("create shared root: %w", err)
 	}
 	for _, spec := range specs {
-		if err := applyOneSharedPath(instanceDir, sharedRoot, spec); err != nil {
+		if err := applyOneSharedPath(instanceDir, sharedRootSafe, spec); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func sharedStorageBaseDir(instanceDir string) string {
-	baseDir := strings.TrimSpace(os.Getenv("EASYWI_INSTANCE_BASE_DIR"))
-	if baseDir != "" {
-		return baseDir
-	}
-	parent := filepath.Dir(filepath.Clean(instanceDir))
-	if parent == "." || parent == string(filepath.Separator) || parent == "" {
-		return defaultInstanceBaseDir()
-	}
-	return parent
 }
 
 func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) error {
@@ -273,6 +289,9 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 	}
 	if isSensitiveSharedPath(targetRel) || isSensitiveSharedPath(srcRel) {
 		return fmt.Errorf("shared path %q is blocked because it appears sensitive", targetRel)
+	}
+	if !spec.UnsafeOverride && (isProtectedNonSymlinkPath(srcRel) || isProtectedNonSymlinkPath(targetRel)) {
+		return fmt.Errorf("shared path %q is blocked from symlinking by safety rules", targetRel)
 	}
 	sharedSource := filepath.Join(sharedRoot, srcRel)
 	if err := os.MkdirAll(filepath.Dir(sharedSource), instanceDirMode); err != nil {
@@ -352,6 +371,9 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 			}
 		}
 	}
+	if spec.Mode == "shared_tree" {
+		return applySharedTree(sharedSource, targetPath, spec)
+	}
 	return linkPath(sharedSource, targetPath, spec.Mode)
 }
 
@@ -365,6 +387,177 @@ func linkPath(source, target, mode string) error {
 	default:
 		return fmt.Errorf("unsupported shared path mode %q", mode)
 	}
+}
+
+func applySharedTree(sourceDir, targetDir string, spec sharedPathSpec) error {
+	excludes, err := normalizeExcludes(spec.Exclude)
+	if err != nil {
+		return err
+	}
+	if info, err := os.Lstat(targetDir); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("target %s is a symlink; shared_tree requires a real directory", targetDir)
+	}
+	if err := os.MkdirAll(targetDir, instanceDirMode); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(sourceDir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		srcChild := filepath.Join(sourceDir, name)
+		dstChild := filepath.Join(targetDir, name)
+		excluded := isSubpathExcluded(name, excludes)
+		if excluded {
+			if _, err := os.Lstat(dstChild); os.IsNotExist(err) {
+				if err := copyPathRecursive(srcChild, dstChild); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		if isProtectedNonSymlinkPath(name) && !spec.UnsafeOverride {
+			return fmt.Errorf("shared_tree path %s is blocked from symlinking by safety rules", name)
+		}
+		if info, err := os.Lstat(dstChild); err == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				existing, _ := os.Readlink(dstChild)
+				resolved := existing
+				if !filepath.IsAbs(existing) {
+					resolved = filepath.Join(filepath.Dir(dstChild), existing)
+				}
+				if filepath.Clean(resolved) == filepath.Clean(srcChild) {
+					continue
+				}
+				return fmt.Errorf("target %s is a symlink to %s (expected %s); refusing to replace automatically", dstChild, resolved, srcChild)
+			}
+			hasContent, err := pathHasContent(dstChild)
+			if err != nil {
+				return err
+			}
+			if hasContent {
+				backup, err := uniqueBackupPath(dstChild, ".instance-backup")
+				if err != nil {
+					return err
+				}
+				if err := os.Rename(dstChild, backup); err != nil {
+					return err
+				}
+			} else if err := os.RemoveAll(dstChild); err != nil {
+				return err
+			}
+		}
+		if err := os.Symlink(srcChild, dstChild); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyPathRecursive(src, dst string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		return os.Symlink(target, dst)
+	}
+	if info.IsDir() {
+		if err := os.MkdirAll(dst, instanceDirMode); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if err := copyPathRecursive(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), instanceDirMode); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, instanceFileMode)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
+
+func parseExcludeList(raw any, idx int) ([]string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("shared_paths[%d].exclude must be an array", idx)
+	}
+	result := make([]string, 0, len(items))
+	for j, it := range items {
+		p := strings.TrimSpace(payloadString(it))
+		if p == "" {
+			return nil, fmt.Errorf("shared_paths[%d].exclude[%d] must not be empty", idx, j)
+		}
+		if _, err := validateSharedRelativePath(p); err != nil {
+			return nil, fmt.Errorf("shared_paths[%d].exclude[%d] invalid: %w", idx, j, err)
+		}
+		result = append(result, p)
+	}
+	return result, nil
+}
+
+func normalizeExcludes(excludes []string) (map[string]struct{}, error) {
+	out := make(map[string]struct{}, len(excludes))
+	for _, ex := range excludes {
+		clean, err := validateSharedRelativePath(ex)
+		if err != nil {
+			return nil, err
+		}
+		out[clean] = struct{}{}
+	}
+	return out, nil
+}
+
+func isSubpathExcluded(rel string, excludes map[string]struct{}) bool {
+	clean := filepath.Clean(rel)
+	for ex := range excludes {
+		if clean == ex || strings.HasPrefix(clean, ex+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func isProtectedNonSymlinkPath(path string) bool {
+	clean := filepath.ToSlash(strings.ToLower(filepath.Clean(path)))
+	for _, p := range protectedNonSymlinkPatterns {
+		pp := strings.ToLower(p)
+		if pp == "*/cfg" && strings.HasSuffix(clean, "/cfg") {
+			return true
+		}
+		if pp == "*/gameinfo.gi" && strings.HasSuffix(clean, "/gameinfo.gi") {
+			return true
+		}
+		if clean == pp {
+			return true
+		}
+	}
+	return false
 }
 
 func validateSharedRelativePath(path string) (string, error) {

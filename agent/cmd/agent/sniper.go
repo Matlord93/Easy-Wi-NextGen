@@ -390,7 +390,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("SHARED_INSTALL_FAILED: %w", err))
 		}
-		if err := applySharedPaths(instanceDir, sharedKey, sharedSpecs); err != nil {
+		if err := applySharedPaths(instanceDir, installTargetDir, sharedSpecs); err != nil {
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("INSTANCE_LINK_FAILED: %w", err))
 		}
