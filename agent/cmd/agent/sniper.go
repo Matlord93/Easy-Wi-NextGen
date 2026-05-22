@@ -497,8 +497,18 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 	sharedRoot := filepath.Join(baseDir, "Shared")
 	sharedKeyRoot := sharedRootFor(baseDir, sharedKey)
 	sharedServer := sharedServerDir(baseDir, sharedKey)
+	sharedSteam := filepath.Join(sharedServer, ".steam")
 	locksDir := filepath.Join(sharedRoot, ".locks")
-	for _, dir := range []string{sharedRoot, sharedKeyRoot, sharedServer, filepath.Join(sharedServer, ".steamcmd"), locksDir} {
+	for _, dir := range []string{
+		sharedRoot,
+		sharedKeyRoot,
+		sharedServer,
+		sharedSteam,
+		filepath.Join(sharedSteam, "sdk32"),
+		filepath.Join(sharedSteam, "sdk64"),
+		filepath.Join(sharedServer, ".steamcmd"),
+		locksDir,
+	} {
 		if err := os.MkdirAll(dir, instanceDirMode); err != nil {
 			return "", fmt.Errorf("prepare shared dir %s: %w", dir, err)
 		}

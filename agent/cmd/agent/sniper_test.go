@@ -203,6 +203,9 @@ func TestPrepareSharedStoragePermissionsCreatesExpectedDirs(t *testing.T) {
 		filepath.Join(tmp, "Shared"),
 		filepath.Join(tmp, "Shared", sharedKey),
 		filepath.Join(tmp, "Shared", sharedKey, "server"),
+		filepath.Join(tmp, "Shared", sharedKey, "server", ".steam"),
+		filepath.Join(tmp, "Shared", sharedKey, "server", ".steam", "sdk32"),
+		filepath.Join(tmp, "Shared", sharedKey, "server", ".steam", "sdk64"),
 		filepath.Join(tmp, "Shared", sharedKey, "server", ".steamcmd"),
 		filepath.Join(tmp, "Shared", ".locks"),
 	} {
