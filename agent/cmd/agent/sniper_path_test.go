@@ -36,6 +36,8 @@ func TestSharedPrepareUsesGameDir(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	must(os.MkdirAll(filepath.Join(shared, "game/bin/linuxsteamrt64"), 0o755))
+	must(os.MkdirAll(filepath.Join(shared, "game/platform"), 0o755))
 	must(os.MkdirAll(filepath.Join(shared, "game/core"), 0o755))
 	must(os.MkdirAll(filepath.Join(shared, "game/csgo/cfg"), 0o755))
 	must(os.MkdirAll(filepath.Join(shared, "game/csgo_community_addons"), 0o755))
@@ -43,12 +45,20 @@ func TestSharedPrepareUsesGameDir(t *testing.T) {
 	must(os.WriteFile(filepath.Join(shared, "game/csgo/pak01_dir.vpk"), []byte("x"), 0o644))
 	must(os.WriteFile(filepath.Join(shared, "game/csgo/cfg/server.cfg"), []byte("cfg"), 0o644))
 	must(os.WriteFile(filepath.Join(shared, "game/csgo/gameinfo.gi"), []byte("gi"), 0o644))
+	must(os.WriteFile(filepath.Join(shared, "game/cs2.sh"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	must(os.WriteFile(filepath.Join(shared, "game/bin/linuxsteamrt64/cs2"), []byte("bin"), 0o755))
 	must(os.MkdirAll(gameDir, 0o755))
 
-	specs := []sharedPathSpec{{Source: "game/core", Target: "core", Mode: "symlink", ReadOnly: true}, {Source: "game/csgo", Target: "csgo", Mode: "shared_tree", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}, {Source: "game/csgo_community_addons", Target: "csgo_community_addons", Mode: "symlink", ReadOnly: true}}
+	specs := []sharedPathSpec{{Source: "game/bin", Target: "bin", Mode: "symlink", ReadOnly: true}, {Source: "game/platform", Target: "platform", Mode: "symlink", ReadOnly: true}, {Source: "game/core", Target: "core", Mode: "symlink", ReadOnly: true}, {Source: "game/csgo", Target: "csgo", Mode: "shared_tree", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}, {Source: "game/csgo_community_addons", Target: "csgo_community_addons", Mode: "symlink", ReadOnly: true}}
 	must(copyNonSharedFromServer(shared, gameDir, specs))
 	must(applySharedPaths(gameDir, shared, specs))
 
+	if info, err := os.Lstat(filepath.Join(gameDir, "bin")); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("bin symlink missing")
+	}
+	if info, err := os.Lstat(filepath.Join(gameDir, "platform")); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("platform symlink missing")
+	}
 	if info, err := os.Lstat(filepath.Join(gameDir, "core")); err != nil || info.Mode()&os.ModeSymlink == 0 {
 		t.Fatalf("core symlink missing")
 	}

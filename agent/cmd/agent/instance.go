@@ -1074,7 +1074,7 @@ StandardError=journal
 Restart=on-failure
 RestartSec=10
 UMask=0027
-LimitNOFILE=10240
+LimitNOFILE=1048576
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
@@ -1732,10 +1732,22 @@ func parsePayloadBool(value string, defaultValue bool) bool {
 func ensureServiceActive(serviceName string) error {
 	statusOutput, err := runCommandOutput("systemctl", "is-active", serviceName)
 	if err != nil {
-		return err
+		diag := collectServiceDiagnostics(serviceName)
+		return fmt.Errorf("%w; diagnostics=%v", err, diag)
 	}
 	if strings.TrimSpace(statusOutput) != "active" {
-		return fmt.Errorf("service %s not active (%s)", serviceName, strings.TrimSpace(statusOutput))
+		diag := collectServiceDiagnostics(serviceName)
+		return fmt.Errorf("service %s not active (%s); diagnostics=%v", serviceName, strings.TrimSpace(statusOutput), diag)
+	}
+	diag := collectServiceDiagnostics(serviceName)
+	logs := strings.ToLower(diag["logs_tail"])
+	for _, marker := range []string{
+		"segmentation fault", "status=139", "failed with result", "main process exited", "failed to load module", "fatal error",
+		"no such file or directory", "status=127", "failed to start", "start request repeated too quickly",
+	} {
+		if strings.Contains(logs, marker) {
+			return fmt.Errorf("service %s unhealthy marker detected (%s)", serviceName, marker)
+		}
 	}
 	return nil
 }

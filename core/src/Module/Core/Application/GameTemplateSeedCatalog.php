@@ -1902,9 +1902,15 @@ final class GameTemplateSeedCatalog
 
         $binPlatform = [$sym('bin'), $sym('platform')];
         $cs2BinPlatform = [
+            ['source' => 'game/bin', 'target' => 'bin', 'mode' => 'symlink', 'readonly' => true],
+            ['source' => 'game/platform', 'target' => 'platform', 'mode' => 'symlink', 'readonly' => true],
             ['source' => 'game/core', 'target' => 'core', 'mode' => 'symlink', 'readonly' => true],
             ['source' => 'game/csgo', 'target' => 'csgo', 'mode' => 'shared_tree', 'readonly' => true, 'exclude' => ['cfg', 'gameinfo.gi', 'gameinfo_branchspecific.gi']],
             ['source' => 'game/csgo_community_addons', 'target' => 'csgo_community_addons', 'mode' => 'symlink', 'readonly' => true],
+            ['source' => 'game/csgo_core', 'target' => 'csgo_core', 'mode' => 'symlink', 'readonly' => true],
+            ['source' => 'game/csgo_imported', 'target' => 'csgo_imported', 'mode' => 'symlink', 'readonly' => true],
+            ['source' => 'game/csgo_lv', 'target' => 'csgo_lv', 'mode' => 'symlink', 'readonly' => true],
+            ['source' => 'game/thirdpartylegalnotices.txt', 'target' => 'thirdpartylegalnotices.txt', 'mode' => 'symlink', 'readonly' => true],
         ];
         $engineBinaries = [$sym('Engine/Binaries')];
         $rustManaged = [$sym('RustDedicated_Data/Managed')];

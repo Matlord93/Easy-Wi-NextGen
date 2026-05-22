@@ -429,7 +429,15 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("INSTANCE_LINK_FAILED: %w", err))
 		}
-		if err := validateSharedInstanceLayout(instanceDir, sharedSpecs); err != nil {
+		if err := prepareSteamClientRuntimeLinks(installTargetDir, instanceDir, osUsername); err != nil {
+			markSharedFailure(err)
+			return failureResult(job.ID, fmt.Errorf("STEAM_RUNTIME_LINK_FAILED: %w", err))
+		}
+		if err := ensureCS2StartScript(instanceDir, installTargetDir, osUsername); err != nil {
+			markSharedFailure(err)
+			return failureResult(job.ID, fmt.Errorf("STARTSCRIPT_MISSING: %w", err))
+		}
+		if err := validateSharedInstanceLayout(instanceDir, installTargetDir, sharedSpecs); err != nil {
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("SHARED_INSTANCE_PREPARE_FAILED: %w", err))
 		}
@@ -565,11 +573,111 @@ func resolveSniperUserHomeAndGameDir(payloadInstallPath string, osUsername strin
 	return userHome, gameDir, nil
 }
 
-func validateSharedInstanceLayout(gameDir string, specs []sharedPathSpec) error {
+func ensureCS2StartScript(gameDir, sharedServer, osUsername string) error {
+	src := filepath.Join(sharedServer, "game", "cs2.sh")
+	if _, err := os.Stat(src); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("missing %s", src)
+		}
+		return err
+	}
+	dst := filepath.Join(gameDir, "cs2.sh")
+	if err := copyPathRecursive(src, dst); err != nil {
+		return err
+	}
+	if err := os.Chmod(dst, 0o755); err != nil {
+		return err
+	}
+	uid, gid, err := lookupIDs(osUsername, osUsername)
+	if err == nil {
+		_ = os.Chown(dst, uid, gid)
+	}
+	return nil
+}
+
+func validateSharedInstanceLayout(gameDir, sharedServer string, specs []sharedPathSpec) error {
 	for _, sp := range specs {
 		target := filepath.Join(gameDir, sp.Target)
 		if _, err := os.Lstat(target); err != nil {
 			return fmt.Errorf("missing shared target %s: %w", target, err)
+		}
+	}
+	requiredSymlinks := []string{"bin", "platform", "core", "csgo_community_addons"}
+	for _, rel := range requiredSymlinks {
+		p := filepath.Join(gameDir, rel)
+		info, err := os.Lstat(p)
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("%s must be symlink", rel)
+		}
+	}
+	if info, err := os.Stat(filepath.Join(gameDir, "csgo")); err != nil || !info.IsDir() {
+		return fmt.Errorf("csgo must be a directory")
+	}
+	binExe := filepath.Join(gameDir, "bin", "linuxsteamrt64", "cs2")
+	if info, err := os.Stat(binExe); err != nil || info.Mode()&0o111 == 0 {
+		return fmt.Errorf("CS2_BINARY_MISSING: %s", binExe)
+	}
+	cs2 := filepath.Join(gameDir, "cs2.sh")
+	if info, err := os.Stat(cs2); err != nil || info.Mode()&0o111 == 0 {
+		return fmt.Errorf("STARTSCRIPT_MISSING: %s", cs2)
+	}
+	sdk64 := filepath.Join(gameDir, ".steam", "sdk64", "steamclient.so")
+	if _, err := os.Stat(sdk64); err != nil {
+		return fmt.Errorf("STEAMCLIENT_SDK64_MISSING: %s", sdk64)
+	}
+	sdk32Shared, _ := resolveSteamClientSource(sharedServer, "32")
+	if sdk32Shared != "" {
+		sdk32 := filepath.Join(gameDir, ".steam", "sdk32", "steamclient.so")
+		if _, err := os.Stat(sdk32); err != nil {
+			return fmt.Errorf("STEAMCLIENT_SDK32_MISSING: %s", sdk32)
+		}
+	}
+	_ = sharedServer
+	return nil
+}
+
+func resolveSteamClientSource(sharedServer, arch string) (string, bool) {
+	paths := []string{}
+	if arch == "64" {
+		paths = []string{".steam/sdk64/steamclient.so", "Steam/linux64/steamclient.so", "linux64/steamclient.so"}
+	} else {
+		paths = []string{".steam/sdk32/steamclient.so", "Steam/linux32/steamclient.so", "linux32/steamclient.so"}
+	}
+	for _, rel := range paths {
+		p := filepath.Join(sharedServer, rel)
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+func prepareSteamClientRuntimeLinks(sharedServerDir, gameDir, osUsername string) error {
+	sdk64Source, ok := resolveSteamClientSource(sharedServerDir, "64")
+	if !ok {
+		return fmt.Errorf("STEAMCLIENT_SDK64_MISSING: no shared source in %s", sharedServerDir)
+	}
+	sdk32Source, has32 := resolveSteamClientSource(sharedServerDir, "32")
+	for _, rel := range []string{".steam", ".steam/sdk64", ".steam/sdk32"} {
+		if err := os.MkdirAll(filepath.Join(gameDir, rel), instanceDirMode); err != nil {
+			return err
+		}
+	}
+	linkTargets := map[string]string{filepath.Join(gameDir, ".steam", "sdk64", "steamclient.so"): sdk64Source}
+	if has32 {
+		linkTargets[filepath.Join(gameDir, ".steam", "sdk32", "steamclient.so")] = sdk32Source
+	}
+	uid, gid, idErr := lookupIDs(osUsername, osUsername)
+	for dst, src := range linkTargets {
+		_ = os.RemoveAll(dst)
+		if err := os.Symlink(src, dst); err != nil {
+			return err
+		}
+		if idErr == nil {
+			_ = osLchownFn(dst, uid, gid)
 		}
 	}
 	return nil

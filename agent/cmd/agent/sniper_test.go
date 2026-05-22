@@ -271,3 +271,61 @@ func TestPrepareSharedStoragePermissionsUsesInjectableChown(t *testing.T) {
 		t.Fatalf("expected chownRecursiveFn to be called")
 	}
 }
+
+func TestPrepareSteamClientRuntimeLinks(t *testing.T) {
+	base := t.TempDir()
+	shared := filepath.Join(base, "shared")
+	game := filepath.Join(base, "game")
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.MkdirAll(filepath.Join(shared, ".steam", "sdk64"), 0o755))
+	must(os.MkdirAll(filepath.Join(shared, ".steam", "sdk32"), 0o755))
+	must(os.WriteFile(filepath.Join(shared, ".steam", "sdk64", "steamclient.so"), []byte("64"), 0o644))
+	must(os.WriteFile(filepath.Join(shared, ".steam", "sdk32", "steamclient.so"), []byte("32"), 0o644))
+	must(os.MkdirAll(game, 0o755))
+	if err := prepareSteamClientRuntimeLinks(shared, game, os.Getenv("USER")); err != nil {
+		t.Fatalf("prepareSteamClientRuntimeLinks failed: %v", err)
+	}
+	for _, rel := range []string{".steam/sdk64/steamclient.so", ".steam/sdk32/steamclient.so"} {
+		p := filepath.Join(game, rel)
+		info, err := os.Lstat(p)
+		if err != nil || info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("%s must be symlink", rel)
+		}
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("%s broken: %v", rel, err)
+		}
+	}
+}
+
+func TestPrepareSteamClientRuntimeLinksFallbackSources(t *testing.T) {
+	base := t.TempDir()
+	shared := filepath.Join(base, "shared")
+	game := filepath.Join(base, "game")
+	_ = os.MkdirAll(filepath.Join(shared, "Steam", "linux64"), 0o755)
+	_ = os.MkdirAll(filepath.Join(shared, "Steam", "linux32"), 0o755)
+	_ = os.WriteFile(filepath.Join(shared, "Steam", "linux64", "steamclient.so"), []byte("64"), 0o644)
+	_ = os.WriteFile(filepath.Join(shared, "Steam", "linux32", "steamclient.so"), []byte("32"), 0o644)
+	_ = os.MkdirAll(game, 0o755)
+	if err := prepareSteamClientRuntimeLinks(shared, game, os.Getenv("USER")); err != nil {
+		t.Fatalf("fallback failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(game, ".steam", "sdk64", "steamclient.so")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPrepareSteamClientRuntimeLinksMissingSDK64(t *testing.T) {
+	base := t.TempDir()
+	shared := filepath.Join(base, "shared")
+	game := filepath.Join(base, "game")
+	_ = os.MkdirAll(shared, 0o755)
+	_ = os.MkdirAll(game, 0o755)
+	err := prepareSteamClientRuntimeLinks(shared, game, os.Getenv("USER"))
+	if err == nil || !strings.Contains(err.Error(), "STEAMCLIENT_SDK64_MISSING") {
+		t.Fatalf("expected STEAMCLIENT_SDK64_MISSING, got %v", err)
+	}
+}
