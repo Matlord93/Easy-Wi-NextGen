@@ -132,17 +132,23 @@ func readSharedManifest(path string) (*sharedManifest, error) {
 }
 
 func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPathSpec) error {
-	sharedTargets := map[string]struct{}{}
+	sharedSources := map[string]struct{}{}
 	sharedTreeExcludes := map[string]map[string]struct{}{}
 	for _, s := range specs {
-		t, _ := validateSharedRelativePath(s.Target)
-		sharedTargets[t] = struct{}{}
+		src, err := validateSharedRelativePath(s.Source)
+		if err != nil {
+			return err
+		}
+		if _, err := validateSharedRelativePath(s.Target); err != nil {
+			return err
+		}
+		sharedSources[src] = struct{}{}
 		if s.Mode == "shared_tree" {
 			excludes, err := normalizeExcludes(s.Exclude)
 			if err != nil {
 				return err
 			}
-			sharedTreeExcludes[t] = excludes
+			sharedTreeExcludes[src] = excludes
 		}
 	}
 	return filepath.WalkDir(sharedServer, func(path string, d os.DirEntry, err error) error {
@@ -154,10 +160,10 @@ func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPat
 			return nil
 		}
 		rel = filepath.Clean(rel)
-		for t := range sharedTargets {
-			if rel == t || strings.HasPrefix(rel, t+string(filepath.Separator)) {
-				if excludes, ok := sharedTreeExcludes[t]; ok {
-					sub := strings.TrimPrefix(rel, t)
+		for src := range sharedSources {
+			if rel == src || strings.HasPrefix(rel, src+string(filepath.Separator)) {
+				if excludes, ok := sharedTreeExcludes[src]; ok {
+					sub := strings.TrimPrefix(rel, src)
 					sub = strings.TrimPrefix(sub, string(filepath.Separator))
 					if sub == "" {
 						break
