@@ -19,8 +19,8 @@ final class GameTemplateSeedSyncServiceTest extends TestCase
         $comparison = $service->compareSharedPaths($template);
 
         self::assertTrue($comparison['outdated']);
-        self::assertSame('shared_tree', $comparison['seed'][1]['mode']);
-        self::assertSame(['cfg', 'gameinfo.gi', 'gameinfo_branchspecific.gi'], $comparison['seed'][1]['exclude']);
+        self::assertSame('shared_tree', $comparison['seed'][3]['mode']);
+        self::assertSame(['cfg', 'gameinfo.gi', 'gameinfo_branchspecific.gi'], $comparison['seed'][3]['exclude']);
     }
 
     public function testSyncUpdatesOnlySharedPaths(): void
@@ -34,9 +34,9 @@ final class GameTemplateSeedSyncServiceTest extends TestCase
         self::assertTrue($changed);
         self::assertSame('custom install', $template->getInstallCommand());
         $shared = $template->getRequirements()['shared_paths'] ?? [];
-        self::assertCount(3, $shared);
-        self::assertSame('game/core', $shared[0]['source']);
-        self::assertSame('shared_tree', $shared[1]['mode']);
+        self::assertCount(9, $shared);
+        self::assertSame('game/bin', $shared[0]['source']);
+        self::assertSame('shared_tree', $shared[3]['mode']);
     }
 
     private function createTemplate(string $gameKey, ?int $steamAppId, array $sharedPaths): Template
