@@ -288,15 +288,6 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		command = replaceSteamCmdExecutable(command, steamCmdExecPath)
 	}
 
-	installSnippet := ""
-	if usesSteamCmd {
-		installSnippet = steamCmdInstallSnippet(instanceDirSteamCmdDir(instanceDir))
-	}
-	postInstallSnippet := ""
-	if usesSteamCmd {
-		postInstallSnippet = steamCmdClientSnippet(instanceDirSteamCmdDir(instanceDir), instanceDir)
-	}
-
 	installTargetDir := instanceDir
 	sharedKey := ""
 	if sharedEnabled {
@@ -312,15 +303,18 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	command = normalizeSteamCmdInstallDir(command, installTargetDir)
-
-	shellCmd := fmt.Sprintf(
-		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
-			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
-			"%[3]s"+
-			"cd %[1]s && %[2]s; "+
-			"%[4]s",
-		instanceDir, command, installSnippet, postInstallSnippet,
-	)
+	commandWorkDir := instanceDir
+	if sharedEnabled {
+		commandWorkDir = installTargetDir
+	}
+	installSnippet := ""
+	postInstallSnippet := ""
+	if usesSteamCmd {
+		steamCmdDir := instanceDirSteamCmdDir(commandWorkDir)
+		installSnippet = steamCmdInstallSnippet(steamCmdDir)
+		postInstallSnippet = steamCmdClientSnippet(steamCmdDir, installTargetDir)
+	}
+	shellCmd := buildSniperInstallShellCommand(commandWorkDir, command, installSnippet, postInstallSnippet)
 
 	sharedResult := ""
 	sharedManifestFile := ""
@@ -522,6 +516,17 @@ func stripWineBootstrap(command string) string {
 		}
 	}
 	return stripped
+}
+
+func buildSniperInstallShellCommand(commandWorkDir, installCommand, installSnippet, postInstallSnippet string) string {
+	return fmt.Sprintf(
+		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
+			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
+			"%[3]s"+
+			"cd %[1]s && %[2]s; "+
+			"%[4]s",
+		commandWorkDir, installCommand, installSnippet, postInstallSnippet,
+	)
 }
 
 func buildSteamCmdCommand(steamCmdPath, instanceDir, steamAppID string, validate bool) string {

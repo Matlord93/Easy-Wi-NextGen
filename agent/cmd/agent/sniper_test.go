@@ -140,3 +140,44 @@ func TestStripWineBootstrapRemovesDanglingQuoteAfterBootstrapRemoval(t *testing.
 		t.Fatalf("expected steamcmd command to remain, got %q", stripped)
 	}
 }
+
+func TestBuildSniperInstallShellCommandUsesSharedWorkDirWhenEnabled(t *testing.T) {
+	instanceDir := "/home/gs21"
+	sharedDir := "/srv/gs/Shared/cs2/server"
+	command := replaceSteamCmdExecutable(
+		normalizeSteamCmdInstallDir("steamcmd +login anonymous +app_update 730 validate +quit", sharedDir),
+		"$STEAMCMD_EXEC",
+	)
+
+	steamCmdDir := instanceDirSteamCmdDir(sharedDir)
+	installSnippet := steamCmdInstallSnippet(steamCmdDir)
+	postInstallSnippet := steamCmdClientSnippet(steamCmdDir, sharedDir)
+
+	shellCmd := buildSniperInstallShellCommand(sharedDir, command, installSnippet, postInstallSnippet)
+	if !strings.Contains(shellCmd, "cd "+sharedDir+" &&") {
+		t.Fatalf("expected shared install shell command to cd into shared dir, got %q", shellCmd)
+	}
+	if strings.Contains(shellCmd, "cd "+instanceDir+" &&") {
+		t.Fatalf("did not expect shared install shell command to cd into instance dir, got %q", shellCmd)
+	}
+	if !strings.Contains(shellCmd, "+force_install_dir "+sharedDir) {
+		t.Fatalf("expected force_install_dir to point to shared dir, got %q", shellCmd)
+	}
+}
+
+func TestBuildSniperInstallShellCommandUsesInstanceDirWhenNotShared(t *testing.T) {
+	instanceDir := "/home/gs21"
+	command := replaceSteamCmdExecutable(
+		normalizeSteamCmdInstallDir("steamcmd +login anonymous +app_update 222860 validate +quit", instanceDir),
+		"$STEAMCMD_EXEC",
+	)
+
+	steamCmdDir := instanceDirSteamCmdDir(instanceDir)
+	installSnippet := steamCmdInstallSnippet(steamCmdDir)
+	postInstallSnippet := steamCmdClientSnippet(steamCmdDir, instanceDir)
+
+	shellCmd := buildSniperInstallShellCommand(instanceDir, command, installSnippet, postInstallSnippet)
+	if !strings.Contains(shellCmd, "cd "+instanceDir+" &&") {
+		t.Fatalf("expected non-shared install shell command to cd into instance dir, got %q", shellCmd)
+	}
+}
