@@ -847,6 +847,9 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
+	if err := applySharedPaths(instanceDir, payloadValue(job.Payload, "template_id"), sharedSpecs); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	if installCommand != "" {
 		renderedInstallCommand, err := renderTemplateStrict(installCommand, templateValues)
@@ -889,9 +892,6 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 			}
 		}
 		diagnostics["install_log"] = trimOutput(installOutput, 4000)
-	}
-	if err := applySharedPaths(instanceDir, payloadValue(job.Payload, "template_id"), sharedSpecs); err != nil {
-		return failureResult(job.ID, err)
 	}
 	if err := validateBinaryExists(instanceDir, renderedStartParams); err != nil {
 		return failureResult(job.ID, err)
