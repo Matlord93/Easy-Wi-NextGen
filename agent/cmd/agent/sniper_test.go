@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -179,5 +181,55 @@ func TestBuildSniperInstallShellCommandUsesInstanceDirWhenNotShared(t *testing.T
 	shellCmd := buildSniperInstallShellCommand(instanceDir, command, installSnippet, postInstallSnippet)
 	if !strings.Contains(shellCmd, "cd "+instanceDir+" &&") {
 		t.Fatalf("expected non-shared install shell command to cd into instance dir, got %q", shellCmd)
+	}
+}
+
+func TestPrepareSharedStoragePermissionsCreatesExpectedDirs(t *testing.T) {
+	tmp := t.TempDir()
+	sharedKey := "1"
+	osUsername := os.Getenv("USER")
+	if osUsername == "" {
+		t.Skip("USER not set")
+	}
+
+	sharedServer, err := prepareSharedStoragePermissions(tmp, sharedKey, osUsername)
+	if err != nil {
+		t.Fatalf("prepareSharedStoragePermissions failed: %v", err)
+	}
+	if sharedServer != filepath.Join(tmp, "Shared", sharedKey, "server") {
+		t.Fatalf("unexpected shared server path: %s", sharedServer)
+	}
+	for _, dir := range []string{
+		filepath.Join(tmp, "Shared"),
+		filepath.Join(tmp, "Shared", sharedKey),
+		filepath.Join(tmp, "Shared", sharedKey, "server"),
+		filepath.Join(tmp, "Shared", sharedKey, "server", ".steamcmd"),
+		filepath.Join(tmp, "Shared", ".locks"),
+	} {
+		if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+			t.Fatalf("expected directory %s to exist (err=%v)", dir, err)
+		}
+	}
+}
+
+func TestPrepareSharedStoragePermissionsUsesInjectableChown(t *testing.T) {
+	tmp := t.TempDir()
+	calls := 0
+	orig := chownRecursiveFn
+	chownRecursiveFn = func(path string, uid, gid int) error {
+		calls++
+		return nil
+	}
+	defer func() { chownRecursiveFn = orig }()
+
+	osUsername := os.Getenv("USER")
+	if osUsername == "" {
+		t.Skip("USER not set")
+	}
+	if _, err := prepareSharedStoragePermissions(tmp, "k1", osUsername); err != nil {
+		t.Fatalf("prepareSharedStoragePermissions failed: %v", err)
+	}
+	if calls == 0 {
+		t.Fatalf("expected chownRecursiveFn to be called")
 	}
 }

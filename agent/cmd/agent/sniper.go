@@ -26,6 +26,7 @@ var (
 	steamcmdCommandRegex         = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
 	steamcmdArchiveURL           = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 	wineBootstrapRegex           = regexp.MustCompile(`(?is)^\s*(?:bash\s+-lc\s+)?["']?\s*set\s+-e\s*;\s*if\s+!\s+command\s+-v\s+wine\b.*?\bfi\s*;\s*`)
+	chownRecursiveFn             = func(path string, uid, gid int) error { return os.Chown(path, uid, gid) }
 )
 
 const steamCmdRetryLimit = 3
@@ -297,6 +298,19 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 		sharedKey = k
 		installTargetDir = sharedServerDir(baseDir, sharedKey)
+		commandWorkDir, prepErr := prepareSharedStoragePermissions(baseDir, sharedKey, osUsername)
+		if prepErr != nil {
+			return failureResult(job.ID, prepErr)
+		}
+		installTargetDir = commandWorkDir
+		if logSender != nil && job.ID != "" {
+			logSender.Send(job.ID, []string{
+				fmt.Sprintf("shared_root created/prepared: %s", filepath.Join(baseDir, "Shared")),
+				fmt.Sprintf("shared_server owner set: %s", installTargetDir),
+				fmt.Sprintf("command_work_dir: %s", installTargetDir),
+				fmt.Sprintf("osUsername: %s", osUsername),
+			}, nil)
+		}
 		if err := os.MkdirAll(installTargetDir, instanceDirMode); err != nil {
 			return failureResult(job.ID, err)
 		}
@@ -477,6 +491,34 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		Output:    resultOutput,
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (string, error) {
+	sharedRoot := filepath.Join(baseDir, "Shared")
+	sharedKeyRoot := sharedRootFor(baseDir, sharedKey)
+	sharedServer := sharedServerDir(baseDir, sharedKey)
+	locksDir := filepath.Join(sharedRoot, ".locks")
+	for _, dir := range []string{sharedRoot, sharedKeyRoot, sharedServer, filepath.Join(sharedServer, ".steamcmd"), locksDir} {
+		if err := os.MkdirAll(dir, instanceDirMode); err != nil {
+			return "", fmt.Errorf("prepare shared dir %s: %w", dir, err)
+		}
+		if err := os.Chmod(dir, 0o755); err != nil {
+			return "", fmt.Errorf("chmod shared dir %s: %w", dir, err)
+		}
+	}
+	uid, gid, err := lookupIDs(osUsername, osUsername)
+	if err != nil {
+		return "", fmt.Errorf("lookup shared owner %s: %w", osUsername, err)
+	}
+	if err := filepath.WalkDir(sharedKeyRoot, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		return chownRecursiveFn(path, uid, gid)
+	}); err != nil {
+		return "", fmt.Errorf("chown shared root %s: %w", sharedKeyRoot, err)
+	}
+	return sharedServer, nil
 }
 
 func stripWineBootstrap(command string) string {
