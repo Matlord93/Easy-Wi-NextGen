@@ -26,6 +26,7 @@ var (
 	steamcmdCommandRegex         = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
 	steamcmdArchiveURL           = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 	wineBootstrapRegex           = regexp.MustCompile(`(?is)^\s*(?:bash\s+-lc\s+)?["']?\s*set\s+-e\s*;\s*if\s+!\s+command\s+-v\s+wine\b.*?\bfi\s*;\s*`)
+	ansiControlRegex             = regexp.MustCompile(`\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])`)
 	chownRecursiveFn             = func(path string, uid, gid int) error { return os.Chown(path, uid, gid) }
 )
 
@@ -413,6 +414,9 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 	}
 	if usesSteamCmd {
+		if !steamCmdInstallSucceeded(output, steamAppID) && !steamCmdHasRealError(output) && logSender != nil && job.ID != "" {
+			logSender.Send(job.ID, []string{"STEAMCMD_INSTALL_CONFIRMATION_MISSING_BUT_EXIT_ZERO"}, nil)
+		}
 		if err := steamCmdInstallError(output, steamAppID); err != nil {
 			markSharedFailure(err)
 			return failureResult(job.ID, err)
@@ -677,28 +681,62 @@ func normalizeSteamCmdInstallDir(command, instanceDir string) string {
 }
 
 func shouldRetrySteamCmd(output string, steamAppID string) bool {
-	if output == "" {
+	clean := stripANSIString(output)
+	if clean == "" {
 		return false
 	}
-	lower := strings.ToLower(output)
+	lower := strings.ToLower(clean)
 	if !strings.Contains(lower, "update complete") {
 		return false
 	}
-	if steamCmdInstallSucceeded(output, steamAppID) || strings.Contains(lower, "fully installed") {
+	if steamCmdInstallSucceeded(clean, steamAppID) || strings.Contains(lower, "fully installed") {
 		return false
 	}
 	return true
 }
 
+func stripANSIString(output string) string {
+	return ansiControlRegex.ReplaceAllString(output, "")
+}
+
 func steamCmdInstallSucceeded(output string, steamAppID string) bool {
-	if output == "" {
+	clean := stripANSIString(output)
+	if clean == "" {
 		return false
 	}
-	if steamAppID != "" {
-		appPattern := regexp.MustCompile(fmt.Sprintf(`(?i)success!\s+app\s+'?%s'?`, regexp.QuoteMeta(steamAppID)))
-		return appPattern.MatchString(output)
+	lower := strings.ToLower(clean)
+	if strings.Contains(lower, "fully installed") {
+		return true
 	}
-	return strings.Contains(strings.ToLower(output), "success! app")
+	if strings.Contains(lower, "update state (0x81) verifying update") && !steamCmdHasRealError(clean) {
+		return true
+	}
+	if steamAppID != "" {
+		appPattern := regexp.MustCompile(fmt.Sprintf(`(?i)(success!\s+app\s+['"]?%s['"]?\s+fully installed|app\s+['"]?%s['"]?\s+fully installed)`, regexp.QuoteMeta(steamAppID), regexp.QuoteMeta(steamAppID)))
+		return appPattern.MatchString(clean)
+	}
+	return strings.Contains(lower, "success! app")
+}
+
+func steamCmdHasRealError(output string) bool {
+	lower := strings.ToLower(stripANSIString(output))
+	errorMarkers := []string{
+		"error!",
+		"failed",
+		"no subscription",
+		"invalid platform",
+		"disk write failure",
+		"content file locked",
+		"missing file privileges",
+		"timeout",
+		"state is 0x602",
+	}
+	for _, marker := range errorMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func steamCmdInstallFailedLine(output string) string {
@@ -718,17 +756,23 @@ func steamCmdInstallFailedLine(output string) string {
 }
 
 func steamCmdInstallError(output, steamAppID string) error {
-	if steamCmdInstallSucceeded(output, steamAppID) {
+	clean := stripANSIString(output)
+	if steamCmdInstallSucceeded(clean, steamAppID) {
 		return nil
 	}
-	if line := steamCmdInstallFailedLine(output); line != "" {
+	if line := steamCmdInstallFailedLine(clean); line != "" {
 		return fmt.Errorf("%s", line)
 	}
-	return fmt.Errorf("steamcmd finished without app install confirmation")
+	if steamCmdHasRealError(clean) {
+		return fmt.Errorf("steamcmd finished with detected error markers")
+	}
+	log.Printf("STEAMCMD_INSTALL_CONFIRMATION_MISSING_BUT_EXIT_ZERO")
+	return nil
 }
 
 func extractBuildInfo(output string) (string, string) {
-	trimmed := strings.TrimSpace(output)
+	clean := stripANSIString(output)
+	trimmed := strings.TrimSpace(clean)
 	if trimmed == "" {
 		return "", ""
 	}
@@ -754,11 +798,11 @@ func extractBuildInfo(output string) (string, string) {
 	buildID := ""
 	version := ""
 
-	if match := buildIDRegex.FindStringSubmatch(output); len(match) > 1 {
+	if match := buildIDRegex.FindStringSubmatch(clean); len(match) > 1 {
 		buildID = match[1]
 	}
 
-	if match := versionRegex.FindStringSubmatch(output); len(match) > 1 {
+	if match := versionRegex.FindStringSubmatch(clean); len(match) > 1 {
 		version = match[1]
 	}
 

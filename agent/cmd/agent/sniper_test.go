@@ -72,6 +72,41 @@ func TestSteamCmdInstallErrorFailedLine(t *testing.T) {
 	}
 }
 
+func TestSteamCmdInstallSucceededWithANSI(t *testing.T) {
+	output := "\u001b[32mSuccess! App '730' fully installed.\u001b[0m"
+	if !steamCmdInstallSucceeded(output, "730") {
+		t.Fatalf("expected install success with ansi output")
+	}
+}
+
+func TestSteamCmdInstallErrorMissingConfirmationExitZeroNoError(t *testing.T) {
+	output := "Update state (0x61) downloading, progress: 100.00\nUpdate state (0x81) verifying update, progress: 100.00"
+	if err := steamCmdInstallError(output, "730"); err != nil {
+		t.Fatalf("expected no error when output has no failure markers, got %v", err)
+	}
+}
+
+func TestSteamCmdInstallErrorState602(t *testing.T) {
+	output := "Error! App '730' state is 0x602 after update job."
+	if err := steamCmdInstallError(output, "730"); err == nil {
+		t.Fatalf("expected error for state 0x602")
+	}
+}
+
+func TestSteamCmdInstallErrorNoSubscription(t *testing.T) {
+	output := "ERROR! Failed to install app '730' (No subscription)"
+	if err := steamCmdInstallError(output, "730"); err == nil {
+		t.Fatalf("expected error for no subscription")
+	}
+}
+
+func TestSteamCmdInstallErrorDiskWriteFailure(t *testing.T) {
+	output := "Error! Disk write failure"
+	if err := steamCmdInstallError(output, "730"); err == nil {
+		t.Fatalf("expected error for disk write failure")
+	}
+}
+
 func TestNormalizeSteamCmdInstallDirInjectsForceInstallDir(t *testing.T) {
 	command := "steamcmd +login anonymous +app_update 222860 validate +quit"
 	instanceDir := "/home/gs21"

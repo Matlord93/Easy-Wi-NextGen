@@ -901,6 +901,9 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 					}
 				}
 			}
+			if !steamCmdInstallSucceeded(installOutput, steamAppID) && !steamCmdHasRealError(installOutput) && logSender != nil && job.ID != "" {
+				logSender.Send(job.ID, []string{"STEAMCMD_INSTALL_CONFIRMATION_MISSING_BUT_EXIT_ZERO"}, nil)
+			}
 			if err := steamCmdInstallError(installOutput, steamAppID); err != nil {
 				return failureResult(job.ID, err)
 			}
