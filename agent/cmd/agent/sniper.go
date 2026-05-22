@@ -640,7 +640,7 @@ func validateSharedInstanceLayout(gameDir, sharedServer string, specs []sharedPa
 }
 
 func resolveSteamClientSource(sharedServer, arch string) (string, bool) {
-	paths := []string{}
+	var paths []string
 	if arch == "64" {
 		paths = []string{".steam/sdk64/steamclient.so", "Steam/linux64/steamclient.so", "linux64/steamclient.so"}
 	} else {
