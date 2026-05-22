@@ -211,3 +211,41 @@ func TestSensitiveSubpathBlocked(t *testing.T) {
 		t.Fatalf("expected cfg/server.cfg to be blocked")
 	}
 }
+
+func TestApplySharedPathsSeedsSharedFromExistingFileTarget(t *testing.T) {
+	base := t.TempDir()
+	instanceDir := filepath.Join(base, "servers", "s1")
+	targetPath := filepath.Join(instanceDir, "game", "csgo", "pak01.vpk")
+	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(targetPath, []byte("seed-file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := applySharedPaths(instanceDir, "cs2", []sharedPathSpec{{Source: "game/csgo/pak01.vpk", Target: "game/csgo/pak01.vpk", Mode: "symlink", ReadOnly: true}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	info, err := os.Lstat(targetPath)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected target file to become symlink")
+	}
+	linked, err := os.Readlink(targetPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Clean(linked) != filepath.Clean(filepath.Join(base, "shared", "cs2", "game", "csgo", "pak01.vpk")) {
+		t.Fatalf("unexpected symlink target %q", linked)
+	}
+	seeded := filepath.Join(base, "shared", "cs2", "game", "csgo", "pak01.vpk")
+	data, err := os.ReadFile(seeded)
+	if err != nil {
+		t.Fatalf("expected seeded file in shared storage: %v", err)
+	}
+	if string(data) != "seed-file" {
+		t.Fatalf("unexpected seeded file content: %q", string(data))
+	}
+}

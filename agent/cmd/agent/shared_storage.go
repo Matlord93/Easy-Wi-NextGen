@@ -127,7 +127,7 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 	}
 
 	sharedExists := false
-	if info, err := os.Stat(sharedSource); err == nil && info.IsDir() {
+	if _, err := os.Stat(sharedSource); err == nil {
 		sharedExists = true
 	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("stat shared source %s: %w", sharedSource, err)
@@ -136,19 +136,15 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 	// Seed shared storage from existing instance data on first migration.
 	// This avoids forcing a full reinstall download when the instance already has the assets locally.
 	if !sharedExists {
-		if info, err := os.Lstat(targetPath); err == nil && info.IsDir() {
-			empty, emptyErr := dirEmpty(targetPath)
-			if emptyErr != nil {
-				return emptyErr
+		hasContent, contentErr := pathHasContent(targetPath)
+		if contentErr != nil && !os.IsNotExist(contentErr) {
+			return fmt.Errorf("stat target path %s: %w", targetPath, contentErr)
+		}
+		if hasContent {
+			if err := os.Rename(targetPath, sharedSource); err != nil {
+				return fmt.Errorf("seed shared source %s from %s: %w", sharedSource, targetPath, err)
 			}
-			if !empty {
-				if err := os.Rename(targetPath, sharedSource); err != nil {
-					return fmt.Errorf("seed shared source %s from %s: %w", sharedSource, targetPath, err)
-				}
-				sharedExists = true
-			}
-		} else if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("stat target path %s: %w", targetPath, err)
+			sharedExists = true
 		}
 	}
 
@@ -171,11 +167,11 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 				return fmt.Errorf("target %s is a symlink to %s (expected %s); refusing to replace automatically", targetPath, resolvedExisting, sharedSource)
 			}
 		}
-		empty, emptyErr := dirEmpty(targetPath)
-		if emptyErr != nil {
-			return emptyErr
+		hasContent, contentErr := pathHasContent(targetPath)
+		if contentErr != nil {
+			return contentErr
 		}
-		if !empty {
+		if hasContent {
 			backup, backupErr := uniqueBackupPath(targetPath, ".instance-backup")
 			if backupErr != nil {
 				return backupErr
@@ -315,4 +311,19 @@ func dirEmpty(path string) (bool, error) {
 		return false, err
 	}
 	return len(entries) == 0, nil
+}
+
+func pathHasContent(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false, err
+	}
+	if !info.IsDir() {
+		return true, nil
+	}
+	empty, err := dirEmpty(path)
+	if err != nil {
+		return false, err
+	}
+	return !empty, nil
 }

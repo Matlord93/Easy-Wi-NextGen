@@ -1901,7 +1901,12 @@ final class GameTemplateSeedCatalog
         ];
 
         $binPlatform = [$sym('bin'), $sym('platform')];
-        $cs2BinPlatform = [$sym('game/bin'), $sym('game/platform')];
+        $cs2BinPlatform = [
+            $sym('bin'),
+            $sym('core'),
+            $sym('csgo/maps'),
+            $sym('csgo/soundevents'),
+        ];
         $engineBinaries = [$sym('Engine/Binaries')];
         $rustManaged = [$sym('RustDedicated_Data/Managed')];
 
