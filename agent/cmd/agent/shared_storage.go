@@ -113,11 +113,13 @@ func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPat
 		if _, err := os.Stat(dst); err == nil { return nil }
 		if err := os.MkdirAll(filepath.Dir(dst), instanceDirMode); err != nil { return err }
 		srcf, err := os.Open(path); if err != nil { return err }
-		defer srcf.Close()
-		dstf, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, instanceFileMode); if err != nil { return err }
-		defer dstf.Close()
-		_, err = io.Copy(dstf, srcf)
-		return err
+		dstf, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, instanceFileMode); if err != nil { _ = srcf.Close(); return err }
+		_, copyErr := io.Copy(dstf, srcf)
+		closeSrcErr := srcf.Close()
+		closeDstErr := dstf.Close()
+		if copyErr != nil { return copyErr }
+		if closeSrcErr != nil { return closeSrcErr }
+		return closeDstErr
 	})
 }
 

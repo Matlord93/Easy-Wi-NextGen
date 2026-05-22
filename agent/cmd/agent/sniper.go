@@ -348,7 +348,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	output := ""
-	if !(sharedEnabled && action == "install" && sharedResult == "SHARED_INSTALL_REUSED") {
+	if !sharedEnabled || action != "install" || sharedResult != "SHARED_INSTALL_REUSED" {
 		var err error
 		output, err = runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
 		if err != nil { markSharedFailure(err); return failureResult(job.ID, err) }
