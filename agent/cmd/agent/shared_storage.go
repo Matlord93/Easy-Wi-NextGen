@@ -43,8 +43,6 @@ var sensitiveSharedPathTokens = []string{
 }
 var protectedNonSymlinkPatterns = []string{"cfg", "*/cfg", "gameinfo.gi", "*/gameinfo.gi"}
 
-var templateIDPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
-
 func buildSharedKey(payload map[string]any) (string, error) {
 	for _, k := range []string{"template_slug", "template_key", "game_key", "template_tag", "template_name", "template_id"} {
 		v := strings.TrimSpace(payloadString(payload[k]))
@@ -489,12 +487,16 @@ func copyPathRecursive(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() {
+		_ = in.Close()
+	}()
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, instanceFileMode)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		_ = out.Close()
+	}()
 	_, err = io.Copy(out, in)
 	return err
 }
@@ -572,20 +574,6 @@ func validateSharedRelativePath(path string) (string, error) {
 		return "", fmt.Errorf("invalid shared path %q", path)
 	}
 	return clean, nil
-}
-
-func validateTemplateID(templateID string) (string, error) {
-	trimmed := strings.TrimSpace(templateID)
-	if trimmed == "" {
-		return "", errors.New("template_id is required when shared_paths are configured")
-	}
-	if strings.Contains(trimmed, "..") || strings.Contains(trimmed, `/`) || strings.Contains(trimmed, `\`) {
-		return "", fmt.Errorf("invalid template_id %q", templateID)
-	}
-	if !templateIDPattern.MatchString(trimmed) {
-		return "", fmt.Errorf("invalid template_id %q: allowed characters are a-z, A-Z, 0-9, ., _, -", templateID)
-	}
-	return trimmed, nil
 }
 
 func uniqueBackupPath(basePath, suffix string) (string, error) {
