@@ -133,11 +133,18 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 		return fmt.Errorf("stat shared source %s: %w", sharedSource, err)
 	}
 
+	targetInfo, targetInfoErr := os.Lstat(targetPath)
+	targetExists := targetInfoErr == nil
+	if targetInfoErr != nil && !os.IsNotExist(targetInfoErr) {
+		return fmt.Errorf("stat target path %s: %w", targetPath, targetInfoErr)
+	}
+
 	// Seed shared storage from existing instance data on first migration.
 	// This avoids forcing a full reinstall download when the instance already has the assets locally.
-	if !sharedExists {
+	// Never seed from an existing symlink: a mismatched symlink must be rejected below.
+	if !sharedExists && targetExists && targetInfo.Mode()&os.ModeSymlink == 0 {
 		hasContent, contentErr := pathHasContent(targetPath)
-		if contentErr != nil && !os.IsNotExist(contentErr) {
+		if contentErr != nil {
 			return fmt.Errorf("stat target path %s: %w", targetPath, contentErr)
 		}
 		if hasContent {
