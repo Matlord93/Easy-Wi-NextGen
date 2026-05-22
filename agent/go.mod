@@ -10,7 +10,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/pkg/sftp v1.13.10
 	github.com/shirou/gopsutil/v4 v4.26.4
-	golang.org/x/crypto v0.51.0
+	golang.org/x/crypto v0.52.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.44.0
 )
