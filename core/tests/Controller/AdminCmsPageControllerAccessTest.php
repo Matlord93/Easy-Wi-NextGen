@@ -13,6 +13,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 final class AdminCmsPageControllerAccessTest extends TestCase
@@ -71,6 +72,7 @@ final class AdminCmsPageControllerAccessTest extends TestCase
             $entityManager,
             $auditLogger,
             $twig,
+            $this->createMock(TranslatorInterface::class),
         );
     }
 

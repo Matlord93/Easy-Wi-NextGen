@@ -26,6 +26,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 use Twig\Loader\ArrayLoader;
 
@@ -300,6 +301,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
             $this->createMock(MailDnsCheckService::class),
             $csrfManager,
             $twig,
+            $this->createMock(TranslatorInterface::class),
         );
     }
 

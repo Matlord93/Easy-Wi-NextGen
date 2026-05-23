@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 final class CustomerSinusbotSecurityTest extends TestCase
@@ -48,6 +49,7 @@ final class CustomerSinusbotSecurityTest extends TestCase
             $csrfManager,
             $this->createMock(UrlGeneratorInterface::class),
             $this->createMock(Environment::class),
+            $this->createMock(TranslatorInterface::class),
         );
 
         $request = Request::create('/customer/infrastructure/sinusbot/instances/10/start', 'POST', ['_token' => 'csrf']);

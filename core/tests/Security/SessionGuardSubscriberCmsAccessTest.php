@@ -11,12 +11,16 @@ use App\Security\SessionGuardSubscriber;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class SessionGuardSubscriberCmsAccessTest extends TestCase
 {
     public function testAnonymousResponseIsUnauthorizedForAdminCmsPath(): void
     {
         $subscriber = (new \ReflectionClass(SessionGuardSubscriber::class))->newInstanceWithoutConstructor();
+        $translatorProp = new \ReflectionProperty(SessionGuardSubscriber::class, 'translator');
+        $translatorProp->setAccessible(true);
+        $translatorProp->setValue($subscriber, $this->createMock(TranslatorInterface::class));
         $method = new \ReflectionMethod(SessionGuardSubscriber::class, 'unauthorizedResponse');
         $response = $method->invoke($subscriber, Request::create('/admin/cms/pages'));
 

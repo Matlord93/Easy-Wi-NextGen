@@ -12,6 +12,7 @@ use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
 use App\Repository\InstanceRepository;
 use PHPUnit\Framework\TestCase;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 final class CustomerInstanceConsoleApiControllerTest extends TestCase
@@ -166,6 +167,10 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $agentProp = $reflection->getProperty('agentGameServerClient');
         $agentProp->setAccessible(true);
         $agentProp->setValue($controller, $agentClient);
+
+        $translatorProp = $reflection->getProperty('translator');
+        $translatorProp->setAccessible(true);
+        $translatorProp->setValue($controller, $this->createMock(TranslatorInterface::class));
 
         return $controller;
     }

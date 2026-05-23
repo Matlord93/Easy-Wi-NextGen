@@ -44,6 +44,7 @@ use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class CustomerInstanceReinstallPayloadTest extends TestCase
 {
@@ -103,7 +104,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             return new Envelope($message, [new HandledStamp(['status' => 'queued', 'job_id' => '42'], 'handler')]);
         });
 
-        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver());
+        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createMock(TranslatorInterface::class));
         $consoleCommandValidator = new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
             public function getCustomerConsoleAllowedCommands(): array
             {
@@ -135,6 +136,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $messageBus,
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
+            null,
+            null,
+            $this->createMock(TranslatorInterface::class),
         );
 
         $customer = $instance->getCustomer();
@@ -183,7 +187,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         $appSettings = $this->createMock(AppSettingsService::class);
 
         $messageBus = $this->createMock(MessageBusInterface::class);
-        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver());
+        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createMock(TranslatorInterface::class));
         $consoleCommandValidator = new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
             public function getCustomerConsoleAllowedCommands(): array
             {
@@ -215,6 +219,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $messageBus,
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
+            null,
+            null,
+            $this->createMock(TranslatorInterface::class),
         );
 
         $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode([]));
@@ -250,7 +257,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $jobRepository,
             $this->newInstanceWithoutConstructor(JobLogRepository::class),
-            new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver()),
+            new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createMock(TranslatorInterface::class)),
             $this->newInstanceWithoutConstructor(AuditLogger::class),
             new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
                 public function getCustomerConsoleAllowedCommands(): array { return []; }
@@ -267,6 +274,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->createMock(MessageBusInterface::class),
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
+            null,
+            null,
+            $this->createMock(TranslatorInterface::class),
         );
 
         $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode(['confirm' => true]));

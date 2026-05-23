@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
 use App\Repository\InstanceRepository;
 use PHPUnit\Framework\TestCase;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 final class CustomerInstanceBackupsApiControllerTest extends TestCase
@@ -146,6 +147,10 @@ final class CustomerInstanceBackupsApiControllerTest extends TestCase
         $prop = $reflection->getProperty('instanceRepository');
         $prop->setAccessible(true);
         $prop->setValue($controller, $repo);
+
+        $translatorProp = $reflection->getProperty('translator');
+        $translatorProp->setAccessible(true);
+        $translatorProp->setValue($controller, $this->createMock(TranslatorInterface::class));
 
         return $controller;
     }

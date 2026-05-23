@@ -22,6 +22,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 final class AdminUnifiControllerTest extends TestCase
@@ -49,6 +50,7 @@ final class AdminUnifiControllerTest extends TestCase
             $this->createMock(EntityManagerInterface::class),
             $this->createMock(MessageBusInterface::class),
             $this->createMock(Environment::class),
+            $this->createMock(TranslatorInterface::class),
         );
 
         $admin = new User('admin@example.test', UserType::Admin);

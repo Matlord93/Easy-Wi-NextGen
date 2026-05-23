@@ -16,6 +16,7 @@ use App\Repository\InstanceRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 {
@@ -220,7 +221,7 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
         $repo = $this->createMock(InstanceRepository::class);
         $repo->method('find')->with(1)->willReturn($instance);
 
-        return new CustomerInstanceConsoleStreamController($repo, $eventBus, $maxDurationSeconds, 1, $diagnostics);
+        return new CustomerInstanceConsoleStreamController($repo, $eventBus, $maxDurationSeconds, 1, $diagnostics, null, false, $this->createMock(TranslatorInterface::class));
     }
 
     private function setEntityId(object $entity, int $id): void

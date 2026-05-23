@@ -24,6 +24,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class InstanceSftpCredentialApiControllerTest extends TestCase
 {
@@ -39,6 +40,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             $this->createMock(AppSettingsService::class),
             $this->createMock(AuditLogger::class),
             new NullLogger(),
+            $this->createMock(TranslatorInterface::class),
         );
 
         $request = new Request();
@@ -131,6 +133,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             $settings,
             $auditLogger,
             new NullLogger(),
+            $this->createMock(TranslatorInterface::class),
         );
 
         $request = new Request();
@@ -212,6 +215,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             $settings,
             $this->createMock(AuditLogger::class),
             new NullLogger(),
+            $this->createMock(TranslatorInterface::class),
         );
 
         $request = new Request();

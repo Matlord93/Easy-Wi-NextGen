@@ -23,6 +23,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class CustomerInstancePowerApiControllerTest extends TestCase
 {
@@ -180,6 +181,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
             'diskEnforcementService' => $this->buildDiskEnforcementService(),
             'agentGameServerClient' => $agentClient,
             'messageBus' => $messageBus,
+            'translator' => $this->createMock(TranslatorInterface::class),
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
             $prop->setAccessible(true);
@@ -202,6 +204,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         return new DiskEnforcementService(
             new NodeDiskProtectionService(),
             new InstanceDiskStateResolver(),
+            $this->createMock(TranslatorInterface::class),
         );
     }
 }

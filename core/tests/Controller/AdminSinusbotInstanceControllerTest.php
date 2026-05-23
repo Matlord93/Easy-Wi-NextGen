@@ -18,6 +18,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class AdminSinusbotInstanceControllerTest extends TestCase
 {
@@ -54,6 +55,7 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
             $entityManager,
             $provisioner,
             $csrfManager,
+            $this->createMock(TranslatorInterface::class),
         );
 
         $session = new Session(new MockArraySessionStorage());
@@ -107,6 +109,7 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
             $entityManager,
             $provisioner,
             $csrfManager,
+            $this->createMock(TranslatorInterface::class),
         );
 
         $session = new Session(new MockArraySessionStorage());
