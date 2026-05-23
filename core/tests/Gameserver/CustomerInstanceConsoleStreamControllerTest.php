@@ -221,7 +221,7 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
         $repo = $this->createMock(InstanceRepository::class);
         $repo->method('find')->with(1)->willReturn($instance);
 
-        return new CustomerInstanceConsoleStreamController($repo, $eventBus, $maxDurationSeconds, 1, $diagnostics, null, false, $this->createMock(TranslatorInterface::class));
+        return new CustomerInstanceConsoleStreamController($repo, $eventBus, $this->createMock(TranslatorInterface::class), $maxDurationSeconds, 1, $diagnostics, null, false);
     }
 
     private function setEntityId(object $entity, int $id): void

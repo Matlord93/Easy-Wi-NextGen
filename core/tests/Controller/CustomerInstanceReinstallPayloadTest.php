@@ -136,9 +136,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $messageBus,
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
-            null,
-            null,
             $this->createMock(TranslatorInterface::class),
+            null,
+            null,
         );
 
         $customer = $instance->getCustomer();
@@ -219,9 +219,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $messageBus,
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
-            null,
-            null,
             $this->createMock(TranslatorInterface::class),
+            null,
+            null,
         );
 
         $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode([]));
@@ -274,9 +274,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->createMock(MessageBusInterface::class),
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
-            null,
-            null,
             $this->createMock(TranslatorInterface::class),
+            null,
+            null,
         );
 
         $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode(['confirm' => true]));
