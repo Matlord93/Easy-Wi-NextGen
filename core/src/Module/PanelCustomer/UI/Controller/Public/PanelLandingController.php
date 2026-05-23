@@ -14,6 +14,11 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PanelLandingController
 {
+    public function __construct(
+        private readonly TranslatorInterface $translator,
+    ) {
+    }
+
     #[Route(path: '/customer', name: 'customer_panel_landing', methods: ['GET'])]
     public function customer(Request $request): Response
     {

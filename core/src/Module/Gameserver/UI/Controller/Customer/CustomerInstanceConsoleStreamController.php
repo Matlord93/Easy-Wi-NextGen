@@ -25,12 +25,12 @@ final class CustomerInstanceConsoleStreamController
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly ConsoleEventBusInterface $eventBus,
+        private readonly TranslatorInterface $translator,
         private readonly int $maxDurationSeconds = 1800,
         private readonly int $pingIntervalSeconds = 15,
         private readonly ?ConsoleStreamDiagnostics $diagnostics = null,
         private readonly ?LoggerInterface $logger = null,
         private readonly bool $debug = false,
-        private readonly TranslatorInterface $translator,
     ) {
     }
 

@@ -85,9 +85,9 @@ final class CustomerInstanceActionApiController
         private readonly MessageBusInterface $messageBus,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly EncryptionService $encryptionService,
+        private readonly TranslatorInterface $translator,
         private readonly ?AgentGameServerClient $agentGameServerClient = null,
         private readonly ?ConsoleStreamDiagnostics $consoleStreamDiagnostics = null,
-        private readonly TranslatorInterface $translator,
     ) {
     }
 

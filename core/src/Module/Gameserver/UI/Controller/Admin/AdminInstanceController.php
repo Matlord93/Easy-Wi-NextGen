@@ -80,8 +80,8 @@ final class AdminInstanceController
         private readonly PortPoolRepository $portPoolRepository,
         private readonly PortLeaseManager $portLeaseManager,
         private readonly Environment $twig,
-        ?GameServerInstallPathManager $installPathManager = null,
         private readonly TranslatorInterface $translator,
+        ?GameServerInstallPathManager $installPathManager = null,
     ) {
         $this->installPathManager = $installPathManager;
     }
