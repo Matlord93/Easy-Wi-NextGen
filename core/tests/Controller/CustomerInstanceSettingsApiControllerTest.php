@@ -59,9 +59,8 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
 
     public function testShowConfigUnauthorizedReturnsEnvelope(): void
     {
-        $reflection = new \ReflectionClass(CustomerInstanceSettingsApiController::class);
-        /** @var CustomerInstanceSettingsApiController $controller */
-        $controller = $reflection->newInstanceWithoutConstructor();
+        $repo = $this->createMock(InstanceRepository::class);
+        $controller = $this->newController($repo);
 
         $request = Request::create('/api/instances/7/configs/1', 'GET');
         $request->headers->set('X-Request-ID', 'req-settings-show');
