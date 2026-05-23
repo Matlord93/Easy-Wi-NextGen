@@ -14,7 +14,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 #[Route(path: '/admin/mail')]
 final class AdminMailHealthPageController
 {
-    public function __construct(private readonly Environment $twig)
+    public function __construct(private readonly Environment $twig, private readonly TranslatorInterface $translator)
     {
     }
 

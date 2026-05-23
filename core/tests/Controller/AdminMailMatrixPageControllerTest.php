@@ -11,15 +11,23 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Twig\Environment;
 use Twig\Loader\ArrayLoader;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class AdminMailMatrixPageControllerTest extends TestCase
 {
+    private function translator(): TranslatorInterface
+    {
+        $t = $this->createMock(TranslatorInterface::class);
+        $t->method('trans')->willReturnCallback(static fn (string $id): string => $id);
+        return $t;
+    }
+
     public function testAdminCanOpenMatrixPageAndSeeFetchUrls(): void
     {
         $twig = new Environment(new ArrayLoader([
             'admin/mail-system/matrix.html.twig' => 'H={{ healthEndpoint }} M={{ metricsEndpoint }}',
         ]));
-        $controller = new AdminMailHealthPageController($twig);
+        $controller = new AdminMailHealthPageController($twig, $this->translator());
 
         $request = new Request();
         $request->attributes->set('current_user', new User('admin@example.com', UserType::Superadmin));
@@ -35,7 +43,7 @@ final class AdminMailMatrixPageControllerTest extends TestCase
     public function testNonAdminGetsForbidden(): void
     {
         $twig = new Environment(new ArrayLoader(['admin/mail-system/matrix.html.twig' => 'ok']));
-        $controller = new AdminMailHealthPageController($twig);
+        $controller = new AdminMailHealthPageController($twig, $this->translator());
         $request = new Request();
         $request->attributes->set('current_user', new User('customer@example.com', UserType::Customer));
 

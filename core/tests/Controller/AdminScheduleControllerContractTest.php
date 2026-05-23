@@ -36,7 +36,7 @@ final class AdminScheduleControllerContractTest extends TestCase
         self::assertStringContainsString('requireAdmin', $this->controller);
         self::assertStringContainsString('UnauthorizedHttpException', $this->controller);
         self::assertStringContainsString('AccessDeniedHttpException', $this->controller);
-        self::assertStringContainsString('Forbidden', $this->controller);
+        self::assertStringContainsString("error_forbidden", $this->controller);
     }
 
     public function testDisableAndEnableActionsUpdateExistingScheduleSources(): void
