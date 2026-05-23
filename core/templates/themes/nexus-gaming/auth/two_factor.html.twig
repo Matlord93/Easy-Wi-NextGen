@@ -22,8 +22,8 @@
                     </defs>
                 </svg>
             </div>
-            <h1 class="ng-auth-card__title">Zwei-Faktor-Authentifizierung</h1>
-            <p class="ng-auth-card__sub">Gib den Code aus deiner Authenticator-App ein</p>
+            <h1 class="ng-auth-card__title">{{ t('theme_2fa_title', page_locale()) }}</h1>
+            <p class="ng-auth-card__sub">{{ t('theme_2fa_subtitle', page_locale()) }}</p>
         </div>
 
         {% for error in errors|default([]) %}
@@ -33,7 +33,7 @@
             <form method="post" action="/2fa_check" class="ng-auth-form">
             <input type="hidden" name="_token" value="{{ csrf_token('public_2fa_check') }}">
             <div class="ng-field">
-                <label class="ng-label" for="tfa-code">6-stelliger Code</label>
+                <label class="ng-label" for="tfa-code">{{ t('theme_2fa_code_label', page_locale()) }}</label>
                 <input class="ng-input ng-input--center ng-input--lg"
                        id="tfa-code" name="otp" type="text"
                        inputmode="numeric" pattern="[0-9]{6}"
@@ -42,7 +42,7 @@
             </div>
 
             <button type="submit" class="ng-btn ng-btn--primary ng-btn--full">
-                Verifizieren
+                {{ t('theme_2fa_confirm', page_locale()) }}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
                     <polyline points="22 4 12 14.01 9 11.01"/>
@@ -51,15 +51,15 @@
         </form>
 
         <p class="ng-auth-footer ng-auth-footer--muted">
-            Kein Zugriff mehr auf deinen Authenticator?<br>
-            Kontaktiere einen Administrator.
+            {{ t('theme_2fa_no_access', page_locale()) }}<br>
+            {{ t('theme_2fa_contact_admin', page_locale()) }}
         </p>
 
         <a href="{{ path('public_login') }}" class="ng-auth-back">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            Zurück zum Login
+            {{ t('theme_2fa_back_to_login', page_locale()) }}
         </a>
     </div>
 </div>

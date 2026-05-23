@@ -20,6 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/ts6')]
 final class AdminTs6Controller
@@ -34,6 +35,7 @@ final class AdminTs6Controller
         private readonly ModuleRegistry $moduleRegistry,
         private readonly Environment $twig,
         private readonly AgentJobDispatcher $jobDispatcher,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -42,11 +44,11 @@ final class AdminTs6Controller
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof \App\Module\Core\Domain\Entity\User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->moduleRegistry->isEnabled(ModuleKey::Ts6->value)) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $nodes = $this->agentRepository->findBy([], ['lastSeenAt' => 'DESC']);
@@ -81,11 +83,11 @@ final class AdminTs6Controller
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof \App\Module\Core\Domain\Entity\User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->moduleRegistry->isEnabled(ModuleKey::Ts6->value)) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $customerId = (int) $request->request->get('customer_id');
@@ -131,16 +133,16 @@ final class AdminTs6Controller
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof \App\Module\Core\Domain\Entity\User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->moduleRegistry->isEnabled(ModuleKey::Ts6->value)) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $instance = $this->ts6InstanceRepository->find($id);
         if ($instance === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $action = strtolower(trim((string) $request->request->get('action', '')));

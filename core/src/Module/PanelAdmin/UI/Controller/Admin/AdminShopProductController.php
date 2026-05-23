@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/shop/products')]
 final class AdminShopProductController
@@ -30,6 +31,7 @@ final class AdminShopProductController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -37,12 +39,12 @@ final class AdminShopProductController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $products = $this->productRepository->findBy(['siteId' => $site->getId()], ['createdAt' => 'DESC']);
@@ -62,12 +64,12 @@ final class AdminShopProductController
     public function table(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $products = $this->productRepository->findBy(['siteId' => $site->getId()], ['createdAt' => 'DESC']);
@@ -81,7 +83,7 @@ final class AdminShopProductController
     public function form(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/shop/products/_form.html.twig', [
@@ -96,17 +98,17 @@ final class AdminShopProductController
     public function edit(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $product = $this->productRepository->find($id);
         if ($product === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null || $product->getSiteId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/shop/products/_form.html.twig', [
@@ -122,12 +124,12 @@ final class AdminShopProductController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request);
@@ -147,7 +149,7 @@ final class AdminShopProductController
         }
 
         if ($category->getSiteId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $product = new ShopProduct(
@@ -183,17 +185,17 @@ final class AdminShopProductController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $product = $this->productRepository->find($id);
         if ($product === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null || $product->getSiteId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request);
@@ -242,17 +244,17 @@ final class AdminShopProductController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $product = $this->productRepository->find($id);
         if ($product === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null || $product->getSiteId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $this->entityManager->remove($product);

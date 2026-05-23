@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicKnowledgeBaseController
 {
@@ -23,6 +24,7 @@ final class PublicKnowledgeBaseController
         #[Autowire(service: 'limiter.public_docs')]
         private readonly RateLimiterFactory $docsLimiter,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -44,7 +46,7 @@ final class PublicKnowledgeBaseController
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $articles = $this->kbRepository->findVisiblePublicBySite($site->getId() ?? 0);
@@ -80,7 +82,7 @@ final class PublicKnowledgeBaseController
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $article = $this->kbRepository->findOneBy([
@@ -90,7 +92,7 @@ final class PublicKnowledgeBaseController
         ]);
 
         if (!$article instanceof KnowledgeBaseArticle) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $response = new Response($this->twig->render('public/docs/show.html.twig', [

@@ -21,6 +21,7 @@ use App\Repository\CmsPostRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/blog')]
@@ -38,6 +39,7 @@ final class PublicCmsBlogController
         private readonly ThemeResolver $themeResolver,
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -46,7 +48,7 @@ final class PublicCmsBlogController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null || !$this->featureToggle->isEnabled($site, 'blog')) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenance = $this->maintenanceService->resolve($request, $site);
@@ -81,7 +83,7 @@ final class PublicCmsBlogController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null || !$this->featureToggle->isEnabled($site, 'blog')) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenance = $this->maintenanceService->resolve($request, $site);
@@ -96,7 +98,7 @@ final class PublicCmsBlogController
         ]);
 
         if (!$post instanceof CmsPost) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('public/blog/show.html.twig', [

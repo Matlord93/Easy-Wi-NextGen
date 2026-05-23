@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicServerController
 {
@@ -26,6 +27,7 @@ final class PublicServerController
         #[Autowire(service: 'limiter.public_servers')]
         private readonly RateLimiterFactory $publicServersLimiter,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -47,11 +49,11 @@ final class PublicServerController
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         if (!$this->featureToggle->isEnabled($site, 'gameserver')) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $gameFilter = $this->normalizeFilter($request->query->get('game'));

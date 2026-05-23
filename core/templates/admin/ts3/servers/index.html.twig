@@ -67,7 +67,7 @@
                                 </td>
                                 <td>
                                     {% set statusBadge = server.status == 'running' ? 'success' : (server.status == 'stopped' ? 'warning' : (server.status == 'error' ? 'danger' : 'neutral')) %}
-                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ server.status }}</span>
+                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ t('admin_ts3_status_' ~ server.status, locale) }}</span>
                                 </td>
                                 <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
                                 <td>

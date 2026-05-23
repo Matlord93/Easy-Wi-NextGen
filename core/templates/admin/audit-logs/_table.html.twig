@@ -17,7 +17,7 @@
                     <div class="font-medium text-slate-700">{{ log.actor }}</div>
                     <div class="text-xs text-slate-600">{{ log.actorType ?? t('admin_audit_logs_system_actor', page_locale()) }}</div>
                 </td>
-                <td class="px-5 py-4 font-medium text-slate-800">{{ log.action }}</td>
+                <td class="px-5 py-4 font-medium text-slate-800">{{ t('audit_event_' ~ log.action|replace({'.': '_'}), page_locale()) }}</td>
                 <td class="px-5 py-4 text-slate-700">
                     <details class="text-xs">
                         <summary class="cursor-pointer text-indigo-600 hover:text-indigo-500">{{ t('admin_audit_logs_view_payload', page_locale()) }}</summary>

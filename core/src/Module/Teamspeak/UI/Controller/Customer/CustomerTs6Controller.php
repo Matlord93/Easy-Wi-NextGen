@@ -24,6 +24,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/ts6')]
 #[RequiresModule('ts6')]
@@ -39,6 +40,7 @@ final class CustomerTs6Controller
         private readonly Environment $twig,
         private readonly string $projectDir,
         private readonly AgentJobDispatcher $jobDispatcher,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -48,7 +50,7 @@ final class CustomerTs6Controller
         $customer = $this->requireCustomer($request);
 
         if (!$this->moduleRegistry->isEnabled(ModuleKey::Ts6->value)) {
-            throw new NotFoundHttpException('TS6 module disabled.');
+            throw new NotFoundHttpException($this->translator->trans('ts6_module_disabled'));
         }
 
         $instances = $this->ts6InstanceRepository->findBy(['customer' => $customer], ['updatedAt' => 'DESC']);
@@ -70,12 +72,12 @@ final class CustomerTs6Controller
         $customer = $this->requireCustomer($request);
 
         if (!$this->moduleRegistry->isEnabled(ModuleKey::Ts6->value)) {
-            throw new NotFoundHttpException('TS6 module disabled.');
+            throw new NotFoundHttpException($this->translator->trans('ts6_module_disabled'));
         }
 
         $instance = $this->ts6InstanceRepository->findOneBy(['id' => $id, 'customer' => $customer]);
         if ($instance === null) {
-            throw new NotFoundHttpException('TS6 instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('ts6_instance_not_found'));
         }
 
         $action = strtolower(trim((string) $request->request->get('action', '')));
@@ -99,7 +101,7 @@ final class CustomerTs6Controller
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -114,7 +116,7 @@ final class CustomerTs6Controller
             'update' => 'ts6.instance.action',
             'backup' => 'ts6.instance.action',
             'restore' => 'ts6.instance.action',
-            default => throw new BadRequestHttpException('Unsupported action.'),
+            default => throw new BadRequestHttpException($this->translator->trans('ts6_unsupported_action')),
         };
     }
 
@@ -132,7 +134,7 @@ final class CustomerTs6Controller
         if ($action === 'restore') {
             $restorePath = trim((string) $request->request->get('restore_path', ''));
             if ($restorePath === '') {
-                throw new BadRequestHttpException('Restore path required.');
+                throw new BadRequestHttpException($this->translator->trans('ts6_restore_path_required'));
             }
 
             return array_merge($payload, ['restore_path' => $restorePath]);

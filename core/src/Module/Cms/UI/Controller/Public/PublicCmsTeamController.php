@@ -16,18 +16,19 @@ use App\Repository\TeamMemberRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/teams')]
 final class PublicCmsTeamController
 {
-    public function __construct(private readonly TeamMemberRepository $memberRepository, private readonly TeamGroupRepository $teamGroupRepository, private readonly SiteResolver $siteResolver, private readonly CmsFeatureToggle $featureToggle, private readonly CmsMaintenanceService $maintenanceService, private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory, private readonly ThemeResolver $themeResolver, private readonly CmsSettingsProvider $settingsProvider, private readonly Environment $twig) {}
+    public function __construct(private readonly TeamMemberRepository $memberRepository, private readonly TeamGroupRepository $teamGroupRepository, private readonly SiteResolver $siteResolver, private readonly CmsFeatureToggle $featureToggle, private readonly CmsMaintenanceService $maintenanceService, private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory, private readonly ThemeResolver $themeResolver, private readonly CmsSettingsProvider $settingsProvider, private readonly Environment $twig, private readonly TranslatorInterface $translator) {}
 
     #[Route(path: '', name: 'public_cms_team_index', methods: ['GET'])]
     public function index(Request $request): Response
     {
         $site = $this->siteResolver->resolve($request);
-        if ($site === null || !$this->featureToggle->isEnabled($site, 'team')) return new Response('Not found.', 404);
+        if ($site === null || !$this->featureToggle->isEnabled($site, 'team')) return new Response($this->translator->trans('error_not_found'), 404);
         $groups = $this->teamGroupRepository->findBySite($site);
         $members = $this->memberRepository->findActiveBySite($site);
 
@@ -38,9 +39,9 @@ final class PublicCmsTeamController
     public function show(Request $request, string $slug): Response
     {
         $site = $this->siteResolver->resolve($request);
-        if ($site === null || !$this->featureToggle->isEnabled($site, 'team')) return new Response('Not found.', 404);
+        if ($site === null || !$this->featureToggle->isEnabled($site, 'team')) return new Response($this->translator->trans('error_not_found'), 404);
         $group = $this->teamGroupRepository->findOneBySiteAndSlug($site, $slug);
-        if ($group === null) return new Response('Not found.', 404);
+        if ($group === null) return new Response($this->translator->trans('error_not_found'), 404);
         $members = array_values(array_filter($this->memberRepository->findActiveBySite($site), fn($m) => $m->getTeamName() === $group->getName()));
         return new Response($this->twig->render('public/team/show.html.twig', ['group' => $group, 'members' => $members] + $this->themeContext($site, 'teams', $group->getName())));
     }

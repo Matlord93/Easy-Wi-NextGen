@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/cms/events')]
@@ -24,6 +25,7 @@ final class AdminCmsEventsController
         private readonly SiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -31,12 +33,12 @@ final class AdminCmsEventsController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/cms/events/index.html.twig', [
@@ -49,7 +51,7 @@ final class AdminCmsEventsController
     public function new(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/cms/events/form.html.twig', [
@@ -62,12 +64,12 @@ final class AdminCmsEventsController
     public function create(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $event = new CmsEvent(
@@ -93,12 +95,12 @@ final class AdminCmsEventsController
     public function edit(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $event = $this->eventRepository->find($id);
         if (!$event instanceof CmsEvent) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/cms/events/form.html.twig', [
@@ -111,12 +113,12 @@ final class AdminCmsEventsController
     public function update(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $event = $this->eventRepository->find($id);
         if (!$event instanceof CmsEvent) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $event->setTitle((string) $request->request->get('title', ''));
@@ -138,7 +140,7 @@ final class AdminCmsEventsController
     public function delete(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $event = $this->eventRepository->find($id);

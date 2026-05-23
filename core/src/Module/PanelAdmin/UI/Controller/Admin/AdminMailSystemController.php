@@ -22,6 +22,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/mail')]
 final class AdminMailSystemController
@@ -38,6 +39,7 @@ final class AdminMailSystemController
         private readonly AuditLogger $auditLogger,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -47,7 +49,7 @@ final class AdminMailSystemController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $bindings = $this->mailDomainRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -117,7 +119,7 @@ final class AdminMailSystemController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $csrf = new CsrfToken('mail_contain_domain', (string) $request->request->get('_token', ''));

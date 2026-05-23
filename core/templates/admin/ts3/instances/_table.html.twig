@@ -41,15 +41,15 @@
                     </td>
                     <td>
                         {% if instance.status == 'running' %}
-                            <span class="ui-badge ui-badge--success">{{ instance.status }}</span>
+                            <span class="ui-badge ui-badge--success">{{ t('admin_ts3_status_running', page_locale()) }}</span>
                         {% elseif instance.status == 'stopped' %}
-                            <span class="ui-badge ui-badge--warning">{{ instance.status }}</span>
+                            <span class="ui-badge ui-badge--warning">{{ t('admin_ts3_status_stopped', page_locale()) }}</span>
                         {% elseif instance.status == 'error' %}
-                            <span class="ui-badge ui-badge--danger">{{ instance.status }}</span>
+                            <span class="ui-badge ui-badge--danger">{{ t('admin_ts3_status_error', page_locale()) }}</span>
                         {% elseif instance.status == 'provisioning' %}
-                            <span class="ui-badge ui-badge--info">{{ instance.status }}</span>
+                            <span class="ui-badge ui-badge--info">{{ t('admin_ts3_status_provisioning', page_locale()) }}</span>
                         {% else %}
-                            <span class="ui-badge ui-badge--neutral">{{ instance.status }}</span>
+                            <span class="ui-badge ui-badge--neutral">{{ t('admin_ts3_status_unknown', page_locale()) }}</span>
                         {% endif %}
                     </td>
                     <td>

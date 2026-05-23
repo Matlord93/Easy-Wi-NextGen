@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/plugins')]
 final class AdminPluginCatalogController
@@ -24,6 +25,7 @@ final class AdminPluginCatalogController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -31,7 +33,7 @@ final class AdminPluginCatalogController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $plugins = $this->pluginRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -47,7 +49,7 @@ final class AdminPluginCatalogController
     public function createPage(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC']);
@@ -63,7 +65,7 @@ final class AdminPluginCatalogController
     public function importPage(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/plugins/import.html.twig', [
@@ -76,7 +78,7 @@ final class AdminPluginCatalogController
     public function table(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $plugins = $this->pluginRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -90,7 +92,7 @@ final class AdminPluginCatalogController
     public function form(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC']);
@@ -105,12 +107,12 @@ final class AdminPluginCatalogController
     public function editPage(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $plugin = $this->pluginRepository->find($id);
         if ($plugin === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC']);
@@ -126,12 +128,12 @@ final class AdminPluginCatalogController
     public function previewPage(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $plugin = $this->pluginRepository->find($id);
         if ($plugin === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/plugins/preview.html.twig', [
@@ -145,7 +147,7 @@ final class AdminPluginCatalogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $formData = $this->parsePayload($request);
@@ -201,17 +203,17 @@ final class AdminPluginCatalogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $pluginId = filter_var($id, FILTER_VALIDATE_INT);
         if ($pluginId === false) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $plugin = $this->pluginRepository->find($pluginId);
         if ($plugin === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request);
@@ -275,17 +277,17 @@ final class AdminPluginCatalogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $pluginId = filter_var($id, FILTER_VALIDATE_INT);
         if ($pluginId === false) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $plugin = $this->pluginRepository->find($pluginId);
         if ($plugin === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $this->auditLogger->log($actor, 'plugin.deleted', [
@@ -310,7 +312,7 @@ final class AdminPluginCatalogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $seedEntries = $this->buildRecommendedSeedEntries();
@@ -363,7 +365,7 @@ final class AdminPluginCatalogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $payload = trim((string) $request->request->get('payload', ''));

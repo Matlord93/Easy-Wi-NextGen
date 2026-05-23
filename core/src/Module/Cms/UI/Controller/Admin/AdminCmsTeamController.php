@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/cms/team')]
@@ -27,6 +28,7 @@ final class AdminCmsTeamController
         private readonly SiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -34,12 +36,12 @@ final class AdminCmsTeamController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/cms/team/index.html.twig', [
@@ -53,12 +55,12 @@ final class AdminCmsTeamController
     public function new(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/cms/team/form.html.twig', [
@@ -72,12 +74,12 @@ final class AdminCmsTeamController
     public function create(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $member = new TeamMember(
@@ -105,12 +107,12 @@ final class AdminCmsTeamController
     public function edit(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $member = $this->teamRepository->find($id);
         if (!$member instanceof TeamMember) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/cms/team/form.html.twig', [
@@ -124,12 +126,12 @@ final class AdminCmsTeamController
     public function update(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $member = $this->teamRepository->find($id);
         if (!$member instanceof TeamMember) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $member->setName((string) $request->request->get('name', ''));
@@ -152,7 +154,7 @@ final class AdminCmsTeamController
     public function delete(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $member = $this->teamRepository->find($id);
@@ -168,9 +170,9 @@ final class AdminCmsTeamController
     #[Route(path: '/groups', name: 'admin_cms_team_group_create', methods: ['POST'])]
     public function createGroup(Request $request): Response
     {
-        if (!$this->isAdmin($request)) { return new Response('Forbidden.', Response::HTTP_FORBIDDEN); }
+        if (!$this->isAdmin($request)) { return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
         $site = $this->siteResolver->resolve($request);
-        if (!$site instanceof Site) { return new Response('Site not found.', Response::HTTP_NOT_FOUND); }
+        if (!$site instanceof Site) { return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND); }
 
         $name = trim((string) $request->request->get('name', ''));
         if ($name !== '') {
@@ -191,11 +193,11 @@ final class AdminCmsTeamController
     #[Route(path: '/groups/{id}', name: 'admin_cms_team_group_update', methods: ['POST'], requirements: ['id' => '\d+'])]
     public function updateGroup(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) { return new Response('Forbidden.', Response::HTTP_FORBIDDEN); }
+        if (!$this->isAdmin($request)) { return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
 
         $group = $this->teamGroupRepository->find($id);
         if (!$group instanceof TeamGroup) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $name = trim((string) $request->request->get('name', ''));
@@ -222,7 +224,7 @@ final class AdminCmsTeamController
     #[Route(path: '/groups/{id}/delete', name: 'admin_cms_team_group_delete', methods: ['POST'], requirements: ['id' => '\d+'])]
     public function deleteGroup(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) { return new Response('Forbidden.', Response::HTTP_FORBIDDEN); }
+        if (!$this->isAdmin($request)) { return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
         $group = $this->teamGroupRepository->find($id);
         if ($group instanceof TeamGroup) {
             $this->entityManager->remove($group);

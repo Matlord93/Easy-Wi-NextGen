@@ -33,6 +33,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class InstanceApiController
 {
@@ -50,6 +51,7 @@ final class InstanceApiController
         private readonly AppSettingsService $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly GameServerInstallPathManager $installPathManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -59,7 +61,7 @@ final class InstanceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $payload = $request->toArray();
@@ -75,11 +77,11 @@ final class InstanceApiController
         $instanceBaseDir = trim((string) ($payload['instance_base_dir'] ?? ''));
 
         if ($customerId === null || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
-            return new JsonResponse(['error' => 'Missing required fields.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_missing_required_fields')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if (!is_numeric($cpuLimitValue) || !is_numeric($ramLimitValue) || !is_numeric($diskLimitValue)) {
-            return new JsonResponse(['error' => 'Limits must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_limits_must_be_numeric')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $cpuLimit = (int) $cpuLimitValue;
@@ -87,7 +89,7 @@ final class InstanceApiController
         $diskLimit = (int) $diskLimitValue;
 
         if ($cpuLimit <= 0 || $ramLimit <= 0 || $diskLimit <= 0) {
-            return new JsonResponse(['error' => 'Limits must be positive.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_limits_must_be_positive')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $minSlots = $this->appSettingsService->getGameserverMinSlots();
@@ -98,7 +100,7 @@ final class InstanceApiController
         $maxSlots = $maxSlotsLimit;
         if ($maxSlotsValue !== null && $maxSlotsValue !== '') {
             if (!is_numeric($maxSlotsValue)) {
-                return new JsonResponse(['error' => 'Max slots must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => $this->translator->trans('gs_api_max_slots_must_be_numeric')], JsonResponse::HTTP_BAD_REQUEST);
             }
             $maxSlots = (int) $maxSlotsValue;
         }
@@ -106,46 +108,46 @@ final class InstanceApiController
         $currentSlots = $defaultSlots;
         if ($currentSlotsValue !== null && $currentSlotsValue !== '') {
             if (!is_numeric($currentSlotsValue)) {
-                return new JsonResponse(['error' => 'Current slots must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => $this->translator->trans('gs_api_current_slots_must_be_numeric')], JsonResponse::HTTP_BAD_REQUEST);
             }
             $currentSlots = (int) $currentSlotsValue;
         }
 
         if ($maxSlots < $minSlots) {
-            return new JsonResponse(['error' => 'Max slots must be greater than or equal to the minimum slots.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_max_slots_min_error')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if ($maxSlots > $maxSlotsLimit) {
-            return new JsonResponse(['error' => 'Max slots exceeds the allowed maximum.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_max_slots_exceed_limit')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if ($currentSlots < $minSlots || $currentSlots > $maxSlots) {
-            return new JsonResponse(['error' => 'Current slots must be within the allowed range.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_current_slots_out_of_range')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $customer = $this->userRepository->find($customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
-            return new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('error_customer_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $template = $this->templateRepository->find($templateId);
         if ($template === null) {
-            return new JsonResponse(['error' => 'Template not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_template_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $node = $this->agentRepository->find($nodeId);
         if ($node === null) {
-            return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_node_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if ($instanceBaseDir === '') {
             $instanceBaseDir = $this->resolveDefaultInstanceBaseDir($node);
         }
         if (!$this->isAbsolutePath($instanceBaseDir)) {
-            return new JsonResponse(['error' => 'Instance base dir must be an absolute path.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_instance_base_dir_not_absolute')], JsonResponse::HTTP_BAD_REQUEST);
         }
         if (!$this->isTemplateSupportedOnNode($template->getSupportedOs(), $node)) {
-            return new JsonResponse(['error' => 'Template does not support the selected node operating system.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_template_os_not_supported')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $blockMessage = $this->diskEnforcementService->guardNodeProvisioning($node, new \DateTimeImmutable());
@@ -157,16 +159,16 @@ final class InstanceApiController
         if ($portBlockId !== null && $portBlockId !== '') {
             $portBlock = $this->portBlockRepository->find((string) $portBlockId);
             if ($portBlock === null) {
-                return new JsonResponse(['error' => 'Port block not found.'], JsonResponse::HTTP_NOT_FOUND);
+                return new JsonResponse(['error' => $this->translator->trans('gs_api_port_block_not_found')], JsonResponse::HTTP_NOT_FOUND);
             }
             if ($portBlock->getCustomer()->getId() !== $customer->getId()) {
-                return new JsonResponse(['error' => 'Port block does not belong to customer.'], JsonResponse::HTTP_FORBIDDEN);
+                return new JsonResponse(['error' => $this->translator->trans('gs_api_port_block_not_belongs_to_customer')], JsonResponse::HTTP_FORBIDDEN);
             }
             if ($portBlock->getInstance() !== null) {
-                return new JsonResponse(['error' => 'Port block is already assigned.'], JsonResponse::HTTP_CONFLICT);
+                return new JsonResponse(['error' => $this->translator->trans('gs_api_port_block_already_assigned')], JsonResponse::HTTP_CONFLICT);
             }
             if ($portBlock->getPool()->getNode()->getId() !== $node->getId()) {
-                return new JsonResponse(['error' => 'Port block does not belong to selected node.'], JsonResponse::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => $this->translator->trans('gs_api_port_block_not_belongs_to_node')], JsonResponse::HTTP_BAD_REQUEST);
             }
         }
 
@@ -176,7 +178,7 @@ final class InstanceApiController
         if ($portBlock === null && $requiredCount > 0) {
             $portBlock = $this->allocatePortBlock($node, $customer, $requiredCount);
             if ($portBlock === null) {
-                return new JsonResponse(['error' => 'No free port blocks available on the selected node.'], JsonResponse::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => $this->translator->trans('gs_api_no_free_port_blocks')], JsonResponse::HTTP_BAD_REQUEST);
             }
         }
 
@@ -333,12 +335,12 @@ final class InstanceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            return new JsonResponse(['error' => 'Instance not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_instance_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $portBlock = null;
@@ -421,12 +423,12 @@ final class InstanceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            return new JsonResponse(['error' => 'Instance not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_instance_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $payload = $request->toArray();
@@ -438,22 +440,22 @@ final class InstanceApiController
 
         $policy = InstanceUpdatePolicy::tryFrom($policyRaw);
         if ($policy === null) {
-            return new JsonResponse(['error' => 'Invalid update policy.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_invalid_update_policy')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if ($policy === InstanceUpdatePolicy::Auto && $cronExpression === '') {
-            return new JsonResponse(['error' => 'Auto updates require a cron schedule.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_auto_updates_require_cron')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if ($policy === InstanceUpdatePolicy::Auto && !CronExpression::isValidExpression($cronExpression)) {
-            return new JsonResponse(['error' => 'Cron expression is invalid.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_invalid_cron_expression')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $timeZone = $timeZone === '' ? 'UTC' : $timeZone;
         try {
             new \DateTimeZone($timeZone);
         } catch (\Exception) {
-            return new JsonResponse(['error' => 'Time zone is invalid.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_invalid_timezone')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $instance->setUpdatePolicy($policy);
@@ -514,7 +516,7 @@ final class InstanceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $instances = $this->instanceRepository->findByCustomer($actor);

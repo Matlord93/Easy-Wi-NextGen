@@ -28,6 +28,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/dashboard')]
 final class CustomerDashboardController
@@ -46,6 +47,7 @@ final class CustomerDashboardController
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly BookedResourceUsageAggregator $bookedResourceUsageAggregator,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -119,7 +121,7 @@ final class CustomerDashboardController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;

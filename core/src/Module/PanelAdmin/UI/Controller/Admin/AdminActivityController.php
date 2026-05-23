@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/activity')]
 final class AdminActivityController
@@ -17,6 +18,7 @@ final class AdminActivityController
     public function __construct(
         private readonly AuditLogRepository $auditLogRepository,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -24,7 +26,7 @@ final class AdminActivityController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $entries = $this->auditLogRepository->findRecentActivitySummaries(40);

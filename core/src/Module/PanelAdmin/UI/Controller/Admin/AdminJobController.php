@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/jobs')]
 final class AdminJobController
@@ -25,6 +26,7 @@ final class AdminJobController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly JobPayloadMasker $jobPayloadMasker,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -32,7 +34,7 @@ final class AdminJobController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $page = max(1, $request->query->getInt('page', 1));
@@ -55,7 +57,7 @@ final class AdminJobController
     public function table(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $page = max(1, $request->query->getInt('page', 1));
@@ -75,7 +77,7 @@ final class AdminJobController
     public function createForm(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/jobs/create.html.twig', [
@@ -89,7 +91,7 @@ final class AdminJobController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $formData = $this->parseJobPayload($request);
@@ -115,7 +117,7 @@ final class AdminJobController
     public function show(Request $request, string $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $job = $this->jobRepository->find($id);
@@ -137,7 +139,7 @@ final class AdminJobController
     public function log(Request $request, string $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $job = $this->jobRepository->find($id);
@@ -155,7 +157,7 @@ final class AdminJobController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $job = $this->jobRepository->find($id);

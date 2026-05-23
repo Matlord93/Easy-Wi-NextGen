@@ -19,16 +19,16 @@
             {{ form_start(form) }}
                 {{ form_errors(form) }}
                 <div style="display:flex;flex-direction:column;gap:16px;">
-                    {{ form_row(form.name, { label: 'Name' }) }}
-                    {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
-                    {{ form_row(form.downloadUrl, { label: 'Download URL' }) }}
+                    {{ form_row(form.name, { label: t('admin_ts3_node_form_name', locale) }) }}
+                    {{ form_row(form.agentNodeId, { label: t('admin_ts3_node_form_agent_node', locale) }) }}
+                    {{ form_row(form.downloadUrl, { label: t('admin_ts3_node_form_download_url', locale) }) }}
                     <p style="color:var(--color-text-muted,#64748b);font-size:.875rem;">{{ t('admin_ts3_node_download_hint', locale) }}</p>
-                    {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
-                    {{ form_row(form.instanceName, { label: 'Instanzname' }) }}
-                    {{ form_row(form.serviceName, { label: 'Service Name' }) }}
-                    {{ form_row(form.queryBindIp, { label: 'Query Bind IP' }) }}
-                    {{ form_row(form.queryPort, { label: 'Query Port' }) }}
-                    {{ form_row(form.filetransferPort, { label: 'Filetransfer Port' }) }}
+                    {{ form_row(form.installPath, { label: t('admin_ts3_node_form_install_path', locale) }) }}
+                    {{ form_row(form.instanceName, { label: t('admin_ts3_node_form_instance_name', locale) }) }}
+                    {{ form_row(form.serviceName, { label: t('admin_ts3_node_form_service_name', locale) }) }}
+                    {{ form_row(form.queryBindIp, { label: t('admin_ts3_node_form_query_bind_ip', locale) }) }}
+                    {{ form_row(form.queryPort, { label: t('admin_ts3_node_form_query_port', locale) }) }}
+                    {{ form_row(form.filetransferPort, { label: t('admin_ts3_node_form_filetransfer_port', locale) }) }}
                 </div>
                 <div style="display:flex;justify-content:flex-end;margin-top:20px;">
                     <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts3_node_save', locale) }}</button>

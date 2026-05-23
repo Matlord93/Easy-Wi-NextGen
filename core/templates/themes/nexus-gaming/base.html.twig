@@ -53,34 +53,34 @@
     </a>
     <a href="/blog" class="ng-sidebar__item {% if reqPath starts with '/blog' %}is-active{% endif %}">
       <span class="ng-sidebar__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg></span>
-      <span class="ng-sidebar__label">Blog</span>
-      <span class="ng-sidebar__sub">News &amp; Updates</span>
+      <span class="ng-sidebar__label">{{ t('cms_nav_blog', page_locale()) }}</span>
+      <span class="ng-sidebar__sub">{{ t('theme_nav_blog_sub', page_locale()) }}</span>
     </a>
     <a href="/events" class="ng-sidebar__item {% if reqPath starts with '/events' %}is-active{% endif %}">
       <span class="ng-sidebar__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-      <span class="ng-sidebar__label">Events</span>
-      <span class="ng-sidebar__sub">Turniere &amp; Events</span>
+      <span class="ng-sidebar__label">{{ t('cms_nav_events', page_locale()) }}</span>
+      <span class="ng-sidebar__sub">{{ t('theme_nav_events_sub', page_locale()) }}</span>
     </a>
     <a href="/teams" class="ng-sidebar__item {% if reqPath starts with '/teams' %}is-active{% endif %}">
       <span class="ng-sidebar__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-      <span class="ng-sidebar__label">Team</span>
-      <span class="ng-sidebar__sub">Mitglieder &amp; Roster</span>
+      <span class="ng-sidebar__label">{{ t('cms_nav_team', page_locale()) }}</span>
+      <span class="ng-sidebar__sub">{{ t('theme_nav_team_sub', page_locale()) }}</span>
     </a>
     <a href="/forum" class="ng-sidebar__item {% if reqPath starts with '/forum' %}is-active{% endif %}">
       <span class="ng-sidebar__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-      <span class="ng-sidebar__label">Forum</span>
-      <span class="ng-sidebar__sub">Community</span>
+      <span class="ng-sidebar__label">{{ t('cms_nav_forum', page_locale()) }}</span>
+      <span class="ng-sidebar__sub">{{ t('theme_nav_forum_sub', page_locale()) }}</span>
     </a>
     <a href="{{ currentUser ? (currentUser.type.value in ['admin','superadmin'] ? '/admin' : (currentUser.type.value == 'reseller' ? '/reseller' : '/customer')) : path('public_login') }}"
        class="ng-sidebar__item {% if reqPath starts with '/admin' or reqPath starts with '/customer' or reqPath starts with '/reseller' %}is-active{% endif %}">
       <span class="ng-sidebar__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
-      <span class="ng-sidebar__label">Dashboard</span>
-      <span class="ng-sidebar__sub">Dein Bereich</span>
+      <span class="ng-sidebar__label">{{ t('theme_nav_dashboard_label', page_locale()) }}</span>
+      <span class="ng-sidebar__sub">{{ t('theme_nav_dashboard_sub', page_locale()) }}</span>
     </a>
     <a href="/servers" class="ng-sidebar__item {% if reqPath starts with '/servers' %}is-active{% endif %}">
       <span class="ng-sidebar__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></span>
       <span class="ng-sidebar__label">Server</span>
-      <span class="ng-sidebar__sub">Status &amp; Übersicht</span>
+      <span class="ng-sidebar__sub">{{ t('theme_nav_server_sub', page_locale()) }}</span>
     </a>
   </nav>
 
@@ -90,8 +90,8 @@
   <div class="ng-sidebar__discord">
     <svg class="ng-sidebar__discord-logo" width="30" height="30" viewBox="0 0 24 24" fill="#7c85f5"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
     <p class="ng-sidebar__discord-title">Join our <span>Discord Server</span></p>
-    <p class="ng-sidebar__discord-desc">Tritt unserer Community bei und bleib immer up to date!</p>
-    <a href="{{ socials.discord }}" target="_blank" rel="noopener" class="ng-sidebar__discord-btn">Jetzt beitreten →</a>
+    <p class="ng-sidebar__discord-desc">{{ t('theme_nav_discord_desc', page_locale()) }}</p>
+    <a href="{{ socials.discord }}" target="_blank" rel="noopener" class="ng-sidebar__discord-btn">{{ t('theme_nav_discord_join', page_locale()) }}</a>
   </div>
   {% endif %}
 
@@ -143,7 +143,7 @@
             </a>
             <a href="/profile" class="ng-user-menu__item">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              Profil
+              {{ t('theme_nav_profil', page_locale()) }}
             </a>
             <a href="{{ path('public_logout') }}" class="ng-user-menu__item ng-user-menu__item--danger">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -171,9 +171,9 @@
     <span class="ng-portal-footer__brand ng-gradient-text">{{ clanName }}</span>
     <span class="ng-portal-footer__copy">© {{ 'now'|date('Y') }} {{ clanName }} — Powered by Easy-Wi NextGen</span>
     <div class="ng-portal-footer__legal">
-      <a href="/impressum">Impressum</a>
-      <a href="/datenschutz">Datenschutz</a>
-      <a href="/kontakt">Kontakt</a>
+      <a href="/impressum">{{ t('theme_footer_impressum', page_locale()) }}</a>
+      <a href="/datenschutz">{{ t('theme_footer_datenschutz', page_locale()) }}</a>
+      <a href="/kontakt">{{ t('theme_footer_kontakt', page_locale()) }}</a>
     </div>
   </footer>
 

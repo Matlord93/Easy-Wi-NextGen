@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/customer/billing')]
 #[RequiresModule('billing')]
@@ -27,6 +28,7 @@ final class CustomerPaymentController
         private readonly InvoicePreferencesRepository $invoicePreferencesRepository,
         private readonly PaymentProviderRegistry $providerRegistry,
         private readonly LoggerInterface $logger,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -41,7 +43,7 @@ final class CustomerPaymentController
     {
         $customer = $this->requireCustomer($request);
         if (!$customer instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $invoice = $this->invoiceRepository->find($id);

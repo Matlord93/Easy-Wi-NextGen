@@ -21,6 +21,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicCmsPageController
 {
@@ -36,6 +37,7 @@ final class PublicCmsPageController
         private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,
         private readonly HomepageStatsProvider $homepageStatsProvider,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -65,7 +67,7 @@ final class PublicCmsPageController
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $flow = $this->renderingFlowResolver->resolve($request, $site);
@@ -76,7 +78,7 @@ final class PublicCmsPageController
 
         $page = $this->pageResolver->resolveHomePage($site);
         if ($page === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return $this->renderResolvedPage($site, $page);
@@ -90,11 +92,11 @@ final class PublicCmsPageController
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         if ($this->pageResolver->isReservedSlug($slug)) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $flow = $this->renderingFlowResolver->resolve($request, $site);
@@ -105,7 +107,7 @@ final class PublicCmsPageController
 
         $page = $this->pageResolver->resolvePublishedPage($site, $slug);
         if ($page === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return $this->renderResolvedPage($site, $page);

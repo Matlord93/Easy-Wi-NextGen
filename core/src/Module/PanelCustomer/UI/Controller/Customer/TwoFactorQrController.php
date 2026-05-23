@@ -12,6 +12,7 @@ use App\Module\Core\Domain\Entity\User;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class TwoFactorQrController
 {
@@ -20,6 +21,7 @@ final class TwoFactorQrController
         private readonly AppSettingsService $settings,
         private readonly SecretsCrypto $secretsCrypto,
         private readonly QrCodeService $qrCodeService,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -28,17 +30,17 @@ final class TwoFactorQrController
     {
         $user = $request->attributes->get('current_user');
         if (!$user instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         try {
             $secret = $user->getTotpSecret($this->secretsCrypto);
         } catch (\Throwable) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         if ($secret === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         try {

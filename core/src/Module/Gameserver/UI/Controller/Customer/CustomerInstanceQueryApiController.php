@@ -20,6 +20,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[RequiresModule('game')]
 final class CustomerInstanceQueryApiController
@@ -28,6 +29,7 @@ final class CustomerInstanceQueryApiController
         private readonly InstanceRepository $instanceRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly InstanceQueryService $instanceQueryService,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -118,7 +120,7 @@ final class CustomerInstanceQueryApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -128,11 +130,11 @@ final class CustomerInstanceQueryApiController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         if ($instance->getCustomer()->getId() !== $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $instance;

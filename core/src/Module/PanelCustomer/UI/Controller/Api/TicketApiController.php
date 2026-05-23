@@ -20,6 +20,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class TicketApiController
 {
@@ -30,6 +31,7 @@ final class TicketApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly NotificationService $notificationService,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -89,8 +91,8 @@ final class TicketApiController
         if ($actor->getType() === UserType::Customer) {
             $this->notificationService->notifyAdmins(
                 sprintf('ticket.created.%s', $ticket->getId()),
-                sprintf('New ticket · #%s', $ticket->getId()),
-                sprintf('%s · %s', $ticket->getCustomer()->getEmail(), $ticket->getSubject()),
+                $this->translator->trans('ticket_notification_created_title', ['%id%' => $ticket->getId()]),
+                $this->translator->trans('ticket_notification_created_body', ['%email%' => $ticket->getCustomer()->getEmail(), '%subject%' => $ticket->getSubject()]),
                 'tickets',
                 '/admin/tickets',
             );
@@ -98,7 +100,7 @@ final class TicketApiController
             $this->notificationService->notify(
                 $ticket->getCustomer(),
                 sprintf('ticket.created.%s', $ticket->getId()),
-                sprintf('Ticket opened · #%s', $ticket->getId()),
+                $this->translator->trans('ticket_notification_opened_title', ['%id%' => $ticket->getId()]),
                 $ticket->getSubject(),
                 'tickets',
                 '/tickets',
@@ -119,17 +121,17 @@ final class TicketApiController
         $actor = $this->requireUser($request);
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null) {
-            return new JsonResponse(['error' => 'Ticket not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('error_ticket_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessTicket($actor, $ticket)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $payload = $this->parseJsonPayload($request);
         $messageBody = trim((string) ($payload['message'] ?? ''));
         if ($messageBody === '') {
-            return new JsonResponse(['error' => 'Message is required.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('error_message_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $message = new TicketMessage($ticket, $actor, $messageBody);
@@ -144,8 +146,8 @@ final class TicketApiController
         if ($actor->getType() === UserType::Customer) {
             $this->notificationService->notifyAdmins(
                 sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
-                sprintf('Ticket reply · #%s', $ticket->getId()),
-                sprintf('%s replied', $actor->getEmail()),
+                $this->translator->trans('ticket_notification_reply_admin_title', ['%id%' => $ticket->getId()]),
+                $this->translator->trans('ticket_notification_reply_admin_body', ['%email%' => $actor->getEmail()]),
                 'tickets',
                 '/admin/tickets',
             );
@@ -153,8 +155,8 @@ final class TicketApiController
             $this->notificationService->notify(
                 $ticket->getCustomer(),
                 sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
-                sprintf('Reply on ticket · #%s', $ticket->getId()),
-                'An operator replied to your ticket.',
+                $this->translator->trans('ticket_notification_reply_customer_title', ['%id%' => $ticket->getId()]),
+                $this->translator->trans('ticket_notification_reply_customer_body'),
                 'tickets',
                 '/tickets',
             );
@@ -173,19 +175,19 @@ final class TicketApiController
     {
         $actor = $this->requireUser($request);
         if (!$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null) {
-            return new JsonResponse(['error' => 'Ticket not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('error_ticket_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $payload = $this->parseJsonPayload($request);
         $statusValue = strtolower(trim((string) ($payload['status'] ?? '')));
         $status = TicketStatus::tryFrom($statusValue);
         if ($status === null) {
-            return new JsonResponse(['error' => 'Invalid status.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('error_invalid_status')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $ticket->setStatus($status);
@@ -208,11 +210,11 @@ final class TicketApiController
         $actor = $this->requireUser($request);
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null) {
-            return new JsonResponse(['error' => 'Ticket not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('error_ticket_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessTicket($actor, $ticket)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $messages = $this->ticketMessageRepository->findPublicByTicket($ticket);
@@ -251,36 +253,36 @@ final class TicketApiController
         $customerId = $payload['customer_id'] ?? null;
 
         if ($subject === '') {
-            return ['error' => new JsonResponse(['error' => 'Subject is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_subject_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $category = TicketCategory::tryFrom($categoryValue);
         if ($category === null) {
-            return ['error' => new JsonResponse(['error' => 'Category is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_category_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $priority = TicketPriority::tryFrom($priorityValue);
         if ($priority === null) {
-            return ['error' => new JsonResponse(['error' => 'Priority is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_priority_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($message === '') {
-            return ['error' => new JsonResponse(['error' => 'Message is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_message_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $customer = $actor;
         if ($actor->isAdmin()) {
             if (!is_numeric($customerId)) {
-                return ['error' => new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return ['error' => new JsonResponse(['error' => $this->translator->trans('error_customer_required')], JsonResponse::HTTP_BAD_REQUEST)];
             }
             $customer = $this->userRepository->find((int) $customerId);
             if ($customer === null || $customer->getType() !== UserType::Customer) {
-                return ['error' => new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return ['error' => new JsonResponse(['error' => $this->translator->trans('error_customer_not_found')], JsonResponse::HTTP_BAD_REQUEST)];
             }
         }
 
         if ($customer->getType() !== UserType::Customer) {
-            return ['error' => new JsonResponse(['error' => 'Invalid customer.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_invalid_customer')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         return [

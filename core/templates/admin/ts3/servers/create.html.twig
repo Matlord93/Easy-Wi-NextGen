@@ -29,9 +29,9 @@
                     <div style="display:flex;flex-direction:column;gap:16px;">
                         {{ form_row(form.customerId, { label: t('admin_ts3_servers_col_customer', locale) }) }}
                         {{ form_row(form.nodeId, { label: t('admin_ts3_servers_col_node', locale) }) }}
-                        {{ form_row(form.name, { label: 'Servername' }) }}
-                        {{ form_row(form.voicePort, { label: 'Voice Port' }) }}
-                        {{ form_row(form.filetransferPort, { label: 'Filetransfer Port' }) }}
+                        {{ form_row(form.name, { label: t('admin_ts3_server_form_name', locale) }) }}
+                        {{ form_row(form.voicePort, { label: t('admin_ts3_server_form_voice_port', locale) }) }}
+                        {{ form_row(form.filetransferPort, { label: t('admin_ts3_server_form_filetransfer_port', locale) }) }}
                     </div>
                     <div style="display:flex;justify-content:flex-end;margin-top:20px;">
                         <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts3_server_create_btn', locale) }}</button>

@@ -96,6 +96,12 @@ services:
       - '../src/DependencyInjection/'
       - '../src/Kernel.php'
 
+  App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceConsoleStreamController:
+    arguments:
+      $maxDurationSeconds: 1800
+      $pingIntervalSeconds: 15
+      $debug: '%kernel.debug%'
+
   App\Module\Core\Application\EncryptionService:
     factory: ['@App\Infrastructure\Security\EncryptionServiceFactory', 'create']
 

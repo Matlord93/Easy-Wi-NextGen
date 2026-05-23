@@ -10,7 +10,7 @@
     <input type="hidden" name="target" value="{{ loginTarget|default('') }}">
     <input name="email" type="email" value="{{ form.email }}" placeholder="E-Mail" required>
     <input name="password" type="password" placeholder="{{ t('theme_login_password_placeholder', page_locale()) }}" required>
-    <button type="submit">Einloggen</button>
+    <button type="submit">{{ t('theme_login_submit_btn', page_locale()) }}</button>
   </form>
 </section>
 {% endblock %}

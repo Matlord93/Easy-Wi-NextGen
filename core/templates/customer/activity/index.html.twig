@@ -28,7 +28,7 @@
                 <div style="padding:14px 18px;border-bottom:1px solid var(--ng-border);">
                     <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
                         <div>
-                            <p style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ entry.action }}</p>
+                            <p style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ t('audit_event_' ~ entry.action|replace({'.': '_'}), locale) }}</p>
                             <p style="margin:2px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ entry.actor }}</p>
                         </div>
                         <span class="ui-badge ui-badge--neutral">{{ entry.created_at|date('Y-m-d H:i') }}</span>

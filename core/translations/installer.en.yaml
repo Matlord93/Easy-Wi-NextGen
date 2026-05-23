@@ -20,6 +20,8 @@ step1:
     privileges: "Database user needs CREATE, ALTER, and INDEX privileges."
     root_not_required: "Root database access is not required."
     disable_installer: "After success, /install will be blocked."
+  upgrade_notice_title: "Upgrade Notice"
+  upgrade_notice_text: "For existing installations, please use the update workflow (migrations + settings defaults), not the fresh installer."
 
 step2:
   title: "System Requirements"

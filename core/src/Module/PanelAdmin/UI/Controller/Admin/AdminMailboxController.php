@@ -19,6 +19,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/mailboxes')]
 final class AdminMailboxController
@@ -35,6 +36,7 @@ final class AdminMailboxController
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly MailLimitEnforcer $mailLimitEnforcer,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -42,7 +44,7 @@ final class AdminMailboxController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $mailboxes = $this->mailboxRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -61,7 +63,7 @@ final class AdminMailboxController
     public function table(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $mailboxes = $this->mailboxRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -75,7 +77,7 @@ final class AdminMailboxController
     public function form(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $domains = $this->domainRepository->findBy([], ['name' => 'ASC']);
@@ -90,12 +92,12 @@ final class AdminMailboxController
     public function edit(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $domains = $this->domainRepository->findBy([], ['name' => 'ASC']);
@@ -111,7 +113,7 @@ final class AdminMailboxController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $formData = $this->parsePayload($request, true);
@@ -201,12 +203,12 @@ final class AdminMailboxController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request, false, $mailbox);
@@ -298,12 +300,12 @@ final class AdminMailboxController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         if ($mailbox->isEnabled() !== $enabled) {

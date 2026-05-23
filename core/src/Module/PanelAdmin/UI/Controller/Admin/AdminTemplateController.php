@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/templates')]
 final class AdminTemplateController
@@ -24,6 +25,7 @@ final class AdminTemplateController
         private readonly AuditLogger $auditLogger,
         private readonly GameTemplateSeedSyncService $seedSyncService,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -31,7 +33,7 @@ final class AdminTemplateController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $templates = $this->templateRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -47,7 +49,7 @@ final class AdminTemplateController
     public function createPage(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/templates/create.html.twig', [
@@ -60,7 +62,7 @@ final class AdminTemplateController
     public function editPage(Request $request, string $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $template = $this->templateRepository->find($id);
@@ -78,7 +80,7 @@ final class AdminTemplateController
     public function importPage(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/templates/import.html.twig', [
@@ -91,7 +93,7 @@ final class AdminTemplateController
     public function previewPage(Request $request, string $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $template = $this->templateRepository->find($id);
@@ -110,7 +112,7 @@ final class AdminTemplateController
     public function table(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $templates = $this->templateRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -124,7 +126,7 @@ final class AdminTemplateController
     public function form(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $templateId = (int) $request->query->get('id', 0);
@@ -152,7 +154,7 @@ final class AdminTemplateController
     public function preview(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $preview = [
@@ -182,7 +184,7 @@ final class AdminTemplateController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $formData = $this->parsePayload($request);
@@ -246,7 +248,7 @@ final class AdminTemplateController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $template = $this->templateRepository->find($id);
@@ -311,7 +313,7 @@ final class AdminTemplateController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $template = $this->templateRepository->find((int) $id);
@@ -324,9 +326,9 @@ final class AdminTemplateController
             $this->entityManager->persist($template);
             $this->entityManager->flush();
             $this->auditLogger->log('template.shared_paths_synced', ['template_id' => $template->getId(), 'game_key' => $template->getGameKey()], $actor);
-            $request->getSession()?->getFlashBag()->add('success', 'Shared paths wurden aktualisiert.');
+            $request->getSession()?->getFlashBag()->add('success', $this->translator->trans('admin_template_shared_paths_updated'));
         } else {
-            $request->getSession()?->getFlashBag()->add('info', 'Keine Aktualisierung erforderlich oder kein Seed-Match gefunden.');
+            $request->getSession()?->getFlashBag()->add('info', $this->translator->trans('admin_template_shared_paths_no_update'));
         }
 
         return new Response('', Response::HTTP_NO_CONTENT, ['HX-Trigger' => 'templates-changed']);
@@ -337,7 +339,7 @@ final class AdminTemplateController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $payload = trim((string) $request->request->get('payload', ''));

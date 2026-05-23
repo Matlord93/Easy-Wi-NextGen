@@ -5,13 +5,13 @@
 {% block content %}
 <div class="ng-contact-page">
   <div class="ng-contact-page__header">
-    <h1 class="ng-contact-page__title">Kontakt</h1>
-    <p class="ng-contact-page__subtitle">Hast du Fragen oder Anliegen? Schreib uns – wir melden uns so schnell wie möglich.</p>
+    <h1 class="ng-contact-page__title">{{ t('theme_contact_title', page_locale()) }}</h1>
+    <p class="ng-contact-page__subtitle">{{ t('theme_contact_subtitle', page_locale()) }}</p>
   </div>
 
   {% if success %}
     <div class="ng-contact-success">
-      <strong>Nachricht gesendet!</strong> Wir haben deine Anfrage erhalten und melden uns bald bei dir.
+      <strong>{{ t('theme_contact_success_title', page_locale()) }}</strong> {{ t('theme_contact_success_body', page_locale()) }}
     </div>
   {% else %}
     {% if error is not null %}
@@ -27,27 +27,27 @@
 
       <div class="ng-contact-form__row">
         <div class="ng-contact-form__field">
-          <label class="ng-contact-form__label" for="contact_name">Name *</label>
-          <input class="ng-contact-form__input" type="text" id="contact_name" name="name" required maxlength="140" placeholder="Dein Name">
+          <label class="ng-contact-form__label" for="contact_name">{{ t('theme_contact_label_name', page_locale()) }}</label>
+          <input class="ng-contact-form__input" type="text" id="contact_name" name="name" required maxlength="140" placeholder="{{ t('theme_contact_placeholder_name', page_locale()) }}">
         </div>
         <div class="ng-contact-form__field">
           <label class="ng-contact-form__label" for="contact_email">E-Mail *</label>
-          <input class="ng-contact-form__input" type="email" id="contact_email" name="email" required maxlength="180" placeholder="deine@email.de">
+          <input class="ng-contact-form__input" type="email" id="contact_email" name="email" required maxlength="180" placeholder="{{ t('theme_contact_placeholder_email', page_locale()) }}">
         </div>
       </div>
 
       <div class="ng-contact-form__field">
-        <label class="ng-contact-form__label" for="contact_subject">Betreff *</label>
-        <input class="ng-contact-form__input" type="text" id="contact_subject" name="subject" required maxlength="255" placeholder="Worum geht es?">
+        <label class="ng-contact-form__label" for="contact_subject">{{ t('theme_contact_label_subject', page_locale()) }}</label>
+        <input class="ng-contact-form__input" type="text" id="contact_subject" name="subject" required maxlength="255" placeholder="{{ t('theme_contact_placeholder_subject', page_locale()) }}">
       </div>
 
       <div class="ng-contact-form__field">
-        <label class="ng-contact-form__label" for="contact_message">Nachricht *</label>
-        <textarea class="ng-contact-form__textarea" id="contact_message" name="message" required maxlength="5000" placeholder="Deine Nachricht…"></textarea>
+        <label class="ng-contact-form__label" for="contact_message">{{ t('theme_contact_label_message', page_locale()) }}</label>
+        <textarea class="ng-contact-form__textarea" id="contact_message" name="message" required maxlength="5000" placeholder="{{ t('theme_contact_placeholder_message', page_locale()) }}"></textarea>
       </div>
 
       <div class="ng-contact-form__actions">
-        <button type="submit" class="ng-btn ng-btn--primary">Nachricht senden →</button>
+        <button type="submit" class="ng-btn ng-btn--primary">{{ t('theme_contact_submit', page_locale()) }}</button>
       </div>
     </form>
   {% endif %}

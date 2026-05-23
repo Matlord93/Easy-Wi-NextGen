@@ -11,12 +11,14 @@ use App\Repository\InstanceRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class InstanceTemplateProvisionApiController
 {
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly AgentGameServerClient $agentGameServerClient,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -25,23 +27,23 @@ final class InstanceTemplateProvisionApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $instance = $this->instanceRepository->find((int) $id);
         if (!$instance instanceof Instance) {
-            return new JsonResponse(['error' => 'Instance not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_instance_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $installResolver = $instance->getTemplate()->getInstallResolver();
         $masterDir = trim((string) ($installResolver['master_dir'] ?? ''));
         if ($masterDir === '') {
-            return new JsonResponse(['error' => 'Template master_dir missing in install_resolver.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_template_master_dir_missing')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $targetDir = trim((string) $instance->getInstallPath());
         if ($targetDir === '') {
-            return new JsonResponse(['error' => 'Instance install path is empty.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_instance_install_path_empty')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $payload = [
@@ -61,7 +63,7 @@ final class InstanceTemplateProvisionApiController
         } catch (\Throwable $exception) {
             return new JsonResponse([
                 'ok' => false,
-                'error' => 'Provisioning via Go-Agent failed.',
+                'error' => $this->translator->trans('gs_api_provisioning_failed'),
                 'details' => $exception->getMessage(),
             ], JsonResponse::HTTP_BAD_GATEWAY);
         }

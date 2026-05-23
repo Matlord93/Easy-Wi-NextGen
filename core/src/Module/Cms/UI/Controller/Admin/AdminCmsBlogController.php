@@ -19,6 +19,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/cms/blog')]
@@ -32,6 +33,7 @@ final class AdminCmsBlogController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -39,12 +41,12 @@ final class AdminCmsBlogController
     public function index(Request $request): Response
     {
         if (!$this->isCmsUser($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $posts = $this->postRepository->findBy(['site' => $site], ['updatedAt' => 'DESC']);
@@ -62,12 +64,12 @@ final class AdminCmsBlogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $name = trim((string) $request->request->get('name', ''));
@@ -99,17 +101,17 @@ final class AdminCmsBlogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $category = $this->categoryRepository->find($id);
         if (!$category instanceof BlogCategory || $category->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $this->entityManager->remove($category);
@@ -123,12 +125,12 @@ final class AdminCmsBlogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $name = trim((string) $request->request->get('name', ''));
@@ -160,17 +162,17 @@ final class AdminCmsBlogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $tag = $this->tagRepository->find($id);
         if (!$tag instanceof BlogTag || $tag->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $this->entityManager->remove($tag);
@@ -183,12 +185,12 @@ final class AdminCmsBlogController
     public function new(Request $request): Response
     {
         if (!$this->isCmsUser($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if (!$site instanceof Site) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/cms/blog/form.html.twig', [
@@ -202,12 +204,12 @@ final class AdminCmsBlogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request, $site);
@@ -243,17 +245,17 @@ final class AdminCmsBlogController
     public function edit(Request $request, int $id): Response
     {
         if (!$this->isCmsUser($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $post = $this->postRepository->find($id);
         if (!$post instanceof CmsPost || $post->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('admin/cms/blog/form.html.twig', [
@@ -267,17 +269,17 @@ final class AdminCmsBlogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $post = $this->postRepository->find($id);
         if (!$post instanceof CmsPost || $post->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request, $site, $post);
@@ -319,17 +321,17 @@ final class AdminCmsBlogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $post = $this->postRepository->find($id);
         if (!$post instanceof CmsPost || $post->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $this->auditLogger->log($actor, 'cms.blog.deleted', [
@@ -444,16 +446,16 @@ final class AdminCmsBlogController
         $isPublished = $request->request->get('is_published') === 'on';
 
         if ($title === '') {
-            $errors[] = 'Title is required.';
+            $errors[] = $this->translator->trans('cms_blog_title_required');
         }
         if ($slug === '') {
-            $errors[] = 'Slug is required.';
+            $errors[] = $this->translator->trans('cms_blog_slug_required');
         }
         if ($slug !== '' && $this->isDuplicateSlug($site, $slug, $existingPost)) {
-            $errors[] = 'Slug is already in use for this site.';
+            $errors[] = $this->translator->trans('cms_blog_slug_duplicate');
         }
         if ($content === '') {
-            $errors[] = 'Content is required.';
+            $errors[] = $this->translator->trans('cms_blog_content_required');
         }
 
         $categoryId = is_numeric($categoryIdRaw) ? (int) $categoryIdRaw : null;

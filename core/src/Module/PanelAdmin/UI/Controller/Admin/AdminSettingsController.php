@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/settings')]
 final class AdminSettingsController
@@ -25,6 +26,7 @@ final class AdminSettingsController
         private readonly AuditLogger $auditLogger,
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -32,7 +34,7 @@ final class AdminSettingsController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $activeTab = $this->resolveTab((string) $request->query->get('tab', 'general'));
@@ -56,7 +58,7 @@ final class AdminSettingsController
     public function update(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $activeTab = $this->resolveTab((string) $request->request->get('tab', 'general'));
@@ -237,7 +239,7 @@ final class AdminSettingsController
     public function mailTemplates(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new RedirectResponse($this->urlGenerator->generate('admin_settings', ['tab' => 'mail_templates']));
@@ -247,12 +249,12 @@ final class AdminSettingsController
     public function rotateAgentRegistrationToken(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $this->settingsService->rotateAgentRegistrationToken();

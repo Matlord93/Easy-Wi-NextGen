@@ -15,6 +15,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class DnsRecordApiController
 {
@@ -24,6 +25,7 @@ final class DnsRecordApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly DnsRecordHelper $recordHelper,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -41,7 +43,7 @@ final class DnsRecordApiController
 
         $domain = $formData['domain'];
         if (!$this->canAccessDomain($actor, $domain)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $record = new DnsRecord(
@@ -89,11 +91,11 @@ final class DnsRecordApiController
         $actor = $this->requireUser($request);
         $record = $this->dnsRecordRepository->find($id);
         if ($record === null) {
-            return new JsonResponse(['error' => 'Record not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('dns_record_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessDomain($actor, $record->getDomain())) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $payload = $this->parseJsonPayload($request);
@@ -104,7 +106,7 @@ final class DnsRecordApiController
 
         $domain = $formData['domain'];
         if (!$this->canAccessDomain($actor, $domain)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $previous = [
@@ -158,11 +160,11 @@ final class DnsRecordApiController
         $actor = $this->requireUser($request);
         $record = $this->dnsRecordRepository->find($id);
         if ($record === null) {
-            return new JsonResponse(['error' => 'Record not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('dns_record_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessDomain($actor, $record->getDomain())) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $job = $this->queueDnsJob('dns.record.delete', $record);
@@ -188,7 +190,7 @@ final class DnsRecordApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -230,12 +232,12 @@ final class DnsRecordApiController
         }
 
         if (!is_numeric($domainId)) {
-            return ['error' => new JsonResponse(['error' => 'Domain is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_domain_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $domain = $this->domainRepository->find((int) $domainId);
         if ($domain === null) {
-            return ['error' => new JsonResponse(['error' => 'Domain not found.'], JsonResponse::HTTP_NOT_FOUND)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_domain_not_found')], JsonResponse::HTTP_NOT_FOUND)];
         }
 
         return [

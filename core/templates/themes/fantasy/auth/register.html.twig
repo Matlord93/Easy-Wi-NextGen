@@ -4,9 +4,9 @@
 {% block footer %}{% endblock %}
 {% block content %}
 <section class="theme-wrap auth-box">
-  <h2>Registrierung</h2>
+  <h2>{{ t('theme_register_heading', page_locale()) }}</h2>
   {% for error in errors %}<p class="error">{{ error }}</p>{% endfor %}
-  {% if registered %}<p class="success">Konto erstellt.</p>{% endif %}
+  {% if registered %}<p class="success">{{ t('theme_register_success', page_locale()) }}</p>{% endif %}
   <form method="post" action="/register">
     <input type="hidden" name="_token" value="{{ csrf_token('public_register') }}">
     <input type="text" name="website" class="hidden" tabindex="-1" autocomplete="off">
@@ -17,7 +17,7 @@
     {% if captcha_question %}
       <label>{{ captcha_question }} <input name="captcha_answer" required></label>
     {% endif %}
-    <button type="submit">Registrieren</button>
+    <button type="submit">{{ t('theme_register_submit_btn', page_locale()) }}</button>
   </form>
 </section>
 <script>

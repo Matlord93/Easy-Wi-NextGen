@@ -22,6 +22,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/ts3/servers')]
@@ -36,6 +37,7 @@ final class AdminTs3ServerController
         private readonly VirtualServerDtoFactory $dtoFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -104,13 +106,13 @@ final class AdminTs3ServerController
             $node = $this->nodeRepository->find($dto->nodeId);
 
             if ($customer === null || $node === null) {
-                $form->addError(new FormError('Customer or node not found.'));
+                $form->addError(new FormError($this->translator->trans('form_error_customer_or_node_not_found')));
             }
             if ($form->isValid()) {
                 try {
                     $createDto = $this->dtoFactory->createTs3($dto);
                     $this->virtualServerService->createForCustomer($customer->getId() ?? 0, $node, $createDto);
-                    $request->getSession()->getFlashBag()->add('success', 'TS3 virtual server created.');
+                    $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_virtual_server_created'));
 
                     return new Response('', Response::HTTP_FOUND, [
                         'Location' => '/admin/ts3/servers/create',
@@ -147,7 +149,7 @@ final class AdminTs3ServerController
         $guard = $this->resolveAssignGuardReason($server->getSid(), $server->getStatus());
         if ($guard !== null) {
             $actionId = Uuid::v4()->toRfc4122();
-            $request->getSession()->getFlashBag()->add('error', sprintf('Assign blocked (%s). Action ID: %s', $guard, $actionId));
+            $request->getSession()->getFlashBag()->add('error', $this->translator->trans('admin_ts3_virtual_server_assign_blocked', ['%guard%' => $guard, '%action_id%' => $actionId]));
             return new Response('', Response::HTTP_FOUND, [
                 'Location' => '/admin/ts3/servers',
             ]);
@@ -155,7 +157,7 @@ final class AdminTs3ServerController
 
         $server->setCustomerId($customerId);
         $this->virtualServerRepository->getEntityManager()->flush();
-        $request->getSession()->getFlashBag()->add('success', 'TS3 virtual server assigned.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_virtual_server_assigned'));
 
         return new Response('', Response::HTTP_FOUND, [
             'Location' => '/admin/ts3/servers',
@@ -176,7 +178,7 @@ final class AdminTs3ServerController
 
         try {
             $this->virtualServerService->delete($server);
-            $request->getSession()->getFlashBag()->add('success', 'TS3 virtual server deletion queued.');
+            $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_virtual_server_deletion_queued'));
         } catch (\RuntimeException | \InvalidArgumentException $exception) {
             $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
         }
@@ -190,7 +192,7 @@ final class AdminTs3ServerController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -200,7 +202,7 @@ final class AdminTs3ServerController
     {
         $token = new CsrfToken($id, (string) $request->request->get('_token'));
         if (!$this->csrfTokenManager->isTokenValid($token)) {
-            throw new BadRequestHttpException('Invalid CSRF token.');
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_csrf'));
         }
     }
 

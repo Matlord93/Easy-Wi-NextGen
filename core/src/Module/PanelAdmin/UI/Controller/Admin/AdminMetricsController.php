@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/metrics')]
 final class AdminMetricsController
@@ -31,6 +32,7 @@ final class AdminMetricsController
         private readonly LoggerInterface $logger,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%app.status_stale_grace_seconds%')]
         private readonly int $heartbeatGraceSeconds,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -82,7 +84,7 @@ final class AdminMetricsController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $tab = (string) $request->query->get('tab', 'host');

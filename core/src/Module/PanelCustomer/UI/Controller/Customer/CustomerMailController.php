@@ -29,6 +29,7 @@ use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/mail')]
 #[RequiresModule('mail')]
@@ -63,6 +64,7 @@ final class CustomerMailController
         private readonly MailDnsCheckService $mailDnsCheckService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -345,7 +347,7 @@ final class CustomerMailController
         $customer = $this->requireCustomer($request);
         $mailbox = $this->loadMailbox($customer, $id);
         if ($mailbox === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $mailDomain = $this->mailDomainRepository->findOneByDomain($mailbox->getDomain());
@@ -590,7 +592,7 @@ final class CustomerMailController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;

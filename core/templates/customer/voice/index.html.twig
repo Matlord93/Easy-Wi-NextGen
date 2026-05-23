@@ -135,6 +135,10 @@
         none:        {{ t('customer_voice_none', locale)|json_encode|raw }},
         loading:     {{ t('customer_voice_loading_short', locale)|json_encode|raw }},
         loadError:   {{ t('customer_voice_load_error', locale)|json_encode|raw }},
+        probe:       {{ t('customer_voice_action_probe', locale)|json_encode|raw }},
+        start:       {{ t('customer_voice_action_start', locale)|json_encode|raw }},
+        stop:        {{ t('customer_voice_action_stop', locale)|json_encode|raw }},
+        restart:     {{ t('customer_voice_action_restart', locale)|json_encode|raw }},
     };
 
     const root       = document.getElementById('voice-root');
@@ -197,10 +201,10 @@
                     </div>
                     <div class="vl-server-card__actions">
                         ${detailHref?`<a href="${esc(detailHref)}" class="ui-button ui-button--primary ui-button--sm">${esc(i18n.manage)}</a>`:''}
-                        <button type="button" data-action="probe"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''}>Probe</button>
-                        <button type="button" data-action="start"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''} style="${actEnabled?'color:#4ade80;border-color:rgba(34,197,94,.3);':''}">Start</button>
-                        <button type="button" data-action="stop"    data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''} style="${actEnabled?'color:#f87171;border-color:rgba(239,68,68,.3);':''}">Stop</button>
-                        <button type="button" data-action="restart" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''}>Restart</button>
+                        <button type="button" data-action="probe"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''}>${esc(i18n.probe)}</button>
+                        <button type="button" data-action="start"   data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''} style="${actEnabled?'color:#4ade80;border-color:rgba(34,197,94,.3);':''}">${esc(i18n.start)}</button>
+                        <button type="button" data-action="stop"    data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''} style="${actEnabled?'color:#f87171;border-color:rgba(239,68,68,.3);':''}">${esc(i18n.stop)}</button>
+                        <button type="button" data-action="restart" data-id="${esc(String(i.id))}" class="ui-button ui-button--ghost ui-button--sm" ${(!actEnabled||isBusy)?'disabled':''}>${esc(i18n.restart)}</button>
                     </div>
                 </div>
             </div>

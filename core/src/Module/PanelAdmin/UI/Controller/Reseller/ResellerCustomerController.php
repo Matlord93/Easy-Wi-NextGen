@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/reseller/customers')]
 final class ResellerCustomerController
@@ -26,6 +27,7 @@ final class ResellerCustomerController
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -34,7 +36,7 @@ final class ResellerCustomerController
     {
         $reseller = $this->resolveReseller($request);
         if ($reseller === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->renderIndex($reseller));
@@ -45,7 +47,7 @@ final class ResellerCustomerController
     {
         $reseller = $this->resolveReseller($request);
         if ($reseller === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $payload = $request->request->all();

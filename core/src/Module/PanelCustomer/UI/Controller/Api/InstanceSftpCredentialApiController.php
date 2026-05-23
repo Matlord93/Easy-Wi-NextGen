@@ -21,6 +21,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class InstanceSftpCredentialApiController
 {
@@ -34,6 +35,7 @@ final class InstanceSftpCredentialApiController
         private readonly AppSettingsService $settingsService,
         private readonly AuditLogger $auditLogger,
         private readonly LoggerInterface $logger,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -300,7 +302,7 @@ final class InstanceSftpCredentialApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -310,7 +312,7 @@ final class InstanceSftpCredentialApiController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException('Instance not found.');
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         if ($actor->isAdmin()) {
@@ -318,7 +320,7 @@ final class InstanceSftpCredentialApiController
         }
 
         if ($instance->getCustomer()->getId() !== $actor->getId()) {
-            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('Forbidden.');
+            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $instance;

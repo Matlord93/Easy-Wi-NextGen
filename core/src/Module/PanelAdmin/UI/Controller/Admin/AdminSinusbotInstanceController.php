@@ -23,6 +23,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/sinusbot/instances')]
 final class AdminSinusbotInstanceController
@@ -34,6 +35,7 @@ final class AdminSinusbotInstanceController
         private readonly EntityManagerInterface $entityManager,
         private readonly SinusbotInstanceProvisioner $provisioner,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -50,12 +52,12 @@ final class AdminSinusbotInstanceController
 
         $node = $this->nodeRepository->find($nodeId);
         if ($node === null) {
-            throw new NotFoundHttpException('SinusBot node not found.');
+            throw new NotFoundHttpException($this->translator->trans('sinusbot_node_not_found'));
         }
 
         $customer = $this->userRepository->find($customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
-            throw new NotFoundHttpException('Customer not found.');
+            throw new NotFoundHttpException($this->translator->trans('error_customer_not_found'));
         }
 
         try {
@@ -72,11 +74,11 @@ final class AdminSinusbotInstanceController
             $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
             return $this->redirectToNode($nodeId);
         } catch (UniqueConstraintViolationException) {
-            $request->getSession()->getFlashBag()->add('error', 'Die Instanz existiert bereits.');
+            $request->getSession()->getFlashBag()->add('error', $this->translator->trans('admin_sinusbot_instance_already_exists'));
             return $this->redirectToNode($nodeId);
         }
 
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Instanz erstellt.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_created'));
 
         return $this->redirectToNode($nodeId);
     }
@@ -89,7 +91,7 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_start_' . $id);
 
         $this->provisioner->startInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Instanz gestartet.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_started'));
 
         return $this->redirectToNode($instance->getNode()->getId());
     }
@@ -102,7 +104,7 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_stop_' . $id);
 
         $this->provisioner->stopInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Instanz gestoppt.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_stopped'));
 
         return $this->redirectToNode($instance->getNode()->getId());
     }
@@ -115,7 +117,7 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_restart_' . $id);
 
         $this->provisioner->restartInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Instanz neu gestartet.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_restarted'));
 
         return $this->redirectToNode($instance->getNode()->getId());
     }
@@ -128,7 +130,7 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_reset_password_' . $id);
 
         $this->provisioner->resetPassword($instance);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Passwort neu gesetzt.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_password_reset'));
 
         return $this->redirectToNode($instance->getNode()->getId());
     }
@@ -148,7 +150,7 @@ final class AdminSinusbotInstanceController
             return $this->redirectToNode($instance->getNode()->getId());
         }
 
-        $request->getSession()->getFlashBag()->add('success', 'Bot-Quota aktualisiert.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_quota_updated'));
 
         return $this->redirectToNode($instance->getNode()->getId());
     }
@@ -168,7 +170,7 @@ final class AdminSinusbotInstanceController
             $instance->setCustomer(null);
             $instance->setStatus('stopped');
             $this->entityManager->flush();
-            $request->getSession()->getFlashBag()->add('success', 'SinusBot-Instanz deaktiviert.');
+            $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_deactivated'));
 
             return $this->redirectToNode($nodeId);
         }
@@ -183,7 +185,7 @@ final class AdminSinusbotInstanceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -193,7 +195,7 @@ final class AdminSinusbotInstanceController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('SinusBot instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('sinusbot_instance_not_found'));
         }
 
         return $instance;
@@ -203,7 +205,7 @@ final class AdminSinusbotInstanceController
     {
         $token = new CsrfToken($tokenId, (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($token)) {
-            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+            throw new UnauthorizedHttpException('csrf', $this->translator->trans('error_invalid_csrf'));
         }
     }
 

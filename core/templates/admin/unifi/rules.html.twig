@@ -1,7 +1,7 @@
 {% extends 'admin/base.html.twig' %}
 
-{% set pageTitle = 'UniFi Manuelle Regeln' %}
-{% set pageSubtitle = 'Port Forward CRUD' %}
+{% set pageTitle = t('admin_unifi_rules_title', page_locale()) %}
+{% set pageSubtitle = t('admin_unifi_rules_subtitle', page_locale()) %}
 
 {% block content %}
 {% set locale = page_locale() %}

@@ -43,18 +43,18 @@
                 </div>
             </div>
             <div class="mt-3 rounded-lg border border-slate-700/40 bg-slate-900/40 p-3 text-xs text-slate-400">
-                <span class="font-semibold text-slate-300">Pin-Status:</span>
+                <span class="font-semibold text-slate-300">{{ t('customer_instance_pin_status_label', page_locale()) }}</span>
                 {% if (instance.locked_build_id ?? '') != '' or (instance.locked_version ?? '') != '' %}
-                    <span class="ml-1 font-semibold text-amber-400">Gesperrt</span>
+                    <span class="ml-1 font-semibold text-amber-400">{{ t('customer_instance_pin_locked', page_locale()) }}</span>
                 {% else %}
-                    <span class="ml-1 font-semibold text-emerald-400">Nicht gesperrt</span>
+                    <span class="ml-1 font-semibold text-emerald-400">{{ t('customer_instance_pin_unlocked', page_locale()) }}</span>
                 {% endif %}
                 {% if instance.schedule %}
                     <div class="mt-1 space-y-0.5 text-[11px] text-slate-500">
-                        <div>Letzter Lauf: {{ instance.schedule.last_run_at ? instance.schedule.last_run_at|date('Y-m-d H:i:s') : '—' }}</div>
-                        <div>Status: {{ instance.schedule.last_status ?: '—' }}{% if instance.schedule.last_error_code %} ({{ t('customer_instance_schedule_error_label', page_locale())|replace({'%code%': instance.schedule.last_error_code}) }}){% endif %}</div>
+                        <div>{{ t('customer_instance_schedule_last_run_label', page_locale()) }} {{ instance.schedule.last_run_at ? instance.schedule.last_run_at|date('Y-m-d H:i:s') : '—' }}</div>
+                        <div>{{ t('customer_instance_schedule_status_label', page_locale()) }} {{ instance.schedule.last_status ?: '—' }}{% if instance.schedule.last_error_code %} ({{ t('customer_instance_schedule_error_label', page_locale())|replace({'%code%': instance.schedule.last_error_code}) }}){% endif %}</div>
                         {% if instance.schedule.next_run_at %}
-                            <div>Nächster Lauf: {{ instance.schedule.next_run_at|date('Y-m-d H:i:s') }}</div>
+                            <div>{{ t('customer_instance_schedule_next_run_label', page_locale()) }} {{ instance.schedule.next_run_at|date('Y-m-d H:i:s') }}</div>
                         {% endif %}
                     </div>
                 {% endif %}

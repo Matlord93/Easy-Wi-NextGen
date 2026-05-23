@@ -95,7 +95,7 @@
                         {% if template.shared_paths_sync.seed is not empty %}
                         <button class="ui-button ui-button--ghost ui-button--sm"
                             hx-post="/admin/templates/{{ template.id }}/sync-shared-paths"
-                            hx-swap="none">shared_paths aus Standard aktualisieren</button>
+                            hx-swap="none">{{ t('admin_templates_sync_shared_paths_from_seed', page_locale()) }}</button>
                         {% endif %}
                     </td>
                 </tr>

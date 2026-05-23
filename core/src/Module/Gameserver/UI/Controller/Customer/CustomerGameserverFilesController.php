@@ -16,6 +16,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 use App\Module\Core\Attribute\RequiresModule;
 
@@ -27,6 +28,7 @@ final class CustomerGameserverFilesController
         private readonly AppSettingsService $appSettingsService,
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -34,7 +36,7 @@ final class CustomerGameserverFilesController
     public function __invoke(Request $request, int $id): Response
     {
         if (!$this->appSettingsService->isCustomerDataManagerEnabled()) {
-            throw new AccessDeniedHttpException('File manager is disabled.');
+            throw new AccessDeniedHttpException($this->translator->trans('customer_instance_files_error_file_manager_disabled'));
         }
 
         $customer = $this->requireCustomer($request);
@@ -45,7 +47,7 @@ final class CustomerGameserverFilesController
             'tabs' => $this->buildTabs((int) ($instance->getId() ?? 0)),
             'activeTab' => 'files',
             'activeNav' => 'instances',
-            'pageTitle' => 'File Manager',
+            'pageTitle' => $this->translator->trans('customer_instance_files_page_title'),
             'pageSubtitle' => $instance->getServerName() !== '' ? $instance->getServerName() : $instance->getTemplate()->getDisplayName(),
         ]));
     }
@@ -107,7 +109,7 @@ final class CustomerGameserverFilesController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -117,11 +119,11 @@ final class CustomerGameserverFilesController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         if (!$customer->isAdmin() && $instance->getCustomer()->getId() !== $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $instance;

@@ -18,6 +18,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route('/admin/voice/nodes')]
@@ -32,6 +33,7 @@ final class AdminVoiceNodeController
         private readonly EncryptionService $encryptionService,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -39,7 +41,7 @@ final class AdminVoiceNodeController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden', 403);
+            return new Response($this->translator->trans('error_forbidden'), 403);
         }
 
         $provider = trim((string) $request->query->get('provider', ''));
@@ -121,7 +123,7 @@ final class AdminVoiceNodeController
     public function create(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden', 403);
+            return new Response($this->translator->trans('error_forbidden'), 403);
         }
 
         $name = trim((string) $request->request->get('name', ''));
@@ -132,7 +134,7 @@ final class AdminVoiceNodeController
         $secret = trim((string) $request->request->get('query_secret', ''));
 
         if ($name === '' || !in_array($providerType, ['ts3', 'ts6'], true) || $host === '' || $queryPort <= 0) {
-            return new Response('Invalid input.', 400);
+            return new Response($this->translator->trans('error_invalid_input'), 400);
         }
 
         $node = new VoiceNode($name, $providerType, $host, $queryPort);
@@ -153,12 +155,12 @@ final class AdminVoiceNodeController
     public function toggle(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden', 403);
+            return new Response($this->translator->trans('error_forbidden'), 403);
         }
 
         $node = $this->repository->find($id);
         if (!$node instanceof VoiceNode) {
-            return new Response('Not found', 404);
+            return new Response($this->translator->trans('error_not_found'), 404);
         }
 
         $node->setEnabled(!$node->isEnabled());

@@ -22,6 +22,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicTwoFactorController
 {
@@ -40,6 +41,7 @@ final class PublicTwoFactorController
         #[Autowire(service: 'limiter.public_2fa_check')]
         private readonly RateLimiterFactory $twoFactorLimiter,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -53,7 +55,7 @@ final class PublicTwoFactorController
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $templateKey = $this->themeResolver->resolveThemeKey($site);
@@ -82,7 +84,7 @@ final class PublicTwoFactorController
 
         $csrf = new CsrfToken('public_2fa_check', (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($csrf)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $limiterKey = sprintf('%s:%d', $request->getClientIp() ?? 'public', $pendingUser->getId() ?? 0);

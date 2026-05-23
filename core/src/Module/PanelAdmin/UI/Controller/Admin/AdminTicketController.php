@@ -36,6 +36,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/tickets')]
 final class AdminTicketController
@@ -76,6 +77,7 @@ final class AdminTicketController
         private readonly AppSettingsService $appSettingsService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -84,7 +86,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return $this->renderIndex($admin, $request);
@@ -95,7 +97,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         $tickets = $this->applyTicketFilters($this->ticketRepository->findVisibleForAdminQueue($admin), $request, $admin);
 
@@ -111,7 +113,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/tickets/_form.html.twig', [
@@ -127,7 +129,7 @@ final class AdminTicketController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_create')) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -179,7 +181,7 @@ final class AdminTicketController
         $this->notificationService->notify(
             $ticket->getCustomer(),
             sprintf('ticket.created.%s', $ticket->getId()),
-            sprintf('Ticket opened · #%s', $ticket->getId()),
+            $this->translator->trans('ticket_notification_opened_title', ['%id%' => $ticket->getId()]),
             $ticket->getSubject(),
             'tickets',
             '/tickets',
@@ -221,12 +223,12 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $messages = $this->ticketMessageRepository->findByTicket($ticket);
@@ -248,7 +250,7 @@ final class AdminTicketController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_message_' . $id)) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -256,7 +258,7 @@ final class AdminTicketController
 
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $attachmentFiles = $this->attachmentFiles($request);
@@ -286,8 +288,8 @@ final class AdminTicketController
         $this->notificationService->notify(
             $ticket->getCustomer(),
             sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
-            sprintf('Reply on ticket · #%s', $ticket->getId()),
-            'An operator replied to your ticket.',
+            $this->translator->trans('ticket_notification_reply_customer_title', ['%id%' => $ticket->getId()]),
+            $this->translator->trans('ticket_notification_reply_customer_body'),
             'tickets',
             '/tickets',
         );
@@ -323,7 +325,7 @@ final class AdminTicketController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_internal_note_' . $id)) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -331,7 +333,7 @@ final class AdminTicketController
 
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $noteBody = trim((string) $request->request->get('internal_note', ''));
@@ -364,7 +366,7 @@ final class AdminTicketController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_status_' . $id)) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -372,7 +374,7 @@ final class AdminTicketController
 
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $statusValue = strtolower(trim((string) $request->request->get('status', '')));
@@ -404,7 +406,7 @@ final class AdminTicketController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_metadata_' . $id)) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -412,7 +414,7 @@ final class AdminTicketController
 
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $status = TicketStatus::tryFrom(strtolower(trim((string) $request->request->get('status', $ticket->getStatus()->value))));
@@ -446,7 +448,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_template_create')) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -484,7 +486,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_template_' . $id)) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -492,7 +494,7 @@ final class AdminTicketController
 
         $template = $this->ticketTemplateRepository->find($id);
         if ($template === null || $template->getAdmin()->getId() !== $admin->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $payload = $this->parseTemplatePayload($request);
@@ -523,7 +525,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_template_delete_' . $id)) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -531,7 +533,7 @@ final class AdminTicketController
 
         $template = $this->ticketTemplateRepository->find($id);
         if ($template === null || $template->getAdmin()->getId() !== $admin->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $this->entityManager->remove($template);
@@ -549,7 +551,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_quick_reply_create')) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -584,7 +586,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_quick_reply_' . $id)) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -592,7 +594,7 @@ final class AdminTicketController
 
         $quickReply = $this->ticketQuickReplyRepository->find($id);
         if ($quickReply === null || $quickReply->getAdmin()->getId() !== $admin->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $payload = $this->parseQuickReplyPayload($request);
@@ -620,7 +622,7 @@ final class AdminTicketController
     {
         $admin = $this->requireAdmin($request);
         if ($admin === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         if (!$this->isCsrfValid($request, 'admin_ticket_quick_reply_delete_' . $id)) {
             return new Response('Invalid CSRF token.', Response::HTTP_UNAUTHORIZED);
@@ -628,7 +630,7 @@ final class AdminTicketController
 
         $quickReply = $this->ticketQuickReplyRepository->find($id);
         if ($quickReply === null || $quickReply->getAdmin()->getId() !== $admin->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $this->entityManager->remove($quickReply);
@@ -646,12 +648,12 @@ final class AdminTicketController
     public function downloadAttachment(Request $request, int $id): Response
     {
         if ($this->requireAdmin($request) === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $attachment = $this->ticketAttachmentRepository->find($id);
         if (!$attachment instanceof TicketAttachment) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return $this->streamAttachment($attachment);
@@ -756,7 +758,7 @@ final class AdminTicketController
     {
         $storagePath = $attachment->getStoragePath();
         if (!$this->isSafeAttachmentStoragePath($storagePath) || !$this->storage->fileExists($storagePath)) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $response = new StreamedResponse(function () use ($storagePath): void {

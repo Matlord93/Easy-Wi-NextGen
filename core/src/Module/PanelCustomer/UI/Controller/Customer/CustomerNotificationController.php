@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/notifications')]
 final class CustomerNotificationController
@@ -24,6 +25,7 @@ final class CustomerNotificationController
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -44,7 +46,7 @@ final class CustomerNotificationController
     {
         $customer = $this->requireCustomer($request);
         if ($notification->getRecipient()->getId() !== $customer->getId()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$notification->isRead()) {
@@ -82,7 +84,7 @@ final class CustomerNotificationController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('Forbidden.');
+            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $actor;

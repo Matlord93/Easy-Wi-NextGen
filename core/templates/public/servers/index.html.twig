@@ -68,7 +68,7 @@
                     <p class="ng-srv-card__game">{{ server.game_key }}</p>
                 </div>
                 <span class="ng-srv-card__badge ng-srv-card__badge--{{ server.status == 'online' ? 'online' : (server.status == 'error' ? 'error' : 'offline') }}">
-                    {% if isOnline %}ONLINE{% elseif server.status == 'error' %}ERROR{% else %}OFFLINE{% endif %}
+                    {% if isOnline %}{{ t('status_online', page_locale()) }}{% elseif server.status == 'error' %}{{ t('status_error', page_locale()) }}{% else %}{{ t('status_offline', page_locale()) }}{% endif %}
                 </span>
             </div>
             <div class="ng-srv-card__body">

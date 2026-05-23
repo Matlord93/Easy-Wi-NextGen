@@ -69,7 +69,7 @@ final class PublicForumController
     {
         $site = $this->resolveForumSite($request);
         if ($site === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenanceResponse = $this->maintenanceResponse($request, $site);
@@ -98,7 +98,7 @@ final class PublicForumController
     {
         $site = $this->resolveForumSite($request);
         if ($site === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $q = trim((string) $request->query->get('q', ''));
@@ -107,7 +107,7 @@ final class PublicForumController
         $error = null;
         if ($q !== '') {
             if (mb_strlen($q) < 3) {
-                $error = 'Bitte mindestens 3 Zeichen eingeben.';
+                $error = $this->translator->trans('flash_forum_search_min_chars');
             } else {
                 $results = $this->threadRepository->searchByQuery($site, $q);
             }
@@ -126,7 +126,7 @@ final class PublicForumController
     {
         $site = $this->resolveForumSite($request);
         if ($site === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenanceResponse = $this->maintenanceResponse($request, $site);
@@ -136,7 +136,7 @@ final class PublicForumController
 
         $board = $this->boardRepository->findOneBy(['site' => $site, 'slug' => $slug]);
         if (!$board instanceof ForumBoard || !$board->isActive()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $page = max(1, (int) $request->query->get('page', 1));
@@ -157,7 +157,7 @@ final class PublicForumController
     {
         $site = $this->resolveForumSite($request);
         if ($site === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenanceResponse = $this->maintenanceResponse($request, $site);
@@ -167,7 +167,7 @@ final class PublicForumController
 
         $thread = $this->threadRepository->find($id);
         if (!$thread instanceof ForumThread || $thread->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
 
@@ -204,25 +204,25 @@ final class PublicForumController
     {
         $site = $this->resolveForumSite($request);
         if ($site === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $actor = $this->requireMemberOrAdminUser($request);
         if (!$actor instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if ($this->banRepository->findActiveForUser($actor) !== null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->consumeLimiter($this->forumThreadLimiter, $request, $actor)) {
-            return new Response('Zu viele neue Themen. Bitte kurz warten.', Response::HTTP_TOO_MANY_REQUESTS);
+            return new Response($this->translator->trans('flash_forum_thread_rate_limit'), Response::HTTP_TOO_MANY_REQUESTS);
         }
 
         $board = $this->boardRepository->findOneBy(['site' => $site, 'slug' => $slug]);
         if (!$board instanceof ForumBoard || !$board->isActive()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         if ($this->isSpamSubmission($request)) {
@@ -231,7 +231,7 @@ final class PublicForumController
 
         $csrf = new CsrfToken('forum_new_thread_' . $board->getId(), (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($csrf)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->captchaVerifier->verify($request, 'forum_new_thread')) {
@@ -260,29 +260,29 @@ final class PublicForumController
     {
         $site = $this->resolveForumSite($request);
         if ($site === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $actor = $this->requireMemberOrAdminUser($request);
         if (!$actor instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if ($this->banRepository->findActiveForUser($actor) !== null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->consumeLimiter($this->forumReplyLimiter, $request, $actor)) {
-            return new Response('Zu viele Antworten. Bitte kurz warten.', Response::HTTP_TOO_MANY_REQUESTS);
+            return new Response($this->translator->trans('flash_forum_reply_rate_limit'), Response::HTTP_TOO_MANY_REQUESTS);
         }
 
         $thread = $this->threadRepository->find($id);
         if (!$thread instanceof ForumThread || $thread->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         if ($thread->isClosed()) {
-            return new Response('Thread geschlossen.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('flash_forum_thread_closed'), Response::HTTP_FORBIDDEN);
         }
 
         if ($this->isSpamSubmission($request)) {
@@ -291,7 +291,7 @@ final class PublicForumController
 
         $csrf = new CsrfToken('forum_reply_' . $thread->getId(), (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($csrf)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->captchaVerifier->verify($request, 'forum_reply')) {
@@ -317,26 +317,26 @@ final class PublicForumController
     {
         $site = $this->resolveForumSite($request);
         if ($site === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $actor = $this->requireMemberOrAdminUser($request);
         if (!$actor instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->consumeLimiter($this->forumReportLimiter, $request, $actor)) {
-            return new Response('Zu viele Meldungen. Bitte kurz warten.', Response::HTTP_TOO_MANY_REQUESTS);
+            return new Response($this->translator->trans('flash_forum_report_rate_limit'), Response::HTTP_TOO_MANY_REQUESTS);
         }
 
         $post = $this->postRepository->find($id);
         if (!$post instanceof ForumPost || $post->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $csrf = new CsrfToken('forum_report_' . $post->getId(), (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($csrf)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if ($this->isSpamSubmission($request)) {
@@ -346,7 +346,7 @@ final class PublicForumController
         $reason = trim((string) $request->request->get('reason', ''));
         $details = trim((string) $request->request->get('reason_details', ''));
         if ($reason === '') {
-            return new Response('Reason required.', Response::HTTP_BAD_REQUEST);
+            return new Response($this->translator->trans('flash_forum_report_reason_required'), Response::HTTP_BAD_REQUEST);
         }
 
         $report = new ForumPostReport($post, $actor, $reason);

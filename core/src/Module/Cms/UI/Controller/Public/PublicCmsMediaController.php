@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/media')]
 final class PublicCmsMediaController
@@ -30,6 +31,7 @@ final class PublicCmsMediaController
         private readonly ThemeResolver $themeResolver,
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -38,7 +40,7 @@ final class PublicCmsMediaController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null || !$this->featureToggle->isEnabled($site, 'media')) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenance = $this->maintenanceService->resolve($request, $site);

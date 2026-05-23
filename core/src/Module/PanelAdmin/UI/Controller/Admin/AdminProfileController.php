@@ -19,6 +19,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/profile')]
 final class AdminProfileController
@@ -34,6 +35,7 @@ final class AdminProfileController
         private readonly TwoFactorPolicy $twoFactorPolicy,
         private readonly AppSettingsService $settingsService,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -291,7 +293,7 @@ final class AdminProfileController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('Forbidden.');
+            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $actor;

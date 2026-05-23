@@ -31,6 +31,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/tickets')]
 final class CustomerTicketController
@@ -68,6 +69,7 @@ final class CustomerTicketController
         private readonly AppSettingsService $appSettingsService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -161,8 +163,8 @@ final class CustomerTicketController
         ]);
         $this->notificationService->notifyAdmins(
             sprintf('ticket.created.%s', $ticket->getId()),
-            sprintf('New ticket · #%s', $ticket->getId()),
-            sprintf('%s · %s', $ticket->getCustomer()->getEmail(), $ticket->getSubject()),
+            $this->translator->trans('ticket_notification_created_title', ['%id%' => $ticket->getId()]),
+            $this->translator->trans('ticket_notification_created_body', ['%email%' => $ticket->getCustomer()->getEmail(), '%subject%' => $ticket->getSubject()]),
             'tickets',
             '/admin/tickets',
         );
@@ -199,7 +201,7 @@ final class CustomerTicketController
         $customer = $this->requireCustomer($request);
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null || $ticket->getCustomer()->getId() !== $customer->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $messages = $this->ticketMessageRepository->findPublicByTicket($ticket);
@@ -223,7 +225,7 @@ final class CustomerTicketController
         }
         $ticket = $this->ticketRepository->find($id);
         if ($ticket === null || $ticket->getCustomer()->getId() !== $actor->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $attachmentFiles = $this->attachmentFiles($request);
@@ -289,7 +291,7 @@ final class CustomerTicketController
         $customer = $this->requireCustomer($request);
         $attachment = $this->ticketAttachmentRepository->find($id);
         if (!$attachment instanceof TicketAttachment || $attachment->getTicket()->getCustomer()->getId() !== $customer->getId() || $attachment->getMessage()->isInternal()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return $this->streamAttachment($attachment);
@@ -394,7 +396,7 @@ final class CustomerTicketController
     {
         $storagePath = $attachment->getStoragePath();
         if (!$this->isSafeAttachmentStoragePath($storagePath) || !$this->storage->fileExists($storagePath)) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $response = new StreamedResponse(function () use ($storagePath): void {
@@ -468,7 +470,7 @@ final class CustomerTicketController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;

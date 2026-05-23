@@ -19,6 +19,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/databases')]
 final class CustomerDatabaseController
@@ -32,6 +33,7 @@ final class CustomerDatabaseController
         private readonly DatabaseProvisioningService $provisioningService,
         private readonly DatabaseNamingPolicy $namingPolicy,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -138,7 +140,7 @@ final class CustomerDatabaseController
         $customer = $this->requireCustomer($request);
         $database = $this->databaseRepository->find($id);
         if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $agentId = $database->getNode()?->getAgent()->getId() ?? '';

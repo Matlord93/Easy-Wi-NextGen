@@ -1,7 +1,7 @@
 {% extends 'admin/base.html.twig' %}
 
-{% set pageTitle = 'Game Profiles' %}
-{% set pageSubtitle = 'Port and slot enforcement profiles loaded from configuration.' %}
+{% set pageTitle = t('admin_game_profiles_title', page_locale()) %}
+{% set pageSubtitle = t('admin_game_profiles_subtitle', page_locale()) %}
 {% set activeNav = 'game-profiles' %}
 
 {% block content %}

@@ -37,6 +37,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/v1/customer/voice')]
 final class CustomerVoiceApiController
@@ -62,6 +63,7 @@ final class CustomerVoiceApiController
         private readonly AuditLogger $auditLogger,
         private readonly ServerQueryLimiterInterface $queryLimiter,
         private readonly CacheInterface $cache,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -83,7 +85,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $checkedAt = $instance->getCheckedAt();
@@ -165,7 +167,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $action = strtolower(trim($action));
@@ -233,7 +235,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $providerType = $instance->getNode()->getProviderType();
@@ -294,7 +296,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $providerType = $instance->getNode()->getProviderType();
@@ -339,7 +341,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $body = json_decode((string) $request->getContent(), true) ?? [];
@@ -388,7 +390,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $cacheKey = sprintf('voice_%d_summary', $id);
@@ -444,7 +446,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $cacheKey = sprintf('voice_%d_groups', $id);
@@ -497,7 +499,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $providerType = $instance->getNode()->getProviderType();
@@ -557,7 +559,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $body = json_decode((string) $request->getContent(), true) ?? [];
@@ -595,7 +597,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $providerType = $instance->getNode()->getProviderType();
@@ -641,7 +643,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $body = json_decode((string) $request->getContent(), true) ?? [];
@@ -697,7 +699,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $providerType = $instance->getNode()->getProviderType();
@@ -743,7 +745,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $cacheKey = sprintf('voice_%d_snapshot_%d', $id, time());
@@ -778,7 +780,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $cacheKey = trim((string) $request->query->get('key', ''));
@@ -815,7 +817,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $uploadedFile = $request->files->get('snapshot');
@@ -876,7 +878,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $body = json_decode((string) $request->getContent(), true) ?? [];
@@ -913,7 +915,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $body = json_decode((string) $request->getContent(), true) ?? [];
@@ -952,7 +954,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $body = json_decode((string) $request->getContent(), true) ?? [];
@@ -999,7 +1001,7 @@ final class CustomerVoiceApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerVoiceInstance($customer, $id);
         if ($instance === null) {
-            return $this->responseEnvelopeFactory->error($request, 'Instance not found.', 'voice_instance_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
         $providerType = $instance->getNode()->getProviderType();
@@ -1031,7 +1033,7 @@ final class CustomerVoiceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;

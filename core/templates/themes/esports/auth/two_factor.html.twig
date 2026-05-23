@@ -6,13 +6,13 @@
 <section class="theme-wrap" style="max-width:880px;">
   <div class="theme-card auth-box" style="padding:1.5rem;">
     <p style="font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:#67e8f9;">{{ t('theme_2fa_security', page_locale()) }}</p>
-    <h2 style="margin-top:.4rem;font-size:2rem;">Zwei-Faktor-Anmeldung</h2>
+    <h2 style="margin-top:.4rem;font-size:2rem;">{{ t('theme_2fa_heading', page_locale()) }}</h2>
 
     {% for error in errors %}<p class="error">{{ error }}</p>{% endfor %}
 
     <form method="post" action="/2fa_check">
       <input type="hidden" name="_token" value="{{ csrf_token('public_2fa_check') }}">
-      <input name="otp" inputmode="numeric" pattern="[0-9]{6}" placeholder="Authenticator-Code" required>
+      <input name="otp" inputmode="numeric" pattern="[0-9]{6}" placeholder="{{ t('theme_2fa_placeholder_code', page_locale()) }}" required>
       <button type="submit">{{ t('theme_2fa_confirm', page_locale()) }}</button>
     </form>
   </div>

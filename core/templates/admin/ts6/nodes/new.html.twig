@@ -19,16 +19,16 @@
             {{ form_start(form) }}
                 {{ form_errors(form) }}
                 {{ form_row(form.name) }}
-                {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
+                {{ form_row(form.agentNodeId, { label: t('admin_ts6_node_form_agent_node', locale) }) }}
                 {{ form_row(form.osType) }}
                 {{ form_row(form.downloadUrl) }}
                 <p style="color:#64748b;font-size:13px;margin-bottom:8px;">{{ t('admin_ts6_node_download_hint', locale) }}</p>
-                {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
+                {{ form_row(form.installPath, { label: t('admin_ts6_node_form_install_path', locale) }) }}
                 {{ form_row(form.instanceName) }}
                 {{ form_row(form.serviceName) }}
                 {{ form_row(form.queryBindIp) }}
                 {{ form_row(form.queryHttpsPort) }}
-                {{ form_row(form.voicePort, { label: 'Default Voice Port' }) }}
+                {{ form_row(form.voicePort, { label: t('admin_ts6_node_form_voice_port', locale) }) }}
                 <div style="margin-top:20px;">
                     <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts6_node_save', locale) }}</button>
                 </div>

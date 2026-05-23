@@ -16,6 +16,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class BackupTargetApiController
 {
@@ -27,6 +28,7 @@ final class BackupTargetApiController
         private readonly EncryptionService $encryptionService,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -87,11 +89,11 @@ final class BackupTargetApiController
         $actor = $this->requireUser($request);
         $target = $this->backupTargetRepository->find($id);
         if ($target === null) {
-            return new JsonResponse(['error' => 'Backup target not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('backup_target_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessTarget($actor, $target)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $payload = $this->parseJsonPayload($request);
@@ -138,11 +140,11 @@ final class BackupTargetApiController
         $actor = $this->requireUser($request);
         $target = $this->backupTargetRepository->find($id);
         if ($target === null) {
-            return new JsonResponse(['error' => 'Backup target not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('backup_target_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessTarget($actor, $target)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $this->auditLogger->log($actor, 'backup.target.deleted', [
@@ -162,7 +164,7 @@ final class BackupTargetApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -192,7 +194,7 @@ final class BackupTargetApiController
             if (is_numeric($customerId)) {
                 $customer = $this->userRepository->find((int) $customerId);
                 if ($customer === null || $customer->getType() !== UserType::Customer) {
-                    return ['error' => new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND)];
+                    return ['error' => new JsonResponse(['error' => $this->translator->trans('error_customer_not_found')], JsonResponse::HTTP_NOT_FOUND)];
                 }
             } elseif ($target !== null) {
                 $customer = $target->getCustomer();
@@ -206,37 +208,37 @@ final class BackupTargetApiController
             $typeValue = strtolower(trim((string) $typeValue));
             $type = BackupDestinationType::tryFrom($typeValue);
             if ($type === null) {
-                return ['error' => new JsonResponse(['error' => 'Backup target type is invalid.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_target_type_invalid')], JsonResponse::HTTP_BAD_REQUEST)];
             }
         } elseif ($isCreate) {
-            return ['error' => new JsonResponse(['error' => 'Backup target type is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_target_type_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $normalizedLabel = null;
         if ($label !== null) {
             $normalizedLabel = trim((string) $label);
             if ($normalizedLabel === '') {
-                return ['error' => new JsonResponse(['error' => 'Label is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_label_required')], JsonResponse::HTTP_BAD_REQUEST)];
             }
         } elseif ($isCreate) {
-            return ['error' => new JsonResponse(['error' => 'Label is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_label_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $effectiveType = $type ?? $target?->getType();
         if ($effectiveType === null) {
-            return ['error' => new JsonResponse(['error' => 'Backup target type is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_target_type_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $config = null;
         $typeChanged = $type !== null && $target !== null && $target->getType() !== $type;
         if ($typeChanged && !array_key_exists('config', $payload)) {
-            return ['error' => new JsonResponse(['error' => 'Config is required when changing target type.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_config_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if (array_key_exists('config', $payload) || $isCreate) {
             $configPayload = $payload['config'] ?? null;
             if (!is_array($configPayload)) {
-                return ['error' => new JsonResponse(['error' => 'Config must be an object.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_config_must_be_object')], JsonResponse::HTTP_BAD_REQUEST)];
             }
             $configValidation = $this->normalizeConfig($effectiveType, $configPayload);
             if ($configValidation['error'] instanceof JsonResponse) {
@@ -274,7 +276,7 @@ final class BackupTargetApiController
     {
         $path = trim((string) ($config['path'] ?? ''));
         if ($path === '') {
-            return ['error' => new JsonResponse(['error' => 'Path is required for local targets.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_path_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         return [
@@ -293,7 +295,7 @@ final class BackupTargetApiController
         $options = trim((string) ($config['options'] ?? ''));
 
         if ($host === '' || $exportPath === '' || $mountPath === '') {
-            return ['error' => new JsonResponse(['error' => 'Host, export_path and mount_path are required for NFS targets.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_nfs_required_fields')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         return [
@@ -316,7 +318,7 @@ final class BackupTargetApiController
         $options = trim((string) ($config['options'] ?? ''));
 
         if ($host === '' || $share === '' || $mountPath === '') {
-            return ['error' => new JsonResponse(['error' => 'Host, share and mount_path are required for SMB targets.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_smb_required_fields')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         return [
@@ -338,12 +340,12 @@ final class BackupTargetApiController
         $verifyTlsValue = $config['verify_tls'] ?? true;
 
         if ($url === '') {
-            return ['error' => new JsonResponse(['error' => 'URL is required for WebDAV targets.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_webdav_url_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $verifyTls = filter_var($verifyTlsValue, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         if ($verifyTls === null) {
-            return ['error' => new JsonResponse(['error' => 'verify_tls must be a boolean.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_verify_tls_must_be_bool')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         return [
@@ -370,11 +372,11 @@ final class BackupTargetApiController
         }
 
         if ($credentialsPayload !== null && !is_array($credentialsPayload)) {
-            return ['error' => new JsonResponse(['error' => 'Credentials must be an object.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_credentials_must_be_object')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($clearKeys !== [] && !is_array($clearKeys)) {
-            return ['error' => new JsonResponse(['error' => 'clear_credentials must be an array.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('backup_clear_credentials_must_be_array')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $encryptedCredentials = $target?->getEncryptedCredentials() ?? [];
@@ -433,7 +435,7 @@ final class BackupTargetApiController
         $hasUserPass = array_key_exists('username', $encryptedCredentials) && array_key_exists('password', $encryptedCredentials);
 
         if (!$hasToken && !$hasUserPass) {
-            return new JsonResponse(['error' => 'WebDAV credentials require token or username/password.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('backup_webdav_credentials_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         return null;

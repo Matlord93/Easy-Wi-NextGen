@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/instances')]
 final class AdminPortAllocationController
@@ -22,6 +23,7 @@ final class AdminPortAllocationController
         private readonly PortAllocationRepository $portAllocationRepository,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -30,7 +32,7 @@ final class AdminPortAllocationController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $instance = $this->instanceRepository->find($id);

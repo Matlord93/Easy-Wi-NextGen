@@ -242,11 +242,11 @@
                 </div>
                 <div class="vs-form-field">
                     <label class="vs-form-label">{{ t('customer_voice_ban_uid_label', locale) }}</label>
-                    <input type="text" id="vs-ban-uid" placeholder="Client-UID" class="vs-input" style="font-family:monospace;">
+                    <input type="text" id="vs-ban-uid" placeholder="{{ t('customer_voice_ban_uid_placeholder', locale) }}" class="vs-input" style="font-family:monospace;">
                 </div>
                 <div class="vs-form-field">
                     <label class="vs-form-label">{{ t('customer_voice_ban_name', locale) }}</label>
-                    <input type="text" id="vs-ban-name" placeholder="Nickname" class="vs-input">
+                    <input type="text" id="vs-ban-name" placeholder="{{ t('customer_voice_ban_name_placeholder', locale) }}" class="vs-input">
                 </div>
                 <div class="vs-form-field">
                     <label class="vs-form-label">{{ t('customer_voice_ban_duration', locale) }}</label>
@@ -369,7 +369,7 @@
             </div>
             <div class="vs-form-field">
                 <label class="vs-form-label">{{ t('customer_voice_viewer_domains_label', locale) }}</label>
-                <textarea id="vs-viewer-allowlist" rows="4" placeholder="example.com&#10;*.meinedomain.de" class="vs-input" style="resize:vertical;font-family:monospace;font-size:12px;"></textarea>
+                <textarea id="vs-viewer-allowlist" rows="4" placeholder="{{ t('customer_voice_viewer_allowlist_example', locale) }}" class="vs-input" style="resize:vertical;font-family:monospace;font-size:12px;"></textarea>
             </div>
             <div id="vs-viewer-url" class="vs-viewer-url-box hidden">
                 <span class="vs-muted">{{ t('customer_voice_viewer_url_label', locale) }}</span>
@@ -613,6 +613,7 @@
         banDurationPrompt:  {{ t('customer_voice_ban_duration_prompt', locale)|json_encode|raw }},
         banRemove:          {{ t('customer_voice_ban_remove', locale)|json_encode|raw }},
         banRemoveConfirm:   {{ t('customer_voice_ban_remove_confirm', locale)|json_encode|raw }},
+        ban:                {{ t('customer_voice_ban_action', locale)|json_encode|raw }},
         banCriteriaRequired:{{ t('customer_voice_ban_criteria_required', locale)|json_encode|raw }},
         backupCreating:     {{ t('customer_voice_backup_creating', locale)|json_encode|raw }},
         backupWaiting:      {{ t('customer_voice_backup_waiting', locale)|json_encode|raw }},
@@ -841,7 +842,7 @@
                         <td><div class="vs-td-actions">
                             <button class="vs-btn vs-btn--ghost vs-btn--xs vs-kick-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.kick)}</button>
                             <button class="vs-btn vs-btn--ghost vs-btn--xs vs-poke-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.poke)}</button>
-                            <button class="vs-btn vs-btn--danger vs-btn--xs vs-ban-from-client-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">Ban</button>
+                            <button class="vs-btn vs-btn--danger vs-btn--xs vs-ban-from-client-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.ban)}</button>
                         </div></td>
                     </tr>`;
                 }).join('')}</tbody>

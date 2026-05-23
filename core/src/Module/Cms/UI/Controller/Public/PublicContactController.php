@@ -15,6 +15,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicContactController
 {
@@ -26,6 +27,7 @@ final class PublicContactController
         private readonly AppSettingsService $settings,
         private readonly RateLimiterFactory $contactLimiter,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -49,7 +51,7 @@ final class PublicContactController
 
             $csrf = new CsrfToken('public_contact', (string) $request->request->get('_token', ''));
             if (!$this->csrfTokenManager->isTokenValid($csrf)) {
-                return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+                return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
             }
 
             if ($this->antiAbuse->isHoneypotTriggered($request)) {

@@ -69,7 +69,7 @@
                                 </td>
                                 <td>
                                     {% set statusBadge = server.status == 'running' ? 'success' : (server.status == 'stopped' ? 'warning' : (server.status == 'error' ? 'danger' : 'neutral')) %}
-                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ server.status }}</span>
+                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ t('admin_ts6_status_' ~ server.status, locale) }}</span>
                                     {% set error = serverErrors[server.id] ?? null %}
                                     {% if error %}
                                         <div class="text-xs text-rose-600 mt-1"><strong>{{ t('customer_ts_action_error_prefix', locale) }}:</strong> {{ error.error ?? t('admin_ts6_unknown_error', locale) }}</div>

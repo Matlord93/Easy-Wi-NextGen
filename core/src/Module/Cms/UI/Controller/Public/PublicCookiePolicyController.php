@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 final class PublicCookiePolicyController
@@ -22,6 +23,7 @@ final class PublicCookiePolicyController
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly CookieCatalogProvider $cookieCatalogProvider,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -30,7 +32,7 @@ final class PublicCookiePolicyController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $templateKey = $this->themeResolver->resolveThemeKey($site);

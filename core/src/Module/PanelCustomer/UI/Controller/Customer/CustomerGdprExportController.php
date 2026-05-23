@@ -19,6 +19,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/gdpr/exports')]
 final class CustomerGdprExportController
@@ -30,6 +31,7 @@ final class CustomerGdprExportController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -112,7 +114,7 @@ final class CustomerGdprExportController
         } else {
             $export = $this->exportRepository->find($id);
             if (!$export instanceof GdprExport || $token === '' || !$export->consumeValidDownloadToken($token)) {
-                throw new NotFoundHttpException('Export not found.');
+                throw new NotFoundHttpException($this->translator->trans('gdpr_export_not_found'));
             }
 
             $this->entityManager->persist($export);
@@ -139,7 +141,7 @@ final class CustomerGdprExportController
         if ($actor->isAdmin()) {
             $export = $this->exportRepository->find($id);
             if (!$export instanceof GdprExport) {
-                throw new NotFoundHttpException('Export not found.');
+                throw new NotFoundHttpException($this->translator->trans('gdpr_export_not_found'));
             }
 
             return $export;
@@ -147,7 +149,7 @@ final class CustomerGdprExportController
 
         $export = $this->exportRepository->findByIdAndCustomer($id, $actor);
         if (!$export instanceof GdprExport) {
-            throw new NotFoundHttpException('Export not found.');
+            throw new NotFoundHttpException($this->translator->trans('gdpr_export_not_found'));
         }
 
         return $export;
@@ -157,7 +159,7 @@ final class CustomerGdprExportController
     {
         $actor = $this->resolveActor($request);
         if (!$actor instanceof User) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -177,7 +179,7 @@ final class CustomerGdprExportController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;

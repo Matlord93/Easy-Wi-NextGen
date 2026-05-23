@@ -16,6 +16,7 @@ use App\Repository\CmsEventRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/events')]
@@ -30,6 +31,7 @@ final class PublicCmsEventsController
         private readonly ThemeResolver $themeResolver,
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -38,7 +40,7 @@ final class PublicCmsEventsController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null || !$this->featureToggle->isEnabled($site, 'events')) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenance = $this->maintenanceService->resolve($request, $site);
@@ -56,7 +58,7 @@ final class PublicCmsEventsController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null || !$this->featureToggle->isEnabled($site, 'events')) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenance = $this->maintenanceService->resolve($request, $site);
@@ -66,7 +68,7 @@ final class PublicCmsEventsController
 
         $event = $this->eventRepository->findOneBySiteAndSlug($site, $slug, true);
         if (!$event instanceof CmsEvent) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render('public/events/show.html.twig', [

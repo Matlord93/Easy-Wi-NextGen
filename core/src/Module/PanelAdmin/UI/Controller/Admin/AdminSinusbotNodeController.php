@@ -32,6 +32,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/sinusbot/nodes')]
@@ -51,6 +52,7 @@ final class AdminSinusbotNodeController
         private readonly FormFactoryInterface $formFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -89,7 +91,7 @@ final class AdminSinusbotNodeController
         if ($form->isSubmitted() && $form->isValid()) {
             $agent = $this->agentRepository->find($dto->agentNodeId);
             if ($agent === null) {
-                $form->addError(new FormError('Selected agent was not found.'));
+                $form->addError(new FormError($this->translator->trans('form_error_agent_not_found')));
                 return new Response($this->twig->render('admin/sinusbot/nodes/new.html.twig', [
                     'activeNav' => 'sinusbot',
                     'form' => $form->createView(),
@@ -100,7 +102,7 @@ final class AdminSinusbotNodeController
             if ($dto->customerId !== null) {
                 $customer = $this->userRepository->find($dto->customerId);
                 if ($customer === null || $customer->getType() !== UserType::Customer) {
-                    $form->addError(new FormError('Selected customer was not found.'));
+                    $form->addError(new FormError($this->translator->trans('form_error_customer_not_found')));
                     return new Response($this->twig->render('admin/sinusbot/nodes/new.html.twig', [
                         'activeNav' => 'sinusbot',
                         'form' => $form->createView(),
@@ -125,7 +127,7 @@ final class AdminSinusbotNodeController
             $this->entityManager->flush();
 
             $this->nodeService->install($node);
-            $request->getSession()->getFlashBag()->add('success', 'SinusBot-Node erstellt. Installationsauftrag eingereiht. (SinusBot node created. Install job queued.)');
+            $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_created'));
 
             return new Response('', Response::HTTP_FOUND, [
                 'Location' => sprintf('/admin/sinusbot/nodes/%d', $node->getId()),
@@ -193,7 +195,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_install_' . $id);
 
         $this->nodeService->install($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Installation eingereiht. (SinusBot install queued.)');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_install_queued'));
 
         return $this->redirectToNode($node);
     }
@@ -206,7 +208,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_refresh_' . $id);
 
         $this->nodeService->refreshStatus($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Status aktualisiert. (SinusBot status refreshed.)');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_status_refreshed'));
 
         return $this->redirectToNode($node);
     }
@@ -219,7 +221,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_start_' . $id);
 
         $this->nodeService->start($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Service gestartet. (SinusBot service started.)');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_service_started'));
 
         return $this->redirectToNode($node);
     }
@@ -232,7 +234,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_stop_' . $id);
 
         $this->nodeService->stop($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Service gestoppt. (SinusBot service stopped.)');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_service_stopped'));
 
         return $this->redirectToNode($node);
     }
@@ -245,7 +247,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_restart_' . $id);
 
         $this->nodeService->restart($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Service neu gestartet. (SinusBot service restarted.)');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_service_restarted'));
 
         return $this->redirectToNode($node);
     }
@@ -320,7 +322,7 @@ final class AdminSinusbotNodeController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -330,7 +332,7 @@ final class AdminSinusbotNodeController
     {
         $node = $this->nodeRepository->find($id);
         if ($node === null) {
-            throw new NotFoundHttpException('SinusBot node not found.');
+            throw new NotFoundHttpException($this->translator->trans('sinusbot_node_not_found'));
         }
 
         return $node;
@@ -359,7 +361,7 @@ final class AdminSinusbotNodeController
     {
         $token = new CsrfToken($tokenId, (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($token)) {
-            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+            throw new UnauthorizedHttpException('csrf', $this->translator->trans('error_invalid_csrf'));
         }
     }
 
@@ -401,7 +403,7 @@ final class AdminSinusbotNodeController
         }
 
         if (!$this->isValidInstallPath($dto->installPath)) {
-            $form->addError(new FormError('Installationspfad muss absolut sein und darf kein "..", "~" oder Nullbytes enthalten.'));
+            $form->addError(new FormError($this->translator->trans('admin_sinusbot_install_path_invalid')));
         }
     }
 

@@ -23,6 +23,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicLoginController
 {
@@ -44,6 +45,7 @@ final class PublicLoginController
         #[Autowire(service: 'limiter.public_login_identifier')]
         private readonly RateLimiterFactory $loginIdentifierLimiter,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -56,7 +58,7 @@ final class PublicLoginController
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $maintenance = $this->maintenanceService->resolve($request, $site);

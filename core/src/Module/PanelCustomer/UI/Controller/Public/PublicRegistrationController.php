@@ -29,6 +29,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicRegistrationController
 {
@@ -52,6 +53,7 @@ final class PublicRegistrationController
         #[Autowire(service: 'limiter.public_registration_email')]
         private readonly RateLimiterFactory $registrationEmailLimiter,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -60,7 +62,7 @@ final class PublicRegistrationController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $session = $request->getSession();
@@ -69,7 +71,7 @@ final class PublicRegistrationController
         $registrationAllowed = !$maintenance['active'] && $this->settings->isRegistrationEnabled();
 
         if (!$registrationAllowed) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $form = ['email' => '', 'pow_solution' => '', 'captcha_answer' => ''];
@@ -113,7 +115,7 @@ final class PublicRegistrationController
 
             $csrf = new CsrfToken('public_register', (string) $request->request->get('_token', ''));
             if (!$this->csrfTokenManager->isTokenValid($csrf)) {
-                return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+                return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
             }
 
             $limit = $this->registrationLimiter->create($request->getClientIp() ?? 'public')->consume(1);

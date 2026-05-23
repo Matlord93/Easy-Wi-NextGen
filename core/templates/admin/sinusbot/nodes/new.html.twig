@@ -17,12 +17,12 @@
         <div class="ng-data-card__body">
             {{ form_start(form) }}
                 {{ form_errors(form) }}
-                {{ form_row(form.name, { label: 'Name' }) }}
+                {{ form_row(form.name, { label: t('admin_sinusbot_node_form_name', locale) }) }}
                 {{ form_row(form.customerId, { label: t('admin_sinusbot_customer_label', locale) }) }}
-                {{ form_row(form.downloadUrl, { label: 'SinusBot Download URL' }) }}
+                {{ form_row(form.downloadUrl, { label: t('admin_sinusbot_node_form_download_url', locale) }) }}
                 {{ form_row(form.installPath, { label: t('admin_sinusbot_install_path_label', locale) }) }}
                 {{ form_row(form.webBindIp, { label: t('admin_sinusbot_web_bind_label', locale) }) }}
-                {{ form_row(form.webPortBase, { label: 'Web Port Basis' }) }}
+                {{ form_row(form.webPortBase, { label: t('admin_sinusbot_node_form_web_port_base', locale) }) }}
                 <div style="margin-top:20px;">
                     <button class="ui-button ui-button--primary" type="submit">{{ t('admin_sinusbot_node_save', locale) }}</button>
                 </div>

@@ -22,6 +22,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/users')]
 final class AdminUserManagementController
@@ -46,6 +47,7 @@ final class AdminUserManagementController
         private readonly SessionTokenGenerator $tokenGenerator,
         private readonly AdminSshKeyService $sshKeyService,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -54,7 +56,7 @@ final class AdminUserManagementController
     {
         $actor = $this->requireAdmin($request);
         if ($actor === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->renderIndex($request));
@@ -65,7 +67,7 @@ final class AdminUserManagementController
     {
         $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $email = trim((string) $request->request->get('email', ''));
@@ -124,7 +126,7 @@ final class AdminUserManagementController
     {
         $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $user = $this->userRepository->find($id);
@@ -190,7 +192,7 @@ final class AdminUserManagementController
     {
         $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $user = $this->userRepository->find($id);
@@ -236,7 +238,7 @@ final class AdminUserManagementController
     {
         $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $user = $this->userRepository->find($id);
@@ -264,7 +266,7 @@ final class AdminUserManagementController
     {
         $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $user = $this->userRepository->find($id);
@@ -290,7 +292,7 @@ final class AdminUserManagementController
     {
         $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $user = $this->userRepository->find($id);
@@ -339,7 +341,7 @@ final class AdminUserManagementController
     {
         $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $customer = $this->userRepository->find($id);

@@ -19,6 +19,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/system/recovery')]
 final class SystemRecoveryController
@@ -31,6 +32,7 @@ final class SystemRecoveryController
         private readonly Environment $twig,
         #[Autowire('%app.recovery_allowed_ips%')]
         private readonly array $allowedIps,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -38,7 +40,7 @@ final class SystemRecoveryController
     public function database(Request $request): Response
     {
         if (!$this->isAuthorized($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $migrationStatus = $this->updateJobService->getMigrationStatus();
@@ -60,7 +62,7 @@ final class SystemRecoveryController
     public function migrate(Request $request): Response
     {
         if (!$this->isAuthorized($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->consumeLimiter($request)) {

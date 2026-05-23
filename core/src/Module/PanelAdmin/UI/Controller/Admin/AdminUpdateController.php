@@ -52,7 +52,7 @@ final class AdminUpdateController
     public function index(Request $request): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -71,7 +71,7 @@ final class AdminUpdateController
     public function createJob(Request $request): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->consumeLimiter($request)) {
@@ -133,7 +133,7 @@ final class AdminUpdateController
     public function jobStatus(Request $request, string $id): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $job = $this->updateJobService->getJob($id);
@@ -150,7 +150,7 @@ final class AdminUpdateController
     public function jobLog(Request $request, string $id): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $job = $this->updateJobService->getJob($id);
@@ -172,7 +172,7 @@ final class AdminUpdateController
     public function toggleAutoUpdates(Request $request): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $enabled = $request->request->getBoolean('enabled');
@@ -185,7 +185,7 @@ final class AdminUpdateController
     public function toggleAutoMigrate(Request $request): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $enabled = $request->request->getBoolean('enabled');
@@ -198,7 +198,7 @@ final class AdminUpdateController
     public function refreshCoreCheck(Request $request): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return $this->renderUpdateCard($this->buildCoreUpdateSummary(true));
@@ -208,7 +208,7 @@ final class AdminUpdateController
     public function refreshAgentCheck(Request $request): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -222,7 +222,7 @@ final class AdminUpdateController
     public function setCoreChannel(Request $request): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $token = new CsrfToken('admin_update_core_channel', (string) $request->request->get('csrf_token'));
@@ -240,7 +240,7 @@ final class AdminUpdateController
     public function setAgentChannel(Request $request): Response
     {
         if (!$this->isSuperAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $token = new CsrfToken('admin_update_agents_channel', (string) $request->request->get('csrf_token'));
@@ -263,7 +263,7 @@ final class AdminUpdateController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Superadmin) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $agentChannel = $this->updateSettingsService->getAgentChannel();

@@ -54,7 +54,7 @@
                             <span style="font-size:0.75rem;font-weight:600;">{{ entry.action|slice(0,2)|upper }}</span>
                         </div>
                         <div>
-                            <div style="font-size:0.875rem;font-weight:600;color:var(--ng-text);">{{ entry.action }}</div>
+                            <div style="font-size:0.875rem;font-weight:600;color:var(--ng-text);">{{ t('audit_event_' ~ entry.action|replace({'.': '_'}), locale) }}</div>
                             <div style="font-size:0.75rem;color:var(--ng-text-muted);">{{ entry.actor }}</div>
                         </div>
                     </div>

@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class SessionGuardSubscriber implements EventSubscriberInterface
 {
@@ -20,6 +21,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         private readonly PortalAccessPolicy $portalAccessPolicy,
         private readonly InstallerService $installerService,
         private readonly TwoFactorPolicy $twoFactorPolicy,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -146,7 +148,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     private function unauthorizedResponse(Request $request): Response
     {
         if (str_starts_with($request->getPathInfo(), '/api/')) {
-            return new JsonResponse(['error' => 'Unauthorized.'], Response::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_security_unauthorized')], Response::HTTP_UNAUTHORIZED);
         }
 
         $path = $this->normalizePath($request->getPathInfo());
@@ -156,7 +158,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             return new RedirectResponse('/login?target=' . rawurlencode($path));
         }
 
-        return new Response('Unauthorized.', Response::HTTP_UNAUTHORIZED);
+        return new Response($this->translator->trans('error_security_unauthorized'), Response::HTTP_UNAUTHORIZED);
     }
 
 
@@ -168,19 +170,19 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     private function forbiddenResponse(Request $request): Response
     {
         if (str_starts_with($request->getPathInfo(), '/api/')) {
-            return new JsonResponse(['error' => 'Forbidden.'], Response::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], Response::HTTP_FORBIDDEN);
         }
 
-        return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
     }
 
     private function twoFactorRequiredResponse(Request $request): Response
     {
         if (str_starts_with($request->getPathInfo(), '/api/')) {
-            return new JsonResponse(['error' => 'Two-factor authentication required.'], Response::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_2fa_required')], Response::HTTP_FORBIDDEN);
         }
 
-        return new Response('Two-factor authentication required.', Response::HTTP_FORBIDDEN);
+        return new Response($this->translator->trans('error_2fa_required'), Response::HTTP_FORBIDDEN);
     }
 
     private function isTwoFactorEnrollmentPath(string $path): bool

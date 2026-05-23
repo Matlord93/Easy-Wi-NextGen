@@ -45,6 +45,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/instances')]
 final class AdminInstanceController
@@ -80,6 +81,7 @@ final class AdminInstanceController
         private readonly PortLeaseManager $portLeaseManager,
         private readonly Environment $twig,
         ?GameServerInstallPathManager $installPathManager = null,
+        private readonly TranslatorInterface $translator,
     ) {
         $this->installPathManager = $installPathManager;
     }
@@ -88,7 +90,7 @@ final class AdminInstanceController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -110,7 +112,7 @@ final class AdminInstanceController
     public function new(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/instances/new.html.twig', [
@@ -123,7 +125,7 @@ final class AdminInstanceController
     public function provision(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $templates = $this->listDistinctTemplates();
@@ -143,7 +145,7 @@ final class AdminInstanceController
     public function table(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -156,7 +158,7 @@ final class AdminInstanceController
     public function form(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $templates = $this->listDistinctTemplates();
@@ -175,7 +177,7 @@ final class AdminInstanceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $formData = $this->parsePayload($request);
@@ -357,7 +359,7 @@ final class AdminInstanceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $formData = $this->parseCustomerPayload($request);
@@ -396,12 +398,12 @@ final class AdminInstanceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $portBlock = null;
@@ -485,12 +487,12 @@ final class AdminInstanceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
@@ -545,12 +547,12 @@ final class AdminInstanceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $errors = [];
@@ -620,11 +622,11 @@ final class AdminInstanceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
         if (!$instance->isSharedStorageEnabled()) {
             return new Response('Shared storage disabled for this instance.', Response::HTTP_BAD_REQUEST);

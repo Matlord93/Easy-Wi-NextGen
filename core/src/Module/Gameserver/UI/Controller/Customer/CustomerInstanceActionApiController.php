@@ -55,6 +55,7 @@ use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[RequiresModule('game')]
 final class CustomerInstanceActionApiController
@@ -86,6 +87,7 @@ final class CustomerInstanceActionApiController
         private readonly EncryptionService $encryptionService,
         private readonly ?AgentGameServerClient $agentGameServerClient = null,
         private readonly ?ConsoleStreamDiagnostics $consoleStreamDiagnostics = null,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -833,7 +835,7 @@ final class CustomerInstanceActionApiController
 
         $payload = $job->getPayload();
         if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
-            return $this->apiError($request, 'FORBIDDEN', 'Forbidden.', JsonResponse::HTTP_FORBIDDEN);
+            return $this->apiError($request, 'FORBIDDEN', $this->translator->trans('error_forbidden'), JsonResponse::HTTP_FORBIDDEN);
         }
 
         if ($job->getStatus()->isTerminal()) {
@@ -880,7 +882,7 @@ final class CustomerInstanceActionApiController
 
         $payload = $job->getPayload();
         if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
-            return $this->apiError($request, 'FORBIDDEN', 'Forbidden.', JsonResponse::HTTP_FORBIDDEN);
+            return $this->apiError($request, 'FORBIDDEN', $this->translator->trans('error_forbidden'), JsonResponse::HTTP_FORBIDDEN);
         }
 
         $cursor = $request->query->get('cursor');
@@ -1515,7 +1517,7 @@ final class CustomerInstanceActionApiController
             !$actor instanceof User
             || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
         ) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -1525,11 +1527,11 @@ final class CustomerInstanceActionApiController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         if (!$customer->isAdmin() && $instance->getCustomer()->getId() !== $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $instance;
@@ -1543,7 +1545,7 @@ final class CustomerInstanceActionApiController
         try {
             $payload = $request->toArray();
         } catch (\JsonException $exception) {
-            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_json'), $exception);
         }
 
         return is_array($payload) ? $payload : [];

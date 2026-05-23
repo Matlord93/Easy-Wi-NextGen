@@ -21,6 +21,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class AuthController
 {
@@ -40,6 +41,7 @@ final class AuthController
         private readonly RateLimiterFactory $loginIpLimiter,
         #[Autowire(service: 'limiter.public_login_identifier')]
         private readonly RateLimiterFactory $loginIdentifierLimiter,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -48,7 +50,7 @@ final class AuthController
     public function login(Request $request): JsonResponse
     {
         if (!$this->installerService->isLocked()) {
-            return new JsonResponse(['error' => 'Installation incomplete.'], JsonResponse::HTTP_SERVICE_UNAVAILABLE);
+            return new JsonResponse(['error' => $this->translator->trans('error_installation_incomplete')], JsonResponse::HTTP_SERVICE_UNAVAILABLE);
         }
 
         $payload = $request->toArray();
@@ -82,7 +84,7 @@ final class AuthController
                 'retry_after' => $retryAfter?->format(DATE_ATOM),
             ]);
 
-            $response = new JsonResponse(['error' => 'Too many login attempts.'], JsonResponse::HTTP_TOO_MANY_REQUESTS);
+            $response = new JsonResponse(['error' => $this->translator->trans('error_too_many_login')], JsonResponse::HTTP_TOO_MANY_REQUESTS);
             if ($retryAfter !== null) {
                 $seconds = max(1, $retryAfter->getTimestamp() - time());
                 $response->headers->set('Retry-After', (string) $seconds);
@@ -92,7 +94,7 @@ final class AuthController
         }
 
         if ($email === '' || $password === '') {
-            return new JsonResponse(['error' => 'Invalid credentials.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('Invalid credentials.', [], 'security')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $user = $this->users->findOneByEmail($email);
@@ -105,7 +107,7 @@ final class AuthController
                 'context' => 'api_login',
             ]);
 
-            return new JsonResponse(['error' => 'Invalid credentials.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('Invalid credentials.', [], 'security')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $requiresTwoFactor = $this->twoFactorPolicy->isRequired($user);
@@ -115,13 +117,13 @@ final class AuthController
                 'context' => 'api_login',
             ]);
 
-            return new JsonResponse(['error' => 'Two-factor enrollment required.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_2fa_enrollment_required')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         if ($user->isTotpEnabled()) {
             $secret = $user->getTotpSecret($this->secretsCrypto);
             if ($secret === null) {
-                return new JsonResponse(['error' => 'Two-factor authentication is not configured.'], JsonResponse::HTTP_FORBIDDEN);
+                return new JsonResponse(['error' => $this->translator->trans('error_2fa_not_configured')], JsonResponse::HTTP_FORBIDDEN);
             }
 
             if ($otp === '' && $recoveryCode === '') {
@@ -133,7 +135,7 @@ final class AuthController
                     'context' => 'api_login',
                 ]);
 
-                return new JsonResponse(['error' => 'Two-factor authentication required.'], JsonResponse::HTTP_UNAUTHORIZED);
+                return new JsonResponse(['error' => $this->translator->trans('error_2fa_required')], JsonResponse::HTTP_UNAUTHORIZED);
             }
 
             $recoveryIndex = null;
@@ -152,7 +154,7 @@ final class AuthController
                     'context' => 'api_login',
                 ]);
 
-                return new JsonResponse(['error' => 'Invalid authentication code.'], JsonResponse::HTTP_UNAUTHORIZED);
+                return new JsonResponse(['error' => $this->translator->trans('error_invalid_code')], JsonResponse::HTTP_UNAUTHORIZED);
             }
 
             if ($recoveryIndex !== null) {

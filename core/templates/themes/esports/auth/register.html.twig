@@ -6,14 +6,14 @@
 <section class="theme-wrap" style="max-width:880px;">
   <div class="theme-card auth-box" style="padding:1.5rem;">
     <p style="font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:#67e8f9;">Clan Access</p>
-    <h2 style="margin-top:.4rem;font-size:2rem;">Registrierung</h2>
+    <h2 style="margin-top:.4rem;font-size:2rem;">{{ t('theme_register_heading', page_locale()) }}</h2>
 
     {% for error in errors %}<p class="error">{{ error }}</p>{% endfor %}
 
     {% if not registrationAllowed %}
-      <p class="error">Registrierung ist aktuell deaktiviert.</p>
+      <p class="error">{{ t('theme_register_disabled', page_locale()) }}</p>
     {% else %}
-      {% if registered %}<p class="success">Konto erstellt.</p>{% endif %}
+      {% if registered %}<p class="success">{{ t('theme_register_success', page_locale()) }}</p>{% endif %}
       <form method="post" action="/register">
         <input type="hidden" name="_token" value="{{ csrf_token('public_register') }}">
         <input type="text" name="website" class="hidden" tabindex="-1" autocomplete="off">
@@ -24,7 +24,7 @@
         {% if captcha_question %}
           <label>{{ captcha_question }} <input name="captcha_answer" required></label>
         {% endif %}
-        <button type="submit">Registrieren</button>
+        <button type="submit">{{ t('theme_register_submit_btn', page_locale()) }}</button>
       </form>
     {% endif %}
   </div>

@@ -20,6 +20,8 @@ step1:
     privileges: "Der Datenbankbenutzer benötigt CREATE-, ALTER- und INDEX-Rechte."
     root_not_required: "Root-Zugriff auf die Datenbank ist nicht erforderlich."
     disable_installer: "Nach erfolgreicher Installation wird /install gesperrt."
+  upgrade_notice_title: "Upgrade-Hinweis"
+  upgrade_notice_text: "Für bestehende Installationen bitte den Update-Workflow nutzen (Migrationen + Settings-Defaults), nicht den Fresh-Installer."
 
 step2:
   title: "Systemanforderungen"

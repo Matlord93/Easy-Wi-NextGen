@@ -17,6 +17,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class MailAliasApiController
 {
@@ -31,6 +32,7 @@ final class MailAliasApiController
         private readonly MailAliasLoopGuard $loopGuard,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]
         private readonly ?string $aliasMapPath,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -40,7 +42,7 @@ final class MailAliasApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $aliases = $actor->isAdmin()
@@ -58,7 +60,7 @@ final class MailAliasApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $payload = $request->toArray();
@@ -73,11 +75,11 @@ final class MailAliasApiController
         }
 
         if ($domain === null) {
-            return new JsonResponse(['error' => 'Domain not found.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('error_domain_not_found')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if (!$actor->isAdmin() && $domain->getCustomer()->getId() !== $actor->getId()) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $localPartError = $this->validateLocalPart($localPart);
@@ -87,7 +89,7 @@ final class MailAliasApiController
 
         $destinations = $this->parseDestinations($destinationsInput);
         if ($destinations === []) {
-            return new JsonResponse(['error' => 'Forward destinations are required.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('alias_forward_destinations_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
         if (count($destinations) > self::MAX_DESTINATIONS) {
             return new JsonResponse(['error' => sprintf('A maximum of %d destinations is allowed.', self::MAX_DESTINATIONS)], JsonResponse::HTTP_BAD_REQUEST);
@@ -102,12 +104,12 @@ final class MailAliasApiController
 
         $address = sprintf('%s@%s', $localPart, $domain->getName());
         if ($this->aliasRepository->findOneByAddress($address) !== null) {
-            return new JsonResponse(['error' => 'Alias address already exists.'], JsonResponse::HTTP_CONFLICT);
+            return new JsonResponse(['error' => $this->translator->trans('alias_address_exists')], JsonResponse::HTTP_CONFLICT);
         }
 
         $existingAliases = $this->aliasRepository->findByCustomer($domain->getCustomer());
         if ($this->loopGuard->wouldCreateLoop($address, $destinations, $existingAliases)) {
-            return new JsonResponse(['error' => 'Alias loop detected.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('alias_loop_detected')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $alias = new MailAlias($domain, $localPart, $destinations, $enabled);
@@ -140,16 +142,16 @@ final class MailAliasApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $alias = $this->aliasRepository->find($id);
         if ($alias === null) {
-            return new JsonResponse(['error' => 'Alias not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('alias_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessAlias($actor, $alias)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $payload = $request->toArray();
@@ -160,7 +162,7 @@ final class MailAliasApiController
 
         $destinations = $destinationsInput !== '' ? $this->parseDestinations($destinationsInput) : $alias->getDestinations();
         if ($destinations === []) {
-            return new JsonResponse(['error' => 'Forward destinations are required.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('alias_forward_destinations_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
         if (count($destinations) > self::MAX_DESTINATIONS) {
             return new JsonResponse(['error' => sprintf('A maximum of %d destinations is allowed.', self::MAX_DESTINATIONS)], JsonResponse::HTTP_BAD_REQUEST);
@@ -175,7 +177,7 @@ final class MailAliasApiController
 
         $existingAliases = $this->aliasRepository->findByCustomer($alias->getCustomer());
         if ($this->loopGuard->wouldCreateLoop($alias->getAddress(), $destinations, $existingAliases)) {
-            return new JsonResponse(['error' => 'Alias loop detected.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('alias_loop_detected')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $previous = [
@@ -213,16 +215,16 @@ final class MailAliasApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $alias = $this->aliasRepository->find($id);
         if ($alias === null) {
-            return new JsonResponse(['error' => 'Alias not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('alias_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessAlias($actor, $alias)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $job = $this->queueAliasJob('mail.alias.delete', $alias, []);

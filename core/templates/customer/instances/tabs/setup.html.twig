@@ -41,7 +41,7 @@
                             {% if field.key not in ['STEAM_ACCOUNT', 'STEAM_PASSWORD'] or steamLoginMode == 'account' %}
                                 <div>
                                     <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                        {{ field.label }}{% if field.required %} <span class="text-rose-400">*</span>{% endif %}
+                                        {{ t(field.label, locale) }}{% if field.required %} <span class="text-rose-400">*</span>{% endif %}
                                     </label>
                                     {% if field.key == 'STEAM_LOGIN_MODE' %}
                                         <select name="vars[{{ field.key }}]"
@@ -89,7 +89,7 @@
                         {% for field in setupConfigVars %}
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                    {{ field.label }}{% if field.required %} <span class="text-rose-400">*</span>{% endif %}
+                                    {{ t(field.label, locale) }}{% if field.required %} <span class="text-rose-400">*</span>{% endif %}
                                 </label>
                                 <input name="vars[{{ field.key }}]" value="{{ field.value }}"
                                     type="{% if field.type == 'number' %}number{% elseif field.type == 'password' %}password{% else %}text{% endif %}"
@@ -115,7 +115,7 @@
             {# ─── Secrets ─── #}
             <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
                 <div class="border-b border-slate-700/50 px-4 py-3">
-                    <h3 class="text-sm font-semibold text-slate-200">Secrets</h3>
+                    <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_setup_secrets_title', locale) }}</h3>
                 </div>
                 <div class="p-4">
                     {% if setupMessages.secrets %}
@@ -125,7 +125,7 @@
                         {% for field in setupSecrets %}
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                    {{ field.label }}{% if field.required %} <span class="text-rose-400">*</span>{% endif %}
+                                    {{ t(field.label, locale) }}{% if field.required %} <span class="text-rose-400">*</span>{% endif %}
                                 </label>
                                 <div class="mt-1.5 flex flex-col gap-1.5">
                                     <input name="secrets[{{ field.key }}]"

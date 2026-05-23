@@ -48,7 +48,7 @@
                                         {% set ts3StatusLabel = node.running ? 'running' : 'stopped' %}
                                     {% endif %}
                                     {% set statusBadge = ts3StatusLabel == 'running' ? 'success' : (ts3StatusLabel == 'stopped' ? 'warning' : 'neutral') %}
-                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ ts3StatusLabel }}</span>
+                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ t('admin_node_status_' ~ ts3StatusLabel, locale) }}</span>
                                 </td>
                                 <td>{{ node.installedVersion ?? '—' }}</td>
                                 <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
@@ -102,7 +102,7 @@
                                         {% set ts6StatusLabel = node.running ? 'running' : 'stopped' %}
                                     {% endif %}
                                     {% set statusBadge = ts6StatusLabel == 'running' ? 'success' : (ts6StatusLabel == 'stopped' ? 'warning' : 'neutral') %}
-                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ ts6StatusLabel }}</span>
+                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ t('admin_node_status_' ~ ts6StatusLabel, locale) }}</span>
                                 </td>
                                 <td>{{ node.agentBaseUrl }}</td>
                                 <td>{{ node.installedVersion ?? '—' }}</td>

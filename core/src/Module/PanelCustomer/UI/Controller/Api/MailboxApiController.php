@@ -18,6 +18,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class MailboxApiController
 {
@@ -32,6 +33,7 @@ final class MailboxApiController
         private readonly EncryptionService $encryptionService,
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly MailLimitEnforcer $mailLimitEnforcer,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -64,7 +66,7 @@ final class MailboxApiController
 
         $domain = $formData['domain'];
         if (!$this->canAccessDomain($actor, $domain)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $passwordHash = $this->mailPasswordHasher->hash($formData['password']);
@@ -156,22 +158,22 @@ final class MailboxApiController
         $actor = $this->requireUser($request);
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
-            return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('mailbox_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessMailbox($actor, $mailbox)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $payload = $this->parseJsonPayload($request);
         $quotaValue = $payload['quota'] ?? null;
         if ($quotaValue === null || $quotaValue === '' || !is_numeric($quotaValue)) {
-            return new JsonResponse(['error' => 'Quota must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('mailbox_quota_must_be_numeric')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $quota = (int) $quotaValue;
         if ($quota < 0) {
-            return new JsonResponse(['error' => 'Quota must be zero or positive.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('error_quota_must_be_positive')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if ($quota === $mailbox->getQuota()) {
@@ -211,22 +213,22 @@ final class MailboxApiController
         $actor = $this->requireUser($request);
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
-            return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('mailbox_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessMailbox($actor, $mailbox)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $payload = $this->parseJsonPayload($request);
         $enabledValue = $payload['enabled'] ?? null;
         if (!is_bool($enabledValue) && !is_numeric($enabledValue) && !is_string($enabledValue)) {
-            return new JsonResponse(['error' => 'Enabled must be boolean.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('mailbox_enabled_must_be_boolean')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $enabled = filter_var($enabledValue, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         if ($enabled === null) {
-            return new JsonResponse(['error' => 'Enabled must be boolean.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('mailbox_enabled_must_be_boolean')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if ($enabled === $mailbox->isEnabled()) {
@@ -267,20 +269,20 @@ final class MailboxApiController
         $actor = $this->requireUser($request);
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
-            return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('mailbox_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessMailbox($actor, $mailbox)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $payload = $this->parseJsonPayload($request);
         $password = trim((string) ($payload['password'] ?? ''));
         if ($password === '') {
-            return new JsonResponse(['error' => 'Password is required.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('mailbox_password_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
         if (mb_strlen($password) < 8) {
-            return new JsonResponse(['error' => 'Password must be at least 8 characters.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('error_password_too_short')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $passwordHash = $this->mailPasswordHasher->hash($password);
@@ -316,11 +318,11 @@ final class MailboxApiController
         $actor = $this->requireUser($request);
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
-            return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('mailbox_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessMailbox($actor, $mailbox)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         try {
@@ -347,7 +349,7 @@ final class MailboxApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -358,7 +360,7 @@ final class MailboxApiController
         try {
             return $request->toArray();
         } catch (\JsonException $exception) {
-            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException('Invalid JSON payload.', $exception);
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException($this->translator->trans('error_invalid_json'), $exception);
         }
     }
 
@@ -371,39 +373,39 @@ final class MailboxApiController
         $enabled = isset($payload['enabled']) ? filter_var($payload['enabled'], FILTER_VALIDATE_BOOLEAN) : true;
 
         if (!is_numeric($domainId)) {
-            return ['error' => new JsonResponse(['error' => 'Domain is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_domain_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $domain = $this->domainRepository->find((int) $domainId);
         if ($domain === null) {
-            return ['error' => new JsonResponse(['error' => 'Domain not found.'], JsonResponse::HTTP_NOT_FOUND)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_domain_not_found')], JsonResponse::HTTP_NOT_FOUND)];
         }
 
         if ($localPart === '' || !preg_match('/^[a-z0-9._+\-]+$/i', $localPart) || str_contains($localPart, '@')) {
-            return ['error' => new JsonResponse(['error' => 'Invalid mailbox name.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('mailbox_invalid_name')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($requirePassword && $password === '') {
-            return ['error' => new JsonResponse(['error' => 'Password is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('mailbox_password_required')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($password !== '' && mb_strlen($password) < 8) {
-            return ['error' => new JsonResponse(['error' => 'Password must be at least 8 characters.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_password_too_short')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($quotaValue === null || $quotaValue === '' || !is_numeric($quotaValue)) {
-            return ['error' => new JsonResponse(['error' => 'Quota must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('mailbox_quota_must_be_numeric')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $quota = (int) $quotaValue;
         if ($quota < 0) {
-            return ['error' => new JsonResponse(['error' => 'Quota must be zero or positive.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_quota_must_be_positive')], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $address = sprintf('%s@%s', $localPart, $domain->getName());
         $existing = $this->mailboxRepository->findOneByAddress($address);
         if ($existing !== null) {
-            return ['error' => new JsonResponse(['error' => 'Mailbox address already exists.'], JsonResponse::HTTP_CONFLICT)];
+            return ['error' => new JsonResponse(['error' => $this->translator->trans('mailbox_address_exists')], JsonResponse::HTTP_CONFLICT)];
         }
 
         return [
@@ -439,7 +441,7 @@ final class MailboxApiController
         $domain = $mailbox->getDomain();
         $agentId = $this->resolveMailAgentId($domain);
         if ($agentId === null) {
-            throw new \DomainException('No mail agent/node assigned to this domain.');
+            throw new \DomainException($this->translator->trans('error_no_mail_agent'));
         }
         $payload = array_merge([
             'mailbox_id' => (string) ($mailbox->getId() ?? ''),

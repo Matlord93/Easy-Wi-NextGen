@@ -10,6 +10,7 @@ use App\Repository\MailLogRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/api/v1/admin/mail/logs')]
 final class AdminMailLogController
@@ -17,6 +18,7 @@ final class AdminMailLogController
     public function __construct(
         private readonly MailLogRepository $mailLogRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -25,7 +27,7 @@ final class AdminMailLogController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Forbidden'], JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $domainName = trim((string) $request->query->get('domain', ''));

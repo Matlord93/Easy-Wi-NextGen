@@ -21,6 +21,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/security')]
 final class AdminSecurityController
@@ -36,6 +37,7 @@ final class AdminSecurityController
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly AuditLogger $auditLogger,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -81,7 +83,7 @@ final class AdminSecurityController
 
         $agent = $this->agentRepository->find($id);
         if ($agent === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $desiredPorts = $this->parsePorts((string) $request->request->get('ports', ''));
@@ -173,7 +175,7 @@ final class AdminSecurityController
 
         $agent = $this->agentRepository->find($id);
         if ($agent === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $payload = $this->parseFail2banPayload($request);
@@ -219,7 +221,7 @@ final class AdminSecurityController
 
         $agent = $this->agentRepository->find($id);
         if ($agent === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $job = new \App\Module\Core\Domain\Entity\Job('fail2ban.status.check', [
@@ -298,7 +300,7 @@ final class AdminSecurityController
         $admin = $this->requireAdmin($request);
         $agent = $this->agentRepository->find($id);
         if ($agent === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $revision = $this->buildPolicyRevision($agent, 'unified_ruleset', ['rollback' => true], $admin);

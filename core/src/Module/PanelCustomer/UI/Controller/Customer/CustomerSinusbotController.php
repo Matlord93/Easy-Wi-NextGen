@@ -20,6 +20,7 @@ use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/customer/infrastructure/sinusbot')]
 /**
@@ -36,6 +37,7 @@ final class CustomerSinusbotController
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -56,7 +58,7 @@ final class CustomerSinusbotController
         $this->validateCsrf($request, 'sinusbot_start_' . $id);
 
         $this->provisioner->startInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Instanz gestartet.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('customer_sinusbot_instance_started'));
 
         return $this->redirectToIndex();
     }
@@ -69,7 +71,7 @@ final class CustomerSinusbotController
         $this->validateCsrf($request, 'sinusbot_stop_' . $id);
 
         $this->provisioner->stopInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Instanz gestoppt.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('customer_sinusbot_instance_stopped'));
 
         return $this->redirectToIndex();
     }
@@ -82,7 +84,7 @@ final class CustomerSinusbotController
         $this->validateCsrf($request, 'sinusbot_reset_password_' . $id);
 
         $password = $this->provisioner->resetPassword($instance);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Passwort wurde neu gesetzt.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('customer_sinusbot_instance_password_reset'));
 
         return $this->renderWithPassword($instance, $password);
     }
@@ -115,7 +117,7 @@ final class CustomerSinusbotController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -160,7 +162,7 @@ final class CustomerSinusbotController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null || $instance->getCustomer()?->getId() !== $customer->getId()) {
-            throw new NotFoundHttpException('SinusBot instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('sinusbot_instance_not_found'));
         }
 
         return $instance;
@@ -192,7 +194,7 @@ final class CustomerSinusbotController
     {
         $token = new CsrfToken($tokenId, (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($token)) {
-            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+            throw new UnauthorizedHttpException('csrf', $this->translator->trans('error_invalid_csrf'));
         }
     }
 }

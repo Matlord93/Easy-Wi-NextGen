@@ -21,6 +21,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/account/security')]
 final class CustomerSecurityController
@@ -43,6 +44,7 @@ final class CustomerSecurityController
         #[Autowire(service: 'limiter.account_security_2fa')]
         private readonly RateLimiterFactory $twoFactorLimiter,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -60,7 +62,7 @@ final class CustomerSecurityController
     {
         $user = $this->requireUser($request);
         if (!$this->isCsrfValid($request, 'account_security_confirm')) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $ip = $request->getClientIp() ?? 'public';
@@ -85,7 +87,7 @@ final class CustomerSecurityController
         $user = $this->requireUser($request);
 
         if (!$this->isCsrfValid($request, 'account_security_password')) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->hasFreshReauth($request)) {
@@ -141,7 +143,7 @@ final class CustomerSecurityController
     {
         $user = $this->requireUser($request);
         if (!$this->isCsrfValid($request, 'account_security_enable_2fa')) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->consumeTwoFactorLimit($request, $user)) {
@@ -178,7 +180,7 @@ final class CustomerSecurityController
     {
         $user = $this->requireUser($request);
         if (!$this->isCsrfValid($request, 'account_security_disable_2fa')) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->hasFreshReauth($request)) {
@@ -217,7 +219,7 @@ final class CustomerSecurityController
     {
         $user = $this->requireUser($request);
         if (!$this->isCsrfValid($request, 'account_security_recovery_2fa')) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!$this->hasFreshReauth($request)) {
@@ -255,7 +257,7 @@ final class CustomerSecurityController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('Forbidden.');
+            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $actor;
@@ -345,7 +347,7 @@ final class CustomerSecurityController
 
         return new Response($this->twig->render('public/account/security.html.twig', [
             'activeNav' => 'security',
-            'pageTitle' => 'Sicherheit',
+            'pageTitle' => $this->translator->trans('customer_security_page_title'),
             'errors' => $errors,
             'confirmRequired' => $overrides['confirm_required'] ?? !$this->hasFreshReauth($request),
             'twoFactor' => [

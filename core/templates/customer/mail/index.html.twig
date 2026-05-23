@@ -98,7 +98,7 @@
                 </div>
                 <div>
                     <label class="cust-form-label">{{ t('customer_mail_local_part_label', page_locale()) }}</label>
-                    <input type="text" name="local_part" placeholder="z.B. info" required>
+                    <input type="text" name="local_part" placeholder="{{ t('customer_mail_local_part_example', page_locale()) }}" required>
                 </div>
                 <div class="cust-form-row">
                     <div>
@@ -183,7 +183,7 @@
                 </div>
                 <div>
                     <label class="cust-form-label">{{ t('customer_mail_alias_name_label', page_locale()) }}</label>
-                    <input type="text" name="local_part" placeholder="z.B. kontakt" required>
+                    <input type="text" name="local_part" placeholder="{{ t('customer_mail_alias_local_part_example', page_locale()) }}" required>
                 </div>
                 <div>
                     <label class="cust-form-label">{{ t('customer_mail_alias_dest_label', page_locale()) }}</label>

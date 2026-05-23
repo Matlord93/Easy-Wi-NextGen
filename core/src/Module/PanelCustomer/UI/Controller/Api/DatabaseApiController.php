@@ -25,6 +25,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class DatabaseApiController
 {
@@ -39,6 +40,7 @@ final class DatabaseApiController
         private readonly DatabaseNamingPolicy $namingPolicy,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly EncryptionService $encryptionService,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -246,7 +248,7 @@ final class DatabaseApiController
         } catch (\RuntimeException $exception) {
             return match ($exception->getMessage()) {
                 'database_not_found' => $this->responseEnvelopeFactory->error($request, 'Database not found.', 'database_not_found', JsonResponse::HTTP_NOT_FOUND),
-                'job_not_found' => $this->responseEnvelopeFactory->error($request, 'Job not found.', 'job_not_found', JsonResponse::HTTP_NOT_FOUND),
+                'job_not_found' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('job_not_found'), 'job_not_found', JsonResponse::HTTP_NOT_FOUND),
                 'credential_not_ready' => $this->responseEnvelopeFactory->error($request, 'Credential is not available yet.', 'credential_not_ready', JsonResponse::HTTP_CONFLICT, 5),
                 default => $this->responseEnvelopeFactory->error($request, 'Credential already consumed.', 'db_credential_already_consumed', JsonResponse::HTTP_GONE),
             };
@@ -262,7 +264,7 @@ final class DatabaseApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -296,7 +298,7 @@ final class DatabaseApiController
         }
 
         if ($name === '' || $username === '') {
-            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Missing required fields.', 'validation_failed', JsonResponse::HTTP_BAD_REQUEST)];
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_missing_required_fields'), 'validation_failed', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $nameErrors = $this->namingPolicy->validateDatabaseName($name);
@@ -314,7 +316,7 @@ final class DatabaseApiController
             $customer = $this->userRepository->find((int) ($payload['customer_id'] ?? 0));
         }
         if (!$customer instanceof User || $customer->getType() !== UserType::Customer) {
-            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Customer not found.', 'customer_not_found', JsonResponse::HTTP_NOT_FOUND)];
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('error_customer_not_found'), 'customer_not_found', JsonResponse::HTTP_NOT_FOUND)];
         }
 
         if ($this->databaseRepository->findOneByCustomerAndName($customer, $engine, $name) instanceof Database) {

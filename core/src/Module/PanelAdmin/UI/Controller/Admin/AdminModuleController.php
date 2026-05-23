@@ -14,6 +14,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/modules')]
 final class AdminModuleController
@@ -23,6 +24,7 @@ final class AdminModuleController
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -31,7 +33,7 @@ final class AdminModuleController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof \App\Module\Core\Domain\Entity\User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/modules/index.html.twig', [
@@ -45,7 +47,7 @@ final class AdminModuleController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof \App\Module\Core\Domain\Entity\User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $token = new CsrfToken('module_toggle_' . $key, (string) $request->request->get('_token'));

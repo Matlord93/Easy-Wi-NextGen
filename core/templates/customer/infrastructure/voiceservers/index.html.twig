@@ -44,7 +44,7 @@
                             </div>
                         </div>
                         <div class="vsi-row__meta">
-                            <span class="vsi-dot vsi-dot--{{ isOnline ? 'success' : (isOffline ? 'danger' : 'warning') }}">{{ st|replace({'_':' '})|title }}</span>
+                            <span class="vsi-dot vsi-dot--{{ isOnline ? 'success' : (isOffline ? 'danger' : 'warning') }}">{{ t('status_' ~ st, page_locale()) }}</span>
                             {% if server.updatedAt is defined %}
                                 <span class="vsi-meta-item">{{ server.updatedAt|date('Y-m-d H:i') }}</span>
                             {% endif %}

@@ -34,6 +34,7 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/backups')]
 final class AdminBackupController
@@ -52,6 +53,7 @@ final class AdminBackupController
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -134,7 +136,7 @@ final class AdminBackupController
         if (is_numeric($targetId)) {
             $target = $this->backupTargetRepository->find((int) $targetId);
             if (!$target instanceof BackupTarget) {
-                return $this->responseEnvelopeFactory->error($request, 'Target not found.', 'backup_target_invalid', JsonResponse::HTTP_NOT_FOUND);
+                return $this->responseEnvelopeFactory->error($request, $this->translator->trans('backup_target_not_found'), 'backup_target_invalid', JsonResponse::HTTP_NOT_FOUND);
             }
         }
 
@@ -232,7 +234,7 @@ final class AdminBackupController
         $admin = $this->requireAdmin($request);
         $target = $this->backupTargetRepository->find($id);
         if (!$target instanceof BackupTarget) {
-            return $this->responseEnvelopeFactory->error($request, 'Target not found.', 'backup_target_invalid', JsonResponse::HTTP_NOT_FOUND);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('backup_target_not_found'), 'backup_target_invalid', JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$target->isEnabled()) {
@@ -362,7 +364,7 @@ final class AdminBackupController
         $admin = $this->requireAdmin($request);
         $instance = $this->instanceRepository->find($id);
         if (!$instance instanceof Instance) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         $payload = $this->parsePayload($request);
@@ -398,7 +400,7 @@ final class AdminBackupController
 
         $jobId = $this->dispatchJob($message)['job_id'] ?? '';
 
-        return $this->responseEnvelopeFactory->success($request, (string) $jobId, 'Backup queued.', JsonResponse::HTTP_ACCEPTED);
+        return $this->responseEnvelopeFactory->success($request, (string) $jobId, $this->translator->trans('admin_backup_queued'), JsonResponse::HTTP_ACCEPTED);
     }
 
     #[Route(path: '/api/instances/{id}/backup-restore', name: 'admin_instance_backup_restore', methods: ['POST'])]
@@ -407,7 +409,7 @@ final class AdminBackupController
         $admin = $this->requireAdmin($request);
         $instance = $this->instanceRepository->find($id);
         if (!$instance instanceof Instance) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         $payload = $this->parsePayload($request);
@@ -486,10 +488,10 @@ final class AdminBackupController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
         if (!$actor->isAdmin()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $actor;
@@ -500,7 +502,7 @@ final class AdminBackupController
         try {
             $payload = $request->toArray();
         } catch (\JsonException $exception) {
-            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_json'), $exception);
         }
 
         return is_array($payload) ? $payload : [];

@@ -34,6 +34,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class CustomerJobApiController
 {
@@ -53,6 +54,7 @@ final class CustomerJobApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -66,7 +68,7 @@ final class CustomerJobApiController
 
         $jobType = $this->resolveJobType($payload);
         if ($jobType === null) {
-            throw new BadRequestHttpException('Invalid action type.');
+            throw new BadRequestHttpException($this->translator->trans('job_invalid_action'));
         }
 
         if (!$this->appSettingsService->isGameserverStartStopAllowed() && in_array($jobType, ['instance.start', 'instance.stop', 'instance.restart'], true)) {
@@ -227,7 +229,7 @@ final class CustomerJobApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -237,11 +239,11 @@ final class CustomerJobApiController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         if ($instance->getCustomer()->getId() !== $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $instance;
@@ -251,7 +253,7 @@ final class CustomerJobApiController
     {
         $job = $this->jobRepository->find($jobId);
         if ($job === null) {
-            throw new NotFoundHttpException('Job not found.');
+            throw new NotFoundHttpException($this->translator->trans('job_not_found'));
         }
 
         $payload = $job->getPayload();
@@ -270,7 +272,7 @@ final class CustomerJobApiController
             }
         }
 
-        throw new AccessDeniedHttpException('Forbidden.');
+        throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
     }
 
     private function findActivePowerJob(Instance $instance): ?Job

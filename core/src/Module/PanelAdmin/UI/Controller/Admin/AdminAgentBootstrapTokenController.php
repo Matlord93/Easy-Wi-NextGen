@@ -17,6 +17,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/agent-bootstrap-tokens')]
 final class AdminAgentBootstrapTokenController
@@ -30,6 +31,7 @@ final class AdminAgentBootstrapTokenController
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -37,7 +39,7 @@ final class AdminAgentBootstrapTokenController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return $this->renderIndex();
@@ -48,7 +50,7 @@ final class AdminAgentBootstrapTokenController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $name = trim((string) $request->request->get('name', ''));
@@ -131,12 +133,12 @@ final class AdminAgentBootstrapTokenController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $token = $this->bootstrapTokenRepository->find($id);
         if (!$token instanceof AgentBootstrapToken) {
-            throw new NotFoundHttpException('Bootstrap token not found.');
+            throw new NotFoundHttpException($this->translator->trans('admin_bootstrap_token_not_found'));
         }
 
         $token->revoke();

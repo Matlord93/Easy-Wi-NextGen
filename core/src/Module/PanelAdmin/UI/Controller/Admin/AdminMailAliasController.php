@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/mail-aliases')]
 final class AdminMailAliasController
@@ -32,6 +33,7 @@ final class AdminMailAliasController
         private readonly Environment $twig,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]
         ?string $aliasMapPath,
+        private readonly TranslatorInterface $translator,
     ) {
         $this->aliasMapPath = $aliasMapPath ?? '';
     }
@@ -40,7 +42,7 @@ final class AdminMailAliasController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $aliases = $this->aliasRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -60,7 +62,7 @@ final class AdminMailAliasController
     public function table(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $aliases = $this->aliasRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -74,7 +76,7 @@ final class AdminMailAliasController
     public function form(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $domains = $this->domainRepository->findBy([], ['name' => 'ASC']);
@@ -89,12 +91,12 @@ final class AdminMailAliasController
     public function edit(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $alias = $this->aliasRepository->find($id);
         if ($alias === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $domains = $this->domainRepository->findBy([], ['name' => 'ASC']);
@@ -110,7 +112,7 @@ final class AdminMailAliasController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $formData = $this->parsePayload($request, true);
@@ -167,12 +169,12 @@ final class AdminMailAliasController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $alias = $this->aliasRepository->find($id);
         if ($alias === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request, false, $alias);
@@ -239,12 +241,12 @@ final class AdminMailAliasController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $alias = $this->aliasRepository->find($id);
         if ($alias === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $job = $this->queueAliasJob('mail.alias.delete', $alias, []);
@@ -270,12 +272,12 @@ final class AdminMailAliasController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $alias = $this->aliasRepository->find($id);
         if ($alias === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         if ($alias->isEnabled() !== $enabled) {

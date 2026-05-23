@@ -24,6 +24,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/ts3/nodes')]
@@ -39,6 +40,7 @@ final class AdminTs3NodeController
         private readonly FormFactoryInterface $formFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -73,7 +75,7 @@ final class AdminTs3NodeController
         if ($form->isSubmitted() && $form->isValid()) {
             $agent = $this->agentRepository->find($dto->agentNodeId);
             if ($agent === null) {
-                $form->addError(new FormError('Selected agent was not found.'));
+                $form->addError(new FormError($this->translator->trans('form_error_agent_not_found')));
                 return new Response($this->twig->render('admin/ts3/nodes/new.html.twig', [
                     'activeNav' => 'ts-nodes',
                     'form' => $form->createView(),
@@ -97,7 +99,7 @@ final class AdminTs3NodeController
             $this->entityManager->flush();
 
             $this->nodeService->install($node, $this->buildInstallDto($node));
-            $request->getSession()->getFlashBag()->add('success', 'TS3 node created. Install job queued.');
+            $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_node_created'));
 
             return new Response('', Response::HTTP_FOUND, [
                 'Location' => sprintf('/admin/ts3/nodes/%d', $node->getId()),
@@ -134,7 +136,7 @@ final class AdminTs3NodeController
         $this->validateCsrf($request, 'ts3_install_' . $id);
 
         $this->nodeService->install($node, $this->buildInstallDto($node));
-        $request->getSession()->getFlashBag()->add('success', 'TS3 install queued.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_node_install_queued'));
 
         return $this->redirectToNode($node);
     }
@@ -169,7 +171,7 @@ final class AdminTs3NodeController
         $this->validateCsrf($request, 'ts3_start_' . $id);
 
         $this->nodeService->start($node);
-        $request->getSession()->getFlashBag()->add('success', 'TS3 service started.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_node_service_started'));
 
         return $this->redirectToNode($node);
     }
@@ -182,7 +184,7 @@ final class AdminTs3NodeController
         $this->validateCsrf($request, 'ts3_stop_' . $id);
 
         $this->nodeService->stop($node);
-        $request->getSession()->getFlashBag()->add('success', 'TS3 service stopped.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_node_service_stopped'));
 
         return $this->redirectToNode($node);
     }
@@ -195,7 +197,7 @@ final class AdminTs3NodeController
         $this->validateCsrf($request, 'ts3_restart_' . $id);
 
         $this->nodeService->restart($node);
-        $request->getSession()->getFlashBag()->add('success', 'TS3 service restarted.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_node_service_restarted'));
 
         return $this->redirectToNode($node);
     }
@@ -210,7 +212,7 @@ final class AdminTs3NodeController
         $this->entityManager->remove($node);
         $this->entityManager->flush();
 
-        $request->getSession()->getFlashBag()->add('success', 'TS3 node deleted.');
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_node_deleted'));
 
         return new Response('', Response::HTTP_FOUND, [
             'Location' => '/admin/ts3/nodes',
@@ -221,7 +223,7 @@ final class AdminTs3NodeController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -231,7 +233,7 @@ final class AdminTs3NodeController
     {
         $node = $this->nodeRepository->find($id);
         if ($node === null) {
-            throw new NotFoundHttpException('TS3 node not found.');
+            throw new NotFoundHttpException($this->translator->trans('error_not_found'));
         }
 
         return $node;
@@ -277,7 +279,7 @@ final class AdminTs3NodeController
     {
         $token = (string) $request->request->get('_token', '');
         if (!$this->csrfTokenManager->isTokenValid(new CsrfToken($tokenId, $token))) {
-            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+            throw new UnauthorizedHttpException('csrf', $this->translator->trans('error_invalid_csrf'));
         }
     }
 
@@ -303,13 +305,13 @@ final class AdminTs3NodeController
     {
         $agentId = trim($dto->agentNodeId);
         if ($agentId === '') {
-            $form->addError(new FormError('Agent Node is required.'));
+            $form->addError(new FormError($this->translator->trans('form_error_agent_required')));
             return;
         }
 
         $agent = $this->agentRepository->find($agentId);
         if ($agent === null) {
-            $form->addError(new FormError('Selected agent was not found.'));
+            $form->addError(new FormError($this->translator->trans('form_error_agent_not_found')));
 
             return;
         }
@@ -334,19 +336,19 @@ final class AdminTs3NodeController
         }
 
         if (trim($dto->installPath) === '') {
-            $form->addError(new FormError('Install path is required.'));
+            $form->addError(new FormError($this->translator->trans('form_error_install_path_required')));
         }
 
         if (trim($dto->downloadUrl) === '') {
-            $form->addError(new FormError('Download URL is required.'));
+            $form->addError(new FormError($this->translator->trans('form_error_download_url_required')));
         }
 
         if (trim($dto->instanceName) === '') {
-            $form->addError(new FormError('Instance name is required.'));
+            $form->addError(new FormError($this->translator->trans('form_error_instance_name_required')));
         }
 
         if (trim($dto->serviceName) === '') {
-            $form->addError(new FormError('Service name is required.'));
+            $form->addError(new FormError($this->translator->trans('form_error_service_name_required')));
         }
     }
 

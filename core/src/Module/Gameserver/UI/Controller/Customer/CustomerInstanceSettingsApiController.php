@@ -33,6 +33,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[RequiresModule('game')]
 final class CustomerInstanceSettingsApiController
@@ -53,6 +54,7 @@ final class CustomerInstanceSettingsApiController
         private readonly InstanceSlotService $instanceSlotService,
         private readonly GameProfileRepository $gameProfileRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -93,13 +95,13 @@ final class CustomerInstanceSettingsApiController
             $instance = $this->findCustomerInstance($customer, $id);
             $payload = $request->toArray();
         } catch (\JsonException) {
-            return $this->apiError($request, 'INVALID_INPUT', 'Invalid JSON payload.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->apiError($request, 'INVALID_INPUT', $this->translator->trans('error_invalid_json'), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         } catch (HttpExceptionInterface $exception) {
             return $this->mapException($request, $exception);
         }
 
         if (!is_array($payload)) {
-            return $this->apiError($request, 'INVALID_INPUT', 'Invalid payload.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->apiError($request, 'INVALID_INPUT', $this->translator->trans('gs_api_invalid_payload'), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $automation = is_array($payload['automation'] ?? null) ? $payload['automation'] : $payload;
@@ -452,7 +454,7 @@ final class CustomerInstanceSettingsApiController
             $instance = $this->findCustomerInstance($customer, $id);
             $payload = $request->toArray();
         } catch (\JsonException) {
-            return $this->apiError($request, 'INVALID_INPUT', 'Invalid JSON payload.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->apiError($request, 'INVALID_INPUT', $this->translator->trans('error_invalid_json'), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         } catch (HttpExceptionInterface $exception) {
             return $this->mapException($request, $exception);
         }
@@ -487,12 +489,12 @@ final class CustomerInstanceSettingsApiController
         }
 
         if (strlen($initialContent) > self::MAX_CONFIG_BYTES) {
-            return $this->apiError($request, 'INVALID_INPUT', 'Config content exceeds maximum size.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->apiError($request, 'INVALID_INPUT', $this->translator->trans('gs_api_config_content_too_large'), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $filePath = $this->buildInstanceConfigPath($name, $format);
         if ($this->configPathExists($instance, $filePath)) {
-            return $this->apiError($request, 'CONFLICT', 'Config name already exists.', JsonResponse::HTTP_CONFLICT);
+            return $this->apiError($request, 'CONFLICT', $this->translator->trans('gs_api_config_name_exists'), JsonResponse::HTTP_CONFLICT);
         }
 
         $this->storeInstanceOverride($instance, $filePath, $initialContent, [
@@ -519,7 +521,7 @@ final class CustomerInstanceSettingsApiController
             $instance = $this->findCustomerInstance($customer, $id);
             $payload = $request->toArray();
         } catch (\JsonException) {
-            return $this->apiError($request, 'INVALID_INPUT', 'Invalid JSON payload.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->apiError($request, 'INVALID_INPUT', $this->translator->trans('error_invalid_json'), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         } catch (HttpExceptionInterface $exception) {
             return $this->mapException($request, $exception);
         }
@@ -534,12 +536,12 @@ final class CustomerInstanceSettingsApiController
         }
 
         if (($config['editable'] ?? false) !== true) {
-            return $this->apiError($request, 'FORBIDDEN', 'Config is not editable.', JsonResponse::HTTP_FORBIDDEN);
+            return $this->apiError($request, 'FORBIDDEN', $this->translator->trans('gs_api_config_not_editable'), JsonResponse::HTTP_FORBIDDEN);
         }
 
         $content = (string) $payload['content'];
         if (strlen($content) > self::MAX_CONFIG_BYTES) {
-            return $this->apiError($request, 'INVALID_INPUT', 'Config content exceeds maximum size.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->apiError($request, 'INVALID_INPUT', $this->translator->trans('gs_api_config_content_too_large'), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $this->storeInstanceOverride($instance, (string) $config['file_path'], $content, [
@@ -699,7 +701,7 @@ final class CustomerInstanceSettingsApiController
             ];
         }
 
-        throw new NotFoundHttpException('Config not found for this instance.');
+        throw new NotFoundHttpException($this->translator->trans('gs_api_config_not_found'));
     }
 
     /**
@@ -737,7 +739,7 @@ final class CustomerInstanceSettingsApiController
         $base = preg_replace('/[^a-z0-9._-]+/i', '-', $base) ?? '';
         $base = trim($base, '-.');
         if ($base === '') {
-            throw new BadRequestHttpException('Invalid config name.');
+            throw new BadRequestHttpException($this->translator->trans('gs_api_invalid_config_name'));
         }
 
         $extension = strtolower(trim($format));
@@ -850,7 +852,7 @@ final class CustomerInstanceSettingsApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -860,10 +862,10 @@ final class CustomerInstanceSettingsApiController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
         if ($instance->getCustomer()->getId() !== $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $instance;

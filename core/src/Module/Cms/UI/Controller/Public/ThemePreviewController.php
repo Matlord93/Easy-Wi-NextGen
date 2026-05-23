@@ -10,6 +10,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 final class ThemePreviewController
@@ -19,6 +20,7 @@ final class ThemePreviewController
         private readonly Environment $twig,
         #[Autowire('%kernel.debug%')]
         private readonly bool $kernelDebug,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -27,11 +29,11 @@ final class ThemePreviewController
     {
         $user = $request->attributes->get('current_user');
         if (!$this->kernelDebug && (!$user instanceof User || !$user->isAdmin())) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if (!in_array($theme, $this->themeResolver->supportedThemes(), true)) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         return new Response($this->twig->render(sprintf('themes/%s/pages/startseite.html.twig', $theme), [

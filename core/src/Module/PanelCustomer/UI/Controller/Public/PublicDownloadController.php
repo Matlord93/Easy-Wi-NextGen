@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicDownloadController
 {
@@ -22,6 +23,7 @@ final class PublicDownloadController
         #[Autowire(service: 'limiter.public_downloads')]
         private readonly RateLimiterFactory $downloadsLimiter,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -43,7 +45,7 @@ final class PublicDownloadController
 
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $items = $this->downloadRepository->findVisiblePublicBySite($site->getId() ?? 0);

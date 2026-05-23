@@ -1,18 +1,18 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}TS6 Virtual Server anlegen · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_ts6_server_create_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 {% set locale = page_locale() %}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">TS6 Virtual Server anlegen</h2>
-                <p class="ng-data-card__sub">Ordne einem Kunden einen TS6 Virtual Server zu.</p>
+                <h2 class="ng-data-card__title">{{ t('admin_ts6_server_create_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_ts6_server_create_intro', locale) }}</p>
             </div>
             <div class="ng-data-card__actions">
                 <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts6/servers">{{ t('overview', locale) }}</a>
-                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts6/nodes">Nodes verwalten</a>
+                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts6/nodes">{{ t('admin_ts6_server_create_manage_nodes', locale) }}</a>
             </div>
         </div>
         <div class="ng-data-card__body">
@@ -29,7 +29,7 @@
                 {{ form_row(form.slots) }}
                 {{ form_row(form.voicePort) }}
                 <div style="margin-top:20px;">
-                    <button class="ui-button ui-button--primary" type="submit">Server erstellen</button>
+                    <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts6_server_create_btn', locale) }}</button>
                 </div>
             {{ form_end(form) }}
         </div>

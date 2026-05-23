@@ -27,6 +27,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/admin/billing')]
 final class AdminBillingController
@@ -46,6 +47,7 @@ final class AdminBillingController
         private readonly AppSettingsService $settingsService,
         private readonly InvoiceLayoutRenderer $layoutRenderer,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -53,7 +55,7 @@ final class AdminBillingController
     public function index(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $recentInvoices = $this->invoiceRepository->findRecent();
@@ -78,7 +80,7 @@ final class AdminBillingController
     public function newInvoice(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $customers = $this->userRepository->findCustomers();
@@ -95,7 +97,7 @@ final class AdminBillingController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $formData = $this->parseInvoicePayload($request);
@@ -136,7 +138,7 @@ final class AdminBillingController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $now = new \DateTimeImmutable();
@@ -156,12 +158,12 @@ final class AdminBillingController
     public function showInvoice(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $invoice = $this->invoiceRepository->find($id);
         if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
@@ -183,12 +185,12 @@ final class AdminBillingController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $invoice = $this->invoiceRepository->find($id);
         if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $now = new \DateTimeImmutable();
@@ -212,12 +214,12 @@ final class AdminBillingController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $invoice = $this->invoiceRepository->find($id);
         if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $now = new \DateTimeImmutable();
@@ -243,12 +245,12 @@ final class AdminBillingController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $invoice = $this->invoiceRepository->find($id);
         if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
@@ -296,12 +298,12 @@ final class AdminBillingController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $invoice = $this->invoiceRepository->find($id);
         if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
@@ -336,7 +338,7 @@ final class AdminBillingController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $layout = (string) $request->request->get('invoice_layout', '');
@@ -360,17 +362,17 @@ final class AdminBillingController
     public function downloadArchive(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $invoice = $this->invoiceRepository->find($id);
         if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
         if ($archive === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $response = new Response($archive->getPdfContents());
@@ -384,7 +386,7 @@ final class AdminBillingController
     public function export(Request $request): Response
     {
         if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $type = (string) $request->query->get('type', 'invoices');

@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route('/customer/voice')]
@@ -24,6 +25,7 @@ final class CustomerVoiceController
         private readonly Ts6VirtualServerRepository $ts6Servers,
         private readonly Environment $twig,
         private readonly UrlGeneratorInterface $urlGenerator,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -32,7 +34,7 @@ final class CustomerVoiceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            return new Response('Unauthorized.', 401);
+            return new Response($this->translator->trans('error_security_unauthorized'), 401);
         }
 
         $instances = $this->repository->findByCustomer($actor, 200);
@@ -49,12 +51,12 @@ final class CustomerVoiceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            return new Response('Unauthorized.', 401);
+            return new Response($this->translator->trans('error_security_unauthorized'), 401);
         }
 
         $customerId = $actor->getId();
         if (!is_int($customerId)) {
-            return new Response('Unauthorized.', 401);
+            return new Response($this->translator->trans('error_security_unauthorized'), 401);
         }
 
         if ($type === 'ts3') {
@@ -64,7 +66,7 @@ final class CustomerVoiceController
         }
 
         if ($server === null || $server->getCustomerId() !== $customerId) {
-            return new Response('Not found.', 404);
+            return new Response($this->translator->trans('error_not_found'), 404);
         }
 
         $apiBase = '/api/v1/customer/voice/legacy/' . $type . '/' . $id;
@@ -97,12 +99,12 @@ final class CustomerVoiceController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            return new Response('Unauthorized.', 401);
+            return new Response($this->translator->trans('error_security_unauthorized'), 401);
         }
 
         $instance = $this->repository->find($id);
         if ($instance === null || $instance->getCustomer()->getId() !== $actor->getId()) {
-            return new Response('Not found.', 404);
+            return new Response($this->translator->trans('error_not_found'), 404);
         }
 
         $apiBase = '/api/v1/customer/voice/' . $id;

@@ -15,6 +15,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PublicProfileController
 {
@@ -24,6 +25,7 @@ final class PublicProfileController
         private readonly SiteResolver $siteResolver,
         private readonly ThemeResolver $themeResolver,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -65,7 +67,7 @@ final class PublicProfileController
         if ($request->isMethod('POST')) {
             $csrf = new CsrfToken('public_profile_edit', (string) $request->request->get('_token', ''));
             if (!$this->csrfTokenManager->isTokenValid($csrf)) {
-                return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+                return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
             }
 
             $name = trim((string) $request->request->get('name', ''));

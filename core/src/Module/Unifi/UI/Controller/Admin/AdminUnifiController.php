@@ -23,6 +23,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/unifi')]
@@ -40,6 +41,7 @@ final class AdminUnifiController
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -79,11 +81,11 @@ final class AdminUnifiController
             $nodeTargets = $this->parseNodeTargets($request->request->all('node_targets'));
 
             if ($baseUrl === '') {
-                $errors[] = 'Bitte die UniFi Controller URL angeben.';
+                $errors[] = $this->translator->trans('admin_unifi_url_required');
             }
 
             if ($username === '') {
-                $errors[] = 'Bitte Benutzername angeben.';
+                $errors[] = $this->translator->trans('admin_unifi_username_required');
             }
 
             if ($errors === []) {
@@ -100,7 +102,7 @@ final class AdminUnifiController
 
                 $this->entityManager->persist($settings);
                 $this->entityManager->flush();
-                $notice = 'Einstellungen gespeichert.';
+                $notice = $this->translator->trans('admin_unifi_settings_saved');
             }
         }
 
@@ -166,7 +168,7 @@ final class AdminUnifiController
 
                 $this->entityManager->persist($policy);
                 $this->entityManager->flush();
-                $notice = 'Policy gespeichert.';
+                $notice = $this->translator->trans('admin_unifi_policy_saved');
             }
         }
 
@@ -515,7 +517,7 @@ final class AdminUnifiController
         $description = trim((string) $request->request->get('description', ''));
 
         if ($name === '') {
-            $errors[] = 'Name darf nicht leer sein.';
+            $errors[] = $this->translator->trans('admin_unifi_rule_name_required');
         }
 
         if (!in_array($protocol, ['tcp', 'udp'], true)) {
@@ -527,7 +529,7 @@ final class AdminUnifiController
         }
 
         if ($targetIp === '') {
-            $errors[] = 'Target IP ist erforderlich.';
+            $errors[] = $this->translator->trans('admin_unifi_target_ip_required');
         }
 
         if (!is_numeric($targetPortValue) || (int) $targetPortValue <= 0 || (int) $targetPortValue > 65535) {

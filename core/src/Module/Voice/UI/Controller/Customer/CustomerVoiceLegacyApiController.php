@@ -31,6 +31,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/v1/customer/voice/legacy')]
 final class CustomerVoiceLegacyApiController
@@ -52,6 +53,7 @@ final class CustomerVoiceLegacyApiController
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly ServerQueryLimiterInterface $queryLimiter,
         private readonly CacheInterface $cache,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -111,7 +113,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        return new JsonResponse(['status' => 'ok', 'message' => 'Legacy servers do not support probing.']);
+        return new JsonResponse(['status' => 'ok', 'message' => $this->translator->trans('voice_legacy_probe_not_supported')]);
     }
 
     #[Route('/{type}/{id}/actions/{action}', name: 'customer_voice_legacy_action_v1', methods: ['POST'],
@@ -680,7 +682,7 @@ final class CustomerVoiceLegacyApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;

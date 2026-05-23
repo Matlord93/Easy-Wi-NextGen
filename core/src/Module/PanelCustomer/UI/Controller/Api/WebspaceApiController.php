@@ -26,6 +26,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class WebspaceApiController
 {
@@ -45,6 +46,7 @@ final class WebspaceApiController
         private readonly WebspacePathSanitizer $pathSanitizer,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly EntityManagerInterface $entityManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -54,7 +56,7 @@ final class WebspaceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $payload = $request->toArray();
@@ -68,46 +70,46 @@ final class WebspaceApiController
         $sftpEnabled = (bool) ($payload['sftp_enabled'] ?? false);
 
         if ($customerId === null || $nodeId === '' || $domain === '' || $phpVersion === '' || $quotaValue === null) {
-            return new JsonResponse(['error' => 'Missing required fields.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_missing_required_fields')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if (!is_numeric($quotaValue) || !is_numeric($diskLimitValue)) {
-            return new JsonResponse(['error' => 'Quota and disk limit must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('webspace_quota_disk_must_be_numeric')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $quota = (int) $quotaValue;
         if ($quota < 0) {
-            return new JsonResponse(['error' => 'Quota must be zero or positive.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('error_quota_must_be_positive')], JsonResponse::HTTP_BAD_REQUEST);
         }
         $diskLimitBytes = (int) $diskLimitValue;
         if ($diskLimitBytes < 0) {
-            return new JsonResponse(['error' => 'Disk limit must be zero or positive.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('webspace_disk_limit_must_be_positive')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $normalizedDomain = $this->normalizeDomain($domain);
         if (!$this->isValidDomain($normalizedDomain)) {
-            return new JsonResponse(['error' => 'Domain is invalid.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('webspace_domain_invalid')], JsonResponse::HTTP_BAD_REQUEST);
         }
         $domain = $normalizedDomain;
 
         $customer = $this->userRepository->find($customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
-            return new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('error_customer_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $node = $this->agentRepository->find($nodeId);
         if ($node === null) {
-            return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_node_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $availablePhpVersions = $this->extractPhpVersions($node->getMetadata());
         if ($availablePhpVersions !== [] && !in_array($phpVersion, $availablePhpVersions, true)) {
-            return new JsonResponse(['error' => 'Selected PHP version is not available on the node.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('webspace_php_version_unavailable')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $assignedPort = $this->assignPort($node);
         if ($assignedPort === null) {
-            return new JsonResponse(['error' => 'No available ports in the pool for this node.'], JsonResponse::HTTP_CONFLICT);
+            return new JsonResponse(['error' => $this->translator->trans('webspace_no_ports_available')], JsonResponse::HTTP_CONFLICT);
         }
 
         [$path, $docroot] = $this->buildWebspacePaths($normalizedDomain);
@@ -229,7 +231,7 @@ final class WebspaceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $page = max(1, (int) $request->query->get('page', 1));
@@ -282,7 +284,7 @@ final class WebspaceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $webspaces = $this->webspaceRepository->findByCustomer($actor);
@@ -342,12 +344,12 @@ final class WebspaceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $webspace = $this->webspaceRepository->find($id);
         if ($webspace === null) {
-            return new JsonResponse(['error' => 'Webspace not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('webspace_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $webspace->setStatus(Webspace::STATUS_DELETED);
@@ -409,12 +411,12 @@ final class WebspaceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $webspace = $this->webspaceRepository->find($id);
         if ($webspace === null) {
-            return new JsonResponse(['error' => 'Webspace not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('webspace_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $previousStatus = $webspace->getStatus();
@@ -445,7 +447,7 @@ final class WebspaceApiController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            return $this->responseEnvelopeFactory->error($request, 'Unauthorized.', 'unauthorized', 401);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('error_unauthorized'), 'unauthorized', 401);
         }
 
         try {
@@ -466,7 +468,7 @@ final class WebspaceApiController
         }
 
         if ($name === '' || !in_array($runtime, ['nginx', 'apache'], true)) {
-            return $this->responseEnvelopeFactory->error($request, 'Missing required fields.', 'validation_failed', 400);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_missing_required_fields'), 'validation_failed', 400);
         }
 
         $node = $this->agentRepository->find($nodeId);
@@ -521,7 +523,7 @@ final class WebspaceApiController
         $actor = $request->attributes->get('current_user');
         $webspace = $this->webspaceRepository->find($id);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
-            return $this->responseEnvelopeFactory->error($request, 'Webspace not found.', 'webspace_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('webspace_not_found'), 'webspace_not_found', 404);
         }
 
         try {
@@ -617,7 +619,7 @@ final class WebspaceApiController
         $actor = $request->attributes->get('current_user');
         $webspace = $this->webspaceRepository->find($id);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
-            return $this->responseEnvelopeFactory->error($request, 'Webspace not found.', 'webspace_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('webspace_not_found'), 'webspace_not_found', 404);
         }
 
         $domains = $this->domainRepository->findBy(['webspace' => $webspace], ['id' => 'ASC']);
@@ -786,7 +788,7 @@ final class WebspaceApiController
         $actor = $request->attributes->get('current_user');
         $webspace = $this->webspaceRepository->find($id);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
-            return $this->responseEnvelopeFactory->error($request, 'Webspace not found.', 'webspace_not_found', 404);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('webspace_not_found'), 'webspace_not_found', 404);
         }
 
         $active = $this->findActiveWebspaceActionJob((string) $webspace->getId());

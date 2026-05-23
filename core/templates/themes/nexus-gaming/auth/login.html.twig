@@ -22,8 +22,8 @@
                 </svg>
                 <span>{{ app_setting('branding_name', 'Easy-Wi NextGen') }}</span>
             </a>
-            <h1 class="ng-auth-card__title">Willkommen zurück</h1>
-            <p class="ng-auth-card__sub">Melde dich in deinem Account an</p>
+            <h1 class="ng-auth-card__title">{{ t('theme_login_title', page_locale()) }}</h1>
+            <p class="ng-auth-card__sub">{{ t('theme_login_subtitle', page_locale()) }}</p>
         </div>
 
         {% for error in errors|default([]) %}
@@ -37,7 +37,7 @@
                 <label class="ng-label" for="login-email">E-Mail</label>
                 <input class="ng-input" id="login-email" name="email" type="email"
                        value="{{ form.email|default('') }}"
-                       placeholder="deine@email.de" required autocomplete="email">
+                       placeholder="{{ t('theme_contact_placeholder_email', page_locale()) }}" required autocomplete="email">
             </div>
 
             <div class="ng-field">
@@ -47,7 +47,7 @@
             </div>
 
             <button type="submit" class="ng-btn ng-btn--primary ng-btn--full">
-                Einloggen
+                {{ t('theme_login_submit_btn', page_locale()) }}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M5 12h14M12 5l7 7-7 7"/>
                 </svg>
@@ -56,18 +56,18 @@
 
         {% if registrationAllowed|default(false) %}
             <p class="ng-auth-footer">
-                Noch kein Account?
-                <a href="/register" class="ng-link">Jetzt registrieren</a>
+                {{ t('theme_login_no_account', page_locale()) }}
+                <a href="/register" class="ng-link">{{ t('theme_login_register_link', page_locale()) }}</a>
             </p>
         {% else %}
-            <p class="ng-auth-footer ng-auth-footer--muted">Registrierung ist derzeit deaktiviert.</p>
+            <p class="ng-auth-footer ng-auth-footer--muted">{{ t('theme_login_registration_disabled', page_locale()) }}</p>
         {% endif %}
 
         <a href="/" class="ng-auth-back">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            Zur Startseite
+            {{ t('theme_login_to_home', page_locale()) }}
         </a>
     </div>
 </div>

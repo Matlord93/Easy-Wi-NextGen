@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/kontakt', name: 'public_kontakt', methods: ['GET', 'POST'])]
@@ -25,6 +26,7 @@ final class PublicKontaktController
         private readonly ContactMessageRepository $contactMessageRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly RateLimiterFactory $kontaktLimiter,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -32,7 +34,7 @@ final class PublicKontaktController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $success = false;
@@ -46,7 +48,7 @@ final class PublicKontaktController
 
             $limit = $this->kontaktLimiter->create($request->getClientIp() ?? 'anon')->consume(1);
             if (!$limit->isAccepted()) {
-                $error = 'Zu viele Nachrichten. Bitte warte eine Stunde und versuche es erneut.';
+                $error = $this->translator->trans('flash_kontakt_rate_limit');
             } else {
                 $name = trim((string) $request->request->get('name', ''));
                 $email = trim((string) $request->request->get('email', ''));
@@ -56,7 +58,7 @@ final class PublicKontaktController
                 if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $subject === '' || $message === '') {
                     $error = 'contact_validation_error';
                 } elseif (mb_strlen($message) > 5000) {
-                    $error = 'Deine Nachricht ist zu lang (max. 5000 Zeichen).';
+                    $error = $this->translator->trans('flash_kontakt_message_too_long');
                 } else {
                     $subject = mb_substr(str_replace(["\r", "\n"], ' ', $subject), 0, 255);
                     $message = mb_substr($message, 0, 5000);
@@ -76,7 +78,7 @@ final class PublicKontaktController
             'cms_navigation' => $this->settingsProvider->getNavigationLinks($site),
             'cms_footer_links' => $this->settingsProvider->getFooterLinks($site),
             'cms_branding' => $this->settingsProvider->getBranding($site),
-            'page' => ['title' => 'Kontakt', 'slug' => 'kontakt'],
+            'page' => ['title' => $this->translator->trans('theme_contact_title'), 'slug' => 'kontakt'],
             'blocks' => [],
             'template_key' => 'nexus-gaming',
             'active_theme' => 'nexus-gaming',
@@ -91,7 +93,7 @@ final class PublicKontaktController
             'cms_navigation' => $this->settingsProvider->getNavigationLinks($site),
             'cms_footer_links' => $this->settingsProvider->getFooterLinks($site),
             'cms_branding' => $this->settingsProvider->getBranding($site),
-            'page' => ['title' => 'Kontakt', 'slug' => 'kontakt'],
+            'page' => ['title' => $this->translator->trans('theme_contact_title'), 'slug' => 'kontakt'],
             'blocks' => [],
             'template_key' => 'nexus-gaming',
             'active_theme' => 'nexus-gaming',

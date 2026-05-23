@@ -26,6 +26,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/instances/{id}/files')]
 #[RequiresModule('game')]
@@ -40,6 +41,7 @@ final class CustomerInstanceFileManagerController
         private readonly AppSettingsService $appSettingsService,
         private readonly FileServiceClient $fileServiceClient,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -105,14 +107,14 @@ final class CustomerInstanceFileManagerController
         $instance = $this->findCustomerInstance($customer, $id);
         $job = $this->jobRepository->find($jobId);
         if ($job === null || $job->getType() !== 'instance.files.list') {
-            throw new NotFoundHttpException('Listing not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_listing_not_found'));
         }
 
         $payload = $job->getPayload();
         $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
         $payloadInstanceId = (string) ($payload['instance_id'] ?? '');
         if ($payloadCustomerId !== (string) $customer->getId() || $payloadInstanceId !== (string) $instance->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         $status = $job->getStatus();
@@ -148,7 +150,7 @@ final class CustomerInstanceFileManagerController
         $name = trim((string) $request->query->get('name', ''));
         $description = trim((string) $request->query->get('description', ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
+            throw new BadRequestHttpException($this->translator->trans('gs_api_missing_file_name'));
         }
 
         $job = $this->queueFileJob('instance.files.read', $instance, $customer, $path, [
@@ -174,14 +176,14 @@ final class CustomerInstanceFileManagerController
         $instance = $this->findCustomerInstance($customer, $id);
         $job = $this->jobRepository->find($jobId);
         if ($job === null || $job->getType() !== 'instance.files.read') {
-            throw new NotFoundHttpException('Read job not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_read_job_not_found'));
         }
 
         $payload = $job->getPayload();
         $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
         $payloadInstanceId = (string) ($payload['instance_id'] ?? '');
         if ($payloadCustomerId !== (string) $customer->getId() || $payloadInstanceId !== (string) $instance->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         $status = $job->getStatus();
@@ -221,7 +223,7 @@ final class CustomerInstanceFileManagerController
         $name = trim((string) $request->request->get('name', ''));
         $content = (string) $request->request->get('content', '');
         if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
+            throw new BadRequestHttpException($this->translator->trans('gs_api_missing_file_name'));
         }
 
         $job = $this->queueFileJob('instance.files.write', $instance, $customer, $path, [
@@ -250,7 +252,7 @@ final class CustomerInstanceFileManagerController
         $path = trim((string) $request->request->get('path', ''));
         $upload = $request->files->get('upload');
         if (!$upload instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
-            throw new BadRequestHttpException('Missing upload.');
+            throw new BadRequestHttpException($this->translator->trans('customer_instance_files_error_missing_upload'));
         }
 
         $contents = file_get_contents($upload->getPathname());
@@ -282,7 +284,7 @@ final class CustomerInstanceFileManagerController
         $path = trim((string) $request->request->get('path', ''));
         $name = trim((string) $request->request->get('name', ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing folder name.');
+            throw new BadRequestHttpException($this->translator->trans('customer_instance_files_error_missing_folder_name'));
         }
 
         $job = $this->queueFileJob('instance.files.mkdir', $instance, $customer, $path, [
@@ -308,7 +310,7 @@ final class CustomerInstanceFileManagerController
         $path = trim((string) $request->request->get('path', ''));
         $name = trim((string) $request->request->get('name', ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing target name.');
+            throw new BadRequestHttpException($this->translator->trans('customer_instance_files_error_missing_target_name'));
         }
 
         $job = $this->queueFileJob('instance.files.delete', $instance, $customer, $path, [
@@ -334,7 +336,7 @@ final class CustomerInstanceFileManagerController
         $path = trim((string) $request->query->get('path', ''));
         $name = trim((string) $request->query->get('name', ''));
         if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
+            throw new BadRequestHttpException($this->translator->trans('gs_api_missing_file_name'));
         }
 
         $job = $this->queueFileJob('instance.files.read', $instance, $customer, $path, [
@@ -358,21 +360,21 @@ final class CustomerInstanceFileManagerController
         $instance = $this->findCustomerInstance($customer, $id);
         $job = $this->jobRepository->find($jobId);
         if ($job === null || $job->getType() !== 'instance.files.read') {
-            throw new NotFoundHttpException('Download job not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_download_job_not_found'));
         }
 
         $payload = $job->getPayload();
         $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
         $payloadInstanceId = (string) ($payload['instance_id'] ?? '');
         if ($payloadCustomerId !== (string) $customer->getId() || $payloadInstanceId !== (string) $instance->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         $status = $job->getStatus();
         $name = (string) ($payload['name'] ?? '');
         $error = null;
         if ($status === JobStatus::Failed || $status === JobStatus::Cancelled) {
-            $error = (string) ($job->getResult()?->getOutput()['message'] ?? 'Download failed.');
+            $error = (string) ($job->getResult()?->getOutput()['message'] ?? $this->translator->trans('gs_api_download_failed'));
         }
 
         return new Response($this->twig->render('customer/instances/files/_download.html.twig', [
@@ -392,14 +394,14 @@ final class CustomerInstanceFileManagerController
         $instance = $this->findCustomerInstance($customer, $id);
         $job = $this->jobRepository->find($jobId);
         if ($job === null || $job->getType() !== 'instance.files.read') {
-            throw new NotFoundHttpException('Download job not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_download_job_not_found'));
         }
 
         $payload = $job->getPayload();
         $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
         $payloadInstanceId = (string) ($payload['instance_id'] ?? '');
         if ($payloadCustomerId !== (string) $customer->getId() || $payloadInstanceId !== (string) $instance->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         if ($job->getStatus() !== JobStatus::Succeeded) {
@@ -410,7 +412,7 @@ final class CustomerInstanceFileManagerController
         $error = null;
         $content = $this->decodeFileContent((string) ($result?->getOutput()['content_base64'] ?? ''), $error);
         if ($content === '' && $error !== null) {
-            throw new BadRequestHttpException('Download failed.');
+            throw new BadRequestHttpException($this->translator->trans('gs_api_download_failed'));
         }
 
         $name = (string) ($payload['name'] ?? 'download.bin');
@@ -430,7 +432,7 @@ final class CustomerInstanceFileManagerController
             !$actor instanceof User
             || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
         ) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
         return $actor;
@@ -440,11 +442,11 @@ final class CustomerInstanceFileManagerController
     {
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         if (!$customer->isAdmin() && $instance->getCustomer()->getId() !== $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         return $instance;
@@ -616,7 +618,7 @@ final class CustomerInstanceFileManagerController
 
         $decoded = base64_decode($encoded, true);
         if ($decoded === false) {
-            $error = 'Invalid file content.';
+            $error = $this->translator->trans('gs_api_invalid_file_content');
             return '';
         }
 

@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class PanelLandingController
 {
@@ -18,7 +19,7 @@ final class PanelLandingController
     {
         $user = $request->attributes->get('current_user');
         if (!$user instanceof User || $user->getType() !== UserType::Customer) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new RedirectResponse('/dashboard');
@@ -29,7 +30,7 @@ final class PanelLandingController
     {
         $user = $request->attributes->get('current_user');
         if (!$user instanceof User || $user->getType() !== UserType::Reseller) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         return new RedirectResponse('/reseller/customers');

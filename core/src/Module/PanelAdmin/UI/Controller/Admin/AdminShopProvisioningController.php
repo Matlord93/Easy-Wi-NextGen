@@ -23,6 +23,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class AdminShopProvisioningController
 {
@@ -37,6 +38,7 @@ final class AdminShopProvisioningController
         private readonly AppSettingsService $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly GameServerInstallPathManager $installPathManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -46,7 +48,7 @@ final class AdminShopProvisioningController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $payload = $request->toArray();
@@ -61,11 +63,11 @@ final class AdminShopProvisioningController
         $instanceBaseDir = trim((string) ($payload['instance_base_dir'] ?? ''));
 
         if ($email === '' || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
-            return new JsonResponse(['error' => 'Missing required fields.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_missing_required_fields')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if (!is_numeric($cpuLimitValue) || !is_numeric($ramLimitValue) || !is_numeric($diskLimitValue)) {
-            return new JsonResponse(['error' => 'Limits must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_limits_must_be_numeric')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $cpuLimit = (int) $cpuLimitValue;
@@ -73,7 +75,7 @@ final class AdminShopProvisioningController
         $diskLimit = (int) $diskLimitValue;
 
         if ($cpuLimit <= 0 || $ramLimit <= 0 || $diskLimit <= 0) {
-            return new JsonResponse(['error' => 'Limits must be positive.'], JsonResponse::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_limits_must_be_positive')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $customer = $this->userRepository->findOneByEmail($email);
@@ -102,17 +104,17 @@ final class AdminShopProvisioningController
 
             $isNewCustomer = true;
         } elseif ($customer->getType() !== UserType::Customer) {
-            return new JsonResponse(['error' => 'User is not a customer.'], JsonResponse::HTTP_CONFLICT);
+            return new JsonResponse(['error' => $this->translator->trans('shop_user_not_customer')], JsonResponse::HTTP_CONFLICT);
         }
 
         $template = $this->templateRepository->find($templateId);
         if ($template === null) {
-            return new JsonResponse(['error' => 'Template not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_template_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $node = $this->agentRepository->find($nodeId);
         if ($node === null) {
-            return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => $this->translator->trans('gs_api_node_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         if ($instanceBaseDir === '') {

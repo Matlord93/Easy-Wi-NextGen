@@ -65,7 +65,7 @@
                         </div>
 
                         <div class="tsi-row__meta">
-                            <span class="tsi-dot tsi-dot--{{ isOnline ? 'success' : (isOffline ? 'danger' : 'warning') }}">{{ status|title }}</span>
+                            <span class="tsi-dot tsi-dot--{{ isOnline ? 'success' : (isOffline ? 'danger' : 'warning') }}">{{ t('status_' ~ status, page_locale()) }}</span>
                             <span class="tsi-slots" data-summary-url="{{ row.summaryUrl }}" data-slots>—/—</span>
                         </div>
 

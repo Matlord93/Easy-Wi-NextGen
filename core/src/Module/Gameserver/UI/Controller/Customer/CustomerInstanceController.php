@@ -1904,16 +1904,16 @@ final class CustomerInstanceController
         $entries = [
             [
                 'key' => 'SERVER_NAME',
-                'label' => 'Servername',
+                'label' => 'gs_field_server_name',
                 'type' => 'text',
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Optional, wird als Hostname verwendet.',
+                'helptext' => 'gs_field_server_name_help',
             ],
             [
                 'key' => 'SERVER_PASSWORD',
-                'label' => 'Serverpasswort',
+                'label' => 'gs_field_server_password',
                 'type' => 'password',
                 'required' => false,
                 'scope' => 'customer_allowed',
@@ -1922,7 +1922,7 @@ final class CustomerInstanceController
             ],
             [
                 'key' => 'RCON_PASSWORD',
-                'label' => 'RCON Passwort',
+                'label' => 'gs_field_rcon_password',
                 'type' => 'password',
                 'required' => false,
                 'scope' => 'customer_allowed',
@@ -1931,7 +1931,7 @@ final class CustomerInstanceController
             ],
             [
                 'key' => 'STEAM_GSLT',
-                'label' => 'Steam GSLT',
+                'label' => 'gs_field_steam_gslt',
                 'type' => 'text',
                 'required' => false,
                 'scope' => 'customer_allowed',
@@ -1940,16 +1940,16 @@ final class CustomerInstanceController
             ],
             [
                 'key' => 'STEAM_LOGIN_MODE',
-                'label' => 'Steam Login',
+                'label' => 'gs_field_steam_login',
                 'type' => 'text',
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Standard ist Anonymous. Optional kann ein eigener Steam Account genutzt werden.',
+                'helptext' => 'gs_field_steam_login_help',
             ],
             [
                 'key' => 'STEAM_ACCOUNT',
-                'label' => 'Steam Benutzername',
+                'label' => 'gs_field_steam_username',
                 'type' => 'text',
                 'required' => false,
                 'scope' => 'customer_allowed',
@@ -1958,7 +1958,7 @@ final class CustomerInstanceController
             ],
             [
                 'key' => 'STEAM_PASSWORD',
-                'label' => 'Steam Passwort',
+                'label' => 'gs_field_steam_password',
                 'type' => 'password',
                 'required' => false,
                 'scope' => 'customer_allowed',
@@ -1967,7 +1967,7 @@ final class CustomerInstanceController
             ],
             [
                 'key' => 'GAME_TYPE',
-                'label' => 'game_type',
+                'label' => 'gs_field_game_type',
                 'type' => 'number',
                 'required' => false,
                 'scope' => 'customer_allowed',
@@ -1976,7 +1976,7 @@ final class CustomerInstanceController
             ],
             [
                 'key' => 'GAME_MODE',
-                'label' => 'game_mode',
+                'label' => 'gs_field_game_mode',
                 'type' => 'number',
                 'required' => false,
                 'scope' => 'customer_allowed',

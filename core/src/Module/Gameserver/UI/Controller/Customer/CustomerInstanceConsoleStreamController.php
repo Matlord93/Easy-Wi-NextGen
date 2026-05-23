@@ -16,6 +16,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Psr\Log\LoggerInterface;
 use App\Module\Core\Attribute\RequiresModule;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/instances')]
 #[RequiresModule('game')]
@@ -29,6 +30,7 @@ final class CustomerInstanceConsoleStreamController
         private readonly ?ConsoleStreamDiagnostics $diagnostics = null,
         private readonly ?LoggerInterface $logger = null,
         private readonly bool $debug = false,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -39,13 +41,13 @@ final class CustomerInstanceConsoleStreamController
         $actor = $this->requireUser($request);
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
-            throw new NotFoundHttpException('Instance not found.');
+            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
         $isOwner = $instance->getCustomer()?->getId() === $actor->getId();
         $isAdmin = $actor->getType() === UserType::Admin;
         if (!$isOwner && !$isAdmin) {
-            throw new AccessDeniedHttpException('Forbidden');
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
         $lastEventId = (int) $request->headers->get('Last-Event-ID', '0');
@@ -150,7 +152,7 @@ final class CustomerInstanceConsoleStreamController
     {
         $user = $request->attributes->get('current_user');
         if (!$user instanceof User) {
-            throw new AccessDeniedHttpException('Authentication required.');
+            throw new AccessDeniedHttpException($this->translator->trans('error_authentication_required'));
         }
 
         return $user;
