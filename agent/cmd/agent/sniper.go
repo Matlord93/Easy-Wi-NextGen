@@ -64,6 +64,16 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	}
 	sharedServer := sharedServerDir(baseDir, sharedKey)
 	manifestPath := sharedManifestPath(baseDir, sharedKey)
+	mf, err := readSharedManifest(manifestPath)
+	if err != nil {
+		return failureResult(job.ID, fmt.Errorf("SHARED_MANIFEST_INVALID: %w", err))
+	}
+	if mf.SharedKey != "" && strings.TrimSpace(mf.SharedKey) != sharedKey {
+		return failureResult(job.ID, fmt.Errorf("SHARED_MANIFEST_INVALID: manifest shared_key mismatch (%s != %s)", mf.SharedKey, sharedKey))
+	}
+	if mf.Status == "installing" || mf.Status == "updating" {
+		return failureResult(job.ID, fmt.Errorf("SHARED_MANIFEST_INVALID: shared server busy with status=%s", mf.Status))
+	}
 	if _, err := os.Stat(sharedServer); err != nil {
 		if os.IsNotExist(err) {
 			return failureResult(job.ID, fmt.Errorf("SHARED_SERVER_MISSING: %s", sharedServer))
@@ -75,17 +85,6 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		return failureResult(job.ID, fmt.Errorf("SHARED_LOCK_TIMEOUT: %w", err))
 	}
 	defer lockRelease()
-
-	mf, err := readSharedManifest(manifestPath)
-	if err != nil {
-		return failureResult(job.ID, fmt.Errorf("SHARED_MANIFEST_INVALID: %w", err))
-	}
-	if mf.SharedKey != "" && strings.TrimSpace(mf.SharedKey) != sharedKey {
-		return failureResult(job.ID, fmt.Errorf("SHARED_MANIFEST_INVALID: manifest shared_key mismatch (%s != %s)", mf.SharedKey, sharedKey))
-	}
-	if mf.Status == "installing" || mf.Status == "updating" {
-		return failureResult(job.ID, fmt.Errorf("SHARED_MANIFEST_INVALID: shared server busy with status=%s", mf.Status))
-	}
 	mf.Status = "updating"
 	mf.FailureReason = ""
 	_ = writeSharedManifest(manifestPath, *mf)
