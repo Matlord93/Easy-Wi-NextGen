@@ -16,6 +16,7 @@ import (
 )
 
 type sharedPathSpec struct {
+	Path           string   `json:"path,omitempty"`
 	Source         string   `json:"source"`
 	Target         string   `json:"target"`
 	Mode           string   `json:"mode"`
@@ -246,6 +247,10 @@ func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPat
 }
 
 func parseSharedPathSpecs(payload map[string]any) ([]sharedPathSpec, error) {
+	modeDefault := strings.ToLower(strings.TrimSpace(payloadValue(payload, "shared_runtime_mode")))
+	if modeDefault == "" {
+		modeDefault = "symlink"
+	}
 	raw, ok := payload["shared_paths"]
 	if !ok || raw == nil {
 		return nil, nil
@@ -262,9 +267,16 @@ func parseSharedPathSpecs(payload map[string]any) ([]sharedPathSpec, error) {
 		}
 		source := strings.TrimSpace(payloadString(entry["source"]))
 		target := strings.TrimSpace(payloadString(entry["target"]))
+		path := strings.TrimSpace(payloadString(entry["path"]))
+		if source == "" && path != "" {
+			source = path
+		}
+		if target == "" && path != "" {
+			target = path
+		}
 		mode := strings.ToLower(strings.TrimSpace(payloadString(entry["mode"])))
 		if mode == "" {
-			mode = "symlink"
+			mode = modeDefault
 		}
 		readonly := parsePayloadBool(payloadString(entry["readonly"]), false)
 		if !readonly {
@@ -278,11 +290,14 @@ func parseSharedPathSpecs(payload map[string]any) ([]sharedPathSpec, error) {
 		if source == "" || target == "" {
 			return nil, fmt.Errorf("shared_paths[%d] requires source and target", i)
 		}
-		specs = append(specs, sharedPathSpec{Source: source, Target: target, Mode: mode, ReadOnly: readonly, Exclude: exclude, UnsafeOverride: unsafeOverride})
+		localPaths, _ := parseExcludeList(entry["local_paths"], i)
+		if len(localPaths) > 0 {
+			exclude = append(exclude, localPaths...)
+		}
+		specs = append(specs, sharedPathSpec{Path: path, Source: source, Target: target, Mode: mode, ReadOnly: readonly, Exclude: exclude, UnsafeOverride: unsafeOverride})
 	}
 	return specs, nil
 }
-
 
 func shouldUseSharedStorage(payload map[string]any, action string) bool {
 	sharedEnabled := parsePayloadBool(payloadValue(payload, "shared_enabled", "use_shared_storage"), false)
@@ -290,8 +305,12 @@ func shouldUseSharedStorage(payload map[string]any, action string) bool {
 	installMode := strings.ToLower(strings.TrimSpace(payloadValue(payload, "install_mode", "mode")))
 
 	isSharedAction := strings.HasPrefix(action, "shared_") || installMode == "shared" || installMode == "shared_reinstall" || installMode == "shared_update"
-
-	return sharedEnabled || sharedKey != "" || isSharedAction
+	mode := strings.ToLower(strings.TrimSpace(payloadValue(payload, "shared_runtime_mode")))
+	gameType := strings.ToLower(strings.TrimSpace(payloadValue(payload, "game_type", "template_slug", "template_name")))
+	if mode == "none" || strings.Contains(gameType, "minecraft") {
+		return false
+	}
+	return sharedEnabled || sharedKey != "" || isSharedAction || mode == "bind" || mode == "overlay" || mode == "bind_overlay"
 }
 
 func logSharedValidationState(logSender JobLogSender, jobID string, action string, payload map[string]any, sharedSpecs []sharedPathSpec, sharedActive bool, sharedRoot string) {
@@ -312,6 +331,8 @@ func logSharedValidationState(logSender JobLogSender, jobID string, action strin
 		fmt.Sprintf("shared_validation_active=%t", sharedActive),
 		fmt.Sprintf("install_mode=%s", installMode),
 		fmt.Sprintf("shared_server_dir=%s", sharedRoot),
+		fmt.Sprintf("shared_runtime_mode=%s", payloadValue(payload, "shared_runtime_mode")),
+		fmt.Sprintf("game_type=%s", payloadValue(payload, "game_type", "template_slug", "template_name")),
 	}, nil)
 }
 func applySharedPaths(instanceDir, sharedRoot string, specs []sharedPathSpec) error {
@@ -441,7 +462,7 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 			}
 		}
 	}
-	if spec.Mode == "shared_tree" {
+	if spec.Mode == "overlay" || spec.Mode == "bind_overlay" || spec.Mode == "shared_tree" {
 		return applySharedTree(sharedSource, targetPath, spec)
 	}
 	return linkPath(sharedSource, targetPath, spec.Mode)
@@ -449,7 +470,7 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 
 func linkPath(source, target, mode string) error {
 	switch mode {
-	case "symlink", "":
+	case "symlink", "", "bind":
 		if runtime.GOOS == "windows" {
 			return os.Symlink(source, target)
 		}

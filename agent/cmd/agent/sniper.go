@@ -614,6 +614,15 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 
 	installTargetDir := instanceDir
 	sharedKey := ""
+	gameType := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "game_type", "template_slug", "template_name")))
+	sharedRuntimeMode := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "shared_runtime_mode")))
+	sharedRuntimeSupported := !strings.Contains(gameType, "minecraft") && sharedRuntimeMode != "none"
+	if sharedEnabled && !sharedRuntimeSupported {
+		if logSender != nil && job.ID != "" {
+			logSender.Send(job.ID, []string{"shared_runtime_supported=false", fmt.Sprintf("game_type=%s", gameType), fmt.Sprintf("shared_runtime_mode=%s", sharedRuntimeMode)}, nil)
+		}
+		sharedEnabled = false
+	}
 	if sharedEnabled {
 		k, err := buildSharedKey(job.Payload)
 		if err != nil {
@@ -771,7 +780,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("STEAM_RUNTIME_LINK_FAILED: %w", err))
 		}
-		if err := ensureCS2StartScript(instanceDir, installTargetDir, osUsername); err != nil {
+		if err := ensureSharedStartScript(instanceDir, installTargetDir, osUsername, payloadValue(job.Payload, "start_script", "game_script", "server_script")); err != nil {
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("STARTSCRIPT_MISSING: %w", err))
 		}
@@ -971,15 +980,18 @@ func resolveSniperUserHomeAndGameDir(payloadInstallPath string, osUsername strin
 	return userHome, gameDir, nil
 }
 
-func ensureCS2StartScript(gameDir, sharedServer, osUsername string) error {
-	src := filepath.Join(sharedServer, "game", "cs2.sh")
+func ensureSharedStartScript(gameDir, sharedServer, osUsername, scriptName string) error {
+	if strings.TrimSpace(scriptName) == "" {
+		scriptName = "cs2.sh"
+	}
+	src := filepath.Join(sharedServer, "game", filepath.Base(scriptName))
 	if _, err := os.Stat(src); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("missing %s", src)
 		}
 		return err
 	}
-	dst := filepath.Join(gameDir, "cs2.sh")
+	dst := filepath.Join(gameDir, filepath.Base(scriptName))
 	if err := copyPathRecursive(src, dst); err != nil {
 		return err
 	}
