@@ -109,8 +109,18 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	usesSteamCmd := steamcmdCommandRegex.MatchString(renderedCommand)
 	steamCmdExecPath := ""
 	if usesSteamCmd {
-		steamCmdExecPath = "$STEAMCMD_EXEC"
+		steamCmdExecPath = resolveSteamCmdExecPath(instanceDirSteamCmdDir(sharedServer))
+		if steamCmdExecPath == "" {
+			steamCmdExecPath = "$STEAMCMD_EXEC"
+		}
 		renderedCommand = replaceSteamCmdExecutable(renderedCommand, steamCmdExecPath)
+		if err := validateSteamCmdCommand(renderedCommand); err != nil {
+			_ = markSharedManifestFailed(manifestPath, err)
+			if logSender != nil {
+				logSender.Send(job.ID, []string{"shared update failed", fmt.Sprintf("reason=%s", err.Error()), "Job failed"}, nil)
+			}
+			return failureResult(job.ID, err)
+		}
 	}
 	if logSender != nil {
 		logSender.Send(job.ID, []string{
@@ -128,6 +138,7 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	}
 	shellCmd := buildSniperInstallShellCommand(sharedServer, renderedCommand, installSnippet, postInstallSnippet)
 	if usesSteamCmd && logSender != nil {
+		logSender.Send(job.ID, []string{fmt.Sprintf("shared_update_command=%s", maskSensitiveValues(renderedCommand, templateValues))}, nil)
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("steamcmd_path=%s", steamCmdExecPath),
 			fmt.Sprintf("force_install_dir=%s", sharedServer),
@@ -143,9 +154,20 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	}
 	output, err := runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
 	if err != nil {
+		reason := "steamcmd_command_failed"
+		exitCode := "unknown"
+		if strings.Contains(err.Error(), errCommandTimeout.Error()) || strings.Contains(err.Error(), errNoProgress.Error()) {
+			reason = "steamcmd_timeout_or_no_progress"
+			exitCode = "timeout"
+		}
 		if logSender != nil {
 			logSender.Send(job.ID, []string{
+				"shared update failed",
+				fmt.Sprintf("reason=%s", reason),
+				fmt.Sprintf("exit_code=%s", exitCode),
+				fmt.Sprintf("last_output=%s", trimOutput(stripANSIString(output), 500)),
 				fmt.Sprintf("shared update failed exit_error=%v run_as_user=%s steamcmd_path=%s shared_key=%s shared_server=%s", err, osUsername, steamCmdExecPath, sharedKey, sharedServer),
+				"Job failed",
 			}, nil)
 		}
 		_ = markSharedManifestFailed(manifestPath, err)
@@ -168,6 +190,33 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		"manifest_path":             manifestPath,
 		"install_log":               trimOutput(output, 4000),
 	}}, nil
+}
+
+func validateSteamCmdCommand(command string) error {
+	lower := strings.ToLower(command)
+	if !strings.Contains(lower, "+force_install_dir") {
+		return fmt.Errorf("missing_force_install_dir")
+	}
+	if !strings.Contains(lower, "+app_update") {
+		return fmt.Errorf("missing_app_update")
+	}
+	if !strings.Contains(lower, "+quit") {
+		return fmt.Errorf("missing_quit")
+	}
+	return nil
+}
+
+func resolveSteamCmdExecPath(steamCmdDir string) string {
+	for _, candidate := range []string{
+		filepath.Join(steamCmdDir, "steamcmd.sh"),
+		filepath.Join(steamCmdDir, "linux64", "steamcmd"),
+		filepath.Join(steamCmdDir, "linux32", "steamcmd"),
+	} {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
 }
 
 func markSharedManifestFailed(manifestPath string, reason error) error {

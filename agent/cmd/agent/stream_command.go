@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -22,6 +23,11 @@ type streamChunk struct {
 	data   []byte
 	source string
 }
+
+var (
+	errCommandTimeout = errors.New("command timeout")
+	errNoProgress     = errors.New("command no progress timeout")
+)
 
 func StreamCommand(cmd *exec.Cmd, jobID string, logSender JobLogSender) (string, error) {
 	stdout, err := cmd.StdoutPipe()
@@ -127,6 +133,13 @@ func StreamCommand(cmd *exec.Cmd, jobID string, logSender JobLogSender) (string,
 	defer flushTicker.Stop()
 	defer keepaliveTicker.Stop()
 
+	maxDuration := streamCommandTimeout(cmd)
+	var timeoutTimer <-chan time.Time
+	if maxDuration > 0 {
+		timeoutTimer = time.After(maxDuration)
+	}
+	idleDuration := streamNoProgressTimeout(cmd)
+
 	for running := true; running; {
 		select {
 		case chunk, ok := <-chunkCh:
@@ -141,6 +154,13 @@ func StreamCommand(cmd *exec.Cmd, jobID string, logSender JobLogSender) (string,
 		case <-flushTicker.C:
 			flush(false)
 		case <-keepaliveTicker.C:
+			if idleDuration > 0 && time.Since(lastOutput) >= idleDuration {
+				_ = cmd.Process.Kill()
+				flush(true)
+				close(logSendCh)
+				logWg.Wait()
+				return output.String(), errNoProgress
+			}
 			if logSender == nil || jobID == "" {
 				continue
 			}
@@ -148,6 +168,12 @@ func StreamCommand(cmd *exec.Cmd, jobID string, logSender JobLogSender) (string,
 				logBuffer = append(logBuffer, "still running …")
 				flush(true)
 			}
+		case <-timeoutTimer:
+			_ = cmd.Process.Kill()
+			flush(true)
+			close(logSendCh)
+			logWg.Wait()
+			return output.String(), errCommandTimeout
 		}
 	}
 
@@ -182,6 +208,44 @@ func StreamCommand(cmd *exec.Cmd, jobID string, logSender JobLogSender) (string,
 	logWg.Wait()
 
 	return output.String(), nil
+}
+
+func streamCommandTimeout(cmd *exec.Cmd) time.Duration {
+	if cmd == nil {
+		return 0
+	}
+	if d := parseDurationEnv("EASYWI_COMMAND_TIMEOUT"); d > 0 {
+		return d
+	}
+	if strings.Contains(strings.ToLower(commandLabel(cmd)), "steamcmd") {
+		return 45 * time.Minute
+	}
+	return 0
+}
+
+func streamNoProgressTimeout(cmd *exec.Cmd) time.Duration {
+	if cmd == nil {
+		return 0
+	}
+	if d := parseDurationEnv("EASYWI_STEAMCMD_IDLE_TIMEOUT"); d > 0 {
+		return d
+	}
+	if strings.Contains(strings.ToLower(commandLabel(cmd)), "steamcmd") {
+		return 3 * time.Minute
+	}
+	return 0
+}
+
+func parseDurationEnv(key string) time.Duration {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
 }
 
 func shouldPrefixOutput() bool {

@@ -202,6 +202,18 @@ func TestBuildSniperInstallShellCommandUsesSharedWorkDirWhenEnabled(t *testing.T
 	}
 }
 
+func TestValidateSteamCmdCommandRequiresAppUpdateAndQuit(t *testing.T) {
+	if err := validateSteamCmdCommand("/usr/games/steamcmd +force_install_dir /srv/shared +login anonymous +app_update 730 +quit"); err != nil {
+		t.Fatalf("expected valid command, got %v", err)
+	}
+	if err := validateSteamCmdCommand("steamcmd +force_install_dir /srv/shared +login anonymous +quit"); err == nil || !strings.Contains(err.Error(), "missing_app_update") {
+		t.Fatalf("expected missing_app_update, got %v", err)
+	}
+	if err := validateSteamCmdCommand("steamcmd +force_install_dir /srv/shared +login anonymous +app_update 730"); err == nil || !strings.Contains(err.Error(), "missing_quit") {
+		t.Fatalf("expected missing_quit, got %v", err)
+	}
+}
+
 func TestBuildSniperInstallShellCommandUsesInstanceDirWhenNotShared(t *testing.T) {
 	instanceDir := "/home/gs21"
 	command := replaceSteamCmdExecutable(
