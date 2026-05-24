@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 
 final class GameTemplateSeedSyncServiceTest extends TestCase
 {
-    public function testCs2SeedContainsSharedTreePath(): void
+    public function testCs2SeedContainsOverlayPath(): void
     {
         $service = new GameTemplateSeedSyncService(new GameTemplateSeedCatalog());
         $template = $this->createTemplate('cs2', 730, [['source' => 'game/bin', 'target' => 'game/bin', 'mode' => 'symlink', 'readonly' => true]]);
@@ -19,7 +19,7 @@ final class GameTemplateSeedSyncServiceTest extends TestCase
         $comparison = $service->compareSharedPaths($template);
 
         self::assertTrue($comparison['outdated']);
-        self::assertSame('shared_tree', $comparison['seed'][3]['mode']);
+        self::assertSame('overlay', $comparison['seed'][3]['mode']);
         self::assertSame(['cfg', 'gameinfo.gi', 'gameinfo_branchspecific.gi'], $comparison['seed'][3]['exclude']);
     }
 
@@ -36,7 +36,7 @@ final class GameTemplateSeedSyncServiceTest extends TestCase
         $shared = $template->getRequirements()['shared_paths'] ?? [];
         self::assertCount(9, $shared);
         self::assertSame('game/bin', $shared[0]['source']);
-        self::assertSame('shared_tree', $shared[3]['mode']);
+        self::assertSame('overlay', $shared[3]['mode']);
     }
 
     private function createTemplate(string $gameKey, ?int $steamAppId, array $sharedPaths): Template

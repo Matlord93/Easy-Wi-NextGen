@@ -195,6 +195,12 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		steamCmdDir := instanceDirSteamCmdDir(sharedServer)
 		installSnippet = steamCmdInstallSnippet(steamCmdDir)
 		postInstallSnippet = steamCmdClientSnippet(steamCmdDir, sharedServer)
+		steamDumpDir := filepath.Join(sharedServer, ".steam-dumps")
+		if err := prepareSteamDumpDir(job.ID, logSender, osUsername, steamDumpDir); err != nil {
+			_ = markSharedManifestFailed(manifestPath, err)
+			return failureResult(job.ID, err)
+		}
+		installSnippet += fmt.Sprintf("export TMPDIR=%s; ", shellEscape(steamDumpDir))
 	}
 	shellCmd := buildSniperInstallShellCommand(sharedServer, renderedCommand, installSnippet, postInstallSnippet)
 	runScriptPath := ""
@@ -616,6 +622,14 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	sharedKey := ""
 	gameType := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "game_type", "template_slug", "template_name")))
 	sharedRuntimeMode := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "shared_runtime_mode")))
+	if sharedEnabled {
+		if gameType == "" {
+			return failureResult(job.ID, errors.New("game_type_missing"))
+		}
+		if sharedRuntimeMode == "" || sharedRuntimeMode == "none" {
+			return failureResult(job.ID, errors.New("shared_runtime_mode_missing"))
+		}
+	}
 	sharedRuntimeSupported := !strings.Contains(gameType, "minecraft") && sharedRuntimeMode != "none"
 	if sharedEnabled && !sharedRuntimeSupported {
 		if logSender != nil && job.ID != "" {
@@ -627,6 +641,9 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		k, err := buildSharedKey(job.Payload)
 		if err != nil {
 			return failureResult(job.ID, err)
+		}
+		if strings.TrimSpace(k) == "" {
+			return failureResult(job.ID, errors.New("shared_key_missing"))
 		}
 		sharedKey = k
 		commandWorkDir, prepErr := prepareSharedStoragePermissions(baseDir, sharedKey, osUsername)
@@ -658,6 +675,14 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			logSender.Send(job.ID, []string{fmt.Sprintf("shared_paths[%d]: source=%s target=%s mode=%s exclude=%v", i, sp.Source, sp.Target, sp.Mode, sp.Exclude)}, nil)
 		}
 	}
+	if sharedEnabled {
+		for _, sp := range sharedSpecs {
+			switch strings.ToLower(strings.TrimSpace(sp.Mode)) {
+			case "symlink", "shared_tree", "legacy_symlink":
+				return failureResult(job.ID, errors.New("shared_runtime_legacy_removed"))
+			}
+		}
+	}
 
 	command = normalizeSteamCmdInstallDir(command, installTargetDir)
 	commandWorkDir := instanceDir
@@ -673,6 +698,11 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		steamCmdDir := instanceDirSteamCmdDir(commandWorkDir)
 		installSnippet = steamCmdInstallSnippet(steamCmdDir)
 		postInstallSnippet = steamCmdClientSnippet(steamCmdDir, installTargetDir)
+		steamDumpDir := filepath.Join(installTargetDir, ".steam-dumps")
+		if err := prepareSteamDumpDir(job.ID, logSender, osUsername, steamDumpDir); err != nil {
+			return failureResult(job.ID, err)
+		}
+		installSnippet += fmt.Sprintf("export TMPDIR=%s; ", shellEscape(steamDumpDir))
 	}
 	shellCmd := buildSniperInstallShellCommand(commandWorkDir, command, installSnippet, postInstallSnippet)
 	runScriptPath := ""
@@ -1332,6 +1362,32 @@ func buildSniperInstallShellCommand(commandWorkDir, installCommand, installSnipp
 			"%[4]s",
 		commandWorkDir, installCommand, installSnippet, postInstallSnippet,
 	)
+}
+
+func prepareSteamDumpDir(jobID string, logSender JobLogSender, osUsername, dumpDir string) error {
+	dumpDir = strings.TrimSpace(dumpDir)
+	if dumpDir == "" {
+		return errors.New("steam_dump_dir_missing")
+	}
+	cleanupErr := runCommand("bash", "-lc", "find /tmp -maxdepth 1 -name 'dumps*' -exec rm -rf {} +")
+	if cleanupErr != nil && logSender != nil && jobID != "" {
+		logSender.Send(jobID, []string{fmt.Sprintf("steam_dump_cleanup_error=%v", cleanupErr)}, nil)
+	}
+	if err := os.MkdirAll(dumpDir, 0o700); err != nil {
+		return fmt.Errorf("steam_dump_dir_prepare_failed: %w", err)
+	}
+	_ = runCommand("chown", "-R", osUsername+":"+osUsername, dumpDir)
+	if err := os.Chmod(dumpDir, 0o700); err != nil {
+		return fmt.Errorf("steam_dump_dir_prepare_failed: %w", err)
+	}
+	if logSender != nil && jobID != "" {
+		logSender.Send(jobID, []string{
+			fmt.Sprintf("steam_dump_dir=%s", dumpDir),
+			fmt.Sprintf("steam_dump_cleanup_done=%t", cleanupErr == nil),
+			fmt.Sprintf("steam_dump_cleanup_error=%v", cleanupErr),
+		}, nil)
+	}
+	return nil
 }
 
 func buildSteamCmdCommand(steamCmdPath, instanceDir, steamAppID string, validate bool) string {
