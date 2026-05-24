@@ -620,8 +620,12 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 
 	installTargetDir := instanceDir
 	sharedKey := ""
-	gameType := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "game_type", "template_slug", "template_name")))
+	gameType, gameTypeSource := resolveGameType(job.Payload)
 	sharedRuntimeMode := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "shared_runtime_mode")))
+	sharedRuntimeModeEffective := sharedRuntimeMode
+	if strings.Contains(gameType, "minecraft") {
+		sharedRuntimeModeEffective = "none"
+	}
 	if sharedEnabled {
 		if gameType == "" {
 			return failureResult(job.ID, errors.New("game_type_missing"))
@@ -633,7 +637,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	sharedRuntimeSupported := !strings.Contains(gameType, "minecraft") && sharedRuntimeMode != "none"
 	if sharedEnabled && !sharedRuntimeSupported {
 		if logSender != nil && job.ID != "" {
-			logSender.Send(job.ID, []string{"shared_runtime_supported=false", fmt.Sprintf("game_type=%s", gameType), fmt.Sprintf("shared_runtime_mode=%s", sharedRuntimeMode)}, nil)
+			logSender.Send(job.ID, []string{"shared_runtime_supported=false", fmt.Sprintf("game_type=%s", gameType), fmt.Sprintf("game_type_source=%s", gameTypeSource), fmt.Sprintf("shared_runtime_mode=%s", sharedRuntimeMode), fmt.Sprintf("shared_runtime_mode_effective=%s", sharedRuntimeModeEffective)}, nil)
 		}
 		sharedEnabled = false
 	}
@@ -667,6 +671,12 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if logSender != nil && job.ID != "" {
 		logSharedValidationState(logSender, job.ID, "sniper_"+action, job.Payload, sharedSpecs, sharedEnabled, installTargetDir)
 		logSender.Send(job.ID, []string{
+			fmt.Sprintf("game_type=%s", gameType),
+			fmt.Sprintf("game_type_source=%s", gameTypeSource),
+			fmt.Sprintf("shared_runtime_mode=%s", sharedRuntimeMode),
+			fmt.Sprintf("shared_runtime_mode_effective=%s", sharedRuntimeModeEffective),
+			fmt.Sprintf("steam_app_id=%s", steamAppID),
+			fmt.Sprintf("template_id=%s", payloadValue(job.Payload, "template_id")),
 			fmt.Sprintf("user_home_dir=%s", userHomeDir),
 			fmt.Sprintf("game_dir=%s", instanceDir),
 			fmt.Sprintf("instance_dir=%s", instanceDir),

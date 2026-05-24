@@ -274,6 +274,27 @@ func TestPrepareSharedStoragePermissionsCreatesExpectedDirs(t *testing.T) {
 	}
 }
 
+func TestResolveGameTypeFromPayload(t *testing.T) {
+	gameType, source := resolveGameType(map[string]any{"game_type": "cs2"})
+	if gameType != "cs2" || source != "payload" {
+		t.Fatalf("expected payload game type, got %q from %q", gameType, source)
+	}
+}
+
+func TestResolveGameTypeFromSteamAppID730(t *testing.T) {
+	gameType, source := resolveGameType(map[string]any{"steam_app_id": "730"})
+	if gameType != "cs2" || source != "steam_app_id_fallback" {
+		t.Fatalf("expected cs2 steam app fallback, got %q from %q", gameType, source)
+	}
+}
+
+func TestResolveGameTypeMinecraftTemplateFallback(t *testing.T) {
+	gameType, source := resolveGameType(map[string]any{"template_name": "Minecraft Paper"})
+	if gameType != "minecraft" || source == "" {
+		t.Fatalf("expected minecraft fallback, got %q from %q", gameType, source)
+	}
+}
+
 func TestPrepareSharedStoragePermissionsUsesInjectableChown(t *testing.T) {
 	tmp := t.TempDir()
 	calls := 0

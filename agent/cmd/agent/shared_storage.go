@@ -310,11 +310,34 @@ func shouldUseSharedStorage(payload map[string]any, action string) bool {
 
 	isSharedAction := strings.HasPrefix(action, "shared_") || installMode == "shared" || installMode == "shared_reinstall" || installMode == "shared_update"
 	mode := strings.ToLower(strings.TrimSpace(payloadValue(payload, "shared_runtime_mode")))
-	gameType := strings.ToLower(strings.TrimSpace(payloadValue(payload, "game_type", "template_slug", "template_name")))
+	gameType, _ := resolveGameType(payload)
 	if mode == "none" || strings.Contains(gameType, "minecraft") {
 		return false
 	}
 	return sharedEnabled || sharedKey != "" || isSharedAction || mode == "bind" || mode == "overlay" || mode == "bind_overlay"
+}
+
+func resolveGameType(payload map[string]any) (string, string) {
+	val := strings.ToLower(strings.TrimSpace(payloadValue(payload, "game_type")))
+	if val != "" {
+		return val, "payload"
+	}
+	if strings.TrimSpace(payloadValue(payload, "steam_app_id")) == "730" {
+		return "cs2", "steam_app_id_fallback"
+	}
+	for _, key := range []string{"template_slug", "template_key", "game_key", "template_name", "game_name", "package_id", "start_script", "install_script"} {
+		candidate := strings.ToLower(strings.TrimSpace(payloadValue(payload, key)))
+		if candidate == "" {
+			continue
+		}
+		switch {
+		case strings.Contains(candidate, "minecraft"), strings.HasPrefix(candidate, "mc"):
+			return "minecraft", key + "_fallback"
+		case strings.Contains(candidate, "cs2"), strings.Contains(candidate, "counter-strike 2"), strings.Contains(candidate, "counter strike 2"):
+			return "cs2", key + "_fallback"
+		}
+	}
+	return "", ""
 }
 
 func logSharedValidationState(logSender JobLogSender, jobID string, action string, payload map[string]any, sharedSpecs []sharedPathSpec, sharedActive bool, sharedRoot string) {
@@ -336,7 +359,6 @@ func logSharedValidationState(logSender JobLogSender, jobID string, action strin
 		fmt.Sprintf("install_mode=%s", installMode),
 		fmt.Sprintf("shared_server_dir=%s", sharedRoot),
 		fmt.Sprintf("shared_runtime_mode=%s", payloadValue(payload, "shared_runtime_mode")),
-		fmt.Sprintf("game_type=%s", payloadValue(payload, "game_type", "template_slug", "template_name")),
 	}, nil)
 }
 func applySharedPaths(instanceDir, sharedRoot string, specs []sharedPathSpec) error {
@@ -533,79 +555,6 @@ func prepareMountTarget(targetPath, sharedSource string) error {
 			return createErr
 		}
 		return f.Close()
-	}
-	return nil
-}
-
-func applySharedTree(sourceDir, targetDir string, spec sharedPathSpec) error {
-	excludes, err := normalizeExcludes(spec.Exclude)
-	if err != nil {
-		return err
-	}
-	if info, err := os.Lstat(targetDir); err == nil && info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("target %s is a symlink; shared_tree requires a real directory", targetDir)
-	}
-	if err := os.MkdirAll(targetDir, instanceDirMode); err != nil {
-		return err
-	}
-	entries, err := os.ReadDir(sourceDir)
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		name := entry.Name()
-		srcChild := filepath.Join(sourceDir, name)
-		dstChild := filepath.Join(targetDir, name)
-		excluded := isSubpathExcluded(name, excludes)
-		if excluded {
-			if info, err := os.Lstat(dstChild); err == nil {
-				if info.Mode()&os.ModeSymlink != 0 {
-					if err := os.Remove(dstChild); err != nil {
-						return err
-					}
-				} else if err := os.RemoveAll(dstChild); err != nil {
-					return err
-				}
-			}
-			if err := copyPathRecursive(srcChild, dstChild); err != nil {
-				return err
-			}
-			continue
-		}
-		if isProtectedNonSymlinkPath(name) && !spec.UnsafeOverride {
-			return fmt.Errorf("shared_tree path %s is blocked from symlinking by safety rules", name)
-		}
-		if info, err := os.Lstat(dstChild); err == nil {
-			if info.Mode()&os.ModeSymlink != 0 {
-				existing, _ := os.Readlink(dstChild)
-				resolved := existing
-				if !filepath.IsAbs(existing) {
-					resolved = filepath.Join(filepath.Dir(dstChild), existing)
-				}
-				if filepath.Clean(resolved) == filepath.Clean(srcChild) {
-					continue
-				}
-				return fmt.Errorf("target %s is a symlink to %s (expected %s); refusing to replace automatically", dstChild, resolved, srcChild)
-			}
-			hasContent, err := pathHasContent(dstChild)
-			if err != nil {
-				return err
-			}
-			if hasContent {
-				backup, err := uniqueBackupPath(dstChild, ".instance-backup")
-				if err != nil {
-					return err
-				}
-				if err := os.Rename(dstChild, backup); err != nil {
-					return err
-				}
-			} else if err := os.RemoveAll(dstChild); err != nil {
-				return err
-			}
-		}
-		if err := os.Symlink(srcChild, dstChild); err != nil {
-			return err
-		}
 	}
 	return nil
 }
