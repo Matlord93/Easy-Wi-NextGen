@@ -504,6 +504,39 @@ func TestSniperSharedUpdateMissingCommandSetsManifestFailed(t *testing.T) {
 	}
 }
 
+func TestSniperSharedUpdateCommandFailureMarksJobFailed(t *testing.T) {
+	base := t.TempDir()
+	key := "minecraft"
+	root := sharedRootFor(base, key)
+	serverDir := filepath.Join(root, "server")
+	if err := os.MkdirAll(serverDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSharedManifest(sharedManifestPath(base, key), sharedManifest{SharedKey: key, TemplateID: "1", Status: "ready"}); err != nil {
+		t.Fatal(err)
+	}
+
+	job := jobs.Job{ID: "4", Payload: map[string]any{
+		"base_dir":       base,
+		"shared_key":     key,
+		"update_command": "exit 7",
+	}}
+	res, _ := handleSniperSharedUpdate(job, nil)
+	if res.Status != "failed" {
+		t.Fatalf("expected failed, got %s", res.Status)
+	}
+	if strings.Contains(res.Output["message"], "shared update completed") {
+		t.Fatalf("must not report shared update completed on failure: %#v", res.Output)
+	}
+	mf, err := readSharedManifest(sharedManifestPath(base, key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mf.Status != "failed" {
+		t.Fatalf("expected failed manifest, got %s", mf.Status)
+	}
+}
+
 func TestEvaluateSharedInstallReuseReadyManifest(t *testing.T) {
 	base := t.TempDir()
 	manifestPath := filepath.Join(base, ".shared-manifest.json")

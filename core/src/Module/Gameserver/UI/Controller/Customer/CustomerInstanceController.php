@@ -491,9 +491,22 @@ final class CustomerInstanceController
         $targetBuildId = $instance->getLockedBuildId();
         $targetVersion = $instance->getLockedVersion();
 
+        $jobType = 'sniper.update';
         $updatePayload = $this->instanceJobPayloadBuilder->buildSniperUpdatePayload($instance, $targetBuildId, $targetVersion)
             + $this->buildCs2MetamodPatchForUpdate($instance);
-        $job = new Job('sniper.update', $updatePayload);
+
+        if ($instance->isSharedStorageEnabled()) {
+            $sharedKey = $this->resolveSharedKeyForInstance($instance);
+            if ($sharedKey === '') {
+                return $this->renderInstanceCard($instance, null, 'Shared update is unavailable: missing shared storage key context.');
+            }
+
+            $updatePayload['shared_key'] = $sharedKey;
+            $updatePayload['selected_instance_id'] = (string) ($instance->getId() ?? '');
+            $jobType = 'sniper.shared_update';
+        }
+
+        $job = new Job($jobType, $updatePayload);
         $this->entityManager->persist($job);
         $instance->setLastUpdateQueuedAt(new \DateTimeImmutable());
         $instance->setStatus(InstanceStatus::Provisioning);
@@ -506,6 +519,8 @@ final class CustomerInstanceController
             'locked_build_id' => $targetBuildId,
             'locked_version' => $targetVersion,
             'source' => 'customer.manual',
+            'job_type' => $jobType,
+            'shared_key' => (string) ($updatePayload['shared_key'] ?? ''),
         ]);
 
         $this->entityManager->flush();
@@ -844,6 +859,34 @@ final class CustomerInstanceController
         }
 
         return $this->templateRepository->findSharedStorageVariantForIdentity($instance->getTemplate()) !== null;
+    }
+
+    private function resolveSharedKeyForInstance(Instance $instance): string
+    {
+        $id = (int) ($instance->getId() ?? 0);
+        if ($id <= 0) {
+            return '';
+        }
+
+        foreach ($this->jobRepository->findLatest(400) as $job) {
+            $jobInstanceId = (int) ($job->getPayload()['instance_id'] ?? 0);
+            if ($jobInstanceId !== $id) {
+                continue;
+            }
+
+            $output = $job->getResult()?->getOutput() ?? [];
+            $outputKey = trim((string) ($output['shared_key'] ?? ''));
+            if ($outputKey !== '') {
+                return $outputKey;
+            }
+
+            $payloadKey = trim((string) ($job->getPayload()['shared_key'] ?? ''));
+            if ($payloadKey !== '') {
+                return $payloadKey;
+            }
+        }
+
+        return '';
     }
 
     /**

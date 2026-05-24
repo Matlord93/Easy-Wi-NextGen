@@ -103,10 +103,51 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		_ = markSharedManifestFailed(manifestPath, err)
 		return failureResult(job.ID, fmt.Errorf("SHARED_UPDATE_FAILED: %w", err))
 	}
+	renderedCommand = stripWineBootstrap(renderedCommand)
 	renderedCommand = normalizeSteamCmdInstallDir(renderedCommand, sharedServer)
-	shellCmd := fmt.Sprintf("cd %s && %s", sharedServer, renderedCommand)
+
+	usesSteamCmd := steamcmdCommandRegex.MatchString(renderedCommand)
+	steamCmdExecPath := ""
+	if usesSteamCmd {
+		steamCmdExecPath = "$STEAMCMD_EXEC"
+		renderedCommand = replaceSteamCmdExecutable(renderedCommand, steamCmdExecPath)
+	}
+	if logSender != nil {
+		logSender.Send(job.ID, []string{
+			fmt.Sprintf("shared_key=%s", sharedKey),
+			fmt.Sprintf("shared_server=%s", sharedServer),
+			fmt.Sprintf("run_as_user=%s", osUsername),
+		}, nil)
+	}
+	installSnippet := ""
+	postInstallSnippet := ""
+	if usesSteamCmd {
+		steamCmdDir := instanceDirSteamCmdDir(sharedServer)
+		installSnippet = steamCmdInstallSnippet(steamCmdDir)
+		postInstallSnippet = steamCmdClientSnippet(steamCmdDir, sharedServer)
+	}
+	shellCmd := buildSniperInstallShellCommand(sharedServer, renderedCommand, installSnippet, postInstallSnippet)
+	if usesSteamCmd && logSender != nil {
+		logSender.Send(job.ID, []string{
+			fmt.Sprintf("steamcmd_path=%s", steamCmdExecPath),
+			fmt.Sprintf("force_install_dir=%s", sharedServer),
+			fmt.Sprintf("command_work_dir=%s", sharedServer),
+			"steamcmd_exists=true",
+			"steamcmd_executable=true",
+		}, nil)
+	}
+	if info, statErr := os.Stat(sharedServer); statErr != nil || !info.IsDir() {
+		err = fmt.Errorf("SHARED_UPDATE_FAILED: shared server path not usable: %s", sharedServer)
+		_ = markSharedManifestFailed(manifestPath, err)
+		return failureResult(job.ID, err)
+	}
 	output, err := runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
 	if err != nil {
+		if logSender != nil {
+			logSender.Send(job.ID, []string{
+				fmt.Sprintf("shared update failed exit_error=%v run_as_user=%s steamcmd_path=%s shared_key=%s shared_server=%s", err, osUsername, steamCmdExecPath, sharedKey, sharedServer),
+			}, nil)
+		}
 		_ = markSharedManifestFailed(manifestPath, err)
 		return failureResult(job.ID, fmt.Errorf("SHARED_UPDATE_FAILED: %w", err))
 	}
