@@ -168,13 +168,17 @@ func extractTarGzBinary(archivePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open tar.gz archive: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	gzReader, err := gzip.NewReader(file)
 	if err != nil {
 		return "", fmt.Errorf("open gzip reader: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() {
+		_ = gzReader.Close()
+	}()
 
 	tarReader := tar.NewReader(gzReader)
 	for {
@@ -198,7 +202,7 @@ func extractTarGzBinary(archivePath string) (string, error) {
 			return "", fmt.Errorf("create extracted binary: %w", err)
 		}
 		if _, err := io.Copy(out, tarReader); err != nil {
-			out.Close()
+			_ = out.Close()
 			return "", fmt.Errorf("write extracted binary: %w", err)
 		}
 		if err := out.Close(); err != nil {
@@ -215,7 +219,9 @@ func extractZipBinary(archivePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open zip archive: %w", err)
 	}
-	defer reader.Close()
+	defer func() {
+		_ = reader.Close()
+	}()
 
 	for _, file := range reader.File {
 		if file.FileInfo().IsDir() {
@@ -229,14 +235,16 @@ func extractZipBinary(archivePath string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("open zip file: %w", err)
 		}
-		defer src.Close()
+		defer func() {
+			_ = src.Close()
+		}()
 		extractedPath := archivePath + ".extracted"
 		out, err := os.OpenFile(extractedPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
 		if err != nil {
 			return "", fmt.Errorf("create extracted binary: %w", err)
 		}
 		if _, err := io.Copy(out, src); err != nil {
-			out.Close()
+			_ = out.Close()
 			return "", fmt.Errorf("write extracted binary: %w", err)
 		}
 		if err := out.Close(); err != nil {

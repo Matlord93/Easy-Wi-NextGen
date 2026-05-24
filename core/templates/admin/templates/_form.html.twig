@@ -10,6 +10,7 @@
 {% endif %}
 
 <form
+    id="template-form"
     hx-post="{{ form.is_edit ? '/admin/templates/' ~ form.template_id : '/admin/templates' }}"
     hx-target="#template-form"
     hx-swap="outerHTML"

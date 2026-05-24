@@ -43,14 +43,18 @@
     const autoBackupMode = document.getElementById('gs-auto-backup-mode');
     const autoBackupTime = document.getElementById('gs-auto-backup-time');
     const autoBackupTimeWrap = document.getElementById('gs-auto-backup-time-wrap');
+    const autoBackupStatus = document.getElementById('gs-auto-backup-status');
     const autoRestartEnabled = document.getElementById('gs-auto-restart-enabled');
     const autoRestartTime = document.getElementById('gs-auto-restart-time');
     const autoRestartTimeWrap = document.getElementById('gs-auto-restart-time-wrap');
+    const autoRestartStatus = document.getElementById('gs-auto-restart-status');
     const autoUpdateEnabled = document.getElementById('gs-auto-update-enabled');
     const autoUpdateTime = document.getElementById('gs-auto-update-time');
     const autoUpdateTimeWrap = document.getElementById('gs-auto-update-time-wrap');
+    const autoUpdateStatus = document.getElementById('gs-auto-update-status');
     const versionLockEnabled = document.getElementById('gs-version-lock-enabled');
     const versionLockVersion = document.getElementById('gs-version-lock-version');
+    const versionLockStatus = document.getElementById('gs-version-lock-status');
     const automationSaveBtn = document.getElementById('gs-automation-save');
     const accessRevealBtn = document.getElementById('gs-access-reveal');
 
@@ -70,6 +74,8 @@
         applying: 'Applying…',
         applyBtn: 'Apply',
         saveBtn: 'Save',
+        enabledLabel: 'Enabled',
+        disabledLabel: 'Disabled',
     };
     let i18n = defaultI18n;
     try {
@@ -119,6 +125,14 @@
         select.value = requested;
     };
 
+    const updateStatusLabel = (el, enabled) => {
+        if (!el) {
+            return;
+        }
+        el.textContent = enabled ? tr('enabledLabel') : tr('disabledLabel');
+        el.style.color = enabled ? 'var(--ng-success)' : 'var(--ng-text-muted)';
+    };
+
     const updateAutomationTimeVisibility = () => {
         if (autoBackupTimeWrap) {
             autoBackupTimeWrap.classList.toggle('hidden', !Boolean(autoBackupEnabled?.checked));
@@ -129,6 +143,10 @@
         if (autoUpdateTimeWrap) {
             autoUpdateTimeWrap.classList.toggle('hidden', !Boolean(autoUpdateEnabled?.checked));
         }
+        updateStatusLabel(autoBackupStatus, Boolean(autoBackupEnabled?.checked));
+        updateStatusLabel(autoRestartStatus, Boolean(autoRestartEnabled?.checked));
+        updateStatusLabel(autoUpdateStatus, Boolean(autoUpdateEnabled?.checked));
+        updateStatusLabel(versionLockStatus, Boolean(versionLockEnabled?.checked));
     };
 
     const endpointFromTemplate = (templateKey, configId) => mount.dataset[templateKey].replace('__CONFIG_ID__', encodeURIComponent(configId));

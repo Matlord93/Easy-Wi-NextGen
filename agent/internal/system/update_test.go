@@ -78,13 +78,19 @@ func createTarGzWithFile(t *testing.T, archivePath, fileName, content string) {
 	if err != nil {
 		t.Fatalf("create archive: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	gz := gzip.NewWriter(f)
-	defer gz.Close()
+	defer func() {
+		_ = gz.Close()
+	}()
 
 	tw := tar.NewWriter(gz)
-	defer tw.Close()
+	defer func() {
+		_ = tw.Close()
+	}()
 
 	if err := tw.WriteHeader(&tar.Header{Name: fileName, Mode: 0o755, Size: int64(len(content))}); err != nil {
 		t.Fatalf("write tar header: %v", err)
@@ -100,10 +106,14 @@ func createZipWithFile(t *testing.T, archivePath, fileName, content string) {
 	if err != nil {
 		t.Fatalf("create archive: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	zw := zip.NewWriter(f)
-	defer zw.Close()
+	defer func() {
+		_ = zw.Close()
+	}()
 
 	entry, err := zw.Create(fileName)
 	if err != nil {
