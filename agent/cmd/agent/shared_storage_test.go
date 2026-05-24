@@ -432,7 +432,7 @@ func TestAcquireSharedStorageLockWithTimeoutRemovesStale(t *testing.T) {
 func TestResolveSharedLockPathsUsesPerSharedServerLocks(t *testing.T) {
 	base := t.TempDir()
 	lockDir, lockPath := resolveSharedLockPaths(base, "1")
-	expectedDir := filepath.Join(base, "Shared", "1", "server", ".locks")
+	expectedDir := filepath.Join(base, "Shared", ".locks")
 	expectedPath := filepath.Join(expectedDir, "1.lock")
 	if lockDir != expectedDir {
 		t.Fatalf("unexpected lock dir: %s", lockDir)
