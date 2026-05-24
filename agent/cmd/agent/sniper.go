@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"easywi/agent/internal/jobs"
@@ -173,23 +172,23 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	}
 	if usesSteamCmd && logSender != nil {
 		logSender.Send(job.ID, []string{fmt.Sprintf("shared_update_command=%s", maskSensitiveValues(fmt.Sprintf("%s +runscript %s", steamCmdExecPath, runScriptPath), templateValues))}, nil)
+		steamCmdStat, steamCmdStatErr := os.Stat(steamCmdExecPath)
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("steamcmd_path=%s", steamCmdExecPath),
 			fmt.Sprintf("runscript_path=%s", runScriptPath),
 			fmt.Sprintf("force_install_dir=%s", sharedServer),
 			fmt.Sprintf("command_work_dir=%s", sharedServer),
-			"steamcmd_exists=true",
-			"steamcmd_executable=true",
+			fmt.Sprintf("steamcmd_exists=%t", steamCmdStatErr == nil),
+			fmt.Sprintf("steamcmd_executable=%t", steamCmdStatErr == nil && steamCmdStat.Mode()&0o111 != 0),
 		}, nil)
 		if stat, statErr := os.Stat(runScriptPath); statErr == nil && !stat.IsDir() {
 			logSender.Send(job.ID, []string{"runscript_exists=true"}, nil)
-			if sys, ok := stat.Sys().(*syscall.Stat_t); ok {
-				logSender.Send(job.ID, []string{
-					fmt.Sprintf("runscript_owner=%d", sys.Uid),
-					fmt.Sprintf("runscript_group=%d", sys.Gid),
-					fmt.Sprintf("runscript_permissions=%04o", stat.Mode().Perm()),
-				}, nil)
-			}
+			uid, gid := fileOwnerIDs(stat)
+			logSender.Send(job.ID, []string{
+				fmt.Sprintf("runscript_owner=%d", uid),
+				fmt.Sprintf("runscript_group=%d", gid),
+				fmt.Sprintf("runscript_permissions=%04o", stat.Mode().Perm()),
+			}, nil)
 		}
 		readableByUser := isReadableByUser(osUsername, runScriptPath)
 		logSender.Send(job.ID, []string{fmt.Sprintf("runscript_readable_by_user=%t", readableByUser)}, nil)
@@ -928,7 +927,15 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 		if d.IsDir() {
 			_ = os.Chmod(path, 0o2775)
 		} else {
-			_ = os.Chmod(path, 0o664)
+			// Preserve execute bit on files that already have it (e.g. steamcmd.sh).
+			// chmod also updates the ACL mask, so stripping the execute bit here
+			// would block group execute access even when setfacl grants rwx.
+			info, infoErr := d.Info()
+			if infoErr == nil && info.Mode()&0o111 != 0 {
+				_ = os.Chmod(path, 0o775)
+			} else {
+				_ = os.Chmod(path, 0o664)
+			}
 		}
 		return nil
 	})
