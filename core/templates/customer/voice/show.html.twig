@@ -20,84 +20,84 @@
     data-url-clients-base="{{ urlClientsBase }}"
     data-url-bans="{{ urlBans }}"
     data-url-list="{{ urlList }}"
-    class="vs-root">
+    class="cust-page">
 
 {# ── Back + Header ── #}
-<div class="vs-header-bar">
-    <div class="vs-header-bar__left">
-        <a href="{{ urlList }}" class="vs-back-link">
+<div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 0 4px;">
+    <div style="display:flex;flex-direction:column;gap:6px;">
+        <a href="{{ urlList }}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ng-text-muted);text-decoration:none;margin-bottom:4px;">
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
             {{ t('customer_voice_back', locale) }}
         </a>
-        <div class="vs-header-title">
-            <div class="vs-header-title__badges">
-                <span id="vs-provider-badge" class="vs-badge vs-badge--provider">{{ instance.node.providerType|upper }}</span>
-                <span id="vs-status-badge" class="vs-status-dot vs-status-dot--warning">—</span>
+        <div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;">
+                <span id="vs-provider-badge" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:99px;background:rgba(99,102,241,0.15);color:#818cf8;">{{ instance.node.providerType|upper }}</span>
+                <span id="vs-status-badge" class="ui-badge ui-badge--warning">—</span>
                 <span id="vs-probe-badge"></span>
             </div>
-            <h1 class="vs-header-title__name">{{ instance.name }}</h1>
-            <div class="vs-header-title__sub" id="vs-connect-inline">—</div>
+            <h1 style="margin:0;font-size:22px;font-weight:800;color:var(--ng-text);letter-spacing:-.02em;">{{ instance.name }}</h1>
+            <div style="font-size:12px;color:var(--ng-text-muted);font-family:monospace;margin-top:2px;" id="vs-connect-inline">—</div>
         </div>
     </div>
-    <div class="vs-header-bar__actions">
-        <button type="button" id="vs-btn-start"   class="vs-btn vs-btn--success vs-btn--sm">▶ {{ t('customer_voice_start', locale) }}</button>
-        <button type="button" id="vs-btn-stop"    class="vs-btn vs-btn--danger  vs-btn--sm">■ {{ t('customer_voice_stop', locale) }}</button>
-        <button type="button" id="vs-btn-restart" class="vs-btn vs-btn--ghost   vs-btn--sm">↺ {{ t('customer_voice_restart', locale) }}</button>
-        <div class="vs-btn-group">
-            <button type="button" id="vs-btn-probe"    class="vs-btn vs-btn--ghost vs-btn--sm">{{ t('customer_voice_probe', locale) }}</button>
-            <button type="button" id="vs-btn-snapshot" class="vs-btn vs-btn--ghost vs-btn--sm">{{ t('customer_voice_snapshot', locale) }}</button>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        <button type="button" id="vs-btn-start"   class="ui-button ui-button--primary ui-button--sm">▶ {{ t('customer_voice_start', locale) }}</button>
+        <button type="button" id="vs-btn-stop"    class="ui-button ui-button--danger  ui-button--sm">■ {{ t('customer_voice_stop', locale) }}</button>
+        <button type="button" id="vs-btn-restart" class="ui-button ui-button--ghost   ui-button--sm">↺ {{ t('customer_voice_restart', locale) }}</button>
+        <div style="display:flex;gap:6px;">
+            <button type="button" id="vs-btn-probe"    class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voice_probe', locale) }}</button>
+            <button type="button" id="vs-btn-snapshot" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voice_snapshot', locale) }}</button>
         </div>
     </div>
 </div>
 
 {# Error bar #}
-<div id="vs-error" class="vs-error-bar hidden"></div>
+<div id="vs-error" class="ng-alert ng-alert--danger hidden"></div>
 
 {# ── KPI Strip ── #}
-<div class="vs-kpi-strip">
-    <div class="vs-kpi-card">
-        <div class="vs-kpi-card__icon vs-kpi-card__icon--primary">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm-7 9a7 7 0 0 1 14 0H2z"/></svg>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
+    <div class="cust-panel" style="display:flex;align-items:center;gap:12px;padding:14px 16px;">
+        <div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(100,115,255,.15);color:#818cf8;">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm-7 9a7 7 0 0 1 14 0H2z"/></svg>
         </div>
         <div>
-            <div class="vs-kpi-card__label">{{ t('customer_voice_col_players', locale) }}</div>
-            <div class="vs-kpi-card__value" id="vs-kpi-players">—</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px;">{{ t('customer_voice_col_players', locale) }}</div>
+            <div style="font-size:17px;font-weight:800;color:var(--ng-text);" id="vs-kpi-players">—</div>
         </div>
     </div>
-    <div class="vs-kpi-card">
-        <div class="vs-kpi-card__icon vs-kpi-card__icon--success">
-            <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4"/></svg>
+    <div class="cust-panel" style="display:flex;align-items:center;gap:12px;padding:14px 16px;">
+        <div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(34,197,94,.12);color:#4ade80;">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4"/></svg>
         </div>
         <div>
-            <div class="vs-kpi-card__label">{{ t('customer_voice_col_status', locale) }}</div>
-            <div class="vs-kpi-card__value" id="vs-kpi-status">—</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px;">{{ t('customer_voice_col_status', locale) }}</div>
+            <div style="font-size:17px;font-weight:800;color:var(--ng-text);" id="vs-kpi-status">—</div>
         </div>
     </div>
-    <div class="vs-kpi-card">
-        <div class="vs-kpi-card__icon vs-kpi-card__icon--info">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5zm0 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2z"/></svg>
+    <div class="cust-panel" style="display:flex;align-items:center;gap:12px;padding:14px 16px;">
+        <div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(56,189,248,.12);color:#38bdf8;">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5zm0 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2z"/></svg>
         </div>
         <div>
-            <div class="vs-kpi-card__label">{{ t('customer_voice_kpi_address', locale) }}</div>
-            <div class="vs-kpi-card__value" id="vs-kpi-host" style="font-size:12px;font-family:monospace;">—</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px;">{{ t('customer_voice_kpi_address', locale) }}</div>
+            <div style="font-size:12px;font-weight:800;color:var(--ng-text);font-family:monospace;" id="vs-kpi-host">—</div>
         </div>
     </div>
-    <div class="vs-kpi-card">
-        <div class="vs-kpi-card__icon vs-kpi-card__icon--warning">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"/></svg>
+    <div class="cust-panel" style="display:flex;align-items:center;gap:12px;padding:14px 16px;">
+        <div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(245,158,11,.12);color:#fbbf24;">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"/></svg>
         </div>
         <div>
-            <div class="vs-kpi-card__label">{{ t('customer_voice_active_token', locale) }}</div>
-            <div class="vs-kpi-card__value vs-token-preview" id="vs-kpi-token">—</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px;">{{ t('customer_voice_active_token', locale) }}</div>
+            <div style="font-size:10px;font-weight:800;color:var(--ng-text);font-family:monospace;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="vs-kpi-token">—</div>
         </div>
     </div>
 </div>
 
 {# ── Main Panel with Tabs ── #}
-<div class="vs-panel">
+<div class="cust-panel" style="overflow:hidden;">
 
     {# Tab navigation #}
-    <div class="vs-tabs" id="vs-tab-nav" role="tablist">
+    <div id="vs-tab-nav" role="tablist" style="display:flex;border-bottom:1px solid var(--ng-border);overflow-x:auto;scrollbar-width:none;">
         <button type="button" class="vs-tab vs-tab--active" data-tab="overview" role="tab">
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
             {{ t('customer_voice_tab_overview', locale) }}
@@ -142,37 +142,37 @@
 
     {# ── Overview Tab ── #}
     <div id="vs-tab-overview" class="vs-tab-panel" role="tabpanel">
-        <div class="vs-overview-grid">
-            <div class="vs-info-block">
-                <div class="vs-info-block__title">{{ t('customer_voice_connect_info', locale) }}</div>
-                <div id="vs-connect-details" class="vs-info-block__content">
-                    <div class="vs-info-row vs-info-row--loading">{{ t('customer_voice_loading_short', locale) }}</div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:20px;">
+            <div class="cust-panel" style="padding:16px;">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:10px;">{{ t('customer_voice_connect_info', locale) }}</div>
+                <div id="vs-connect-details" style="font-size:13px;color:var(--ng-text);">
+                    <div style="color:var(--ng-text-muted);">{{ t('customer_voice_loading_short', locale) }}</div>
                 </div>
             </div>
-            <div class="vs-info-block">
-                <div class="vs-info-block__title">{{ t('customer_voice_active_token', locale) }}</div>
-                <div id="vs-active-token" class="vs-info-block__content">
-                    <span class="vs-muted">—</span>
+            <div class="cust-panel" style="padding:16px;">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:10px;">{{ t('customer_voice_active_token', locale) }}</div>
+                <div id="vs-active-token" style="font-size:13px;color:var(--ng-text);">
+                    <span style="color:var(--ng-text-muted);">—</span>
                 </div>
-                <button type="button" id="vs-copy-token" class="vs-btn vs-btn--ghost vs-btn--xs" style="margin-top:8px;display:none;">
+                <button type="button" id="vs-copy-token" class="ui-button ui-button--ghost ui-button--sm" style="margin-top:8px;display:none;">
                     <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                     {{ t('customer_voice_copy', locale) }}
                 </button>
             </div>
-            <div class="vs-info-block">
-                <div class="vs-info-block__title">{{ t('customer_voice_block_status', locale) }}</div>
-                <div id="vs-status-details" class="vs-info-block__content">
-                    <div class="vs-info-row vs-info-row--loading">{{ t('customer_voice_loading_short', locale) }}</div>
+            <div class="cust-panel" style="padding:16px;">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:10px;">{{ t('customer_voice_block_status', locale) }}</div>
+                <div id="vs-status-details" style="font-size:13px;color:var(--ng-text);">
+                    <div style="color:var(--ng-text-muted);">{{ t('customer_voice_loading_short', locale) }}</div>
                 </div>
             </div>
-            <div class="vs-info-block">
-                <div class="vs-info-block__title">{{ t('customer_voice_quick_actions', locale) }}</div>
-                <div class="vs-info-block__content">
-                    <div class="vs-quick-actions">
-                        <button type="button" id="vs-qa-recreate" class="vs-btn vs-btn--danger vs-btn--sm" style="width:100%;">
+            <div class="cust-panel" style="padding:16px;">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:10px;">{{ t('customer_voice_quick_actions', locale) }}</div>
+                <div style="font-size:13px;color:var(--ng-text);">
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <button type="button" id="vs-qa-recreate" class="ui-button ui-button--danger ui-button--sm" style="width:100%;">
                             {{ t('customer_voice_reset', locale) }}
                         </button>
-                        <p class="vs-muted" style="font-size:11px;margin:4px 0 0;">{{ t('customer_voice_reset_hint', locale) }}</p>
+                        <p style="color:var(--ng-text-muted);font-size:11px;margin:4px 0 0;">{{ t('customer_voice_reset_hint', locale) }}</p>
                     </div>
                 </div>
             </div>
@@ -181,156 +181,158 @@
 
     {# ── Clients Tab ── #}
     <div id="vs-tab-clients" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_clients_heading', locale) }}</h3>
-            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="clients">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_clients_heading', locale) }}</h3>
+            <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-refresh-btn" data-refresh-tab="clients">
                 <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 {{ t('customer_voice_refresh', locale) }}
             </button>
         </div>
-        <div id="vs-clients-list" class="vs-table-wrapper">
-            <div class="vs-loading-state">{{ t('customer_voice_clients_loading', locale) }}</div>
+        <div id="vs-clients-list" class="cust-ws-table-wrap">
+            <div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">{{ t('customer_voice_clients_loading', locale) }}</div>
         </div>
     </div>
 
     {# ── Channels Tab ── #}
     <div id="vs-tab-channels" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_channels_heading', locale) }}</h3>
-            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="channels">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_channels_heading', locale) }}</h3>
+            <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-refresh-btn" data-refresh-tab="channels">
                 <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 {{ t('customer_voice_refresh', locale) }}
             </button>
         </div>
-        <div id="vs-channels-list" class="vs-table-wrapper">
-            <div class="vs-loading-state">{{ t('customer_voice_channels_loading', locale) }}</div>
+        <div id="vs-channels-list" class="cust-ws-table-wrap">
+            <div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">{{ t('customer_voice_channels_loading', locale) }}</div>
         </div>
     </div>
 
     {# ── Groups Tab ── #}
     <div id="vs-tab-groups" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_groups_heading', locale) }}</h3>
-            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="groups">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_groups_heading', locale) }}</h3>
+            <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-refresh-btn" data-refresh-tab="groups">
                 <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 {{ t('customer_voice_refresh', locale) }}
             </button>
         </div>
-        <p class="vs-muted" style="font-size:12px;padding:0 20px 12px;">{{ t('customer_voice_groups_note', locale) }}</p>
-        <div id="vs-groups-list" class="vs-table-wrapper">
-            <div class="vs-loading-state">{{ t('customer_voice_groups_loading', locale) }}</div>
+        <p style="color:var(--ng-text-muted);font-size:12px;padding:0 20px 12px;">{{ t('customer_voice_groups_note', locale) }}</p>
+        <div id="vs-groups-list" class="cust-ws-table-wrap">
+            <div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">{{ t('customer_voice_groups_loading', locale) }}</div>
         </div>
     </div>
 
     {# ── Bans Tab ── #}
     <div id="vs-tab-bans" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_bans_heading', locale) }}</h3>
-            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="bans">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_bans_heading', locale) }}</h3>
+            <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-refresh-btn" data-refresh-tab="bans">
                 <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 {{ t('customer_voice_refresh', locale) }}
             </button>
         </div>
 
         {# Add ban form #}
-        <div class="vs-form-card" style="margin:0 20px 20px;">
-            <div class="vs-form-card__title">{{ t('customer_voice_ban_add', locale) }}</div>
-            <div class="vs-form-row">
-                <div class="vs-form-field">
-                    <label class="vs-form-label">{{ t('customer_voice_ban_ip', locale) }}</label>
-                    <input type="text" id="vs-ban-ip" placeholder="1.2.3.4" class="vs-input" style="font-family:monospace;">
+        <div style="margin:20px 20px 20px;">
+            <div class="cust-panel" style="padding:14px 16px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:12px;">{{ t('customer_voice_ban_add', locale) }}</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('customer_voice_ban_ip', locale) }}</label>
+                        <input type="text" id="vs-ban-ip" placeholder="1.2.3.4" class="form-input" style="font-family:monospace;">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('customer_voice_ban_uid_label', locale) }}</label>
+                        <input type="text" id="vs-ban-uid" placeholder="{{ t('customer_voice_ban_uid_placeholder', locale) }}" class="form-input" style="font-family:monospace;">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('customer_voice_ban_name', locale) }}</label>
+                        <input type="text" id="vs-ban-name" placeholder="{{ t('customer_voice_ban_name_placeholder', locale) }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('customer_voice_ban_duration', locale) }}</label>
+                        <input type="number" id="vs-ban-time" placeholder="0" min="0" class="form-input">
+                    </div>
+                    <div class="form-field" style="flex:2;">
+                        <label class="form-label">{{ t('customer_voice_ban_reason', locale) }}</label>
+                        <input type="text" id="vs-ban-reason" placeholder="{{ t('customer_voice_ban_reason', locale) }}" class="form-input">
+                    </div>
                 </div>
-                <div class="vs-form-field">
-                    <label class="vs-form-label">{{ t('customer_voice_ban_uid_label', locale) }}</label>
-                    <input type="text" id="vs-ban-uid" placeholder="{{ t('customer_voice_ban_uid_placeholder', locale) }}" class="vs-input" style="font-family:monospace;">
+                <div style="margin-top:10px;">
+                    <button type="button" id="vs-btn-ban-add" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_voice_ban_add', locale) }}</button>
                 </div>
-                <div class="vs-form-field">
-                    <label class="vs-form-label">{{ t('customer_voice_ban_name', locale) }}</label>
-                    <input type="text" id="vs-ban-name" placeholder="{{ t('customer_voice_ban_name_placeholder', locale) }}" class="vs-input">
-                </div>
-                <div class="vs-form-field">
-                    <label class="vs-form-label">{{ t('customer_voice_ban_duration', locale) }}</label>
-                    <input type="number" id="vs-ban-time" placeholder="0" min="0" class="vs-input">
-                </div>
-                <div class="vs-form-field" style="flex:2;">
-                    <label class="vs-form-label">{{ t('customer_voice_ban_reason', locale) }}</label>
-                    <input type="text" id="vs-ban-reason" placeholder="{{ t('customer_voice_ban_reason', locale) }}" class="vs-input">
-                </div>
-            </div>
-            <div style="margin-top:10px;">
-                <button type="button" id="vs-btn-ban-add" class="vs-btn vs-btn--primary vs-btn--sm">{{ t('customer_voice_ban_add', locale) }}</button>
             </div>
         </div>
 
-        <div id="vs-bans-list" class="vs-table-wrapper">
-            <div class="vs-loading-state">{{ t('customer_voice_bans_loading', locale) }}</div>
+        <div id="vs-bans-list" class="cust-ws-table-wrap">
+            <div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">{{ t('customer_voice_bans_loading', locale) }}</div>
         </div>
     </div>
 
     {# ── Tokens Tab ── #}
     <div id="vs-tab-tokens" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_tokens_heading', locale) }}</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_tokens_heading', locale) }}</h3>
             <div style="display:flex;gap:8px;align-items:center;">
-                <select id="vs-token-group" class="vs-select">
+                <select id="vs-token-group" class="form-input" style="padding:6px 10px;font-size:12px;">
                     <option value="6">{{ t('customer_voice_channel_default', locale) }} (6)</option>
                 </select>
-                <button type="button" id="vs-btn-rotate" class="vs-btn vs-btn--primary vs-btn--sm">{{ t('customer_voice_token_create', locale) }}</button>
+                <button type="button" id="vs-btn-rotate" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_voice_token_create', locale) }}</button>
             </div>
         </div>
-        <div id="vs-tokens-list" class="vs-token-list">
-            <div class="vs-loading-state">{{ t('customer_voice_tokens_loading', locale) }}</div>
+        <div id="vs-tokens-list" style="padding:16px 20px;display:flex;flex-direction:column;gap:10px;">
+            <div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">{{ t('customer_voice_tokens_loading', locale) }}</div>
         </div>
     </div>
 
     {# ── Backup Tab ── #}
     <div id="vs-tab-backup" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_backup_heading', locale) }}</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_backup_heading', locale) }}</h3>
         </div>
 
         {# Create backup #}
-        <div class="vs-backup-section">
-            <div class="vs-form-card">
-                <div class="vs-form-card__title">{{ t('customer_voice_backup_create_title', locale) }}</div>
-                <p class="vs-muted" style="font-size:12px;margin:0 0 12px;">{{ t('customer_voice_backup_create_desc', locale) }}</p>
+        <div style="padding:20px;border-bottom:1px solid var(--ng-border);">
+            <div class="cust-panel" style="padding:14px 16px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:12px;">{{ t('customer_voice_backup_create_title', locale) }}</div>
+                <p style="color:var(--ng-text-muted);font-size:12px;margin:0 0 12px;">{{ t('customer_voice_backup_create_desc', locale) }}</p>
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <button type="button" id="vs-btn-create-backup" class="vs-btn vs-btn--primary vs-btn--sm">
+                    <button type="button" id="vs-btn-create-backup" class="ui-button ui-button--primary ui-button--sm">
                         <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                         {{ t('customer_voice_backup_create_btn', locale) }}
                     </button>
-                    <span id="vs-backup-status" class="vs-muted" style="font-size:12px;"></span>
+                    <span id="vs-backup-status" style="color:var(--ng-text-muted);font-size:12px;"></span>
                 </div>
                 <div id="vs-backup-progress" class="vs-backup-progress hidden">
-                    <div class="vs-backup-progress__bar">
-                        <div class="vs-backup-progress__fill"></div>
+                    <div style="height:4px;border-radius:2px;background:var(--ng-border);overflow:hidden;margin-top:12px;">
+                        <div style="height:100%;width:30%;background:var(--ng-primary);animation:vs-bar-slide 1.2s ease-in-out infinite;"></div>
                     </div>
-                    <span class="vs-muted" style="font-size:11px;">{{ t('customer_voice_backup_waiting_progress', locale) }}</span>
+                    <span style="color:var(--ng-text-muted);font-size:11px;">{{ t('customer_voice_backup_waiting_progress', locale) }}</span>
                 </div>
             </div>
         </div>
 
         {# Restore backup #}
-        <div class="vs-backup-section">
-            <div class="vs-form-card">
-                <div class="vs-form-card__title">{{ t('customer_voice_restore_title', locale) }}</div>
-                <p class="vs-muted" style="font-size:12px;margin:0 0 12px;">{{ t('customer_voice_restore_desc', locale) }} <strong style="color:#f87171;">{{ t('customer_voice_restore_warning', locale) }}</strong></p>
+        <div style="padding:20px;">
+            <div class="cust-panel" style="padding:14px 16px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:12px;">{{ t('customer_voice_restore_title', locale) }}</div>
+                <p style="color:var(--ng-text-muted);font-size:12px;margin:0 0 12px;">{{ t('customer_voice_restore_desc', locale) }} <strong style="color:#f87171;">{{ t('customer_voice_restore_warning', locale) }}</strong></p>
                 <div class="vs-restore-drop" id="vs-restore-dropzone">
                     <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="color:var(--ng-text-muted);margin-bottom:8px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     <div style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ t('customer_voice_restore_drop', locale) }}</div>
-                    <div class="vs-muted" style="font-size:11px;margin-top:4px;">{{ t('customer_voice_restore_or', locale) }}</div>
-                    <label class="vs-btn vs-btn--ghost vs-btn--sm" style="margin-top:8px;cursor:pointer;">
+                    <div style="color:var(--ng-text-muted);font-size:11px;margin-top:4px;">{{ t('customer_voice_restore_or', locale) }}</div>
+                    <label class="ui-button ui-button--ghost ui-button--sm" style="margin-top:8px;cursor:pointer;">
                         {{ t('customer_voice_restore_select', locale) }}
                         <input type="file" id="vs-restore-file" accept=".snapshot,.txt,.xml,text/plain,application/xml" style="display:none;">
                     </label>
-                    <div id="vs-restore-filename" class="vs-muted" style="font-size:11px;margin-top:6px;"></div>
+                    <div id="vs-restore-filename" style="color:var(--ng-text-muted);font-size:11px;margin-top:6px;"></div>
                 </div>
                 <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;">
-                    <button type="button" id="vs-btn-restore-backup" class="vs-btn vs-btn--danger vs-btn--sm" disabled>
+                    <button type="button" id="vs-btn-restore-backup" class="ui-button ui-button--danger ui-button--sm" disabled>
                         <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         {{ t('customer_voice_restore_btn', locale) }}
                     </button>
-                    <span id="vs-restore-status" class="vs-muted" style="font-size:12px;"></span>
+                    <span id="vs-restore-status" style="color:var(--ng-text-muted);font-size:12px;"></span>
                 </div>
             </div>
         </div>
@@ -338,119 +340,77 @@
 
     {# ── Logs Tab ── #}
     <div id="vs-tab-logs" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_logs_heading', locale) }}</h3>
-            <button type="button" class="vs-btn vs-btn--ghost vs-btn--sm vs-refresh-btn" data-refresh-tab="logs">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_logs_heading', locale) }}</h3>
+            <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-refresh-btn" data-refresh-tab="logs">
                 <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 {{ t('customer_voice_refresh', locale) }}
             </button>
         </div>
-        <div id="vs-logs-list" class="vs-log-output">
-            <div class="vs-loading-state">{{ t('customer_voice_logs_loading', locale) }}</div>
+        <div id="vs-logs-list" style="padding:16px 20px;">
+            <div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">{{ t('customer_voice_logs_loading', locale) }}</div>
         </div>
     </div>
 
     {# ── Viewer Tab ── #}
     <div id="vs-tab-viewer" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_viewer_heading', locale) }}</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_viewer_heading', locale) }}</h3>
         </div>
-        <div class="vs-form-section">
-            <label class="vs-toggle-row">
-                <input type="checkbox" id="vs-viewer-enabled" class="vs-toggle">
+        <div style="padding:20px;display:flex;flex-direction:column;gap:16px;max-width:560px;">
+            <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);cursor:pointer;">
+                <input type="checkbox" id="vs-viewer-enabled" style="width:18px;height:18px;accent-color:var(--ng-primary);margin-top:1px;flex-shrink:0;">
                 <div>
-                    <div class="vs-toggle-row__title">{{ t('customer_voice_viewer_toggle_title', locale) }}</div>
-                    <div class="vs-toggle-row__hint">{{ t('customer_voice_viewer_toggle_hint', locale) }}</div>
+                    <div style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ t('customer_voice_viewer_toggle_title', locale) }}</div>
+                    <div style="font-size:11px;color:var(--ng-text-muted);margin-top:2px;">{{ t('customer_voice_viewer_toggle_hint', locale) }}</div>
                 </div>
             </label>
-            <div class="vs-form-field">
-                <label class="vs-form-label">{{ t('customer_voice_viewer_cache_interval', locale) }}</label>
-                <input type="number" id="vs-viewer-ttl" min="500" max="60000" value="1500" class="vs-input">
+            <div class="form-field">
+                <label class="form-label">{{ t('customer_voice_viewer_cache_interval', locale) }}</label>
+                <input type="number" id="vs-viewer-ttl" min="500" max="60000" value="1500" class="form-input">
             </div>
-            <div class="vs-form-field">
-                <label class="vs-form-label">{{ t('customer_voice_viewer_domains_label', locale) }}</label>
-                <textarea id="vs-viewer-allowlist" rows="4" placeholder="{{ t('customer_voice_viewer_allowlist_example', locale) }}" class="vs-input" style="resize:vertical;font-family:monospace;font-size:12px;"></textarea>
+            <div class="form-field">
+                <label class="form-label">{{ t('customer_voice_viewer_domains_label', locale) }}</label>
+                <textarea id="vs-viewer-allowlist" rows="4" placeholder="{{ t('customer_voice_viewer_allowlist_example', locale) }}" class="form-input" style="resize:vertical;font-family:monospace;font-size:12px;"></textarea>
             </div>
-            <div id="vs-viewer-url" class="vs-viewer-url-box hidden">
-                <span class="vs-muted">{{ t('customer_voice_viewer_url_label', locale) }}</span>
-                <span id="vs-viewer-url-val" class="vs-viewer-url-val"></span>
-                <button type="button" id="vs-copy-viewer-url" class="vs-btn vs-btn--ghost vs-btn--xs">{{ t('customer_voice_copy', locale) }}</button>
+            <div id="vs-viewer-url" style="padding:10px 14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;" class="hidden">
+                <span style="color:var(--ng-text-muted);">{{ t('customer_voice_viewer_url_label', locale) }}</span>
+                <span id="vs-viewer-url-val" style="font-family:monospace;color:var(--ng-primary);word-break:break-all;"></span>
+                <button type="button" id="vs-copy-viewer-url" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voice_copy', locale) }}</button>
             </div>
             <div>
-                <button type="button" id="vs-btn-save-viewer" class="vs-btn vs-btn--primary vs-btn--sm">{{ t('customer_voice_save', locale) }}</button>
+                <button type="button" id="vs-btn-save-viewer" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_voice_save', locale) }}</button>
             </div>
         </div>
     </div>
 
     {# ── Settings Tab ── #}
     <div id="vs-tab-settings" class="vs-tab-panel hidden" role="tabpanel">
-        <div class="vs-tab-toolbar">
-            <h3 class="vs-tab-heading">{{ t('customer_voice_settings_heading', locale) }}</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+            <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_voice_settings_heading', locale) }}</h3>
         </div>
-        <div class="vs-form-section">
-            <div class="vs-form-field">
-                <label class="vs-form-label">{{ t('customer_voice_public_host', locale) }}</label>
-                <input type="text" id="vs-settings-host" placeholder="{{ t('customer_voice_public_host_placeholder', locale) }}" class="vs-input" style="font-family:monospace;">
-                <p class="vs-form-hint">{{ t('customer_voice_public_host_hint', locale) }}</p>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:16px;max-width:560px;">
+            <div class="form-field">
+                <label class="form-label">{{ t('customer_voice_public_host', locale) }}</label>
+                <input type="text" id="vs-settings-host" placeholder="{{ t('customer_voice_public_host_placeholder', locale) }}" class="form-input" style="font-family:monospace;">
+                <p style="margin:3px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_voice_public_host_hint', locale) }}</p>
             </div>
             <div>
-                <button type="button" id="vs-btn-save-settings" class="vs-btn vs-btn--primary vs-btn--sm">{{ t('customer_voice_save', locale) }}</button>
+                <button type="button" id="vs-btn-save-settings" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_voice_save', locale) }}</button>
             </div>
         </div>
     </div>
 
-</div>{# /vs-panel #}
-</div>{# /vs-root #}
+</div>{# /cust-panel #}
+</div>{# /cust-page #}
 
 <style>
 /* ── Voice Server Show – scoped styles ── */
-.vs-root { display:flex;flex-direction:column;gap:14px;padding-bottom:32px; }
 
-/* Header */
-.vs-header-bar { display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 0 4px; }
-.vs-header-bar__left { display:flex;flex-direction:column;gap:6px; }
-.vs-header-bar__actions { display:flex;flex-wrap:wrap;gap:6px;align-items:center; }
-.vs-back-link { display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ng-text-muted);text-decoration:none;margin-bottom:4px; }
-.vs-back-link:hover { color:var(--ng-primary); }
-.vs-header-title__badges { display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px; }
-.vs-header-title__name { margin:0;font-size:22px;font-weight:800;color:var(--ng-text);letter-spacing:-.02em; }
-.vs-header-title__sub { font-size:12px;color:var(--ng-text-muted);font-family:monospace;margin-top:2px; }
-.vs-badge--provider { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:99px;background:rgba(99,102,241,0.15);color:#818cf8; }
-
-/* Status dots */
-.vs-status-dot { display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px; }
-.vs-status-dot::before { content:'';width:7px;height:7px;border-radius:50%;flex-shrink:0; }
-.vs-status-dot--success { background:rgba(34,197,94,.12);color:#4ade80; }
-.vs-status-dot--success::before { background:#4ade80; }
-.vs-status-dot--danger { background:rgba(239,68,68,.12);color:#f87171; }
-.vs-status-dot--danger::before { background:#f87171; }
-.vs-status-dot--warning { background:rgba(245,158,11,.12);color:#fbbf24; }
-.vs-status-dot--warning::before { background:#fbbf24; }
-
-/* KPI strip */
-.vs-kpi-strip { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }
-@media(max-width:900px) { .vs-kpi-strip { grid-template-columns:repeat(2,1fr); } }
-@media(max-width:560px) { .vs-kpi-strip { grid-template-columns:1fr; } }
-.vs-kpi-card { display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:var(--ng-radius);border:1px solid var(--ng-border);background:var(--ng-surface); }
-.vs-kpi-card__icon { width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
-.vs-kpi-card__icon svg { width:16px;height:16px; }
-.vs-kpi-card__icon--primary { background:rgba(100,115,255,.15);color:#818cf8; }
-.vs-kpi-card__icon--success { background:rgba(34,197,94,.12);color:#4ade80; }
-.vs-kpi-card__icon--info    { background:rgba(56,189,248,.12);color:#38bdf8; }
-.vs-kpi-card__icon--warning { background:rgba(245,158,11,.12);color:#fbbf24; }
-.vs-kpi-card__label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px; }
-.vs-kpi-card__value { font-size:17px;font-weight:800;color:var(--ng-text); }
-.vs-token-preview { font-size:10px;font-family:monospace;word-break:break-all;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-
-/* Error bar */
-.vs-error-bar { padding:10px 16px;border-radius:var(--ng-radius);background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;font-size:13px; }
-
-/* Panel */
-.vs-panel { border-radius:var(--ng-radius-lg);border:1px solid var(--ng-border);background:var(--ng-surface);overflow:hidden; }
+/* Tab nav scrollbar hide */
+#vs-tab-nav::-webkit-scrollbar { display:none; }
 
 /* Tabs */
-.vs-tabs { display:flex;border-bottom:1px solid var(--ng-border);overflow-x:auto;scrollbar-width:none; }
-.vs-tabs::-webkit-scrollbar { display:none; }
 .vs-tab { display:inline-flex;align-items:center;gap:6px;padding:13px 16px;border:none;background:none;font-size:12.5px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;flex-shrink:0; }
 .vs-tab:hover { color:var(--ng-text); }
 .vs-tab--active { color:var(--ng-primary);border-bottom-color:var(--ng-primary); }
@@ -460,55 +420,7 @@
 .vs-tab-panel.hidden { display:none; }
 @keyframes vs-fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 
-.vs-tab-toolbar { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--ng-border); }
-.vs-tab-heading { margin:0;font-size:14px;font-weight:700;color:var(--ng-text); }
-
-/* Buttons */
-.vs-btn { display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;border:1px solid transparent;white-space:nowrap; }
-.vs-btn:disabled { opacity:.5;cursor:not-allowed; }
-.vs-btn--sm { padding:5px 11px;font-size:12px; }
-.vs-btn--xs { padding:3px 8px;font-size:11px; }
-.vs-btn--primary { background:var(--ng-primary);color:#fff;border-color:var(--ng-primary); }
-.vs-btn--primary:hover:not(:disabled) { filter:brightness(1.1); }
-.vs-btn--success { background:rgba(34,197,94,.15);color:#4ade80;border-color:rgba(34,197,94,.3); }
-.vs-btn--success:hover:not(:disabled) { background:rgba(34,197,94,.25); }
-.vs-btn--danger  { background:rgba(239,68,68,.15);color:#f87171;border-color:rgba(239,68,68,.3); }
-.vs-btn--danger:hover:not(:disabled) { background:rgba(239,68,68,.25); }
-.vs-btn--ghost   { background:transparent;color:var(--ng-text-muted);border-color:var(--ng-border); }
-.vs-btn--ghost:hover:not(:disabled) { background:var(--ng-surface-soft);color:var(--ng-text); }
-.vs-btn-group { display:flex;gap:6px; }
-
-/* Overview grid */
-.vs-overview-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:20px; }
-@media(max-width:700px) { .vs-overview-grid { grid-template-columns:1fr; } }
-.vs-info-block { border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:16px; }
-.vs-info-block__title { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:10px; }
-.vs-info-block__content { font-size:13px;color:var(--ng-text); }
-
-/* Info rows */
-.vs-info-row { display:flex;gap:8px;margin-bottom:6px;font-size:13px; }
-.vs-info-row:last-child { margin-bottom:0; }
-.vs-info-row__label { color:var(--ng-text-muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;width:64px;flex-shrink:0;padding-top:1px; }
-.vs-info-row--loading { color:var(--ng-text-muted); }
-.vs-muted { color:var(--ng-text-muted); }
-
-/* Quick actions */
-.vs-quick-actions { display:flex;flex-direction:column;gap:8px; }
-
-/* Table wrapper */
-.vs-table-wrapper { overflow-x:auto;padding:0; }
-.vs-data-table { width:100%;border-collapse:collapse;font-size:12.5px; }
-.vs-data-table th { padding:9px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);border-bottom:1px solid var(--ng-border);background:var(--ng-surface-soft);white-space:nowrap; }
-.vs-data-table td { padding:9px 14px;border-bottom:1px solid var(--ng-border);color:var(--ng-text);vertical-align:middle; }
-.vs-data-table tr:last-child td { border-bottom:none; }
-.vs-data-table tr:hover td { background:var(--ng-surface-soft); }
-.vs-data-table .vs-td-actions { display:flex;gap:4px;flex-wrap:wrap; }
-
-/* Loading / empty */
-.vs-loading-state,.vs-empty-state { padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px; }
-
-/* Token list */
-.vs-token-list { padding:16px 20px;display:flex;flex-direction:column;gap:10px; }
+/* Token list items */
 .vs-token-item { border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:14px 16px; }
 .vs-token-item__row { display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap; }
 .vs-token-item__code { flex:1;min-width:0;word-break:break-all;font-size:11.5px;color:var(--ng-text);background:var(--ng-surface);padding:7px 10px;border-radius:6px;font-family:monospace;display:block; }
@@ -518,41 +430,31 @@
 .vs-token-item__meta { margin-top:6px;font-size:11px;color:var(--ng-text-muted); }
 
 /* Log output */
-.vs-log-output { padding:16px 20px; }
 .vs-log-pre { background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:14px;font-family:monospace;font-size:11.5px;color:var(--ng-text-muted);overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto; }
 
-/* Form section */
-.vs-form-section { padding:20px;display:flex;flex-direction:column;gap:16px;max-width:560px; }
-.vs-form-row { display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px; }
-.vs-form-field { display:flex;flex-direction:column;gap:4px; }
-.vs-form-label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted); }
-.vs-form-hint { margin:3px 0 0;font-size:11px;color:var(--ng-text-muted); }
-.vs-input { border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:7px 10px;font-size:12.5px;color:var(--ng-text);outline:none;transition:.15s; }
-.vs-input:focus { border-color:var(--ng-primary);box-shadow:0 0 0 2px rgba(100,115,255,.15); }
-.vs-select { border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:6px 10px;font-size:12px;color:var(--ng-text); }
-.vs-form-card { border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:14px 16px; }
-.vs-form-card__title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:12px; }
-
-/* Toggle */
-.vs-toggle-row { display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);cursor:pointer; }
-.vs-toggle { width:18px;height:18px;accent-color:var(--ng-primary);margin-top:1px;flex-shrink:0; }
-.vs-toggle-row__title { font-size:13px;font-weight:600;color:var(--ng-text); }
-.vs-toggle-row__hint { font-size:11px;color:var(--ng-text-muted);margin-top:2px; }
-
-/* Viewer URL box */
-.vs-viewer-url-box { padding:10px 14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
-.vs-viewer-url-val { font-family:monospace;color:var(--ng-primary);word-break:break-all; }
-
-/* Backup tab */
-.vs-backup-section { padding:20px;border-bottom:1px solid var(--ng-border); }
-.vs-backup-section:last-child { border-bottom:none; }
+/* Backup progress bar */
 .vs-backup-progress { margin-top:12px;display:flex;flex-direction:column;gap:4px; }
-.vs-backup-progress__bar { height:4px;border-radius:2px;background:var(--ng-border);overflow:hidden; }
-.vs-backup-progress__fill { height:100%;width:30%;background:var(--ng-primary);animation:vs-bar-slide 1.2s ease-in-out infinite; }
 @keyframes vs-bar-slide { 0%{transform:translateX(-100%)} 100%{transform:translateX(400%)} }
+
+/* Restore drop zone */
 .vs-restore-drop { border:2px dashed var(--ng-border);border-radius:10px;padding:28px 20px;text-align:center;transition:border-color .15s,background .15s; }
 .vs-restore-drop.dragover { border-color:var(--ng-primary);background:var(--ng-primary-soft); }
 .vs-restore-drop.has-file { border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05); }
+
+/* Table action cells */
+.vs-td-actions { display:flex;gap:4px;flex-wrap:wrap; }
+
+/* Info rows (used by JS-rendered content) */
+.vs-info-row { display:flex;gap:8px;margin-bottom:6px;font-size:13px; }
+.vs-info-row:last-child { margin-bottom:0; }
+.vs-info-row__label { color:var(--ng-text-muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;width:64px;flex-shrink:0;padding-top:1px; }
+
+/* Responsive KPI grid */
+@media(max-width:900px) { #vs-root > div:nth-child(3) { grid-template-columns:repeat(2,1fr) !important; } }
+@media(max-width:560px) { #vs-root > div:nth-child(3) { grid-template-columns:1fr !important; } }
+
+/* Responsive overview grid */
+@media(max-width:700px) { #vs-tab-overview > div { grid-template-columns:1fr !important; } }
 </style>
 
 <script>
@@ -736,12 +638,12 @@
             // Header badges
             const sb = $('vs-status-badge');
             if(sb){
-                const colors={online:'vs-status-dot--success',offline:'vs-status-dot--danger',unknown:'vs-status-dot--warning'};
-                sb.className='vs-status-dot '+(colors[inst.status]||'vs-status-dot--warning');
+                const colors={online:'ui-badge--success',offline:'ui-badge--danger',unknown:'ui-badge--warning'};
+                sb.className='ui-badge '+(colors[inst.status]||'ui-badge--warning');
                 sb.textContent=inst.status||'unknown';
             }
             const pb = $('vs-probe-badge');
-            if(pb){ pb.dataset.stale=inst.stale?'1':'0'; pb.innerHTML=inst.stale?`<span class="vs-status-dot vs-status-dot--warning" style="font-size:11px;">${esc(i18n.stale)}</span>`:`<span class="vs-status-dot vs-status-dot--success" style="font-size:11px;">${esc(i18n.fresh)}</span>`; }
+            if(pb){ pb.dataset.stale=inst.stale?'1':'0'; pb.innerHTML=inst.stale?`<span class="ui-badge ui-badge--warning" style="font-size:11px;">${esc(i18n.stale)}</span>`:`<span class="ui-badge ui-badge--success" style="font-size:11px;">${esc(i18n.fresh)}</span>`; }
             const ci=$('vs-connect-inline'); if(ci) ci.textContent=addr;
 
             // KPIs
@@ -754,7 +656,7 @@
             // Connect details
             const cd=$('vs-connect-details');
             if(cd){
-                const hostDisplay = host!=='—'?`<span style="font-family:monospace;">${esc(host)}</span>`:`<span class="vs-muted" style="font-size:11px;">— Öffentlichen Host in Einstellungen konfigurieren</span>`;
+                const hostDisplay = host!=='—'?`<span style="font-family:monospace;">${esc(host)}</span>`:`<span style="color:var(--ng-text-muted);font-size:11px;">— Öffentlichen Host in Einstellungen konfigurieren</span>`;
                 cd.innerHTML=[
                     `<div class="vs-info-row"><span class="vs-info-row__label">Host</span>${hostDisplay}</div>`,
                     port?`<div class="vs-info-row"><span class="vs-info-row__label">Port</span><span style="font-family:monospace;">${esc(String(port))}</span></div>`:'',
@@ -782,7 +684,7 @@
                     tokenEl.innerHTML=`<code style="display:block;word-break:break-all;padding:8px;border-radius:6px;background:var(--ng-surface);font-size:11px;">${esc(token)}</code>`;
                     if(copyBtn) copyBtn.style.display='';
                 } else {
-                    tokenEl.innerHTML=`<span class="vs-muted">${esc(i18n.noActiveToken)}</span>`;
+                    tokenEl.innerHTML=`<span style="color:var(--ng-text-muted);">${esc(i18n.noActiveToken)}</span>`;
                     if(copyBtn) copyBtn.style.display='none';
                 }
             }
@@ -815,14 +717,14 @@
     const loadClients = async () => {
         const el=$('vs-clients-list');
         if(!el) return;
-        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.clientsLoading)}</div>`;
+        el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.clientsLoading)}</div>`;
         try {
             let data = await apiFetch(`${d.urlQueryBase}/clients`);
             if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/clients`);
             const rawClients=data.data?.payload??data.payload??[];
             const rows=Array.isArray(rawClients)?rawClients:(rawClients?.clients??rawClients?.items??[]);
-            if(!rows.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.clientsEmpty)}</div>`; return; }
-            el.innerHTML=`<table class="vs-data-table">
+            if(!rows.length){ el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.clientsEmpty)}</div>`; return; }
+            el.innerHTML=`<table class="cust-table">
                 <thead><tr>
                     <th>${esc(i18n.colName)}</th><th>${esc(i18n.colChannel)}</th><th>${esc(i18n.colIdle)}</th><th>${esc(i18n.colCountry)}</th><th>${esc(i18n.colType)}</th><th>${esc(i18n.colActions)}</th>
                 </tr></thead>
@@ -832,36 +734,36 @@
                     const chan=esc(r.client_channel_id??r.cid??'—');
                     const idle=r.client_idle_time!==undefined?fmtDuration(Math.floor(r.client_idle_time/1000)):'—';
                     const country=esc(r.client_country??'—');
-                    const ctype=r.client_type===1?`<span class="vs-muted" style="font-size:10px;">${esc(i18n.clientQuery)}</span>`:`<span style="font-size:10px;color:var(--ng-primary);">${esc(i18n.clientNormal)}</span>`;
+                    const ctype=r.client_type===1?`<span style="color:var(--ng-text-muted);font-size:10px;">${esc(i18n.clientQuery)}</span>`:`<span style="font-size:10px;color:var(--ng-primary);">${esc(i18n.clientNormal)}</span>`;
                     return `<tr>
                         <td><strong>${nick}</strong></td>
-                        <td class="vs-muted">${chan}</td>
-                        <td class="vs-muted">${idle}</td>
-                        <td class="vs-muted">${country}</td>
+                        <td style="color:var(--ng-text-muted);">${chan}</td>
+                        <td style="color:var(--ng-text-muted);">${idle}</td>
+                        <td style="color:var(--ng-text-muted);">${country}</td>
                         <td>${ctype}</td>
                         <td><div class="vs-td-actions">
-                            <button class="vs-btn vs-btn--ghost vs-btn--xs vs-kick-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.kick)}</button>
-                            <button class="vs-btn vs-btn--ghost vs-btn--xs vs-poke-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.poke)}</button>
-                            <button class="vs-btn vs-btn--danger vs-btn--xs vs-ban-from-client-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.ban)}</button>
+                            <button class="ui-button ui-button--ghost ui-button--sm vs-kick-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.kick)}</button>
+                            <button class="ui-button ui-button--ghost ui-button--sm vs-poke-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.poke)}</button>
+                            <button class="ui-button ui-button--danger ui-button--sm vs-ban-from-client-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.ban)}</button>
                         </div></td>
                     </tr>`;
                 }).join('')}</tbody>
             </table>`;
-        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+        } catch(err){ el.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(err.message)}</div>`; }
     };
 
     // ── Channels ──
     const loadChannels = async () => {
         const el=$('vs-channels-list');
         if(!el) return;
-        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.channelsLoading)}</div>`;
+        el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.channelsLoading)}</div>`;
         try {
             let data = await apiFetch(`${d.urlQueryBase}/channels`);
             if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/channels`);
             const rawChannels=data.data?.payload??data.payload??[];
             const rows=Array.isArray(rawChannels)?rawChannels:(rawChannels?.channels??rawChannels?.items??[]);
-            if(!rows.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.channelsEmpty)}</div>`; return; }
-            el.innerHTML=`<table class="vs-data-table">
+            if(!rows.length){ el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.channelsEmpty)}</div>`; return; }
+            el.innerHTML=`<table class="cust-table">
                 <thead><tr>
                     <th>CID</th><th>${esc(i18n.colName)}</th><th>Clients</th><th>${esc(i18n.colMax)}</th><th>${esc(i18n.colType)}</th>
                 </tr></thead>
@@ -874,22 +776,22 @@
                                r.channel_flag_permanent==='1'?`<span style="font-size:10px;color:var(--ng-text-muted);">${esc(i18n.channelPermanent)}</span>`:
                                `<span style="font-size:10px;color:var(--ng-text-muted);">${esc(i18n.channelTemp)}</span>`;
                     return `<tr>
-                        <td class="vs-muted" style="font-family:monospace;">${cid}</td>
+                        <td style="color:var(--ng-text-muted);font-family:monospace;">${cid}</td>
                         <td><strong>${name}</strong></td>
-                        <td class="vs-muted">${clients}</td>
-                        <td class="vs-muted">${max}</td>
+                        <td style="color:var(--ng-text-muted);">${clients}</td>
+                        <td style="color:var(--ng-text-muted);">${max}</td>
                         <td>${flag}</td>
                     </tr>`;
                 }).join('')}</tbody>
             </table>`;
-        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+        } catch(err){ el.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(err.message)}</div>`; }
     };
 
     // ── Groups – only type=1 (regular), hide type=0 (template) & type=2 (query) ──
     const loadGroups = async () => {
         const el=$('vs-groups-list');
         if(!el) return;
-        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.groupsLoading)}</div>`;
+        el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.groupsLoading)}</div>`;
         try {
             let data = await apiFetch(d.urlGroups);
             if((data.status||'pending')==='pending') data=await pollUntilDone(d.urlGroups);
@@ -918,8 +820,8 @@
                 }).join('');
             }
 
-            if(!groups.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.groupsEmpty)}</div>`; return; }
-            el.innerHTML=`<table class="vs-data-table">
+            if(!groups.length){ el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.groupsEmpty)}</div>`; return; }
+            el.innerHTML=`<table class="cust-table">
                 <thead><tr>
                     <th>ID</th><th>${esc(i18n.colName)}</th><th>${esc(i18n.colPermission)}</th>
                 </tr></thead>
@@ -928,26 +830,26 @@
                     const name=esc(g.name??'');
                     const perm=esc(String(g.n_member_addp??'—'));
                     return `<tr>
-                        <td class="vs-muted" style="font-family:monospace;">${gid}</td>
+                        <td style="color:var(--ng-text-muted);font-family:monospace;">${gid}</td>
                         <td><strong>${name}</strong></td>
-                        <td class="vs-muted">${perm}</td>
+                        <td style="color:var(--ng-text-muted);">${perm}</td>
                     </tr>`;
                 }).join('')}</tbody>
             </table>`;
-        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+        } catch(err){ el.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(err.message)}</div>`; }
     };
 
     // ── Bans ──
     const loadBans = async () => {
         const el=$('vs-bans-list');
         if(!el) return;
-        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.bansLoading)}</div>`;
+        el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.bansLoading)}</div>`;
         try {
             let data = await apiFetch(`${d.urlQueryBase}/bans`);
             if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/bans`);
             const rows=data.data?.payload||data.payload||[];
-            if(!rows.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.bansEmpty)}</div>`; return; }
-            el.innerHTML=`<table class="vs-data-table">
+            if(!rows.length){ el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.bansEmpty)}</div>`; return; }
+            el.innerHTML=`<table class="cust-table">
                 <thead><tr>
                     <th>IP</th><th>${esc(i18n.colName)}</th><th>${esc(i18n.colReason)}</th><th>${esc(i18n.colDuration)}</th><th>${esc(i18n.colCreated)}</th><th>${esc(i18n.colAction)}</th>
                 </tr></thead>
@@ -956,25 +858,25 @@
                     return `<tr>
                         <td style="font-family:monospace;">${esc(r.ip??'—')}</td>
                         <td>${esc(r.name??'—')}</td>
-                        <td class="vs-muted">${esc(r.banreason??r.reason??'—')}</td>
-                        <td class="vs-muted">${r.duration?fmtDuration(r.duration):esc(i18n.permanent)}</td>
-                        <td class="vs-muted">${esc(fmtDate(r.created??r.invoketime_utc))}</td>
-                        <td><button class="vs-btn vs-btn--danger vs-btn--xs vs-ban-remove-btn" data-banid="${esc(String(banid))}">${esc(i18n.banRemove)}</button></td>
+                        <td style="color:var(--ng-text-muted);">${esc(r.banreason??r.reason??'—')}</td>
+                        <td style="color:var(--ng-text-muted);">${r.duration?fmtDuration(r.duration):esc(i18n.permanent)}</td>
+                        <td style="color:var(--ng-text-muted);">${esc(fmtDate(r.created??r.invoketime_utc))}</td>
+                        <td><button class="ui-button ui-button--danger ui-button--sm vs-ban-remove-btn" data-banid="${esc(String(banid))}">${esc(i18n.banRemove)}</button></td>
                     </tr>`;
                 }).join('')}</tbody>
             </table>`;
-        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+        } catch(err){ el.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(err.message)}</div>`; }
     };
 
     // ── Tokens ──
     const loadTokens = async () => {
         const el=$('vs-tokens-list');
         if(!el) return;
-        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.tokensLoading)}</div>`;
+        el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.tokensLoading)}</div>`;
         try {
             const data=await apiFetch(d.urlTokens);
             const tokens=data.tokens||[];
-            if(!tokens.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.tokensEmpty)}</div>`; return; }
+            if(!tokens.length){ el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.tokensEmpty)}</div>`; return; }
             el.innerHTML=tokens.map(t=>`
                 <div class="vs-token-item">
                     <div class="vs-token-item__row">
@@ -984,22 +886,22 @@
                     <div class="vs-token-item__meta">${esc(i18n.tokenTypeLabel)} ${esc(t.type)} · ${esc(i18n.tokenCreatedLabel)} ${esc(fmtDate(t.created_at))}${t.revoked_at?' · '+esc(i18n.tokenRevokedLabel)+' '+esc(fmtDate(t.revoked_at)):''}</div>
                 </div>
             `).join('');
-        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+        } catch(err){ el.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(err.message)}</div>`; }
     };
 
     // ── Logs ──
     const loadLogs = async () => {
         const el=$('vs-logs-list');
         if(!el) return;
-        el.innerHTML=`<div class="vs-loading-state">${esc(i18n.logsLoading)}</div>`;
+        el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.logsLoading)}</div>`;
         try {
             let data = await apiFetch(`${d.urlQueryBase}/logs`);
             if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/logs`);
             const rows=data.data?.payload||data.payload||[];
-            if(!rows.length){ el.innerHTML=`<div class="vs-empty-state">${esc(i18n.logsEmpty)}</div>`; return; }
+            if(!rows.length){ el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.logsEmpty)}</div>`; return; }
             const text=rows.map(r=>esc(typeof r==='string'?r:JSON.stringify(r))).join('\n');
             el.innerHTML=`<pre class="vs-log-pre">${text}</pre>`;
-        } catch(err){ el.innerHTML=`<div class="vs-empty-state" style="color:#f87171;">${esc(err.message)}</div>`; }
+        } catch(err){ el.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(err.message)}</div>`; }
     };
 
     // ── Tab loader dispatch ──

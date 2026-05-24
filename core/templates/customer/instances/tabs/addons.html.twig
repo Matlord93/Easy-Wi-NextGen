@@ -1,7 +1,6 @@
 {% set locale = page_locale() %}
 <div
     id="gameserver-addons"
-    class="space-y-5"
     data-url-health="{{ path('customer_instance_addons_health', {id: instance.id}) }}"
     data-url-list="{{ path('customer_instance_addons_list', {id: instance.id}) }}"
     data-url-install-template="{{ path('customer_instance_addons_install_v2', {id: instance.id, addonId: '__ADDON_ID__'}) }}"
@@ -24,24 +23,26 @@
     }|json_encode|e('html_attr') }}"
 >
     {# ─── Header ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-                <svg class="h-5 w-5 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm6.5 0A1.5 1.5 0 0 1 8.5 1h3A1.5 1.5 0 0 1 13 2.5v3A1.5 1.5 0 0 1 11.5 7h-3A1.5 1.5 0 0 1 7 5.5v-3zm-6.5 7A1.5 1.5 0 0 1 2.5 8h3A1.5 1.5 0 0 1 7 9.5v3A1.5 1.5 0 0 1 5.5 14h-3A1.5 1.5 0 0 1 1 12.5v-3zm6.5 0A1.5 1.5 0 0 1 8.5 8h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 7 12.5v-3z"/></svg>
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div style="display:flex;align-items:center;gap:.5rem">
+                <svg style="width:1.25rem;height:1.25rem;flex-shrink:0" fill="currentColor" viewBox="0 0 16 16"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm6.5 0A1.5 1.5 0 0 1 8.5 1h3A1.5 1.5 0 0 1 13 2.5v3A1.5 1.5 0 0 1 11.5 7h-3A1.5 1.5 0 0 1 7 5.5v-3zm-6.5 7A1.5 1.5 0 0 1 2.5 8h3A1.5 1.5 0 0 1 7 9.5v3A1.5 1.5 0 0 1 5.5 14h-3A1.5 1.5 0 0 1 1 12.5v-3zm6.5 0A1.5 1.5 0 0 1 8.5 8h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 7 12.5v-3z"/></svg>
                 <div>
-                    <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_tab_addons', page_locale()) }}</h3>
-                    <p class="text-xs text-slate-500">{{ t('customer_instances_addons_intro', page_locale()) }}</p>
+                    <h2 class="cust-panel__title">{{ t('customer_instance_tab_addons', page_locale()) }}</h2>
+                    <p style="font-size:.8rem;color:var(--ng-text-muted)">{{ t('customer_instances_addons_intro', page_locale()) }}</p>
                 </div>
             </div>
-            <p id="gs-addons-meta" class="text-xs text-slate-500">{{ t('common_loading', page_locale()) }}</p>
+            <p id="gs-addons-meta" style="font-size:.8rem;color:var(--ng-text-muted)">{{ t('common_loading', page_locale()) }}</p>
         </div>
-        <div id="gs-addons-error" class="hidden mt-3 rounded-lg border border-rose-700/50 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
+        <div id="gs-addons-error" class="ng-alert ng-alert--danger" style="display:none"></div>
     </div>
 
     {# ─── Addon-Raster ─── #}
-    <div id="gs-addons-list" class="grid gap-3 md:grid-cols-2">
-        <div class="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4 text-sm text-slate-500 md:col-span-2">
-            {{ t('common_loading', page_locale()) }}
+    <div id="gs-addons-list" class="cust-grid-2" style="margin-top:1rem">
+        <div class="cust-panel" style="grid-column:1/-1">
+            <div class="cust-panel__body" style="color:var(--ng-text-muted);font-size:.875rem">
+                {{ t('common_loading', page_locale()) }}
+            </div>
         </div>
     </div>
 </div>

@@ -1,46 +1,63 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Incident Updates · Easy-Wi NextGen{% endblock %}
+{% set pageTitle = incident.title %}
+{% set activeNav = 'status' %}
 
 {% block content %}
-{% set statusStyles = {
-    'investigating': 'bg-amber-100 text-amber-700',
-    'identified': 'bg-indigo-100 text-indigo-700',
-    'monitoring': 'bg-sky-100 text-sky-700',
-    'resolved': 'bg-emerald-100 text-emerald-700'
+{% set locale = page_locale() %}
+{% set statusBadgeMap = {
+    'investigating': 'ui-badge--warning',
+    'identified': 'ui-badge--info',
+    'monitoring': 'ui-badge--info',
+    'resolved': 'ui-badge--success'
 } %}
-<div class="space-y-6">
-    {% include 'admin/status/_nav.html.twig' %}
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  {% include 'admin/status/_nav.html.twig' %}
+
+  <section class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+      <div class="tkt-hero__inner">
         <div>
-            <a href="/admin/status/incidents" class="text-sm text-slate-700 hover:text-slate-700">&larr; Back to incidents</a>
-            <h1 class="mt-2 text-2xl font-semibold">{{ incident.title }}</h1>
-            {% if incident.message %}
-                <p class="text-sm text-slate-700">{{ incident.message }}</p>
-            {% endif %}
+          <div class="tkt-hero__pill"><span class="tkt-hero__pill-dot"></span> Status</div>
+          <h1 class="tkt-hero__title" style="margin-top:10px;">{{ incident.title }}</h1>
+          {% if incident.message %}
+            <p class="tkt-hero__sub">{{ incident.message }}</p>
+          {% endif %}
         </div>
-        <div class="flex items-center gap-3">
-            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ statusStyles[incident.status]|default('bg-slate-100 text-slate-600') }}">
-                {{ incident.status|capitalize }}
-            </span>
-            <span class="inline-flex items-center rounded-full {{ incident.visible_public ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }} px-3 py-1 text-xs font-semibold">
-                {{ incident.visible_public ? 'Public' : 'Hidden' }}
-            </span>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span class="ui-badge {{ statusBadgeMap[incident.status]|default('ui-badge--neutral') }}">
+            {{ incident.status|capitalize }}
+          </span>
+          <span class="ui-badge {{ incident.visible_public ? 'ui-badge--info' : 'ui-badge--neutral' }}">
+            {{ incident.visible_public ? 'Public' : 'Hidden' }}
+          </span>
         </div>
+      </div>
+    </div>
+    <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+      <a href="/admin/status/incidents" class="ui-button ui-button--ghost ui-button--sm">&larr; Back to incidents</a>
+    </div>
+  </section>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start;">
+
+    <div class="ng-data-card">
+      <div class="ng-data-card__header">
+        <div>
+          <h2 class="ng-data-card__title">Timeline</h2>
+        </div>
+      </div>
+      <div id="incident-updates" hx-trigger="incident-updates-changed from:body" hx-get="/admin/status/incidents/{{ incident.id }}/updates" hx-swap="innerHTML">
+        {% include 'admin/status/incidents/_updates.html.twig' with { updates: updates } %}
+      </div>
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <div class="rounded-xl border border-slate-200 bg-white">
-            <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-lg font-semibold">Timeline</h2>
-            </div>
-            <div id="incident-updates" hx-trigger="incident-updates-changed from:body" hx-get="/admin/status/incidents/{{ incident.id }}/updates" hx-swap="innerHTML">
-                {% include 'admin/status/incidents/_updates.html.twig' with { updates: updates } %}
-            </div>
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-white" id="incident-update-form">
-            {% include 'admin/status/incidents/_update_form.html.twig' with { updateForm: updateForm, statuses: statuses } %}
-        </div>
+    <div class="ng-data-card" id="incident-update-form">
+      {% include 'admin/status/incidents/_update_form.html.twig' with { updateForm: updateForm, statuses: statuses } %}
     </div>
+
+  </div>
+
 </div>
 {% endblock %}

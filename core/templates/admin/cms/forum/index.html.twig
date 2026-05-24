@@ -6,7 +6,42 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            CMS
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_cms_forum_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_cms_forum_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_cms_forum_categories_kpi', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ categories|length }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_cms_forum_threads_kpi', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ threads|length }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_cms_forum_posts_kpi', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ posts|length }}</div>
+                        </div>
+                        <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
+                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_cms_forum_reports_kpi', locale) }}</div>
+                            <div class="tkt-kpi__value" style="color:#fca5a5;">{{ reports|filter(r => r.status == 'open')|length }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <div class="ng-data-card">
         <div class="ng-data-card__header">
@@ -15,7 +50,7 @@
             </div>
         </div>
         <div class="ng-data-card__body">
-            <form method="post" action="/admin/cms/forum/categories" class="grid gap-3 sm:grid-cols-3">
+            <form method="post" action="/admin/cms/forum/categories" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
                 <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_category_create') }}">
                 <div class="form-field">
                     <input name="title" placeholder="{{ t('admin_cms_forum_category_title', locale) }}" class="form-input" required>
@@ -26,7 +61,7 @@
                 <div class="form-field">
                     <input name="sort_order" type="number" placeholder="{{ t('admin_cms_forum_category_sort', locale) }}" class="form-input" value="0">
                 </div>
-                <div class="sm:col-span-3">
+                <div style="grid-column:span 3;">
                     <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_cms_forum_save', locale) }}</button>
                 </div>
             </form>
@@ -40,7 +75,7 @@
             </div>
         </div>
         <div class="ng-data-card__body">
-            <form method="post" action="/admin/cms/forum/boards" class="grid gap-3 sm:grid-cols-2">
+            <form method="post" action="/admin/cms/forum/boards" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_board_create') }}">
                 <div class="form-field">
                     <select name="category_id" class="form-input" required>
@@ -59,11 +94,11 @@
                 <div class="form-field">
                     <input name="sort_order" type="number" value="0" class="form-input">
                 </div>
-                <div class="form-field sm:col-span-2">
+                <div class="form-field" style="grid-column:span 2;">
                     <input name="description" placeholder="{{ t('admin_cms_forum_description', locale) }}" class="form-input">
                 </div>
-                <div class="sm:col-span-2 flex items-center gap-4">
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                <div style="grid-column:span 2;display:flex;align-items:center;gap:1rem;">
+                    <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.875rem;color:var(--ng-text);">
                         <input type="checkbox" name="is_active" value="1" checked>
                         {{ t('admin_cms_forum_active', locale) }}
                     </label>
@@ -80,11 +115,11 @@
             </div>
         </div>
         <div class="ng-data-card__body">
-            <div class="flex flex-col gap-3">
+            <div style="display:flex;flex-direction:column;gap:12px;">
                 {% for thread in threads %}
-                    <div class="rounded-lg border border-slate-200 p-3 text-sm">
-                        <div class="font-semibold">#{{ thread.id }} {{ thread.title }}</div>
-                        <div class="mt-2 flex flex-wrap gap-2">
+                    <div style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:12px;font-size:0.875rem;background:var(--ng-surface-soft);">
+                        <div style="font-weight:600;color:var(--ng-text);">#{{ thread.id }} {{ thread.title }}</div>
+                        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;">
                             <form method="post" action="/admin/cms/forum/threads/{{ thread.id }}/toggle-close">
                                 <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_thread_close_' ~ thread.id) }}">
                                 <button class="ui-button ui-button--ghost ui-button--sm">{{ thread.isClosed ? t('admin_cms_forum_open_thread', locale) : t('admin_cms_forum_close_thread', locale) }}</button>
@@ -109,12 +144,12 @@
             </div>
         </div>
         <div class="ng-data-card__body">
-            <div class="flex flex-col gap-3">
+            <div style="display:flex;flex-direction:column;gap:12px;">
                 {% for post in posts|slice(0, 30) %}
-                    <div class="rounded-lg border border-slate-200 p-3 text-sm">
-                        <div class="text-xs text-slate-500">#{{ post.id }} in Thread #{{ post.thread.id }}</div>
-                        <p class="mt-1 whitespace-pre-line text-slate-700">{{ post.content|slice(0, 160) }}</p>
-                        <form method="post" action="/admin/cms/forum/posts/{{ post.id }}/toggle-delete" class="mt-2">
+                    <div style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:12px;font-size:0.875rem;background:var(--ng-surface-soft);">
+                        <div style="font-size:0.75rem;color:var(--ng-text-muted);">#{{ post.id }} in Thread #{{ post.thread.id }}</div>
+                        <p style="margin-top:4px;white-space:pre-line;color:var(--ng-text);">{{ post.content|slice(0, 160) }}</p>
+                        <form method="post" action="/admin/cms/forum/posts/{{ post.id }}/toggle-delete" style="margin-top:8px;">
                             <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_post_delete_' ~ post.id) }}">
                             <button class="ui-button ui-button--ghost ui-button--sm">{{ post.isDeleted ? t('admin_cms_forum_undelete', locale) : t('admin_cms_forum_delete_post', locale) }}</button>
                         </form>
@@ -137,16 +172,16 @@
             </div>
         </div>
         <div class="ng-data-card__body">
-            <div class="flex flex-col gap-3">
+            <div style="display:flex;flex-direction:column;gap:12px;">
                 {% for report in reports %}
-                    <div class="rounded-lg border border-slate-200 p-3 text-sm">
-                        <div class="font-semibold">Report #{{ report.id }} · Post #{{ report.post.id }}</div>
-                        <div class="text-xs" style="color:var(--ng-text-muted)">{{ t('admin_cms_forum_report_reason_label', locale) }}: {{ report.reason }} · {{ t('admin_cms_forum_report_status_label', locale) }}: {{ report.status }} · {{ report.createdAt|date('Y-m-d H:i') }}</div>
-                        {% if report.details %}<p class="mt-2 text-slate-700">{{ report.details }}</p>{% endif %}
+                    <div style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:12px;font-size:0.875rem;background:var(--ng-surface-soft);">
+                        <div style="font-weight:600;color:var(--ng-text);">Report #{{ report.id }} · Post #{{ report.post.id }}</div>
+                        <div style="font-size:0.75rem;color:var(--ng-text-muted);margin-top:2px;">{{ t('admin_cms_forum_report_reason_label', locale) }}: {{ report.reason }} · {{ t('admin_cms_forum_report_status_label', locale) }}: {{ report.status }} · {{ report.createdAt|date('Y-m-d H:i') }}</div>
+                        {% if report.details %}<p style="margin-top:8px;color:var(--ng-text);">{{ report.details }}</p>{% endif %}
                         {% if report.status == 'open' %}
-                            <form method="post" action="/admin/cms/forum/reports/{{ report.id }}/resolve" class="mt-2 flex flex-wrap items-center gap-2">
+                            <form method="post" action="/admin/cms/forum/reports/{{ report.id }}/resolve" style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
                                 <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_report_resolve_' ~ report.id) }}">
-                                <label class="inline-flex items-center gap-1">
+                                <label style="display:inline-flex;align-items:center;gap:4px;font-size:0.875rem;">
                                     <input type="checkbox" name="delete_post" value="1">
                                     {{ t('admin_cms_forum_delete_post', locale) }}
                                 </label>

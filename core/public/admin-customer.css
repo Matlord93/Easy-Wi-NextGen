@@ -497,6 +497,12 @@ html.dark body {
     background: transparent;
     border-color: var(--ng-border);
 }
+/* On desktop the sidebar has its own collapse button – hide the topbar duplicate */
+@media (min-width: 769px) {
+    .ng-icon-button.ng-sidebar-toggle {
+        display: none;
+    }
+}
 
 /* Language switcher */
 .ng-language-switcher {
@@ -1858,6 +1864,46 @@ html:not(.dark) .customer-dashboard--revamp .dashboard-usage-item li strong { co
 }
 .cust-panel__body { padding: 16px 20px; }
 .cust-panel__body--flush { padding: 0; }
+
+/* ─── Tab navigation ─── */
+.cust-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--ng-border);
+    padding: 0 20px;
+}
+.cust-tabs__item {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ng-text-muted);
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 0.375rem 0.375rem 0 0;
+    transition: color 0.15s, background 0.15s;
+}
+.cust-tabs__item:hover {
+    color: var(--ng-text);
+    background: rgba(255,255,255,0.04);
+}
+.cust-tabs__item--active {
+    color: var(--ng-primary, #6366f1);
+    border-color: var(--ng-border);
+    background: var(--ng-surface-soft, rgba(10,13,20,0.70));
+    margin-bottom: -1px;
+    z-index: 1;
+}
+.cust-tabs__icon {
+    width: 0.875rem;
+    height: 0.875rem;
+    flex-shrink: 0;
+}
 
 /* ─── Grid layouts ─── */
 .cust-grid-2 {

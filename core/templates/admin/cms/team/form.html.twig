@@ -3,9 +3,13 @@
 {% set locale = page_locale() %}
 {% block content %}
 <div class="ng-data-card mx-auto max-w-3xl">
+    <div class="ng-data-card__header">
+        <div>
+            <h1 class="ng-data-card__title">{{ member ? t('admin_cms_team_form_edit', locale) : t('admin_cms_team_form_new', locale) }}</h1>
+        </div>
+    </div>
     <div class="ng-data-card__body">
-        <form method="post" action="{{ form.action_url }}" class="flex flex-col gap-4">
-            <h1 class="text-xl font-semibold">{{ member ? t('admin_cms_team_form_edit', locale) : t('admin_cms_team_form_new', locale) }}</h1>
+        <form method="post" action="{{ form.action_url }}" style="display:flex;flex-direction:column;gap:1rem;">
 
             <div class="form-field">
                 <label class="form-label">{{ t('admin_cms_team_form_name_label', locale) }}</label>
@@ -47,7 +51,7 @@
                 <input type="number" name="sort_order" value="{{ member ? member.sortOrder : 0 }}" class="form-input" />
             </div>
 
-            <label class="flex items-center gap-2">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.875rem;">
                 <input type="checkbox" name="is_active" value="1" {% if member is null or member.isActive %}checked{% endif %}/>
                 {{ t('admin_cms_team_form_active', locale) }}
             </label>

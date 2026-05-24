@@ -14,7 +14,7 @@
 <div class="ng-layout">
     {% include 'components/_sidebar.html.twig' with {
         title: brandingName,
-        logoUrl: brandingLogo ?: asset('easywi-nextgen-logo.svg'),
+        logoUrl: brandingLogo ?: null,
         activeNav: activeNav|default(''),
         groups: sidebarGroups|default([]),
         footer: ''

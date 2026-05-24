@@ -1,134 +1,156 @@
 {% extends 'admin/base.html.twig' %}
 
-
 {% block content %}
-    <div class="space-y-6">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-semibold text-slate-900">{{ t('admin_billing_invoice_heading', page_locale())|replace({'%number%': invoice.number}) }}</h1>
-                <p class="text-sm text-slate-700">{{ t('admin_billing_invoice_meta', page_locale())|replace({'%customer%': invoice.customer, '%date%': invoice.created_at|date('Y-m-d')}) }}</p>
-            </div>
-            <a href="/admin/billing" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_billing_invoice_back', page_locale()) }}</a>
-        </div>
+{% set locale = page_locale() %}
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-        <div class="grid gap-4 sm:grid-cols-3">
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_invoice_amount_due', page_locale()) }}</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ invoice.amount_due / 100 }} {{ invoice.currency }}</p>
-                <p class="mt-1 text-xs text-slate-700">{{ t('admin_billing_invoice_total', page_locale())|replace({'%amount%': invoice.amount_total / 100, '%currency%': invoice.currency}) }}</p>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_invoice_due_date', page_locale()) }}</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ invoice.due_date|date('Y-m-d') }}</p>
-                <p class="mt-1 text-xs text-slate-700">
-                    {% if invoice.paid_at %}
-                        {{ t('admin_billing_invoice_paid_at', page_locale())|replace({'%date%': invoice.paid_at|date('Y-m-d')}) }}
-                    {% else %}
-                        {{ t('admin_billing_awaiting_payment', page_locale()) }}
-                    {% endif %}
-                </p>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_table_status', page_locale()) }}</p>
-                <div class="mt-2">
-                    {% if invoice.status == 'paid' %}
-                        <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">{{ t('admin_billing_status_paid', page_locale()) }}</span>
-                    {% elseif invoice.status == 'past_due' %}
-                        <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">{{ t('admin_billing_status_past_due', page_locale()) }}</span>
-                    {% elseif invoice.status == 'open' %}
-                        <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">{{ t('admin_billing_status_open', page_locale()) }}</span>
-                    {% else %}
-                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ invoice.status|replace({'_': ' '})|title }}</span>
-                    {% endif %}
-                </div>
-                <p class="mt-1 text-xs text-slate-700">{{ t('admin_billing_invoice_id', page_locale())|replace({'%id%': invoice.id}) }}</p>
-            </div>
+  <section class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+      <div class="tkt-hero__inner">
+        <div>
+          <div class="tkt-hero__pill"><span class="tkt-hero__pill-dot"></span> {{ t('admin_billing_invoice_back', locale) }}</div>
+          <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_billing_invoice_heading', locale)|replace({'%number%': invoice.number}) }}</h1>
+          <p class="tkt-hero__sub">{{ t('admin_billing_invoice_meta', locale)|replace({'%customer%': invoice.customer, '%date%': invoice.created_at|date('Y-m-d')}) }}</p>
         </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_invoice_payment_actions', page_locale()) }}</p>
-            <p class="mt-1 text-xs text-slate-700">{{ t('admin_billing_invoice_payment_actions_hint', page_locale()) }}</p>
-            <div class="mt-4 flex flex-wrap gap-3">
-                {% if invoice.status != 'paid' %}
-                    <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-paid">
-                        <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">{{ t('admin_billing_invoice_mark_paid', page_locale()) }}</button>
-                    </form>
-                {% else %}
-                    <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-unpaid">
-                        <button type="submit" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100">{{ t('admin_billing_invoice_mark_unpaid', page_locale()) }}</button>
-                    </form>
-                {% endif %}
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px;">
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('admin_billing_invoice_amount_due', locale) }}</div>
+            <div class="tkt-kpi__value">{{ invoice.amount_due / 100 }} {{ invoice.currency }}</div>
+          </div>
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('admin_billing_invoice_due_date', locale) }}</div>
+            <div class="tkt-kpi__value">{{ invoice.due_date|date('Y-m-d') }}</div>
+          </div>
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('admin_billing_table_status', locale) }}</div>
+            <div class="tkt-kpi__value" style="margin-top:6px;">
+              {% if invoice.status == 'paid' %}
+                <span class="ui-badge ui-badge--success">{{ t('admin_billing_status_paid', locale) }}</span>
+              {% elseif invoice.status == 'past_due' %}
+                <span class="ui-badge ui-badge--warning">{{ t('admin_billing_status_past_due', locale) }}</span>
+              {% elseif invoice.status == 'open' %}
+                <span class="ui-badge ui-badge--info">{{ t('admin_billing_status_open', locale) }}</span>
+              {% else %}
+                <span class="ui-badge ui-badge--neutral">{{ invoice.status|replace({'_': ' '})|title }}</span>
+              {% endif %}
             </div>
+          </div>
         </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_billing_archive_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('admin_billing_archive_intro', page_locale()) }}</p>
-            </div>
-            <div class="space-y-4 px-6 py-5">
-                {% if archive.is_archived %}
-                    <div class="flex flex-wrap items-center justify-between gap-4">
-                        <div>
-                            <p class="text-sm font-medium text-slate-900">{{ archive.file_name }}</p>
-                            <p class="mt-1 text-xs text-slate-700">{{ t('admin_billing_archive_file_meta', page_locale())|replace({'%size%': archive.file_size, '%type%': archive.content_type}) }}</p>
-                        </div>
-                        <a href="/admin/billing/invoices/{{ invoice.id }}/archive/download" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-indigo-700">{{ t('admin_billing_archive_download', page_locale()) }}</a>
-                    </div>
-                    <div class="grid gap-4 sm:grid-cols-3">
-                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                            <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_archive_year', page_locale()) }}</p>
-                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ archive.archived_year }}</p>
-                        </div>
-                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                            <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_archive_hash', page_locale()) }}</p>
-                            <p class="mt-1 text-xs font-mono text-slate-700 break-all">{{ archive.pdf_hash }}</p>
-                        </div>
-                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                            <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_archive_at', page_locale()) }}</p>
-                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ archive.created_at|date('Y-m-d H:i') }}</p>
-                        </div>
-                    </div>
-                    <p class="text-xs text-slate-700">{{ t('admin_billing_archive_notice', page_locale()) }}</p>
-                {% else %}
-                    {% if archive_errors is not empty %}
-                        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                            <ul class="list-disc space-y-1 pl-4">
-                                {% for error in archive_errors %}
-                                    <li>{{ error }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endif %}
-                    <div class="space-y-3">
-                        <p class="text-xs text-slate-700">{{ t('admin_billing_archive_generate_hint', page_locale()) }}</p>
-                        <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/archive/generate">
-                            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ t('admin_billing_archive_generate', page_locale()) }}</button>
-                        </form>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_billing_layout_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('admin_billing_layout_intro', page_locale()) }}</p>
-            </div>
-            <div class="space-y-4 px-6 py-5">
-                <form method="post" action="/admin/billing/layout" class="space-y-3">
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_billing_layout_label', page_locale()) }}</label>
-                    <textarea name="invoice_layout" rows="12" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">{{ invoice_layout }}</textarea>
-                    <p class="text-xs text-slate-700">{{ t('admin_billing_layout_hint', page_locale()) }}</p>
-                    <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">{{ t('admin_billing_layout_save', page_locale()) }}</button>
-                </form>
-                <div>
-                    <h3 class="text-sm font-semibold text-slate-900">{{ t('admin_billing_layout_preview', page_locale()) }}</h3>
-                    <div class="mt-3 rounded-lg border border-slate-200 bg-white p-4">
-                        {{ invoice_preview }}
-                    </div>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
+    <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+      <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/billing">{{ t('admin_billing_invoice_back', locale) }}</a>
+    </div>
+  </section>
+
+  <div class="ng-data-card">
+    <div class="ng-data-card__header">
+      <div>
+        <h2 class="ng-data-card__title">{{ t('admin_billing_invoice_payment_actions', locale) }}</h2>
+        <p class="ng-data-card__sub">{{ t('admin_billing_invoice_payment_actions_hint', locale) }}</p>
+      </div>
+    </div>
+    <div class="ng-data-card__body">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_billing_invoice_total', locale)|replace({'%amount%': invoice.amount_total / 100, '%currency%': invoice.currency}) }}</p>
+        <p style="font-size:12px;color:var(--ng-text-muted);">
+          {% if invoice.paid_at %}
+            {{ t('admin_billing_invoice_paid_at', locale)|replace({'%date%': invoice.paid_at|date('Y-m-d')}) }}
+          {% else %}
+            {{ t('admin_billing_awaiting_payment', locale) }}
+          {% endif %}
+        </p>
+        <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_billing_invoice_id', locale)|replace({'%id%': invoice.id}) }}</p>
+      </div>
+      <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;">
+        {% if invoice.status != 'paid' %}
+          <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-paid">
+            <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_invoice_mark_paid', locale) }}</button>
+          </form>
+        {% else %}
+          <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-unpaid">
+            <button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_billing_invoice_mark_unpaid', locale) }}</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="ng-data-card">
+    <div class="ng-data-card__header">
+      <div>
+        <h2 class="ng-data-card__title">{{ t('admin_billing_archive_title', locale) }}</h2>
+        <p class="ng-data-card__sub">{{ t('admin_billing_archive_intro', locale) }}</p>
+      </div>
+    </div>
+    <div class="ng-data-card__body">
+      {% if archive.is_archived %}
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
+          <div>
+            <p style="font-size:13px;font-weight:500;color:var(--ng-text);">{{ archive.file_name }}</p>
+            <p style="font-size:12px;color:var(--ng-text-muted);margin-top:2px;">{{ t('admin_billing_archive_file_meta', locale)|replace({'%size%': archive.file_size, '%type%': archive.content_type}) }}</p>
+          </div>
+          <a href="/admin/billing/invoices/{{ invoice.id }}/archive/download" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_archive_download', locale) }}</a>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:12px;">
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('admin_billing_archive_year', locale) }}</div>
+            <div class="tkt-kpi__value">{{ archive.archived_year }}</div>
+          </div>
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('admin_billing_archive_hash', locale) }}</div>
+            <div class="tkt-kpi__value" style="font-size:11px;font-family:monospace;word-break:break-all;">{{ archive.pdf_hash }}</div>
+          </div>
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('admin_billing_archive_at', locale) }}</div>
+            <div class="tkt-kpi__value">{{ archive.created_at|date('Y-m-d H:i') }}</div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_billing_archive_notice', locale) }}</p>
+      {% else %}
+        {% if archive_errors is not empty %}
+          <div class="ng-alert ng-alert--danger" style="margin-bottom:14px;">
+            <ul style="list-style:disc;padding-left:18px;margin:0;">
+              {% for error in archive_errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+        <p style="font-size:12px;color:var(--ng-text-muted);margin-bottom:12px;">{{ t('admin_billing_archive_generate_hint', locale) }}</p>
+        <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/archive/generate">
+          <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_archive_generate', locale) }}</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="ng-data-card">
+    <div class="ng-data-card__header">
+      <div>
+        <h2 class="ng-data-card__title">{{ t('admin_billing_layout_title', locale) }}</h2>
+        <p class="ng-data-card__sub">{{ t('admin_billing_layout_intro', locale) }}</p>
+      </div>
+    </div>
+    <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:20px;">
+      <form method="post" action="/admin/billing/layout" style="display:flex;flex-direction:column;gap:10px;">
+        <div class="form-field">
+          <label class="form-label">{{ t('admin_billing_layout_label', locale) }}</label>
+          <textarea name="invoice_layout" rows="12" class="form-input" style="font-family:monospace;font-size:12px;">{{ invoice_layout }}</textarea>
+        </div>
+        <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_billing_layout_hint', locale) }}</p>
+        <div>
+          <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_layout_save', locale) }}</button>
+        </div>
+      </form>
+      <div>
+        <h3 style="font-size:13px;font-weight:600;color:var(--ng-text);margin-bottom:10px;">{{ t('admin_billing_layout_preview', locale) }}</h3>
+        <div style="border:1px solid var(--ng-border);border-radius:8px;padding:16px;background:#fff;">
+          {{ invoice_preview }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
 {% endblock %}

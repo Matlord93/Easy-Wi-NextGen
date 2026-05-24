@@ -4,12 +4,12 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="mx-auto max-w-4xl flex flex-col gap-6">
+<div class="mx-auto max-w-4xl" style="display:flex;flex-direction:column;gap:20px;">
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
                 <h1 class="ng-data-card__title">{{ pageTitle }}</h1>
-                <p class="ng-data-card__subtitle">{{ t('cms_blog_form_description', locale) }}</p>
+                <p class="ng-data-card__sub">{{ t('cms_blog_form_description', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
@@ -22,8 +22,8 @@
                 </div>
             {% endif %}
 
-            <form method="post" action="{{ form.action_url }}" class="flex flex-col gap-5">
-                <div class="grid gap-4 md:grid-cols-2">
+            <form method="post" action="{{ form.action_url }}" style="display:flex;flex-direction:column;gap:1.25rem;">
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;">
                     <div class="form-field">
                         <label class="form-label">{{ t('title', locale) }}</label>
                         <input name="title" value="{{ form.title }}" class="form-input" />
@@ -44,7 +44,7 @@
                     <textarea name="content" rows="10" class="form-input">{{ form.content }}</textarea>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-2">
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;">
                     <div class="form-field">
                         <label class="form-label">{{ t('admin_cms_blog_seo_title_label', locale) }}</label>
                         <input name="seo_title" value="{{ form.seo_title }}" class="form-input" />
@@ -60,7 +60,7 @@
                     <textarea name="seo_description" rows="2" class="form-input">{{ form.seo_description }}</textarea>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-2">
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;">
                     <div class="form-field">
                         <label class="form-label">{{ t('admin_cms_blog_category_select', locale) }}</label>
                         <select name="category_id" class="form-input">
@@ -80,12 +80,12 @@
                     </div>
                 </div>
 
-                <label class="inline-flex items-center gap-2 text-sm">
+                <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.875rem;">
                     <input type="checkbox" name="is_published" {% if form.is_published %}checked{% endif %} />
                     <span>{{ t('cms_blog_publish', locale) }}</span>
                 </label>
 
-                <div class="flex items-center gap-3">
+                <div style="display:flex;align-items:center;gap:12px;">
                     <button class="ui-button ui-button--primary" type="submit">{{ t(form.submit_label, locale) }}</button>
                     <a href="/admin/cms/blog" class="ui-button ui-button--ghost">{{ t('cancel', locale) }}</a>
                 </div>

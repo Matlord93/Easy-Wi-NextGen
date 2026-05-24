@@ -6,13 +6,30 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
     {% if saved %}
         <div class="ng-alert ng-alert--success">{{ t('admin_cms_settings_saved', locale) }}</div>
     {% endif %}
 
-    <form method="post" action="/admin/cms/settings" class="flex flex-col gap-6">
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            CMS
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_cms_settings_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_cms_settings_intro', locale) }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <form method="post" action="/admin/cms/settings" style="display:flex;flex-direction:column;gap:20px;">
 
         <div class="ng-data-card">
             <div class="ng-data-card__header">
@@ -79,7 +96,7 @@
             <div class="ng-data-card__body">
                 <div class="ng-layout-2col--equal">
                     {% for key, enabled in module_toggles %}
-                        <label class="inline-flex items-center gap-2 text-sm cursor-pointer" style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;">
+                        <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.875rem;cursor:pointer;border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;">
                             <input type="checkbox" name="toggle_{{ key }}" value="1" {% if enabled %}checked{% endif %}>
                             <span>{{ key|capitalize }}</span>
                         </label>
@@ -95,7 +112,7 @@
                     <p class="ng-data-card__sub">{{ t('admin_cms_settings_legal_hint', locale) }}</p>
                 </div>
             </div>
-            <div class="ng-data-card__body flex flex-col gap-4">
+            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:1rem;">
                 <div class="form-field">
                     <label class="form-label">{{ t('admin_cms_settings_impressum', locale) }}</label>
                     <textarea name="impressum_content" rows="10" class="form-input font-mono">{{ impressum_content|default('') }}</textarea>
@@ -113,8 +130,8 @@
                     <h2 class="ng-data-card__title">{{ t('admin_cms_settings_maintenance_title', locale) }}</h2>
                 </div>
             </div>
-            <div class="ng-data-card__body flex flex-col gap-4">
-                <label class="inline-flex items-center gap-2 text-sm cursor-pointer" style="border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;width:fit-content;">
+            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:1rem;">
+                <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.875rem;cursor:pointer;border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;width:fit-content;">
                     <input type="checkbox" name="maintenance_enabled" value="1" {% if maintenance.enabled %}checked{% endif %}>
                     <span>{{ t('admin_cms_settings_maintenance_enable', locale) }}</span>
                 </label>
@@ -151,7 +168,7 @@
                     <p class="ng-data-card__sub">{{ t('admin_cms_settings_nav_hint', locale) }}</p>
                 </div>
             </div>
-            <div class="ng-data-card__body flex flex-col gap-4">
+            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:1rem;">
                 <div class="form-field">
                     <label class="form-label">{{ t('admin_cms_settings_header_links', locale) }}</label>
                     <textarea name="header_links_json" rows="8" class="form-input font-mono text-xs">{{ header_links_json }}</textarea>

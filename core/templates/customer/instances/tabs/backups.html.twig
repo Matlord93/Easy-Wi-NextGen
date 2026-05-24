@@ -1,7 +1,6 @@
 {% set locale = page_locale() %}
 <div
     id="gameserver-backups"
-    class="space-y-5"
     data-url-list="{{ path('customer_instance_backups_list', {id: instance.id}) }}"
     data-url-create="{{ path('customer_instance_backups_create', {id: instance.id}) }}"
     data-url-restore-template="{{ path('customer_instance_backups_restore', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
@@ -25,52 +24,55 @@
         'modeUpdated': t('customer_instances_backups_mode_updated', locale)
     }|json_encode|e('html_attr') }}"
 >
-    {# ─── Header + Erstellen ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
-        <div class="flex flex-wrap items-center gap-3">
-            <div class="flex items-center gap-2">
-                <svg class="h-5 w-5 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.963 0 6.286 0 8a3 3 0 0 0 3 3h5v-1.5H3a1.5 1.5 0 1 1-.204-2.99.5.5 0 0 0 .556-.55 4.009 4.009 0 0 1 .185-1.298A3.498 3.498 0 0 1 8 2.5a3.498 3.498 0 0 1 3.463 2.964.5.5 0 0 0 .556.55A1.5 1.5 0 1 1 12.5 8H11v1.5h1.5a3 3 0 1 0-2.937-3.543A5.53 5.53 0 0 0 8 1z"/><path d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V7.5a.5.5 0 0 0-1 0v6.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3z"/></svg>
-                <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instances_backups_title', locale) }}</h3>
+    {# ─── Header + Create ─── #}
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div style="display:flex;align-items:center;gap:.5rem">
+                <svg style="width:1.25rem;height:1.25rem;flex-shrink:0" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.963 0 6.286 0 8a3 3 0 0 0 3 3h5v-1.5H3a1.5 1.5 0 1 1-.204-2.99.5.5 0 0 0 .556-.55 4.009 4.009 0 0 1 .185-1.298A3.498 3.498 0 0 1 8 2.5a3.498 3.498 0 0 1 3.463 2.964.5.5 0 0 0 .556.55A1.5 1.5 0 1 1 12.5 8H11v1.5h1.5a3 3 0 1 0-2.937-3.543A5.53 5.53 0 0 0 8 1z"/><path d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V7.5a.5.5 0 0 0-1 0v6.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3z"/></svg>
+                <h2 class="cust-panel__title">{{ t('customer_instances_backups_title', locale) }}</h2>
             </div>
 
-            <div class="ml-auto flex flex-wrap items-center gap-2">
-                <select id="gs-backup-mode"
-                    class="rounded-lg border border-slate-600/80 bg-slate-900/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none">
-                    <option value="manual">Manuell</option>
-                    <option value="auto">Automatisch</option>
-                </select>
-                <input id="gs-backup-label" type="text"
-                    class="rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none w-48"
-                    placeholder="{{ t('customer_instance_backup_label_placeholder', locale) }}">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem">
+                <div class="form-field" style="margin:0">
+                    <select id="gs-backup-mode" class="form-input" style="padding:.375rem .5rem;font-size:.8rem">
+                        <option value="manual">Manuell</option>
+                        <option value="auto">Automatisch</option>
+                    </select>
+                </div>
+                <div class="form-field" style="margin:0">
+                    <input id="gs-backup-label" type="text"
+                        class="form-input" style="padding:.375rem .75rem;font-size:.8rem;width:12rem"
+                        placeholder="{{ t('customer_instance_backup_label_placeholder', locale) }}">
+                </div>
                 <button type="button" id="gs-backup-create"
-                    class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500">
-                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+                    class="ui-button ui-button--primary ui-button--sm">
+                    <svg style="width:.875rem;height:.875rem" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
                     {{ t('customer_instances_backups_create', locale) }}
                 </button>
             </div>
         </div>
-        <div id="gs-backups-error" class="hidden mt-3 rounded-lg border border-rose-700/50 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
+        <div id="gs-backups-error" class="ng-alert ng-alert--danger" style="display:none"></div>
     </div>
 
-    {# ─── Backup-Tabelle ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 overflow-hidden">
-        <div class="border-b border-slate-700/50 px-4 py-3">
-            <h4 class="text-xs font-semibold uppercase tracking-widest text-slate-500">Gespeicherte Backups</h4>
+    {# ─── Backup Table ─── #}
+    <div class="cust-panel" style="margin-top:1rem">
+        <div class="cust-panel__head">
+            <h2 class="cust-panel__title">{{ t('customer_instances_backups_title', locale) }}</h2>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-xs">
+        <div class="cust-ws-table-wrap">
+            <table class="cust-table">
                 <thead>
-                    <tr class="border-b border-slate-700/50 bg-slate-900/40">
-                        <th class="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">ID</th>
-                        <th class="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instances_backups_name', locale) }}</th>
-                        <th class="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instances_backups_created', locale) }}</th>
-                        <th class="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instances_backups_size', locale) }}</th>
-                        <th class="px-4 py-2.5 text-right font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_voice_col_actions', locale) }}</th>
+                    <tr>
+                        <th>ID</th>
+                        <th>{{ t('customer_instances_backups_name', locale) }}</th>
+                        <th>{{ t('customer_instances_backups_created', locale) }}</th>
+                        <th>{{ t('customer_instances_backups_size', locale) }}</th>
+                        <th>{{ t('customer_voice_col_actions', locale) }}</th>
                     </tr>
                 </thead>
                 <tbody id="gs-backups-list">
                     <tr>
-                        <td colspan="5" class="px-4 py-6 text-center text-slate-500">
+                        <td colspan="5" class="cust-table__empty">
                             {{ t('customer_instances_backups_none', locale) }}
                         </td>
                     </tr>

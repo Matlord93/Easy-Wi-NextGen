@@ -1,6 +1,6 @@
 <div
     id="gameserver-settings"
-    class="space-y-5"
+    class="cust-page"
     data-url-settings="{{ path('customer_instance_settings_api_summary', {id: instance.id}) }}"
     data-url-configs="{{ path('customer_instance_configs_envelope_list', {id: instance.id}) }}"
     data-url-config-show="{{ path('customer_instance_configs_envelope_show', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
@@ -34,154 +34,155 @@
     <input type="hidden" id="slotInput" value="{{ instance.current_slots }}">
 
     {# ─── Status-Banner ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 px-4 py-3">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/></svg>
-                <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_tab_settings', page_locale()) }}</h3>
+    <div class="cust-panel" style="margin-bottom:1.25rem">
+        <div class="cust-panel__body">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem">
+                <div style="display:flex;align-items:center;gap:0.5rem">
+                    <svg style="height:1rem;width:1rem;color:var(--ng-text-muted)" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/></svg>
+                    <h3 style="font-size:0.875rem;font-weight:600;color:var(--ng-text)">{{ t('customer_instance_tab_settings', page_locale()) }}</h3>
+                </div>
+                <p id="gs-settings-meta" style="font-size:0.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_settings_loading', page_locale()) }}</p>
             </div>
-            <p id="gs-settings-meta" class="text-xs text-slate-400">{{ t('customer_instance_settings_loading', page_locale()) }}</p>
+            <div id="gs-settings-error" class="ng-alert ng-alert--danger hidden" style="margin-top:0.75rem"></div>
         </div>
-        <div id="gs-settings-error" class="hidden mt-3 rounded-lg border border-rose-700/50 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
     </div>
 
     {# ─── Config files ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
-        <div class="flex items-center justify-between border-b border-slate-700/50 px-4 py-3">
-            <div class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-slate-400" fill="currentColor" viewBox="0 0 16 16"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/></svg>
-                <h4 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_config_files_title', page_locale()) }}</h4>
+    <div class="cust-panel" style="margin-bottom:1.25rem">
+        <div class="cust-panel__head" style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:0.5rem">
+                <svg style="height:1rem;width:1rem;color:var(--ng-text-muted)" fill="currentColor" viewBox="0 0 16 16"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/></svg>
+                <h2 class="cust-panel__title">{{ t('customer_instance_config_files_title', page_locale()) }}</h2>
             </div>
-            <button type="button" id="gs-settings-create"
-                class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">
+            <button type="button" id="gs-settings-create" class="ui-button ui-button--ghost ui-button--sm">
                 {{ t('customer_instance_config_files_create', page_locale()) }}
             </button>
         </div>
-        <div class="grid lg:grid-cols-3">
-            {# Config list #}
-            <div class="border-b border-slate-700/50 p-4 lg:border-b-0 lg:border-r">
-                <div class="space-y-2">
-                    <input id="gs-settings-config-search" type="search"
-                        class="w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
-                        placeholder="{{ t('customer_instance_config_files_search', page_locale()) }}">
-                    <select id="gs-settings-config-scope"
-                        class="w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                        <option value="">{{ t('customer_instance_config_files_scope_all', page_locale()) }}</option>
-                        <option value="template">Template</option>
-                        <option value="instance">{{ t('customer_instance_config_files_scope_instance', page_locale()) }}</option>
-                    </select>
+        <div class="cust-panel__body" style="padding:0">
+            <div style="display:grid;grid-template-columns:1fr">
+                {# Config list #}
+                <div style="border-bottom:1px solid var(--ng-border);padding:1rem">
+                    <div style="display:flex;flex-direction:column;gap:0.5rem">
+                        <div class="form-field" style="margin-bottom:0">
+                            <input id="gs-settings-config-search" type="search"
+                                class="form-input"
+                                placeholder="{{ t('customer_instance_config_files_search', page_locale()) }}">
+                        </div>
+                        <div class="form-field" style="margin-bottom:0">
+                            <select id="gs-settings-config-scope" class="form-input">
+                                <option value="">{{ t('customer_instance_config_files_scope_all', page_locale()) }}</option>
+                                <option value="template">Template</option>
+                                <option value="instance">{{ t('customer_instance_config_files_scope_instance', page_locale()) }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <ul id="gs-settings-config-list" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.25rem">
+                        <li style="font-size:0.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_config_files_loading', page_locale()) }}</li>
+                    </ul>
                 </div>
-                <ul id="gs-settings-config-list" class="mt-3 space-y-1">
-                    <li class="text-xs text-slate-500">{{ t('customer_instance_config_files_loading', page_locale()) }}</li>
-                </ul>
-            </div>
-            {# Editor #}
-            <div class="p-4 lg:col-span-2">
-                <div class="flex items-center justify-between">
-                    <h4 class="text-xs font-semibold uppercase tracking-widest text-slate-500">{{ t('customer_instance_config_editor_label', page_locale()) }}</h4>
-                    <p id="gs-settings-selected" class="text-xs text-slate-500">{{ t('customer_instance_config_files_select', page_locale()) }}</p>
-                </div>
-                <textarea id="gs-settings-content"
-                    class="mt-3 h-64 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 p-3 font-mono text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
-                    placeholder="{{ t('customer_instance_config_files_select_hint', page_locale()) }}"></textarea>
-                <div class="mt-3 flex flex-wrap gap-2">
-                    <button type="button" id="gs-settings-save"
-                        class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500">
-                        {{ t('customer_instance_config_files_save', page_locale()) }}
-                    </button>
-                    <button type="button" id="gs-settings-apply"
-                        class="rounded-lg border border-slate-600 bg-slate-700/40 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">
-                        {{ t('customer_instance_config_files_apply', page_locale()) }}
-                    </button>
+                {# Editor #}
+                <div style="padding:1rem">
+                    <div style="display:flex;align-items:center;justify-content:space-between">
+                        <h4 style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ng-text-muted)">{{ t('customer_instance_config_editor_label', page_locale()) }}</h4>
+                        <p id="gs-settings-selected" style="font-size:0.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_config_files_select', page_locale()) }}</p>
+                    </div>
+                    <textarea id="gs-settings-content"
+                        class="form-input"
+                        style="margin-top:0.75rem;height:16rem;font-family:monospace;font-size:0.75rem;resize:vertical"
+                        placeholder="{{ t('customer_instance_config_files_select_hint', page_locale()) }}"></textarea>
+                    <div style="margin-top:0.75rem;display:flex;flex-wrap:wrap;gap:0.5rem">
+                        <button type="button" id="gs-settings-save" class="ui-button ui-button--primary ui-button--sm">
+                            {{ t('customer_instance_config_files_save', page_locale()) }}
+                        </button>
+                        <button type="button" id="gs-settings-apply" class="ui-button ui-button--ghost ui-button--sm">
+                            {{ t('customer_instance_config_files_apply', page_locale()) }}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     {# ─── Automation ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
-        <div class="flex items-center gap-2 border-b border-slate-700/50 px-4 py-3">
-            <svg class="h-4 w-4 text-slate-400" fill="currentColor" viewBox="0 0 16 16"><path d="M6 .5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H9v1.07a7.001 7.001 0 0 1 3.274 12.474l.601.602a.5.5 0 0 1-.707.708l-.746-.746A6.97 6.97 0 0 1 8 16a6.97 6.97 0 0 1-3.422-.892l-.746.746a.5.5 0 0 1-.707-.708l.601-.602A7.001 7.001 0 0 1 7 3.07V2h-.5A.5.5 0 0 1 6 1.5v-1zm2.5 12.5a.5.5 0 0 0-1 0V14h1v-.5zM8 7.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V8a.5.5 0 0 1 .5-.5z"/></svg>
-            <h4 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_settings_automation_title', page_locale()) }}</h4>
+    <div class="cust-panel">
+        <div class="cust-panel__head" style="display:flex;align-items:center;gap:0.5rem">
+            <svg style="height:1rem;width:1rem;color:var(--ng-text-muted)" fill="currentColor" viewBox="0 0 16 16"><path d="M6 .5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H9v1.07a7.001 7.001 0 0 1 3.274 12.474l.601.602a.5.5 0 0 1-.707.708l-.746-.746A6.97 6.97 0 0 1 8 16a6.97 6.97 0 0 1-3.422-.892l-.746.746a.5.5 0 0 1-.707-.708l.601-.602A7.001 7.001 0 0 1 7 3.07V2h-.5A.5.5 0 0 1 6 1.5v-1zm2.5 12.5a.5.5 0 0 0-1 0V14h1v-.5zM8 7.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V8a.5.5 0 0 1 .5-.5z"/></svg>
+            <h2 class="cust-panel__title">{{ t('customer_instance_settings_automation_title', page_locale()) }}</h2>
         </div>
-        <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-4">
-            {# Auto-Backup #}
-            <div class="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
-                <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-semibold text-slate-300">{{ t('customer_instance_settings_auto_backup', page_locale()) }}</span>
-                    <label class="relative inline-flex cursor-pointer items-center">
-                        <input id="gs-auto-backup-enabled" type="checkbox" class="peer sr-only">
-                        <div class="peer h-5 w-9 rounded-full border border-slate-600 bg-slate-700 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-slate-400 after:transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:bg-white"></div>
-                    </label>
+        <div class="cust-panel__body">
+            <div style="display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+                {# Auto-Backup #}
+                <div style="border:1px solid var(--ng-border);border-radius:8px;background:var(--ng-surface-soft);padding:0.75rem">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+                        <span style="font-size:0.75rem;font-weight:600;color:var(--ng-text)">{{ t('customer_instance_settings_auto_backup', page_locale()) }}</span>
+                        <label style="position:relative;display:inline-flex;cursor:pointer;align-items:center">
+                            <input id="gs-auto-backup-enabled" type="checkbox" class="peer" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0">
+                            <div class="peer" style="height:1.25rem;width:2.25rem;border-radius:9999px;border:1px solid var(--ng-border);background:var(--ng-surface-soft)"></div>
+                        </label>
+                    </div>
+                    <div style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.5rem">
+                        <select id="gs-auto-backup-mode" class="form-input" style="font-size:0.75rem;padding:0.375rem 0.5rem">
+                            <option value="manual">{{ t('customer_instance_settings_mode_manual', page_locale()) }}</option>
+                            <option value="auto">{{ t('customer_instance_settings_mode_auto', page_locale()) }}</option>
+                        </select>
+                        <div id="gs-auto-backup-time-wrap">
+                            <label for="gs-auto-backup-time" class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_settings_time', page_locale()) }}</label>
+                            <select id="gs-auto-backup-time" class="form-input" style="font-size:0.75rem;padding:0.375rem 0.5rem;margin-top:0.25rem"></select>
+                        </div>
+                    </div>
                 </div>
-                <div class="mt-3 space-y-2">
-                    <select id="gs-auto-backup-mode"
-                        class="w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none">
-                        <option value="manual">{{ t('customer_instance_settings_mode_manual', page_locale()) }}</option>
-                        <option value="auto">{{ t('customer_instance_settings_mode_auto', page_locale()) }}</option>
-                    </select>
-                    <div id="gs-auto-backup-time-wrap">
-                        <label for="gs-auto-backup-time" class="block text-[10px] uppercase tracking-wide text-slate-500">{{ t('customer_instance_settings_time', page_locale()) }}</label>
-                        <select id="gs-auto-backup-time"
-                            class="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none"></select>
+
+                {# Auto-Restart #}
+                <div style="border:1px solid var(--ng-border);border-radius:8px;background:var(--ng-surface-soft);padding:0.75rem">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+                        <span style="font-size:0.75rem;font-weight:600;color:var(--ng-text)">{{ t('customer_instance_settings_auto_restart', page_locale()) }}</span>
+                        <label style="position:relative;display:inline-flex;cursor:pointer;align-items:center">
+                            <input id="gs-auto-restart-enabled" type="checkbox" class="peer" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0">
+                            <div class="peer" style="height:1.25rem;width:2.25rem;border-radius:9999px;border:1px solid var(--ng-border);background:var(--ng-surface-soft)"></div>
+                        </label>
+                    </div>
+                    <div id="gs-auto-restart-time-wrap" style="margin-top:0.75rem">
+                        <label for="gs-auto-restart-time" class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_settings_time', page_locale()) }}</label>
+                        <select id="gs-auto-restart-time" class="form-input" style="font-size:0.75rem;padding:0.375rem 0.5rem;margin-top:0.25rem"></select>
+                    </div>
+                </div>
+
+                {# Auto-Update #}
+                <div style="border:1px solid var(--ng-border);border-radius:8px;background:var(--ng-surface-soft);padding:0.75rem">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+                        <span style="font-size:0.75rem;font-weight:600;color:var(--ng-text)">{{ t('customer_instance_settings_auto_update', page_locale()) }}</span>
+                        <label style="position:relative;display:inline-flex;cursor:pointer;align-items:center">
+                            <input id="gs-auto-update-enabled" type="checkbox" class="peer" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0">
+                            <div class="peer" style="height:1.25rem;width:2.25rem;border-radius:9999px;border:1px solid var(--ng-border);background:var(--ng-surface-soft)"></div>
+                        </label>
+                    </div>
+                    <div id="gs-auto-update-time-wrap" style="margin-top:0.75rem">
+                        <label for="gs-auto-update-time" class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_settings_time', page_locale()) }}</label>
+                        <select id="gs-auto-update-time" class="form-input" style="font-size:0.75rem;padding:0.375rem 0.5rem;margin-top:0.25rem"></select>
+                    </div>
+                </div>
+
+                {# Version lock #}
+                <div style="border:1px solid var(--ng-border);border-radius:8px;background:var(--ng-surface-soft);padding:0.75rem">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+                        <span style="font-size:0.75rem;font-weight:600;color:var(--ng-text)">{{ t('customer_instance_version_lock', page_locale()) }}</span>
+                        <label style="position:relative;display:inline-flex;cursor:pointer;align-items:center">
+                            <input id="gs-version-lock-enabled" type="checkbox" class="peer" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0">
+                            <div class="peer" style="height:1.25rem;width:2.25rem;border-radius:9999px;border:1px solid var(--ng-border);background:var(--ng-surface-soft)"></div>
+                        </label>
+                    </div>
+                    <div style="margin-top:0.75rem">
+                        <label class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_settings_version_label', page_locale()) }}</label>
+                        <select id="gs-version-lock-version" class="form-input" style="font-size:0.75rem;padding:0.375rem 0.5rem;margin-top:0.25rem"></select>
                     </div>
                 </div>
             </div>
 
-            {# Auto-Restart #}
-            <div class="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
-                <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-semibold text-slate-300">{{ t('customer_instance_settings_auto_restart', page_locale()) }}</span>
-                    <label class="relative inline-flex cursor-pointer items-center">
-                        <input id="gs-auto-restart-enabled" type="checkbox" class="peer sr-only">
-                        <div class="peer h-5 w-9 rounded-full border border-slate-600 bg-slate-700 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-slate-400 after:transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:bg-white"></div>
-                    </label>
-                </div>
-                <div id="gs-auto-restart-time-wrap" class="mt-3">
-                    <label for="gs-auto-restart-time" class="block text-[10px] uppercase tracking-wide text-slate-500">{{ t('customer_instance_settings_time', page_locale()) }}</label>
-                    <select id="gs-auto-restart-time"
-                        class="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none"></select>
-                </div>
+            <div style="border-top:1px solid var(--ng-border);margin-top:1rem;padding-top:0.75rem">
+                <button id="gs-automation-save" type="button" class="ui-button ui-button--primary ui-button--sm">
+                    {{ t('customer_instance_settings_save_automation', page_locale()) }}
+                </button>
             </div>
-
-            {# Auto-Update #}
-            <div class="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
-                <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-semibold text-slate-300">{{ t('customer_instance_settings_auto_update', page_locale()) }}</span>
-                    <label class="relative inline-flex cursor-pointer items-center">
-                        <input id="gs-auto-update-enabled" type="checkbox" class="peer sr-only">
-                        <div class="peer h-5 w-9 rounded-full border border-slate-600 bg-slate-700 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-slate-400 after:transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:bg-white"></div>
-                    </label>
-                </div>
-                <div id="gs-auto-update-time-wrap" class="mt-3">
-                    <label for="gs-auto-update-time" class="block text-[10px] uppercase tracking-wide text-slate-500">{{ t('customer_instance_settings_time', page_locale()) }}</label>
-                    <select id="gs-auto-update-time"
-                        class="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none"></select>
-                </div>
-            </div>
-
-            {# Version lock #}
-            <div class="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
-                <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-semibold text-slate-300">{{ t('customer_instance_version_lock', page_locale()) }}</span>
-                    <label class="relative inline-flex cursor-pointer items-center">
-                        <input id="gs-version-lock-enabled" type="checkbox" class="peer sr-only">
-                        <div class="peer h-5 w-9 rounded-full border border-slate-600 bg-slate-700 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-slate-400 after:transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:bg-white"></div>
-                    </label>
-                </div>
-                <div class="mt-3">
-                    <label class="block text-[10px] uppercase tracking-wide text-slate-500">{{ t('customer_instance_settings_version_label', page_locale()) }}</label>
-                    <select id="gs-version-lock-version"
-                        class="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none"></select>
-                </div>
-            </div>
-        </div>
-
-        <div class="border-t border-slate-700/50 px-4 py-3">
-            <button id="gs-automation-save" type="button"
-                class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
-                {{ t('customer_instance_settings_save_automation', page_locale()) }}
-            </button>
         </div>
     </div>
 </div>

@@ -8,6 +8,39 @@
 {% set locale = page_locale() %}
 <div style="display:flex;flex-direction:column;gap:20px;">
 
+    {# ── Hero / KPI ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#22d3ee;"></span>
+                        TeamSpeak 3
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_ts3_nodes_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_ts3_nodes_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('total', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ nodes|length }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__label">Running</div>
+                        <div class="tkt-kpi__value">{{ nodes|filter(n => n.running)|length }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--pending">
+                        <div class="tkt-kpi__label">Stopped</div>
+                        <div class="tkt-kpi__value">{{ nodes|filter(n => not n.running)|length }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+            <a class="ui-button ui-button--primary ui-button--sm" href="/admin/ts3/nodes/new">{{ t('admin_ts3_nodes_add', locale) }}</a>
+        </div>
+    </section>
+
     {% for message in app.flashes('success') %}
         <div class="ng-alert ng-alert--success">{{ message }}</div>
     {% endfor %}

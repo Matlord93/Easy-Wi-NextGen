@@ -286,7 +286,7 @@ final class AdminUpdateController
                 $summary['error'] = $this->translateUpdateMessage('admin_updates_agents_partially_blocked', $request->getLocale(), ['%count%' => (string) count($analysis['blocked'])]);
             }
         } else {
-            if ($analysis['blocked'] !== []) {
+            if ($analysis['blocked'] !== [] && $analysis['skipped'] === []) {
                 $summary['error'] = $this->translateUpdateMessage('admin_updates_agents_blocked_only', $request->getLocale(), ['%count%' => (string) count($analysis['blocked'])]);
             } else {
                 $summary['error'] = $this->translateUpdateMessage('admin_updates_agents_nothing_queued', $request->getLocale());
@@ -294,6 +294,7 @@ final class AdminUpdateController
         }
 
         $summary['blockedJobs'] = $analysis['blocked'];
+        $summary['skippedUpdates'] = $analysis['skipped'];
 
         return $this->renderAgentUpdateCard($summary);
     }
@@ -396,6 +397,7 @@ final class AdminUpdateController
             'channels' => AgentReleaseChecker::channels(),
             'notice' => null,
             'blockedJobs' => [],
+            'skippedUpdates' => [],
             'csrf' => [
                 'agents_channel' => $this->csrfTokenManager->getToken('admin_update_agents_channel')->getValue(),
             ],

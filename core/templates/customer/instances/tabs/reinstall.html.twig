@@ -1,7 +1,6 @@
 {% set locale = page_locale() %}
 <div
     id="gameserver-reinstall"
-    class="space-y-5"
     data-url-options="{{ path('customer_instance_reinstall_api_options', {id: instance.id}) }}"
     data-url-reinstall="{{ path('customer_instance_reinstall_api', {id: instance.id}) }}"
     data-label-loading-options="{{ t('customer_reinstall_loading_options', locale) }}"
@@ -17,53 +16,51 @@
     data-label-shared-storage-hint-unsupported="{{ t('customer_instances_shared_storage_hint_unsupported', locale) }}"
     data-label-shared-storage-hint-migrate="{{ t('customer_instances_shared_storage_hint_migrate', locale) }}"
 >
-    {# ─── Warnung ─── #}
-    <div class="rounded-xl border border-rose-700/60 bg-rose-500/10 p-4">
-        <div class="flex items-start gap-3">
-            <svg class="mt-0.5 h-5 w-5 shrink-0 text-rose-400" fill="currentColor" viewBox="0 0 16 16"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>
-            <div>
-                <h3 class="text-sm font-semibold text-rose-200">{{ t('customer_instances_reinstall_title', locale) }}</h3>
-                <p class="mt-1 text-sm text-rose-300/80">{{ t('customer_instances_reinstall_desc', locale) }}</p>
-            </div>
+    {# ─── Warning ─── #}
+    <div class="ng-alert ng-alert--danger" style="display:flex;align-items:flex-start;gap:.75rem">
+        <svg style="margin-top:.125rem;width:1.25rem;height:1.25rem;flex-shrink:0" fill="currentColor" viewBox="0 0 16 16"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>
+        <div>
+            <strong>{{ t('customer_instances_reinstall_title', locale) }}</strong>
+            <p style="margin-top:.25rem">{{ t('customer_instances_reinstall_desc', locale) }}</p>
         </div>
-        <div id="gs-reinstall-error" class="hidden mt-3 rounded-lg border border-rose-600/40 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
     </div>
 
-    {# ─── Neuinstallations-Formular ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4 space-y-4">
-        <div>
-            <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="gs-reinstall-option">
-                {{ t('customer_instances_reinstall_version', locale) }}
+    {# ─── Reinstall Form ─── #}
+    <div class="cust-panel" style="margin-top:1rem">
+        <div class="cust-panel__body" style="display:flex;flex-direction:column;gap:1rem">
+            <div class="form-field">
+                <label class="form-label" for="gs-reinstall-option">
+                    {{ t('customer_instances_reinstall_version', locale) }}
+                </label>
+                <select id="gs-reinstall-option" class="form-input">
+                    <option value="">{{ t('customer_reinstall_loading_options', locale) }}</option>
+                </select>
+            </div>
+
+            <label style="display:flex;cursor:pointer;align-items:center;gap:.625rem;padding:.5rem .75rem;border:1px solid var(--ng-border);border-radius:.5rem;font-size:.875rem">
+                <input type="checkbox" id="gs-reinstall-confirm">
+                {{ t('customer_instances_reinstall_confirm', locale) }}
             </label>
-            <select id="gs-reinstall-option"
-                class="mt-2 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none">
-                <option value="">{{ t('customer_reinstall_loading_options', locale) }}</option>
-            </select>
-        </div>
 
-        <label class="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2 text-sm text-slate-300">
-            <input type="checkbox" id="gs-reinstall-confirm"
-                class="rounded border-slate-500 bg-slate-800 text-indigo-500 focus:ring-indigo-500">
-            {{ t('customer_instances_reinstall_confirm', locale) }}
-        </label>
+            <div style="padding:.5rem .75rem;border:1px solid var(--ng-border);border-radius:.5rem">
+                <label style="display:flex;cursor:pointer;align-items:center;gap:.625rem;font-size:.875rem">
+                    <input type="checkbox" id="gs-reinstall-use-shared-storage">
+                    {{ t('customer_instances_shared_storage_reinstall_label', locale) }}
+                </label>
+                <p id="gs-reinstall-shared-storage-hint" style="margin-top:.5rem;font-size:.8rem;color:var(--ng-text-muted)"></p>
+                <p id="gs-reinstall-shared-storage-status" style="margin-top:.25rem;font-size:.8rem;display:none">{{ t('customer_instances_shared_storage_already_enabled', locale) }}</p>
+            </div>
 
-        <div class="rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2">
-            <label class="flex cursor-pointer items-center gap-2.5 text-sm text-slate-300">
-                <input type="checkbox" id="gs-reinstall-use-shared-storage"
-                    class="rounded border-slate-500 bg-slate-800 text-indigo-500 focus:ring-indigo-500">
-                {{ t('customer_instances_shared_storage_reinstall_label', locale) }}
-            </label>
-            <p id="gs-reinstall-shared-storage-hint" class="mt-2 text-xs text-slate-400"></p>
-            <p id="gs-reinstall-shared-storage-status" class="mt-1 text-xs text-indigo-300 hidden">{{ t('customer_instances_shared_storage_already_enabled', locale) }}</p>
-        </div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.75rem">
+                <button type="button" id="gs-reinstall-submit"
+                    class="ui-button ui-button--danger ui-button--sm">
+                    <svg style="width:.875rem;height:.875rem" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                    {{ t('customer_instances_reinstall_submit', locale) }}
+                </button>
+                <span id="gs-reinstall-job" style="font-size:.8rem;color:var(--ng-text-muted)"></span>
+            </div>
 
-        <div class="flex flex-wrap items-center gap-3">
-            <button type="button" id="gs-reinstall-submit"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-rose-700/50 bg-rose-600/10 px-4 py-2 text-xs font-semibold text-rose-400 transition hover:bg-rose-600/20">
-                <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
-                {{ t('customer_instances_reinstall_submit', locale) }}
-            </button>
-            <span id="gs-reinstall-job" class="text-xs text-slate-400"></span>
+            <div id="gs-reinstall-error" class="ng-alert ng-alert--danger" style="display:none"></div>
         </div>
     </div>
 </div>

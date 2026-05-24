@@ -1,6 +1,9 @@
 {% set activeFilters = filters|default({'q': '', 'status': '', 'node': ''}) %}
 
-<div id="instances-table">
+<div id="instances-table"
+    hx-get="{{ path('admin_instances_table') }}"
+    hx-trigger="instances-changed from:body"
+    hx-swap="outerHTML">
 
 <div class="tkt-filter-bar">
     <div class="tkt-filter-bar__top">

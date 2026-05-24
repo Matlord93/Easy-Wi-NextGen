@@ -3,39 +3,42 @@
 {% block title %}{{ t('customer_gdpr_delete_page_title', page_locale()) }}{% endblock %}
 
 {% block content %}
-<div class="customer-module-modern customer-gdpr-modern flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('customer_gdpr_delete_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('customer_gdpr_delete_intro', page_locale()) }}</p>
-    </div>
-</div>
+{% set locale = page_locale() %}
+<div class="cust-page">
 
-<div class="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
-    <div class="rounded-xl bg-white border border-slate-200">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-            <div>
-                <h2 class="text-lg font-semibold">{{ t('customer_gdpr_delete_status_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('customer_gdpr_delete_status_intro', page_locale()) }}</p>
+    <div class="cust-hero">
+        <h1 class="cust-hero__title">{{ t('customer_gdpr_delete_title', locale) }}</h1>
+        <p class="cust-hero__sub">{{ t('customer_gdpr_delete_intro', locale) }}</p>
+    </div>
+
+    <div class="cust-grid-2">
+        <div class="cust-panel">
+            <div class="cust-panel__head">
+                <h2 class="cust-panel__title">{{ t('customer_gdpr_delete_status_title', locale) }}</h2>
+                <p style="font-size:13px;color:var(--color-text-muted,#64748b);margin-top:2px;">{{ t('customer_gdpr_delete_status_intro', locale) }}</p>
+            </div>
+            <div id="gdpr-delete-status" hx-get="/gdpr/delete/status" hx-trigger="gdpr-delete-updated from:body" hx-swap="outerHTML">
+                {% include 'customer/gdpr/delete/_status.html.twig' with { request: request, statusStyles: statusStyles } %}
             </div>
         </div>
-        <div id="gdpr-delete-status" hx-get="/gdpr/delete/status" hx-trigger="gdpr-delete-updated from:body" hx-swap="outerHTML">
-            {% include 'customer/gdpr/delete/_status.html.twig' with { request: request, statusStyles: statusStyles } %}
+
+        <div class="cust-panel">
+            <div class="cust-panel__head">
+                <h2 class="cust-panel__title">{{ t('customer_gdpr_delete_retention_title', locale) }}</h2>
+                <p style="font-size:13px;color:var(--color-text-muted,#64748b);margin-top:2px;">{{ t('customer_gdpr_delete_retention_intro', locale) }}</p>
+            </div>
+            <div class="cust-panel__body">
+                <ul style="display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none;font-size:13px;color:var(--color-text-muted,#64748b);">
+                    <li style="display:flex;gap:8px;"><span style="color:#10b981;">•</span>{{ t('customer_gdpr_delete_retention_item_invoices', locale) }}</li>
+                    <li style="display:flex;gap:8px;"><span style="color:#10b981;">•</span>{{ t('customer_gdpr_delete_retention_item_accounting', locale) }}</li>
+                    <li style="display:flex;gap:8px;"><span style="color:#10b981;">•</span>{{ t('customer_gdpr_delete_retention_item_audit', locale) }}</li>
+                </ul>
+                <div class="ng-alert ng-alert--warning" style="margin-top:12px;">
+                    {{ t('customer_gdpr_delete_retention_notice', locale) }}
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="rounded-xl bg-white border border-slate-200 p-5 space-y-4">
-        <div>
-            <h2 class="text-lg font-semibold">{{ t('customer_gdpr_delete_retention_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('customer_gdpr_delete_retention_intro', page_locale()) }}</p>
-        </div>
-        <ul class="space-y-2 text-sm text-slate-600">
-            <li class="flex gap-2"><span class="text-emerald-500">•</span>{{ t('customer_gdpr_delete_retention_item_invoices', page_locale()) }}</li>
-            <li class="flex gap-2"><span class="text-emerald-500">•</span>{{ t('customer_gdpr_delete_retention_item_accounting', page_locale()) }}</li>
-            <li class="flex gap-2"><span class="text-emerald-500">•</span>{{ t('customer_gdpr_delete_retention_item_audit', page_locale()) }}</li>
-        </ul>
-        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-            {{ t('customer_gdpr_delete_retention_notice', page_locale()) }}
-        </div>
-    </div>
 </div>
 {% endblock %}

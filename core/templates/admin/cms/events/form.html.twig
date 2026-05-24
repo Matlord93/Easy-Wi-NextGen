@@ -2,7 +2,7 @@
 {% set event = form.event %}
 {% set locale = page_locale() %}
 {% block content %}
-<div class="mx-auto max-w-3xl flex flex-col gap-6">
+<div class="mx-auto max-w-3xl" style="display:flex;flex-direction:column;gap:20px;">
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
@@ -10,7 +10,7 @@
             </div>
         </div>
         <div class="ng-data-card__body">
-            <form method="post" action="{{ form.action_url }}" class="flex flex-col gap-5">
+            <form method="post" action="{{ form.action_url }}" style="display:flex;flex-direction:column;gap:1.25rem;">
 
                 <div class="form-field">
                     <label class="form-label">{{ t('admin_cms_events_form_title_placeholder', locale) }}</label>
@@ -27,7 +27,7 @@
                     <textarea name="description" rows="6" placeholder="{{ t('admin_cms_events_form_desc_placeholder', locale) }}" class="form-input">{{ event ? event.description : '' }}</textarea>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-2">
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;">
                     <div class="form-field">
                         <label class="form-label">{{ t('admin_cms_events_table_start', locale) }}</label>
                         <input type="datetime-local" name="start_at" value="{{ event and event.startAt ? event.startAt|date('Y-m-d\\TH:i') : '' }}" class="form-input" />
@@ -58,12 +58,12 @@
                     <input name="cover_image_path" value="{{ event ? event.coverImagePath : '' }}" placeholder="{{ t('admin_cms_events_form_cover', locale) }}" class="form-input" />
                 </div>
 
-                <label class="inline-flex items-center gap-2 text-sm">
+                <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.875rem;">
                     <input type="checkbox" name="is_published" {% if event and event.isPublished %}checked{% endif %} />
                     <span>{{ t('admin_cms_events_form_published', locale) }}</span>
                 </label>
 
-                <div class="flex items-center gap-3">
+                <div style="display:flex;align-items:center;gap:12px;">
                     <button class="ui-button ui-button--primary" type="submit">{{ t('admin_cms_events_form_save', locale) }}</button>
                     <a href="/admin/cms/events" class="ui-button ui-button--ghost">{{ t('cancel', locale) }}</a>
                 </div>

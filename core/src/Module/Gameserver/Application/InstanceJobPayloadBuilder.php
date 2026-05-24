@@ -79,6 +79,7 @@ final class InstanceJobPayloadBuilder
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'template_id' => (string) $template->getId(),
             'game_key' => $template->getGameKey(),
+            'game_type' => $template->getGameKey(),
             'display_name' => $template->getDisplayName(),
             'steam_app_id' => $template->getSteamAppId() !== null ? (string) $template->getSteamAppId() : '',
             'sniper_profile' => $template->getSniperProfile() ?? '',
@@ -94,6 +95,7 @@ final class InstanceJobPayloadBuilder
             'env_vars' => $this->buildEnvVars($instance),
             'secrets' => $this->buildSecretPlaceholders($instance),
         ];
+        $payload['shared_runtime_mode'] = $this->resolveSharedRuntimeMode($template->getGameKey(), $template->getSharedPaths());
 
         if ($instance->getInstanceBaseDir() !== null) {
             $payload['base_dir'] = $instance->getInstanceBaseDir();
@@ -114,6 +116,36 @@ final class InstanceJobPayloadBuilder
         }
 
         return $payload;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $sharedPaths
+     */
+    private function resolveSharedRuntimeMode(string $gameKey, array $sharedPaths): string
+    {
+        if (str_contains(strtolower($gameKey), 'minecraft')) {
+            return 'none';
+        }
+        $hasBind = false;
+        $hasOverlay = false;
+        foreach ($sharedPaths as $path) {
+            $mode = strtolower(trim((string) ($path['mode'] ?? '')));
+            if ($mode === 'bind') {
+                $hasBind = true;
+            } elseif ($mode === 'overlay') {
+                $hasOverlay = true;
+            }
+        }
+        if ($hasBind && $hasOverlay) {
+            return 'bind_overlay';
+        }
+        if ($hasOverlay) {
+            return 'overlay';
+        }
+        if ($hasBind) {
+            return 'bind';
+        }
+        return 'none';
     }
 
     /**

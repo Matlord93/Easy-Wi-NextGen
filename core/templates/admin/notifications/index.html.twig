@@ -5,23 +5,70 @@
 {% set activeNav = 'notifications' %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
-    <div>
+{% set locale = page_locale() %}
+{% set unreadCount = notifications|filter(n => not n.read_at)|length %}
+
+{# ── Hero / KPI ── #}
+<section class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+        <div class="tkt-hero__inner">
+            <div style="display:flex;flex-direction:column;gap:16px;">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#f59e0b;"></span>
+                        {{ t('admin_nav_group_system', locale) }}
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('notifications', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_notifications_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('total', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ notifications|length }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__label">{{ t('unread', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ unreadCount }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--resolved">
+                        <div class="tkt-kpi__label">{{ t('read', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ notifications|length - unreadCount }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
         <form method="post" action="{{ path('admin_notifications_read_all') }}">
             <button type="submit" class="ui-button ui-button--ghost ui-button--sm">
-                {{ t('admin_notifications_mark_all_read', page_locale()) }}
+                {{ t('admin_notifications_mark_all_read', locale) }}
             </button>
         </form>
     </div>
+</section>
 
-    <div class="ng-data-card">
-        <div class="ng-data-card__body">
-            {% for notification in notifications %}
-                {% include 'admin/notifications/_item.html.twig' with { notification: notification } %}
-            {% else %}
-                <div class="cust-empty">{{ t('no_results', page_locale()) }}</div>
-            {% endfor %}
+{# ── Notifications list ── #}
+<section class="ng-card" style="margin-top:20px;overflow:hidden;">
+    <div class="tkt-filter-bar">
+        <div class="tkt-filter-bar__top">
+            <div>
+                <div class="tkt-filter-bar__title">{{ t('notifications', locale) }}</div>
+                <div class="tkt-filter-bar__sub">{{ t('admin_notifications_intro', locale) }}</div>
+            </div>
         </div>
     </div>
-</div>
+    <div style="padding:0;">
+        {% for notification in notifications %}
+            {% include 'admin/notifications/_item.html.twig' with { notification: notification } %}
+        {% else %}
+            <div class="tkt-all-clear">
+                <div class="tkt-all-clear__icon">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="28" height="28"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+                </div>
+                {{ t('no_results', locale) }}
+            </div>
+        {% endfor %}
+    </div>
+</section>
+
 {% endblock %}

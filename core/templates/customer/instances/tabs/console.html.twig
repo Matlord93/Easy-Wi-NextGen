@@ -1,7 +1,6 @@
 {% set locale = page_locale() %}
 <div
     id="gameserver-console"
-    class="space-y-4"
     data-url-command="{{ path('customer_instance_console_command_v2', {id: instance.id}) }}"
     data-url-logs="{{ path('customer_instance_console_logs_envelope', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_console_health_envelope', {id: instance.id}) }}"
@@ -23,62 +22,61 @@
         autoscrollOff: t('customer_instances_console_autoscroll_off', locale),
     }|json_encode }}"
 >
-    {# ─── Konsolen-Ausgabe ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
-        <div class="flex flex-wrap items-center gap-2 border-b border-slate-700/50 px-4 py-3">
-            <div class="flex items-center gap-2">
-                <div class="flex h-7 w-7 items-center justify-center rounded-md border border-slate-600 bg-slate-700/50">
-                    <svg class="h-3.5 w-3.5 text-indigo-400" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/>
-                        <path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"/>
-                    </svg>
-                </div>
-                <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instances_console_title', locale) }}</h3>
+    {# ─── Console Output ─── #}
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div style="display:flex;align-items:center;gap:.5rem">
+                <svg style="width:.875rem;height:.875rem;flex-shrink:0" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/>
+                    <path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"/>
+                </svg>
+                <h2 class="cust-panel__title">{{ t('customer_instances_console_title', locale) }}</h2>
             </div>
-            <div class="ml-auto flex flex-wrap items-center gap-1.5">
-                <button type="button" id="gs-console-pause"
-                    class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-700 hover:text-slate-200">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.375rem">
+                <button type="button" id="gs-console-pause" class="ui-button ui-button--ghost ui-button--sm">
                     {{ t('customer_instances_console_pause', locale) }}
                 </button>
-                <button type="button" id="gs-console-autoscroll"
-                    class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-700 hover:text-slate-200">
+                <button type="button" id="gs-console-autoscroll" class="ui-button ui-button--ghost ui-button--sm">
                     {{ t('customer_instances_console_autoscroll_on', locale) }}
                 </button>
-                <button type="button" id="gs-console-clear"
-                    class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-700 hover:text-slate-200">
+                <button type="button" id="gs-console-clear" class="ui-button ui-button--ghost ui-button--sm">
                     {{ t('customer_instances_console_clear', locale) }}
                 </button>
             </div>
         </div>
 
-        <div id="gs-console-health" class="border-b border-slate-700/40 bg-slate-900/20 px-4 py-2 text-xs text-slate-400"></div>
+        <div id="gs-console-health" style="padding:.5rem 1rem;font-size:.8rem;color:var(--ng-text-muted);border-bottom:1px solid var(--ng-border)"></div>
 
-        <div id="gs-console-error" class="hidden border-b border-rose-700/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-300"></div>
+        <div id="gs-console-error" class="ng-alert ng-alert--danger" style="display:none;border-radius:0;border-left:none;border-right:none"></div>
 
         <pre id="gs-console-log"
-            class="gs-console-log-panel h-96 overflow-y-auto overflow-x-auto bg-slate-950/80 p-4 text-xs leading-relaxed text-slate-200 font-mono"></pre>
+            class="gs-console-log-panel"
+            style="height:24rem;overflow-y:auto;overflow-x:auto;padding:1rem;font-size:.75rem;line-height:1.6;font-family:monospace"></pre>
     </div>
 
-    {# ─── Befehl-Eingabe ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
-        <label for="gs-console-command" class="block text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-            {{ t('customer_instances_console_title', locale) }}
-        </label>
-        <div class="mt-2 flex gap-2">
-            <input
-                id="gs-console-command"
-                type="text"
-                class="w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 font-mono text-sm text-slate-100 placeholder-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
-                placeholder="{{ t('customer_instances_console_placeholder', locale) }}"
-                autocomplete="off"
-                spellcheck="false"
-            >
-            <button type="button" id="gs-console-send"
-                class="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
-                {{ t('customer_instances_console_send', locale) }}
-            </button>
+    {# ─── Command Input ─── #}
+    <div class="cust-panel" style="margin-top:1rem">
+        <div class="cust-panel__body">
+            <div class="form-field">
+                <label class="form-label" for="gs-console-command">{{ t('customer_instances_console_title', locale) }}</label>
+                <div style="display:flex;gap:.5rem;margin-top:.5rem">
+                    <input
+                        id="gs-console-command"
+                        type="text"
+                        class="form-input"
+                        style="font-family:monospace"
+                        placeholder="{{ t('customer_instances_console_placeholder', locale) }}"
+                        autocomplete="off"
+                        spellcheck="false"
+                    >
+                    <button type="button" id="gs-console-send"
+                        class="ui-button ui-button--primary" style="flex-shrink:0">
+                        {{ t('customer_instances_console_send', locale) }}
+                    </button>
+                </div>
+                <p style="margin-top:.5rem;font-size:.7rem;color:var(--ng-text-muted)">{{ t('customer_instances_console_instruction', locale) }}</p>
+            </div>
         </div>
-        <p class="mt-2 text-[11px] text-slate-600">{{ t('customer_instances_console_instruction', locale) }}</p>
     </div>
 </div>
 

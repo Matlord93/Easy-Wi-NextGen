@@ -1,10 +1,10 @@
 {% extends 'admin/base.html.twig' %}
 {% block content %}
 {% set locale = page_locale() %}
-<div class="max-w-3xl space-y-6">
+<div style="display:flex;flex-direction:column;gap:20px;max-width:48rem;">
 
-    <div class="flex items-center gap-3">
-        <a href="/admin/cms/contact" class="text-sm text-slate-500 hover:text-slate-700">{{ t('admin_cms_contact_back', locale) }}</a>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <a href="/admin/cms/contact" class="ui-button ui-button--ghost ui-button--sm">← {{ t('admin_cms_contact_back', locale) }}</a>
     </div>
 
     {% if replied %}
@@ -37,8 +37,8 @@
             <p class="text-sm whitespace-pre-wrap" style="color:var(--ng-text)">{{ message.message }}</p>
         </div>
         {% if message.adminReply is not null %}
-            <div class="px-6 py-4 border-t border-slate-100 bg-emerald-50/40">
-                <p class="text-xs font-medium text-emerald-700 uppercase tracking-wide mb-2">{{ t('admin_cms_contact_reply_saved', locale) }} ({{ message.repliedAt|date('d.m.Y H:i') }})</p>
+            <div style="padding:1rem 1.5rem;border-top:1px solid var(--ng-border);background:rgba(16,185,129,0.05);">
+                <p style="font-size:0.75rem;font-weight:600;color:#047857;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">{{ t('admin_cms_contact_reply_saved', locale) }} ({{ message.repliedAt|date('d.m.Y H:i') }})</p>
                 <p class="text-sm whitespace-pre-wrap" style="color:var(--ng-text)">{{ message.adminReply }}</p>
             </div>
         {% endif %}
@@ -46,16 +46,16 @@
 
     <div class="ng-data-card">
         <div class="ng-data-card__body">
-            <h2 class="text-base font-semibold mb-4" style="color:var(--ng-text)">
+            <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;color:var(--ng-text);">
                 {% if message.adminReply is not null %}{{ t('admin_cms_contact_reply_update_title', locale) }}{% else %}{{ t('admin_cms_contact_reply_title', locale) }}{% endif %}
             </h2>
-            <form method="post" action="/admin/cms/contact/{{ message.id }}/reply" class="space-y-4">
+            <form method="post" action="/admin/cms/contact/{{ message.id }}/reply" style="display:flex;flex-direction:column;gap:1rem;">
                 <div class="form-field">
                     <label class="form-label">{{ t('admin_cms_contact_reply_text', locale) }}</label>
-                    <textarea name="reply_text" rows="6" required class="form-input font-mono resize-y">{{ message.adminReply|default('') }}</textarea>
+                    <textarea name="reply_text" rows="6" required class="form-input font-mono" style="resize:vertical;">{{ message.adminReply|default('') }}</textarea>
                 </div>
-                <p class="text-xs text-slate-400">{{ t('admin_cms_contact_reply_hint', locale) }}</p>
-                <div class="flex items-center gap-3">
+                <p style="font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_cms_contact_reply_hint', locale) }}</p>
+                <div style="display:flex;align-items:center;gap:12px;">
                     <button type="submit" class="ui-button ui-button--primary">
                         {{ t('admin_cms_contact_reply_save', locale) }}
                     </button>

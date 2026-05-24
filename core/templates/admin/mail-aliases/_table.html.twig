@@ -1,4 +1,8 @@
-<div class="ng-data-card__header" id="mail-aliases-table">
+<div id="mail-aliases-table"
+    hx-get="/admin/mail-aliases/table"
+    hx-trigger="mail-aliases-changed from:body"
+    hx-swap="outerHTML">
+<div class="ng-data-card__header">
     <div>
         <h2 class="ng-data-card__title">{{ t('admin_mail_aliases_inventory_title', page_locale()) }}</h2>
         <p class="ng-data-card__sub">{{ t('admin_mail_aliases_inventory_intro', page_locale()) }}</p>
@@ -27,7 +31,7 @@
             {% for alias in aliases %}
                 <tr>
                     <td>
-                        <div class="font-semibold" style="color:var(--ng-text);">{{ alias.address }}</div>
+                        <div style="font-weight:600;color:var(--ng-text);">{{ alias.address }}</div>
                         <div style="font-size:11px;color:var(--ng-text-muted);">{{ alias.domain.name }}</div>
                     </td>
                     <td>
@@ -50,7 +54,7 @@
                     </td>
                     <td style="font-size:11px;color:var(--ng-text-muted);">{{ alias.updatedAt|date('Y-m-d H:i') }}</td>
                     <td>
-                        <div class="flex items-center gap-2">
+                        <div style="display:flex;align-items:center;gap:6px;">
                             <button
                                 class="ui-button ui-button--ghost ui-button--sm"
                                 hx-get="/admin/mail-aliases/{{ alias.id }}/edit"
@@ -89,3 +93,5 @@
         </tbody>
     </table>
 </div>
+
+</div>{# end #mail-aliases-table #}

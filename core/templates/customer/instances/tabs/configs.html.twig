@@ -1,5 +1,5 @@
 <div
-    class="space-y-6"
+    class="cust-page"
     id="config-schema-app"
     data-instance-id="{{ instance.id }}"
     data-config-list-url="{{ path('customer_instance_configs_api_list', {id: instance.id}) }}"
@@ -11,101 +11,103 @@
     data-runtime-status="{{ instance.runtime_status ?? "" }}"
     data-runtime-status-reason="{{ instance.runtime_status_reason ?? "" }}"
 >
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-            <svg class="h-5 w-5 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/><path d="M8.646 6.646a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L10.293 9 8.646 7.354a.5.5 0 0 1 0-.708zm-1.292 0a.5.5 0 0 0-.708 0l-2 2a.5.5 0 0 0 0 .708l2 2a.5.5 0 0 0 .708-.708L5.707 9l1.647-1.646a.5.5 0 0 0 0-.708z"/></svg>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.75rem;margin-bottom:1.25rem">
+        <div style="display:flex;align-items:center;gap:0.5rem">
+            <svg style="height:1.25rem;width:1.25rem;color:var(--ng-text-muted)" fill="currentColor" viewBox="0 0 16 16"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/><path d="M8.646 6.646a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L10.293 9 8.646 7.354a.5.5 0 0 1 0-.708zm-1.292 0a.5.5 0 0 0-.708 0l-2 2a.5.5 0 0 0 0 .708l2 2a.5.5 0 0 0 .708-.708L5.707 9l1.647-1.646a.5.5 0 0 0 0-.708z"/></svg>
             <div>
-                <h2 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_tab_configs', page_locale()) }}</h2>
-                <p class="text-xs text-slate-500">{{ t('customer_instance_configs_intro', page_locale()) }}</p>
+                <h2 style="font-size:0.875rem;font-weight:600;color:var(--ng-text)">{{ t('customer_instance_tab_configs', page_locale()) }}</h2>
+                <p style="font-size:0.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_configs_intro', page_locale()) }}</p>
             </div>
         </div>
         {% if app_setting('customer_data_manager_enabled', true) %}
-            <a href="{{ path('customer_instance_files', {id: instance.id}) }}"
-               class="rounded-lg border border-slate-600 bg-slate-700/40 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">
+            <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="ui-button ui-button--ghost ui-button--sm">
                 {{ t('customer_instance_configs_open_files', page_locale()) }}
             </a>
         {% endif %}
     </div>
 
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-5">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_configs_schema_title', page_locale()) }}</h3>
-                <p class="text-xs text-slate-500">{{ t('customer_instance_configs_schema_intro', page_locale()) }}</p>
-            </div>
-            <div class="w-full sm:w-64">
-                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500" for="config-schema-select">
-                    {{ t('customer_instance_configs_schema_select_label', page_locale()) }}
-                </label>
-                <select id="config-schema-select"
-                    class="mt-1.5 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none">
-                    <option value="">{{ t('customer_instance_configs_schema_select_placeholder', page_locale()) }}</option>
-                </select>
-            </div>
-        </div>
-
-        <div id="config-schema-status" class="mt-4 text-sm text-slate-500">{{ t('customer_instance_configs_schema_loading', page_locale()) }}</div>
-        <div id="config-schema-error" class="mt-4 hidden rounded-lg border border-rose-700/50 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
-
-        <div id="config-schema-details" class="mt-4 hidden rounded-lg border border-slate-700/50 bg-slate-900/40 p-4 text-xs">
-            <p class="text-sm font-semibold text-slate-200">{{ t('customer_instance_configs_schema_details_title', page_locale()) }}</p>
-            <p id="config-schema-details-description" class="mt-1 text-slate-400"></p>
-            <dl class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 text-slate-400">
-                <div>
-                    <dt class="font-semibold text-slate-300">{{ t('customer_instance_configs_schema_details_file', page_locale()) }}</dt>
-                    <dd id="config-schema-details-file" class="font-mono text-slate-400"></dd>
-                </div>
-                <div>
-                    <dt class="font-semibold text-slate-300">{{ t('customer_instance_configs_schema_details_format', page_locale()) }}</dt>
-                    <dd id="config-schema-details-format" class="text-slate-400"></dd>
-                </div>
-                <div class="sm:col-span-2">
-                    <dt class="font-semibold text-slate-300">Config-Status</dt>
-                    <dd id="config-schema-details-apply-status" class="text-slate-400"></dd>
-                </div>
-            </dl>
-        </div>
-
-        <div id="config-schema-warnings" class="mt-4 hidden rounded-lg border border-amber-700/50 bg-amber-500/10 p-3 text-sm text-amber-300">
-            <p class="font-semibold">{{ t('customer_instance_configs_schema_warnings_title', page_locale()) }}</p>
-            <ul class="mt-2 list-disc pl-5"></ul>
-        </div>
-
-        <div id="config-schema-editor" class="mt-5 hidden">
-            <div class="grid gap-5 lg:grid-cols-2">
-                <div>
-                    <h4 class="text-xs font-semibold uppercase tracking-widest text-slate-500">{{ t('customer_instance_configs_schema_fields_title', page_locale()) }}</h4>
-                    <div id="config-schema-fields" class="mt-4 space-y-4"></div>
-                </div>
-                <div>
-                    <div class="flex items-center justify-between">
-                        <h4 class="text-xs font-semibold uppercase tracking-widest text-slate-500">{{ t('customer_instance_configs_schema_raw_title', page_locale()) }}</h4>
-                        <span id="config-schema-format" class="text-xs uppercase tracking-wide text-indigo-400"></span>
+    <div class="cust-panel">
+        <div class="cust-panel__body">
+            <div style="display:flex;flex-direction:column;gap:1rem">
+                <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem">
+                    <div>
+                        <h3 style="font-size:0.875rem;font-weight:600;color:var(--ng-text)">{{ t('customer_instance_configs_schema_title', page_locale()) }}</h3>
+                        <p style="font-size:0.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_configs_schema_intro', page_locale()) }}</p>
                     </div>
-                    <textarea id="config-schema-raw" rows="16"
-                        class="mt-2 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 font-mono text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"></textarea>
+                    <div style="width:100%;max-width:16rem">
+                        <label class="form-label" for="config-schema-select">
+                            {{ t('customer_instance_configs_schema_select_label', page_locale()) }}
+                        </label>
+                        <select id="config-schema-select" class="form-input" style="margin-top:0.375rem">
+                            <option value="">{{ t('customer_instance_configs_schema_select_placeholder', page_locale()) }}</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <div class="mt-5 flex flex-wrap items-center gap-3">
-                <button id="config-schema-generate"
-                    class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
-                    {{ t('customer_instance_configs_schema_generate_save', page_locale()) }}
-                </button>
-                <button id="config-schema-save-raw"
-                    class="rounded-lg border border-slate-600 bg-slate-700/40 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">
-                    {{ t('customer_instance_configs_schema_save_raw', page_locale()) }}
-                </button>
-                <button id="config-schema-apply"
-                    class="rounded-lg border border-indigo-600/40 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-300 transition hover:bg-indigo-500/20">
-                    {{ t('customer_instance_configs_apply', page_locale()) }}
-                </button>
-                <span id="config-schema-feedback" class="text-xs text-slate-400"></span>
-            </div>
-        </div>
+            <div id="config-schema-status" style="margin-top:1rem;font-size:0.875rem;color:var(--ng-text-muted)">{{ t('customer_instance_configs_schema_loading', page_locale()) }}</div>
+            <div id="config-schema-error" class="ng-alert ng-alert--danger hidden" style="margin-top:1rem"></div>
 
-        <div id="config-schema-empty" class="mt-5 hidden rounded-lg border border-dashed border-slate-700 bg-slate-900/30 p-6 text-sm text-slate-500">
-            {{ t('customer_instance_configs_schema_empty', page_locale()) }}
+            <div id="config-schema-details" class="hidden" style="margin-top:1rem;border:1px solid var(--ng-border);border-radius:8px;background:var(--ng-surface-soft);padding:1rem;font-size:0.75rem">
+                <p style="font-size:0.875rem;font-weight:600;color:var(--ng-text)">{{ t('customer_instance_configs_schema_details_title', page_locale()) }}</p>
+                <p id="config-schema-details-description" style="margin-top:0.25rem;color:var(--ng-text-muted)"></p>
+                <dl style="margin-top:0.75rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.75rem;color:var(--ng-text-muted)">
+                    <div>
+                        <dt style="font-weight:600;color:var(--ng-text)">{{ t('customer_instance_configs_schema_details_file', page_locale()) }}</dt>
+                        <dd id="config-schema-details-file" style="font-family:monospace;color:var(--ng-text-muted)"></dd>
+                    </div>
+                    <div>
+                        <dt style="font-weight:600;color:var(--ng-text)">{{ t('customer_instance_configs_schema_details_format', page_locale()) }}</dt>
+                        <dd id="config-schema-details-format" style="color:var(--ng-text-muted)"></dd>
+                    </div>
+                    <div style="grid-column:1/-1">
+                        <dt style="font-weight:600;color:var(--ng-text)">Config-Status</dt>
+                        <dd id="config-schema-details-apply-status" style="color:var(--ng-text-muted)"></dd>
+                    </div>
+                </dl>
+            </div>
+
+            <div id="config-schema-warnings" class="ng-alert ng-alert--warning hidden" style="margin-top:1rem">
+                <p style="font-weight:600">{{ t('customer_instance_configs_schema_warnings_title', page_locale()) }}</p>
+                <ul style="margin-top:0.5rem;list-style:disc;padding-left:1.25rem"></ul>
+            </div>
+
+            <div id="config-schema-editor" class="hidden" style="margin-top:1.25rem">
+                <div style="display:grid;gap:1.25rem;grid-template-columns:1fr">
+                    <div style="display:grid;gap:1.25rem">
+                        <div>
+                            <h4 style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ng-text-muted)">{{ t('customer_instance_configs_schema_fields_title', page_locale()) }}</h4>
+                            <div id="config-schema-fields" style="margin-top:1rem;display:flex;flex-direction:column;gap:1rem"></div>
+                        </div>
+                        <div>
+                            <div style="display:flex;align-items:center;justify-content:space-between">
+                                <h4 style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ng-text-muted)">{{ t('customer_instance_configs_schema_raw_title', page_locale()) }}</h4>
+                                <span id="config-schema-format" style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--ng-text-muted)"></span>
+                            </div>
+                            <textarea id="config-schema-raw" rows="16"
+                                class="form-input"
+                                style="margin-top:0.5rem;font-family:monospace;font-size:0.75rem;resize:vertical"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top:1.25rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem">
+                    <button id="config-schema-generate" class="ui-button ui-button--primary ui-button--sm">
+                        {{ t('customer_instance_configs_schema_generate_save', page_locale()) }}
+                    </button>
+                    <button id="config-schema-save-raw" class="ui-button ui-button--ghost ui-button--sm">
+                        {{ t('customer_instance_configs_schema_save_raw', page_locale()) }}
+                    </button>
+                    <button id="config-schema-apply" class="ui-button ui-button--ghost ui-button--sm">
+                        {{ t('customer_instance_configs_apply', page_locale()) }}
+                    </button>
+                    <span id="config-schema-feedback" style="font-size:0.75rem;color:var(--ng-text-muted)"></span>
+                </div>
+            </div>
+
+            <div id="config-schema-empty" class="hidden" style="margin-top:1.25rem;border:1px dashed var(--ng-border);border-radius:8px;background:var(--ng-surface-soft);padding:1.5rem;font-size:0.875rem;color:var(--ng-text-muted)">
+                {{ t('customer_instance_configs_schema_empty', page_locale()) }}
+            </div>
         </div>
     </div>
 </div>
@@ -194,10 +196,10 @@
             }
             schema.fields.forEach((field) => {
                 const wrapper = document.createElement('div');
-                wrapper.className = 'space-y-1';
+                wrapper.className = 'form-field';
 
                 const label = document.createElement('label');
-                label.className = 'text-xs font-semibold uppercase tracking-wide text-slate-400';
+                label.className = 'form-label';
                 label.textContent = field.label || field.key || field.id;
                 label.setAttribute('for', `config-field-${field.id}`);
                 wrapper.appendChild(label);
@@ -206,11 +208,12 @@
                 if (field.type === 'bool' || field.type === 'boolean') {
                     input = document.createElement('input');
                     input.type = 'checkbox';
-                    input.className = 'h-4 w-4 rounded border-slate-500 bg-slate-800 text-indigo-500 focus:ring-indigo-500';
+                    input.className = 'form-input';
+                    input.style.width = 'auto';
                     input.checked = Boolean(values[field.id]);
                 } else if (field.type === 'select' && field.options) {
                     input = document.createElement('select');
-                    input.className = 'w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none';
+                    input.className = 'form-input';
                     Object.entries(field.options).forEach(([value, label]) => {
                         const option = document.createElement('option');
                         option.value = value;
@@ -226,7 +229,7 @@
                     if (input.type === 'number' && (field.type === 'float' || field.type === 'number')) {
                         input.step = 'any';
                     }
-                    input.className = 'w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none';
+                    input.className = 'form-input';
                     input.value = values[field.id] ?? '';
                 }
                 input.id = `config-field-${field.id}`;
@@ -235,16 +238,16 @@
 
                 const fieldError = currentFieldErrors[field.id];
                 if (fieldError) {
-                    input.classList.add('border-rose-500');
+                    input.style.borderColor = 'var(--color-danger, #ef4444)';
                     const errorText = document.createElement('p');
-                    errorText.className = 'text-xs text-rose-400';
+                    errorText.style.cssText = 'font-size:0.75rem;color:var(--color-danger,#ef4444);margin-top:0.25rem';
                     errorText.textContent = fieldError;
                     wrapper.appendChild(errorText);
                 }
 
                 if (field.description) {
                     const desc = document.createElement('p');
-                    desc.className = 'text-xs text-slate-500 mt-0.5';
+                    desc.style.cssText = 'font-size:0.75rem;color:var(--ng-text-muted);margin-top:0.25rem';
                     desc.textContent = field.description;
                     wrapper.appendChild(desc);
                 }
@@ -280,7 +283,7 @@
             const applyStatus = snapshot.last_apply_status || (payload.apply_required ? 'pending' : 'clean');
             const applyError = snapshot.last_apply_error_message || snapshot.last_apply_error_code || '';
             detailsApplyStatus.textContent = applyError ? `${applyStatus}: ${applyError}` : applyStatus;
-            detailsApplyStatus.className = applyError ? 'text-rose-400' : 'text-slate-400';
+            detailsApplyStatus.style.color = applyError ? 'var(--color-danger,#ef4444)' : 'var(--ng-text-muted)';
             details.classList.remove('hidden');
             renderWarnings(payload.warnings || []);
             editor.classList.remove('hidden');

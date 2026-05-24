@@ -5,7 +5,8 @@
 {% set activeNav = 'search' %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+{% set locale = page_locale() %}
+<div style="display:flex;flex-direction:column;gap:20px;">
     {% include 'admin/search/_results.html.twig' with { query: query, results: results } %}
 </div>
 {% endblock %}

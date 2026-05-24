@@ -5,7 +5,8 @@
 {% set activeNav = 'port-blocks' %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+{% set locale = page_locale() %}
+<div style="display:flex;flex-direction:column;gap:20px;">
 
     {% if notice %}
         <div class="ng-alert ng-alert--success">{{ notice }}</div>
@@ -14,48 +15,75 @@
         <div class="ng-alert ng-alert--danger">{{ error }}</div>
     {% endif %}
 
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot" style="background:#f59e0b;"></span>
+                            {{ t('admin_server_ports_title', locale) }}
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_port_blocks_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_port_blocks_intro', locale) }}</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_port_blocks_list_title', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ portBlocks|length }}</div>
+                        </div>
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_server_ports_pool_list_title', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ portPools|length }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div class="ng-layout-2col--equal">
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_port_blocks_create_title', page_locale()) }}</h2>
+                    <h2 class="ng-data-card__title">{{ t('admin_port_blocks_create_title', locale) }}</h2>
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <form class="flex flex-col gap-4" method="post" action="/admin/port-blocks">
+                <form style="display:flex;flex-direction:column;gap:1rem;" method="post" action="/admin/port-blocks">
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_port_blocks_pool_label', page_locale()) }}</label>
+                        <label class="form-label">{{ t('admin_port_blocks_pool_label', locale) }}</label>
                         <select name="pool_id" class="form-input">
-                            <option value="">{{ t('admin_port_blocks_pool_placeholder', page_locale()) }}</option>
+                            <option value="">{{ t('admin_port_blocks_pool_placeholder', locale) }}</option>
                             {% for pool in portPools %}
                                 <option value="{{ pool.id }}">{{ pool.name }} · {{ pool.node.name ?? pool.node.id }} ({{ pool.startPort }}-{{ pool.endPort }})</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_port_blocks_customer_label', page_locale()) }}</label>
+                        <label class="form-label">{{ t('admin_port_blocks_customer_label', locale) }}</label>
                         <select name="customer_id" class="form-input">
-                            <option value="">{{ t('admin_port_blocks_customer_placeholder', page_locale()) }}</option>
+                            <option value="">{{ t('admin_port_blocks_customer_placeholder', locale) }}</option>
                             {% for customer in customers %}
                                 <option value="{{ customer.id }}">{{ customer.email }} ({{ customer.id }})</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_port_blocks_size_label', page_locale()) }}</label>
+                        <label class="form-label">{{ t('admin_port_blocks_size_label', locale) }}</label>
                         <input type="number" min="1" name="size" value="5" class="form-input">
-                        <p class="mt-1 text-xs text-slate-500">{{ t('admin_port_blocks_size_hint', page_locale()) }}</p>
+                        <p class="mt-1 text-xs" style="color:var(--ng-text-muted)">{{ t('admin_port_blocks_size_hint', locale) }}</p>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_port_blocks_range_input_label', page_locale()) }}</label>
-                        <div class="grid gap-2 sm:grid-cols-2">
-                            <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_blocks_range_start_placeholder', page_locale()) }}" class="form-input">
-                            <input type="number" min="1" name="end_port" placeholder="{{ t('admin_port_blocks_range_end_placeholder', page_locale()) }}" class="form-input">
+                        <label class="form-label">{{ t('admin_port_blocks_range_input_label', locale) }}</label>
+                        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+                            <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_blocks_range_start_placeholder', locale) }}" class="form-input">
+                            <input type="number" min="1" name="end_port" placeholder="{{ t('admin_port_blocks_range_end_placeholder', locale) }}" class="form-input">
                         </div>
-                        <p class="mt-1 text-xs text-slate-500">{{ t('admin_port_blocks_range_hint', page_locale()) }}</p>
+                        <p class="mt-1 text-xs" style="color:var(--ng-text-muted)">{{ t('admin_port_blocks_range_hint', locale) }}</p>
                     </div>
                     <div>
-                        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_port_blocks_create_action', page_locale()) }}</button>
+                        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_port_blocks_create_action', locale) }}</button>
                     </div>
                 </form>
             </div>
@@ -64,14 +92,14 @@
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_port_blocks_help_title', page_locale()) }}</h2>
+                    <h2 class="ng-data-card__title">{{ t('admin_port_blocks_help_title', locale) }}</h2>
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <ul class="flex flex-col gap-2 text-sm text-slate-600">
-                    <li>{{ t('admin_port_blocks_help_assignment', page_locale()) }}</li>
-                    <li>{{ t('admin_port_blocks_help_order', page_locale()) }}</li>
-                    <li>{{ t('admin_port_blocks_help_instance', page_locale()) }}</li>
+                <ul style="display:flex;flex-direction:column;gap:8px;font-size:0.875rem;color:var(--ng-text);padding-left:1.25rem;list-style-type:disc;">
+                    <li>{{ t('admin_port_blocks_help_assignment', locale) }}</li>
+                    <li>{{ t('admin_port_blocks_help_order', locale) }}</li>
+                    <li>{{ t('admin_port_blocks_help_instance', locale) }}</li>
                 </ul>
             </div>
         </div>
@@ -80,8 +108,8 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">{{ t('admin_port_blocks_list_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_port_blocks_list_intro', page_locale()) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_port_blocks_list_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_port_blocks_list_intro', locale) }}</p>
             </div>
             <div class="ng-data-card__actions">
                 <span class="ui-badge ui-badge--neutral">{{ portBlocks|length }}</span>
@@ -92,35 +120,35 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>{{ t('admin_label_id', page_locale()) }}</th>
-                            <th>{{ t('admin_port_blocks_pool_label', page_locale()) }}</th>
-                            <th>{{ t('admin_port_blocks_customer_label', page_locale()) }}</th>
-                            <th>{{ t('admin_port_blocks_range_label', page_locale()) }}</th>
-                            <th>{{ t('admin_port_blocks_instance_label', page_locale()) }}</th>
-                            <th>{{ t('admin_port_blocks_assigned_label', page_locale()) }}</th>
+                            <th>{{ t('admin_label_id', locale) }}</th>
+                            <th>{{ t('admin_port_blocks_pool_label', locale) }}</th>
+                            <th>{{ t('admin_port_blocks_customer_label', locale) }}</th>
+                            <th>{{ t('admin_port_blocks_range_label', locale) }}</th>
+                            <th>{{ t('admin_port_blocks_instance_label', locale) }}</th>
+                            <th>{{ t('admin_port_blocks_assigned_label', locale) }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for block in portBlocks %}
                             <tr>
-                                <td class="font-mono text-xs text-slate-700">{{ block.id }}</td>
+                                <td class="font-mono text-xs" style="color:var(--ng-text)">{{ block.id }}</td>
                                 <td>
-                                    <div class="font-semibold text-slate-900">{{ block.pool.name }}</div>
-                                    <div class="text-xs text-slate-500">{{ block.pool.node }}</div>
+                                    <div style="font-weight:600;color:var(--ng-text)">{{ block.pool.name }}</div>
+                                    <div class="text-xs" style="color:var(--ng-text-muted)">{{ block.pool.node }}</div>
                                 </td>
                                 <td>
-                                    <div class="font-semibold text-slate-900">{{ block.customer.email }}</div>
-                                    <div class="text-xs text-slate-500">#{{ block.customer.id }}</div>
+                                    <div style="font-weight:600;color:var(--ng-text)">{{ block.customer.email }}</div>
+                                    <div class="text-xs" style="color:var(--ng-text-muted)">#{{ block.customer.id }}</div>
                                 </td>
                                 <td>
-                                    <span class="ui-badge ui-badge--neutral">{{ block.start_port }}-{{ block.end_port }}</span>
+                                    <span class="ui-badge ui-badge--info">{{ block.start_port }}-{{ block.end_port }}</span>
                                 </td>
                                 <td>{{ block.instance_id ?? '—' }}</td>
                                 <td>{{ block.assigned_at ? block.assigned_at|date('Y-m-d H:i') : '—' }}</td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="6" class="cust-table__empty">{{ t('admin_port_blocks_empty', page_locale()) }}</td>
+                                <td colspan="6" class="cust-table__empty">{{ t('admin_port_blocks_empty', locale) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>

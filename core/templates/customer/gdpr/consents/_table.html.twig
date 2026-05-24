@@ -1,34 +1,37 @@
-<div class="overflow-hidden">
-    <table class="min-w-full text-sm">
-        <thead class="bg-slate-50 text-xs uppercase text-slate-700">
-            <tr>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_type', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_version', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_accepted_at', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_ip', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_user_agent', page_locale()) }}</th>
-            </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200">
-            {% if logs is empty %}
-                <tr>
-                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-700">{{ t('customer_gdpr_consents_empty', page_locale()) }}</td>
-                </tr>
-            {% else %}
-                {% for log in logs %}
-                    <tr class="bg-white">
-                        <td class="px-5 py-4">
-                            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ typeStyles[log.type.value].badge }}">
-                                {{ typeStyles[log.type.value].label }}
-                            </span>
-                        </td>
-                        <td class="px-5 py-4 text-slate-700">{{ log.version }}</td>
-                        <td class="px-5 py-4 text-slate-700">{{ log.acceptedAt|date('Y-m-d H:i') }}</td>
-                        <td class="px-5 py-4 text-slate-700">{{ log.ip }}</td>
-                        <td class="px-5 py-4 text-slate-700 truncate max-w-[220px]" title="{{ log.userAgent }}">{{ log.userAgent }}</td>
+<div id="consent-table">
+    {% if logs is empty %}
+        <div class="tkt-all-clear">
+            <div class="tkt-all-clear__icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="28" height="28"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+            </div>
+            {{ t('customer_gdpr_consents_empty', page_locale()) }}
+        </div>
+    {% else %}
+        <div class="cust-ws-table-wrap">
+            <table class="cust-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('customer_gdpr_consents_type', page_locale()) }}</th>
+                        <th>{{ t('customer_gdpr_consents_version', page_locale()) }}</th>
+                        <th>{{ t('customer_gdpr_consents_accepted_at', page_locale()) }}</th>
+                        <th>{{ t('customer_gdpr_consents_ip', page_locale()) }}</th>
+                        <th>{{ t('customer_gdpr_consents_user_agent', page_locale()) }}</th>
                     </tr>
-                {% endfor %}
-            {% endif %}
-        </tbody>
-    </table>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                        <tr>
+                            <td>
+                                <span class="ui-badge ui-badge--info">{{ typeStyles[log.type.value].label }}</span>
+                            </td>
+                            <td style="font-weight:600;color:var(--ng-text);">{{ log.version }}</td>
+                            <td style="color:var(--ng-text-muted);font-size:0.75rem;">{{ log.acceptedAt|date('Y-m-d H:i') }}</td>
+                            <td style="color:var(--ng-text-muted);font-size:0.75rem;">{{ log.ip }}</td>
+                            <td style="color:var(--ng-text-muted);font-size:0.75rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ log.userAgent }}">{{ log.userAgent }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
 </div>

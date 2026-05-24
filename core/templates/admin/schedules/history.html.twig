@@ -4,18 +4,54 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<h1 class="mb-4 text-2xl font-semibold">{{ t('admin_schedules_history_title', locale) }}</h1>
-<p class="mb-6 text-sm text-slate-700"><code>{{ source }}:{{ schedule_id }}</code></p>
-<div class="rounded-xl border border-slate-200 bg-white overflow-x-auto">
-    <table class="min-w-full text-sm">
-        <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th class="px-4 py-3">{{ t('admin_schedules_history_run_at', locale) }}</th><th class="px-4 py-3">Ende</th><th class="px-4 py-3">{{ t('admin_schedules_history_status', locale) }}</th><th class="px-4 py-3">{{ t('admin_schedules_history_duration', locale) }}</th><th class="px-4 py-3">{{ t('admin_schedules_history_jobs', locale) }}</th><th class="px-4 py-3">{{ t('admin_schedules_history_message', locale) }}</th></tr></thead>
-        <tbody class="divide-y divide-slate-100">
-        {% for run in runs %}
-            <tr><td class="px-4 py-3">{{ run.startedAt|date('Y-m-d H:i:s') }}</td><td class="px-4 py-3">{{ run.finishedAt ? run.finishedAt|date('Y-m-d H:i:s') : '—' }}</td><td class="px-4 py-3">{{ run.status }}</td><td class="px-4 py-3">{{ run.durationMs ?: '—' }} ms</td><td class="px-4 py-3">{{ run.createdJobIds|join(', ') ?: '—' }}</td><td class="px-4 py-3">{{ run.message ?: '—' }}</td></tr>
-        {% else %}
-            <tr><td colspan="6" class="px-4 py-6 text-center text-slate-500">{{ t('admin_schedules_history_none', locale) }}</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  <section class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+      <div class="tkt-hero__inner">
+        <div>
+          <div class="tkt-hero__pill"><span class="tkt-hero__pill-dot"></span> {{ t('admin_schedules_history_title', locale) }}</div>
+          <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_schedules_history_title', locale) }}</h1>
+          <p class="tkt-hero__sub"><code>{{ source }}:{{ schedule_id }}</code></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ng-data-card">
+    <div class="ng-data-card__body" style="padding:0;">
+      <div class="cust-ws-table-wrap">
+        <table class="cust-table">
+          <thead>
+            <tr>
+              <th>{{ t('admin_schedules_history_run_at', locale) }}</th>
+              <th>Ende</th>
+              <th>{{ t('admin_schedules_history_status', locale) }}</th>
+              <th>{{ t('admin_schedules_history_duration', locale) }}</th>
+              <th>{{ t('admin_schedules_history_jobs', locale) }}</th>
+              <th>{{ t('admin_schedules_history_message', locale) }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run in runs %}
+              <tr>
+                <td>{{ run.startedAt|date('Y-m-d H:i:s') }}</td>
+                <td>{{ run.finishedAt ? run.finishedAt|date('Y-m-d H:i:s') : '—' }}</td>
+                <td>{{ run.status }}</td>
+                <td>{{ run.durationMs ?: '—' }} ms</td>
+                <td>{{ run.createdJobIds|join(', ') ?: '—' }}</td>
+                <td>{{ run.message ?: '—' }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="6" class="cust-table__empty">{{ t('admin_schedules_history_none', locale) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}

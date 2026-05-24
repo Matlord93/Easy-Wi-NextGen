@@ -5,38 +5,47 @@
 {% set activeNav = 'cms-xenal' %}
 
 {% block content %}
-<div class="max-w-4xl space-y-6">
-    <div class="ng-data-card">
-        <div class="ng-data-card__body">
-            <h1 class="text-2xl font-semibold" style="color:var(--ng-text)">{{ t('admin_cms_xenal_landing_title', locale) }}</h1>
-            <p class="mt-2 text-sm" style="color:var(--ng-text-muted)">
-                {{ t('admin_cms_xenal_landing_intro', locale) }}
-            </p>
-            <div class="mt-4 flex flex-wrap gap-2">
-                <a href="/admin/cms/pages/{{ page.id }}"
-                   class="ui-button ui-button--primary ui-button--sm">
-                    {{ t('admin_cms_xenal_open_page', locale) }}
-                </a>
-                <a href="/admin/cms/pages"
-                   class="ui-button ui-button--ghost ui-button--sm">
-                    {{ t('admin_cms_xenal_all_pages', locale) }}
-                </a>
+<div style="display:flex;flex-direction:column;gap:20px;max-width:56rem;">
+
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot"></span>
+                        CMS
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_cms_xenal_landing_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_cms_xenal_landing_intro', locale) }}</p>
+                    <div style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:8px;">
+                        <a href="/admin/cms/pages/{{ page.id }}" class="ui-button ui-button--primary ui-button--sm">
+                            {{ t('admin_cms_xenal_open_page', locale) }}
+                        </a>
+                        <a href="/admin/cms/pages" class="ui-button ui-button--ghost ui-button--sm">
+                            {{ t('admin_cms_xenal_all_pages', locale) }}
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">{{ t('admin_cms_xenal_recommended_order_title', locale) }}</h2>
+            </div>
+        </div>
         <div class="ng-data-card__body">
-            <h2 class="text-lg font-semibold" style="color:var(--ng-text)">{{ t('admin_cms_xenal_recommended_order_title', locale) }}</h2>
-            <ul class="mt-3 list-disc space-y-2 pl-5 text-sm" style="color:var(--ng-text)">
-                <li><span class="font-semibold">hero</span> → {{ t('admin_cms_xenal_block_hero_desc', locale) }}</li>
-                <li><span class="font-semibold">server_list</span> {{ t('or', locale) }} <span class="font-semibold">server_featured</span> → {{ t('admin_cms_xenal_block_server_desc', locale) }}</li>
-                <li><span class="font-semibold">cards</span> (1. {{ t('admin_cms_xenal_module', locale) }}) → {{ t('admin_cms_xenal_block_cards1_desc', locale) }}</li>
-                <li><span class="font-semibold">cards</span> (2. {{ t('admin_cms_xenal_module', locale) }}) → {{ t('admin_cms_xenal_block_cards2_desc', locale) }}</li>
-                <li><span class="font-semibold">cards</span> (3. {{ t('admin_cms_xenal_module', locale) }}) → {{ t('admin_cms_xenal_block_cards3_desc', locale) }}</li>
-                <li><span class="font-semibold">rich_text</span> (1. {{ t('admin_cms_xenal_module', locale) }}) {{ t('or', locale) }} <span class="font-semibold">xn_cta</span> → {{ t('admin_cms_xenal_block_cta_desc', locale) }}</li>
+            <ul style="display:flex;flex-direction:column;gap:8px;padding-left:1.25rem;font-size:0.875rem;list-style-type:disc;color:var(--ng-text);">
+                <li><span style="font-weight:600;">hero</span> → {{ t('admin_cms_xenal_block_hero_desc', locale) }}</li>
+                <li><span style="font-weight:600;">server_list</span> {{ t('or', locale) }} <span style="font-weight:600;">server_featured</span> → {{ t('admin_cms_xenal_block_server_desc', locale) }}</li>
+                <li><span style="font-weight:600;">cards</span> (1. {{ t('admin_cms_xenal_module', locale) }}) → {{ t('admin_cms_xenal_block_cards1_desc', locale) }}</li>
+                <li><span style="font-weight:600;">cards</span> (2. {{ t('admin_cms_xenal_module', locale) }}) → {{ t('admin_cms_xenal_block_cards2_desc', locale) }}</li>
+                <li><span style="font-weight:600;">cards</span> (3. {{ t('admin_cms_xenal_module', locale) }}) → {{ t('admin_cms_xenal_block_cards3_desc', locale) }}</li>
+                <li><span style="font-weight:600;">rich_text</span> (1. {{ t('admin_cms_xenal_module', locale) }}) {{ t('or', locale) }} <span style="font-weight:600;">xn_cta</span> → {{ t('admin_cms_xenal_block_cta_desc', locale) }}</li>
             </ul>
-            <p class="mt-4 text-xs text-slate-500">
+            <p style="margin-top:1rem;font-size:0.75rem;color:var(--ng-text-muted);">
                 {{ t('admin_cms_xenal_legacy_blocks_note', locale) }}
             </p>
         </div>

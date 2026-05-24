@@ -3,34 +3,41 @@
 {% block title %}{{ t('customer_gdpr_exports_page_title', page_locale()) }}{% endblock %}
 
 {% block content %}
-<div class="customer-module-modern customer-gdpr-modern flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('customer_gdpr_exports_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('customer_gdpr_exports_intro', page_locale()) }}</p>
-    </div>
-    <button
-        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-indigo-500"
-        hx-post="/gdpr/exports"
-        hx-target="#gdpr-export-table"
-        hx-swap="outerHTML"
-    >{{ t('customer_gdpr_exports_request', page_locale()) }}</button>
-</div>
+{% set locale = page_locale() %}
+<div class="cust-page">
 
-<div class="rounded-xl bg-white border border-slate-200">
-    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-        <div>
-            <h2 class="text-lg font-semibold">{{ t('customer_gdpr_exports_history_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('customer_gdpr_exports_history_intro', page_locale()) }}</p>
+    <div class="cust-hero">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+            <div>
+                <h1 class="cust-hero__title">{{ t('customer_gdpr_exports_title', locale) }}</h1>
+                <p class="cust-hero__sub">{{ t('customer_gdpr_exports_intro', locale) }}</p>
+            </div>
+            <button
+                class="ui-button ui-button--primary ui-button--sm"
+                hx-post="/gdpr/exports"
+                hx-target="#gdpr-export-table"
+                hx-swap="outerHTML"
+            >{{ t('customer_gdpr_exports_request', locale) }}</button>
         </div>
-        <button
-            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-            hx-get="/gdpr/exports/table"
-            hx-target="#gdpr-export-table"
-            hx-swap="outerHTML"
-        >{{ t('refresh', page_locale()) }}</button>
     </div>
-    <div id="gdpr-export-table" hx-get="/gdpr/exports/table" hx-trigger="gdpr-export-updated from:body" hx-swap="outerHTML">
-        {% include 'customer/gdpr/exports/_table.html.twig' with { exports: exports, statusStyles: statusStyles } %}
+
+    <div class="cust-panel">
+        <div class="cust-panel__head" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <h2 class="cust-panel__title">{{ t('customer_gdpr_exports_history_title', locale) }}</h2>
+                <p style="font-size:13px;color:var(--color-text-muted,#64748b);margin-top:2px;">{{ t('customer_gdpr_exports_history_intro', locale) }}</p>
+            </div>
+            <button
+                class="ui-button ui-button--ghost ui-button--sm"
+                hx-get="/gdpr/exports/table"
+                hx-target="#gdpr-export-table"
+                hx-swap="outerHTML"
+            >{{ t('refresh', locale) }}</button>
+        </div>
+        <div id="gdpr-export-table" hx-get="/gdpr/exports/table" hx-trigger="gdpr-export-updated from:body" hx-swap="outerHTML">
+            {% include 'customer/gdpr/exports/_table.html.twig' with { exports: exports, statusStyles: statusStyles } %}
+        </div>
     </div>
+
 </div>
 {% endblock %}

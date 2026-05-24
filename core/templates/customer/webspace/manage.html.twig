@@ -1,117 +1,180 @@
 {% extends 'customer/base.html.twig' %}
-
+{% set activeNav = 'webspaces' %}
+{% set locale = page_locale() %}
 
 {% block content %}
-<div class="customer-webspace-modern customer-webspace-manage-modern flex flex-col gap-6">
-    {% if flashSuccess %}
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ t(flashSuccess, page_locale()) }}</div>
+<div class="cust-page">
+
+    {# ── Flash messages ── #}
+    {% if flashSuccess is defined and flashSuccess %}
+        <div class="ng-alert ng-alert--success" style="margin-bottom:16px;">{{ t(flashSuccess, locale) }}</div>
     {% endif %}
-    {% if flashError %}
-        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ t(flashError, page_locale()) }}</div>
+    {% if flashError is defined and flashError %}
+        <div class="ng-alert ng-alert--danger" style="margin-bottom:16px;">{{ t(flashError, locale) }}</div>
     {% endif %}
-    <div>
-        <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_webspace_manage_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_description', page_locale()) }}</p>
+
+    {# ── Hero ── #}
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <div class="cust-hero__label">{{ t('customer_webspace_kicker', locale) }}</div>
+                <h1 class="cust-hero__title">{{ t('customer_webspace_manage_title', locale) }}</h1>
+                <p class="cust-hero__desc">{{ t('customer_webspace_manage_description', locale) }}</p>
+            </div>
+        </div>
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-5 py-4">
-            <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_select_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_select_description', page_locale()) }}</p>
-        </div>
-        <form method="get" action="/webspace/manage" class="flex flex-wrap items-end gap-3 px-5 py-4">
-            <div class="min-w-[220px] flex-1">
-                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_domain_label', page_locale()) }}</label>
-                <select name="domain_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
-                    <option value="">{{ t('customer_webspace_manage_domain_placeholder', page_locale()) }}</option>
-                    {% for domain in domains %}
-                        <option value="{{ domain.id }}" {% if selectedDomain and selectedDomain.id == domain.id %}selected{% endif %}>{{ domain.name }}</option>
-                    {% endfor %}
-                </select>
+    {# ── Domain selector ── #}
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h3 class="cust-panel__title">{{ t('customer_webspace_manage_select_title', locale) }}</h3>
+                <p class="cust-panel__sub">{{ t('customer_webspace_manage_select_description', locale) }}</p>
             </div>
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                {{ t('customer_webspace_manage_select_action', page_locale()) }}
-            </button>
-        </form>
+        </div>
+        <div class="cust-panel__body">
+            <form method="get" action="/webspace/manage" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;">
+                <div style="flex:1;min-width:220px;">
+                    <label class="form-label">{{ t('customer_webspace_manage_domain_label', locale) }}</label>
+                    <select name="domain_id" class="form-input" required>
+                        <option value="">{{ t('customer_webspace_manage_domain_placeholder', locale) }}</option>
+                        {% for domain in domains %}
+                            <option value="{{ domain.id }}" {% if selectedDomain and selectedDomain.id == domain.id %}selected{% endif %}>{{ domain.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="ui-button ui-button--primary">
+                    {{ t('customer_webspace_manage_select_action', locale) }}
+                </button>
+            </form>
+        </div>
     </div>
 
     {% if selectedDomain and webspace %}
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="flex flex-wrap items-start justify-between gap-4">
+
+        {# ── Overview ── #}
+        <div class="cust-panel">
+            <div class="cust-panel__head">
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_overview_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_overview_description', page_locale()) }}</p>
+                    <h3 class="cust-panel__title">{{ t('customer_webspace_manage_overview_title', locale) }}</h3>
+                    <p class="cust-panel__sub">{{ t('customer_webspace_manage_overview_description', locale) }}</p>
                 </div>
-                <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">{{ selectedDomain.name }}</span>
+                <span class="ui-badge ui-badge--info">{{ selectedDomain.name }}</span>
             </div>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_manage_webroot_label', page_locale()) }}</p>
-                    <p class="mt-2 font-semibold text-slate-900">{{ webspace.path }}</p>
-                    <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_webroot_hint', page_locale()) }}</p>
-                </div>
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_manage_docroot_label', page_locale()) }}</p>
-                    <p class="mt-2 font-semibold text-slate-900">{{ webspace.docroot }}</p>
-                    <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_docroot_hint', page_locale()) }}</p>
-                </div>
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_manage_php_label', page_locale()) }}</p>
-                    <p class="mt-2 font-semibold text-slate-900">{{ webspace.php_version }}</p>
-                    <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_subdomain_hint', page_locale()) }}</p>
+            <div class="cust-panel__body">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                    <div style="padding:14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                        <p style="font-size:11px;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_webroot_label', locale) }}</p>
+                        <p style="margin:6px 0 0;font-weight:700;color:var(--ng-text);font-size:13px;">{{ webspace.path }}</p>
+                        <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_webroot_hint', locale) }}</p>
+                    </div>
+                    <div style="padding:14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                        <p style="font-size:11px;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_docroot_label', locale) }}</p>
+                        <p style="margin:6px 0 0;font-weight:700;color:var(--ng-text);font-size:13px;">{{ webspace.docroot }}</p>
+                        <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_docroot_hint', locale) }}</p>
+                    </div>
+                    <div style="padding:14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                        <p style="font-size:11px;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_php_label', locale) }}</p>
+                        <p style="margin:6px 0 0;font-weight:700;color:var(--ng-text);font-size:13px;">{{ webspace.php_version }}</p>
+                        <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_subdomain_hint', locale) }}</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div id="ssl" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-5 py-4">
-                <h2 class="text-lg font-semibold text-slate-900">Domains & SSL</h2>
+        {# ── Domains & SSL table ── #}
+        <div id="ssl" class="cust-panel">
+            <div class="cust-panel__head">
+                <div>
+                    <h3 class="cust-panel__title">Domains & SSL</h3>
+                </div>
             </div>
-            <form method="post" action="/webspace/manage/domain/add" class="grid gap-2 border-b border-slate-200 px-5 py-4 md:grid-cols-6">
-                <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
-                <input class="rounded border border-slate-300 px-2 py-1" name="fqdn" placeholder="new.example.com" required>
-                <select class="rounded border border-slate-300 px-2 py-1" name="type"><option value="domain">domain</option><option value="subdomain">subdomain</option></select>
-                <input class="rounded border border-slate-300 px-2 py-1" name="target_path" placeholder="public">
-                <label class="text-xs"><input type="checkbox" name="redirect_https" value="1"> HTTPS</label>
-                <label class="text-xs"><input type="checkbox" name="redirect_www" value="1"> WWW</label>
-                <button {{ hasActiveWebspaceJob ? 'disabled' : '' }} class="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">Domain hinzufügen</button>
-                <label class="text-xs md:col-span-6"><input type="checkbox" name="request_tls" value="1"> SSL direkt anfordern</label>
-            </form>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50">
-                    <tr>
-                        <th class="px-4 py-2 text-left">FQDN</th><th class="px-4 py-2 text-left">Status</th><th class="px-4 py-2 text-left">Apply</th><th class="px-4 py-2 text-left">SSL</th><th class="px-4 py-2 text-left">Redirects</th><th class="px-4 py-2 text-left">Actions</th>
-                    </tr>
+            <div class="cust-panel__body" style="border-bottom:1px solid var(--ng-border);">
+                <form method="post" action="/webspace/manage/domain/add" style="display:grid;grid-template-columns:2fr 1fr 1fr auto auto auto;gap:8px;align-items:end;">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <input class="form-input" name="fqdn" placeholder="new.example.com" required>
+                    <select class="form-input" name="type">
+                        <option value="domain">domain</option>
+                        <option value="subdomain">subdomain</option>
+                    </select>
+                    <input class="form-input" name="target_path" placeholder="public">
+                    <label class="form-label" style="white-space:nowrap;cursor:pointer;"><input type="checkbox" name="redirect_https" value="1"> HTTPS</label>
+                    <label class="form-label" style="white-space:nowrap;cursor:pointer;"><input type="checkbox" name="redirect_www" value="1"> WWW</label>
+                    <button {{ hasActiveWebspaceJob ? 'disabled' : '' }} class="ui-button ui-button--primary ui-button--sm">
+                        {{ t('customer_webspace_domain_add_btn', locale) ?? 'Domain hinzufügen' }}
+                    </button>
+                    <div style="grid-column:1/-1;">
+                        <label class="form-label" style="cursor:pointer;"><input type="checkbox" name="request_tls" value="1"> SSL direkt anfordern</label>
+                    </div>
+                </form>
+            </div>
+            <div class="cust-panel__body--flush cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
+                        <tr>
+                            <th>FQDN</th>
+                            <th>{{ t('customer_domains_table_status', locale) }}</th>
+                            <th>Apply</th>
+                            <th>SSL</th>
+                            <th>Redirects</th>
+                            <th>{{ t('actions', locale) }}</th>
+                        </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-200">
+                    <tbody>
                     {% for domain in webspaceDomains %}
                         {% set running = hasActiveWebspaceJob or domain.apply_status == 'running' %}
                         {% set sslPending = domain.ssl_status in ['pending', 'renewing'] %}
                         {% set sslActive = domain.ssl_status in ['active', 'expires_soon'] %}
                         <tr>
-                            <td class="px-4 py-2">{{ domain.name }}<div class="text-xs text-slate-500">{{ domain.type }}</div></td>
-                            <td class="px-4 py-2"><span class="rounded-full px-2 py-1 text-xs {{ domain.status == 'failed' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700' }}">{{ domain.status }}</span></td>
-                            <td class="px-4 py-2"><span class="rounded-full px-2 py-1 text-xs {{ domain.apply_status == 'failed' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700' }}">{{ domain.apply_status }}</span></td>
-                            <td class="px-4 py-2"><span class="rounded-full px-2 py-1 text-xs {{ sslActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }}">{{ domain.ssl_status|replace({'_':' '}) }}</span></td>
-                            <td class="px-4 py-2 text-xs">{{ domain.redirect_https ? 'HTTPS on' : 'HTTPS off' }} · {{ domain.redirect_www ? 'WWW on' : 'WWW off' }}</td>
-                            <td class="px-4 py-2">
-                                <div class="flex flex-wrap gap-2">
-                                    <form method="post" action="/webspace/manage/domain/apply"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ running ? 'disabled' : '' }} class="rounded bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-40">Erneut anwenden</button></form>
-                                    <form method="post" action="/webspace/manage/ssl"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or sslPending or sslActive) ? 'disabled' : '' }} class="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">SSL aktivieren</button></form>
-                                    <form method="post" action="/webspace/manage/ssl/disable"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or (not sslActive)) ? 'disabled' : '' }} class="rounded bg-slate-700 px-2 py-1 text-xs text-white disabled:opacity-40">SSL aus</button></form>
-                                    <form method="post" action="/webspace/manage/ssl/renew"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or (not sslActive)) ? 'disabled' : '' }} class="rounded bg-emerald-600 px-2 py-1 text-xs text-white disabled:opacity-40">SSL renew</button></form>
-                                    <form method="post" action="/webspace/manage/domain/delete" onsubmit="return confirm('{{ t('customer_webspace_domain_delete_confirm', page_locale()) }}');"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ running ? 'disabled' : '' }} class="rounded bg-rose-600 px-2 py-1 text-xs text-white disabled:opacity-40">{{ t('customer_webspace_domain_delete', page_locale()) }}</button></form>
+                            <td>
+                                <div style="font-weight:600;color:var(--ng-text);">{{ domain.name }}</div>
+                                <div style="font-size:11px;color:var(--ng-text-muted);">{{ domain.type }}</div>
+                            </td>
+                            <td>
+                                <span class="ui-badge ui-badge--{{ domain.status == 'failed' ? 'danger' : 'neutral' }}">{{ domain.status }}</span>
+                            </td>
+                            <td>
+                                <span class="ui-badge ui-badge--{{ domain.apply_status == 'failed' ? 'danger' : 'info' }}">{{ domain.apply_status }}</span>
+                            </td>
+                            <td>
+                                <span class="ui-badge ui-badge--{{ sslActive ? 'success' : 'warning' }}">{{ domain.ssl_status|replace({'_':' '}) }}</span>
+                            </td>
+                            <td style="font-size:12px;color:var(--ng-text-muted);">
+                                {{ domain.redirect_https ? 'HTTPS ✓' : 'HTTPS –' }} · {{ domain.redirect_www ? 'WWW ✓' : 'WWW –' }}
+                            </td>
+                            <td>
+                                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                    <form method="post" action="/webspace/manage/domain/apply">
+                                        <input type="hidden" name="domain_id" value="{{ domain.id }}">
+                                        <button {{ running ? 'disabled' : '' }} class="ui-button ui-button--ghost ui-button--sm">↻ Anwenden</button>
+                                    </form>
+                                    <form method="post" action="/webspace/manage/ssl">
+                                        <input type="hidden" name="domain_id" value="{{ domain.id }}">
+                                        <button {{ (running or sslPending or sslActive) ? 'disabled' : '' }} class="ui-button ui-button--primary ui-button--sm">SSL</button>
+                                    </form>
+                                    <form method="post" action="/webspace/manage/ssl/disable">
+                                        <input type="hidden" name="domain_id" value="{{ domain.id }}">
+                                        <button {{ (running or (not sslActive)) ? 'disabled' : '' }} class="ui-button ui-button--ghost ui-button--sm">SSL aus</button>
+                                    </form>
+                                    <form method="post" action="/webspace/manage/ssl/renew">
+                                        <input type="hidden" name="domain_id" value="{{ domain.id }}">
+                                        <button {{ (running or (not sslActive)) ? 'disabled' : '' }} class="ui-button ui-button--ghost ui-button--sm">SSL erneuern</button>
+                                    </form>
+                                    <form method="post" action="/webspace/manage/domain/delete"
+                                          onsubmit="return confirm('{{ t('customer_webspace_domain_delete_confirm', locale) }}');">
+                                        <input type="hidden" name="domain_id" value="{{ domain.id }}">
+                                        <button {{ running ? 'disabled' : '' }} class="ui-button ui-button--danger ui-button--sm">{{ t('customer_webspace_domain_delete', locale) }}</button>
+                                    </form>
                                 </div>
-                                <form method="post" action="/webspace/manage/domain/update" class="mt-2 flex flex-wrap gap-2">
+                                <form method="post" action="/webspace/manage/domain/update" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
                                     <input type="hidden" name="domain_id" value="{{ domain.id }}">
-                                    <input class="rounded border border-slate-300 px-2 py-1 text-xs" name="target_path" value="{{ domain.target_path }}" placeholder="target_path">
-                                    <label class="text-xs"><input type="checkbox" name="redirect_https" value="1" {{ domain.redirect_https ? 'checked' : '' }}> HTTPS</label>
-                                    <label class="text-xs"><input type="checkbox" name="redirect_www" value="1" {{ domain.redirect_www ? 'checked' : '' }}> WWW</label>
-                                    <button {{ running ? 'disabled' : '' }} class="rounded bg-indigo-500 px-2 py-1 text-xs text-white disabled:opacity-40">{{ t('customer_webspace_save', page_locale()) }}</button>
+                                    <input class="form-input" style="width:160px;" name="target_path" value="{{ domain.target_path }}" placeholder="target_path">
+                                    <label class="form-label" style="cursor:pointer;"><input type="checkbox" name="redirect_https" value="1" {{ domain.redirect_https ? 'checked' : '' }}> HTTPS</label>
+                                    <label class="form-label" style="cursor:pointer;"><input type="checkbox" name="redirect_www" value="1" {{ domain.redirect_www ? 'checked' : '' }}> WWW</label>
+                                    <button {{ running ? 'disabled' : '' }} class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_webspace_save', locale) }}</button>
                                 </form>
                                 {% if domain.last_error_code or domain.last_error_message %}
-                                    <div class="mt-1 text-xs text-rose-700">{{ domain.last_error_code }} {{ domain.last_error_message }}</div>
+                                    <div style="margin-top:6px;font-size:11px;color:#f87171;">{{ domain.last_error_code }} {{ domain.last_error_message }}</div>
                                 {% endif %}
                             </td>
                         </tr>
@@ -121,259 +184,259 @@
             </div>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_homepage_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_homepage_description', page_locale()) }}</p>
+        {# ── Homepage + Subdomains ── #}
+        <div class="cust-grid-2">
+            <div class="cust-form-card">
+                <div class="cust-form-card__head">
+                    <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_homepage_title', locale) }}</h3>
+                    <p class="cust-form-card__sub">{{ t('customer_webspace_manage_homepage_description', locale) }}</p>
                 </div>
-                <form method="post" action="/webspace/manage/homepage" class="space-y-4 px-5 py-4">
+                <form method="post" action="/webspace/manage/homepage" class="cust-form-card__body">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_homepage_label', page_locale()) }}</label>
-                        <select name="domain_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                        <label class="form-label">{{ t('customer_webspace_manage_homepage_label', locale) }}</label>
+                        <select name="domain_id" class="form-input" required>
                             {% for domain in webspaceDomains %}
                                 <option value="{{ domain.id }}" {% if webspace.domain == domain.name %}selected{% endif %}>{{ domain.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                        {{ t('customer_webspace_manage_homepage_action', page_locale()) }}
+                    <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                        {{ t('customer_webspace_manage_homepage_action', locale) }}
                     </button>
                 </form>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_subdomains_title', page_locale()) }}</h2>
-                            <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_subdomains_description', page_locale()) }}</p>
-                        </div>
-                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                            {{ t('customer_webspace_manage_subdomains_status', page_locale()) }}: {{ selectedDomain.status }}
-                        </span>
-                    </div>
-                </div>
-                <form method="post" action="/webspace/manage/subdomains/add" class="space-y-4 px-5 py-4">
-                    <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
+            <div class="cust-panel">
+                <div class="cust-panel__head">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_subdomains_label', page_locale()) }}</label>
-                        <input type="text" name="subdomain" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="www">
-                        <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_subdomains_hint', page_locale()) }}</p>
+                        <h3 class="cust-panel__title">{{ t('customer_webspace_manage_subdomains_title', locale) }}</h3>
+                        <p class="cust-panel__sub">{{ t('customer_webspace_manage_subdomains_description', locale) }}</p>
                     </div>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                        {{ t('customer_webspace_manage_subdomains_action', page_locale()) }}
-                    </button>
-                </form>
-                <div class="border-t border-slate-200 px-5 py-4">
-                    {% if selectedDomain.server_aliases is empty %}
-                        <p class="text-sm text-slate-600">{{ t('customer_webspace_manage_subdomains_empty', page_locale()) }}</p>
-                    {% else %}
-                        <ul class="flex flex-wrap gap-2 text-sm text-slate-700">
+                    <span class="ui-badge ui-badge--neutral">{{ selectedDomain.status }}</span>
+                </div>
+                <div class="cust-panel__body">
+                    <form method="post" action="/webspace/manage/subdomains/add" style="display:flex;flex-direction:column;gap:12px;">
+                        <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
+                        <div>
+                            <label class="form-label">{{ t('customer_webspace_manage_subdomains_label', locale) }}</label>
+                            <input type="text" name="subdomain" class="form-input" placeholder="www">
+                            <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_subdomains_hint', locale) }}</p>
+                        </div>
+                        <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                            {{ t('customer_webspace_manage_subdomains_action', locale) }}
+                        </button>
+                    </form>
+                </div>
+                {% if selectedDomain.server_aliases is not empty %}
+                    <div class="cust-panel__body" style="border-top:1px solid var(--ng-border);">
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;">
                             {% for alias in selectedDomain.server_aliases %}
-                                <li class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                                    <span class="font-semibold">{{ alias }}</span>
+                                <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                                    <span style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ alias }}</span>
                                     <form method="post" action="/webspace/manage/subdomains/remove">
                                         <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
                                         <input type="hidden" name="alias" value="{{ alias }}">
-                                        <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-500">
-                                            {{ t('customer_webspace_manage_subdomains_remove', page_locale()) }}
-                                        </button>
+                                        <button type="submit" style="background:none;border:none;cursor:pointer;font-size:11px;font-weight:600;color:#f87171;padding:0;">✕</button>
                                     </form>
-                                </li>
+                                </div>
                             {% endfor %}
-                        </ul>
-                    {% endif %}
-                </div>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_docroot_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_docroot_description', page_locale()) }}</p>
+        {# ── Docroot + PHP ── #}
+        <div class="cust-grid-2">
+            <div class="cust-form-card">
+                <div class="cust-form-card__head">
+                    <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_docroot_title', locale) }}</h3>
+                    <p class="cust-form-card__sub">{{ t('customer_webspace_manage_docroot_description', locale) }}</p>
                 </div>
-                <form method="post" action="/webspace/manage/docroot" class="space-y-4 px-5 py-4">
+                <form method="post" action="/webspace/manage/docroot" class="cust-form-card__body">
                     <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_docroot_label', page_locale()) }}</label>
-                        <input type="text" name="docroot" value="{{ webspace.docroot }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
-                        <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_docroot_framework_hint', page_locale()) }}</p>
+                        <label class="form-label">{{ t('customer_webspace_manage_docroot_label', locale) }}</label>
+                        <input type="text" name="docroot" value="{{ webspace.docroot }}" class="form-input" required>
+                        <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_docroot_framework_hint', locale) }}</p>
                     </div>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                        {{ t('customer_webspace_manage_docroot_action', page_locale()) }}
+                    <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                        {{ t('customer_webspace_manage_docroot_action', locale) }}
                     </button>
                 </form>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 id="php" class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_php_settings_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_php_settings_description', page_locale()) }}</p>
+            <div class="cust-form-card">
+                <div class="cust-form-card__head">
+                    <h3 id="php" class="cust-form-card__title">{{ t('customer_webspace_manage_php_settings_title', locale) }}</h3>
+                    <p class="cust-form-card__sub">{{ t('customer_webspace_manage_php_settings_description', locale) }}</p>
                 </div>
-                <form method="post" action="/webspace/manage/php" class="space-y-4 px-5 py-4">
+                <form method="post" action="/webspace/manage/php" class="cust-form-card__body">
                     <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
-                    <textarea name="php_settings" rows="6" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="memory_limit=512M&#10;upload_max_filesize=64M">{% for key, value in webspace.php_settings %}{{ key }}={{ value }}
+                    <textarea name="php_settings" rows="6" class="form-input" style="font-family:monospace;resize:vertical;" placeholder="memory_limit=512M&#10;upload_max_filesize=64M">{% for key, value in webspace.php_settings %}{{ key }}={{ value }}
 {% endfor %}</textarea>
-                    <p class="text-xs text-slate-500">{{ t('customer_webspace_manage_php_settings_hint', page_locale()) }}</p>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                        {{ t('customer_webspace_manage_php_settings_action', page_locale()) }}
+                    <p style="font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_php_settings_hint', locale) }}</p>
+                    <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                        {{ t('customer_webspace_manage_php_settings_action', locale) }}
                     </button>
                 </form>
             </div>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_cron_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_cron_description', page_locale()) }}</p>
+        {# ── Cron + Git ── #}
+        <div class="cust-grid-2">
+            <div class="cust-form-card">
+                <div class="cust-form-card__head">
+                    <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_cron_title', locale) }}</h3>
+                    <p class="cust-form-card__sub">{{ t('customer_webspace_manage_cron_description', locale) }}</p>
                 </div>
-                <form method="post" action="/webspace/manage/cron" class="space-y-4 px-5 py-4">
+                <form method="post" action="/webspace/manage/cron" class="cust-form-card__body">
                     <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
-                    <textarea name="cron_tasks" rows="6" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="*/5 * * * * {{ webspace.path }}/artisan schedule:run">{{ webspace.cron_tasks }}</textarea>
-                    <p class="text-xs text-slate-500">{{ t('customer_webspace_manage_cron_hint', page_locale()) }}</p>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                        {{ t('customer_webspace_manage_cron_action', page_locale()) }}
+                    <textarea name="cron_tasks" rows="6" class="form-input" style="font-family:monospace;resize:vertical;" placeholder="*/5 * * * * {{ webspace.path }}/artisan schedule:run">{{ webspace.cron_tasks }}</textarea>
+                    <p style="font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_cron_hint', locale) }}</p>
+                    <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                        {{ t('customer_webspace_manage_cron_action', locale) }}
                     </button>
                 </form>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_git_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_git_description', page_locale()) }}</p>
+            <div class="cust-form-card">
+                <div class="cust-form-card__head">
+                    <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_git_title', locale) }}</h3>
+                    <p class="cust-form-card__sub">{{ t('customer_webspace_manage_git_description', locale) }}</p>
                 </div>
-                <form method="post" action="/webspace/manage/git" class="space-y-4 px-5 py-4">
+                <form method="post" action="/webspace/manage/git" class="cust-form-card__body">
                     <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_git_repo_label', page_locale()) }}</label>
-                        <input type="text" name="git_repo_url" value="{{ webspace.git_repo_url }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="git@github.com:org/repo.git">
+                        <label class="form-label">{{ t('customer_webspace_manage_git_repo_label', locale) }}</label>
+                        <input type="text" name="git_repo_url" value="{{ webspace.git_repo_url }}" class="form-input" placeholder="git@github.com:org/repo.git">
                     </div>
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_git_branch_label', page_locale()) }}</label>
-                        <input type="text" name="git_branch" value="{{ webspace.git_branch ?? 'main' }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <label class="form-label">{{ t('customer_webspace_manage_git_branch_label', locale) }}</label>
+                        <input type="text" name="git_branch" value="{{ webspace.git_branch ?? 'main' }}" class="form-input">
                     </div>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                        {{ t('customer_webspace_manage_git_action', page_locale()) }}
+                    <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                        {{ t('customer_webspace_manage_git_action', locale) }}
                     </button>
                 </form>
-                <form method="post" action="/webspace/manage/composer" class="border-t border-slate-200 px-5 py-4">
-                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_composer_description', page_locale()) }}</p>
-                    <button type="submit" class="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-                        {{ t('customer_webspace_manage_composer_action', page_locale()) }}
-                    </button>
-                </form>
+                <div style="border-top:1px solid var(--ng-border);padding:16px;">
+                    <form method="post" action="/webspace/manage/composer">
+                        <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                        <p style="margin:0 0 10px;font-size:13px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_composer_description', locale) }}</p>
+                        <button type="submit" class="ui-button ui-button--ghost">
+                            {{ t('customer_webspace_manage_composer_action', locale) }}
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 id="backups" class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_backup_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_backup_description', page_locale()) }}</p>
+        {# ── Backup + SSL ── #}
+        <div class="cust-grid-2">
+            <div class="cust-form-card">
+                <div class="cust-form-card__head">
+                    <h3 id="backups" class="cust-form-card__title">{{ t('customer_webspace_manage_backup_title', locale) }}</h3>
+                    <p class="cust-form-card__sub">{{ t('customer_webspace_manage_backup_description', locale) }}</p>
                 </div>
-                <form method="post" action="/webspace/manage/backup" class="space-y-4 px-5 py-4">
+                <form method="post" action="/webspace/manage/backup" class="cust-form-card__body">
                     <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_backup_label', page_locale()) }}</label>
-                        <input type="text" name="backup_label" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="release-2025-02-01">
+                        <label class="form-label">{{ t('customer_webspace_manage_backup_label', locale) }}</label>
+                        <input type="text" name="backup_label" class="form-input" placeholder="release-2025-02-01">
                     </div>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                        {{ t('customer_webspace_manage_backup_action', page_locale()) }}
+                    <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                        {{ t('customer_webspace_manage_backup_action', locale) }}
                     </button>
                 </form>
-                <form method="post" action="/webspace/manage/restore" class="border-t border-slate-200 space-y-4 px-5 py-4">
-                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_restore_label', page_locale()) }}</label>
-                        <input type="text" name="backup_path" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="/var/lib/easywi/web/backups/{{ webspace.id }}/webspace-YYYYMMDD-HHMMSS.tar.gz">
-                    </div>
-                    <button type="submit" class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-400">
-                        {{ t('customer_webspace_manage_restore_action', page_locale()) }}
-                    </button>
-                </form>
+                <div style="border-top:1px solid var(--ng-border);padding:16px;">
+                    <form method="post" action="/webspace/manage/restore" style="display:flex;flex-direction:column;gap:12px;">
+                        <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                        <div>
+                            <label class="form-label">{{ t('customer_webspace_manage_restore_label', locale) }}</label>
+                            <input type="text" name="backup_path" class="form-input" placeholder="/var/lib/easywi/web/backups/{{ webspace.id }}/webspace-YYYYMMDD-HHMMSS.tar.gz">
+                        </div>
+                        <button type="submit" class="ui-button ui-button--warning" style="width:100%;">
+                            {{ t('customer_webspace_manage_restore_action', locale) }}
+                        </button>
+                    </form>
+                </div>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_ssl_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_ssl_description', page_locale()) }}</p>
+            <div class="cust-form-card">
+                <div class="cust-form-card__head">
+                    <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_ssl_title', locale) }}</h3>
+                    <p class="cust-form-card__sub">{{ t('customer_webspace_manage_ssl_description', locale) }}</p>
                 </div>
-                <div class="space-y-3 px-5 py-4 text-sm text-slate-700">
-                    <p class="font-semibold text-slate-900">{{ t('customer_webspace_manage_ssl_dns_title', page_locale()) }}</p>
-                    <ul class="list-disc space-y-1 pl-5">
-                        <li>{{ t('customer_webspace_manage_ssl_dns_a', page_locale()) }}</li>
-                        <li>{{ t('customer_webspace_manage_ssl_dns_aaaa', page_locale()) }}</li>
-                        <li>{{ t('customer_webspace_manage_ssl_dns_http', page_locale()) }}</li>
-                        <li>{{ t('customer_webspace_manage_ssl_dns_email', page_locale()) }}</li>
+                <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);">
+                    <p style="font-weight:600;font-size:13px;color:var(--ng-text);margin:0 0 6px;">{{ t('customer_webspace_manage_ssl_dns_title', locale) }}</p>
+                    <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ng-text-muted);display:flex;flex-direction:column;gap:3px;">
+                        <li>{{ t('customer_webspace_manage_ssl_dns_a', locale) }}</li>
+                        <li>{{ t('customer_webspace_manage_ssl_dns_aaaa', locale) }}</li>
+                        <li>{{ t('customer_webspace_manage_ssl_dns_http', locale) }}</li>
+                        <li>{{ t('customer_webspace_manage_ssl_dns_email', locale) }}</li>
                     </ul>
                 </div>
-                <form method="post" action="/webspace/manage/ssl" class="space-y-4 border-t border-slate-200 px-5 py-4">
+                <form method="post" action="/webspace/manage/ssl" class="cust-form-card__body">
                     <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_ssl_alias_label', page_locale()) }}</label>
-                        <input type="text" name="server_aliases" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="www.{{ selectedDomain.name }}">
+                        <label class="form-label">{{ t('customer_webspace_manage_ssl_alias_label', locale) }}</label>
+                        <input type="text" name="server_aliases" class="form-input" placeholder="www.{{ selectedDomain.name }}">
                     </div>
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_ssl_email_label', page_locale()) }}</label>
-                        <input type="email" name="email" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="admin@{{ selectedDomain.name }}">
+                        <label class="form-label">{{ t('customer_webspace_manage_ssl_email_label', locale) }}</label>
+                        <input type="email" name="email" class="form-input" placeholder="admin@{{ selectedDomain.name }}">
                     </div>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                        {{ t('customer_webspace_manage_ssl_action', page_locale()) }}
+                    <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                        {{ t('customer_webspace_manage_ssl_action', locale) }}
                     </button>
                 </form>
-                <div class="border-t border-slate-200 px-5 py-4 flex flex-wrap gap-2">
+                <div style="border-top:1px solid var(--ng-border);padding:14px 16px;display:flex;gap:8px;flex-wrap:wrap;">
                     <form method="post" action="/webspace/manage/ssl/disable">
                         <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
-                        <button type="submit" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600">
-                            SSL deaktivieren
-                        </button>
+                        <button type="submit" class="ui-button ui-button--ghost">SSL deaktivieren</button>
                     </form>
                     <form method="post" action="/webspace/manage/ssl/renew">
                         <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
-                        <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
-                            SSL erneuern
-                        </button>
+                        <button type="submit" class="ui-button ui-button--primary">SSL erneuern</button>
                     </form>
                 </div>
             </div>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 id="logs" class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_logs_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_logs_description', page_locale()) }}</p>
+        {# ── Logs + Roundcube ── #}
+        <div class="cust-grid-2">
+            <div class="cust-panel">
+                <div class="cust-panel__head">
+                    <h3 id="logs" class="cust-panel__title">{{ t('customer_webspace_manage_logs_title', locale) }}</h3>
+                    <p class="cust-panel__sub">{{ t('customer_webspace_manage_logs_description', locale) }}</p>
                 </div>
-                <div class="space-y-3 px-5 py-4 text-sm text-slate-700">
-                    <p>{{ t('customer_webspace_manage_logs_hint', page_locale()) }}</p>
-                    <a href="{{ path('customer_files', { webspace: webspace.id }) }}" class="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-500">
-                        {{ t('customer_webspace_manage_logs_action', page_locale()) }}
+                <div class="cust-panel__body">
+                    <p style="margin:0 0 12px;font-size:13px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_logs_hint', locale) }}</p>
+                    <a href="{{ path('customer_files', { webspace: webspace.id }) }}" class="ui-button ui-button--ghost">
+                        {{ t('customer_webspace_manage_logs_action', locale) }} ↗
                     </a>
                 </div>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_roundcube_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_roundcube_description', page_locale()) }}</p>
+            <div class="cust-form-card">
+                <div class="cust-form-card__head">
+                    <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_roundcube_title', locale) }}</h3>
+                    <p class="cust-form-card__sub">{{ t('customer_webspace_manage_roundcube_description', locale) }}</p>
                 </div>
-                <form method="post" action="/webspace/manage/roundcube" class="space-y-4 px-5 py-4">
+                <form method="post" action="/webspace/manage/roundcube" class="cust-form-card__body">
                     <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
-                    <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-                        {{ t('customer_webspace_manage_roundcube_action', page_locale()) }}
+                    <button type="submit" class="ui-button ui-button--ghost" style="width:100%;">
+                        {{ t('customer_webspace_manage_roundcube_action', locale) }}
                     </button>
                 </form>
-                <div class="border-t border-slate-200 px-5 py-4 text-sm text-slate-700">
-                    <a href="/roundcube" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 hover:text-indigo-500">
-                        {{ t('customer_webspace_manage_roundcube_link', page_locale()) }}
+                <div style="border-top:1px solid var(--ng-border);padding:14px 16px;">
+                    <a href="/roundcube" target="_blank" rel="noopener noreferrer" class="ui-button ui-button--primary" style="width:100%;text-align:center;">
+                        {{ t('customer_webspace_manage_roundcube_link', locale) }} ↗
                     </a>
                 </div>
             </div>
         </div>
+
     {% endif %}
 </div>
 {% endblock %}

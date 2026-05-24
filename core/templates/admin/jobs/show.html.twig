@@ -3,121 +3,159 @@
 {% block title %}Job {{ job.id }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
-{% set statusStyles = {
-    'queued': 'bg-amber-50 text-amber-700 border-amber-200',
-    'running': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    'succeeded': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    'failed': 'bg-rose-50 text-rose-700 border-rose-200',
-    'cancelled': 'bg-slate-100 text-slate-600 border-slate-200'
-} %}
-{% set resultStyles = {
-    'succeeded': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    'failed': 'bg-rose-50 text-rose-700 border-rose-200',
-    'cancelled': 'bg-slate-100 text-slate-600 border-slate-200'
-} %}
+{% set locale = page_locale() %}
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-<div class="flex flex-col gap-6">
-    <div class="flex flex-wrap items-center justify-between gap-4">
+  <section class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+      <div class="tkt-hero__inner">
         <div>
-            <p class="text-xs uppercase text-slate-700">{{ t('admin_jobs_detail_kicker', page_locale()) }}</p>
-            <h1 class="text-2xl font-semibold text-slate-900">{{ t('admin_jobs_detail_title', page_locale()) }} {{ job.id }}</h1>
-            <p class="text-sm text-slate-700">{{ t('admin_jobs_detail_intro', page_locale()) }}</p>
+          <div class="tkt-hero__pill"><span class="tkt-hero__pill-dot"></span> {{ t('admin_jobs_detail_kicker', locale) }}</div>
+          <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_jobs_detail_title', locale) }} {{ job.id }}</h1>
+          <p class="tkt-hero__sub">{{ t('admin_jobs_detail_intro', locale) }}</p>
         </div>
-        <div class="flex items-center gap-3">
-            <a class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700" href="/admin/jobs">{{ t('admin_jobs_back', page_locale()) }}</a>
-            {% if canRetry %}
-                <form method="post" action="/admin/jobs/{{ job.id }}/retry">
-                    <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">{{ t('admin_jobs_retry', page_locale()) }}</button>
-                </form>
-            {% endif %}
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px;">
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('status', locale) }}</div>
+            <div class="tkt-kpi__value" style="margin-top:6px;">
+              {% if job.status == 'succeeded' %}
+                <span class="ui-badge ui-badge--success">{{ job.status|title }}</span>
+              {% elseif job.status == 'failed' %}
+                <span class="ui-badge ui-badge--danger">{{ job.status|title }}</span>
+              {% elseif job.status == 'running' %}
+                <span class="ui-badge ui-badge--info">{{ job.status|title }}</span>
+              {% elseif job.status == 'queued' %}
+                <span class="ui-badge ui-badge--warning">{{ job.status|title }}</span>
+              {% else %}
+                <span class="ui-badge ui-badge--neutral">{{ job.status|title }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('type', locale) }}</div>
+            <div class="tkt-kpi__value">{{ t('job_type_' ~ job.type|replace({'.': '_'}), locale) }}</div>
+          </div>
+          <div class="tkt-kpi">
+            <div class="tkt-kpi__label">{{ t('admin_jobs_result', locale) }}</div>
+            <div class="tkt-kpi__value" style="margin-top:6px;">
+              {% if result %}
+                {% if result.status == 'succeeded' %}
+                  <span class="ui-badge ui-badge--success">{{ result.status|title }}</span>
+                {% elseif result.status == 'failed' %}
+                  <span class="ui-badge ui-badge--danger">{{ result.status|title }}</span>
+                {% else %}
+                  <span class="ui-badge ui-badge--neutral">{{ result.status|title }}</span>
+                {% endif %}
+              {% else %}
+                <span style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_jobs_no_result', locale) }}</span>
+              {% endif %}
+            </div>
+          </div>
         </div>
+      </div>
+    </div>
+    <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/jobs">{{ t('admin_jobs_back', locale) }}</a>
+      {% if canRetry %}
+        <form method="post" action="/admin/jobs/{{ job.id }}/retry" style="display:inline;">
+          <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_jobs_retry', locale) }}</button>
+        </form>
+      {% endif %}
+    </div>
+  </section>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;">
+    <div class="ng-data-card">
+      <div class="ng-data-card__header">
+        <div><h2 class="ng-data-card__title">{{ t('admin_jobs_lock', locale) }}</h2></div>
+      </div>
+      <div class="ng-data-card__body">
+        {% if job.lockedBy %}
+          <p style="font-size:13px;font-weight:500;color:var(--ng-text);">{{ job.lockedBy }}</p>
+          <p style="font-size:12px;color:var(--ng-text-muted);margin-top:4px;">{{ t('admin_jobs_locked_at', locale) }} {{ job.lockedAt ? job.lockedAt|date('Y-m-d H:i') : '—' }}</p>
+          <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_jobs_lock_expires', locale) }} {{ job.lockExpiresAt ? job.lockExpiresAt|date('Y-m-d H:i') : '—' }}</p>
+        {% else %}
+          <p style="font-size:13px;color:var(--ng-text-muted);">{{ t('admin_jobs_not_locked', locale) }}</p>
+        {% endif %}
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <p class="text-xs uppercase text-slate-700">{{ t('status', page_locale()) }}</p>
-            <div class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ statusStyles[job.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' }}">
-                {{ job.status|title }}
-            </div>
-            <div class="mt-4 space-y-1 text-sm text-slate-700">
-                <p><span class="text-slate-700 font-medium">{{ t('type', page_locale()) }}:</span> {{ t('job_type_' ~ job.type|replace({'.': '_'}), page_locale()) }}</p>
-                <p><span class="text-slate-700 font-medium">{{ t('created', page_locale()) }}:</span> {{ job.createdAt|date('Y-m-d H:i') }}</p>
-                <p><span class="text-slate-700 font-medium">{{ t('updated', page_locale()) }}:</span> {{ job.updatedAt|date('Y-m-d H:i') }}</p>
-            </div>
+    <div class="ng-data-card">
+      <div class="ng-data-card__header">
+        <div><h2 class="ng-data-card__title">{{ t('created', locale) }} / {{ t('updated', locale) }}</h2></div>
+      </div>
+      <div class="ng-data-card__body">
+        <p style="font-size:12px;color:var(--ng-text-muted);"><strong style="color:var(--ng-text);">{{ t('created', locale) }}:</strong> {{ job.createdAt|date('Y-m-d H:i') }}</p>
+        <p style="font-size:12px;color:var(--ng-text-muted);margin-top:4px;"><strong style="color:var(--ng-text);">{{ t('updated', locale) }}:</strong> {{ job.updatedAt|date('Y-m-d H:i') }}</p>
+        {% if result %}
+          <p style="font-size:12px;color:var(--ng-text-muted);margin-top:4px;">{{ t('admin_jobs_completed', locale) }} {{ result.completedAt|date('Y-m-d H:i') }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;">
+    <div class="ng-data-card">
+      <div class="ng-data-card__header">
+        <div>
+          <h2 class="ng-data-card__title">{{ t('admin_jobs_payload_title', locale) }}</h2>
+          <p class="ng-data-card__sub">{{ t('admin_jobs_payload_intro', locale) }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <p class="text-xs uppercase text-slate-700">{{ t('admin_jobs_lock', page_locale()) }}</p>
-            {% if job.lockedBy %}
-                <p class="mt-3 text-sm font-medium text-slate-700">{{ job.lockedBy }}</p>
-                <p class="text-xs text-slate-600">{{ t('admin_jobs_locked_at', page_locale()) }} {{ job.lockedAt ? job.lockedAt|date('Y-m-d H:i') : '—' }}</p>
-                <p class="text-xs text-slate-600">{{ t('admin_jobs_lock_expires', page_locale()) }} {{ job.lockExpiresAt ? job.lockExpiresAt|date('Y-m-d H:i') : '—' }}</p>
-            {% else %}
-                <p class="mt-3 text-sm text-slate-600">{{ t('admin_jobs_not_locked', page_locale()) }}</p>
-            {% endif %}
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <p class="text-xs uppercase text-slate-700">{{ t('admin_jobs_result', page_locale()) }}</p>
-            {% if result %}
-                <div class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ resultStyles[result.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' }}">
-                    {{ result.status|title }}
-                </div>
-                <p class="mt-2 text-sm text-slate-700">{{ t('admin_jobs_completed', page_locale()) }} {{ result.completedAt|date('Y-m-d H:i') }}</p>
-            {% else %}
-                <p class="mt-3 text-sm text-slate-600">{{ t('admin_jobs_no_result', page_locale()) }}</p>
-            {% endif %}
-        </div>
+      </div>
+      <div class="ng-data-card__body">
+        <pre style="max-height:288px;overflow-y:auto;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface-soft);padding:14px;font-size:12px;color:var(--ng-text);margin:0;">{{ job.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold">{{ t('admin_jobs_payload_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('admin_jobs_payload_intro', page_locale()) }}</p>
-                </div>
-            </div>
-            <pre class="mt-4 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">{{ job.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+    <div class="ng-data-card">
+      <div class="ng-data-card__header">
+        <div>
+          <h2 class="ng-data-card__title">{{ t('admin_jobs_output_title', locale) }}</h2>
+          <p class="ng-data-card__sub">{{ t('admin_jobs_output_intro', locale) }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold">{{ t('admin_jobs_output_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('admin_jobs_output_intro', page_locale()) }}</p>
-                </div>
+      </div>
+      <div class="ng-data-card__body">
+        {% if result %}
+          <pre style="max-height:288px;overflow-y:auto;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface-soft);padding:14px;font-size:12px;color:var(--ng-text);margin:0;">{{ result.output|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+        {% else %}
+          <div class="tkt-all-clear">
+            <div class="tkt-all-clear__icon">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="28" height="28"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
             </div>
-            {% if result %}
-                <pre class="mt-4 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">{{ result.output|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
-            {% else %}
-                <div class="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600">
-                    {{ t('admin_jobs_output_pending', page_locale()) }}
-                </div>
-            {% endif %}
-        </div>
+            {{ t('admin_jobs_output_pending', locale) }}
+          </div>
+        {% endif %}
+      </div>
     </div>
+  </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <h2 class="text-lg font-semibold">{{ t('admin_jobs_live_logs_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('admin_jobs_live_logs_intro', page_locale()) }}</p>
-            </div>
-            <button
-                class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-                hx-get="/admin/jobs/{{ job.id }}/log"
-                hx-target="#job-log-tail"
-                hx-swap="innerHTML"
-            >{{ t('refresh', page_locale()) }}</button>
-        </div>
-        <div
-            id="job-log-tail"
-            class="mt-4"
-            hx-get="/admin/jobs/{{ job.id }}/log"
-            hx-trigger="load, every 4s"
-            hx-target="#job-log-tail"
-            hx-swap="innerHTML"
-        >
-            {% include 'admin/jobs/_log_tail.html.twig' with { logLines: logLines } %}
-        </div>
+  <div class="ng-data-card">
+    <div class="ng-data-card__header">
+      <div>
+        <h2 class="ng-data-card__title">{{ t('admin_jobs_live_logs_title', locale) }}</h2>
+        <p class="ng-data-card__sub">{{ t('admin_jobs_live_logs_intro', locale) }}</p>
+      </div>
+      <div>
+        <button
+          class="ui-button ui-button--ghost ui-button--sm"
+          hx-get="/admin/jobs/{{ job.id }}/log"
+          hx-target="#job-log-tail"
+          hx-swap="innerHTML"
+        >{{ t('refresh', locale) }}</button>
+      </div>
     </div>
+    <div class="ng-data-card__body">
+      <div
+        id="job-log-tail"
+        hx-get="/admin/jobs/{{ job.id }}/log"
+        hx-trigger="load, every 4s"
+        hx-target="#job-log-tail"
+        hx-swap="innerHTML"
+      >
+        {% include 'admin/jobs/_log_tail.html.twig' with { logLines: logLines } %}
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}

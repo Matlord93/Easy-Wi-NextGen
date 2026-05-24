@@ -3,7 +3,7 @@
 {# ─── Power Panel ─── #}
 <div
     id="gameserver-overview-mount"
-    class="mb-5 rounded-xl border border-slate-700/60 bg-slate-800/40 p-4"
+    class="cust-panel"
     data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}"
     data-power-redirect-url="{{ path('customer_instance_tasks_page', {id: instance.id}) }}"
     data-url-query="{{ path('customer_instance_query_api_v2', {id: instance.id}) }}"
@@ -14,42 +14,39 @@
         actionQueued: t('customer_instances_overview_action_queued', locale),
     }|json_encode }}"
 >
-    <div class="flex flex-wrap items-center gap-3">
-        <div class="flex items-center gap-2">
-            <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600 bg-slate-700/50">
-                <svg class="h-4 w-4 text-slate-300" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M5.578 4.437a5 5 0 1 0 4.922.044l.5-.866a6 6 0 1 1-5.908-.053l.486.875z"/>
-                    <path d="M7.5 2h1v7h-1V2z"/>
-                </svg>
-            </div>
-            <span class="text-sm font-semibold text-slate-300">{{ t('customer_instance_server_status', locale) }}</span>
+    <div class="cust-panel__head">
+        <div style="display:flex;align-items:center;gap:.5rem">
+            <svg style="width:1rem;height:1rem;flex-shrink:0" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M5.578 4.437a5 5 0 1 0 4.922.044l.5-.866a6 6 0 1 1-5.908-.053l.486.875z"/>
+                <path d="M7.5 2h1v7h-1V2z"/>
+            </svg>
+            <span style="font-weight:600">{{ t('customer_instance_server_status', locale) }}</span>
         </div>
 
-        <div class="ml-auto flex flex-wrap items-center gap-2">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem">
             <button type="button" data-power-action="start"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/50 bg-emerald-600/10 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-600/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-40">
-                <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+                class="ui-button ui-button--primary ui-button--sm">
+                <svg style="width:.875rem;height:.875rem" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
                 {{ t('customer_instances_overview_start', locale) }}
             </button>
             <button type="button" data-power-action="stop"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-rose-700/50 bg-rose-600/10 px-3 py-1.5 text-xs font-semibold text-rose-400 transition hover:bg-rose-600/20 focus:outline-none focus:ring-2 focus:ring-rose-500/50 disabled:cursor-not-allowed disabled:opacity-40">
-                <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 16 16"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
+                class="ui-button ui-button--danger ui-button--sm">
+                <svg style="width:.875rem;height:.875rem" fill="currentColor" viewBox="0 0 16 16"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
                 {{ t('customer_instances_overview_stop', locale) }}
             </button>
             <button type="button" data-power-action="restart"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-700/40 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/50 disabled:cursor-not-allowed disabled:opacity-40">
-                <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                class="ui-button ui-button--ghost ui-button--sm">
+                <svg style="width:.875rem;height:.875rem" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
                 {{ t('customer_instances_overview_restart', locale) }}
             </button>
-        </div>
 
-        <div class="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-1.5">
-            <span class="text-[11px] text-slate-500">Status:</span>
-            <span id="gameserver-overview-state" class="text-xs font-semibold text-slate-300">{{ instance.status }}</span>
+            <span class="ui-badge ui-badge--neutral">
+                Status: <span id="gameserver-overview-state">{{ instance.status }}</span>
+            </span>
         </div>
     </div>
 
-    <div id="gameserver-overview-error" class="hidden mt-3 rounded-lg border border-rose-700/50 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
+    <div id="gameserver-overview-error" class="ng-alert ng-alert--danger" style="display:none"></div>
 </div>
 
 {# ─── Detail Card ─── #}

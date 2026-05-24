@@ -1,36 +1,42 @@
 {% set locale = page_locale() %}
-<div class="px-5 py-5 space-y-4">
+<div class="cust-panel__body" id="gdpr-delete-status"
+    hx-get="/gdpr/delete/status"
+    hx-trigger="gdpr-delete-updated from:body"
+    hx-swap="outerHTML">
     {% if request is null %}
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        <div class="ng-alert ng-alert--warning" style="margin-bottom:12px;">
             {{ t('customer_gdpr_delete_no_request', locale) }}
         </div>
         <form hx-post="/gdpr/delete" hx-target="#gdpr-delete-status" hx-swap="outerHTML">
-            <button class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-rose-500">
+            <button class="ui-button ui-button--danger ui-button--sm">
                 {{ t('customer_gdpr_delete_request_btn', locale) }}
             </button>
         </form>
     {% else %}
-        {% set style = statusStyles[request.status.value] %}
-        <div class="flex items-center justify-between">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
             <div>
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ style.badge }}">
-                    {{ style.label }}
-                </span>
-                <div class="mt-2 text-sm text-slate-700">{{ t('customer_gdpr_delete_requested_at', locale) }} {{ request.requestedAt|date('Y-m-d H:i') }}</div>
+                {% if request.status.value == 'completed' %}
+                    <span class="ui-badge ui-badge--success">{{ t('customer_gdpr_delete_status_completed', locale) }}</span>
+                {% elseif request.status.value == 'pending' %}
+                    <span class="ui-badge ui-badge--warning">{{ t('customer_gdpr_delete_status_pending', locale) }}</span>
+                {% else %}
+                    <span class="ui-badge ui-badge--neutral">{{ request.status.value }}</span>
+                {% endif %}
+                <div style="margin-top:8px;font-size:13px;color:var(--color-text-muted,#64748b);">{{ t('customer_gdpr_delete_requested_at', locale) }} {{ request.requestedAt|date('Y-m-d H:i') }}</div>
                 {% if request.processedAt %}
-                    <div class="text-xs text-slate-600">{{ t('customer_gdpr_delete_completed_at', locale) }} {{ request.processedAt|date('Y-m-d H:i') }}</div>
+                    <div style="font-size:11px;color:var(--color-text-muted,#64748b);">{{ t('customer_gdpr_delete_completed_at', locale) }} {{ request.processedAt|date('Y-m-d H:i') }}</div>
                 {% endif %}
             </div>
             {% if request.status.value != 'completed' %}
-                <span class="text-xs text-slate-600">{{ t('customer_gdpr_delete_job_id', locale) }} {{ request.jobId }}</span>
+                <span style="font-size:11px;color:var(--color-text-muted,#64748b);">{{ t('customer_gdpr_delete_job_id', locale) }} {{ request.jobId }}</span>
             {% endif %}
         </div>
         {% if request.status.value == 'completed' %}
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div class="ng-alert ng-alert--success" style="margin-top:12px;">
                 {{ t('customer_gdpr_delete_done_msg', locale) }}
             </div>
         {% else %}
-            <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <div class="ng-alert ng-alert--warning" style="margin-top:12px;">
                 {{ t('customer_gdpr_delete_pending_msg', locale) }}
             </div>
         {% endif %}

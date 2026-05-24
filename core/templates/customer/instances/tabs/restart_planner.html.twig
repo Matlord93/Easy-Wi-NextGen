@@ -1,46 +1,50 @@
-<div class="space-y-6">
-    <div>
-        <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_restart_planner', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('customer_instance_restart_planner_intro', page_locale()) }}</p>
+<div class="cust-panel">
+    <div class="cust-panel__head">
+        <div>
+            <h2 class="cust-panel__title">{{ t('customer_instance_tab_restart_planner', page_locale()) }}</h2>
+            <p style="font-size:.875rem;color:var(--ng-text-muted)">{{ t('customer_instance_restart_planner_intro', page_locale()) }}</p>
+        </div>
     </div>
 
-    {% if tabNotice %}
-        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ t(tabNotice, page_locale()) }}</div>
-    {% endif %}
-    {% if tabError %}
-        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ t(tabError, page_locale()) }}</div>
-    {% endif %}
+    <div class="cust-panel__body">
+        {% if tabNotice %}
+            <div class="ng-alert ng-alert--success" style="margin-bottom:1rem">{{ t(tabNotice, page_locale()) }}</div>
+        {% endif %}
+        {% if tabError %}
+            <div class="ng-alert ng-alert--danger" style="margin-bottom:1rem">{{ t(tabError, page_locale()) }}</div>
+        {% endif %}
 
-<form method="post" action="{{ path('customer_instance_restart_planner', {id: instance.id}) }}" class="space-y-4">
-        <div class="grid gap-4 lg:grid-cols-2">
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_restart_planner_cron', page_locale()) }}</label>
-                <input type="text" name="cron_expression" value="{{ restartSchedule ? restartSchedule.cron_expression : '0 4 * * *' }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <p class="mt-2 text-xs text-slate-600">{{ t('customer_instance_restart_planner_cron_hint', page_locale()) }}</p>
+        <form method="post" action="{{ path('customer_instance_restart_planner', {id: instance.id}) }}" style="display:flex;flex-direction:column;gap:1rem">
+            <div class="cust-grid-2">
+                <div class="form-field">
+                    <label class="form-label">{{ t('customer_instance_restart_planner_cron', page_locale()) }}</label>
+                    <input type="text" name="cron_expression" value="{{ restartSchedule ? restartSchedule.cron_expression : '0 4 * * *' }}" class="form-input">
+                    <p style="margin-top:.5rem;font-size:.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_restart_planner_cron_hint', page_locale()) }}</p>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('customer_instance_restart_planner_time_zone', page_locale()) }}</label>
+                    <input type="text" name="time_zone" value="{{ restartSchedule ? restartSchedule.time_zone : 'UTC' }}" class="form-input">
+                    <p style="margin-top:.5rem;font-size:.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_restart_planner_time_zone_hint', page_locale()) }}</p>
+                </div>
             </div>
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_restart_planner_time_zone', page_locale()) }}</label>
-                <input type="text" name="time_zone" value="{{ restartSchedule ? restartSchedule.time_zone : 'UTC' }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <p class="mt-2 text-xs text-slate-600">{{ t('customer_instance_restart_planner_time_zone_hint', page_locale()) }}</p>
+
+            <label style="display:flex;align-items:center;gap:.5rem;font-size:.875rem">
+                <input type="checkbox" name="enabled" value="1" {% if restartSchedule and restartSchedule.enabled %}checked{% endif %}>
+                {{ t('customer_instance_restart_planner_enabled', page_locale()) }}
+            </label>
+
+            <div style="padding:.75rem;border:1px solid var(--ng-border);border-radius:.5rem;font-size:.8rem;color:var(--ng-text-muted)">
+                Last run: {{ restartSchedule and restartSchedule.last_run_at ? restartSchedule.last_run_at|date('Y-m-d H:i:s') : '—' }} ·
+                Last status: {{ restartSchedule and restartSchedule.last_status ? restartSchedule.last_status : '—' }}
+                {% if restartSchedule and restartSchedule.last_error_code %}(error: {{ restartSchedule.last_error_code }}){% endif %}
+                {% if restartSchedule and restartSchedule.next_run_at %} · Next run: {{ restartSchedule.next_run_at|date('Y-m-d H:i:s') }}{% endif %}
             </div>
-        </div>
 
-        <label class="flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" name="enabled" value="1" class="text-indigo-600" {% if restartSchedule and restartSchedule.enabled %}checked{% endif %}>
-            {{ t('customer_instance_restart_planner_enabled', page_locale()) }}
-        </label>
-
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-            Last run: {{ restartSchedule and restartSchedule.last_run_at ? restartSchedule.last_run_at|date('Y-m-d H:i:s') : '—' }} ·
-            Last status: {{ restartSchedule and restartSchedule.last_status ? restartSchedule.last_status : '—' }}
-            {% if restartSchedule and restartSchedule.last_error_code %}(error: {{ restartSchedule.last_error_code }}){% endif %}
-            {% if restartSchedule and restartSchedule.next_run_at %} · Next run: {{ restartSchedule.next_run_at|date('Y-m-d H:i:s') }}{% endif %}
-        </div>
-
-        <div class="flex justify-end">
-            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">
-                {{ t('customer_instance_restart_planner_save', page_locale()) }}
-            </button>
-        </div>
-    </form>
+            <div style="display:flex;justify-content:flex-end">
+                <button type="submit" class="ui-button ui-button--primary">
+                    {{ t('customer_instance_restart_planner_save', page_locale()) }}
+                </button>
+            </div>
+        </form>
+    </div>
 </div>

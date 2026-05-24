@@ -1,176 +1,166 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_nodes_roles_title', page_locale()) %}
+{% set activeNav = 'nodes' %}
+
 {% block content %}
+{% set locale = page_locale() %}
 {% set statusMap = {
-    'online': 'badge--success',
-    'stale': 'badge--warning',
-    'offline': 'badge--danger',
-    'provisioning': 'badge--primary',
-    'maintenance': 'badge--neutral'
+    'online': 'ui-badge--success',
+    'stale': 'ui-badge--warning',
+    'offline': 'ui-badge--danger',
+    'provisioning': 'ui-badge--info',
+    'maintenance': 'ui-badge--neutral'
 } %}
-<section class="nodes-page">
-    <header class="nodes-header">
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  <section class="ng-card" style="overflow:hidden;">
+    <div class="tkt-hero">
+      <div class="tkt-hero__inner">
         <div>
-            <h1 class="nodes-title">{{ t('admin_nodes_roles_title', page_locale()) }}</h1>
-            <p class="nodes-subtitle">{{ t('admin_nodes_roles_intro', page_locale()) }}</p>
+          <div class="tkt-hero__pill"><span class="tkt-hero__pill-dot"></span> Nodes</div>
+          <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_nodes_roles_title', locale) }}</h1>
+          <p class="tkt-hero__sub">{{ t('admin_nodes_roles_intro', locale) }}</p>
         </div>
-        <div class="nodes-actions">
-            <a class="btn btn--secondary" href="/admin/nodes?node={{ selectedNode.id }}">{{ t('admin_nodes_back', page_locale()) }}</a>
-        </div>
-    </header>
+      </div>
+    </div>
+    <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+      <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/nodes?node={{ selectedNode.id }}">{{ t('admin_nodes_back', locale) }}</a>
+    </div>
+  </section>
 
-    {% if notice %}
-        <div class="nodes-alert nodes-alert--success">
-            {{ notice }}
-        </div>
-    {% endif %}
-    {% if error %}
-        <div class="nodes-alert nodes-alert--danger">
-            {{ error }}
-        </div>
-    {% endif %}
+  {% if notice %}
+    <div class="ng-alert ng-alert--success">{{ notice }}</div>
+  {% endif %}
+  {% if error %}
+    <div class="ng-alert ng-alert--danger">{{ error }}</div>
+  {% endif %}
 
-    {% set statusClass = statusMap[selectedNode.status] ?? 'badge--neutral' %}
-    <div class="nodes-card">
-        <div class="nodes-card__header">
-            <div>
-                <h2 class="nodes-card__title">{{ selectedNode.name ?? t('admin_nodes_unnamed', page_locale()) }}</h2>
-                <p class="nodes-card__subtitle">{{ selectedNode.id }}</p>
+  {% set statusClass = statusMap[selectedNode.status] ?? 'ui-badge--neutral' %}
+  <div class="ng-data-card">
+    <div class="ng-data-card__header">
+      <div>
+        <h2 class="ng-data-card__title">{{ selectedNode.name ?? t('admin_nodes_unnamed', locale) }}</h2>
+        <p class="ng-data-card__sub">{{ selectedNode.id }}</p>
+      </div>
+      <span class="ui-badge {{ statusClass }}">{{ selectedNode.status|title }}</span>
+    </div>
+    <div class="ng-data-card__body">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        {% if selectedNode.roles is empty %}
+          <span style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_nodes_roles_empty', locale) }}</span>
+        {% else %}
+          {% for role in selectedNode.roles %}
+            <span class="ui-badge ui-badge--info">{{ role }}</span>
+          {% endfor %}
+        {% endif %}
+      </div>
+      <p style="margin-top:10px;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_nodes_roles_active_hint', locale) }}</p>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+
+    <div class="ng-data-card">
+      <div class="ng-data-card__header">
+        <div>
+          <h2 class="ng-data-card__title">{{ t('admin_nodes_roles_section', locale) }}</h2>
+          <p class="ng-data-card__sub">{{ t('admin_nodes_roles_section_intro', locale) }}</p>
+        </div>
+      </div>
+      <div class="ng-data-card__body">
+        <form method="post" action="/admin/nodes/{{ selectedNode.id }}/roles">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+            {% for roleOption in roleOptions %}
+              {% set roleKey = roleOption|lower %}
+              <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                <input
+                  type="checkbox"
+                  name="roles[]"
+                  value="{{ roleOption }}"
+                  {% if roleKey in selectedNode.roleKeys %}checked{% endif %}
+                  aria-label="{{ roleOption }}"
+                >
+                <span>{{ roleOption }}</span>
+              </label>
+            {% endfor %}
+          </div>
+
+          <div style="border-radius:6px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:16px;margin-bottom:20px;">
+            <p style="font-weight:600;font-size:13px;color:var(--ng-text);margin-bottom:4px;">{{ t('admin_nodes_core_access_title', locale) }}</p>
+            <p style="font-size:12px;color:var(--ng-text-muted);margin-bottom:12px;">{{ t('admin_nodes_core_access_intro', locale) }}</p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;">
+                <input
+                  type="radio"
+                  name="core_access_mode"
+                  value="ssh_key_only"
+                  style="margin-top:2px;"
+                  {% if selectedNode.coreAccessMode != 'ssh_key_password' %}checked{% endif %}
+                >
+                <span>
+                  <span style="font-weight:600;color:var(--ng-text);display:block;">{{ t('admin_nodes_core_access_key_only', locale) }}</span>
+                  <span style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_nodes_core_access_key_only_hint', locale) }}</span>
+                </span>
+              </label>
+              <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;">
+                <input
+                  type="radio"
+                  name="core_access_mode"
+                  value="ssh_key_password"
+                  style="margin-top:2px;"
+                  {% if selectedNode.coreAccessMode == 'ssh_key_password' %}checked{% endif %}
+                >
+                <span>
+                  <span style="font-weight:600;color:var(--ng-text);display:block;">{{ t('admin_nodes_core_access_key_password', locale) }}</span>
+                  <span style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_nodes_core_access_key_password_hint', locale) }}</span>
+                </span>
+              </label>
             </div>
-            <span class="badge {{ statusClass }}">{{ selectedNode.status|title }}</span>
-        </div>
-        <div class="role-toggle-group">
-            {% if selectedNode.roles is empty %}
-                <span class="text-xs text-slate-500">{{ t('admin_nodes_roles_empty', page_locale()) }}</span>
-            {% else %}
-                {% for role in selectedNode.roles %}
-                    <span class="role-chip role-chip--active">{{ role }}</span>
-                {% endfor %}
-            {% endif %}
-        </div>
-        <p class="mt-3 text-xs text-slate-500">{{ t('admin_nodes_roles_active_hint', page_locale()) }}</p>
+          </div>
+
+          <div class="ng-alert ng-alert--warning" style="margin-bottom:20px;">
+            <p style="font-weight:600;margin-bottom:4px;">{{ t('admin_nodes_panel_warning_title', locale) }}</p>
+            <p style="font-size:12px;margin-bottom:8px;">{{ t('admin_nodes_panel_warning_intro', locale) }}</p>
+            <ul style="font-size:12px;padding-left:18px;margin:0;display:flex;flex-direction:column;gap:4px;">
+              <li>{{ t('admin_nodes_panel_warning_roles', locale) }}</li>
+              <li>{{ t('admin_nodes_panel_warning_examples', locale) }}</li>
+            </ul>
+          </div>
+
+          <button class="ui-button ui-button--primary" type="submit">{{ t('admin_nodes_update_roles', locale) }}</button>
+        </form>
+      </div>
     </div>
 
-    <div class="nodes-layout">
-        <div class="nodes-card">
-            <div class="nodes-card__header">
-                <div>
-                    <h2 class="nodes-card__title">{{ t('admin_nodes_roles_section', page_locale()) }}</h2>
-                    <p class="nodes-card__subtitle">{{ t('admin_nodes_roles_section_intro', page_locale()) }}</p>
-                </div>
-            </div>
-            <form
-                method="post"
-                action="/admin/nodes/{{ selectedNode.id }}/roles"
-            >
-                <div class="role-toggle-group">
-                    {% for roleOption in roleOptions %}
-                        {% set roleKey = roleOption|lower %}
-                        <label class="role-toggle">
-                            <input
-                                type="checkbox"
-                                name="roles[]"
-                                value="{{ roleOption }}"
-                                {% if roleKey in selectedNode.roleKeys %}checked{% endif %}
-                                aria-label="{{ roleOption }}"
-                            >
-                            <span>{{ roleOption }}</span>
-                        </label>
-                    {% endfor %}
-                </div>
-
-                <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    <p class="font-semibold text-slate-900">{{ t('admin_nodes_core_access_title', page_locale()) }}</p>
-                    <p class="mt-1 text-xs text-slate-600">{{ t('admin_nodes_core_access_intro', page_locale()) }}</p>
-                    <div class="mt-4 space-y-2">
-                        <label class="flex items-start gap-2 text-sm text-slate-700">
-                            <input
-                                type="radio"
-                                name="core_access_mode"
-                                value="ssh_key_only"
-                                class="mt-1"
-                                {% if selectedNode.coreAccessMode != 'ssh_key_password' %}checked{% endif %}
-                            >
-                            <span>
-                                <span class="font-semibold text-slate-900">{{ t('admin_nodes_core_access_key_only', page_locale()) }}</span>
-                                <span class="block text-xs text-slate-600">{{ t('admin_nodes_core_access_key_only_hint', page_locale()) }}</span>
-                            </span>
-                        </label>
-                        <label class="flex items-start gap-2 text-sm text-slate-700">
-                            <input
-                                type="radio"
-                                name="core_access_mode"
-                                value="ssh_key_password"
-                                class="mt-1"
-                                {% if selectedNode.coreAccessMode == 'ssh_key_password' %}checked{% endif %}
-                            >
-                            <span>
-                                <span class="font-semibold text-slate-900">{{ t('admin_nodes_core_access_key_password', page_locale()) }}</span>
-                                <span class="block text-xs text-slate-600">{{ t('admin_nodes_core_access_key_password_hint', page_locale()) }}</span>
-                            </span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    <p class="font-semibold">{{ t('admin_nodes_panel_warning_title', page_locale()) }}</p>
-                    <p class="mt-1 text-xs text-amber-800">{{ t('admin_nodes_panel_warning_intro', page_locale()) }}</p>
-                    <ul class="mt-3 list-disc pl-5 text-xs text-amber-800 space-y-1">
-                        <li>{{ t('admin_nodes_panel_warning_roles', page_locale()) }}</li>
-                        <li>{{ t('admin_nodes_panel_warning_examples', page_locale()) }}</li>
-                    </ul>
-                </div>
-
-                <button class="btn btn--primary mt-6" type="submit">{{ t('admin_nodes_update_roles', page_locale()) }}</button>
-            </form>
+    <aside class="ng-data-card">
+      <div class="ng-data-card__header">
+        <div>
+          <h2 class="ng-data-card__title">{{ t('admin_nodes_roles_explain_title', locale) }}</h2>
+          <p class="ng-data-card__sub">{{ t('admin_nodes_roles_explain_intro', locale) }}</p>
         </div>
+      </div>
+      <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:14px;">
+        {% for roleName, roleKey in {
+          'Core': 'core',
+          'Web': 'web',
+          'Mail': 'mail',
+          'DNS': 'dns',
+          'Game': 'game',
+          'DB': 'db',
+          'TS3': 'ts3',
+          'TS6': 'ts6',
+          'Sinusbot': 'sinusbot'
+        } %}
+          <div>
+            <p style="font-weight:600;font-size:13px;color:var(--ng-text);margin-bottom:2px;">{{ roleName }}</p>
+            <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_nodes_role_' ~ roleKey ~ '_description', locale) }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    </aside>
 
-        <aside class="nodes-card">
-            <div class="nodes-card__header">
-                <div>
-                    <h2 class="nodes-card__title">{{ t('admin_nodes_roles_explain_title', page_locale()) }}</h2>
-                    <p class="nodes-card__subtitle">{{ t('admin_nodes_roles_explain_intro', page_locale()) }}</p>
-                </div>
-            </div>
-            <div class="space-y-4 text-sm text-slate-700">
-                <div>
-                    <p class="font-semibold text-slate-900">Core</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_core_description', page_locale()) }}</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-900">Web</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_web_description', page_locale()) }}</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-900">Mail</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_mail_description', page_locale()) }}</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-900">DNS</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_dns_description', page_locale()) }}</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-900">Game</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_game_description', page_locale()) }}</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-900">DB</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_db_description', page_locale()) }}</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-900">TS3</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_ts3_description', page_locale()) }}</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-900">TS6</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_ts6_description', page_locale()) }}</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-900">Sinusbot</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_nodes_role_sinusbot_description', page_locale()) }}</p>
-                </div>
-            </div>
-        </aside>
-    </div>
-</section>
+  </div>
+
+</div>
 {% endblock %}
