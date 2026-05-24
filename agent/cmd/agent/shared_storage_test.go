@@ -546,7 +546,6 @@ func TestShouldUseSharedStorage_SharedPathsAloneDoesNotActivate(t *testing.T) {
 func TestShouldUseSharedStorage_ActivatesForSharedFlagsAndModes(t *testing.T) {
 	cases := []map[string]any{
 		{"shared_enabled": true},
-		{"shared_key": "1"},
 		{"install_mode": "shared"},
 	}
 	for i, payload := range cases {

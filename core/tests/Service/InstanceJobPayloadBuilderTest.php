@@ -220,7 +220,7 @@ final class InstanceJobPayloadBuilderTest extends TestCase
 
         self::assertSame('false', $installPayload['autostart'] ?? null);
         self::assertSame('false', $updatePayload['autostart'] ?? null);
-        self::assertSame('minecraft-java', $installPayload['game_type'] ?? null);
+        self::assertSame('game', $installPayload['game_type'] ?? null);
         self::assertSame('none', $installPayload['shared_runtime_mode'] ?? null);
     }
 

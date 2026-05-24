@@ -1695,11 +1695,15 @@ final class AdminNodeController
     private function resolveAgentAssetName(string $os, string $arch): ?string
     {
         if ($os === 'linux' && $arch === 'amd64') {
-            return 'easywi-agent-linux-amd64';
+            return 'easywi-agent-linux-amd64.tar.gz';
+        }
+
+        if ($os === 'linux' && $arch === 'arm64') {
+            return 'easywi-agent-linux-arm64.tar.gz';
         }
 
         if ($os === 'windows' && $arch === 'amd64') {
-            return 'easywi-agent-windows-amd64.exe';
+            return 'easywi-agent-windows-amd64.zip';
         }
 
         return null;

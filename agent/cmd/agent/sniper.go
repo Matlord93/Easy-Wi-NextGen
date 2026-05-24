@@ -520,7 +520,8 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	sharedEnabled := shouldUseSharedStorage(job.Payload, "sniper_"+action) && len(sharedSpecs) > 0
+	sharedContextActive := shouldUseSharedStorage(job.Payload, "sniper_"+action) && len(sharedSpecs) > 0
+	sharedEnabled := sharedContextActive && action == "install"
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
 	}
@@ -618,7 +619,11 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		command = replaceSteamCmdExecutable(command, steamCmdExecPath)
 	}
 
-	installTargetDir := instanceDir
+	installRoot := userHomeDir
+	installRootSource := "existing_instance"
+	installTargetDir := installRoot
+	runtimeRoot := instanceDir
+	sharedInstallRoot := ""
 	sharedKey := ""
 	gameType, gameTypeSource := resolveGameType(job.Payload)
 	sharedRuntimeMode := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "shared_runtime_mode")))
@@ -641,6 +646,13 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 		sharedEnabled = false
 	}
+	if action == "update" {
+		installTargetDir = installRoot
+		if logSender != nil && job.ID != "" {
+			logSender.Send(job.ID, []string{"shared_runtime_validation_required=false", "runtime_prepare_required=false", "shared_context_active=false"}, nil)
+		}
+	}
+
 	if sharedEnabled {
 		k, err := buildSharedKey(job.Payload)
 		if err != nil {
@@ -655,6 +667,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			return failureResult(job.ID, prepErr)
 		}
 		installTargetDir = commandWorkDir
+		sharedInstallRoot = commandWorkDir
 		if logSender != nil && job.ID != "" {
 			logSender.Send(job.ID, []string{
 				fmt.Sprintf("shared_root created/prepared: %s", filepath.Join(baseDir, "Shared")),
@@ -669,7 +682,9 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	if logSender != nil && job.ID != "" {
-		logSharedValidationState(logSender, job.ID, "sniper_"+action, job.Payload, sharedSpecs, sharedEnabled, installTargetDir)
+		if action != "update" {
+			logSharedValidationState(logSender, job.ID, "sniper_"+action, job.Payload, sharedSpecs, sharedEnabled, installTargetDir)
+		}
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("game_type=%s", gameType),
 			fmt.Sprintf("game_type_source=%s", gameTypeSource),
@@ -764,6 +779,17 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			logSender.Send(job.ID, []string{"steam_app_id_missing"}, nil)
 		}
 		logSender.Send(job.ID, []string{
+			fmt.Sprintf("job_type=normal_%s", action),
+			fmt.Sprintf("install_root=%s", installRoot),
+			fmt.Sprintf("runtime_root=%s", runtimeRoot),
+			fmt.Sprintf("shared_install_root=%s", sharedInstallRoot),
+			fmt.Sprintf("install_root_source=%s", installRootSource),
+			fmt.Sprintf("force_install_dir=%s", installTargetDir),
+			fmt.Sprintf("command_work_dir=%s", commandWorkDir),
+			fmt.Sprintf("shared_enabled=%t", sharedEnabled),
+			fmt.Sprintf("shared_context_active=%t", sharedContextActive),
+			fmt.Sprintf("shared_runtime_validation_required=%t", action != "update"),
+			fmt.Sprintf("runtime_prepare_required=%t", action != "update"),
 			fmt.Sprintf("sniper %s starting (steam_app_id=%s uses_steamcmd=%t command=%s)", action, steamAppID, usesSteamCmd, maskedInstall),
 		}, nil)
 		if sharedEnabled && usesSteamCmd {

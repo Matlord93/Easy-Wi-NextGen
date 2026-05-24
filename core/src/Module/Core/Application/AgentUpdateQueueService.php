@@ -16,7 +16,7 @@ final class AgentUpdateQueueService
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
-        private readonly AgentReleaseChecker $releaseChecker,
+        private readonly AgentReleaseCheckerInterface $releaseChecker,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -213,11 +213,15 @@ final class AgentUpdateQueueService
     private function resolveAgentAssetName(string $os, string $arch): ?string
     {
         if ($os === 'linux' && $arch === 'amd64') {
-            return 'easywi-agent-linux-amd64';
+            return 'easywi-agent-linux-amd64.tar.gz';
+        }
+
+        if ($os === 'linux' && $arch === 'arm64') {
+            return 'easywi-agent-linux-arm64.tar.gz';
         }
 
         if ($os === 'windows' && $arch === 'amd64') {
-            return 'easywi-agent-windows-amd64.exe';
+            return 'easywi-agent-windows-amd64.zip';
         }
 
         return null;
@@ -260,10 +264,16 @@ final class AgentUpdateQueueService
 
             $analysis = $this->analyzeAgentUpdatePayload($agent, $latestVersion, $channel);
             if (($analysis['payload'] ?? null) === null) {
+                $stats = $agent->getLastHeartbeatStats() ?? [];
+                $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
+                $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
+                $expectedAssetName = $this->resolveAgentAssetName($os, $arch);
+
                 $skipped[] = [
                     'agentId' => $agent->getId(),
                     'agentName' => $agent->getName() ?? '',
                     'reason' => (string) ($analysis['reason'] ?? 'release_check_failed'),
+                    'expectedAssetName' => $expectedAssetName,
                 ];
                 continue;
             }

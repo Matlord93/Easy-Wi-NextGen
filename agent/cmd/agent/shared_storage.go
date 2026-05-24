@@ -305,16 +305,21 @@ func parseSharedPathSpecs(payload map[string]any) ([]sharedPathSpec, error) {
 
 func shouldUseSharedStorage(payload map[string]any, action string) bool {
 	sharedEnabled := parsePayloadBool(payloadValue(payload, "shared_enabled", "use_shared_storage"), false)
-	sharedKey := strings.TrimSpace(payloadValue(payload, "shared_key"))
 	installMode := strings.ToLower(strings.TrimSpace(payloadValue(payload, "install_mode", "mode")))
 
 	isSharedAction := strings.HasPrefix(action, "shared_") || installMode == "shared" || installMode == "shared_reinstall" || installMode == "shared_update"
+	if action == "sniper_update" && !isSharedAction {
+		return false
+	}
+	if action == "sniper_install" && !isSharedAction && !sharedEnabled {
+		return false
+	}
 	mode := strings.ToLower(strings.TrimSpace(payloadValue(payload, "shared_runtime_mode")))
 	gameType, _ := resolveGameType(payload)
 	if mode == "none" || strings.Contains(gameType, "minecraft") {
 		return false
 	}
-	return sharedEnabled || sharedKey != "" || isSharedAction || mode == "bind" || mode == "overlay" || mode == "bind_overlay"
+	return sharedEnabled || isSharedAction || mode == "bind" || mode == "overlay" || mode == "bind_overlay"
 }
 
 func resolveGameType(payload map[string]any) (string, string) {

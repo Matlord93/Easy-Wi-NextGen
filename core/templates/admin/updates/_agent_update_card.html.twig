@@ -114,7 +114,7 @@
             <strong>{{ t('admin_updates_agents_skipped_title', page_locale()) }}</strong>
             <ul style="margin:8px 0 0 16px;padding:0;display:flex;flex-direction:column;gap:4px;">
                 {% for row in agentUpdate.skippedUpdates %}
-                    <li>{{ row.agentName ?: row.agentId }} · {{ t('admin_updates_agents_reason_' ~ row.reason, page_locale()) }}</li>
+                    <li>{{ row.agentName ?: row.agentId }} · {{ t('admin_updates_agents_reason_' ~ row.reason, page_locale()) }}{% if row.expectedAssetName is defined and row.expectedAssetName %}. {{ t('admin_updates_agents_expected_asset', page_locale()) }}: <code>{{ row.expectedAssetName }}</code>{% endif %}</li>
                 {% endfor %}
             </ul>
         </div>

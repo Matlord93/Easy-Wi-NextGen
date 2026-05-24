@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Module\Core\Application\AgentReleaseChecker;
+use App\Module\Core\Application\AgentReleaseCheckerInterface;
 use App\Module\Core\Application\AgentUpdateQueueService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
@@ -23,11 +24,11 @@ final class AgentUpdateQueueServiceTest extends TestCase
         $runningJob->transitionTo(JobStatus::Running);
 
         $service = $this->createService([$runningJob], [
-            'easywi-agent-linux-amd64' => [
+            'easywi-agent-linux-amd64.tar.gz' => [
                 'version' => 'v1.2.0',
                 'download_url' => 'https://example.invalid/agent',
                 'checksums_url' => 'https://example.invalid/checksums',
-                'asset_name' => 'easywi-agent-linux-amd64',
+                'asset_name' => 'easywi-agent-linux-amd64.tar.gz',
             ],
         ]);
 
@@ -38,15 +39,22 @@ final class AgentUpdateQueueServiceTest extends TestCase
         self::assertCount(0, $analysis['eligible']);
     }
 
-    public function testAnalyzeManualCandidatesSkipsUnsupportedPlatform(): void
+    public function testAnalyzeManualCandidatesSupportsLinuxArm64TarGz(): void
     {
         $agent = $this->createAgent('agent-arm', 'linux', 'arm64');
-        $service = $this->createService([], []);
+        $service = $this->createService([], [
+            'easywi-agent-linux-arm64.tar.gz' => [
+                'version' => 'v1.2.0',
+                'download_url' => 'https://example.invalid/agent-arm64.tar.gz',
+                'checksums_url' => 'https://example.invalid/checksums',
+                'asset_name' => 'easywi-agent-linux-arm64.tar.gz',
+            ],
+        ]);
 
         $analysis = $service->analyzeManualUpdateCandidates([$agent], 'v1.2.0', AgentReleaseChecker::CHANNEL_STABLE);
 
-        self::assertCount(1, $analysis['skipped']);
-        self::assertSame('unsupported_platform', $analysis['skipped'][0]['reason']);
+        self::assertCount(1, $analysis['eligible']);
+        self::assertCount(0, $analysis['skipped']);
     }
 
     public function testAnalyzeManualCandidatesSkipsWhenNoReleaseAssetFound(): void
@@ -58,6 +66,7 @@ final class AgentUpdateQueueServiceTest extends TestCase
 
         self::assertCount(1, $analysis['skipped']);
         self::assertSame('no_release_asset', $analysis['skipped'][0]['reason']);
+        self::assertSame('easywi-agent-linux-amd64.tar.gz', $analysis['skipped'][0]['expectedAssetName']);
     }
 
     private function createAgent(string $id, string $os = 'linux', string $arch = 'amd64'): Agent
@@ -73,7 +82,7 @@ final class AgentUpdateQueueServiceTest extends TestCase
     {
         $agentRepository = $this->createMock(AgentRepository::class);
         $jobRepository = $this->createMock(JobRepository::class);
-        $releaseChecker = $this->createMock(AgentReleaseChecker::class);
+        $releaseChecker = $this->createMock(AgentReleaseCheckerInterface::class);
         $entityManager = $this->createMock(EntityManagerInterface::class);
 
         $jobRepository->method('findLatestByType')->willReturnCallback(static function (string $type) use ($jobs): array {

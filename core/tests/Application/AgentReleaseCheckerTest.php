@@ -238,6 +238,41 @@ final class AgentReleaseCheckerTest extends TestCase
         self::assertSame(2, $requests);
     }
 
+
+
+    public function testReleaseAssetSupportsTarGzAndZipWithPlatformChecksumFallback(): void
+    {
+        $response = new MockResponse((string) json_encode([[
+            'draft' => false,
+            'prerelease' => true,
+            'tag_name' => 'v0.9.8.2-dev.20260521.1',
+            'assets' => [
+                ['name' => 'checksums-agent-linux.txt', 'browser_download_url' => 'https://example.invalid/checksums-agent-linux.txt'],
+                ['name' => 'checksums-agent-windows.txt', 'browser_download_url' => 'https://example.invalid/checksums-agent-windows.txt'],
+                ['name' => 'easywi-agent-linux-amd64.tar.gz', 'browser_download_url' => 'https://example.invalid/easywi-agent-linux-amd64.tar.gz'],
+                ['name' => 'easywi-agent-linux-arm64.tar.gz', 'browser_download_url' => 'https://example.invalid/easywi-agent-linux-arm64.tar.gz'],
+                ['name' => 'easywi-agent-windows-amd64.zip', 'browser_download_url' => 'https://example.invalid/easywi-agent-windows-amd64.zip'],
+            ],
+        ]], JSON_THROW_ON_ERROR));
+
+        $checker = new AgentReleaseChecker(
+            new ArrayAdapter(),
+            'Matlord93/Easy-Wi-NextGen',
+            3600,
+            'dev',
+            new GithubReleaseResolver(new MockHttpClient([$response])),
+        );
+
+        $linux = $checker->getReleaseAssetUrlsForChannel('easywi-agent-linux-amd64.tar.gz', 'dev');
+        $arm = $checker->getReleaseAssetUrlsForChannel('easywi-agent-linux-arm64.tar.gz', 'dev');
+        $win = $checker->getReleaseAssetUrlsForChannel('easywi-agent-windows-amd64.zip', 'dev');
+
+        self::assertSame('easywi-agent-linux-amd64.tar.gz', $linux['asset_name'] ?? null);
+        self::assertSame('https://example.invalid/checksums-agent-linux.txt', $linux['checksums_url'] ?? null);
+        self::assertSame('easywi-agent-linux-arm64.tar.gz', $arm['asset_name'] ?? null);
+        self::assertSame('easywi-agent-windows-amd64.zip', $win['asset_name'] ?? null);
+        self::assertSame('https://example.invalid/checksums-agent-windows.txt', $win['checksums_url'] ?? null);
+    }
     private function checker(string $channel): AgentReleaseChecker
     {
         return new AgentReleaseChecker(

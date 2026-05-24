@@ -6,10 +6,15 @@ namespace App\Module\Core\Application;
 
 use Psr\Cache\CacheItemPoolInterface;
 
-final class AgentReleaseChecker
+final class AgentReleaseChecker implements AgentReleaseCheckerInterface
 {
     private const CACHE_KEY = 'agent.latest_release_version';
     private const CHECKSUMS_ASSET = 'checksums-agent.txt';
+    /** @var array<string, string> */
+    private const PLATFORM_CHECKSUM_ASSETS = [
+        'linux' => 'checksums-agent-linux.txt',
+        'windows' => 'checksums-agent-windows.txt',
+    ];
     private const SIGNATURE_ASSET = 'checksums-agent.txt.asc';
 
     public const CHANNEL_STABLE = GithubReleaseResolver::CHANNEL_STABLE;
@@ -79,16 +84,24 @@ final class AgentReleaseChecker
             return null;
         }
 
-        return $this->resolver()->getLatestAsset(
-            $this->repository,
-            $channel,
-            $assetName,
-            self::CHECKSUMS_ASSET,
-            self::SIGNATURE_ASSET,
-            $targetVersion,
-            'agent',
-            $force,
-        );
+        $checksumsAssets = $this->resolveChecksumAssetCandidates($assetName);
+        foreach ($checksumsAssets as $checksumsAsset) {
+            $release = $this->resolver()->getLatestAsset(
+                $this->repository,
+                $channel,
+                $assetName,
+                $checksumsAsset,
+                self::SIGNATURE_ASSET,
+                $targetVersion,
+                'agent',
+                $force,
+            );
+            if ($release !== null) {
+                return $release;
+            }
+        }
+
+        return null;
     }
 
     public function isUpdateAvailable(?string $currentVersion, ?string $latestVersion = null): ?bool
@@ -160,6 +173,19 @@ final class AgentReleaseChecker
             'checksums_url' => $selected['checksums_url'],
             'signature_url' => $selected['signature_url'],
         ];
+    }
+
+    /** @return list<string> */
+    private function resolveChecksumAssetCandidates(string $assetName): array
+    {
+        $lower = strtolower($assetName);
+        foreach (self::PLATFORM_CHECKSUM_ASSETS as $platform => $checksumAsset) {
+            if (str_contains($lower, '-' . $platform . '-')) {
+                return [$checksumAsset, self::CHECKSUMS_ASSET];
+            }
+        }
+
+        return [self::CHECKSUMS_ASSET];
     }
 
     private function resolver(): GithubReleaseResolver

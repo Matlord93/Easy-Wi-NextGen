@@ -437,3 +437,22 @@ func TestSteamCmdSuccessReasonNoOutput(t *testing.T) {
 		t.Fatalf("expected steamcmd_no_output, got %q", got)
 	}
 }
+
+func TestShouldUseSharedStorageDisabledForNormalSniperUpdate(t *testing.T) {
+	payload := map[string]any{
+		"shared_enabled":      "true",
+		"shared_runtime_mode": "bind",
+		"game_type":           "cs2",
+	}
+	if shouldUseSharedStorage(payload, "sniper_update") {
+		t.Fatalf("expected normal sniper update to keep shared runtime disabled")
+	}
+}
+
+func TestNormalizeSteamCmdInstallDirKeepsHistoricalHomeInstallRoot(t *testing.T) {
+	command := "steamcmd +force_install_dir /home/gs25/game +login anonymous +app_update 730 +quit"
+	normalized := normalizeSteamCmdInstallDir(command, "/home/gs25")
+	if !strings.Contains(normalized, "+force_install_dir /home/gs25 ") {
+		t.Fatalf("expected force_install_dir to use historical home install root, got %q", normalized)
+	}
+}
