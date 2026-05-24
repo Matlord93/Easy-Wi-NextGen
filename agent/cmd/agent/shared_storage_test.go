@@ -20,7 +20,7 @@ func TestParseSharedPathSpecs_Empty(t *testing.T) {
 	}
 }
 
-func TestApplySharedPaths_CreatesSymlink(t *testing.T) {
+func TestApplySharedPaths_LegacySymlinkRejected(t *testing.T) {
 	base := t.TempDir()
 	instanceDir := filepath.Join(base, "servers", "s1")
 	_ = os.MkdirAll(instanceDir, 0o755)
@@ -31,12 +31,8 @@ func TestApplySharedPaths_CreatesSymlink(t *testing.T) {
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
 
 	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
-	if err != nil {
-		t.Fatalf("applySharedPaths failed: %v", err)
-	}
-	info, err := os.Lstat(filepath.Join(instanceDir, "maps"))
-	if err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("expected symlink")
+	if err == nil || !strings.Contains(err.Error(), "shared_runtime_legacy_removed") {
+		t.Fatalf("expected legacy mode rejection, got %v", err)
 	}
 }
 
@@ -116,12 +112,8 @@ func TestApplySharedPathsExistingEmptyDirReplaced(t *testing.T) {
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
 	_ = os.MkdirAll(filepath.Join(instanceDir, "maps"), 0o755)
 	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	info, err := os.Lstat(filepath.Join(instanceDir, "maps"))
-	if err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("expected replacement by symlink")
+	if err == nil || !strings.Contains(err.Error(), "shared_runtime_legacy_removed") {
+		t.Fatalf("expected legacy mode rejection, got %v", err)
 	}
 }
 
@@ -136,21 +128,10 @@ func TestApplySharedPathsSeedsSharedFromExistingTarget(t *testing.T) {
 	}
 
 	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "symlink", ReadOnly: true}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "shared_runtime_legacy_removed") {
+		t.Fatalf("expected legacy mode rejection, got %v", err)
 	}
 
-	info, err := os.Lstat(targetPath)
-	if err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("expected target path to become symlink")
-	}
-	linked, err := os.Readlink(targetPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if filepath.Clean(linked) != filepath.Clean(filepath.Join(base, "Shared", "1", "server", "maps")) {
-		t.Fatalf("unexpected symlink target %q", linked)
-	}
 	if _, err := os.Stat(filepath.Join(base, "Shared", "1", "server", "maps", "asset.dat")); err != nil {
 		t.Fatalf("expected seeded asset in shared storage: %v", err)
 	}
@@ -203,19 +184,8 @@ func TestApplySharedPathsUsesProvidedSharedRootUppercase(t *testing.T) {
 	_ = os.MkdirAll(instanceDir, 0o755)
 	sharedRoot := filepath.Join(base, "Shared", "1", "server")
 	err := applySharedPaths(instanceDir, sharedRoot, []sharedPathSpec{{Source: "game/core", Target: "core", Mode: "symlink", ReadOnly: true}})
-	if err != nil {
-		t.Fatalf("applySharedPaths failed: %v", err)
-	}
-	linkTarget, err := os.Readlink(filepath.Join(instanceDir, "core"))
-	if err != nil {
-		t.Fatalf("readlink failed: %v", err)
-	}
-	expected := filepath.Join(base, "Shared", "1", "server", "game", "core")
-	if filepath.Clean(linkTarget) != filepath.Clean(expected) {
-		t.Fatalf("unexpected symlink target %q expected %q", linkTarget, expected)
-	}
-	if _, err := os.Stat(filepath.Join(base, "shared")); !os.IsNotExist(err) {
-		t.Fatalf("did not expect lowercase shared dir to be created")
+	if err == nil || !strings.Contains(err.Error(), "shared_runtime_legacy_removed") {
+		t.Fatalf("expected legacy mode rejection, got %v", err)
 	}
 }
 
@@ -238,21 +208,10 @@ func TestApplySharedPathsSeedsSharedFromExistingFileTarget(t *testing.T) {
 	}
 
 	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "game/csgo/pak01.vpk", Target: "game/csgo/pak01.vpk", Mode: "symlink", ReadOnly: true}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "shared_runtime_legacy_removed") {
+		t.Fatalf("expected legacy mode rejection, got %v", err)
 	}
 
-	info, err := os.Lstat(targetPath)
-	if err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("expected target file to become symlink")
-	}
-	linked, err := os.Readlink(targetPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if filepath.Clean(linked) != filepath.Clean(filepath.Join(base, "Shared", "1", "server", "game", "csgo", "pak01.vpk")) {
-		t.Fatalf("unexpected symlink target %q", linked)
-	}
 	seeded := filepath.Join(base, "Shared", "1", "server", "game", "csgo", "pak01.vpk")
 	data, err := os.ReadFile(seeded)
 	if err != nil {
@@ -263,67 +222,18 @@ func TestApplySharedPathsSeedsSharedFromExistingFileTarget(t *testing.T) {
 	}
 }
 
-func TestApplySharedPathsSharedTreeCreatesRealDirAndSymlinks(t *testing.T) {
+func TestApplySharedPathsOverlayFailsWithoutPrivileges(t *testing.T) {
 	base := t.TempDir()
 	instanceDir := filepath.Join(base, "servers", "s1")
 	_ = os.MkdirAll(instanceDir, 0o755)
 	t.Setenv("EASYWI_INSTANCE_BASE_DIR", base)
 	source := filepath.Join(base, "Shared", "1", "server", "game", "csgo")
 	_ = os.MkdirAll(filepath.Join(source, "cfg"), 0o755)
-	_ = os.WriteFile(filepath.Join(source, "cfg", "server.cfg"), []byte("local"), 0o644)
-	_ = os.WriteFile(filepath.Join(source, "gameinfo.gi"), []byte("gi"), 0o644)
-	_ = os.WriteFile(filepath.Join(source, "pak01_000.vpk"), []byte("vpk"), 0o644)
-	_ = os.WriteFile(filepath.Join(source, "pak01_001.vpk"), []byte("vpk"), 0o644)
-	_ = os.WriteFile(filepath.Join(source, "pak01_dir.vpk"), []byte("vpk"), 0o644)
-	_ = os.MkdirAll(filepath.Join(source, "maps"), 0o755)
 	target := filepath.Join(instanceDir, "csgo")
-	_ = os.MkdirAll(filepath.Join(target, "cfg"), 0o755)
-	_ = os.WriteFile(filepath.Join(target, "cfg", "local.cfg"), []byte("local"), 0o644)
-	_ = os.WriteFile(filepath.Join(target, "gameinfo.gi"), []byte("local-gi"), 0o644)
-	_ = os.WriteFile(filepath.Join(target, "pak01_000.vpk"), []byte("old-local-vpk"), 0o644)
-	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "game/csgo", Target: "csgo", Mode: "shared_tree", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if info, _ := os.Lstat(target); info.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("expected real target directory")
-	}
-	if info, _ := os.Lstat(filepath.Join(target, "cfg")); info.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("cfg must stay local")
-	}
-	if info, _ := os.Lstat(filepath.Join(target, "gameinfo.gi")); info.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("gameinfo.gi must stay local")
-	}
-	for _, name := range []string{"pak01_000.vpk", "pak01_001.vpk", "pak01_dir.vpk"} {
-		vpkPath := filepath.Join(target, name)
-		info, err := os.Lstat(vpkPath)
-		if err != nil {
-			t.Fatalf("expected %s: %v", name, err)
-		}
-		if info.Mode()&os.ModeSymlink == 0 {
-			t.Fatalf("%s should be symlink", name)
-		}
-		linkTarget, err := os.Readlink(vpkPath)
-		if err != nil {
-			t.Fatalf("readlink %s: %v", name, err)
-		}
-		expected := filepath.Join(base, "Shared", "1", "server", "game", "csgo", name)
-		if filepath.Clean(linkTarget) != filepath.Clean(expected) {
-			t.Fatalf("unexpected symlink target for %s: %q != %q", name, linkTarget, expected)
-		}
-	}
-	if info, _ := os.Lstat(filepath.Join(target, "maps")); info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("maps should be symlink")
-	}
-	if _, err := os.Stat(filepath.Join(target, "cfg", "server.cfg")); err != nil {
-		t.Fatalf("excluded cfg should be copied locally from shared source: %v", err)
-	}
-	matches, err := filepath.Glob(target + ".instance-backup*")
-	if err != nil {
-		t.Fatalf("glob backup paths: %v", err)
-	}
-	if len(matches) == 0 {
-		t.Fatalf("expected existing local tree backup for conflict")
+	_ = os.MkdirAll(target, 0o755)
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "game/csgo", Target: "csgo", Mode: "overlay", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}})
+	if err == nil || !strings.Contains(err.Error(), "shared_runtime_overlay_failed") {
+		t.Fatalf("expected overlay failure, got: %v", err)
 	}
 }
 
@@ -335,7 +245,7 @@ func TestCopyNonSharedFromServerSharedTreeCopiesOnlyExcludes(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(shared, "csgo", "gameinfo.gi"), []byte("x"), 0o644)
 	_ = os.WriteFile(filepath.Join(shared, "csgo", "pak01_000.vpk"), []byte("x"), 0o644)
 	_ = os.WriteFile(filepath.Join(shared, "csgo", "pak01_dir.vpk"), []byte("x"), 0o644)
-	if err := copyNonSharedFromServer(shared, instance, []sharedPathSpec{{Source: "csgo", Target: "csgo", Mode: "shared_tree", Exclude: []string{"cfg", "gameinfo.gi"}}}); err != nil {
+	if err := copyNonSharedFromServer(shared, instance, []sharedPathSpec{{Source: "csgo", Target: "csgo", Mode: "overlay", Exclude: []string{"cfg", "gameinfo.gi"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(instance, "csgo", "cfg", "server.cfg")); err != nil {
@@ -358,7 +268,7 @@ func TestCopyNonSharedFromServerSharedTreeUsesSourcePathNotTargetPath(t *testing
 	_ = os.WriteFile(filepath.Join(shared, "game", "csgo", "cfg", "server.cfg"), []byte("x"), 0o644)
 	_ = os.WriteFile(filepath.Join(shared, "game", "csgo", "gameinfo.gi"), []byte("x"), 0o644)
 	_ = os.WriteFile(filepath.Join(shared, "game", "csgo", "pak01_000.vpk"), []byte("x"), 0o644)
-	if err := copyNonSharedFromServer(shared, instance, []sharedPathSpec{{Source: "game/csgo", Target: "csgo", Mode: "shared_tree", Exclude: []string{"cfg", "gameinfo.gi"}}}); err != nil {
+	if err := copyNonSharedFromServer(shared, instance, []sharedPathSpec{{Source: "game/csgo", Target: "csgo", Mode: "overlay", Exclude: []string{"cfg", "gameinfo.gi"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(instance, "csgo", "cfg", "server.cfg")); err != nil {
@@ -368,7 +278,7 @@ func TestCopyNonSharedFromServerSharedTreeUsesSourcePathNotTargetPath(t *testing
 		t.Fatalf("expected copied exclude file from source path: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(instance, "csgo", "pak01_000.vpk")); err == nil {
-		t.Fatalf(".vpk must not be copied from shared_tree source path")
+		t.Fatalf(".vpk must not be copied from overlay source path")
 	}
 }
 
@@ -646,5 +556,60 @@ func TestShouldUseSharedStorage_ActivatesForSharedFlagsAndModes(t *testing.T) {
 	}
 	if !shouldUseSharedStorage(map[string]any{}, "shared_reinstall") {
 		t.Fatalf("expected shared action to activate shared validation")
+	}
+}
+
+func TestParseSharedPathSpecs_DefaultModeIsNone(t *testing.T) {
+	specs, err := parseSharedPathSpecs(map[string]any{
+		"shared_paths": []any{map[string]any{"source": "maps", "target": "maps", "readonly": true}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := specs[0].Mode; got != "none" {
+		t.Fatalf("expected default mode none, got %q", got)
+	}
+}
+
+func TestApplySharedPaths_BindUsesMountOps(t *testing.T) {
+	base := t.TempDir()
+	instanceDir := filepath.Join(base, "servers", "s1")
+	_ = os.MkdirAll(instanceDir, 0o755)
+	origBind, origCheck := bindMountFn, mountCheckFn
+	defer func() { bindMountFn, mountCheckFn = origBind, origCheck }()
+	bindMountFn = func(source, target string) error { return nil }
+	mountCheckFn = func(source, target string) (bool, error) { return true, nil }
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "bind", ReadOnly: true}})
+	if err != nil {
+		t.Fatalf("expected bind mount success via fake ops, got %v", err)
+	}
+	if info, statErr := os.Stat(filepath.Join(instanceDir, "maps")); statErr != nil || !info.IsDir() {
+		t.Fatalf("expected bind target path prepared")
+	}
+}
+
+func TestApplySharedPaths_OverlayUsesMountOps(t *testing.T) {
+	base := t.TempDir()
+	instanceDir := filepath.Join(base, "servers", "s1")
+	_ = os.MkdirAll(instanceDir, 0o755)
+	origOverlay := overlayMountFn
+	defer func() { overlayMountFn = origOverlay }()
+	overlayMountFn = func(lowerdir, upperdir, workdir, merged string) error { return nil }
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "overlay", ReadOnly: true}})
+	if err != nil {
+		t.Fatalf("expected overlay mount success via fake ops, got %v", err)
+	}
+	if info, statErr := os.Stat(filepath.Join(instanceDir, "maps")); statErr != nil || !info.IsDir() {
+		t.Fatalf("expected overlay merge target path prepared")
+	}
+}
+
+func TestApplySharedPaths_LegacySymlinkRemovedEvenWhenExplicit(t *testing.T) {
+	base := t.TempDir()
+	instanceDir := filepath.Join(base, "servers", "s1")
+	_ = os.MkdirAll(instanceDir, 0o755)
+	err := applySharedPaths(instanceDir, filepath.Join(base, "Shared", "1", "server"), []sharedPathSpec{{Source: "maps", Target: "maps", Mode: "legacy_symlink", ReadOnly: true}})
+	if err == nil || !strings.Contains(err.Error(), "shared_runtime_legacy_removed") {
+		t.Fatalf("expected legacy_symlink rejection, got %v", err)
 	}
 }

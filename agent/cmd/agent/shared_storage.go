@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +46,11 @@ var protectedNonSymlinkPatterns = []string{"cfg", "*/cfg", "gameinfo.gi", "*/gam
 
 var osChownFn = os.Chown
 var osLchownFn = os.Lchown
+var bindMountFn = func(source, target string) error { return runCommand("mount", "--bind", source, target) }
+var overlayMountFn = func(lowerdir, upperdir, workdir, merged string) error {
+	return runCommand("mount", "-t", "overlay", "overlay", "-o", fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", lowerdir, upperdir, workdir), merged)
+}
+var mountCheckFn = isBindMounted
 
 func chownInstanceTreeNoFollow(instanceDir, osUsername string) error {
 	uid, gid, err := lookupIDs(osUsername, osUsername)
@@ -199,7 +203,7 @@ func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPat
 		}
 		rel = filepath.Clean(rel)
 		for _, spec := range specs {
-			if spec.Mode != "shared_tree" {
+			if spec.Mode != "overlay" && spec.Mode != "bind_overlay" {
 				continue
 			}
 			mapped, ok, mapErr := mapSharedSourceRelToInstanceTargetRel(rel, spec)
@@ -249,7 +253,7 @@ func copyNonSharedFromServer(sharedServer, instanceDir string, specs []sharedPat
 func parseSharedPathSpecs(payload map[string]any) ([]sharedPathSpec, error) {
 	modeDefault := strings.ToLower(strings.TrimSpace(payloadValue(payload, "shared_runtime_mode")))
 	if modeDefault == "" {
-		modeDefault = "symlink"
+		modeDefault = "none"
 	}
 	raw, ok := payload["shared_paths"]
 	if !ok || raw == nil {
@@ -433,15 +437,23 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 
 	if info, err := os.Lstat(targetPath); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
+			log.Printf("legacy_shared_artifact_detected target=%s kind=symlink", targetPath)
 			if existing, readErr := os.Readlink(targetPath); readErr == nil {
 				resolvedExisting := existing
 				if !filepath.IsAbs(existing) {
 					resolvedExisting = filepath.Join(filepath.Dir(targetPath), existing)
 				}
 				if filepath.Clean(resolvedExisting) == filepath.Clean(sharedSource) {
-					return nil
+					if spec.Mode == "legacy_symlink" || spec.Mode == "symlink" {
+						return nil
+					}
+					if err := os.Remove(targetPath); err != nil {
+						return fmt.Errorf("cleanup_old_shared_link target=%s: %w", targetPath, err)
+					}
+					log.Printf("cleanup_old_shared_link target=%s", targetPath)
+				} else {
+					return fmt.Errorf("target %s is a symlink to %s (expected %s); refusing to replace automatically", targetPath, resolvedExisting, sharedSource)
 				}
-				return fmt.Errorf("target %s is a symlink to %s (expected %s); refusing to replace automatically", targetPath, resolvedExisting, sharedSource)
 			}
 		}
 		hasContent, contentErr := pathHasContent(targetPath)
@@ -462,22 +474,67 @@ func applyOneSharedPath(instanceDir, sharedRoot string, spec sharedPathSpec) err
 			}
 		}
 	}
-	if spec.Mode == "overlay" || spec.Mode == "bind_overlay" || spec.Mode == "shared_tree" {
-		return applySharedTree(sharedSource, targetPath, spec)
+	if spec.Mode == "bind" {
+		if err := prepareMountTarget(targetPath, sharedSource); err != nil {
+			return err
+		}
+		if err := bindMountFn(sharedSource, targetPath); err != nil {
+			return fmt.Errorf("shared_runtime_bind_failed: %w", err)
+		}
+		mounted, err := mountCheckFn(sharedSource, targetPath)
+		if err != nil || !mounted {
+			return errors.New("shared_runtime_bind_not_available")
+		}
+		return nil
 	}
-	return linkPath(sharedSource, targetPath, spec.Mode)
+	if spec.Mode == "overlay" || spec.Mode == "bind_overlay" {
+		overlayBase := filepath.Join(filepath.Dir(instanceDir), ".shared-runtime")
+		overlaySafe := strings.ReplaceAll(targetRel, string(filepath.Separator), "_")
+		upperdir := filepath.Join(overlayBase, overlaySafe, "upper")
+		workdir := filepath.Join(overlayBase, overlaySafe, "work")
+		if err := os.MkdirAll(upperdir, instanceDirMode); err != nil {
+			return fmt.Errorf("shared_runtime_overlay_failed: %w", err)
+		}
+		if err := os.MkdirAll(workdir, instanceDirMode); err != nil {
+			return fmt.Errorf("shared_runtime_overlay_failed: %w", err)
+		}
+		if err := prepareMountTarget(targetPath, sharedSource); err != nil {
+			return err
+		}
+		if err := overlayMountFn(sharedSource, upperdir, workdir, targetPath); err != nil {
+			return fmt.Errorf("shared_runtime_overlay_failed: %w", err)
+		}
+		return nil
+	}
+	if spec.Mode == "symlink" || spec.Mode == "legacy_symlink" || spec.Mode == "shared_tree" {
+		log.Printf("shared_runtime_legacy_removed mode=%s template_hint=%s migrate_to=bind_or_overlay", spec.Mode, spec.Source)
+		return errors.New("shared_runtime_legacy_removed")
+	}
+	if spec.Mode == "none" || spec.Mode == "" {
+		return errors.New("shared_runtime_mode_missing")
+	}
+	return fmt.Errorf("unsupported shared path mode %q", spec.Mode)
 }
 
-func linkPath(source, target, mode string) error {
-	switch mode {
-	case "symlink", "", "bind":
-		if runtime.GOOS == "windows" {
-			return os.Symlink(source, target)
-		}
-		return os.Symlink(source, target)
-	default:
-		return fmt.Errorf("unsupported shared path mode %q", mode)
+func prepareMountTarget(targetPath, sharedSource string) error {
+	info, err := os.Stat(sharedSource)
+	if err != nil {
+		return err
 	}
+	if info.IsDir() {
+		return os.MkdirAll(targetPath, instanceDirMode)
+	}
+	if err := os.MkdirAll(filepath.Dir(targetPath), instanceDirMode); err != nil {
+		return err
+	}
+	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+		f, createErr := os.OpenFile(targetPath, os.O_CREATE, instanceFileMode)
+		if createErr != nil {
+			return createErr
+		}
+		return f.Close()
+	}
+	return nil
 }
 
 func applySharedTree(sourceDir, targetDir string, spec sharedPathSpec) error {

@@ -51,33 +51,29 @@ func TestSharedPrepareUsesGameDir(t *testing.T) {
 	must(os.WriteFile(filepath.Join(shared, "game/bin/linuxsteamrt64/cs2"), []byte("bin"), 0o755))
 	must(os.MkdirAll(gameDir, 0o755))
 
-	specs := []sharedPathSpec{{Source: "game/bin", Target: "bin", Mode: "symlink", ReadOnly: true}, {Source: "game/platform", Target: "platform", Mode: "symlink", ReadOnly: true}, {Source: "game/core", Target: "core", Mode: "symlink", ReadOnly: true}, {Source: "game/csgo", Target: "csgo", Mode: "shared_tree", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}, {Source: "game/csgo_community_addons", Target: "csgo_community_addons", Mode: "symlink", ReadOnly: true}}
+	origBind, origOverlay, origCheck := bindMountFn, overlayMountFn, mountCheckFn
+	defer func() { bindMountFn, overlayMountFn, mountCheckFn = origBind, origOverlay, origCheck }()
+	bindMountFn = func(source, target string) error { return os.MkdirAll(target, 0o755) }
+	overlayMountFn = func(lowerdir, upperdir, workdir, merged string) error { return os.MkdirAll(merged, 0o755) }
+	mountCheckFn = func(source, target string) (bool, error) { return true, nil }
+	specs := []sharedPathSpec{{Source: "game/bin", Target: "bin", Mode: "bind", ReadOnly: true}, {Source: "game/platform", Target: "platform", Mode: "bind", ReadOnly: true}, {Source: "game/core", Target: "core", Mode: "bind", ReadOnly: true}, {Source: "game/csgo", Target: "csgo", Mode: "overlay", ReadOnly: true, Exclude: []string{"cfg", "gameinfo.gi"}}, {Source: "game/csgo_community_addons", Target: "csgo_community_addons", Mode: "bind", ReadOnly: true}}
 	must(copyNonSharedFromServer(shared, gameDir, specs))
 	must(applySharedPaths(gameDir, shared, specs))
 
-	if info, err := os.Lstat(filepath.Join(gameDir, "bin")); err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("bin symlink missing")
+	if info, err := os.Stat(filepath.Join(gameDir, "bin")); err != nil || !info.IsDir() {
+		t.Fatalf("bin mount target missing")
 	}
-	if info, err := os.Lstat(filepath.Join(gameDir, "platform")); err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("platform symlink missing")
+	if info, err := os.Stat(filepath.Join(gameDir, "platform")); err != nil || !info.IsDir() {
+		t.Fatalf("platform mount target missing")
 	}
-	if info, err := os.Lstat(filepath.Join(gameDir, "core")); err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("core symlink missing")
+	if info, err := os.Stat(filepath.Join(gameDir, "core")); err != nil || !info.IsDir() {
+		t.Fatalf("core mount target missing")
 	}
 	if info, err := os.Stat(filepath.Join(gameDir, "csgo")); err != nil || !info.IsDir() {
-		t.Fatalf("csgo dir missing")
+		t.Fatalf("csgo runtime dir missing")
 	}
-	if info, err := os.Lstat(filepath.Join(gameDir, "csgo/pak01_000.vpk")); err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("vpk symlink missing")
-	}
-	if _, err := os.Stat(filepath.Join(gameDir, "csgo/cfg/server.cfg")); err != nil {
-		t.Fatalf("local cfg missing: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(gameDir, "csgo/gameinfo.gi")); err != nil {
-		t.Fatalf("local gameinfo missing: %v", err)
-	}
-	if info, err := os.Lstat(filepath.Join(gameDir, "csgo_community_addons")); err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("addons symlink missing")
+	if info, err := os.Stat(filepath.Join(gameDir, "csgo_community_addons")); err != nil || !info.IsDir() {
+		t.Fatalf("addons mount target missing")
 	}
 	if _, err := os.Stat(filepath.Join(base, "home", "gs225", "core")); !os.IsNotExist(err) {
 		t.Fatalf("unexpected /home/gs225/core")
