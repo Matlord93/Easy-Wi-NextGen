@@ -150,7 +150,6 @@ func ApplyUpdateFromChecksums(ctx context.Context, opts UpdateFromChecksumsOptio
 	return UpdatePlan{BinaryPath: binaryPath}, nil
 }
 
-
 func prepareUpdateBinary(downloadedPath, assetName string) (string, error) {
 	asset := strings.ToLower(strings.TrimSpace(assetName))
 	switch {
