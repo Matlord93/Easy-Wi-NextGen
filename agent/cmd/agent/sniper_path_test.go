@@ -2,7 +2,9 @@ package main
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -82,5 +84,112 @@ func TestSharedPrepareUsesGameDir(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(base, "home", "gs225", "csgo")); !os.IsNotExist(err) {
 		t.Fatalf("unexpected /home/gs225/csgo")
+	}
+}
+
+func TestNormalizeRenderedStartCommandFixesDoubleGameSegment(t *testing.T) {
+	gameDir := "/home/gs226/game"
+	got := normalizeRenderedStartCommand("/home/gs226/game/game/cs2.sh -dedicated +map de_dust2", gameDir)
+	wantPrefix := "/home/gs226/game/cs2.sh"
+	if got[:len(wantPrefix)] != wantPrefix {
+		t.Fatalf("normalized start command=%q", got)
+	}
+	if filepath.Clean(resolveGameScriptPath(gameDir)) != "/home/gs226/game/cs2.sh" {
+		t.Fatalf("resolved game script path invalid")
+	}
+}
+
+func TestValidateGameScriptPathRejectsInvalidAndRequiresExecutable(t *testing.T) {
+	base := t.TempDir()
+	gameDir := filepath.Join(base, "home", "gs226", "game")
+	if err := os.MkdirAll(gameDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := filepath.Join(gameDir, "game", "cs2.sh") + " -dedicated"
+	_, _, _, err := validateGameScriptPath(gameDir, cmd)
+	if err == nil {
+		t.Fatalf("expected invalid path error")
+	}
+
+	script := filepath.Join(gameDir, "cs2.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, exists, executable, err := validateGameScriptPath(gameDir, script+" -dedicated")
+	if err == nil || !exists || executable {
+		t.Fatalf("expected non-executable script to fail, exists=%t executable=%t err=%v", exists, executable, err)
+	}
+
+	if err := os.Chmod(script, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, exists, executable, err = validateGameScriptPath(gameDir, script+" -dedicated +map de_dust2")
+	if err != nil || !exists || !executable {
+		t.Fatalf("expected valid executable script, exists=%t executable=%t err=%v", exists, executable, err)
+	}
+}
+
+func TestValidateSharedUpdatePermissionsHasConcreteReasonForInvalidUser(t *testing.T) {
+	base := t.TempDir()
+	sharedServer := filepath.Join(base, "Shared", "1", "server")
+	runScript := filepath.Join(sharedServer, ".update", "run.txt")
+	steamCmd := filepath.Join(sharedServer, ".steamcmd", "steamcmd.sh")
+	lockPath := filepath.Join(sharedServer, ".locks", "shared_update.lock")
+	if err := os.MkdirAll(sharedServer, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(runScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(steamCmd), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runScript, []byte("quit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(steamCmd, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := validateSharedUpdatePermissions(sharedServer, runScript, steamCmd, lockPath, "user-does-not-exist", "sharedsrv_1")
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "lock_command_invalid") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateSharedUpdatePermissionsExposesLockPaths(t *testing.T) {
+	base := t.TempDir()
+	sharedServer := filepath.Join(base, "Shared", "1", "server")
+	runScript := filepath.Join(sharedServer, ".update", "run.txt")
+	steamCmd := filepath.Join(sharedServer, ".steamcmd", "steamcmd.sh")
+	lockPath := filepath.Join(sharedServer, ".locks", "shared_update.lock")
+	if err := os.MkdirAll(sharedServer, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(runScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(steamCmd), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runScript, []byte("quit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(steamCmd, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	current, err := user.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	details, _ := validateSharedUpdatePermissions(sharedServer, runScript, steamCmd, lockPath, current.Username, "sharedsrv_1")
+	if details.LockDir != filepath.Join(sharedServer, ".locks") {
+		t.Fatalf("lock dir mismatch: %s", details.LockDir)
+	}
+	if details.LockPath != lockPath {
+		t.Fatalf("lock path mismatch: %s", details.LockPath)
 	}
 }

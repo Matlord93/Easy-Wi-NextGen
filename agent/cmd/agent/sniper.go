@@ -201,10 +201,22 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 			logSender.Send(job.ID, []string{"shared update failed", "reason=runscript_not_readable", "Job failed"}, nil)
 			return failureResult(job.ID, err)
 		}
-		if permErr := validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPath, sharedLockPath(baseDir, sharedKey), osUsername); permErr != nil {
-			err = fmt.Errorf("shared_permissions_invalid: %w", permErr)
+		lockPath := sharedLockPath(baseDir, sharedKey)
+		lockDetails, permErr := validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPath, lockPath, osUsername, sharedGroupName(sharedKey))
+		logSender.Send(job.ID, []string{
+			fmt.Sprintf("lock_dir=%s", lockDetails.LockDir),
+			fmt.Sprintf("lock_path=%s", lockDetails.LockPath),
+			fmt.Sprintf("lock_test_command=%s", lockDetails.LockTestCommand),
+			fmt.Sprintf("effective_groups=%s", lockDetails.EffectiveGroups),
+			fmt.Sprintf("shared_group_member=%t", lockDetails.SharedGroupMember),
+			fmt.Sprintf("lock_test_exit_code=%d", lockDetails.ExitCode),
+			fmt.Sprintf("lock_test_stdout=%s", lockDetails.Stdout),
+			fmt.Sprintf("lock_test_stderr=%s", lockDetails.Stderr),
+		}, nil)
+		if permErr != nil {
+			err = permErr
 			_ = markSharedManifestFailed(manifestPath, err)
-			logSender.Send(job.ID, []string{"shared update failed", "reason=shared_permissions_invalid", "Job failed"}, nil)
+			logSender.Send(job.ID, []string{"shared update failed", fmt.Sprintf("reason=%s", err.Error()), "Job failed"}, nil)
 			return failureResult(job.ID, err)
 		}
 	}
@@ -675,6 +687,13 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
 	}
+	renderedStartParams = normalizeRenderedStartCommand(renderedStartParams, instanceDir)
+	resolvedScriptPath, scriptExists, scriptExecutable, scriptErr := validateGameScriptPath(instanceDir, renderedStartParams)
+	log.Printf("game_dir=%s resolved_script_path=%s script_exists=%t script_executable=%t shared_enabled=%t shared_key=%s", instanceDir, resolvedScriptPath, scriptExists, scriptExecutable, sharedEnabled, sharedKey)
+	if scriptErr != nil {
+		markSharedFailure(scriptErr)
+		return failureResult(job.ID, scriptErr)
+	}
 	startScriptPath, err := writeStartScript(userHomeDir, renderedStartParams)
 	if err != nil {
 		markSharedFailure(err)
@@ -754,6 +773,45 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}, nil
 }
 
+
+func resolveGameScriptPath(gameDir string) string {
+	return filepath.Clean(filepath.Join(gameDir, "cs2.sh"))
+}
+
+func normalizeRenderedStartCommand(startCommand, gameDir string) string {
+	if strings.TrimSpace(startCommand) == "" {
+		return startCommand
+	}
+	resolved := resolveGameScriptPath(gameDir)
+	badPath := filepath.Clean(filepath.Join(gameDir, "game", "cs2.sh"))
+	if badPath != resolved {
+		startCommand = strings.ReplaceAll(startCommand, badPath, resolved)
+	}
+	return strings.ReplaceAll(startCommand, "//", "/")
+}
+
+func validateGameScriptPath(gameDir, startCommand string) (string, bool, bool, error) {
+	resolved := resolveGameScriptPath(gameDir)
+	cleanResolved := filepath.Clean(resolved)
+	if strings.Contains(cleanResolved, string(os.PathSeparator)+"game"+string(os.PathSeparator)+"game"+string(os.PathSeparator)) || strings.Contains(cleanResolved, string(os.PathSeparator)+"server"+string(os.PathSeparator)+"server"+string(os.PathSeparator)) {
+		return cleanResolved, false, false, fmt.Errorf("invalid_game_script_path resolved_path=%s", cleanResolved)
+	}
+	if !strings.Contains(startCommand, cleanResolved) {
+		return cleanResolved, false, false, fmt.Errorf("invalid_game_script_path resolved_path=%s", cleanResolved)
+	}
+	st, err := os.Stat(cleanResolved)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return cleanResolved, false, false, fmt.Errorf("invalid_game_script_path resolved_path=%s", cleanResolved)
+		}
+		return cleanResolved, false, false, err
+	}
+	execOk := st.Mode()&0o111 != 0
+	if !execOk {
+		return cleanResolved, true, false, fmt.Errorf("invalid_game_script_path resolved_path=%s", cleanResolved)
+	}
+	return cleanResolved, true, true, nil
+}
 func resolveSniperUserHomeAndGameDir(payloadInstallPath string, osUsername string) (string, string, error) {
 	installPath := filepath.Clean(strings.TrimSpace(payloadInstallPath))
 	if installPath == "" || !filepath.IsAbs(installPath) {
@@ -960,26 +1018,98 @@ func ensureSharedGroupAndMembership(groupName, username string) error {
 	return nil
 }
 
-func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPath, lockPath, username string) error {
+type sharedLockValidationDetails struct {
+	LockDir           string
+	LockPath          string
+	LockTestCommand   string
+	EffectiveGroups   string
+	SharedGroup       string
+	SharedGroupMember bool
+	ExitCode          int
+	Stdout            string
+	Stderr            string
+}
+
+func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPath, lockPath, username, sharedGroup string) (sharedLockValidationDetails, error) {
+	details := sharedLockValidationDetails{
+		LockDir:         filepath.Join(sharedServer, ".locks"),
+		LockPath:        lockPath,
+		SharedGroup:     sharedGroup,
+		ExitCode:        -1,
+		LockTestCommand: "test -d <lock_dir> && test -w <lock_dir> && touch <lock_path>.write_test && rm -f <lock_path>.write_test",
+	}
 	checks := [][]string{
 		{"test", "-x", sharedServer},
 		{"test", "-w", sharedServer},
 		{"test", "-r", runScriptPath},
 		{"test", "-x", steamCmdExecPath},
 	}
+	groupCmd := exec.Command("runuser", "-u", username, "--", "id", "-Gn")
+	groupOut, groupErr := groupCmd.CombinedOutput()
+	details.EffectiveGroups = strings.TrimSpace(string(groupOut))
+	if groupErr != nil {
+		details.Stderr = strings.TrimSpace(string(groupOut))
+		if exitErr, ok := groupErr.(*exec.ExitError); ok {
+			details.ExitCode = exitErr.ExitCode()
+		}
+		return details, fmt.Errorf("lock_command_invalid: resolve effective groups failed: %w", groupErr)
+	}
+	details.SharedGroupMember = strings.Contains(" "+details.EffectiveGroups+" ", " "+sharedGroup+" ")
+	if !details.SharedGroupMember {
+		return details, fmt.Errorf("not_member_of_shared_group: expected=%s effective_groups=%s", sharedGroup, details.EffectiveGroups)
+	}
 	for _, args := range checks {
 		cmd := exec.Command("runuser", append([]string{"-u", username, "--"}, args...)...)
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("permission check failed for %v: %w", args, err)
+			return details, fmt.Errorf("permission check failed for %v: %w", args, err)
 		}
 	}
-	lockDir := filepath.Dir(lockPath)
-	lockProbe := filepath.Join(lockDir, ".perm_check_"+sanitizeJobToken(username))
-	cmd := exec.Command("runuser", "-u", username, "--", "sh", "-lc", fmt.Sprintf("mkdir -p %s && : > %s && rm -f %s", shellEscape(lockDir), shellEscape(lockProbe), shellEscape(lockProbe)))
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("lock write check failed: %w", err)
+	if details.LockDir == "" {
+		return details, errors.New("lock_command_invalid")
 	}
-	return nil
+	if err := os.MkdirAll(details.LockDir, 0o2775); err != nil {
+		return details, fmt.Errorf("lock_dir_missing: %w", err)
+	}
+	lockProbe := details.LockPath + ".write_test"
+	details.LockTestCommand = fmt.Sprintf("test -d %s && test -w %s && touch %s && rm -f %s", shellEscape(details.LockDir), shellEscape(details.LockDir), shellEscape(lockProbe), shellEscape(lockProbe))
+
+
+	dirCmd := exec.Command("runuser", "-u", username, "--", "test", "-d", details.LockDir)
+	if out, err := dirCmd.CombinedOutput(); err != nil {
+		details.Stderr = strings.TrimSpace(string(out))
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			details.ExitCode = exitErr.ExitCode()
+		}
+		return details, fmt.Errorf("lock_dir_missing: %w", err)
+	}
+	wCmd := exec.Command("runuser", "-u", username, "--", "test", "-w", details.LockDir)
+	if out, err := wCmd.CombinedOutput(); err != nil {
+		details.Stderr = strings.TrimSpace(string(out))
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			details.ExitCode = exitErr.ExitCode()
+		}
+		return details, fmt.Errorf("lock_dir_not_writable: %w", err)
+	}
+	touchCmd := exec.Command("runuser", "-u", username, "--", "touch", lockProbe)
+	if out, err := touchCmd.CombinedOutput(); err != nil {
+		details.Stdout = strings.TrimSpace(string(out))
+		details.Stderr = strings.TrimSpace(string(out))
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			details.ExitCode = exitErr.ExitCode()
+		}
+		return details, fmt.Errorf("lock_test_failed: %w", err)
+	}
+	rmCmd := exec.Command("runuser", "-u", username, "--", "rm", "-f", lockProbe)
+	if out, err := rmCmd.CombinedOutput(); err != nil {
+		details.Stdout = strings.TrimSpace(string(out))
+		details.Stderr = strings.TrimSpace(string(out))
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			details.ExitCode = exitErr.ExitCode()
+		}
+		return details, fmt.Errorf("lock_test_failed: cleanup failed: %w", err)
+	}
+	details.ExitCode = 0
+	return details, nil
 }
 
 func stripWineBootstrap(command string) string {
