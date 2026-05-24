@@ -562,3 +562,33 @@ func TestEvaluateSharedInstallReuseReadyManifest(t *testing.T) {
 		t.Fatalf("expected status ready, got %s", mf.Status)
 	}
 }
+
+func TestWriteSteamCmdRunScript(t *testing.T) {
+	base := t.TempDir()
+	path := filepath.Join(base, "shared_update_1.txt")
+	if err := writeSteamCmdRunScript(path, "/home/Shared/1/server", "anonymous", "730"); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(body)
+	for _, expected := range []string{
+		"force_install_dir /home/Shared/1/server",
+		"login anonymous",
+		"app_update 730",
+		"quit",
+	} {
+		if !strings.Contains(content, expected) {
+			t.Fatalf("missing %q in runscript: %s", expected, content)
+		}
+	}
+}
+
+func TestWriteSteamCmdRunScriptRequiresAppID(t *testing.T) {
+	err := writeSteamCmdRunScript(filepath.Join(t.TempDir(), "shared_update_2.txt"), "/home/Shared/1/server", "anonymous", "")
+	if err == nil || !strings.Contains(err.Error(), "missing_app_update") {
+		t.Fatalf("expected missing_app_update, got %v", err)
+	}
+}

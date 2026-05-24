@@ -27,6 +27,8 @@ var (
 	steamcmdArchiveURL           = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 	wineBootstrapRegex           = regexp.MustCompile(`(?is)^\s*(?:bash\s+-lc\s+)?["']?\s*set\s+-e\s*;\s*if\s+!\s+command\s+-v\s+wine\b.*?\bfi\s*;\s*`)
 	ansiControlRegex             = regexp.MustCompile(`\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])`)
+	steamLoginRegex              = regexp.MustCompile(`(?i)\+login\s+("[^"]+"|'[^']+'|\S+)`)
+	steamAppUpdateRegex          = regexp.MustCompile(`(?i)\+app_update\s+([0-9]+)`)
 	chownRecursiveFn             = func(path string, uid, gid int) error { return os.Chown(path, uid, gid) }
 )
 
@@ -137,15 +139,37 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		postInstallSnippet = steamCmdClientSnippet(steamCmdDir, sharedServer)
 	}
 	shellCmd := buildSniperInstallShellCommand(sharedServer, renderedCommand, installSnippet, postInstallSnippet)
+	runScriptPath := ""
+	if usesSteamCmd {
+		login := "anonymous"
+		if m := steamLoginRegex.FindStringSubmatch(renderedCommand); len(m) > 1 {
+			login = strings.Trim(strings.TrimSpace(m[1]), `"'`)
+		}
+		appID := strings.TrimSpace(payloadValue(job.Payload, "steam_app_id"))
+		if m := steamAppUpdateRegex.FindStringSubmatch(renderedCommand); appID == "" && len(m) > 1 {
+			appID = strings.TrimSpace(m[1])
+		}
+		runScriptPath = filepath.Join(os.TempDir(), fmt.Sprintf("shared_update_%s.txt", sanitizeJobToken(job.ID)))
+		if err := writeSteamCmdRunScript(runScriptPath, sharedServer, login, appID); err != nil {
+			_ = markSharedManifestFailed(manifestPath, err)
+			return failureResult(job.ID, fmt.Errorf("SHARED_UPDATE_FAILED: %w", err))
+		}
+		defer func() { _ = os.Remove(runScriptPath) }()
+		shellCmd = buildSniperInstallShellCommand(sharedServer, fmt.Sprintf("%s +runscript %s", steamCmdExecPath, shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
+	}
 	if usesSteamCmd && logSender != nil {
 		logSender.Send(job.ID, []string{fmt.Sprintf("shared_update_command=%s", maskSensitiveValues(renderedCommand, templateValues))}, nil)
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("steamcmd_path=%s", steamCmdExecPath),
+			fmt.Sprintf("runscript_path=%s", runScriptPath),
 			fmt.Sprintf("force_install_dir=%s", sharedServer),
 			fmt.Sprintf("command_work_dir=%s", sharedServer),
 			"steamcmd_exists=true",
 			"steamcmd_executable=true",
 		}, nil)
+		if stat, statErr := os.Stat(runScriptPath); statErr == nil && !stat.IsDir() {
+			logSender.Send(job.ID, []string{"runscript_exists=true"}, nil)
+		}
 	}
 	if info, statErr := os.Stat(sharedServer); statErr != nil || !info.IsDir() {
 		err = fmt.Errorf("SHARED_UPDATE_FAILED: shared server path not usable: %s", sharedServer)
@@ -157,7 +181,7 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		reason := "steamcmd_command_failed"
 		exitCode := "unknown"
 		if strings.Contains(err.Error(), errCommandTimeout.Error()) || strings.Contains(err.Error(), errNoProgress.Error()) {
-			reason = "steamcmd_timeout_or_no_progress"
+			reason = "steamcmd_no_progress_timeout"
 			exitCode = "timeout"
 		}
 		if logSender != nil {
@@ -190,6 +214,31 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		"manifest_path":             manifestPath,
 		"install_log":               trimOutput(output, 4000),
 	}}, nil
+}
+
+func sanitizeJobToken(jobID string) string {
+	v := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			return r
+		}
+		return '_'
+	}, strings.TrimSpace(jobID))
+	if v == "" {
+		return "unknown"
+	}
+	return v
+}
+
+func writeSteamCmdRunScript(path, installDir, login, appID string) error {
+	if strings.TrimSpace(appID) == "" {
+		return errors.New("missing_app_update")
+	}
+	content := fmt.Sprintf("force_install_dir %s\nlogin %s\napp_update %s\nquit\n", installDir, login, appID)
+	return os.WriteFile(path, []byte(content), 0o600)
+}
+
+func shellEscape(v string) string {
+	return "'" + strings.ReplaceAll(v, "'", "'\"'\"'") + "'"
 }
 
 func validateSteamCmdCommand(command string) error {
