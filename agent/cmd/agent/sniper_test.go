@@ -265,6 +265,7 @@ func TestPrepareSharedStoragePermissionsCreatesExpectedDirs(t *testing.T) {
 		filepath.Join(tmp, "Shared", sharedKey, "server", ".steam", "sdk32"),
 		filepath.Join(tmp, "Shared", sharedKey, "server", ".steam", "sdk64"),
 		filepath.Join(tmp, "Shared", sharedKey, "server", ".steamcmd"),
+		filepath.Join(tmp, "Shared", sharedKey, "server", ".update"),
 		filepath.Join(tmp, "Shared", sharedKey, "server", ".locks"),
 	} {
 		if st, err := os.Stat(dir); err != nil || !st.IsDir() {
@@ -296,6 +297,35 @@ func TestPrepareSharedStoragePermissionsUsesInjectableChown(t *testing.T) {
 	}
 	if calls == 0 {
 		t.Fatalf("expected chownRecursiveFn to be called")
+	}
+}
+
+func TestPrepareSharedStoragePermissionsUsesInjectablePermissionOps(t *testing.T) {
+	tmp := t.TempDir()
+	osUsername := os.Getenv("USER")
+	if osUsername == "" {
+		t.Skip("USER not set")
+	}
+	origGroup := ensureSharedGroupAndMembershipFn
+	ensureSharedGroupAndMembershipFn = func(_, _ string) error { return nil }
+	defer func() { ensureSharedGroupAndMembershipFn = origGroup }()
+
+	origPermOps := permissionOps
+	type fakePermOps struct{ chgrp, chmod, acl, dacl int }
+	fp := &fakePermOps{}
+	defer func() { permissionOps = origPermOps }()
+	permissionOps = permissionCommandOpsMock{
+		chgrpRecursiveFn:        func(string, string) error { fp.chgrp++; return nil },
+		chmodSetGIDFn:           func(...string) error { fp.chmod++; return nil },
+		setfaclRecursiveFn:      func(string, string) error { fp.acl++; return nil },
+		setfaclDefaultRecursiveFn: func(string, string) error { fp.dacl++; return nil },
+	}
+
+	if _, err := prepareSharedStoragePermissions(tmp, "p1", osUsername); err != nil {
+		t.Fatalf("prepareSharedStoragePermissions failed: %v", err)
+	}
+	if fp.chgrp == 0 || fp.chmod == 0 || fp.acl == 0 || fp.dacl == 0 {
+		t.Fatalf("expected permission ops to be called, got %+v", fp)
 	}
 }
 
@@ -354,5 +384,14 @@ func TestPrepareSteamClientRuntimeLinksMissingSDK64(t *testing.T) {
 	err := prepareSteamClientRuntimeLinks(shared, game, os.Getenv("USER"))
 	if err == nil || !strings.Contains(err.Error(), "STEAMCLIENT_SDK64_MISSING") {
 		t.Fatalf("expected STEAMCLIENT_SDK64_MISSING, got %v", err)
+	}
+}
+
+func TestBuildSharedACLSpec(t *testing.T) {
+	if got := buildSharedACLSpec(" sharedsrv_1 "); got != "g:sharedsrv_1:rwx" {
+		t.Fatalf("unexpected acl spec: %q", got)
+	}
+	if got := buildSharedACLSpec("   "); got != "" {
+		t.Fatalf("expected empty acl spec, got %q", got)
 	}
 }

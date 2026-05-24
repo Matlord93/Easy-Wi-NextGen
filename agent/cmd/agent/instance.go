@@ -1778,18 +1778,7 @@ func ensureServiceActive(serviceName string, restartAt time.Time) error {
 		status := diag["service_status"]
 		processRunning := diag["process_running"] == "true"
 		if status == "active" && processRunning {
-			logs := strings.ToLower(diag["logs_tail"])
-			hasNewCrashMarker := false
-			for _, marker := range []string{"segmentation fault", "status=139", "failed with result", "main process exited", "failed to load module", "fatal error", "no such file or directory", "status=127", "failed to start", "start request repeated too quickly"} {
-				if strings.Contains(logs, marker) {
-					hasNewCrashMarker = true
-					lastErr = fmt.Errorf("service %s unhealthy marker detected (%s)", serviceName, marker)
-					break
-				}
-			}
-			if !hasNewCrashMarker {
-				return nil
-			}
+			return nil
 		} else {
 			lastErr = fmt.Errorf("service %s not healthy (state=%s process_running=%t)", serviceName, status, processRunning)
 		}

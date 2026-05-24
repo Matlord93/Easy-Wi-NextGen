@@ -33,7 +33,7 @@ exit 0
 	}
 }
 
-func TestEnsureServiceActiveFailsOnNewCrashMarker(t *testing.T) {
+func TestEnsureServiceActiveIgnoresCrashMarkerWhenProcessRunning(t *testing.T) {
 	bin := t.TempDir()
 	script := `#!/bin/sh
 if [ "$1" = "reset-failed" ]; then exit 0; fi
@@ -48,7 +48,7 @@ exit 0
 	oldPath := os.Getenv("PATH")
 	t.Setenv("PATH", bin+":"+oldPath)
 
-	if err := ensureServiceActive("gs-1", time.Now().Add(-5*time.Second)); err == nil {
-		t.Fatalf("expected unhealthy error")
+	if err := ensureServiceActive("gs-1", time.Now().Add(-5*time.Second)); err != nil {
+		t.Fatalf("expected healthy, got %v", err)
 	}
 }

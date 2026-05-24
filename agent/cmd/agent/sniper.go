@@ -34,9 +34,50 @@ var (
 	steamCmdSuccessRegex             = regexp.MustCompile(`(?im)success!\s*app\s*['"]?([0-9]+)['"]?\s*(fully installed|already up to date)\.?\s*$`)
 	chownRecursiveFn                 = func(path string, uid, gid int) error { return os.Chown(path, uid, gid) }
 	ensureSharedGroupAndMembershipFn = ensureSharedGroupAndMembership
+	permissionOps                    PermissionOps = permissionCommandOps{}
 )
 
 const steamCmdRetryLimit = 3
+
+type permissionCommandOps struct{}
+type PermissionOps interface {
+	ChgrpRecursive(group, path string) error
+	ChmodSetGID(paths ...string) error
+	SetfaclRecursive(path, aclSpec string) error
+	SetfaclDefaultRecursive(path, aclSpec string) error
+}
+
+type permissionCommandOpsMock struct {
+	chgrpRecursiveFn         func(group, path string) error
+	chmodSetGIDFn            func(paths ...string) error
+	setfaclRecursiveFn       func(path, aclSpec string) error
+	setfaclDefaultRecursiveFn func(path, aclSpec string) error
+}
+
+func (m permissionCommandOpsMock) ChgrpRecursive(group, path string) error {
+	return m.chgrpRecursiveFn(group, path)
+}
+func (m permissionCommandOpsMock) ChmodSetGID(paths ...string) error { return m.chmodSetGIDFn(paths...) }
+func (m permissionCommandOpsMock) SetfaclRecursive(path, aclSpec string) error {
+	return m.setfaclRecursiveFn(path, aclSpec)
+}
+func (m permissionCommandOpsMock) SetfaclDefaultRecursive(path, aclSpec string) error {
+	return m.setfaclDefaultRecursiveFn(path, aclSpec)
+}
+
+func (permissionCommandOps) ChgrpRecursive(group, path string) error {
+	return runCommand("chgrp", "-R", group, path)
+}
+func (permissionCommandOps) ChmodSetGID(paths ...string) error {
+	args := append([]string{"g+s"}, paths...)
+	return runCommand("chmod", args...)
+}
+func (permissionCommandOps) SetfaclRecursive(path, aclSpec string) error {
+	return runCommand("setfacl", "-R", "-m", aclSpec, path)
+}
+func (permissionCommandOps) SetfaclDefaultRecursive(path, aclSpec string) error {
+	return runCommand("setfacl", "-R", "-d", "-m", aclSpec, path)
+}
 
 func handleSniperInstall(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	return handleSniperAction(job, "install", logSender)
@@ -969,6 +1010,7 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 		filepath.Join(sharedSteam, "sdk32"),
 		filepath.Join(sharedSteam, "sdk64"),
 		filepath.Join(sharedServer, ".steamcmd"),
+		filepath.Join(sharedServer, ".update"),
 		locksDir,
 	} {
 		if err := os.MkdirAll(dir, instanceDirMode); err != nil {
@@ -984,10 +1026,13 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 	if uid, gid, err := lookupIDs(osUsername, osUsername); err == nil {
 		_ = chownRecursiveFn(sharedKeyRoot, uid, gid)
 	}
-	_ = runCommand("chgrp", "-R", sharedGroup, sharedKeyRoot)
-	_ = runCommand("chmod", "g+s", sharedKeyRoot, sharedServer, filepath.Join(sharedServer, ".steamcmd"), filepath.Join(sharedServer, ".update"), locksDir)
-	_ = runCommand("setfacl", "-R", "-m", "g:"+sharedGroup+":rwx", sharedServer)
-	_ = runCommand("setfacl", "-R", "-d", "-m", "g:"+sharedGroup+":rwx", sharedServer)
+	_ = permissionOps.ChgrpRecursive(sharedGroup, sharedKeyRoot)
+	_ = permissionOps.ChmodSetGID(sharedKeyRoot, sharedServer, filepath.Join(sharedServer, ".steamcmd"), filepath.Join(sharedServer, ".update"), locksDir)
+	aclSpec := buildSharedACLSpec(sharedGroup)
+	if aclSpec != "" {
+		_ = permissionOps.SetfaclRecursive(sharedServer, aclSpec)
+		_ = permissionOps.SetfaclDefaultRecursive(sharedServer, aclSpec)
+	}
 	_ = filepath.WalkDir(sharedKeyRoot, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return nil
@@ -1008,6 +1053,15 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 		return nil
 	})
 	return sharedServer, nil
+}
+
+
+func buildSharedACLSpec(sharedGroup string) string {
+	group := strings.TrimSpace(sharedGroup)
+	if group == "" {
+		return ""
+	}
+	return "g:" + group + ":rwx"
 }
 
 func sharedGroupName(sharedKey string) string {
