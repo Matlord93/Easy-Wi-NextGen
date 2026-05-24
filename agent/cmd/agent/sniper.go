@@ -773,7 +773,6 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}, nil
 }
 
-
 func resolveGameScriptPath(gameDir string) string {
 	return filepath.Clean(filepath.Join(gameDir, "cs2.sh"))
 }
@@ -1072,7 +1071,6 @@ func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPa
 	}
 	lockProbe := details.LockPath + ".write_test"
 	details.LockTestCommand = fmt.Sprintf("test -d %s && test -w %s && touch %s && rm -f %s", shellEscape(details.LockDir), shellEscape(details.LockDir), shellEscape(lockProbe), shellEscape(lockProbe))
-
 
 	dirCmd := exec.Command("runuser", "-u", username, "--", "test", "-d", details.LockDir)
 	if out, err := dirCmd.CombinedOutput(); err != nil {
