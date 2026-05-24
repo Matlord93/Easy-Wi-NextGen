@@ -205,6 +205,7 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	shellCmd := buildSniperInstallShellCommand(sharedServer, renderedCommand, installSnippet, postInstallSnippet)
 	runScriptPath := ""
 	if usesSteamCmd {
+		steamCmdValidate := resolveSteamCmdValidateFlag(job.Payload, "shared_update", true)
 		login := "anonymous"
 		if m := steamLoginRegex.FindStringSubmatch(renderedCommand); len(m) > 1 {
 			login = strings.Trim(strings.TrimSpace(m[1]), `"'`)
@@ -214,7 +215,7 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 			appID = strings.TrimSpace(m[1])
 		}
 		runScriptPath = filepath.Join(sharedServer, ".update", fmt.Sprintf("shared_update_%s.txt", sanitizeJobToken(job.ID)))
-		if err := writeSteamCmdRunScript(runScriptPath, sharedServer, login, appID, osUsername); err != nil {
+		if err := writeSteamCmdRunScript(runScriptPath, sharedServer, login, appID, osUsername, steamCmdValidate); err != nil {
 			_ = markSharedManifestFailed(manifestPath, err)
 			return failureResult(job.ID, fmt.Errorf("SHARED_UPDATE_FAILED: %w", err))
 		}
@@ -222,7 +223,12 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		shellCmd = buildSniperInstallShellCommand(sharedServer, fmt.Sprintf("%s +runscript %s", steamCmdExecPath, shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
 	}
 	if usesSteamCmd && logSender != nil {
+		steamCmdValidate := resolveSteamCmdValidateFlag(job.Payload, "shared_update", true)
 		logSender.Send(job.ID, []string{fmt.Sprintf("shared_update_command=%s", maskSensitiveValues(fmt.Sprintf("%s +runscript %s", steamCmdExecPath, runScriptPath), templateValues))}, nil)
+		logSender.Send(job.ID, []string{
+			fmt.Sprintf("steamcmd_validate=%t", steamCmdValidate),
+			fmt.Sprintf("steamcmd_update_command=%s", maskSensitiveValues(fmt.Sprintf("%s +runscript %s", steamCmdExecPath, runScriptPath), templateValues)),
+		}, nil)
 		steamCmdStat, steamCmdStatErr := os.Stat(steamCmdExecPath)
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("steamcmd_path=%s", steamCmdExecPath),
@@ -383,14 +389,18 @@ func sanitizeJobToken(jobID string) string {
 	return v
 }
 
-func writeSteamCmdRunScript(path, installDir, login, appID, username string) error {
+func writeSteamCmdRunScript(path, installDir, login, appID, username string, validate bool) error {
 	if strings.TrimSpace(appID) == "" {
 		return errors.New("missing_app_update")
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir runscript dir: %w", err)
 	}
-	content := fmt.Sprintf("force_install_dir %s\nlogin %s\napp_update %s validate\nquit\n", installDir, login, appID)
+	validateArg := ""
+	if validate {
+		validateArg = " validate"
+	}
+	content := fmt.Sprintf("force_install_dir %s\nlogin %s\napp_update %s%s\nquit\n", installDir, login, appID, validateArg)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return err
 	}
@@ -403,6 +413,35 @@ func writeSteamCmdRunScript(path, installDir, login, appID, username string) err
 		}
 	}
 	return nil
+}
+
+func resolveSteamCmdValidateFlag(payload map[string]any, mode string, fallback bool) bool {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	switch mode {
+	case "reinstall":
+		return true
+	case "manual_update", "repair", "shared_update":
+		if v, ok := payload["steamcmd_validate_on_manual_update"]; ok {
+			return parseBool(v, true)
+		}
+		if v, ok := payload["steamcmd_validate_on_update"]; ok {
+			return parseBool(v, true)
+		}
+		return true
+	case "auto_update":
+		if v, ok := payload["steamcmd_validate_on_auto_update"]; ok {
+			return parseBool(v, false)
+		}
+		if v, ok := payload["steamcmd_validate_on_update"]; ok {
+			return parseBool(v, false)
+		}
+		return fallback
+	default:
+		if v, ok := payload["steamcmd_validate_on_update"]; ok {
+			return parseBool(v, fallback)
+		}
+		return fallback
+	}
 }
 
 func isReadableByUser(username, path string) bool {
@@ -733,6 +772,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	runScriptPath := ""
 	steamCmdExecPath = ""
 	if sharedEnabled && usesSteamCmd {
+		steamCmdValidate := resolveSteamCmdValidateFlag(job.Payload, "manual_update", true)
 		steamCmdExecPath = resolveSteamCmdExecPath(instanceDirSteamCmdDir(installTargetDir))
 		if steamCmdExecPath == "" {
 			steamCmdExecPath = "$STEAMCMD_EXEC"
@@ -743,7 +783,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 		steamAppID = resolveSteamAppID(job.Payload, command)
 		runScriptPath = filepath.Join(installTargetDir, ".update", fmt.Sprintf("install_%s.txt", sanitizeJobToken(job.ID)))
-		if err := writeSteamCmdRunScript(runScriptPath, installTargetDir, login, steamAppID, osUsername); err != nil {
+		if err := writeSteamCmdRunScript(runScriptPath, installTargetDir, login, steamAppID, osUsername, steamCmdValidate); err != nil {
 			return failureResult(job.ID, err)
 		}
 		shellCmd = buildSniperInstallShellCommand(commandWorkDir, fmt.Sprintf("%s +runscript %s", steamCmdExecPath, shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
@@ -793,6 +833,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			fmt.Sprintf("sniper %s starting (steam_app_id=%s uses_steamcmd=%t command=%s)", action, steamAppID, usesSteamCmd, maskedInstall),
 		}, nil)
 		if sharedEnabled && usesSteamCmd {
+			steamCmdValidate := resolveSteamCmdValidateFlag(job.Payload, "manual_update", true)
 			st, stErr := os.Stat(steamCmdExecPath)
 			_, rstErr := os.Stat(runScriptPath)
 			logSender.Send(job.ID, []string{
@@ -801,6 +842,8 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 				fmt.Sprintf("steamcmd_executable=%t", stErr == nil && st.Mode()&0o111 != 0),
 				fmt.Sprintf("runscript_path=%s", runScriptPath),
 				fmt.Sprintf("runscript_exists=%t", rstErr == nil),
+				fmt.Sprintf("steamcmd_validate=%t", steamCmdValidate),
+				fmt.Sprintf("steamcmd_update_command=%s", maskSensitiveValues(fmt.Sprintf("%s +runscript %s", steamCmdExecPath, runScriptPath), templateValues)),
 			}, nil)
 		}
 	}
@@ -876,12 +919,14 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		steamCmdSuccess := steamCmdInstallSucceeded(normalizeSteamOutput(output), steamAppID)
 		steamCmdReason := steamCmdSuccessReason(output, steamAppID)
 		if logSender != nil && job.ID != "" {
+			noValidate := steamCmdReason == "already_up_to_date" && !resolveSteamCmdValidateFlag(job.Payload, "manual_update", true)
 			logSender.Send(job.ID, []string{
 				"command_exit_code=0",
 				fmt.Sprintf("steamcmd_stdout_size=%d", len(strings.TrimSpace(output))),
 				"steamcmd_stderr_size=0",
 				fmt.Sprintf("steamcmd_success_detected=%t", steamCmdSuccess),
 				fmt.Sprintf("steamcmd_success_reason=%s", steamCmdReason),
+				fmt.Sprintf("steamcmd_no_validate_performed=%t", noValidate),
 			}, nil)
 		}
 		if strings.TrimSpace(normalizeSteamOutput(output)) == "" {

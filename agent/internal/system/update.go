@@ -1,7 +1,10 @@
 package system
 
 import (
+	"archive/tar"
+	"archive/zip"
 	"bufio"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -128,20 +131,122 @@ func ApplyUpdateFromChecksums(ctx context.Context, opts UpdateFromChecksumsOptio
 		return UpdatePlan{}, err
 	}
 
+	resolvedUpdatePath, err := prepareUpdateBinary(tempFile, assetName)
+	if err != nil {
+		return UpdatePlan{}, err
+	}
+
 	if runtime.GOOS == "windows" {
 		return UpdatePlan{
 			BinaryPath: binaryPath,
-			UpdatePath: tempFile,
+			UpdatePath: resolvedUpdatePath,
 		}, nil
 	}
 
-	if err := atomicSwap(binaryPath, tempFile); err != nil {
+	if err := atomicSwap(binaryPath, resolvedUpdatePath); err != nil {
 		return UpdatePlan{}, err
 	}
 
 	return UpdatePlan{BinaryPath: binaryPath}, nil
 }
 
+
+func prepareUpdateBinary(downloadedPath, assetName string) (string, error) {
+	asset := strings.ToLower(strings.TrimSpace(assetName))
+	switch {
+	case strings.HasSuffix(asset, ".tar.gz"):
+		return extractTarGzBinary(downloadedPath)
+	case strings.HasSuffix(asset, ".zip"):
+		return extractZipBinary(downloadedPath)
+	default:
+		return downloadedPath, nil
+	}
+}
+
+func extractTarGzBinary(archivePath string) (string, error) {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("open tar.gz archive: %w", err)
+	}
+	defer file.Close()
+
+	gzReader, err := gzip.NewReader(file)
+	if err != nil {
+		return "", fmt.Errorf("open gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	tarReader := tar.NewReader(gzReader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("read tar archive: %w", err)
+		}
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+		name := path.Base(header.Name)
+		if name != "easywi-agent" && !strings.HasPrefix(name, "easywi-agent-") {
+			continue
+		}
+		extractedPath := archivePath + ".extracted"
+		out, err := os.OpenFile(extractedPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+		if err != nil {
+			return "", fmt.Errorf("create extracted binary: %w", err)
+		}
+		if _, err := io.Copy(out, tarReader); err != nil {
+			out.Close()
+			return "", fmt.Errorf("write extracted binary: %w", err)
+		}
+		if err := out.Close(); err != nil {
+			return "", fmt.Errorf("close extracted binary: %w", err)
+		}
+		return extractedPath, nil
+	}
+
+	return "", fmt.Errorf("tar.gz archive does not contain agent binary")
+}
+
+func extractZipBinary(archivePath string) (string, error) {
+	reader, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("open zip archive: %w", err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if file.FileInfo().IsDir() {
+			continue
+		}
+		name := strings.ToLower(path.Base(file.Name))
+		if name != "easywi-agent.exe" && name != "easywi-agent" {
+			continue
+		}
+		src, err := file.Open()
+		if err != nil {
+			return "", fmt.Errorf("open zip file: %w", err)
+		}
+		defer src.Close()
+		extractedPath := archivePath + ".extracted"
+		out, err := os.OpenFile(extractedPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+		if err != nil {
+			return "", fmt.Errorf("create extracted binary: %w", err)
+		}
+		if _, err := io.Copy(out, src); err != nil {
+			out.Close()
+			return "", fmt.Errorf("write extracted binary: %w", err)
+		}
+		if err := out.Close(); err != nil {
+			return "", fmt.Errorf("close extracted binary: %w", err)
+		}
+		return extractedPath, nil
+	}
+
+	return "", fmt.Errorf("zip archive does not contain agent binary")
+}
 func downloadToFile(ctx context.Context, downloadURL, target string) (err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {

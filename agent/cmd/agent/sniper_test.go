@@ -456,3 +456,18 @@ func TestNormalizeSteamCmdInstallDirKeepsHistoricalHomeInstallRoot(t *testing.T)
 		t.Fatalf("expected force_install_dir to use historical home install root, got %q", normalized)
 	}
 }
+
+func TestResolveSteamCmdValidateFlag(t *testing.T) {
+	if !resolveSteamCmdValidateFlag(map[string]any{}, "manual_update", false) {
+		t.Fatalf("manual update should default to validate=true")
+	}
+	if resolveSteamCmdValidateFlag(map[string]any{}, "auto_update", false) {
+		t.Fatalf("auto update should default to validate=false")
+	}
+	if !resolveSteamCmdValidateFlag(map[string]any{"steamcmd_validate_on_auto_update": true}, "auto_update", false) {
+		t.Fatalf("auto update should respect explicit validate=true")
+	}
+	if !resolveSteamCmdValidateFlag(map[string]any{"steamcmd_validate_on_reinstall": false}, "reinstall", false) {
+		t.Fatalf("reinstall must always validate")
+	}
+}

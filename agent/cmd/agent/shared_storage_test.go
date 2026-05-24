@@ -501,7 +501,7 @@ func TestWriteSteamCmdRunScript(t *testing.T) {
 	if currentUser != nil {
 		username = currentUser.Username
 	}
-	if err := writeSteamCmdRunScript(path, "/home/Shared/1/server", "anonymous", "730", username); err != nil {
+	if err := writeSteamCmdRunScript(path, "/home/Shared/1/server", "anonymous", "730", username, true); err != nil {
 		t.Fatal(err)
 	}
 	body, err := os.ReadFile(path)
@@ -527,8 +527,22 @@ func TestWriteSteamCmdRunScript(t *testing.T) {
 	}
 }
 
+func TestWriteSteamCmdRunScriptWithoutValidate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".update", "shared_update_3.txt")
+	if err := writeSteamCmdRunScript(path, "/home/Shared/1/server", "anonymous", "730", "", false); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(content), "validate") {
+		t.Fatalf("expected no validate token in runscript: %s", string(content))
+	}
+}
+
 func TestWriteSteamCmdRunScriptRequiresAppID(t *testing.T) {
-	err := writeSteamCmdRunScript(filepath.Join(t.TempDir(), ".update", "shared_update_2.txt"), "/home/Shared/1/server", "anonymous", "", "")
+	err := writeSteamCmdRunScript(filepath.Join(t.TempDir(), ".update", "shared_update_2.txt"), "/home/Shared/1/server", "anonymous", "", "", true)
 	if err == nil || !strings.Contains(err.Error(), "missing_app_update") {
 		t.Fatalf("expected missing_app_update, got %v", err)
 	}

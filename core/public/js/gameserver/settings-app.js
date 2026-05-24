@@ -53,12 +53,6 @@
     const versionLockVersion = document.getElementById('gs-version-lock-version');
     const automationSaveBtn = document.getElementById('gs-automation-save');
     const accessRevealBtn = document.getElementById('gs-access-reveal');
-    const accessResetBtn = document.getElementById('gs-access-reset');
-    const accessUsername = document.getElementById('gs-access-username');
-    const accessHost = document.getElementById('gs-access-host');
-    const accessPort = document.getElementById('gs-access-port');
-    const accessPasswordWrap = document.getElementById('gs-access-password-wrap');
-    const accessPassword = document.getElementById('gs-access-password');
 
     const defaultI18n = {
         automationSaved: 'Automation settings updated.',
@@ -76,12 +70,6 @@
         applying: 'Applying…',
         applyBtn: 'Apply',
         saveBtn: 'Save',
-        revealBtn: 'Reveal password',
-        resetBtn: 'Reset credentials',
-        revealing: 'Revealing…',
-        resetting: 'Resetting…',
-        accessPasswordRevealed: 'Password shown once. Use reset to generate a new one.',
-        accessResetQueued: 'Reset queued. New credentials will be ready shortly.',
     };
     let i18n = defaultI18n;
     try {
@@ -311,33 +299,6 @@
         }
     };
 
-    const applyAccessUi = (credential) => {
-        if (!credential) {
-            return;
-        }
-        if (accessUsername) {
-            accessUsername.textContent = credential.username || '—';
-        }
-        if (accessHost) {
-            accessHost.textContent = credential.host || '—';
-        }
-        if (accessPort) {
-            accessPort.textContent = String(credential.port || '—');
-        }
-        if (accessRevealBtn) {
-            accessRevealBtn.disabled = Boolean(credential.password_revealed);
-        }
-    };
-
-    const loadAccessHealth = async () => {
-        try {
-            const payload = await apiClient.request(mount.dataset.urlAccessHealth);
-            applyAccessUi(payload?.data?.credential || {});
-        } catch (_) {
-            // non-critical; access section degrades gracefully
-        }
-    };
-
     const createConfig = async () => {
         const name = window.prompt(tr('configNamePrompt'));
         if (!name) {
@@ -430,44 +391,19 @@
         }
 
         if (event.target.id === 'gs-access-reveal') {
-            setBusy(accessRevealBtn, true, tr('revealing'), tr('revealBtn'));
-            try {
-                const payload = await apiClient.request(mount.dataset.urlAccessReveal, { method: 'POST' });
-                const data = payload?.data || {};
-                if (accessPassword) {
-                    accessPassword.textContent = data.password || '';
-                }
-                if (accessPasswordWrap) {
-                    accessPasswordWrap.classList.remove('hidden');
-                }
-                errors.clearInline(errorPanel);
-                errors.showToast({ message: tr('accessPasswordRevealed'), error_code: 'OK', request_id: payload.request_id || '' });
-                if (accessRevealBtn) {
-                    accessRevealBtn.disabled = true;
-                }
-            } catch (error) {
-                errors.showAll(errorPanel, error);
-            } finally {
-                setBusy(accessRevealBtn, false, tr('revealing'), tr('revealBtn'));
+            if (!accessRevealBtn) {
+                return;
             }
-            return;
-        }
-
-        if (event.target.id === 'gs-access-reset') {
-            setBusy(accessResetBtn, true, tr('resetting'), tr('resetBtn'));
-            try {
-                const payload = await apiClient.request(mount.dataset.urlAccessReset, { method: 'POST' });
-                errors.clearInline(errorPanel);
-                errors.showToast({ message: tr('accessResetQueued'), error_code: 'OK', request_id: payload.request_id || '' });
-                if (accessPasswordWrap) {
-                    accessPasswordWrap.classList.add('hidden');
-                }
-                await loadAccessHealth();
-            } catch (error) {
-                errors.showAll(errorPanel, error);
-            } finally {
-                setBusy(accessResetBtn, false, tr('resetting'), tr('resetBtn'));
-            }
+            accessRevealBtn.disabled = true;
+            apiClient.request(mount.dataset.urlAccessReveal, { method: 'POST' })
+                .then((payload) => {
+                    errors.clearInline(errorPanel);
+                    errors.showToast({ message: payload?.data?.password ? '••••••••' : 'OK', error_code: 'OK', request_id: payload.request_id || '' });
+                })
+                .catch((error) => {
+                    errors.showAll(errorPanel, error);
+                    accessRevealBtn.disabled = false;
+                });
             return;
         }
     });
@@ -486,7 +422,6 @@
             applyAutomationUi(summary.data?.automation || {});
             meta.textContent = `Settings healthy · request_id=${health.request_id || ''}`;
             await loadConfigs(summary.data || {});
-            await loadAccessHealth();
         } catch (error) {
             errors.showAll(errorPanel, error);
         }

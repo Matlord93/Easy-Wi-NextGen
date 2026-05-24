@@ -260,7 +260,7 @@ final class AgentReleaseCheckerTest extends TestCase
             'Matlord93/Easy-Wi-NextGen',
             3600,
             'dev',
-            new GithubReleaseResolver(new MockHttpClient([$response])),
+            new GithubReleaseResolver(new MockHttpClient([$response]), null, new ArrayAdapter(), 3600),
         );
 
         $linux = $checker->getReleaseAssetUrlsForChannel('easywi-agent-linux-amd64.tar.gz', 'dev');

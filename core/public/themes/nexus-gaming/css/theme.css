@@ -435,6 +435,7 @@
   border: 1px solid;
   margin-bottom: 14px;
 }
+.ng-alert.hidden { display: none; }
 .ng-alert--danger {
   background: rgba(239,68,68,0.08);
   border-color: rgba(239,68,68,0.25);

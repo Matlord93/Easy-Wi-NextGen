@@ -888,7 +888,11 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		renderedInstallCommand = normalizeSteamCmdInstallDir(renderedInstallCommand, instanceDir)
 		usesSteamCmd := steamcmdCommandRegex.MatchString(renderedInstallCommand)
 		if usesSteamCmd {
-			renderedInstallCommand = replaceSteamCmdExecutable(renderedInstallCommand, "$STEAMCMD_EXEC")
+			steamAppID := resolveSteamAppID(job.Payload, renderedInstallCommand)
+			renderedInstallCommand = buildSteamCmdCommand("$STEAMCMD_EXEC", instanceDir, steamAppID, resolveSteamCmdValidateFlag(job.Payload, "reinstall", true))
+			if renderedInstallCommand == "" {
+				return failureResult(job.ID, errors.New("missing_app_update"))
+			}
 		}
 
 		installWithDir := buildInstanceInstallShellCommand(instanceDir, renderedInstallCommand, usesSteamCmd)

@@ -28,13 +28,7 @@
         'selectConfigFirst': t('customer_instance_settings_select_config_first', page_locale()),
         'applying': t('customer_instance_settings_applying', page_locale()),
         'applyBtn': t('customer_instance_settings_apply_btn', page_locale()),
-        'saveBtn': t('customer_instance_settings_save_btn', page_locale()),
-        'revealBtn': t('customer_instance_sftp_reveal_btn', page_locale()),
-        'resetBtn': t('customer_instance_sftp_reset_btn', page_locale()),
-        'revealing': t('customer_instance_sftp_revealing', page_locale()),
-        'resetting': t('customer_instance_sftp_resetting', page_locale()),
-        'accessPasswordRevealed': t('customer_instance_sftp_password_revealed', page_locale()),
-        'accessResetQueued': t('customer_instance_sftp_reset_queued', page_locale())
+        'saveBtn': t('customer_instance_settings_save_btn', page_locale())
     }|json_encode|e('html_attr') }}"
 >
     <input type="hidden" id="slotInput" value="{{ instance.current_slots }}">
@@ -187,43 +181,6 @@
             <div style="border-top:1px solid var(--ng-border);margin-top:1rem;padding-top:0.75rem">
                 <button id="gs-automation-save" type="button" class="ui-button ui-button--primary ui-button--sm">
                     {{ t('customer_instance_settings_save_automation', page_locale()) }}
-                </button>
-            </div>
-        </div>
-    </div>
-
-    {# ─── SFTP / Zugang ─── #}
-    <div class="cust-panel" style="margin-top:1.25rem">
-        <div class="cust-panel__head" style="display:flex;align-items:center;gap:0.5rem">
-            <svg style="height:1rem;width:1rem;color:var(--ng-text-muted)" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
-            <h2 class="cust-panel__title">{{ t('customer_instance_sftp_title', page_locale()) }}</h2>
-        </div>
-        <div class="cust-panel__body">
-            <p style="font-size:0.75rem;color:var(--ng-text-muted);margin-bottom:1rem">{{ t('customer_instance_sftp_info', page_locale()) }}</p>
-            <div style="display:grid;gap:0.75rem;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:1rem">
-                <div>
-                    <p class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_sftp_username_label', page_locale()) }}</p>
-                    <p id="gs-access-username" style="font-size:0.8125rem;font-family:monospace;color:var(--ng-text)">—</p>
-                </div>
-                <div>
-                    <p class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_sftp_host_label', page_locale()) }}</p>
-                    <p id="gs-access-host" style="font-size:0.8125rem;font-family:monospace;color:var(--ng-text)">—</p>
-                </div>
-                <div>
-                    <p class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_sftp_port_label', page_locale()) }}</p>
-                    <p id="gs-access-port" style="font-size:0.8125rem;font-family:monospace;color:var(--ng-text)">—</p>
-                </div>
-            </div>
-            <div id="gs-access-password-wrap" class="hidden" style="margin-bottom:1rem;padding:0.75rem;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface-soft)">
-                <p class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem">{{ t('customer_instance_sftp_password_label', page_locale()) }}</p>
-                <code id="gs-access-password" style="font-size:0.875rem;color:var(--ng-text);word-break:break-all"></code>
-            </div>
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-                <button id="gs-access-reveal" type="button" class="ui-button ui-button--primary ui-button--sm">
-                    {{ t('customer_instance_sftp_reveal_btn', page_locale()) }}
-                </button>
-                <button id="gs-access-reset" type="button" class="ui-button ui-button--ghost ui-button--sm">
-                    {{ t('customer_instance_sftp_reset_btn', page_locale()) }}
                 </button>
             </div>
         </div>
