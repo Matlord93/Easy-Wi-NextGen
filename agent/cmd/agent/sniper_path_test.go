@@ -226,4 +226,13 @@ func TestValidateSharedUpdatePermissionsFailsOnLockPathMismatch(t *testing.T) {
 	if details.LockPathMatches {
 		t.Fatalf("expected lock path mismatch details")
 	}
+	if !details.EffectiveGroupsCheckSkipped {
+		t.Fatalf("expected effective groups check to be skipped on lock path mismatch")
+	}
+	if details.SharedGroupChecked {
+		t.Fatalf("shared group membership should not be marked checked")
+	}
+	if details.LockTestCommand == "" || strings.Contains(details.LockTestCommand, "<lock_dir>") || strings.Contains(details.LockTestCommand, "<lock_path>") {
+		t.Fatalf("expected concrete lock test command, got %q", details.LockTestCommand)
+	}
 }

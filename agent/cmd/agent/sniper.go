@@ -203,18 +203,27 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		}
 		lockPath := sharedLockPath(baseDir, sharedKey)
 		lockDetails, permErr := validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPath, lockPath, osUsername, sharedGroupName(sharedKey))
-		logSender.Send(job.ID, []string{
+		lockLogs := []string{
 			fmt.Sprintf("lock_dir=%s", lockDetails.LockDir),
 			fmt.Sprintf("lock_path=%s", lockDetails.LockPath),
 			fmt.Sprintf("lock_path_parent=%s", lockDetails.LockPathParent),
 			fmt.Sprintf("lock_path_matches_lock_dir=%t", lockDetails.LockPathMatches),
 			fmt.Sprintf("lock_test_command=%s", lockDetails.LockTestCommand),
 			fmt.Sprintf("effective_groups=%s", lockDetails.EffectiveGroups),
-			fmt.Sprintf("shared_group_member=%t", lockDetails.SharedGroupMember),
 			fmt.Sprintf("lock_test_exit_code=%d", lockDetails.ExitCode),
 			fmt.Sprintf("lock_test_stdout=%s", lockDetails.Stdout),
 			fmt.Sprintf("lock_test_stderr=%s", lockDetails.Stderr),
-		}, nil)
+		}
+		if lockDetails.EffectiveGroupsCheckSkipped {
+			lockLogs = append(lockLogs, "effective_groups_check_skipped=true")
+		}
+		if lockDetails.EffectiveGroupsError != "" {
+			lockLogs = append(lockLogs, fmt.Sprintf("effective_groups_error=%s", lockDetails.EffectiveGroupsError))
+		}
+		if lockDetails.SharedGroupChecked {
+			lockLogs = append(lockLogs, fmt.Sprintf("shared_group_member=%t", lockDetails.SharedGroupMember))
+		}
+		logSender.Send(job.ID, lockLogs, nil)
 		if permErr != nil {
 			err = permErr
 			_ = markSharedManifestFailed(manifestPath, err)
@@ -1027,7 +1036,10 @@ type sharedLockValidationDetails struct {
 	LockPathMatches   bool
 	LockTestCommand   string
 	EffectiveGroups   string
+	EffectiveGroupsCheckSkipped bool
+	EffectiveGroupsError string
 	SharedGroup       string
+	SharedGroupChecked bool
 	SharedGroupMember bool
 	ExitCode          int
 	Stdout            string
@@ -1040,13 +1052,16 @@ func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPa
 		LockPath:        lockPath,
 		SharedGroup:     sharedGroup,
 		ExitCode:        -1,
-		LockTestCommand: "test -d <lock_dir> && test -w <lock_dir> && touch <lock_path>.write_test && rm -f <lock_path>.write_test",
+		EffectiveGroupsCheckSkipped: true,
 	}
 	details.LockPathParent = filepath.Dir(details.LockPath)
 	details.LockPathMatches = details.LockPathParent == details.LockDir
+	lockProbe := details.LockPath + ".write_test"
+	details.LockTestCommand = fmt.Sprintf("test -d %s && test -w %s && touch %s && rm -f %s", shellEscape(details.LockDir), shellEscape(details.LockDir), shellEscape(lockProbe), shellEscape(lockProbe))
 	if !details.LockPathMatches {
 		return details, fmt.Errorf("lock_path_mismatch: lock_dir=%s lock_path=%s", details.LockDir, details.LockPath)
 	}
+	details.EffectiveGroupsCheckSkipped = false
 	checks := [][]string{
 		{"test", "-x", sharedServer},
 		{"test", "-w", sharedServer},
@@ -1057,12 +1072,14 @@ func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPa
 	groupOut, groupErr := groupCmd.CombinedOutput()
 	details.EffectiveGroups = strings.TrimSpace(string(groupOut))
 	if groupErr != nil {
-		details.Stderr = strings.TrimSpace(string(groupOut))
+		details.EffectiveGroupsError = strings.TrimSpace(string(groupOut))
+		details.Stderr = details.EffectiveGroupsError
 		if exitErr, ok := groupErr.(*exec.ExitError); ok {
 			details.ExitCode = exitErr.ExitCode()
 		}
 		return details, fmt.Errorf("lock_command_invalid: resolve effective groups failed: %w", groupErr)
 	}
+	details.SharedGroupChecked = true
 	details.SharedGroupMember = strings.Contains(" "+details.EffectiveGroups+" ", " "+sharedGroup+" ")
 	if !details.SharedGroupMember {
 		return details, fmt.Errorf("not_member_of_shared_group: expected=%s effective_groups=%s", sharedGroup, details.EffectiveGroups)
@@ -1079,9 +1096,6 @@ func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPa
 	if err := os.MkdirAll(details.LockDir, 0o2775); err != nil {
 		return details, fmt.Errorf("lock_dir_missing: %w", err)
 	}
-	lockProbe := details.LockPath + ".write_test"
-	details.LockTestCommand = fmt.Sprintf("test -d %s && test -w %s && touch %s && rm -f %s", shellEscape(details.LockDir), shellEscape(details.LockDir), shellEscape(lockProbe), shellEscape(lockProbe))
-
 	dirCmd := exec.Command("runuser", "-u", username, "--", "test", "-d", details.LockDir)
 	if out, err := dirCmd.CombinedOutput(); err != nil {
 		details.Stderr = strings.TrimSpace(string(out))

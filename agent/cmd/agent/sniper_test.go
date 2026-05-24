@@ -265,7 +265,7 @@ func TestPrepareSharedStoragePermissionsCreatesExpectedDirs(t *testing.T) {
 		filepath.Join(tmp, "Shared", sharedKey, "server", ".steam", "sdk32"),
 		filepath.Join(tmp, "Shared", sharedKey, "server", ".steam", "sdk64"),
 		filepath.Join(tmp, "Shared", sharedKey, "server", ".steamcmd"),
-		filepath.Join(tmp, "Shared", ".locks"),
+		filepath.Join(tmp, "Shared", sharedKey, "server", ".locks"),
 	} {
 		if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 			t.Fatalf("expected directory %s to exist (err=%v)", dir, err)
