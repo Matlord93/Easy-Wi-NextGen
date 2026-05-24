@@ -64,6 +64,12 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	}
 	sharedServer := sharedServerDir(baseDir, sharedKey)
 	manifestPath := sharedManifestPath(baseDir, sharedKey)
+	if _, err := os.Stat(sharedServer); err != nil {
+		if os.IsNotExist(err) {
+			return failureResult(job.ID, fmt.Errorf("SHARED_SERVER_MISSING: %s", sharedServer))
+		}
+		return failureResult(job.ID, fmt.Errorf("SHARED_SERVER_MISSING: %w", err))
+	}
 	lockRelease, err := acquireSharedStorageLockWithTimeout(sharedLockPath(baseDir, sharedKey), 2*time.Minute)
 	if err != nil {
 		return failureResult(job.ID, fmt.Errorf("SHARED_LOCK_TIMEOUT: %w", err))
@@ -76,12 +82,6 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	}
 	if mf.SharedKey != "" && strings.TrimSpace(mf.SharedKey) != sharedKey {
 		return failureResult(job.ID, fmt.Errorf("SHARED_MANIFEST_INVALID: manifest shared_key mismatch (%s != %s)", mf.SharedKey, sharedKey))
-	}
-	if _, err := os.Stat(sharedServer); err != nil {
-		if os.IsNotExist(err) {
-			return failureResult(job.ID, fmt.Errorf("SHARED_SERVER_MISSING: %s", sharedServer))
-		}
-		return failureResult(job.ID, fmt.Errorf("SHARED_SERVER_MISSING: %w", err))
 	}
 	if mf.Status == "installing" || mf.Status == "updating" {
 		return failureResult(job.ID, fmt.Errorf("SHARED_MANIFEST_INVALID: shared server busy with status=%s", mf.Status))
@@ -1030,28 +1030,28 @@ func ensureSharedGroupAndMembership(groupName, username string) error {
 }
 
 type sharedLockValidationDetails struct {
-	LockDir           string
-	LockPath          string
-	LockPathParent    string
-	LockPathMatches   bool
-	LockTestCommand   string
-	EffectiveGroups   string
+	LockDir                     string
+	LockPath                    string
+	LockPathParent              string
+	LockPathMatches             bool
+	LockTestCommand             string
+	EffectiveGroups             string
 	EffectiveGroupsCheckSkipped bool
-	EffectiveGroupsError string
-	SharedGroup       string
-	SharedGroupChecked bool
-	SharedGroupMember bool
-	ExitCode          int
-	Stdout            string
-	Stderr            string
+	EffectiveGroupsError        string
+	SharedGroup                 string
+	SharedGroupChecked          bool
+	SharedGroupMember           bool
+	ExitCode                    int
+	Stdout                      string
+	Stderr                      string
 }
 
 func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPath, lockPath, username, sharedGroup string) (sharedLockValidationDetails, error) {
 	details := sharedLockValidationDetails{
-		LockDir:         filepath.Join(sharedServer, ".locks"),
-		LockPath:        lockPath,
-		SharedGroup:     sharedGroup,
-		ExitCode:        -1,
+		LockDir:                     filepath.Join(sharedServer, ".locks"),
+		LockPath:                    lockPath,
+		SharedGroup:                 sharedGroup,
+		ExitCode:                    -1,
 		EffectiveGroupsCheckSkipped: true,
 	}
 	details.LockPathParent = filepath.Dir(details.LockPath)
