@@ -139,6 +139,9 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	if strings.TrimSpace(updateCommand) == "" {
 		err := errors.New("SHARED_UPDATE_FAILED: missing update_command")
 		_ = markSharedManifestFailed(manifestPath, err)
+		if logSender != nil && job.ID != "" {
+			logSender.Send(job.ID, []string{"steamcmd_not_started"}, nil)
+		}
 		return failureResult(job.ID, err)
 	}
 	if logSender != nil {
@@ -318,6 +321,49 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	}}, nil
 }
 
+func resolveSteamAppID(payload map[string]any, command string) string {
+	appID := strings.TrimSpace(payloadValue(payload, "steam_app_id"))
+	if appID != "" {
+		return appID
+	}
+	if m := steamAppUpdateRegex.FindStringSubmatch(command); len(m) > 1 {
+		return strings.TrimSpace(m[1])
+	}
+	return ""
+}
+
+func normalizeSteamOutput(output string) string {
+	clean := stripANSIString(output)
+	lines := strings.Split(clean, "\n")
+	norm := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.Join(strings.Fields(strings.TrimSpace(line)), " ")
+		if line != "" {
+			norm = append(norm, line)
+		}
+	}
+	return strings.Join(norm, "\n")
+}
+
+func steamCmdSuccessReason(output, steamAppID string) string {
+	n := normalizeSteamOutput(output)
+	if n == "" {
+		return "steamcmd_no_output"
+	}
+	if steamAppID != "" {
+		if strings.Contains(n, "Success! App '"+steamAppID+"' fully installed.") {
+			return "fully_installed"
+		}
+		if strings.Contains(n, "Success! App '"+steamAppID+"' already up to date.") {
+			return "already_up_to_date"
+		}
+	}
+	if steamCmdInstallSucceeded(n, steamAppID) {
+		return "success_message_detected"
+	}
+	return "missing_success_confirmation"
+}
+
 func sanitizeJobToken(jobID string) string {
 	v := strings.Map(func(r rune) rune {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
@@ -338,7 +384,7 @@ func writeSteamCmdRunScript(path, installDir, login, appID, username string) err
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir runscript dir: %w", err)
 	}
-	content := fmt.Sprintf("force_install_dir %s\nlogin %s\napp_update %s\nquit\n", installDir, login, appID)
+	content := fmt.Sprintf("force_install_dir %s\nlogin %s\napp_update %s validate\nquit\n", installDir, login, appID)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return err
 	}
@@ -433,7 +479,7 @@ func evaluateSharedInstallReuse(manifestPath, installTargetDir, action, command 
 func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
-	steamAppID := payloadValue(job.Payload, "steam_app_id")
+	steamAppID := strings.TrimSpace(payloadValue(job.Payload, "steam_app_id"))
 	installCommand := payloadValue(job.Payload, "install_command")
 	updateCommand := payloadValue(job.Payload, "update_command")
 	baseDir := payloadValue(job.Payload, "base_dir")
@@ -464,12 +510,11 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if baseDir == "" {
 		baseDir = defaultInstanceBaseDir()
 	}
-	useSharedStorage := parsePayloadBool(payloadValue(job.Payload, "use_shared_storage"), false)
 	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	sharedEnabled := useSharedStorage && len(sharedSpecs) > 0
+	sharedEnabled := shouldUseSharedStorage(job.Payload, "sniper_"+action) && len(sharedSpecs) > 0
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
 	}
@@ -594,12 +639,10 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	if logSender != nil && job.ID != "" {
+		logSharedValidationState(logSender, job.ID, "sniper_"+action, job.Payload, sharedSpecs, sharedEnabled, installTargetDir)
 		logSender.Send(job.ID, []string{
-			fmt.Sprintf("shared_enabled=%t", sharedEnabled),
-			fmt.Sprintf("shared_key=%s", sharedKey),
 			fmt.Sprintf("user_home_dir=%s", userHomeDir),
 			fmt.Sprintf("game_dir=%s", instanceDir),
-			fmt.Sprintf("shared_server_dir=%s", installTargetDir),
 			fmt.Sprintf("instance_dir=%s", instanceDir),
 		}, nil)
 		for i, sp := range sharedSpecs {
@@ -623,6 +666,24 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		postInstallSnippet = steamCmdClientSnippet(steamCmdDir, installTargetDir)
 	}
 	shellCmd := buildSniperInstallShellCommand(commandWorkDir, command, installSnippet, postInstallSnippet)
+	runScriptPath := ""
+	steamCmdExecPath = ""
+	if sharedEnabled && usesSteamCmd {
+		steamCmdExecPath = resolveSteamCmdExecPath(instanceDirSteamCmdDir(installTargetDir))
+		if steamCmdExecPath == "" {
+			steamCmdExecPath = "$STEAMCMD_EXEC"
+		}
+		login := "anonymous"
+		if m := steamLoginRegex.FindStringSubmatch(command); len(m) > 1 {
+			login = strings.Trim(strings.TrimSpace(m[1]), `"'`)
+		}
+		steamAppID = resolveSteamAppID(job.Payload, command)
+		runScriptPath = filepath.Join(installTargetDir, ".update", fmt.Sprintf("install_%s.txt", sanitizeJobToken(job.ID)))
+		if err := writeSteamCmdRunScript(runScriptPath, installTargetDir, login, steamAppID, osUsername); err != nil {
+			return failureResult(job.ID, err)
+		}
+		shellCmd = buildSniperInstallShellCommand(commandWorkDir, fmt.Sprintf("%s +runscript %s", steamCmdExecPath, shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
+	}
 
 	sharedResult := ""
 	sharedManifestFile := ""
@@ -650,14 +711,31 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 
 	if logSender != nil && job.ID != "" {
 		maskedInstall := maskSensitiveValues(command, templateValues)
+		if steamAppID == "" {
+			logSender.Send(job.ID, []string{"steam_app_id_missing"}, nil)
+		}
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("sniper %s starting (steam_app_id=%s uses_steamcmd=%t command=%s)", action, steamAppID, usesSteamCmd, maskedInstall),
 		}, nil)
+		if sharedEnabled && usesSteamCmd {
+			st, stErr := os.Stat(steamCmdExecPath)
+			_, rstErr := os.Stat(runScriptPath)
+			logSender.Send(job.ID, []string{
+				fmt.Sprintf("steamcmd_exec_resolved=%s", steamCmdExecPath),
+				fmt.Sprintf("steamcmd_exists=%t", stErr == nil),
+				fmt.Sprintf("steamcmd_executable=%t", stErr == nil && st.Mode()&0o111 != 0),
+				fmt.Sprintf("runscript_path=%s", runScriptPath),
+				fmt.Sprintf("runscript_exists=%t", rstErr == nil),
+			}, nil)
+		}
 	}
 
 	output := ""
 	if !sharedEnabled || action != "install" || sharedResult != "SHARED_INSTALL_REUSED" {
 		var err error
+		if logSender != nil && job.ID != "" {
+			logSender.Send(job.ID, []string{"command started: runuser", "command_started=true"}, nil)
+		}
 		output, err = runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
 		if err != nil {
 			markSharedFailure(err)
@@ -720,14 +798,20 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 	}
 	if usesSteamCmd {
-		steamCmdSuccess := steamCmdInstallSucceeded(output, steamAppID)
-		steamCmdReason := "missing_success_confirmation"
-		if steamCmdSuccess {
-			steamCmdReason = "success_message_detected"
+		steamCmdSuccess := steamCmdInstallSucceeded(normalizeSteamOutput(output), steamAppID)
+		steamCmdReason := steamCmdSuccessReason(output, steamAppID)
+		if logSender != nil && job.ID != "" {
+			logSender.Send(job.ID, []string{
+				"command_exit_code=0",
+				fmt.Sprintf("steamcmd_stdout_size=%d", len(strings.TrimSpace(output))),
+				"steamcmd_stderr_size=0",
+				fmt.Sprintf("steamcmd_success_detected=%t", steamCmdSuccess),
+				fmt.Sprintf("steamcmd_success_reason=%s", steamCmdReason),
+			}, nil)
 		}
-		log.Printf("steamcmd_exit_code=0 steamcmd_success_detected=%t steamcmd_success_reason=%s", steamCmdSuccess, steamCmdReason)
-		if !steamCmdInstallSucceeded(output, steamAppID) && !steamCmdHasRealError(output) && logSender != nil && job.ID != "" {
-			logSender.Send(job.ID, []string{"STEAMCMD_INSTALL_CONFIRMATION_MISSING_BUT_EXIT_ZERO"}, nil)
+		if strings.TrimSpace(normalizeSteamOutput(output)) == "" {
+			markSharedFailure(errors.New("steamcmd_no_output"))
+			return failureResult(job.ID, errors.New("steamcmd_no_output"))
 		}
 		if err := steamCmdInstallError(output, steamAppID); err != nil {
 			markSharedFailure(err)

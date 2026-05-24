@@ -395,3 +395,24 @@ func TestBuildSharedACLSpec(t *testing.T) {
 		t.Fatalf("expected empty acl spec, got %q", got)
 	}
 }
+
+func TestResolveSteamAppIDFromCommand(t *testing.T) {
+	appID := resolveSteamAppID(map[string]any{}, "steamcmd +app_update 730 validate +quit")
+	if appID != "730" {
+		t.Fatalf("expected app id 730, got %q", appID)
+	}
+}
+
+func TestSteamCmdSuccessReasonHandlesAnsiAndUpToDate(t *testing.T) {
+	out := "\x1b[0mSuccess!   App '730'   already up to date.\x1b[0m"
+	reason := steamCmdSuccessReason(out, "730")
+	if reason != "already_up_to_date" {
+		t.Fatalf("unexpected reason %q", reason)
+	}
+}
+
+func TestSteamCmdSuccessReasonNoOutput(t *testing.T) {
+	if got := steamCmdSuccessReason("   \n\t", "730"); got != "steamcmd_no_output" {
+		t.Fatalf("expected steamcmd_no_output, got %q", got)
+	}
+}

@@ -148,6 +148,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 	startCommand := startScriptPath
 	startParams = ""
+	sharedActive := shouldUseSharedStorage(job.Payload, "instance_create")
 	sharedRoot := payloadValue(job.Payload, "shared_server_dir")
 	if sharedRoot == "" {
 		sharedKey := payloadValue(job.Payload, "shared_key")
@@ -155,8 +156,11 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 			sharedRoot = sharedServerDir(baseDir, sharedKey)
 		}
 	}
-	if err := applySharedPaths(instanceDir, sharedRoot, sharedSpecs); err != nil {
-		return failureResult(job.ID, err)
+	logSharedValidationState(nil, job.ID, "instance_create", job.Payload, sharedSpecs, sharedActive, sharedRoot)
+	if sharedActive {
+		if err := applySharedPaths(instanceDir, sharedRoot, sharedSpecs); err != nil {
+			return failureResult(job.ID, err)
+		}
 	}
 	if err := chownInstanceTreeNoFollow(instanceDir, osUsername); err != nil {
 		return failureResult(job.ID, err)
@@ -857,6 +861,7 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
+	sharedActive := shouldUseSharedStorage(job.Payload, "instance_reinstall")
 	sharedRoot := payloadValue(job.Payload, "shared_server_dir")
 	if sharedRoot == "" {
 		sharedKey := payloadValue(job.Payload, "shared_key")
@@ -864,8 +869,11 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 			sharedRoot = sharedServerDir(baseDir, sharedKey)
 		}
 	}
-	if err := applySharedPaths(instanceDir, sharedRoot, sharedSpecs); err != nil {
-		return failureResult(job.ID, err)
+	logSharedValidationState(logSender, job.ID, "instance_reinstall", job.Payload, sharedSpecs, sharedActive, sharedRoot)
+	if sharedActive {
+		if err := applySharedPaths(instanceDir, sharedRoot, sharedSpecs); err != nil {
+			return failureResult(job.ID, err)
+		}
 	}
 	if err := chownInstanceTreeNoFollow(instanceDir, osUsername); err != nil {
 		return failureResult(job.ID, err)

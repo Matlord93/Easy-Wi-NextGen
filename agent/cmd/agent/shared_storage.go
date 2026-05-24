@@ -283,6 +283,37 @@ func parseSharedPathSpecs(payload map[string]any) ([]sharedPathSpec, error) {
 	return specs, nil
 }
 
+
+func shouldUseSharedStorage(payload map[string]any, action string) bool {
+	sharedEnabled := parsePayloadBool(payloadValue(payload, "shared_enabled", "use_shared_storage"), false)
+	sharedKey := strings.TrimSpace(payloadValue(payload, "shared_key"))
+	installMode := strings.ToLower(strings.TrimSpace(payloadValue(payload, "install_mode", "mode")))
+
+	isSharedAction := strings.HasPrefix(action, "shared_") || installMode == "shared" || installMode == "shared_reinstall" || installMode == "shared_update"
+
+	return sharedEnabled || sharedKey != "" || isSharedAction
+}
+
+func logSharedValidationState(logSender JobLogSender, jobID string, action string, payload map[string]any, sharedSpecs []sharedPathSpec, sharedActive bool, sharedRoot string) {
+	if logSender == nil || jobID == "" {
+		return
+	}
+	sharedEnabled := parsePayloadBool(payloadValue(payload, "shared_enabled", "use_shared_storage"), false)
+	sharedKey := strings.TrimSpace(payloadValue(payload, "shared_key"))
+	installMode := strings.TrimSpace(payloadValue(payload, "install_mode", "mode"))
+	if installMode == "" {
+		installMode = action
+	}
+	logSender.Send(jobID, []string{
+		fmt.Sprintf("shared_enabled=%t", sharedEnabled),
+		fmt.Sprintf("shared_key=%s", sharedKey),
+		fmt.Sprintf("shared_paths_configured=%t", len(sharedSpecs) > 0),
+		fmt.Sprintf("shared_root_required=%t", sharedActive && len(sharedSpecs) > 0),
+		fmt.Sprintf("shared_validation_active=%t", sharedActive),
+		fmt.Sprintf("install_mode=%s", installMode),
+		fmt.Sprintf("shared_server_dir=%s", sharedRoot),
+	}, nil)
+}
 func applySharedPaths(instanceDir, sharedRoot string, specs []sharedPathSpec) error {
 	if len(specs) == 0 {
 		return nil

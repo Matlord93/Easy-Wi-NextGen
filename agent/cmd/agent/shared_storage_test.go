@@ -623,3 +623,28 @@ func TestWriteSteamCmdRunScriptRequiresAppID(t *testing.T) {
 		t.Fatalf("expected missing_app_update, got %v", err)
 	}
 }
+
+func TestShouldUseSharedStorage_SharedPathsAloneDoesNotActivate(t *testing.T) {
+	payload := map[string]any{
+		"shared_paths": []any{map[string]any{"source": "csgo", "target": "csgo", "mode": "symlink", "readonly": true}},
+	}
+	if shouldUseSharedStorage(payload, "instance_reinstall") {
+		t.Fatalf("expected shared storage to remain disabled when only shared_paths are configured")
+	}
+}
+
+func TestShouldUseSharedStorage_ActivatesForSharedFlagsAndModes(t *testing.T) {
+	cases := []map[string]any{
+		{"shared_enabled": true},
+		{"shared_key": "1"},
+		{"install_mode": "shared"},
+	}
+	for i, payload := range cases {
+		if !shouldUseSharedStorage(payload, "instance_reinstall") {
+			t.Fatalf("expected shared storage to be active for case %d", i)
+		}
+	}
+	if !shouldUseSharedStorage(map[string]any{}, "shared_reinstall") {
+		t.Fatalf("expected shared action to activate shared validation")
+	}
+}
