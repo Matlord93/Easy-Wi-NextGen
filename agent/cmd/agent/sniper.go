@@ -32,7 +32,9 @@ var (
 	ansiControlRegex             = regexp.MustCompile(`\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])`)
 	steamLoginRegex              = regexp.MustCompile(`(?i)\+login\s+("[^"]+"|'[^']+'|\S+)`)
 	steamAppUpdateRegex          = regexp.MustCompile(`(?i)\+app_update\s+([0-9]+)`)
-	chownRecursiveFn             = func(path string, uid, gid int) error { return os.Chown(path, uid, gid) }
+	steamCmdSuccessRegex         = regexp.MustCompile(`(?im)success!\s*app\s*['"]?([0-9]+)['"]?\s*(fully installed|already up to date)\.?\s*$`)
+	chownRecursiveFn                   = func(path string, uid, gid int) error { return os.Chown(path, uid, gid) }
+	ensureSharedGroupAndMembershipFn   = ensureSharedGroupAndMembership
 )
 
 const steamCmdRetryLimit = 3
@@ -654,12 +656,18 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 	}
 	if usesSteamCmd {
+		steamCmdSuccess := steamCmdInstallSucceeded(output, steamAppID)
+		steamCmdReason := "missing_success_confirmation"
+		if steamCmdSuccess {
+			steamCmdReason = "success_message_detected"
+		}
+		log.Printf("steamcmd_exit_code=0 steamcmd_success_detected=%t steamcmd_success_reason=%s", steamCmdSuccess, steamCmdReason)
 		if !steamCmdInstallSucceeded(output, steamAppID) && !steamCmdHasRealError(output) && logSender != nil && job.ID != "" {
 			logSender.Send(job.ID, []string{"STEAMCMD_INSTALL_CONFIRMATION_MISSING_BUT_EXIT_ZERO"}, nil)
 		}
 		if err := steamCmdInstallError(output, steamAppID); err != nil {
 			markSharedFailure(err)
-			return failureResult(job.ID, err)
+			return failureResult(job.ID, fmt.Errorf("steamcmd_failed: %w", err))
 		}
 	}
 
@@ -698,8 +706,10 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 		if err := ensureServiceActive(serviceName); err != nil {
 			markSharedFailure(err)
-			return failureResult(job.ID, err)
+			log.Printf("service_health_status=unhealthy service_name=%s", serviceName)
+			return failureResult(job.ID, fmt.Errorf("service_unhealthy_after_update: %w", err))
 		}
+		log.Printf("service_health_status=healthy service_name=%s", serviceName)
 	}
 
 	if err := chownInstanceTreeNoFollow(instanceDir, osUsername); err != nil {
@@ -901,8 +911,11 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 			return "", fmt.Errorf("chmod shared dir %s: %w", dir, err)
 		}
 	}
-	if err := ensureSharedGroupAndMembership(sharedGroup, osUsername); err != nil {
+	if err := ensureSharedGroupAndMembershipFn(sharedGroup, osUsername); err != nil {
 		return "", err
+	}
+	if uid, gid, err := lookupIDs(osUsername, osUsername); err == nil {
+		_ = chownRecursiveFn(sharedKeyRoot, uid, gid)
 	}
 	_ = runCommand("chgrp", "-R", sharedGroup, sharedKeyRoot)
 	_ = runCommand("chmod", "g+s", sharedKeyRoot, sharedServer, filepath.Join(sharedServer, ".steamcmd"), filepath.Join(sharedServer, ".update"), locksDir)
@@ -1132,18 +1145,22 @@ func steamCmdInstallSucceeded(output string, steamAppID string) bool {
 	if clean == "" {
 		return false
 	}
-	lower := strings.ToLower(clean)
-	if strings.Contains(lower, "fully installed") {
-		return true
+	matches := steamCmdSuccessRegex.FindAllStringSubmatch(clean, -1)
+	if len(matches) > 0 {
+		if steamAppID == "" {
+			return true
+		}
+		for _, match := range matches {
+			if len(match) > 1 && strings.TrimSpace(match[1]) == strings.TrimSpace(steamAppID) {
+				return true
+			}
+		}
 	}
+	lower := strings.ToLower(clean)
 	if strings.Contains(lower, "update state (0x81) verifying update") && !steamCmdHasRealError(clean) {
 		return true
 	}
-	if steamAppID != "" {
-		appPattern := regexp.MustCompile(fmt.Sprintf(`(?i)(success!\s+app\s+['"]?%s['"]?\s+fully installed|app\s+['"]?%s['"]?\s+fully installed)`, regexp.QuoteMeta(steamAppID), regexp.QuoteMeta(steamAppID)))
-		return appPattern.MatchString(clean)
-	}
-	return strings.Contains(lower, "success! app")
+	return false
 }
 
 func steamCmdHasRealError(output string) bool {
@@ -1195,7 +1212,7 @@ func steamCmdInstallError(output, steamAppID string) error {
 		return fmt.Errorf("steamcmd finished with detected error markers")
 	}
 	log.Printf("STEAMCMD_INSTALL_CONFIRMATION_MISSING_BUT_EXIT_ZERO")
-	return nil
+	return fmt.Errorf("steamcmd_failed: missing success confirmation")
 }
 
 func extractBuildInfo(output string) (string, string) {

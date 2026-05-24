@@ -907,11 +907,17 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 					}
 				}
 			}
+			steamCmdSuccess := steamCmdInstallSucceeded(installOutput, steamAppID)
+			steamCmdReason := "missing_success_confirmation"
+			if steamCmdSuccess {
+				steamCmdReason = "success_message_detected"
+			}
+			log.Printf("steamcmd_exit_code=0 steamcmd_success_detected=%t steamcmd_success_reason=%s", steamCmdSuccess, steamCmdReason)
 			if !steamCmdInstallSucceeded(installOutput, steamAppID) && !steamCmdHasRealError(installOutput) && logSender != nil && job.ID != "" {
 				logSender.Send(job.ID, []string{"STEAMCMD_INSTALL_CONFIRMATION_MISSING_BUT_EXIT_ZERO"}, nil)
 			}
 			if err := steamCmdInstallError(installOutput, steamAppID); err != nil {
-				return failureResult(job.ID, err)
+				return failureResult(job.ID, fmt.Errorf("steamcmd_failed: %w", err))
 			}
 		}
 		diagnostics["install_log"] = trimOutput(installOutput, 4000)
@@ -929,8 +935,10 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 	if err := ensureServiceActive(serviceName); err != nil {
-		return failureResult(job.ID, err)
+		log.Printf("service_health_status=unhealthy service_name=%s", serviceName)
+		return failureResult(job.ID, fmt.Errorf("service_unhealthy_after_update: %w", err))
 	}
+	log.Printf("service_health_status=healthy service_name=%s", serviceName)
 
 	diagnostics["service_name"] = serviceName
 	diagnostics["instance_dir"] = instanceDir

@@ -79,10 +79,17 @@ func TestSteamCmdInstallSucceededWithANSI(t *testing.T) {
 	}
 }
 
+func TestSteamCmdInstallSucceededAlreadyUpToDateWithANSI(t *testing.T) {
+	output := "\u001b[32mSuccess! App '730' already up to date.\u001b[0m"
+	if !steamCmdInstallSucceeded(output, "730") {
+		t.Fatalf("expected already up to date to count as success with ansi output")
+	}
+}
+
 func TestSteamCmdInstallErrorMissingConfirmationExitZeroNoError(t *testing.T) {
 	output := "Update state (0x61) downloading, progress: 100.00\nUpdate state (0x81) verifying update, progress: 100.00"
-	if err := steamCmdInstallError(output, "730"); err != nil {
-		t.Fatalf("expected no error when output has no failure markers, got %v", err)
+	if err := steamCmdInstallError(output, "730"); err == nil {
+		t.Fatalf("expected error when success confirmation is missing")
 	}
 }
 
@@ -239,6 +246,10 @@ func TestPrepareSharedStoragePermissionsCreatesExpectedDirs(t *testing.T) {
 		t.Skip("USER not set")
 	}
 
+	origGroup := ensureSharedGroupAndMembershipFn
+	ensureSharedGroupAndMembershipFn = func(_, _ string) error { return nil }
+	defer func() { ensureSharedGroupAndMembershipFn = origGroup }()
+
 	sharedServer, err := prepareSharedStoragePermissions(tmp, sharedKey, osUsername)
 	if err != nil {
 		t.Fatalf("prepareSharedStoragePermissions failed: %v", err)
@@ -271,6 +282,10 @@ func TestPrepareSharedStoragePermissionsUsesInjectableChown(t *testing.T) {
 		return nil
 	}
 	defer func() { chownRecursiveFn = orig }()
+
+	origGroup := ensureSharedGroupAndMembershipFn
+	ensureSharedGroupAndMembershipFn = func(_, _ string) error { return nil }
+	defer func() { ensureSharedGroupAndMembershipFn = origGroup }()
 
 	osUsername := os.Getenv("USER")
 	if osUsername == "" {
