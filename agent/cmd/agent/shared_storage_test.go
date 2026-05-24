@@ -429,6 +429,22 @@ func TestAcquireSharedStorageLockWithTimeoutRemovesStale(t *testing.T) {
 	release()
 }
 
+func TestResolveSharedLockPathsUsesPerSharedServerLocks(t *testing.T) {
+	base := t.TempDir()
+	lockDir, lockPath := resolveSharedLockPaths(base, "1")
+	expectedDir := filepath.Join(base, "Shared", "1", "server", ".locks")
+	expectedPath := filepath.Join(expectedDir, "1.lock")
+	if lockDir != expectedDir {
+		t.Fatalf("unexpected lock dir: %s", lockDir)
+	}
+	if lockPath != expectedPath {
+		t.Fatalf("unexpected lock path: %s", lockPath)
+	}
+	if filepath.Dir(lockPath) != lockDir {
+		t.Fatalf("lock path parent mismatch: %s vs %s", filepath.Dir(lockPath), lockDir)
+	}
+}
+
 func TestSharedManifestWriteReadRoundTrip(t *testing.T) {
 	base := t.TempDir()
 	path := filepath.Join(base, ".shared-manifest.json")

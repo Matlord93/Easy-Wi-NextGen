@@ -98,8 +98,13 @@ func sharedServerDir(baseDir, sharedKey string) string {
 func sharedManifestPath(baseDir, sharedKey string) string {
 	return filepath.Join(sharedRootFor(baseDir, sharedKey), ".shared-manifest.json")
 }
+func resolveSharedLockPaths(baseDir, sharedKey string) (string, string) {
+	lockDir := filepath.Join(sharedServerDir(baseDir, sharedKey), ".locks")
+	return lockDir, filepath.Join(lockDir, sharedKey+".lock")
+}
 func sharedLockPath(baseDir, sharedKey string) string {
-	return filepath.Join(baseDir, "Shared", ".locks", sharedKey+".lock")
+	_, lockPath := resolveSharedLockPaths(baseDir, sharedKey)
+	return lockPath
 }
 
 func acquireSharedStorageLockWithTimeout(lockPath string, timeout time.Duration) (func(), error) {

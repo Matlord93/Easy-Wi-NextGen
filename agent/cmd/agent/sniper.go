@@ -206,6 +206,8 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("lock_dir=%s", lockDetails.LockDir),
 			fmt.Sprintf("lock_path=%s", lockDetails.LockPath),
+			fmt.Sprintf("lock_path_parent=%s", lockDetails.LockPathParent),
+			fmt.Sprintf("lock_path_matches_lock_dir=%t", lockDetails.LockPathMatches),
 			fmt.Sprintf("lock_test_command=%s", lockDetails.LockTestCommand),
 			fmt.Sprintf("effective_groups=%s", lockDetails.EffectiveGroups),
 			fmt.Sprintf("shared_group_member=%t", lockDetails.SharedGroupMember),
@@ -722,7 +724,8 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			markSharedFailure(err)
 			return failureResult(job.ID, err)
 		}
-		if err := ensureServiceActive(serviceName); err != nil {
+		restartAt := time.Now().UTC()
+		if err := ensureServiceActive(serviceName, restartAt); err != nil {
 			markSharedFailure(err)
 			log.Printf("service_health_status=unhealthy service_name=%s", serviceName)
 			return failureResult(job.ID, fmt.Errorf("service_unhealthy_after_update: %w", err))
@@ -948,7 +951,7 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 	sharedKeyRoot := sharedRootFor(baseDir, sharedKey)
 	sharedServer := sharedServerDir(baseDir, sharedKey)
 	sharedSteam := filepath.Join(sharedServer, ".steam")
-	locksDir := filepath.Join(sharedRoot, ".locks")
+	locksDir, _ := resolveSharedLockPaths(baseDir, sharedKey)
 	sharedGroup := sharedGroupName(sharedKey)
 	for _, dir := range []string{
 		sharedRoot,
@@ -1020,6 +1023,8 @@ func ensureSharedGroupAndMembership(groupName, username string) error {
 type sharedLockValidationDetails struct {
 	LockDir           string
 	LockPath          string
+	LockPathParent    string
+	LockPathMatches   bool
 	LockTestCommand   string
 	EffectiveGroups   string
 	SharedGroup       string
@@ -1036,6 +1041,11 @@ func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPa
 		SharedGroup:     sharedGroup,
 		ExitCode:        -1,
 		LockTestCommand: "test -d <lock_dir> && test -w <lock_dir> && touch <lock_path>.write_test && rm -f <lock_path>.write_test",
+	}
+	details.LockPathParent = filepath.Dir(details.LockPath)
+	details.LockPathMatches = details.LockPathParent == details.LockDir
+	if !details.LockPathMatches {
+		return details, fmt.Errorf("lock_path_mismatch: lock_dir=%s lock_path=%s", details.LockDir, details.LockPath)
 	}
 	checks := [][]string{
 		{"test", "-x", sharedServer},

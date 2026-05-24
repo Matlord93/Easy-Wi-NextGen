@@ -192,4 +192,38 @@ func TestValidateSharedUpdatePermissionsExposesLockPaths(t *testing.T) {
 	if details.LockPath != lockPath {
 		t.Fatalf("lock path mismatch: %s", details.LockPath)
 	}
+	if !details.LockPathMatches {
+		t.Fatalf("expected lock path to match lock dir")
+	}
+}
+
+func TestValidateSharedUpdatePermissionsFailsOnLockPathMismatch(t *testing.T) {
+	base := t.TempDir()
+	sharedServer := filepath.Join(base, "Shared", "1", "server")
+	runScript := filepath.Join(sharedServer, ".update", "run.txt")
+	steamCmd := filepath.Join(sharedServer, ".steamcmd", "steamcmd.sh")
+	lockPath := filepath.Join(base, "Shared", ".locks", "1.lock")
+	if err := os.MkdirAll(sharedServer, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(runScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(steamCmd), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runScript, []byte("quit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(steamCmd, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	details, err := validateSharedUpdatePermissions(sharedServer, runScript, steamCmd, lockPath, "user-does-not-exist", "sharedsrv_1")
+	if err == nil || !strings.Contains(err.Error(), "lock_path_mismatch") {
+		t.Fatalf("expected lock_path_mismatch, got err=%v", err)
+	}
+	if details.LockPathMatches {
+		t.Fatalf("expected lock path mismatch details")
+	}
 }

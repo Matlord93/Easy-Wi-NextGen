@@ -179,7 +179,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 			return failureResult(job.ID, err)
 		}
 	}
-	if err := ensureServiceActive(serviceName); err != nil {
+	if err := ensureServiceActive(serviceName, time.Now().UTC()); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -237,7 +237,7 @@ func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, fun
 	if err := runCommand("systemctl", "start", serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureServiceActive(serviceName); err != nil {
+	if err := ensureServiceActive(serviceName, time.Now().UTC()); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -328,7 +328,7 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 	if err := runCommand("systemctl", "restart", serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureServiceActive(serviceName); err != nil {
+	if err := ensureServiceActive(serviceName, time.Now().UTC()); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -934,7 +934,8 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	if err := runCommand("systemctl", "start", serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureServiceActive(serviceName); err != nil {
+	restartAt := time.Now().UTC()
+	if err := ensureServiceActive(serviceName, restartAt); err != nil {
 		log.Printf("service_health_status=unhealthy service_name=%s", serviceName)
 		return failureResult(job.ID, fmt.Errorf("service_unhealthy_after_update: %w", err))
 	}
@@ -1569,6 +1570,10 @@ func parsePortsFromValue(value any) []int {
 }
 
 func collectServiceDiagnostics(serviceName string) map[string]string {
+	return collectServiceDiagnosticsSince(serviceName, time.Now().UTC().Add(-10*time.Minute))
+}
+
+func collectServiceDiagnosticsSince(serviceName string, restartAt time.Time) map[string]string {
 	diagnostics := map[string]string{}
 	statusOutput, err := runCommandOutput("systemctl", "is-active", serviceName)
 	if err != nil {
@@ -1577,8 +1582,34 @@ func collectServiceDiagnostics(serviceName string) map[string]string {
 	} else {
 		diagnostics["service_status"] = strings.TrimSpace(statusOutput)
 	}
+	failedOutput, failedErr := runCommandOutput("systemctl", "is-failed", serviceName)
+	if failedErr != nil {
+		diagnostics["service_failed"] = "unknown"
+		diagnostics["service_failed_error"] = failedErr.Error()
+	} else {
+		diagnostics["service_failed"] = strings.TrimSpace(failedOutput)
+	}
+	mainPIDOutput, pidErr := runCommandOutput("systemctl", "show", serviceName, "--property=MainPID", "--value")
+	if pidErr != nil {
+		diagnostics["main_pid_error"] = pidErr.Error()
+	} else {
+		diagnostics["main_pid"] = strings.TrimSpace(mainPIDOutput)
+	}
+	if pid := diagnostics["main_pid"]; pid != "" && pid != "0" {
+		psOutput, psErr := runCommandOutput("ps", "-p", pid, "-o", "args=")
+		if psErr == nil {
+			diagnostics["process_running"] = "true"
+			diagnostics["process_command"] = strings.TrimSpace(psOutput)
+		} else {
+			diagnostics["process_running"] = "false"
+			diagnostics["process_error"] = psErr.Error()
+		}
+	} else {
+		diagnostics["process_running"] = "false"
+	}
 
-	logOutput, err := runCommandOutput("journalctl", "-u", serviceName, "-n", "200", "--no-pager", "--output=cat")
+	since := fmt.Sprintf("@%d", restartAt.Unix())
+	logOutput, err := runCommandOutput("journalctl", "-u", serviceName, "--since", since, "-n", "200", "--no-pager", "--output=cat")
 	if err != nil {
 		diagnostics["logs_error"] = err.Error()
 	}
@@ -1737,27 +1768,37 @@ func parsePayloadBool(value string, defaultValue bool) bool {
 	}
 }
 
-func ensureServiceActive(serviceName string) error {
-	statusOutput, err := runCommandOutput("systemctl", "is-active", serviceName)
-	if err != nil {
-		diag := collectServiceDiagnostics(serviceName)
-		return fmt.Errorf("%w; diagnostics=%v", err, diag)
-	}
-	if strings.TrimSpace(statusOutput) != "active" {
-		diag := collectServiceDiagnostics(serviceName)
-		return fmt.Errorf("service %s not active (%s); diagnostics=%v", serviceName, strings.TrimSpace(statusOutput), diag)
-	}
-	diag := collectServiceDiagnostics(serviceName)
-	logs := strings.ToLower(diag["logs_tail"])
-	for _, marker := range []string{
-		"segmentation fault", "status=139", "failed with result", "main process exited", "failed to load module", "fatal error",
-		"no such file or directory", "status=127", "failed to start", "start request repeated too quickly",
-	} {
-		if strings.Contains(logs, marker) {
-			return fmt.Errorf("service %s unhealthy marker detected (%s)", serviceName, marker)
+func ensureServiceActive(serviceName string, restartAt time.Time) error {
+	_ = runCommand("systemctl", "reset-failed", serviceName)
+	var lastErr error
+	for attempt := 1; attempt <= 6; attempt++ {
+		diag := collectServiceDiagnosticsSince(serviceName, restartAt)
+		log.Printf("post_update_healthcheck restart_timestamp=%s healthcheck_timestamp=%s service_name=%s service_state=%s service_failed=%s main_pid=%s process_running=%s process_command=%q",
+			restartAt.Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), serviceName, diag["service_status"], diag["service_failed"], diag["main_pid"], diag["process_running"], diag["process_command"])
+		status := diag["service_status"]
+		processRunning := diag["process_running"] == "true"
+		if status == "active" && processRunning {
+			logs := strings.ToLower(diag["logs_tail"])
+			hasNewCrashMarker := false
+			for _, marker := range []string{"segmentation fault", "status=139", "failed with result", "main process exited", "failed to load module", "fatal error", "no such file or directory", "status=127", "failed to start", "start request repeated too quickly"} {
+				if strings.Contains(logs, marker) {
+					hasNewCrashMarker = true
+					lastErr = fmt.Errorf("service %s unhealthy marker detected (%s)", serviceName, marker)
+					break
+				}
+			}
+			if !hasNewCrashMarker {
+				return nil
+			}
+		} else {
+			lastErr = fmt.Errorf("service %s not healthy (state=%s process_running=%t)", serviceName, status, processRunning)
+		}
+		if attempt < 6 {
+			time.Sleep(5 * time.Second)
 		}
 	}
-	return nil
+	diag := collectServiceDiagnosticsSince(serviceName, restartAt)
+	return fmt.Errorf("%w; diagnostics=%v", lastErr, diag)
 }
 
 func copyDir(source, target string) error {

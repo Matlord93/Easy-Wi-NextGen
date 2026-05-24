@@ -65,7 +65,7 @@ func handleInstanceWatchdogCheck(job jobs.Job, logSender JobLogSender) (jobs.Res
 			continue
 		}
 
-		if activeErr := ensureServiceActive(serviceName); activeErr != nil {
+		if activeErr := ensureServiceActive(serviceName, time.Now().UTC()); activeErr != nil {
 			lastRestartErr = activeErr
 			time.Sleep(2 * time.Second)
 			continue
