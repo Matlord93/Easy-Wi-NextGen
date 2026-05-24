@@ -19,21 +19,21 @@ import (
 )
 
 var (
-	buildIDRegex                     = regexp.MustCompile(`(?i)build(?:[_\s-]?id)?[:\s]+([0-9]+)`)
-	versionRegex                     = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
-	jsonLineRegex                    = regexp.MustCompile(`\{.*\}`)
-	forceInstallDirRegex             = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\"[^\"]+\"|'[^']+'|\S+)`)
-	forceInstallDirPresenceRegex     = regexp.MustCompile(`(?i)\+force_install_dir\b`)
-	steamcmdInjectRegex              = regexp.MustCompile(`(?i)(^|\s)([^\s]*steamcmd(?:\.sh|\.exe)?)(\s)`)
-	steamcmdCommandRegex             = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
-	steamcmdArchiveURL               = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
-	wineBootstrapRegex               = regexp.MustCompile(`(?is)^\s*(?:bash\s+-lc\s+)?["']?\s*set\s+-e\s*;\s*if\s+!\s+command\s+-v\s+wine\b.*?\bfi\s*;\s*`)
-	ansiControlRegex                 = regexp.MustCompile(`\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])`)
-	steamLoginRegex                  = regexp.MustCompile(`(?i)\+login\s+("[^"]+"|'[^']+'|\S+)`)
-	steamAppUpdateRegex              = regexp.MustCompile(`(?i)\+app_update\s+([0-9]+)`)
-	steamCmdSuccessRegex             = regexp.MustCompile(`(?im)success!\s*app\s*['"]?([0-9]+)['"]?\s*(fully installed|already up to date)\.?\s*$`)
-	chownRecursiveFn                 = func(path string, uid, gid int) error { return os.Chown(path, uid, gid) }
-	ensureSharedGroupAndMembershipFn = ensureSharedGroupAndMembership
+	buildIDRegex                                   = regexp.MustCompile(`(?i)build(?:[_\s-]?id)?[:\s]+([0-9]+)`)
+	versionRegex                                   = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
+	jsonLineRegex                                  = regexp.MustCompile(`\{.*\}`)
+	forceInstallDirRegex                           = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\"[^\"]+\"|'[^']+'|\S+)`)
+	forceInstallDirPresenceRegex                   = regexp.MustCompile(`(?i)\+force_install_dir\b`)
+	steamcmdInjectRegex                            = regexp.MustCompile(`(?i)(^|\s)([^\s]*steamcmd(?:\.sh|\.exe)?)(\s)`)
+	steamcmdCommandRegex                           = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
+	steamcmdArchiveURL                             = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
+	wineBootstrapRegex                             = regexp.MustCompile(`(?is)^\s*(?:bash\s+-lc\s+)?["']?\s*set\s+-e\s*;\s*if\s+!\s+command\s+-v\s+wine\b.*?\bfi\s*;\s*`)
+	ansiControlRegex                               = regexp.MustCompile(`\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])`)
+	steamLoginRegex                                = regexp.MustCompile(`(?i)\+login\s+("[^"]+"|'[^']+'|\S+)`)
+	steamAppUpdateRegex                            = regexp.MustCompile(`(?i)\+app_update\s+([0-9]+)`)
+	steamCmdSuccessRegex                           = regexp.MustCompile(`(?im)success!\s*app\s*['"]?([0-9]+)['"]?\s*(fully installed|already up to date)\.?\s*$`)
+	chownRecursiveFn                               = func(path string, uid, gid int) error { return os.Chown(path, uid, gid) }
+	ensureSharedGroupAndMembershipFn               = ensureSharedGroupAndMembership
 	permissionOps                    PermissionOps = permissionCommandOps{}
 )
 
@@ -48,16 +48,18 @@ type PermissionOps interface {
 }
 
 type permissionCommandOpsMock struct {
-	chgrpRecursiveFn         func(group, path string) error
-	chmodSetGIDFn            func(paths ...string) error
-	setfaclRecursiveFn       func(path, aclSpec string) error
+	chgrpRecursiveFn          func(group, path string) error
+	chmodSetGIDFn             func(paths ...string) error
+	setfaclRecursiveFn        func(path, aclSpec string) error
 	setfaclDefaultRecursiveFn func(path, aclSpec string) error
 }
 
 func (m permissionCommandOpsMock) ChgrpRecursive(group, path string) error {
 	return m.chgrpRecursiveFn(group, path)
 }
-func (m permissionCommandOpsMock) ChmodSetGID(paths ...string) error { return m.chmodSetGIDFn(paths...) }
+func (m permissionCommandOpsMock) ChmodSetGID(paths ...string) error {
+	return m.chmodSetGIDFn(paths...)
+}
 func (m permissionCommandOpsMock) SetfaclRecursive(path, aclSpec string) error {
 	return m.setfaclRecursiveFn(path, aclSpec)
 }
@@ -1054,7 +1056,6 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 	})
 	return sharedServer, nil
 }
-
 
 func buildSharedACLSpec(sharedGroup string) string {
 	group := strings.TrimSpace(sharedGroup)

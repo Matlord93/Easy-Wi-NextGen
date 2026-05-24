@@ -315,9 +315,9 @@ func TestPrepareSharedStoragePermissionsUsesInjectablePermissionOps(t *testing.T
 	fp := &fakePermOps{}
 	defer func() { permissionOps = origPermOps }()
 	permissionOps = permissionCommandOpsMock{
-		chgrpRecursiveFn:        func(string, string) error { fp.chgrp++; return nil },
-		chmodSetGIDFn:           func(...string) error { fp.chmod++; return nil },
-		setfaclRecursiveFn:      func(string, string) error { fp.acl++; return nil },
+		chgrpRecursiveFn:          func(string, string) error { fp.chgrp++; return nil },
+		chmodSetGIDFn:             func(...string) error { fp.chmod++; return nil },
+		setfaclRecursiveFn:        func(string, string) error { fp.acl++; return nil },
 		setfaclDefaultRecursiveFn: func(string, string) error { fp.dacl++; return nil },
 	}
 
