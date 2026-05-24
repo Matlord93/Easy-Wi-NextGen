@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -565,8 +566,13 @@ func TestEvaluateSharedInstallReuseReadyManifest(t *testing.T) {
 
 func TestWriteSteamCmdRunScript(t *testing.T) {
 	base := t.TempDir()
-	path := filepath.Join(base, "shared_update_1.txt")
-	if err := writeSteamCmdRunScript(path, "/home/Shared/1/server", "anonymous", "730"); err != nil {
+	path := filepath.Join(base, ".update", "shared_update_1.txt")
+	currentUser, _ := user.Current()
+	username := ""
+	if currentUser != nil {
+		username = currentUser.Username
+	}
+	if err := writeSteamCmdRunScript(path, "/home/Shared/1/server", "anonymous", "730", username); err != nil {
 		t.Fatal(err)
 	}
 	body, err := os.ReadFile(path)
@@ -584,10 +590,16 @@ func TestWriteSteamCmdRunScript(t *testing.T) {
 			t.Fatalf("missing %q in runscript: %s", expected, content)
 		}
 	}
+	if stat, err := os.Stat(filepath.Dir(path)); err != nil || stat.Mode().Perm() != 0o755 {
+		t.Fatalf("expected .update dir with 0755, got err=%v mode=%v", err, stat.Mode().Perm())
+	}
+	if stat, err := os.Stat(path); err != nil || stat.Mode().Perm() != 0o644 {
+		t.Fatalf("expected runscript with 0644, got err=%v mode=%v", err, stat.Mode().Perm())
+	}
 }
 
 func TestWriteSteamCmdRunScriptRequiresAppID(t *testing.T) {
-	err := writeSteamCmdRunScript(filepath.Join(t.TempDir(), "shared_update_2.txt"), "/home/Shared/1/server", "anonymous", "")
+	err := writeSteamCmdRunScript(filepath.Join(t.TempDir(), ".update", "shared_update_2.txt"), "/home/Shared/1/server", "anonymous", "", "")
 	if err == nil || !strings.Contains(err.Error(), "missing_app_update") {
 		t.Fatalf("expected missing_app_update, got %v", err)
 	}

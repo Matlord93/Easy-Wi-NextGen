@@ -139,6 +139,7 @@ func StreamCommand(cmd *exec.Cmd, jobID string, logSender JobLogSender) (string,
 		timeoutTimer = time.After(maxDuration)
 	}
 	idleDuration := streamNoProgressTimeout(cmd)
+	steamSawAppUpdate := false
 
 	for running := true; running; {
 		select {
@@ -148,8 +149,27 @@ func StreamCommand(cmd *exec.Cmd, jobID string, logSender JobLogSender) (string,
 				break
 			}
 			lastOutput = time.Now()
+			chunkText := string(chunk.data)
 			output.Write(chunk.data)
-			logBuffer = append(logBuffer, chunkPrefix(prefixEnabled, chunk.source)+string(chunk.data))
+			logBuffer = append(logBuffer, chunkPrefix(prefixEnabled, chunk.source)+chunkText)
+			lowerChunk := strings.ToLower(chunkText)
+			if strings.Contains(lowerChunk, "app_update") || strings.Contains(lowerChunk, "update state") {
+				steamSawAppUpdate = true
+			}
+			if strings.Contains(lowerChunk, "failed to load script file") {
+				_ = cmd.Process.Kill()
+				flush(true)
+				close(logSendCh)
+				logWg.Wait()
+				return output.String(), errors.New("steamcmd_runscript_failed")
+			}
+			if strings.Contains(chunkText, "Steam>") && !steamSawAppUpdate {
+				_ = cmd.Process.Kill()
+				flush(true)
+				close(logSendCh)
+				logWg.Wait()
+				return output.String(), errors.New("steamcmd_interactive_prompt_or_runscript_failed")
+			}
 			flush(false)
 		case <-flushTicker.C:
 			flush(false)

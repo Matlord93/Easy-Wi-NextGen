@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -47,5 +48,21 @@ func TestParseDurationEnv(t *testing.T) {
 	t.Setenv("EASYWI_COMMAND_TIMEOUT", "2s")
 	if got := parseDurationEnv("EASYWI_COMMAND_TIMEOUT"); got != 2*time.Second {
 		t.Fatalf("unexpected duration %v", got)
+	}
+}
+
+func TestStreamCommandSteamCmdFailedRunScriptStopsImmediately(t *testing.T) {
+	cmd := exec.Command("bash", "-lc", "echo 'Failed to load script file /tmp/a.txt'; sleep 10 # steamcmd +runscript /x")
+	_, err := StreamCommand(cmd, "", nil)
+	if err == nil || !strings.Contains(err.Error(), "steamcmd_runscript_failed") {
+		t.Fatalf("expected steamcmd_runscript_failed, got %v", err)
+	}
+}
+
+func TestStreamCommandSteamCmdInteractivePromptFailsWithoutUpdate(t *testing.T) {
+	cmd := exec.Command("bash", "-lc", "echo 'Steam>'; sleep 10 # steamcmd +runscript /x")
+	_, err := StreamCommand(cmd, "", nil)
+	if err == nil || !strings.Contains(err.Error(), "steamcmd_interactive_prompt_or_runscript_failed") {
+		t.Fatalf("expected steamcmd_interactive_prompt_or_runscript_failed, got %v", err)
 	}
 }

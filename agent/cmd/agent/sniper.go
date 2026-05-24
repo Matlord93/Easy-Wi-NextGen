@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"easywi/agent/internal/jobs"
@@ -127,9 +130,18 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	if logSender != nil {
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("shared_key=%s", sharedKey),
+			fmt.Sprintf("shared_group=%s", sharedGroupName(sharedKey)),
 			fmt.Sprintf("shared_server=%s", sharedServer),
 			fmt.Sprintf("run_as_user=%s", osUsername),
 		}, nil)
+	}
+	if _, prepErr := prepareSharedStoragePermissions(baseDir, sharedKey, osUsername); prepErr != nil {
+		err := fmt.Errorf("shared_permissions_invalid: %w", prepErr)
+		_ = markSharedManifestFailed(manifestPath, err)
+		if logSender != nil {
+			logSender.Send(job.ID, []string{"shared update failed", "reason=shared_permissions_invalid", "Job failed"}, nil)
+		}
+		return failureResult(job.ID, err)
 	}
 	installSnippet := ""
 	postInstallSnippet := ""
@@ -149,8 +161,8 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		if m := steamAppUpdateRegex.FindStringSubmatch(renderedCommand); appID == "" && len(m) > 1 {
 			appID = strings.TrimSpace(m[1])
 		}
-		runScriptPath = filepath.Join(os.TempDir(), fmt.Sprintf("shared_update_%s.txt", sanitizeJobToken(job.ID)))
-		if err := writeSteamCmdRunScript(runScriptPath, sharedServer, login, appID); err != nil {
+		runScriptPath = filepath.Join(sharedServer, ".update", fmt.Sprintf("shared_update_%s.txt", sanitizeJobToken(job.ID)))
+		if err := writeSteamCmdRunScript(runScriptPath, sharedServer, login, appID, osUsername); err != nil {
 			_ = markSharedManifestFailed(manifestPath, err)
 			return failureResult(job.ID, fmt.Errorf("SHARED_UPDATE_FAILED: %w", err))
 		}
@@ -158,7 +170,7 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		shellCmd = buildSniperInstallShellCommand(sharedServer, fmt.Sprintf("%s +runscript %s", steamCmdExecPath, shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
 	}
 	if usesSteamCmd && logSender != nil {
-		logSender.Send(job.ID, []string{fmt.Sprintf("shared_update_command=%s", maskSensitiveValues(renderedCommand, templateValues))}, nil)
+		logSender.Send(job.ID, []string{fmt.Sprintf("shared_update_command=%s", maskSensitiveValues(fmt.Sprintf("%s +runscript %s", steamCmdExecPath, runScriptPath), templateValues))}, nil)
 		logSender.Send(job.ID, []string{
 			fmt.Sprintf("steamcmd_path=%s", steamCmdExecPath),
 			fmt.Sprintf("runscript_path=%s", runScriptPath),
@@ -169,6 +181,30 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		}, nil)
 		if stat, statErr := os.Stat(runScriptPath); statErr == nil && !stat.IsDir() {
 			logSender.Send(job.ID, []string{"runscript_exists=true"}, nil)
+			if sys, ok := stat.Sys().(*syscall.Stat_t); ok {
+				logSender.Send(job.ID, []string{
+					fmt.Sprintf("runscript_owner=%d", sys.Uid),
+					fmt.Sprintf("runscript_group=%d", sys.Gid),
+					fmt.Sprintf("runscript_permissions=%04o", stat.Mode().Perm()),
+				}, nil)
+			}
+		}
+		readableByUser := isReadableByUser(osUsername, runScriptPath)
+		logSender.Send(job.ID, []string{fmt.Sprintf("runscript_readable_by_user=%t", readableByUser)}, nil)
+		if content, readErr := os.ReadFile(runScriptPath); readErr == nil {
+			logSender.Send(job.ID, []string{"runscript_content_start", strings.TrimSpace(string(content)), "runscript_content_end"}, nil)
+		}
+		if !readableByUser {
+			err = errors.New("runscript_not_readable")
+			_ = markSharedManifestFailed(manifestPath, err)
+			logSender.Send(job.ID, []string{"shared update failed", "reason=runscript_not_readable", "Job failed"}, nil)
+			return failureResult(job.ID, err)
+		}
+		if permErr := validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPath, sharedLockPath(baseDir, sharedKey), osUsername); permErr != nil {
+			err = fmt.Errorf("shared_permissions_invalid: %w", permErr)
+			_ = markSharedManifestFailed(manifestPath, err)
+			logSender.Send(job.ID, []string{"shared update failed", "reason=shared_permissions_invalid", "Job failed"}, nil)
+			return failureResult(job.ID, err)
 		}
 	}
 	if info, statErr := os.Stat(sharedServer); statErr != nil || !info.IsDir() {
@@ -229,12 +265,31 @@ func sanitizeJobToken(jobID string) string {
 	return v
 }
 
-func writeSteamCmdRunScript(path, installDir, login, appID string) error {
+func writeSteamCmdRunScript(path, installDir, login, appID, username string) error {
 	if strings.TrimSpace(appID) == "" {
 		return errors.New("missing_app_update")
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("mkdir runscript dir: %w", err)
+	}
 	content := fmt.Sprintf("force_install_dir %s\nlogin %s\napp_update %s\nquit\n", installDir, login, appID)
-	return os.WriteFile(path, []byte(content), 0o600)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return err
+	}
+	if username != "" {
+		if u, err := user.Lookup(username); err == nil {
+			uid, _ := strconv.Atoi(u.Uid)
+			gid, _ := strconv.Atoi(u.Gid)
+			_ = os.Chown(filepath.Dir(path), uid, gid)
+			_ = os.Chown(path, uid, gid)
+		}
+	}
+	return nil
+}
+
+func isReadableByUser(username, path string) bool {
+	cmd := exec.Command("runuser", "-u", username, "--", "test", "-r", path)
+	return cmd.Run() == nil
 }
 
 func shellEscape(v string) string {
@@ -828,6 +883,7 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 	sharedServer := sharedServerDir(baseDir, sharedKey)
 	sharedSteam := filepath.Join(sharedServer, ".steam")
 	locksDir := filepath.Join(sharedRoot, ".locks")
+	sharedGroup := sharedGroupName(sharedKey)
 	for _, dir := range []string{
 		sharedRoot,
 		sharedKeyRoot,
@@ -841,23 +897,69 @@ func prepareSharedStoragePermissions(baseDir, sharedKey, osUsername string) (str
 		if err := os.MkdirAll(dir, instanceDirMode); err != nil {
 			return "", fmt.Errorf("prepare shared dir %s: %w", dir, err)
 		}
-		if err := os.Chmod(dir, 0o755); err != nil {
+		if err := os.Chmod(dir, 0o2775); err != nil {
 			return "", fmt.Errorf("chmod shared dir %s: %w", dir, err)
 		}
 	}
-	uid, gid, err := lookupIDs(osUsername, osUsername)
-	if err != nil {
-		return "", fmt.Errorf("lookup shared owner %s: %w", osUsername, err)
+	if err := ensureSharedGroupAndMembership(sharedGroup, osUsername); err != nil {
+		return "", err
 	}
-	if err := filepath.WalkDir(sharedKeyRoot, func(path string, d os.DirEntry, walkErr error) error {
+	_ = runCommand("chgrp", "-R", sharedGroup, sharedKeyRoot)
+	_ = runCommand("chmod", "g+s", sharedKeyRoot, sharedServer, filepath.Join(sharedServer, ".steamcmd"), filepath.Join(sharedServer, ".update"), locksDir)
+	_ = runCommand("setfacl", "-R", "-m", "g:"+sharedGroup+":rwx", sharedServer)
+	_ = runCommand("setfacl", "-R", "-d", "-m", "g:"+sharedGroup+":rwx", sharedServer)
+	_ = filepath.WalkDir(sharedKeyRoot, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return nil
 		}
-		return chownRecursiveFn(path, uid, gid)
-	}); err != nil {
-		return "", fmt.Errorf("chown shared root %s: %w", sharedKeyRoot, err)
-	}
+		if d.IsDir() {
+			_ = os.Chmod(path, 0o2775)
+		} else {
+			_ = os.Chmod(path, 0o664)
+		}
+		return nil
+	})
 	return sharedServer, nil
+}
+
+func sharedGroupName(sharedKey string) string {
+	return "sharedsrv_" + sanitizeJobToken(sharedKey)
+}
+
+func ensureSharedGroupAndMembership(groupName, username string) error {
+	if strings.TrimSpace(groupName) == "" || strings.TrimSpace(username) == "" {
+		return errors.New("shared group or user missing")
+	}
+	_ = exec.Command("getent", "group", groupName).Run()
+	if err := runCommand("groupadd", "-f", groupName); err != nil {
+		return fmt.Errorf("group setup failed: %w", err)
+	}
+	if err := runCommand("usermod", "-a", "-G", groupName, username); err != nil {
+		return fmt.Errorf("group membership setup failed: %w", err)
+	}
+	return nil
+}
+
+func validateSharedUpdatePermissions(sharedServer, runScriptPath, steamCmdExecPath, lockPath, username string) error {
+	checks := [][]string{
+		{"test", "-x", sharedServer},
+		{"test", "-w", sharedServer},
+		{"test", "-r", runScriptPath},
+		{"test", "-x", steamCmdExecPath},
+	}
+	for _, args := range checks {
+		cmd := exec.Command("runuser", append([]string{"-u", username, "--"}, args...)...)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("permission check failed for %v: %w", args, err)
+		}
+	}
+	lockDir := filepath.Dir(lockPath)
+	lockProbe := filepath.Join(lockDir, ".perm_check_"+sanitizeJobToken(username))
+	cmd := exec.Command("runuser", "-u", username, "--", "sh", "-lc", fmt.Sprintf("mkdir -p %s && : > %s && rm -f %s", shellEscape(lockDir), shellEscape(lockProbe), shellEscape(lockProbe)))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("lock write check failed: %w", err)
+	}
+	return nil
 }
 
 func stripWineBootstrap(command string) string {
