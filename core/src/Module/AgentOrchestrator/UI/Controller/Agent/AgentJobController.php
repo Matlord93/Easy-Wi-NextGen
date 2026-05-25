@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\AgentOrchestrator\UI\Controller\Agent;
 
+use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
 use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentSignatureVerifier;
@@ -205,11 +206,13 @@ final class AgentJobController
             return;
         }
 
+        $normalized = ViewerSnapshotNormalizer::normalize($resultPayload);
         $snapshot = [
             'status' => 'ok',
-            'server' => $resultPayload['server'] ?? null,
-            'channels' => $resultPayload['channels'] ?? [],
-            'clients' => $resultPayload['clients'] ?? [],
+            'server' => $normalized['server'],
+            'channels' => $normalized['channels'],
+            'clients' => $normalized['clients'],
+            'snapshot' => $normalized,
             'generated_at' => $resultPayload['generated_at'] ?? (new \DateTimeImmutable())->format(DATE_ATOM),
         ];
 

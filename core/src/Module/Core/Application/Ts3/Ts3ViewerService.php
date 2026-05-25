@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ts3;
 
+use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
 use App\Module\Core\Domain\Entity\Ts3Viewer;
 use App\Module\Core\Domain\Entity\Ts3VirtualServer;
 use App\Module\Core\Dto\Ts3\ViewerDto;
@@ -76,8 +77,17 @@ final class Ts3ViewerService
                 'server' => ['sid' => $server->getSid(), 'name' => $server->getName()],
                 'channels' => [],
                 'clients' => [],
+                'snapshot' => ['server' => ['sid' => $server->getSid(), 'name' => $server->getName()], 'channels' => [], 'clients' => []],
                 'generated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
             ];
+        }
+
+        if (is_array($snapshot)) {
+            $normalized = ViewerSnapshotNormalizer::normalize($snapshot);
+            $snapshot['server'] = $normalized['server'];
+            $snapshot['channels'] = $normalized['channels'];
+            $snapshot['clients'] = $normalized['clients'];
+            $snapshot['snapshot'] = $normalized;
         }
 
         return $snapshot;

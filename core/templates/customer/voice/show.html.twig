@@ -305,9 +305,9 @@
                 </div>
                 <div id="vs-backup-progress" class="vs-backup-progress hidden">
                     <div style="height:4px;border-radius:2px;background:var(--ng-border);overflow:hidden;margin-top:12px;">
-                        <div style="height:100%;width:30%;background:var(--ng-primary);animation:vs-bar-slide 1.2s ease-in-out infinite;"></div>
+                        <div id="vs-backup-progress-bar" style="height:100%;width:30%;background:var(--ng-primary);animation:vs-bar-slide 1.2s ease-in-out infinite;"></div>
                     </div>
-                    <span style="color:var(--ng-text-muted);font-size:11px;">{{ t('customer_voice_backup_waiting_progress', locale) }}</span>
+                    <span id="vs-backup-progress-label" style="color:var(--ng-text-muted);font-size:11px;">{{ t('customer_voice_backup_waiting_progress', locale) }}</span>
                 </div>
             </div>
         </div>
@@ -519,6 +519,7 @@
         banCriteriaRequired:{{ t('customer_voice_ban_criteria_required', locale)|json_encode|raw }},
         backupCreating:     {{ t('customer_voice_backup_creating', locale)|json_encode|raw }},
         backupWaiting:      {{ t('customer_voice_backup_waiting', locale)|json_encode|raw }},
+        backupWaitingProgress: {{ t('customer_voice_backup_waiting_progress', locale)|json_encode|raw }},
         backupNoCacheKey:   {{ t('customer_voice_backup_no_cache_key', locale)|json_encode|raw }},
         backupTimeout:      {{ t('customer_voice_backup_timeout', locale)|json_encode|raw }},
         backupDownloaded:   {{ t('customer_voice_backup_downloaded', locale)|json_encode|raw }},
@@ -1082,6 +1083,8 @@
 
     const backupStatus  = $('vs-backup-status');
     const backupProgress= $('vs-backup-progress');
+    const backupProgressBar = $('vs-backup-progress-bar');
+    const backupProgressLabel = $('vs-backup-progress-label');
     const restoreStatus = $('vs-restore-status');
     const restoreBtn    = $('vs-btn-restore-backup');
     const fileInput     = $('vs-restore-file');
@@ -1089,6 +1092,31 @@
     const filenameEl    = $('vs-restore-filename');
 
     const setBackupStatus = (msg, color='') => { if(backupStatus){ backupStatus.textContent=msg; backupStatus.style.color=color||''; } };
+    const setBackupProgress = (percent) => {
+        if (!backupProgressBar) return;
+        const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+        backupProgressBar.style.width = `${safePercent}%`;
+        backupProgressBar.style.animation = safePercent >= 100 ? 'none' : 'vs-bar-slide 1.2s ease-in-out infinite';
+    };
+    const setBackupProgressLabel = (msg) => { if (backupProgressLabel) backupProgressLabel.textContent = msg || ''; };
+    const stopBackupPolling = () => { backupPollingAborted = true; };
+    const enableBackupButton = () => { if (backupCreateButton) backupCreateButton.disabled = false; };
+    const finishBackupSuccess = (message = 'Backup fertig. Download gestartet.') => {
+        stopBackupPolling();
+        backupInFlight = false;
+        setBackupProgress(100);
+        setBackupProgressLabel(message);
+        setBackupStatus(i18n.backupDownloaded, '#4ade80');
+        enableBackupButton();
+    };
+    const finishBackupError = (message) => {
+        stopBackupPolling();
+        backupInFlight = false;
+        setBackupProgress(0);
+        setBackupProgressLabel(message || 'Backup fehlgeschlagen.');
+        setBackupStatus(i18n.errorPrefix + (message || 'Backup fehlgeschlagen.'), '#f87171');
+        enableBackupButton();
+    };
     const setRestoreStatus = (msg, color='') => { if(restoreStatus){ restoreStatus.textContent=msg; restoreStatus.style.color=color||''; } };
     let backupInFlight = false;
     let backupPollingAborted = false;
@@ -1156,6 +1184,8 @@
         backupInFlight = true;
         backupPollingAborted = false;
         btn.disabled=true; clearError();
+        setBackupProgress(30);
+        setBackupProgressLabel(i18n.backupWaitingProgress);
         setBackupStatus(i18n.backupCreating);
         if(backupProgress) backupProgress.classList.remove('hidden');
 
@@ -1195,6 +1225,7 @@
                     throw new Error('Polling-URL fehlt. Job-Status kann nicht abgefragt werden.');
                 }
                 setBackupStatus(i18n.backupWaiting);
+                setBackupProgressLabel(i18n.backupCreating);
                 const startedAt = Date.now();
 
                 while ((Date.now() - startedAt) < BACKUP_TIMEOUT_MS && !backupPollingAborted) {
@@ -1251,16 +1282,18 @@
                 throw new Error('Agent hat keinen Snapshot-Inhalt zurückgegeben.');
             }
 
-            setBackupStatus(i18n.backupDownloaded, '#4ade80');
+            finishBackupSuccess();
         } catch(err) {
             console.error('[voice-backup] POST failed', err);
             const message = err?.message || String(err);
-            setBackupStatus(i18n.errorPrefix+message, '#f87171');
+            finishBackupError(message);
             showError(message);
         } finally {
-            backupInFlight = false;
-            btn.disabled=false;
-            if(backupProgress) backupProgress.classList.add('hidden');
+            if (!backupInFlight && backupProgress) {
+                setTimeout(() => {
+                    if (!backupInFlight) backupProgress.classList.add('hidden');
+                }, 2000);
+            }
         }
     });
 

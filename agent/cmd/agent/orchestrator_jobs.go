@@ -1017,18 +1017,61 @@ func resolveSinusbotTs3ClientStatus(job jobs.Job) map[string]any {
 
 func handleViewerSnapshot(job jobs.Job) orchestratorResult {
 	sid := payloadValue(job.Payload, "sid")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+
+	withClient := withTs3Client
+	if strings.HasPrefix(job.Type, "ts6.") {
+		withClient = withTs6Client
+	}
+
+	var server map[string]string
+	var channelLines []string
+	var clientLines []string
+	err := withClient(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		serverInfo, err := client.command("serverinfo")
+		if err != nil {
+			return err
+		}
+		server = serverInfo
+		channelLines, err = client.commandLines("channellist")
+		if err != nil {
+			return err
+		}
+		clientLines, err = client.commandLines("clientlist")
+		return err
+	})
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
 	return orchestratorResult{
 		status: "success",
 		resultPayload: map[string]any{
 			"server": map[string]any{
-				"sid":  sid,
-				"name": fmt.Sprintf("TS Server %s", sid),
+				"sid":    sid,
+				"name":   firstNonEmpty(server["virtualserver_name"], fmt.Sprintf("TS Server %s", sid)),
+				"online": parseOptionalInt(server["virtualserver_clientsonline"]),
+				"max":    parseOptionalInt(server["virtualserver_maxclients"]),
 			},
-			"channels":     []any{},
-			"clients":      []any{},
+			"channels":     parseQueryList(channelLines),
+			"clients":      parseQueryList(clientLines),
 			"generated_at": time.Now().UTC().Format(time.RFC3339),
 		},
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func chownRecursiveToUser(path, username string) error {

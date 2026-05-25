@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ts6;
 
+use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
 use App\Module\Core\Domain\Entity\Ts6Viewer;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Dto\Ts6\ViewerDto;
@@ -52,7 +53,7 @@ final class Ts6ViewerService
             throw new \RuntimeException('Domain not allowed.');
         }
 
-        $cacheKey = sprintf('ts6_viewer_%s', $publicId);
+        $cacheKey = sprintf('ts6_viewer_snapshot_v2_%s', $publicId);
         $ttlSeconds = max(1, (int) ceil($viewer->getCacheTtlMs() / 1000));
 
         $snapshot = $this->cache->get($cacheKey, function (ItemInterface $item) use ($ttlSeconds): array {
@@ -76,7 +77,54 @@ final class Ts6ViewerService
                 'server' => ['sid' => $server->getSid(), 'name' => $server->getName()],
                 'channels' => [],
                 'clients' => [],
+                'snapshot' => ['server' => ['sid' => $server->getSid(), 'name' => $server->getName()], 'channels' => [], 'clients' => []],
                 'generated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
+            ];
+        }
+
+        if (is_array($snapshot)) {
+            $normalized = ViewerSnapshotNormalizer::normalize($snapshot);
+            $channelCount = count($normalized['channels']);
+            $clientCount = count($normalized['clients']);
+            $source = 'viewer-cache';
+
+            if ($channelCount === 0) {
+                $server = $viewer->getVirtualServer();
+                $detailChannels = $this->cache->get(sprintf('legacy_ts6_%d_channels', $server->getId()), static function (ItemInterface $item): array {
+                    $item->expiresAfter(1);
+                    return ['status' => 'pending'];
+                });
+                $detailClients = $this->cache->get(sprintf('legacy_ts6_%d_clients', $server->getId()), static function (ItemInterface $item): array {
+                    $item->expiresAfter(1);
+                    return ['status' => 'pending'];
+                });
+                $fallback = ViewerSnapshotNormalizer::normalize([
+                    'server' => $normalized['server'],
+                    'channels' => is_array($detailChannels['payload']['channels'] ?? null) ? $detailChannels['payload']['channels'] : [],
+                    'clients' => is_array($detailClients['payload']['clients'] ?? null) ? $detailClients['payload']['clients'] : [],
+                ]);
+                if (count($fallback['channels']) > 0) {
+                    $normalized = $fallback;
+                    $channelCount = count($normalized['channels']);
+                    $clientCount = count($normalized['clients']);
+                    $source = 'detail-cache-fallback';
+                    $this->cache->delete($cacheKey);
+                }
+            }
+
+            $snapshot['server'] = $normalized['server'];
+            $snapshot['channels'] = $normalized['channels'];
+            $snapshot['clients'] = $normalized['clients'];
+            $snapshot['snapshot'] = $normalized;
+            $snapshot['source'] = $source;
+            $snapshot['debug'] = [
+                'type' => 'ts6',
+                'sid' => $viewer->getVirtualServer()->getSid(),
+                'cache_key' => $cacheKey,
+                'channel_count' => $channelCount,
+                'client_count' => $clientCount,
+                'snapshot_keys' => array_keys($normalized),
+                'payload_keys' => array_keys($snapshot),
             ];
         }
 
