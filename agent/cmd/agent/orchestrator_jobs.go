@@ -1065,15 +1065,6 @@ func handleViewerSnapshot(job jobs.Job) orchestratorResult {
 	}
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
-}
-
 func chownRecursiveToUser(path, username string) error {
 	uid, gid, err := lookupIDs(username, username)
 	if err != nil {
