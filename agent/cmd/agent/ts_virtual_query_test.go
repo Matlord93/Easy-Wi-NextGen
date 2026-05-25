@@ -48,6 +48,18 @@ func TestIsTsQueryEmptyResultError(t *testing.T) {
 	}
 }
 
+func TestNormalizeTsQueryListPayloadMapsBanID(t *testing.T) {
+	rows := []map[string]string{
+		{"banid": "42", "name": "foo"},
+		{"ban_id": "77", "name": "bar"},
+		{"id": "88", "name": "baz"},
+	}
+	normalized := normalizeTsQueryListPayload("banlist", rows)
+	if normalized[0]["banId"] != "42" || normalized[1]["banId"] != "77" || normalized[2]["banId"] != "88" {
+		t.Fatalf("expected banId fallback normalization, got %#v", normalized)
+	}
+}
+
 func TestTsPoolRetriesConnectionErrorsOnly(t *testing.T) {
 	entry := &tsPoolEntry{factory: func() (*ts3QueryClient, error) {
 		return &ts3QueryClient{}, nil

@@ -115,6 +115,10 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleTs3VirtualBanList(job)
 	case "ts6.virtual.ban.list":
 		return handleTs6VirtualBanList(job)
+	case "ts3.virtual.ban.remove":
+		return handleTs3VirtualBanRemove(job)
+	case "ts6.virtual.ban.remove":
+		return handleTs6VirtualBanRemove(job)
 	case "ts3.virtual.channel.list":
 		return handleTs3VirtualChannelList(job)
 	case "ts6.virtual.channel.list":

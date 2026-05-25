@@ -863,14 +863,15 @@
                     <th>IP</th><th>${esc(i18n.colName)}</th><th>${esc(i18n.colReason)}</th><th>${esc(i18n.colDuration)}</th><th>${esc(i18n.colCreated)}</th><th>${esc(i18n.colAction)}</th>
                 </tr></thead>
                 <tbody>${rows.map(r=>{
-                    const banid=r.banid??r.ban_id??'';
+                    const banid=r.banId??r.banid??r.ban_id??r.id??'';
+                    const missingBanId = String(banid).trim()==='';
                     return `<tr>
                         <td style="font-family:monospace;">${esc(r.ip??'—')}</td>
                         <td>${esc(r.name??'—')}</td>
                         <td style="color:var(--ng-text-muted);">${esc(r.banreason??r.reason??'—')}</td>
                         <td style="color:var(--ng-text-muted);">${r.duration?fmtDuration(r.duration):esc(i18n.permanent)}</td>
                         <td style="color:var(--ng-text-muted);">${esc(fmtDate(r.created??r.invoketime_utc))}</td>
-                        <td><button class="ui-button ui-button--danger ui-button--sm vs-ban-remove-btn" data-banid="${esc(String(banid))}">${esc(i18n.banRemove)}</button></td>
+                        <td><button type="button" class="ui-button ui-button--danger ui-button--sm vs-ban-remove-btn" data-voice-ban-action="unban" data-ban-id="${esc(String(banid))}" data-action-url="${esc(d.urlBans)}/${esc(String(banid))}/remove" ${missingBanId ? 'disabled title="Ban-ID fehlt, Eintrag kann nicht entfernt werden."' : ''}>${esc(i18n.banRemove)}</button></td>
                     </tr>`;
                 }).join('')}</tbody>
             </table>`;
@@ -1006,16 +1007,41 @@
     });
 
     // ── Ban remove (event delegation on bans list) ──
-    $('vs-bans-list')?.addEventListener('click', async e=>{
-        const removeBtn=e.target.closest('.vs-ban-remove-btn');
-        if(removeBtn){
-            const banid=parseInt(removeBtn.dataset.banid,10);
-            if(!confirm(i18n.banRemoveConfirm.replace('{id}',banid))) return;
-            removeBtn.disabled=true;
-            try{
-                await apiFetch(`${d.urlBans}/${banid}/remove`,{method:'POST'});
-                tabLoaded['bans']=false; await loadBans();
-            }catch(err){showError(err.message);removeBtn.disabled=false;}
+    $('vs-bans-list')?.addEventListener('click', async event=>{
+        console.log('[voice-ban-action] click', event.target);
+        const removeBtn=event.target.closest('[data-voice-ban-action]');
+        if(!removeBtn) return;
+
+        const action=(removeBtn.dataset.voiceBanAction||'').trim().toLowerCase();
+        const banIdRaw=(removeBtn.dataset.banId||removeBtn.dataset.banid||'').trim();
+        const banId=parseInt(banIdRaw,10);
+        const url=(removeBtn.dataset.actionUrl||'').trim();
+        console.log('[voice-ban-action] action', action);
+        console.log('[voice-ban-action] banId', banIdRaw);
+        console.log('[voice-ban-action] url', url);
+        if(action!=='unban') return;
+        if(!banIdRaw || Number.isNaN(banId) || banId<=0){ showError('Ban-ID fehlt, Eintrag kann nicht entfernt werden.'); return; }
+        if(!url){ showError('Entbannen fehlgeschlagen: Keine Action-URL vorhanden.'); return; }
+        if(!confirm(i18n.banRemoveConfirm.replace('{id}',banIdRaw))) return;
+
+        const lockKey=`voice-ban-action:${d.serverType}:${d.serverId}:${banId}:delete`;
+        const lockUntil=actionLocks.get(lockKey)||0;
+        if(lockUntil>Date.now()){ showActionStatus('Aktion läuft bereits.', 'info'); return; }
+        actionLocks.set(lockKey, Date.now()+10000);
+        removeBtn.disabled=true;
+        showActionStatus('Ban wird entfernt...', 'info');
+        try{
+            console.log('[voice-ban-action] sending request');
+            const res = await apiFetch(url,{method:'POST'});
+            if((res.status||'').toLowerCase()==='failed'){ throw new Error(res.message||'Entbannen fehlgeschlagen.'); }
+            tabLoaded['bans']=false; await loadBans();
+            tabLoaded['clients']=false; await loadClients();
+            showActionStatus('Ban wurde entfernt.', 'success');
+        }catch(err){
+            showError(`Entbannen fehlgeschlagen: ${err.message}`);
+        }finally{
+            removeBtn.disabled=false;
+            actionLocks.delete(lockKey);
         }
     });
 

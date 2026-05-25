@@ -451,6 +451,14 @@ func handleTs6VirtualBanList(job jobs.Job) orchestratorResult {
 	return handleTsQueryList(job, withTs6Client, "banlist", "bans")
 }
 
+func handleTs3VirtualBanRemove(job jobs.Job) orchestratorResult {
+	return handleTsBanRemove(job, withTs3Client)
+}
+
+func handleTs6VirtualBanRemove(job jobs.Job) orchestratorResult {
+	return handleTsBanRemove(job, withTs6Client)
+}
+
 func handleTs3VirtualChannelList(job jobs.Job) orchestratorResult {
 	return handleTsQueryList(job, withTs3Client, "channellist", "channels")
 }
@@ -574,6 +582,25 @@ func handleTsClientBan(job jobs.Job, withClient func(map[string]any, func(*ts3Qu
 	return orchestratorResult{status: "success", resultPayload: map[string]any{"clid": clid, "banned": true, "duration": duration}}
 }
 
+func handleTsBanRemove(job jobs.Job, withClient func(map[string]any, func(*ts3QueryClient) error) error) orchestratorResult {
+	sid := payloadValue(job.Payload, "sid")
+	banID := payloadValue(job.Payload, "banid")
+	if sid == "" || banID == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid or banid"}
+	}
+	err := withClient(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		_, err := client.command(fmt.Sprintf("bandel banid=%s", banID))
+		return err
+	})
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	return orchestratorResult{status: "success", resultPayload: map[string]any{"banid": banID, "deleted": true}}
+}
+
 func handleTs3VirtualLogView(job jobs.Job) orchestratorResult {
 	return handleTsQueryList(job, withTs3Client, "logview", "logs")
 }
@@ -651,9 +678,37 @@ func handleTsQueryList(job jobs.Job, withClient func(map[string]any, func(*ts3Qu
 	return orchestratorResult{
 		status: "success",
 		resultPayload: map[string]any{
-			key: parseQueryList(lines),
+			key: normalizeTsQueryListPayload(command, parseQueryList(lines)),
 		},
 	}
+}
+
+func normalizeTsQueryListPayload(command string, rows []map[string]string) []map[string]string {
+	if command != "banlist" {
+		return rows
+	}
+	normalized := make([]map[string]string, 0, len(rows))
+	for _, row := range rows {
+		banID := firstNonEmpty(row["banId"], row["banid"], row["ban_id"], row["id"])
+		cloned := make(map[string]string, len(row)+1)
+		for k, v := range row {
+			cloned[k] = v
+		}
+		if banID != "" {
+			cloned["banId"] = banID
+		}
+		normalized = append(normalized, cloned)
+	}
+	return normalized
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func handleTsSnapshot(job jobs.Job, withClient func(map[string]any, func(*ts3QueryClient) error) error) orchestratorResult {
