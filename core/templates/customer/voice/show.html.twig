@@ -566,10 +566,13 @@
         if(!r.ok) throw new Error(j.message||j.error||`HTTP ${r.status}`);
         return j;
     };
-    const pollUntilDone = async (url, ms=2200, max=15) => {
+    const pollUntilDone = async (url, opts = {}) => {
+        const ms = Number(opts?.ms ?? 2200);
+        const max = Number(opts?.max ?? 15);
+        const fetchOpts = opts?.fetchOpts ?? undefined;
         for(let i=0;i<max;i++){
             await new Promise(r=>setTimeout(r,ms));
-            const data = await apiFetch(url);
+            const data = await apiFetch(url, fetchOpts);
             const st = data.status||data.data?.status;
             if(st==='ok') return data;
         }
@@ -848,14 +851,29 @@
         } catch(err){ el.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(err.message)}</div>`; }
     };
 
+
+    const debugVoiceBanButtons = () => {
+        const buttons=[...document.querySelectorAll('[data-voice-ban-action]')];
+        console.log('[voice-ban-action] buttons found', buttons.length);
+        console.table(buttons.map((button)=>({
+            text: (button.textContent||'').trim(),
+            action: button.dataset.voiceBanAction||'',
+            banId: button.dataset.banId||button.dataset.banid||'',
+            url: button.dataset.actionUrl||'',
+            disabled: button.disabled,
+            title: button.title||''
+        })));
+
+    };
+
     // ── Bans ──
-    const loadBans = async () => {
+    const loadBans = async (force = false) => {
         const el=$('vs-bans-list');
         if(!el) return;
         el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.bansLoading)}</div>`;
         try {
-            let data = await apiFetch(`${d.urlQueryBase}/bans`);
-            if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/bans`);
+            let data = await apiFetch(`${d.urlQueryBase}/bans`, force ? { cache: 'no-store' } : undefined);
+            if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/bans`, { fetchOpts: force ? { cache: 'no-store' } : undefined });
             const rows=data.data?.payload||data.payload||[];
             if(!rows.length){ el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.bansEmpty)}</div>`; return; }
             el.innerHTML=`<table class="cust-table">
@@ -871,10 +889,11 @@
                         <td style="color:var(--ng-text-muted);">${esc(r.banreason??r.reason??'—')}</td>
                         <td style="color:var(--ng-text-muted);">${r.duration?fmtDuration(r.duration):esc(i18n.permanent)}</td>
                         <td style="color:var(--ng-text-muted);">${esc(fmtDate(r.created??r.invoketime_utc))}</td>
-                        <td><button type="button" class="ui-button ui-button--danger ui-button--sm vs-ban-remove-btn" data-voice-ban-action="unban" data-ban-id="${esc(String(banid))}" data-action-url="${esc(d.urlBans)}/${esc(String(banid))}/remove" ${missingBanId ? 'disabled title="Ban-ID fehlt, Eintrag kann nicht entfernt werden."' : ''}>${esc(i18n.banRemove)}</button></td>
+                        <td><button type="button" class="ui-button ui-button--danger ui-button--sm vs-ban-remove-btn" data-voice-ban-action="delete" data-ban-id="${esc(String(banid))}" data-action-url="${missingBanId ? '' : esc(d.urlBans) + '/' + esc(String(banid)) + '/remove'}" ${missingBanId ? 'disabled title="Ban-ID fehlt"' : ''}>${esc(i18n.banRemove)}</button></td>
                     </tr>`;
                 }).join('')}</tbody>
             </table>`;
+            debugVoiceBanButtons();
         } catch(err){ el.innerHTML=`<div style="padding:32px;text-align:center;color:#f87171;font-size:13px;">${esc(err.message)}</div>`; }
     };
 
@@ -920,7 +939,7 @@
         if(tab==='clients')   { loadClients(); return; }
         if(tab==='channels')  { loadChannels();return; }
         if(tab==='groups')    { loadGroups();  return; }
-        if(tab==='bans')      { loadBans();    return; }
+        if(tab==='bans')      { loadBans(); setTimeout(debugVoiceBanButtons, 0); return; }
         if(tab==='tokens')    { loadTokens();  return; }
         if(tab==='logs')      { loadLogs();    return; }
     };
@@ -1006,39 +1025,40 @@
         }
     });
 
-    // ── Ban remove (event delegation on bans list) ──
-    $('vs-bans-list')?.addEventListener('click', async event=>{
-        console.log('[voice-ban-action] click', event.target);
+    // ── Ban remove (document-level event delegation) ──
+    console.log('[voice-ban-action] script active');
+    debugVoiceBanButtons();
+    document.addEventListener('click', async event=>{
         const removeBtn=event.target.closest('[data-voice-ban-action]');
         if(!removeBtn) return;
 
+        event.preventDefault();
         const action=(removeBtn.dataset.voiceBanAction||'').trim().toLowerCase();
-        const banIdRaw=(removeBtn.dataset.banId||removeBtn.dataset.banid||'').trim();
-        const banId=parseInt(banIdRaw,10);
+        const banId=(removeBtn.dataset.banId||removeBtn.dataset.banid||'').trim();
         const url=(removeBtn.dataset.actionUrl||'').trim();
-        console.log('[voice-ban-action] action', action);
-        console.log('[voice-ban-action] banId', banIdRaw);
-        console.log('[voice-ban-action] url', url);
-        if(action!=='unban') return;
-        if(!banIdRaw || Number.isNaN(banId) || banId<=0){ showError('Ban-ID fehlt, Eintrag kann nicht entfernt werden.'); return; }
-        if(!url){ showError('Entbannen fehlgeschlagen: Keine Action-URL vorhanden.'); return; }
-        if(!confirm(i18n.banRemoveConfirm.replace('{id}',banIdRaw))) return;
+        console.log('[voice-ban-action] click', { action, banId, url });
+
+        if(!banId){ showError('Ban-ID fehlt. Ban kann nicht aufgehoben werden.'); return; }
+        if(!url){ showError('Unban-URL fehlt. Request wurde nicht gestartet.'); return; }
+        if(action!=='delete' && action!=='unban'){ showError(`Unbekannte Ban-Aktion: ${action}`); return; }
+        if(!confirm(i18n.banRemoveConfirm.replace('{id}',banId))) return;
 
         const lockKey=`voice-ban-action:${d.serverType}:${d.serverId}:${banId}:delete`;
         const lockUntil=actionLocks.get(lockKey)||0;
         if(lockUntil>Date.now()){ showActionStatus('Aktion läuft bereits.', 'info'); return; }
         actionLocks.set(lockKey, Date.now()+10000);
         removeBtn.disabled=true;
-        showActionStatus('Ban wird entfernt...', 'info');
+        showActionStatus('Ban wird aufgehoben...', 'info');
         try{
-            console.log('[voice-ban-action] sending request');
+            console.log('[voice-ban-action] sending request', url);
             const res = await apiFetch(url,{method:'POST'});
-            if((res.status||'').toLowerCase()==='failed'){ throw new Error(res.message||'Entbannen fehlgeschlagen.'); }
-            tabLoaded['bans']=false; await loadBans();
+            if((res.status||'').toLowerCase()==='failed' || (res.status||'').toLowerCase()==='error'){ throw new Error(res.message||'Ban konnte nicht aufgehoben werden.'); }
+            showActionStatus(res.message||'Ban wurde aufgehoben.', 'success');
+            tabLoaded['bans']=false; await loadBans(true);
             tabLoaded['clients']=false; await loadClients();
-            showActionStatus('Ban wurde entfernt.', 'success');
+            tabLoaded['overview']=false; await loadDetail();
         }catch(err){
-            showError(`Entbannen fehlgeschlagen: ${err.message}`);
+            showError(`Entbannen fehlgeschlagen: ${err.message||err}`);
         }finally{
             removeBtn.disabled=false;
             actionLocks.delete(lockKey);

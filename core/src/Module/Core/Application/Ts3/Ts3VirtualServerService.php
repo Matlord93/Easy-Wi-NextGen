@@ -244,7 +244,7 @@ final class Ts3VirtualServerService
             'admin_username' => $server->getNode()->getAdminUsername(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
-        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.ban.remove', $payload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.ban.delete', $payload);
         $this->entityManager->flush();
         return $job;
     }

@@ -588,12 +588,21 @@ func handleTsBanRemove(job jobs.Job, withClient func(map[string]any, func(*ts3Qu
 	if sid == "" || banID == "" {
 		return orchestratorResult{status: "failed", errorText: "missing sid or banid"}
 	}
+	if _, err := strconv.Atoi(strings.TrimSpace(banID)); err != nil {
+		return orchestratorResult{status: "failed", errorText: "invalid banid"}
+	}
+	log.Printf("voice.ban.delete job_id=%s job_type=%s sid_present=%t banid=%s", job.ID, job.Type, sid != "", banID)
 	err := withClient(job.Payload, func(client *ts3QueryClient) error {
 		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
 			return err
 		}
 		_, err := client.command(fmt.Sprintf("bandel banid=%s", banID))
-		return err
+		if err != nil {
+			log.Printf("voice.ban.delete job_id=%s bandel_executed=true status=failed error=%v", job.ID, err)
+			return err
+		}
+		log.Printf("voice.ban.delete job_id=%s bandel_executed=true status=success", job.ID)
+		return nil
 	})
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}

@@ -267,7 +267,7 @@ final class Ts6VirtualServerService
             'install_dir' => $server->getNode()->getInstallPath(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
-        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.ban.remove', $payload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.ban.delete', $payload);
         $this->entityManager->flush();
         return $job;
     }
