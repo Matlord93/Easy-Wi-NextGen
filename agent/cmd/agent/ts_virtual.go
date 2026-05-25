@@ -561,15 +561,25 @@ func handleTsSnapshot(job jobs.Job, withClient func(map[string]any, func(*ts3Que
 			return err
 		}
 		client.commandTimeout = 120 * time.Second
-		response, err := client.command("serversnapshotcreate")
+		lines, err := client.commandLines("serversnapshotcreate")
 		if err != nil {
 			return err
 		}
-		snapshot = response["snapshot"]
+		snapshot, err = extractSnapshotFromServerQueryLines(lines)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(snapshot) == "" {
+			return fmt.Errorf("serversnapshotcreate returned no snapshot content")
+		}
 		return nil
 	})
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	if strings.TrimSpace(snapshot) == "" {
+		return orchestratorResult{status: "failed", errorText: "serversnapshotcreate returned no snapshot content"}
 	}
 
 	return orchestratorResult{
@@ -577,7 +587,38 @@ func handleTsSnapshot(job jobs.Job, withClient func(map[string]any, func(*ts3Que
 		resultPayload: map[string]any{
 			"snapshot": snapshot,
 		},
+		logText: fmt.Sprintf("snapshot.create status=success job_type=%s sid=%s snapshot_present=%t snapshot_length=%d result_payload_keys=snapshot", job.Type, sid, snapshot != "", len(snapshot)),
 	}
+}
+
+func extractSnapshotFromServerQueryLines(lines []string) (string, error) {
+	if len(lines) == 0 {
+		return "", fmt.Errorf("serversnapshotcreate returned no response lines")
+	}
+
+	parsed := parseTs3QueryLines(lines)
+	if snapshot := strings.TrimSpace(parsed["snapshot"]); snapshot != "" {
+		return snapshot, nil
+	}
+
+	var nonErrorLines []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "error id=") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "snapshot=") {
+			trimmed = strings.TrimPrefix(trimmed, "snapshot=")
+			trimmed = unescapeTs3Query(trimmed)
+		}
+		nonErrorLines = append(nonErrorLines, trimmed)
+	}
+
+	joined := strings.TrimSpace(strings.Join(nonErrorLines, "\n"))
+	if joined == "" {
+		return "", fmt.Errorf("serversnapshotcreate returned no snapshot content")
+	}
+	return joined, nil
 }
 
 func newTs3QueryClient(payload map[string]any) (*ts3QueryClient, error) {

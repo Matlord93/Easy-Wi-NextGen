@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -282,6 +283,30 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 							return
 						}
 						result := handleOrchestratorJob(job)
+						snapshotLength := 0
+						snapshotPresent := false
+						resultPayloadKeys := ""
+						if result.resultPayload != nil {
+							keys := make([]string, 0, len(result.resultPayload))
+							for k := range result.resultPayload {
+								keys = append(keys, k)
+							}
+							sort.Strings(keys)
+							resultPayloadKeys = strings.Join(keys, ",")
+							if snapshotValue, ok := result.resultPayload["snapshot"].(string); ok {
+								snapshotLength = len(strings.TrimSpace(snapshotValue))
+								snapshotPresent = snapshotLength > 0
+							}
+						}
+						logger.Info(jobCtx, "agent.finish_orchestrator_job_payload", "finishing orchestrator job", map[string]any{
+							"job_id":              job.ID,
+							"job_type":            job.Type,
+							"result_status":       result.status,
+							"result_payload_keys": resultPayloadKeys,
+							"snapshot_present":    snapshotPresent,
+							"snapshot_length":     snapshotLength,
+							"error_text":          result.errorText,
+						})
 						if err := client.FinishAgentJob(jobCtx, cfg.AgentID, job.ID, result.status, result.logText, result.errorText, result.resultPayload); err != nil {
 							logger.Error(jobCtx, "agent.finish_orchestrator_job_failed", "FINISH_ORCHESTRATOR_JOB_FAILED", fmt.Sprintf("finish orchestrator job failed: %v", err), map[string]any{"job_id": job.ID})
 						}

@@ -767,7 +767,14 @@ final class CustomerVoiceApiController
                 return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
             }
             $job = $this->ts6Service->queueSnapshot($server, $cacheKey);
-            $this->auditLogger->log($customer, 'voice.ts6.snapshot', ['voice_instance_id' => $instance->getId(), 'job_id' => $job->getId()]);
+            $this->auditLogger->log($customer, 'voice.ts6.snapshot', [
+                'voice_instance_id' => $instance->getId(),
+                'virtual_server_id' => $server->getId(),
+                'sid' => $server->getSid(),
+                'job_type' => 'ts6.virtual.snapshot.create',
+                'job_id' => $job->getId(),
+                'cache_key' => $cacheKey,
+            ]);
             return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Snapshot queued.', 202, ['cache_key' => $cacheKey]);
         }
 
@@ -797,18 +804,67 @@ final class CustomerVoiceApiController
             return ['status' => 'pending'];
         });
 
-        $status = is_array($payload) ? ($payload['status'] ?? 'pending') : 'pending';
+        $status = is_array($payload) ? strtolower((string) ($payload['status'] ?? 'pending')) : 'pending';
+        $agentError = is_array($payload) ? (string) ($payload['errorText'] ?? $payload['error_text'] ?? $payload['error'] ?? $payload['message'] ?? '') : '';
+        $rawPayload = is_array($payload) ? ($payload['payload'] ?? $payload['resultPayload'] ?? $payload['result_payload'] ?? $payload['result'] ?? $payload['data'] ?? null) : null;
+        $nestedPayload = is_array($rawPayload) ? $rawPayload : [];
+        $snapshotContent = $nestedPayload['snapshot'] ?? (is_array($payload) ? ($payload['snapshot'] ?? null) : null);
+        if (!is_string($snapshotContent) || trim($snapshotContent) === '') {
+            $snapshotContent = null;
+        }
 
-        if ($status !== 'ok') {
+        if (in_array($status, ['failed', 'error'], true)) {
+            $this->auditLogger->log($customer, 'voice.snapshot.poll.failed', [
+                'voice_instance_id' => $instance->getId(),
+                'request_id' => $this->resolveRequestId($request),
+                'cache_key' => $cacheKey,
+                'job_id' => is_array($payload) ? (string) ($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
+                'job_type' => 'ts6.virtual.snapshot.create',
+                'agent_status' => $status,
+                'result_keys' => is_array($payload) ? implode(',', array_keys($payload)) : '',
+                'result_payload_keys' => implode(',', array_keys($nestedPayload)),
+                'snapshot_present' => $snapshotContent !== null ? 'yes' : 'no',
+                'snapshot_length' => $snapshotContent !== null ? strlen($snapshotContent) : 0,
+                'agent_error' => $agentError,
+            ]);
+            return $this->responseEnvelopeFactory->error($request, $agentError !== '' ? $agentError : 'Snapshot creation failed.', 'voice_snapshot_failed', 500);
+        }
+        if (!in_array($status, ['ok', 'success', 'completed', 'done'], true)) {
             return new JsonResponse(['status' => 'pending']);
         }
 
-        $snapshotContent = $payload['payload']['snapshot'] ?? null;
-        if (!is_string($snapshotContent) || $snapshotContent === '') {
+        if ($snapshotContent === null) {
+            $this->auditLogger->log($customer, 'voice.snapshot.poll.failed', [
+                'voice_instance_id' => $instance->getId(),
+                'request_id' => $this->resolveRequestId($request),
+                'cache_key' => $cacheKey,
+                'job_id' => is_array($payload) ? (string) ($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
+                'job_type' => 'ts6.virtual.snapshot.create',
+                'agent_status' => $status,
+                'result_keys' => is_array($payload) ? implode(',', array_keys($payload)) : '',
+                'result_payload_keys' => implode(',', array_keys($nestedPayload)),
+                'snapshot_present' => 'no',
+                'snapshot_length' => 0,
+                'agent_error' => $agentError,
+            ]);
             return $this->responseEnvelopeFactory->error($request, 'Snapshot content empty.', 'voice_snapshot_empty', 500);
         }
 
-        return new JsonResponse(['status' => 'ok', 'snapshot' => $snapshotContent]);
+        $this->auditLogger->log($customer, 'voice.snapshot.poll.completed', [
+            'voice_instance_id' => $instance->getId(),
+            'request_id' => $this->resolveRequestId($request),
+            'cache_key' => $cacheKey,
+            'job_id' => is_array($payload) ? (string) ($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
+            'job_type' => 'ts6.virtual.snapshot.create',
+            'agent_status' => $status,
+            'result_keys' => is_array($payload) ? implode(',', array_keys($payload)) : '',
+            'result_payload_keys' => implode(',', array_keys($nestedPayload)),
+            'snapshot_present' => 'yes',
+            'snapshot_length' => strlen($snapshotContent),
+            'agent_error' => $agentError,
+        ]);
+
+        return new JsonResponse(['status' => 'completed', 'snapshot' => $snapshotContent, 'mimeType' => 'text/plain']);
     }
 
     #[Route('/{id}/snapshot/restore', name: 'customer_voice_snapshot_restore_v1', methods: ['POST'])]

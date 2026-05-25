@@ -297,7 +297,7 @@
                 <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:12px;">{{ t('customer_voice_backup_create_title', locale) }}</div>
                 <p style="color:var(--ng-text-muted);font-size:12px;margin:0 0 12px;">{{ t('customer_voice_backup_create_desc', locale) }}</p>
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <button type="button" id="vs-btn-create-backup" class="ui-button ui-button--primary ui-button--sm">
+                    <button type="button" id="voice-backup-create-button" data-voice-backup-create="1" data-backup-url="{{ urlSnapshot }}" data-backup-poll-url="{{ urlSnapshotPoll }}" class="ui-button ui-button--primary ui-button--sm" {% if urlSnapshot is empty %}disabled aria-disabled="true"{% endif %}>
                         <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                         {{ t('customer_voice_backup_create_btn', locale) }}
                     </button>
@@ -1090,49 +1090,175 @@
 
     const setBackupStatus = (msg, color='') => { if(backupStatus){ backupStatus.textContent=msg; backupStatus.style.color=color||''; } };
     const setRestoreStatus = (msg, color='') => { if(restoreStatus){ restoreStatus.textContent=msg; restoreStatus.style.color=color||''; } };
+    let backupInFlight = false;
+    let backupPollingAborted = false;
+    const BACKUP_POLL_INTERVAL_MS = 1500;
+    const BACKUP_TIMEOUT_MS = 90000;
 
-    const downloadText = (content, filename) => {
-        const blob = new Blob([content], {type:'text/plain'});
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href = url; a.download = filename; a.click();
-        setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    const normalizeBackupResult = (raw) => {
+        const payload = raw?.data && typeof raw.data === 'object' ? raw.data : raw;
+        const artifact = payload?.artifact && typeof payload.artifact === 'object' ? payload.artifact : null;
+        const snapshot = payload?.snapshot || payload?.result?.snapshot || payload?.payload?.snapshot || payload?.resultPayload?.snapshot || null;
+        const done = payload?.status === 'ok' || payload?.status === 'done' || payload?.state === 'completed' || payload?.success === true;
+        const waiting = payload?.status === 'pending' || payload?.status === 'running' || payload?.state === 'running';
+        const failed = payload?.status === 'failed' || payload?.state === 'failed' || payload?.success === false;
+        return {
+            status: failed ? 'failed' : (done ? 'completed' : (waiting ? 'running' : 'pending')),
+            jobId: String(payload?.jobId || payload?.job_id || payload?.data?.jobId || payload?.data?.job_id || '' ) || undefined,
+            filename: artifact?.filename || payload?.filename || undefined,
+            mimeType: artifact?.mimeType || artifact?.mime_type || payload?.mimeType || payload?.mime_type || undefined,
+            downloadUrl: payload?.downloadUrl || payload?.download_url || undefined,
+            contentBase64: (artifact?.encoding === 'base64' ? artifact?.content : null) || payload?.contentBase64 || payload?.content_base64 || undefined,
+            snapshot: typeof snapshot === 'string' ? snapshot : undefined,
+            error: payload?.error || payload?.message || undefined,
+        };
     };
 
-    $('vs-btn-create-backup')?.addEventListener('click', async () => {
-        const btn=$('vs-btn-create-backup');
+    const decodeBase64ToBlob = (base64, mimeType='text/plain') => {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new Blob([bytes], { type: mimeType });
+    };
+
+    const triggerDownloadBlob = (blob, filename) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+    };
+
+    console.log('[voice-backup] script loaded');
+    const backupCreateButton = document.querySelector('#voice-backup-create-button');
+    console.log('[voice-backup] button found', !!backupCreateButton);
+
+    backupCreateButton?.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const btn = backupCreateButton;
+        console.log('[voice-backup] clicked');
+        if (!btn) return;
+        if (backupInFlight) {
+            console.warn('[voice-backup] ignored click because backup is already in flight');
+            return;
+        }
+        const backupUrl = btn.dataset.backupUrl || d.urlSnapshot;
+        const backupPollUrl = btn.dataset.backupPollUrl || d.urlSnapshotPoll;
+        console.log('[voice-backup] backupUrl', backupUrl || null);
+        if (!backupUrl) {
+            const msg = 'Backup-URL fehlt. Request wurde nicht gestartet.';
+            setBackupStatus(i18n.errorPrefix+msg, '#f87171');
+            showError(msg);
+            return;
+        }
+        backupInFlight = true;
+        backupPollingAborted = false;
         btn.disabled=true; clearError();
         setBackupStatus(i18n.backupCreating);
         if(backupProgress) backupProgress.classList.remove('hidden');
 
         try {
-            const resp = await apiFetch(d.urlSnapshot, {method:'POST'});
-            const cacheKey = resp.cache_key || resp.data?.cache_key;
-            if(!cacheKey) throw new Error(i18n.backupNoCacheKey);
+            console.info('[voice-backup] button clicked', { backupUrl, backupPollUrl, serverId: instance?.id, providerType: instance?.node?.providerType });
+            console.log('[voice-backup] sending POST', backupUrl);
+            const startHttp = await fetch(backupUrl, {method:'POST',headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}, credentials:'same-origin'});
+            let startResp = {};
+            try { startResp = await startHttp.json(); } catch { startResp = {}; }
+            console.log('[voice-backup] POST response', startHttp.status);
+            if (!startHttp.ok) {
+                const startErr = startResp?.message || startResp?.error || `HTTP ${startHttp.status}`;
+                throw new Error(startErr);
+            }
+            let result = normalizeBackupResult(startResp);
+            console.info('[voice-backup] start response status', { status: startHttp.status });
+            console.info('[voice-backup] normalized result', {
+                status: result?.status,
+                jobId: result?.jobId || null,
+                hasSnapshot: typeof result?.snapshot === 'string' && result.snapshot.length > 0,
+                snapshotLength: typeof result?.snapshot === 'string' ? result.snapshot.length : 0,
+                error: result?.error || null,
+            });
 
-            setBackupStatus(i18n.backupWaiting);
-
-            let snapshotContent = null;
-            for(let i=0;i<20;i++){
-                await new Promise(r=>setTimeout(r,2500));
-                const poll = await fetch(`${d.urlSnapshotPoll}?key=${encodeURIComponent(cacheKey)}`,{headers:{'Accept':'application/json'}});
-                const pollData = await poll.json();
-                if(pollData.status==='ok' && pollData.snapshot){
-                    snapshotContent=pollData.snapshot;
-                    break;
-                }
+            if (result.status === 'failed') {
+                throw new Error(result.error || 'Backup failed');
             }
 
-            if(!snapshotContent) throw new Error(i18n.backupTimeout);
+            if (!(result.status === 'completed' && typeof result.snapshot === 'string' && result.snapshot.trim() !== '')) {
+                const cacheKey = startResp.cache_key || startResp.data?.cache_key;
+                const hasTrackableJob = !!result.jobId || !!cacheKey;
+                console.info('[voice-backup] polling started', { started: hasTrackableJob, jobId: result?.jobId || null, cacheKey: cacheKey || null });
+                if (!hasTrackableJob) {
+                    throw new Error('Backup-Start lieferte weder Snapshot noch Job-ID.');
+                }
+                if (!backupPollUrl) {
+                    throw new Error('Polling-URL fehlt. Job-Status kann nicht abgefragt werden.');
+                }
+                setBackupStatus(i18n.backupWaiting);
+                const startedAt = Date.now();
+
+                while ((Date.now() - startedAt) < BACKUP_TIMEOUT_MS && !backupPollingAborted) {
+                    await new Promise(r=>setTimeout(r,BACKUP_POLL_INTERVAL_MS));
+                    const pollUrl = `${backupPollUrl}?key=${encodeURIComponent(cacheKey || '')}`;
+                    const poll = await fetch(pollUrl,{headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}});
+                    let pollData = {};
+                    try { pollData = await poll.json(); } catch { pollData = {}; }
+                    if (!poll.ok) {
+                        const message = pollData?.message || pollData?.error || `HTTP ${poll.status}`;
+                        console.warn('[voice-backup] poll failed', { serverId: instance?.id, status: poll.status, error: message });
+                        throw new Error(message);
+                    }
+                    result = normalizeBackupResult(pollData);
+                    console.info('[voice-backup] poll status', {
+                        serverId: instance?.id,
+                        status: result?.status,
+                        hasSnapshot: typeof result?.snapshot === 'string' && result.snapshot.length > 0,
+                        snapshotLength: typeof result?.snapshot === 'string' ? result.snapshot.length : 0,
+                        error: result?.error || null,
+                    });
+                    if (result.status === 'failed') {
+                        throw new Error(result.error || 'Backup failed');
+                    }
+                    if (result.status === 'completed') {
+                        break;
+                    }
+                }
+
+                if(backupPollingAborted) throw new Error('Backup polling aborted.');
+                if(!result || result.status !== 'completed') throw new Error(i18n.backupTimeout);
+            }
 
             const ts  = new Date().toISOString().slice(0,19).replace(/[T:]/g,'-');
             const ext = instance.node?.providerType==='ts6'?'ts6snapshot':'ts3snapshot';
-            downloadText(snapshotContent, `backup-${ts}.${ext}`);
+            const filename = result.filename || `backup-${ts}.${ext}`;
+
+            if (typeof result.snapshot === 'string') {
+                if (result.snapshot.trim() === '') {
+                    throw new Error('Agent hat keinen Snapshot-Inhalt zurückgegeben.');
+                }
+                const snapshotFilename = `ts6-server-${instance?.id || 'unknown'}-snapshot.txt`;
+                const blob = new Blob([result.snapshot], { type: 'text/plain;charset=utf-8' });
+                triggerDownloadBlob(blob, snapshotFilename);
+                console.info('[voice-backup] download started', { type: 'snapshot', filename: snapshotFilename });
+            } else if (result.downloadUrl) {
+                window.open(result.downloadUrl, '_blank', 'noopener');
+                console.info('[voice-backup] download started', { type: 'url' });
+            } else if (result.contentBase64) {
+                const blob = decodeBase64ToBlob(result.contentBase64, result.mimeType || 'text/plain');
+                triggerDownloadBlob(blob, filename);
+                console.info('[voice-backup] download started', { type: 'base64', filename });
+            } else {
+                throw new Error('Agent hat keinen Snapshot-Inhalt zurückgegeben.');
+            }
+
             setBackupStatus(i18n.backupDownloaded, '#4ade80');
         } catch(err) {
-            setBackupStatus(i18n.errorPrefix+err.message, '#f87171');
-            showError(err.message);
+            console.error('[voice-backup] POST failed', err);
+            const message = err?.message || String(err);
+            setBackupStatus(i18n.errorPrefix+message, '#f87171');
+            showError(message);
         } finally {
+            backupInFlight = false;
             btn.disabled=false;
             if(backupProgress) backupProgress.classList.add('hidden');
         }
@@ -1183,6 +1309,8 @@
             restoreBtn.disabled=false;
         }
     });
+
+    window.addEventListener('beforeunload', () => { backupPollingAborted = true; });
 
     // ── Bootstrap ──
     tabLoaded['overview']=true;

@@ -505,17 +505,40 @@ final class CustomerVoiceLegacyApiController
             return ['status' => 'pending'];
         });
 
-        $status = is_array($payload) ? ($payload['status'] ?? 'pending') : 'pending';
-        if ($status !== 'ok') {
+        $status = is_array($payload) ? strtolower((string) ($payload['status'] ?? 'pending')) : 'pending';
+        $agentError = $this->extractAgentError($payload);
+        $snapshotContent = $this->extractSnapshotContent($payload);
+        $payloadKeys = is_array($payload) ? array_keys($payload) : [];
+        $payloadPayloadKeys = (is_array($payload) && is_array($payload['payload'] ?? null)) ? array_keys($payload['payload']) : [];
+
+        $this->auditLogger->log($customer, 'voice.legacy.snapshot.poll.inspect', [
+            'request_id' => $this->resolveRequestId($request),
+            'cache_key' => $cacheKey,
+            'job_id' => is_array($payload) ? (string) ($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
+            'job_type' => $type === 'ts6' ? 'ts6.virtual.snapshot.create' : 'ts3.virtual.snapshot.create',
+            'server_id' => $id,
+            'sid' => method_exists($server, 'getSid') ? (string) $server->getSid() : '',
+            'type' => $type,
+            'raw_agent_status' => $status,
+            'raw_result_keys' => implode(',', $payloadKeys),
+            'payload_payload_keys' => implode(',', $payloadPayloadKeys),
+            'snapshot_found' => $snapshotContent !== null ? 'yes' : 'no',
+            'snapshot_length' => $snapshotContent !== null ? strlen($snapshotContent) : 0,
+            'error_text' => $agentError,
+        ]);
+
+        if (in_array($status, ['failed', 'error'], true)) {
+            return $this->responseEnvelopeFactory->error($request, $agentError !== '' ? $agentError : 'Snapshot creation failed.', 'voice_snapshot_agent_failed', 502);
+        }
+        if (!in_array($status, ['ok', 'success', 'completed', 'done'], true)) {
             return new JsonResponse(['status' => 'pending']);
         }
 
-        $snapshotContent = $payload['payload']['snapshot'] ?? null;
-        if (!is_string($snapshotContent) || $snapshotContent === '') {
+        if ($snapshotContent === null) {
             return $this->responseEnvelopeFactory->error($request, 'Snapshot content empty.', 'voice_snapshot_empty', 500);
         }
 
-        return new JsonResponse(['status' => 'ok', 'snapshot' => $snapshotContent]);
+        return new JsonResponse(['status' => 'ok', 'snapshot' => $snapshotContent, 'filename' => sprintf('%s-server-%d-snapshot.txt', $type, $id), 'mimeType' => 'text/plain']);
     }
 
     #[Route('/{type}/{id}/snapshot/restore', name: 'customer_voice_legacy_snapshot_restore_v1', methods: ['POST'],
@@ -729,5 +752,77 @@ final class CustomerVoiceLegacyApiController
             'cache_ttl_ms' => $viewer->getCacheTtlMs(),
             'domain_allowlist' => $viewer->getDomainAllowlist(),
         ];
+    }
+
+    private function resolveRequestId(Request $request): ?string
+    {
+        $requestId = $request->headers->get('X-Request-Id') ?? $request->headers->get('X-Correlation-Id');
+        if (!is_string($requestId) || trim($requestId) === '') {
+            return null;
+        }
+
+        return trim($requestId);
+    }
+
+    private function extractSnapshotContent(mixed $payload): ?string
+    {
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $candidates = [
+            $payload['payload']['snapshot'] ?? null,
+            $payload['snapshot'] ?? null,
+            $payload['resultPayload']['snapshot'] ?? null,
+            $payload['result_payload']['snapshot'] ?? null,
+            $payload['result']['snapshot'] ?? null,
+            $payload['data']['snapshot'] ?? null,
+            $payload['payload']['resultPayload']['snapshot'] ?? null,
+            $payload['payload']['result_payload']['snapshot'] ?? null,
+            $payload['payload']['result']['snapshot'] ?? null,
+            $payload['payload']['data']['snapshot'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (!is_string($candidate)) {
+                continue;
+            }
+            $trimmed = trim($candidate);
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractAgentError(mixed $payload): string
+    {
+        if (!is_array($payload)) {
+            return '';
+        }
+
+        $candidates = [
+            $payload['error'] ?? null,
+            $payload['message'] ?? null,
+            $payload['errorText'] ?? null,
+            $payload['error_text'] ?? null,
+            $payload['payload']['error'] ?? null,
+            $payload['payload']['message'] ?? null,
+            $payload['payload']['errorText'] ?? null,
+            $payload['payload']['error_text'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (!is_string($candidate)) {
+                continue;
+            }
+            $trimmed = trim($candidate);
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+
+        return '';
     }
 }

@@ -108,6 +108,27 @@ final class AgentJobController
             }
         }
 
+        $snapshotContent = null;
+        if (is_array($resultPayload)) {
+            $snapshotContent = $resultPayload['snapshot'] ?? ($resultPayload['payload']['snapshot'] ?? null);
+        }
+        if (!is_string($snapshotContent)) {
+            $snapshotContent = null;
+        }
+        $snapshotLength = $snapshotContent !== null ? strlen(trim($snapshotContent)) : 0;
+        error_log(sprintf(
+            '[agent-job-finish] job_id=%s job_type=%s status=%s payload_keys=%s result_payload_top_keys=%s payload_payload_keys=%s snapshot_present=%s snapshot_length=%d error_text=%s',
+            $job->getId(),
+            $job->getType(),
+            $statusRaw,
+            implode(',', array_keys($payload)),
+            is_array($resultPayload) ? implode(',', array_keys($resultPayload)) : '',
+            is_array($resultPayload['payload'] ?? null) ? implode(',', array_keys($resultPayload['payload'])) : '',
+            $snapshotLength > 0 ? 'yes' : 'no',
+            $snapshotLength,
+            (string) ($payload['error_text'] ?? $payload['errorText'] ?? $payload['message'] ?? '')
+        ));
+
         $job->setLogText(is_string($payload['log_text'] ?? null) ? $payload['log_text'] : null);
         $job->setErrorText(is_string($payload['error_text'] ?? null) ? $payload['error_text'] : null);
         $job->setResultPayload($resultPayload);

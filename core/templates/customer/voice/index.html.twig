@@ -197,7 +197,7 @@
                 <div style="display:flex;align-items:center;gap:20px;">
                     <div class="vl-server-card__players">
                         <div class="vl-server-card__players-label">${esc(i18n.players)}</div>
-                        <div class="vl-server-card__players-val">${esc(String(i.players_online??'?'))}<span style="font-size:12px;font-weight:400;color:var(--ng-text-muted);">/${esc(String(i.players_max??'?'))}</span></div>
+                        <div class="vl-server-card__players-val">${esc(String(i.currentUsers ?? i.players_online ?? '?'))}<span style="font-size:12px;font-weight:400;color:var(--ng-text-muted);">/${esc(String(i.maxUsers ?? i.players_max ?? '?'))}</span></div>
                     </div>
                     <div class="vl-server-card__actions">
                         ${detailHref?`<a href="${esc(detailHref)}" class="ui-button ui-button--primary ui-button--sm">${esc(i18n.manage)}</a>`:''}
@@ -209,6 +209,50 @@
                 </div>
             </div>
         </div>`;
+    };
+
+
+    const statusCacheKey = 'voice-status-cache-v1';
+    const actionLocks = new Map();
+    const retryAfterUntil = new Map();
+    const nowMs = () => Date.now();
+
+    const toOptionalNumber = (value) => {
+        if (value === null || value === undefined || value === '') return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+    };
+
+    const pickFirstNumber = (source, keys) => {
+        for (const key of keys) {
+            if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+            const n = toOptionalNumber(source[key]);
+            if (n !== null) return n;
+        }
+        return null;
+    };
+
+    const normalizeVoiceStatus = (source) => ({
+        currentUsers: pickFirstNumber(source, ['currentUsers','online','clients_online','clientsonline','virtualserver_clientsonline','users_online','onlineUsers','connectedClients']),
+        maxUsers: pickFirstNumber(source, ['maxUsers','max','max_clients','maxclients','virtualserver_maxclients','slots']),
+    });
+
+    const parseStatusCache = () => {
+        try { return JSON.parse(localStorage.getItem(statusCacheKey) || '{}'); } catch { return {}; }
+    };
+    const persistStatusCache = (cache) => {
+        try { localStorage.setItem(statusCacheKey, JSON.stringify(cache)); } catch {}
+    };
+    let statusCache = parseStatusCache();
+
+    const applyStatusToInstance = (instanceId, payload) => {
+        const inst = instances.find(i => String(i.id) === String(instanceId));
+        if (!inst) return;
+        const normalized = normalizeVoiceStatus(payload || {});
+        inst.currentUsers = normalized.currentUsers;
+        inst.maxUsers = normalized.maxUsers;
+        inst.players_online = normalized.currentUsers;
+        inst.players_max = normalized.maxUsers;
     };
 
     const updateKpis = () => {
@@ -229,14 +273,68 @@
         listEl.innerHTML=instances.map(renderCard).join('');
     };
 
+
+    const refreshInstanceSummary = async (inst) => {
+        if (!inst?.api_base_url) return;
+        const retryUntil = retryAfterUntil.get(String(inst.id)) || 0;
+        if (retryUntil > nowMs()) return;
+        try {
+            const resp = await fetch(`${inst.api_base_url}/summary`, {headers:{'Accept':'application/json'}});
+            const data = await resp.json();
+            if (data?.status === 'ok') {
+                const meta = {
+                    data,
+                    fetchedAt: new Date().toISOString(),
+                    expiresAt: new Date(nowMs() + 20000).toISOString(),
+                    stale: false,
+                    source: 'fresh',
+                };
+                statusCache[String(inst.id)] = meta;
+                persistStatusCache(statusCache);
+                applyStatusToInstance(inst.id, data);
+                render();
+                return;
+            }
+            if (data?.retry_after) {
+                retryAfterUntil.set(String(inst.id), nowMs() + (Number(data.retry_after) * 1000));
+            }
+        } catch {}
+    };
+
+    const hydrateCachedSummaries = () => {
+        const ts = nowMs();
+        for (const inst of instances) {
+            const cached = statusCache[String(inst.id)];
+            if (!cached || !cached.data) continue;
+            const expiresAt = Date.parse(cached.expiresAt || '');
+            const staleWindow = Date.parse(cached.fetchedAt || '') + (5 * 60 * 1000);
+            const isFresh = Number.isFinite(expiresAt) && expiresAt > ts;
+            const isStale = !isFresh && Number.isFinite(staleWindow) && staleWindow > ts;
+            if (!isFresh && !isStale) continue;
+            applyStatusToInstance(inst.id, cached.data);
+            cached.stale = isStale;
+            cached.source = isFresh ? 'cache' : 'stale-cache';
+        }
+    };
+
+    const refreshSummaries = async () => {
+        await Promise.all(instances.map(refreshInstanceSummary));
+    };
+
     const load = async () => {
         const resp = await fetch(apiBase,{headers:{'Accept':'application/json'}});
         const payload = await resp.json();
         instances = Array.isArray(payload.instances)?payload.instances:[];
+        hydrateCachedSummaries();
         render();
+        refreshSummaries().catch(()=>{});
     };
 
     const mutate = async (id, action) => {
+        const lockKey = `${id}:${action}`;
+        const lockUntil = actionLocks.get(lockKey) || 0;
+        if (lockUntil > nowMs()) return;
+        actionLocks.set(lockKey, nowMs() + 10000);
         const inst = instances.find(i => String(i.id) === String(id));
         const base = inst?.api_base_url || `${apiBase}/${id}`;
         const url = action==='probe' ? `${base}/probe` : `${base}/actions/${action}`;

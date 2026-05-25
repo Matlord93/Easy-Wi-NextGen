@@ -50,7 +50,7 @@ final class GameTemplateSeedCatalog
                 ],
                 $fastdl,
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 validate +quit',
-                'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 validate +quit',
+                'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 +quit',
                 ['+map', '-maxplayers', '+game_type', '+game_mode'],
             ),
             $this->template(
@@ -87,7 +87,7 @@ final class GameTemplateSeedCatalog
                 ],
                 $fastdl,
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 740 validate +quit',
-                'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 740 validate +quit',
+                'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 740 +quit',
                 ['+map', '+maxplayers', '+game_type', '+game_mode'],
             ),
             $this->template(
@@ -764,7 +764,7 @@ final class GameTemplateSeedCatalog
                 ],
                 $fastdl,
                 'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 validate +quit',
-                'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 validate +quit',
+                'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 +quit',
                 ['+map', '-maxplayers', '+game_type', '+game_mode'],
             ),
             $this->template(
