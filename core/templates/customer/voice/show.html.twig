@@ -52,6 +52,7 @@
 
 {# Error bar #}
 <div id="vs-error" class="ng-alert ng-alert--danger hidden"></div>
+<div id="vs-action-status" class="ng-alert hidden" style="margin-top:8px;"></div>
 
 {# ── KPI Strip ── #}
 <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
@@ -551,6 +552,12 @@
     };
     const showError = (msg) => { const el=$('vs-error'); if(el){el.textContent=msg;el.classList.remove('hidden');} };
     const clearError = () => { const el=$('vs-error'); if(el) el.classList.add('hidden'); };
+    const showActionStatus = (msg, type='info') => {
+        const el=$('vs-action-status'); if(!el) return;
+        el.textContent=msg; el.classList.remove('hidden','ng-alert--danger','ng-alert--success','ng-alert--warning');
+        el.classList.add(type==='error'?'ng-alert--danger':(type==='success'?'ng-alert--success':'ng-alert--warning'));
+    };
+    const actionLocks = new Map();
     const setGlobalBusy = (b) => ['vs-btn-probe','vs-btn-start','vs-btn-stop','vs-btn-restart','vs-btn-snapshot','vs-qa-recreate'].forEach(id=>{const el=$(id);if(el)el.disabled=b;});
 
     const apiFetch = async (url, opts={}) => {
@@ -918,17 +925,30 @@
 
     // ── Client actions (event delegation on clients list) ──
     $('vs-clients-list')?.addEventListener('click', async e=>{
+        const lockAction = (action, clid) => {
+            const key = `voice-client-action:${d.serverType}:${d.serverId}:${clid}:${action}`;
+            const until = actionLocks.get(key) || 0;
+            if (until > Date.now()) return null;
+            actionLocks.set(key, Date.now() + 10000);
+            return key;
+        };
         const kickBtn=e.target.closest('.vs-kick-btn');
         if(kickBtn){
             const clid=parseInt(kickBtn.dataset.clid,10);
             const nick=kickBtn.dataset.nick;
             const reason=prompt(i18n.kickReasonPrompt.replace('{nick}',nick),'')??null;
             if(reason===null) return;
+            const actionKey = lockAction('kick', clid); if(!actionKey){ showActionStatus('Aktion läuft bereits.', 'info'); return; }
             kickBtn.disabled=true;
+            showActionStatus('Kick wird ausgeführt...', 'info');
             try{
-                await apiFetch(`${d.urlClientsBase}/${clid}/kick`,{method:'POST',body:JSON.stringify({reason})});
+                const res = await apiFetch(`${d.urlClientsBase}/${clid}/kick`,{method:'POST',body:JSON.stringify({reason})});
+                if ((res.status||'').toLowerCase() === 'failed') throw new Error(res.message||'Kick fehlgeschlagen.');
+                showActionStatus(res.message||'Kick wurde gestartet.', 'success');
                 tabLoaded['clients']=false; await loadClients();
-            }catch(err){showError(err.message);kickBtn.disabled=false;}
+                showActionStatus('Client wurde gekickt.', 'success');
+            }catch(err){showError(err.message);}
+            finally{ kickBtn.disabled=false; actionLocks.delete(actionKey); }
             return;
         }
         const pokeBtn=e.target.closest('.vs-poke-btn');
@@ -936,25 +956,39 @@
             const clid=parseInt(pokeBtn.dataset.clid,10);
             const nick=pokeBtn.dataset.nick;
             const message=prompt(i18n.pokeMsgPrompt.replace('{nick}',nick),'');
-            if(!message) return;
+            if(!message||!message.trim()) return;
+            const actionKey = lockAction('poke', clid); if(!actionKey){ showActionStatus('Aktion läuft bereits.', 'info'); return; }
             pokeBtn.disabled=true;
-            try{ await apiFetch(`${d.urlClientsBase}/${clid}/poke`,{method:'POST',body:JSON.stringify({message})}); }
+            showActionStatus('Poke wird gesendet...', 'info');
+            try{
+                const res = await apiFetch(`${d.urlClientsBase}/${clid}/poke`,{method:'POST',body:JSON.stringify({message})});
+                if ((res.status||'').toLowerCase() === 'failed') throw new Error(res.message||'Poke fehlgeschlagen.');
+                showActionStatus('Poke wurde gesendet.', 'success');
+            }
             catch(err){showError(err.message);}
-            pokeBtn.disabled=false;
+            finally{ pokeBtn.disabled=false; actionLocks.delete(actionKey); }
             return;
         }
         const banBtn=e.target.closest('.vs-ban-from-client-btn');
         if(banBtn){
+            const clid=parseInt(banBtn.dataset.clid,10);
             const nick=banBtn.dataset.nick;
             const reason=prompt(i18n.banFromClientReasonPrompt.replace('{nick}',nick),'')??null;
             if(reason===null) return;
             const durationStr=prompt(i18n.banDurationPrompt,'0');
             if(durationStr===null) return;
+            if(!confirm(`${nick} wirklich bannen?`)) return;
+            const actionKey = lockAction('ban', clid); if(!actionKey){ showActionStatus('Aktion läuft bereits.', 'info'); return; }
             banBtn.disabled=true;
+            showActionStatus('Ban wird ausgeführt...', 'info');
             try{
-                await apiFetch(d.urlBans,{method:'POST',body:JSON.stringify({name:nick,banreason:reason,time:parseInt(durationStr,10)||0})});
+                const res = await apiFetch(`${d.urlClientsBase}/${clid}/ban`,{method:'POST',body:JSON.stringify({reason,time:parseInt(durationStr,10)||0})});
+                if ((res.status||'').toLowerCase() === 'failed') throw new Error(res.message||'Ban fehlgeschlagen.');
                 tabLoaded['clients']=false; await loadClients();
-            }catch(err){showError(err.message);banBtn.disabled=false;}
+                tabLoaded['bans']=false; await loadBans();
+                showActionStatus('Client wurde gebannt.', 'success');
+            }catch(err){showError(err.message);}
+            finally{ banBtn.disabled=false; actionLocks.delete(actionKey); }
         }
     });
 
