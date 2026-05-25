@@ -236,6 +236,25 @@ final class Ts6VirtualServerService
         return $job;
     }
 
+    public function banClient(Ts6VirtualServer $server, int $clid, string $reason = 'Banned via panel', int $duration = 0): AgentJob
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'clid' => $clid,
+            'reason' => $reason,
+            'duration' => max(0, $duration),
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.client.ban', $payload);
+        $this->entityManager->flush();
+        return $job;
+    }
+
     public function removeBan(Ts6VirtualServer $server, int $banid): AgentJob
     {
         $payload = [

@@ -643,7 +643,7 @@ final class CustomerVoiceLegacyApiController
         return new JsonResponse(['status' => 'pending', 'action_id' => $job->getId(), 'message' => 'Poke queued.'], 202);
     }
 
-    #[Route('/{type}/{id}/clients/{clid}/ban', name: 'customer_voice_legacy_client_ban_v1', methods: ['POST'],
+    #[Route('/{type}/{id}/clients/{clid}/ban', name: 'customer_voice_legacy_ban_v1', methods: ['POST'],
         requirements: ['type' => 'ts3|ts6', 'id' => '\d+', 'clid' => '\d+'])]
     public function banClient(Request $request, string $type, int $id, int $clid): JsonResponse
     {
@@ -655,20 +655,16 @@ final class CustomerVoiceLegacyApiController
 
         $body = json_decode((string) $request->getContent(), true) ?? [];
         $banParams = ['clid' => $clid];
-        if (isset($body['time'])) {
-            $banParams['time'] = max(0, (int) $body['time']);
-        }
-        if (isset($body['reason']) && trim((string) $body['reason']) !== '') {
-            $banParams['banreason'] = trim((string) $body['reason']);
-        }
+        $banParams['duration'] = max(0, (int) ($body['duration'] ?? $body['time'] ?? 0));
+        $banParams['reason'] = trim((string) ($body['reason'] ?? 'Banned via panel'));
 
         if ($type === 'ts3') {
             assert($server instanceof Ts3VirtualServer);
-            $job = $this->ts3Service->addBan($server, $banParams);
+            $job = $this->ts3Service->banClient($server, $clid, $banParams['reason'], $banParams['duration']);
             $this->auditLogger->log($customer, 'voice.legacy.ts3.client.ban', ['server_id' => $id, 'clid' => $clid, 'job_id' => $job->getId()]);
         } else {
             assert($server instanceof Ts6VirtualServer);
-            $job = $this->ts6Service->addBan($server, $banParams);
+            $job = $this->ts6Service->banClient($server, $clid, $banParams['reason'], $banParams['duration']);
             $this->auditLogger->log($customer, 'voice.legacy.ts6.client.ban', ['server_id' => $id, 'clid' => $clid, 'job_id' => $job->getId()]);
         }
 

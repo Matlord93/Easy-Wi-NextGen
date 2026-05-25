@@ -482,6 +482,13 @@ func handleTs3VirtualClientPoke(job jobs.Job) orchestratorResult {
 func handleTs6VirtualClientPoke(job jobs.Job) orchestratorResult {
 	return handleTsClientPoke(job, withTs6Client)
 }
+func handleTs3VirtualClientBan(job jobs.Job) orchestratorResult {
+	return handleTsClientBan(job, withTs3Client)
+}
+
+func handleTs6VirtualClientBan(job jobs.Job) orchestratorResult {
+	return handleTsClientBan(job, withTs6Client)
+}
 
 func handleTsClientKick(job jobs.Job, withClient func(map[string]any, func(*ts3QueryClient) error) error) orchestratorResult {
 	sid := payloadValue(job.Payload, "sid")
@@ -524,6 +531,47 @@ func handleTsClientPoke(job jobs.Job, withClient func(map[string]any, func(*ts3Q
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	return orchestratorResult{status: "success", resultPayload: map[string]any{"clid": clid, "poked": true}}
+}
+
+func handleTsClientBan(job jobs.Job, withClient func(map[string]any, func(*ts3QueryClient) error) error) orchestratorResult {
+	sid := payloadValue(job.Payload, "sid")
+	clid := payloadValue(job.Payload, "clid")
+	reason := strings.TrimSpace(payloadValue(job.Payload, "reason"))
+	duration, _ := strconv.Atoi(payloadValue(job.Payload, "duration"))
+	if sid == "" || clid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid or clid"}
+	}
+	if reason == "" {
+		reason = "Banned via panel"
+	}
+	if duration < 0 {
+		duration = 0
+	}
+	err := withClient(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		if _, err := client.command(fmt.Sprintf("banclient clid=%s time=%d banreason=%s", clid, duration, escapeTs3Query(reason))); err == nil {
+			return nil
+		}
+		infoResp, infoErr := client.command(fmt.Sprintf("clientinfo clid=%s", clid))
+		if infoErr != nil {
+			return fmt.Errorf("banclient failed and clientinfo fallback failed: %w", infoErr)
+		}
+		uid := strings.TrimSpace(infoResp["client_unique_identifier"])
+		if uid == "" {
+			return fmt.Errorf("banclient failed and fallback uid missing for clid=%s", clid)
+		}
+		if _, err := client.command(fmt.Sprintf("banadd uid=%s time=%d banreason=%s", escapeTs3Query(uid), duration, escapeTs3Query(reason))); err != nil {
+			return err
+		}
+		_, _ = client.command(fmt.Sprintf("clientkick clid=%s reasonid=5 reasonmsg=%s", clid, escapeTs3Query(reason)))
+		return nil
+	})
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	return orchestratorResult{status: "success", resultPayload: map[string]any{"clid": clid, "banned": true, "duration": duration}}
 }
 
 func handleTs3VirtualLogView(job jobs.Job) orchestratorResult {

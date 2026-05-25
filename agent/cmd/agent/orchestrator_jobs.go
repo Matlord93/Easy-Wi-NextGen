@@ -131,6 +131,10 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleTs3VirtualClientPoke(job)
 	case "ts6.virtual.client.poke":
 		return handleTs6VirtualClientPoke(job)
+	case "ts3.virtual.client.ban":
+		return handleTs3VirtualClientBan(job)
+	case "ts6.virtual.client.ban":
+		return handleTs6VirtualClientBan(job)
 	case "ts3.virtual.log.view":
 		return handleTs3VirtualLogView(job)
 	case "ts6.virtual.log.view":

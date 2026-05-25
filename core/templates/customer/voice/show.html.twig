@@ -743,6 +743,7 @@
                     const idle=r.client_idle_time!==undefined?fmtDuration(Math.floor(r.client_idle_time/1000)):'—';
                     const country=esc(r.client_country??'—');
                     const ctype=r.client_type===1?`<span style="color:var(--ng-text-muted);font-size:10px;">${esc(i18n.clientQuery)}</span>`:`<span style="font-size:10px;color:var(--ng-primary);">${esc(i18n.clientNormal)}</span>`;
+                    const actionUrlBase = `${d.urlClientsBase}/${encodeURIComponent(String(clid))}`;
                     return `<tr>
                         <td><strong>${nick}</strong></td>
                         <td style="color:var(--ng-text-muted);">${chan}</td>
@@ -750,9 +751,9 @@
                         <td style="color:var(--ng-text-muted);">${country}</td>
                         <td>${ctype}</td>
                         <td><div class="vs-td-actions">
-                            <button class="ui-button ui-button--ghost ui-button--sm vs-kick-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.kick)}</button>
-                            <button class="ui-button ui-button--ghost ui-button--sm vs-poke-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.poke)}</button>
-                            <button class="ui-button ui-button--danger ui-button--sm vs-ban-from-client-btn" data-clid="${esc(String(clid))}" data-nick="${nick}">${esc(i18n.ban)}</button>
+                            <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-kick-btn" data-voice-client-action="kick" data-client-id="${esc(String(clid))}" data-clid="${esc(String(clid))}" data-nick="${nick}" data-action-url="${esc(actionUrlBase)}/kick">${esc(i18n.kick)}</button>
+                            <button type="button" class="ui-button ui-button--ghost ui-button--sm vs-poke-btn" data-voice-client-action="poke" data-client-id="${esc(String(clid))}" data-clid="${esc(String(clid))}" data-nick="${nick}" data-action-url="${esc(actionUrlBase)}/poke">${esc(i18n.poke)}</button>
+                            <button type="button" class="ui-button ui-button--danger ui-button--sm vs-ban-from-client-btn" data-voice-client-action="ban" data-client-id="${esc(String(clid))}" data-clid="${esc(String(clid))}" data-nick="${nick}" data-action-url="${esc(actionUrlBase)}/ban">${esc(i18n.ban)}</button>
                         </div></td>
                     </tr>`;
                 }).join('')}</tbody>
@@ -925,6 +926,7 @@
 
     // ── Client actions (event delegation on clients list) ──
     $('vs-clients-list')?.addEventListener('click', async e=>{
+        console.log('[voice-client-action] click', e.target);
         const lockAction = (action, clid) => {
             const key = `voice-client-action:${d.serverType}:${d.serverId}:${clid}:${action}`;
             const until = actionLocks.get(key) || 0;
@@ -932,9 +934,19 @@
             actionLocks.set(key, Date.now() + 10000);
             return key;
         };
-        const kickBtn=e.target.closest('.vs-kick-btn');
+        const button=e.target.closest('[data-voice-client-action]');
+        if(!button) return;
+        const action=button.dataset.voiceClientAction||'';
+        const url=(button.dataset.actionUrl||'').trim();
+        const clid=parseInt(button.dataset.clientId||button.dataset.clid||'0',10);
+        console.log('[voice-client-action] action', action);
+        console.log('[voice-client-action] url', url);
+        console.log('[voice-client-action] clid', clid);
+        if(!url){ showError('Aktion fehlgeschlagen: Keine Action-URL vorhanden.'); return; }
+        if(!clid){ showError('Aktion fehlgeschlagen: Ungültige Client-ID.'); return; }
+
+        const kickBtn = action === 'kick' ? button : null;
         if(kickBtn){
-            const clid=parseInt(kickBtn.dataset.clid,10);
             const nick=kickBtn.dataset.nick;
             const reason=prompt(i18n.kickReasonPrompt.replace('{nick}',nick),'')??null;
             if(reason===null) return;
@@ -942,7 +954,8 @@
             kickBtn.disabled=true;
             showActionStatus('Kick wird ausgeführt...', 'info');
             try{
-                const res = await apiFetch(`${d.urlClientsBase}/${clid}/kick`,{method:'POST',body:JSON.stringify({reason})});
+                console.log('[voice-client-action] sending request');
+                const res = await apiFetch(url,{method:'POST',body:JSON.stringify({reason})});
                 if ((res.status||'').toLowerCase() === 'failed') throw new Error(res.message||'Kick fehlgeschlagen.');
                 showActionStatus(res.message||'Kick wurde gestartet.', 'success');
                 tabLoaded['clients']=false; await loadClients();
@@ -951,17 +964,17 @@
             finally{ kickBtn.disabled=false; actionLocks.delete(actionKey); }
             return;
         }
-        const pokeBtn=e.target.closest('.vs-poke-btn');
+        const pokeBtn = action === 'poke' ? button : null;
         if(pokeBtn){
-            const clid=parseInt(pokeBtn.dataset.clid,10);
             const nick=pokeBtn.dataset.nick;
             const message=prompt(i18n.pokeMsgPrompt.replace('{nick}',nick),'');
-            if(!message||!message.trim()) return;
+            if(!message||!message.trim()){ showError('Poke-Nachricht darf nicht leer sein.'); return; }
             const actionKey = lockAction('poke', clid); if(!actionKey){ showActionStatus('Aktion läuft bereits.', 'info'); return; }
             pokeBtn.disabled=true;
             showActionStatus('Poke wird gesendet...', 'info');
             try{
-                const res = await apiFetch(`${d.urlClientsBase}/${clid}/poke`,{method:'POST',body:JSON.stringify({message})});
+                console.log('[voice-client-action] sending request');
+                const res = await apiFetch(url,{method:'POST',body:JSON.stringify({message})});
                 if ((res.status||'').toLowerCase() === 'failed') throw new Error(res.message||'Poke fehlgeschlagen.');
                 showActionStatus('Poke wurde gesendet.', 'success');
             }
@@ -969,20 +982,20 @@
             finally{ pokeBtn.disabled=false; actionLocks.delete(actionKey); }
             return;
         }
-        const banBtn=e.target.closest('.vs-ban-from-client-btn');
+        const banBtn = action === 'ban' ? button : null;
         if(banBtn){
-            const clid=parseInt(banBtn.dataset.clid,10);
             const nick=banBtn.dataset.nick;
-            const reason=prompt(i18n.banFromClientReasonPrompt.replace('{nick}',nick),'')??null;
+            if(!confirm('Client wirklich bannen?')) return;
+            const reason=prompt(i18n.banFromClientReasonPrompt.replace('{nick}',nick),'Banned via panel')??null;
             if(reason===null) return;
             const durationStr=prompt(i18n.banDurationPrompt,'0');
             if(durationStr===null) return;
-            if(!confirm(`${nick} wirklich bannen?`)) return;
             const actionKey = lockAction('ban', clid); if(!actionKey){ showActionStatus('Aktion läuft bereits.', 'info'); return; }
             banBtn.disabled=true;
             showActionStatus('Ban wird ausgeführt...', 'info');
             try{
-                const res = await apiFetch(`${d.urlClientsBase}/${clid}/ban`,{method:'POST',body:JSON.stringify({reason,time:parseInt(durationStr,10)||0})});
+                console.log('[voice-client-action] sending request');
+                const res = await apiFetch(url,{method:'POST',body:JSON.stringify({reason,duration:parseInt(durationStr,10)||0})});
                 if ((res.status||'').toLowerCase() === 'failed') throw new Error(res.message||'Ban fehlgeschlagen.');
                 tabLoaded['clients']=false; await loadClients();
                 tabLoaded['bans']=false; await loadBans();
