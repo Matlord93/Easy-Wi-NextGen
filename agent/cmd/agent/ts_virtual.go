@@ -689,7 +689,7 @@ func normalizeTsQueryListPayload(command string, rows []map[string]string) []map
 	}
 	normalized := make([]map[string]string, 0, len(rows))
 	for _, row := range rows {
-		banID := firstNonEmpty(row["banId"], row["banid"], row["ban_id"], row["id"])
+		banID := firstNonEmptyTrimmed(row["banId"], row["banid"], row["ban_id"], row["id"])
 		cloned := make(map[string]string, len(row)+1)
 		for k, v := range row {
 			cloned[k] = v
@@ -702,7 +702,7 @@ func normalizeTsQueryListPayload(command string, rows []map[string]string) []map
 	return normalized
 }
 
-func firstNonEmpty(values ...string) string {
+func firstNonEmptyTrimmed(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
 			return value
