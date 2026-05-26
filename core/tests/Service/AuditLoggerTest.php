@@ -6,6 +6,7 @@ namespace App\Tests\Service;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AuditLogHasher;
+use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\AuditLog;
 use App\Repository\AuditLogRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -26,7 +27,7 @@ final class AuditLoggerTest extends TestCase
             ->with(self::isInstanceOf(AuditLog::class));
 
         $hasher = new AuditLogHasher();
-        $logger = new AuditLogger($repository, $hasher, $entityManager);
+        $logger = new AuditLogger($repository, $hasher, $entityManager, new JobPayloadMasker());
 
         $auditLog = $logger->log(null, 'user.created', ['email' => 'admin@example.test']);
 

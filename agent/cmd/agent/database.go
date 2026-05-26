@@ -180,7 +180,6 @@ func parseDatabaseRequest(job jobs.Job) (databaseRequest, error) {
 	return req, nil
 }
 
-
 func mapDatabaseParseError(err error) string {
 	if err == nil {
 		return dbErrNameInvalid

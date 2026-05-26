@@ -6,6 +6,7 @@ namespace App\Tests\Gameserver;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AuditLogHasher;
+use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\InstanceStatus;
@@ -94,7 +95,7 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
 
         $auditRepo = $this->createMock(AuditLogRepository::class);
         $auditRepo->method('findLatestHash')->willReturn(null);
-        $audit = new AuditLogger($auditRepo, new AuditLogHasher(), $this->createMock(EntityManagerInterface::class));
+        $audit = new AuditLogger($auditRepo, new AuditLogHasher(), $this->createMock(EntityManagerInterface::class), new JobPayloadMasker());
 
         $limiter = new class ($rateAllowed) implements ConsoleCommandLimiterInterface {
             public function __construct(private readonly bool $allowed)

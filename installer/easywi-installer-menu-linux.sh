@@ -1759,6 +1759,35 @@ verify_release_checksum() {
   ok "Checksum verifiziert: ${asset_name}"
 }
 
+verify_release_checksum_candidates() {
+  local asset_path="$1" asset_name="$2" version="$3" token="${4:-}"
+  shift 4 || true
+  local -a checksum_candidates=("$@")
+  local checksums_file checksum_name
+  checksums_file="$(mktemp)"
+
+  for checksum_name in "${checksum_candidates[@]}"; do
+    rm -f "${checksums_file}"
+    if ! download_optional_asset "${checksum_name}" "${checksums_file}" "${version}" "${token}"; then
+      continue
+    fi
+    if ! checksum_file_contains_asset "${checksums_file}" "${asset_name}"; then
+      continue
+    fi
+
+    log "Checksums geladen: ${checksum_name}"
+    if verify_release_checksum "${checksums_file}" "${asset_path}" "${asset_name}"; then
+      rm -f "${checksums_file}"
+      return 0
+    fi
+
+    warn "Checksum-Datei ${checksum_name} passt nicht zu ${asset_name}; versuche nächste verfügbare Checksums-Datei."
+  done
+
+  rm -f "${checksums_file}"
+  return 1
+}
+
 
 verify_panel_release_checksum() {
   local checksums_file="$1" asset_path="$2" asset_name="$3"
@@ -2078,7 +2107,6 @@ install_agent_binaries() {
   step "Lade Agent-Binaries (${arch}, ${version})."
 
   local agent_dest="${tmp}/agent-raw"
-  local checksums="${tmp}/checksums.txt"
   local agent_resolved="" asset_name="" resolved_version="${version}"
   local -a asset_candidates=()
   for suffix in ".tar.gz" ".zip" ""; do
@@ -2087,9 +2115,8 @@ install_agent_binaries() {
 
   for asset_name in "${asset_candidates[@]}"; do
     if download_optional_asset "${asset_name}" "${agent_dest}" "${resolved_version}" "${github_token}"; then
-      if download_checksums_for_asset "${checksums}" "${resolved_version}" "${github_token}" checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256 >/dev/null; then
-        verify_release_checksum "${checksums}" "${agent_dest}" "${asset_name}"
-      else
+      if ! verify_release_checksum_candidates "${agent_dest}" "${asset_name}" "${resolved_version}" "${github_token}" \
+        checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256; then
         fatal "Keine Agent-Checksums-Datei im Release gefunden."
       fi
       agent_resolved="$(prepare_agent_binary_asset "${agent_dest}" "${asset_name}" "${tmp}" "${arch}")"
@@ -2102,9 +2129,8 @@ install_agent_binaries() {
       warn "Das GitHub-'latest'-Release enthält kein Agent-Binary für ${arch}; verwende Agent-Release ${resolved_version}."
       for asset_name in "${asset_candidates[@]}"; do
         if download_optional_asset "${asset_name}" "${agent_dest}" "${resolved_version}" "${github_token}"; then
-          if download_checksums_for_asset "${checksums}" "${resolved_version}" "${github_token}" checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256 >/dev/null; then
-            verify_release_checksum "${checksums}" "${agent_dest}" "${asset_name}"
-          else
+          if ! verify_release_checksum_candidates "${agent_dest}" "${asset_name}" "${resolved_version}" "${github_token}" \
+            checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256; then
             fatal "Keine Agent-Checksums-Datei im Release ${resolved_version} gefunden."
           fi
           agent_resolved="$(prepare_agent_binary_asset "${agent_dest}" "${asset_name}" "${tmp}" "${arch}")"
@@ -2119,9 +2145,8 @@ install_agent_binaries() {
       warn "Verwende ausgewählte Agent-Version ${resolved_version}."
       for asset_name in "${asset_candidates[@]}"; do
         if download_optional_asset "${asset_name}" "${agent_dest}" "${resolved_version}" "${github_token}"; then
-          if download_checksums_for_asset "${checksums}" "${resolved_version}" "${github_token}" checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256 >/dev/null; then
-            verify_release_checksum "${checksums}" "${agent_dest}" "${asset_name}"
-          else
+          if ! verify_release_checksum_candidates "${agent_dest}" "${asset_name}" "${resolved_version}" "${github_token}" \
+            checksums-agent-linux.txt checksums-agent.txt checksums.txt checksums.sha256; then
             fatal "Keine Agent-Checksums-Datei im Release ${resolved_version} gefunden."
           fi
           agent_resolved="$(prepare_agent_binary_asset "${agent_dest}" "${asset_name}" "${tmp}" "${arch}")"

@@ -115,7 +115,7 @@ final class DatabaseTableService
         }
     }
 
-    private function openPdo(Database $database): ?\PDO
+    private function openPdo(Database $database): ?object
     {
         $engine = strtolower($database->getEngine());
         if (!in_array($engine, ['mysql', 'mariadb'], true)) {
@@ -204,7 +204,7 @@ final class DatabaseTableService
         return $out;
     }
 
-    private function sqlValue(\PDO $pdo, mixed $value): string
+    private function sqlValue(object $pdo, mixed $value): string
     {
         if ($value === null) {
             return 'NULL';
