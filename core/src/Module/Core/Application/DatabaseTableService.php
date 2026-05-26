@@ -262,6 +262,9 @@ class DatabaseTableService
                 throw new \InvalidArgumentException('invalid_column_name');
             }
             $this->assertValidColumnName($inputColumnName);
+            if ($inputColumnName === $pk) {
+                continue;
+            }
             if (!in_array($inputColumnName, $editableNames, true)) {
                 throw new \InvalidArgumentException('invalid_column_name');
             }

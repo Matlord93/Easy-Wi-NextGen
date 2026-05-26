@@ -40,8 +40,11 @@ final class DatabaseApiControllerJobsRouteTest extends TestCase
 
         /** @var Route $route */
         $route = $attributes[0]->newInstance();
-        self::assertSame('/api/v1/customer/databases/{id}/jobs', $route->getPath());
-        self::assertSame(['GET'], $route->getMethods());
+        $path = method_exists($route, 'getPath') ? $route->getPath() : (property_exists($route, 'path') ? $route->path : null);
+        $methods = method_exists($route, 'getMethods') ? $route->getMethods() : (property_exists($route, 'methods') ? $route->methods : []);
+
+        self::assertSame('/api/v1/customer/databases/{id}/jobs', $path);
+        self::assertSame(['GET'], $methods);
     }
 
     public function testOwnerGetsOnlyOwnDatabaseJobsAndMaskedSecrets(): void
@@ -70,7 +73,7 @@ final class DatabaseApiControllerJobsRouteTest extends TestCase
 
     public function testUnknownDatabaseGetsDatabaseNotFound(): void
     {
-        [$controller, $request] = $this->buildController(database: null);
+        [$controller, $request] = $this->buildController(database: null, createDefaultDatabase: false);
         $response = $controller->listJobs($request, 4);
 
         self::assertSame(404, $response->getStatusCode());
@@ -78,12 +81,14 @@ final class DatabaseApiControllerJobsRouteTest extends TestCase
         self::assertSame('database_not_found', $json['error_code']);
     }
 
-    private function buildController(?Database $database = null): array
+    private function buildController(?Database $database = null, bool $createDefaultDatabase = true): array
     {
         $customer = new User('owner@test', UserType::Customer);
         $agent = new Agent('a1', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c'], 'A');
         $node = new DatabaseNode('node1', 'mariadb', '127.0.0.1', 3306, $agent);
-        $database ??= new Database($customer, 'mariadb', '127.0.0.1', 3306, 'u4_demo', 'u4_demo', null, $node);
+        if ($database === null && $createDefaultDatabase) {
+            $database = new Database($customer, 'mariadb', '127.0.0.1', 3306, 'u4_demo', 'u4_demo', null, $node);
+        }
 
         $ownerJob = new Job('database.create', ['database_id' => (string) $database->getId(), 'admin_secret' => 'top-secret']);
         new JobResult($ownerJob, JobResultStatus::Succeeded, ['token' => 'abc']);

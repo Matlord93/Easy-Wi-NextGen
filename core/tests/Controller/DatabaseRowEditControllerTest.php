@@ -17,6 +17,7 @@ use App\Module\PanelCustomer\UI\Controller\Customer\CustomerDatabaseController;
 use App\Repository\DatabaseNodeRepository;
 use App\Repository\DatabaseRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -59,7 +60,7 @@ final class DatabaseRowEditControllerTest extends TestCase
         self::assertStringNotContainsString('password', strtolower((string) $resp->getContent()));
     }
 
-    /** @dataProvider postErrorProvider */
+    #[DataProvider('postErrorProvider')]
     public function testPostEditMapsServiceErrors(string $code): void
     {
         $owner = new User('owner@test', UserType::Customer);
