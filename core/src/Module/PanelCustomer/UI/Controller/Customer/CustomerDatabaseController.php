@@ -136,7 +136,7 @@ final class CustomerDatabaseController
     {
         $customer = $this->requireCustomer($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+        if ($database === null || !$this->isOwner($customer, $database)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
@@ -169,7 +169,7 @@ final class CustomerDatabaseController
     {
         $customer = $this->requireCustomer($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+        if ($database === null || !$this->isOwner($customer, $database)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
@@ -200,7 +200,7 @@ final class CustomerDatabaseController
     {
         $customer = $this->requireCustomer($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+        if ($database === null || !$this->isOwner($customer, $database)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
@@ -223,7 +223,7 @@ final class CustomerDatabaseController
     {
         $customer = $this->requireCustomer($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+        if ($database === null || !$this->isOwner($customer, $database)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
         if ($this->isSystemDatabase($database->getName())) {
@@ -249,7 +249,7 @@ final class CustomerDatabaseController
     {
         $customer = $this->requireCustomer($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+        if ($database === null || !$this->isOwner($customer, $database)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
         if ($this->isSystemDatabase($database->getName())) {
@@ -279,7 +279,7 @@ final class CustomerDatabaseController
     {
         $customer = $this->requireCustomer($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+        if ($database === null || !$this->isOwner($customer, $database)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
         if ($this->isSystemDatabase($database->getName())) {
@@ -304,7 +304,7 @@ final class CustomerDatabaseController
     {
         $customer = $this->requireCustomer($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+        if ($database === null || !$this->isOwner($customer, $database)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
         if ($this->isSystemDatabase($database->getName())) {
@@ -332,9 +332,11 @@ final class CustomerDatabaseController
     #[Route(path: '/{id}/import', name: 'customer_databases_import', methods: ['POST'])]
     public function importDatabase(Request $request, int $id): Response
     {
-        $customer = $this->requireCustomer($request);
+        $actor = $request->attributes->get('current_user');
+        $customer = ($actor instanceof User && $actor->getType() === UserType::Customer) ? $actor : null;
+
         $database = $this->databaseRepository->find($id);
-        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+        if ($database === null || $customer === null || !$this->isOwner($customer, $database)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
         if ($this->isSystemDatabase($database->getName())) {
@@ -342,13 +344,11 @@ final class CustomerDatabaseController
         }
 
         $file = $request->files->get('sql_file');
-        if (!$file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
-            return $this->renderWithErrors($customer, ['customer_databases_import_missing_file']);
-        }
+        $filename = $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? (string) $file->getClientOriginalName() : '';
+        $content = $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? (string) file_get_contents($file->getPathname()) : '';
 
         try {
-            $content = (string) file_get_contents($file->getPathname());
-            $this->databaseTableService->importSql($database, (string) $file->getClientOriginalName(), $content);
+            $this->databaseTableService->importSql($database, $filename, $content);
         } catch (\InvalidArgumentException $exception) {
             $allowed = [
                 'import_invalid_extension',
@@ -371,6 +371,12 @@ final class CustomerDatabaseController
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.$database->getId().'/tables']);
     }
+    private function isOwner(User $customer, Database $database): bool
+    {
+        return $database->getCustomer() === $customer
+            || ($customer->getId() !== null && $database->getCustomer()->getId() === $customer->getId());
+    }
+
     private function requireCustomer(Request $request): User
     {
         $actor = $request->attributes->get('current_user');

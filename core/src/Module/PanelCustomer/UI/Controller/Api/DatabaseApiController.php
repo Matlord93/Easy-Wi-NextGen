@@ -320,7 +320,7 @@ final class DatabaseApiController
         if ($actor->isAdmin()) {
             $customer = $this->userRepository->find((int) ($payload['customer_id'] ?? 0));
         }
-        if (!$customer instanceof User || $customer->getType() !== UserType::Customer) {
+        if (!$customer instanceof User || $customer->getType() !== UserType::Customer || $customer->getId() === null) {
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('error_customer_not_found'), 'customer_not_found', JsonResponse::HTTP_NOT_FOUND)];
         }
 
@@ -351,7 +351,12 @@ final class DatabaseApiController
 
     private function canAccessDatabase(User $actor, Database $database): bool
     {
-        return $actor->isAdmin() || $database->getCustomer()->getId() === $actor->getId();
+        if ($actor->isAdmin()) {
+            return true;
+        }
+
+        return $database->getCustomer() === $actor
+            || ($actor->getId() !== null && $database->getCustomer()->getId() === $actor->getId());
     }
 
 
