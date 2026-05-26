@@ -6,8 +6,10 @@ namespace App\Tests\Teamspeak;
 
 use App\Module\Teamspeak\Application\Update\TeamspeakUpdateDownloadService;
 use PHPUnit\Framework\TestCase;
+use Symfony\Contracts\HttpClient\ChunkInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 
 final class TeamspeakUpdateDownloadServiceTest extends TestCase
 {
@@ -51,6 +53,6 @@ final class TeamspeakUpdateDownloadServiceTest extends TestCase
 
     private function dummyClient(): HttpClientInterface
     {
-        return new class implements HttpClientInterface { public function request(string $method, string $url, array $options = []): ResponseInterface { throw new \RuntimeException('not used'); } public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): \Traversable { yield from []; } public function withOptions(array $options): static { return $this; } };
+        return new class implements HttpClientInterface { public function request(string $method, string $url, array $options = []): ResponseInterface { throw new \RuntimeException('not used'); } public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): ResponseStreamInterface { return new class implements ResponseStreamInterface { public function key(): ResponseInterface { throw new \LogicException('empty'); } public function current(): ChunkInterface { throw new \LogicException('empty'); } public function valid(): bool { return false; } public function next(): void {} public function rewind(): void {} }; } public function withOptions(array $options): static { return $this; } };
     }
 }

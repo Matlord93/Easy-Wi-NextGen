@@ -11,10 +11,10 @@ final class TeamspeakSecureArchiveExtractorTest extends TestCase
 {
     public function testRejectsPathTraversalViaValidator(): void
     {
-        $extractor = new class extends TeamspeakSecureArchiveExtractor {
-            public function expose(string $p): void { $ref = new \ReflectionMethod(TeamspeakSecureArchiveExtractor::class, 'assertSafePath'); $ref->setAccessible(true); $ref->invoke($this, $p); }
-        };
+        $extractor = new TeamspeakSecureArchiveExtractor();
+        $ref = new \ReflectionMethod(TeamspeakSecureArchiveExtractor::class, 'assertSafePath');
+        $ref->setAccessible(true);
         $this->expectException(\RuntimeException::class);
-        $extractor->expose('../evil');
+        $ref->invoke($extractor, '../evil');
     }
 }

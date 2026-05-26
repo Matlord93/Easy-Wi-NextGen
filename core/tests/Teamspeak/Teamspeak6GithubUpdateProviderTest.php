@@ -6,8 +6,10 @@ namespace App\Tests\Teamspeak;
 
 use App\Module\Teamspeak\Application\Update\Teamspeak6GithubUpdateProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Contracts\HttpClient\ChunkInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 
 final class Teamspeak6GithubUpdateProviderTest extends TestCase
 {
@@ -32,7 +34,7 @@ final class Teamspeak6GithubUpdateProviderTest extends TestCase
 
     public function testHandlesGithubFailure(): void
     {
-        $client = new class implements HttpClientInterface { public function request(string $method, string $url, array $options = []): ResponseInterface { throw new \RuntimeException('offline'); } public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): \Traversable { yield from []; } public function withOptions(array $options): static { return $this; } };
+        $client = new class implements HttpClientInterface { public function request(string $method, string $url, array $options = []): ResponseInterface { throw new \RuntimeException('offline'); } public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): ResponseStreamInterface { return new class implements ResponseStreamInterface { public function key(): ResponseInterface { throw new \LogicException('empty'); } public function current(): ChunkInterface { throw new \LogicException('empty'); } public function valid(): bool { return false; } public function next(): void {} public function rewind(): void {} }; } public function withOptions(array $options): static { return $this; } };
         $provider = new Teamspeak6GithubUpdateProvider($client);
         $result = $provider->checkForUpdates('1.0.0', 'linux', 'amd64');
         self::assertSame('github_unreachable', $result->status);
@@ -63,7 +65,7 @@ final class Teamspeak6GithubUpdateProviderTest extends TestCase
         return new class($payload) implements HttpClientInterface {
             public function __construct(private array $payload) {}
             public function request(string $method, string $url, array $options = []): ResponseInterface { return new class($this->payload) implements ResponseInterface { public function __construct(private array $payload) {} public function getStatusCode(): int { return 200; } public function getHeaders(bool $throw = true): array { return []; } public function getContent(bool $throw = true): string { return json_encode($this->payload) ?: '[]'; } public function toArray(bool $throw = true): array { return $this->payload; } public function cancel(): void {} public function getInfo(?string $type = null): mixed { return null; } }; }
-            public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): \Traversable { yield from []; }
+            public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): ResponseStreamInterface { return new class implements ResponseStreamInterface { public function key(): ResponseInterface { throw new \LogicException('empty'); } public function current(): ChunkInterface { throw new \LogicException('empty'); } public function valid(): bool { return false; } public function next(): void {} public function rewind(): void {} }; }
             public function withOptions(array $options): static { return $this; }
         };
     }

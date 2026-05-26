@@ -16,6 +16,8 @@ final class TeamspeakVersionNormalizer
             return null;
         }
 
+        $v = (string) preg_replace('/\.(tar\.(gz|bz2|xz|zst)|tar|zip|tgz|tbz2|txz)$/i', '', $v);
+
         if (preg_match('/v?(\\d+\\.\\d+\\.\\d+(?:-[A-Za-z0-9.]+)?)/', $v, $m) !== 1) {
             return null;
         }
