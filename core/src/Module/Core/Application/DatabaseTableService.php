@@ -232,6 +232,13 @@ final class DatabaseTableService
             throw new \RuntimeException('import_connection_unavailable');
         }
 
+        $fullNormalized = strtolower(preg_replace('/\s+/', ' ', $this->stripInlineComments($content)) ?? '');
+        foreach (['create user','drop user','alter user','grant ','revoke ','set password','load data',' into outfile','create database','drop database','alter database','definer=','create trigger','create procedure','create function','create event'] as $blocked) {
+            if (str_contains($fullNormalized, $blocked)) {
+                throw new \InvalidArgumentException('import_statement_blocked');
+            }
+        }
+
         $executed = 0;
         foreach ($this->splitSqlStatements($content) as $sql) {
             if ($sql === '') {
@@ -375,10 +382,21 @@ final class DatabaseTableService
                     }
                 }
                 if ($ch === '/' && $i + 1 < $len && $sql[$i + 1] === '*') {
-                    $i += 2;
-                    while ($i + 1 < $len && !($sql[$i] === '*' && $sql[$i + 1] === '/')) { $i++; }
-                    $i += 1;
-                    $out .= ' ';
+                    if ($i + 2 < $len && $sql[$i + 2] === '!') {
+                        // MySQL version-conditional comment /*!NNNNN ... */ — preserve inner content
+                        $i += 2;
+                        while ($i < $len && ($sql[$i] === '!' || ($sql[$i] >= '0' && $sql[$i] <= '9'))) { $i++; }
+                        while ($i + 1 < $len && !($sql[$i] === '*' && $sql[$i + 1] === '/')) {
+                            $out .= $sql[$i];
+                            $i++;
+                        }
+                        $i += 1;
+                    } else {
+                        $i += 2;
+                        while ($i + 1 < $len && !($sql[$i] === '*' && $sql[$i + 1] === '/')) { $i++; }
+                        $i += 1;
+                        $out .= ' ';
+                    }
                     continue;
                 }
             }

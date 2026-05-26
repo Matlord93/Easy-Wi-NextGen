@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\ConnectionPolicy;
 
-final class DatabaseProvisioningService
+class DatabaseProvisioningService
 {
     public function __construct(
         private readonly EncryptionService $encryptionService,

@@ -8,7 +8,7 @@ use App\Module\Core\Domain\Entity\DatabaseNode;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class DatabaseNodeRepository extends ServiceEntityRepository
+class DatabaseNodeRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {
