@@ -169,7 +169,7 @@ final class AgentApiController
         try {
             $payload = $request->toArray();
         } catch (\JsonException $exception) {
-            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_json_payload'), $exception);
         }
 
         $version = (string) ($payload['version'] ?? '');
@@ -252,7 +252,7 @@ final class AgentApiController
         try {
             $payload = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
-            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_json_payload'), $exception);
         }
 
         $samples = is_array($payload['samples'] ?? null) ? $payload['samples'] : [];
@@ -284,7 +284,7 @@ final class AgentApiController
         try {
             $payload = $request->toArray();
         } catch (\JsonException $exception) {
-            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_json_payload'), $exception);
         }
 
         $events = is_array($payload['events'] ?? null) ? $payload['events'] : [];
@@ -556,7 +556,7 @@ final class AgentApiController
         try {
             $payload = $request->toArray();
         } catch (\JsonException $exception) {
-            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_json_payload'), $exception);
         }
 
         $jobId = (string) ($payload['job_id'] ?? '');
@@ -677,7 +677,7 @@ final class AgentApiController
         try {
             $payload = $request->toArray();
         } catch (\JsonException $exception) {
-            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_json_payload'), $exception);
         }
 
         $jobId = (string) ($payload['job_id'] ?? '');
@@ -1354,10 +1354,12 @@ final class AgentApiController
                 return;
             }
 
-            $database->setStatus('provisioned');
+            $database->setStatus($job->getType() === 'database.rotate_password' ? 'rotation_succeeded' : 'provisioned');
             $database->setLastError(null, null);
             if (is_string($databaseCredential) && $databaseCredential !== '') {
-                $database->setEncryptedPassword($this->encryptionService->encrypt($databaseCredential));
+                $encrypted = $this->encryptionService->encrypt($databaseCredential);
+                $database->setEncryptedPassword($encrypted);
+                $database->setEncryptedOneTimeCredential($encrypted);
             }
             if ($job->getType() === 'database.rotate_password') {
                 $database->markRotated();
@@ -1367,7 +1369,9 @@ final class AgentApiController
         }
 
         if ($job->getType() === 'database.delete') {
-            $database->setStatus('failed');
+            $database->setStatus('delete_failed');
+        } elseif ($job->getType() === 'database.rotate_password') {
+            $database->setStatus('rotation_failed');
         } else {
             $database->setStatus('failed');
         }

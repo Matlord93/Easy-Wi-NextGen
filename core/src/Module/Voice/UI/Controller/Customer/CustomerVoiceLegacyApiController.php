@@ -726,7 +726,10 @@ final class CustomerVoiceLegacyApiController
             $this->auditLogger->log($customer, 'voice.legacy.ts6.ban.remove', ['server_id' => $id, 'banid' => $banid, 'job_id' => $job->getId()]);
         }
 
-        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Ban removal queued.');
+        $this->cache->delete(sprintf('legacy_%s_%d_bans', $type, $id));
+        $this->cache->delete(sprintf('legacy_%s_%d_summary', $type, $id));
+
+        return new JsonResponse(['status' => 'pending', 'action_id' => $job->getId()]);
     }
 
     private function requireCustomer(Request $request): User

@@ -1,0 +1,35 @@
+{% extends 'layouts/customer.html.twig' %}
+
+{% block title %}{{ t('customer_databases_tables_title', page_locale()) }}{% endblock %}
+
+{% block body %}
+<div class="ng-grid" style="gap:1rem;">
+    <div class="ng-card">
+        <div class="ng-card__header">
+            <h3 class="ng-card__title">{{ t('customer_databases_tables_heading', page_locale()) }}: {{ database.name }}</h3>
+            <p class="ng-card__subtitle">{{ t('customer_databases_tables_intro', page_locale()) }}</p>
+        </div>
+        <div class="ng-card__body">
+            <a class="ui-button ui-button--ghost ui-button--sm" href="/databases">{{ t('customer_databases_tables_back', page_locale()) }}</a> <a class="ui-button ui-button--primary ui-button--sm" href="/databases/{{ database.id }}/export">{{ t('customer_databases_export_database', page_locale()) }}</a>
+            {% if tables is empty %}
+                <div class="cust-empty" style="margin-top:1rem;">{{ t('customer_databases_tables_empty', page_locale()) }}</div>
+            {% else %}
+                <table class="cust-table" style="margin-top:1rem;">
+                    <thead><tr><th>{{ t('customer_databases_tables_col_name', page_locale()) }}</th><th>{{ t('customer_databases_tables_col_engine', page_locale()) }}</th><th>{{ t('customer_databases_tables_col_rows', page_locale()) }}</th><th>{{ t('customer_databases_table_actions', page_locale()) }}</th></tr></thead>
+                    <tbody>
+                    {% for table in tables %}
+                        <tr><td>{{ table.name }}</td><td>{{ table.engine ?? '—' }}</td><td>{{ table.rows ?? '—' }}</td><td><a class='ui-button ui-button--ghost ui-button--sm' href='/databases/{{ database.id }}/tables/{{ table.name }}/export'>{{ t('customer_databases_export_table', page_locale()) }}</a></td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+<form method="post" action="/databases/{{ database.id }}/import" enctype="multipart/form-data" style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;">
+<input type="file" name="sql_file" accept=".sql" required>
+<button class="ui-button ui-button--primary ui-button--sm" type="submit">{{ t('customer_databases_import_database', page_locale()) }}</button>
+<span style="font-size:12px;color:var(--ng-text-muted);">{{ t('customer_databases_import_limit_hint', page_locale()) }}</span>
+</form>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -17,12 +17,13 @@ class AuditLogger
         private readonly AuditLogRepository $auditLogRepository,
         private readonly AuditLogHasher $auditLogHasher,
         private readonly EntityManagerInterface $entityManager,
+        private readonly JobPayloadMasker $jobPayloadMasker,
     ) {
     }
 
     public function log(?User $actor, string $action, array $payload): AuditLog
     {
-        $auditLog = new AuditLog($actor, $action, $this->normalizePayload($payload));
+        $auditLog = new AuditLog($actor, $action, $this->normalizePayload($this->jobPayloadMasker->maskPayload($payload)));
         $previousHash = $this->auditLogRepository->findLatestHash();
 
         $auditLog->setHashPrev($previousHash);

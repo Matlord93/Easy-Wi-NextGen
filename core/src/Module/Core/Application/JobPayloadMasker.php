@@ -9,9 +9,14 @@ final class JobPayloadMasker
     private const MASK = '[redacted]';
     private const SENSITIVE_KEYS = [
         'password',
+        'adminpassword',
+        'databasepassword',
         'pass',
         'token',
         'secret',
+        'adminsecret',
+        'encryptedadminsecret',
+        'encryptedonetimecredential',
         'apikey',
         'privatekey',
         'authorization',
@@ -28,6 +33,8 @@ final class JobPayloadMasker
         'serverpassword',
         'steamgslt',
         'steampassword',
+        'onetimecredential',
+        'newpassword',
     ];
 
     /**

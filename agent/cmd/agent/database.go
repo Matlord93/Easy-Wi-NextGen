@@ -25,16 +25,18 @@ const (
 	dbErrTLSFailed       = "db_tls_failed"
 	dbErrNameInvalid     = "db_name_invalid"
 	dbErrActionFailed    = "db_action_failed"
+	dbErrMetadataMissing = "db_connection_metadata_missing"
 )
 
 var dbIdentifierRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{2,62}$`)
+var dbHostRegex = regexp.MustCompile(`^[a-zA-Z0-9.%:-]{1,255}$`)
 
 var openPostgresScopedConnectionFn = openPostgresScopedConnection
 
 func handleDatabaseCreate(job jobs.Job) (jobs.Result, func() error) {
 	req, err := parseDatabaseRequest(job)
 	if err != nil {
-		return dbFailure(job.ID, dbErrNameInvalid, err.Error()), nil
+		return dbFailure(job.ID, mapDatabaseParseError(err), err.Error()), nil
 	}
 
 	db, cleanup, err := openDatabaseAdminConnection(req)
@@ -54,10 +56,10 @@ func handleDatabaseCreate(job jobs.Job) (jobs.Result, func() error) {
 		if err = execWithTimeout(db, 8*time.Second, "CREATE DATABASE IF NOT EXISTS "+quotedDB); err != nil {
 			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
 		}
-		if err = execWithTimeout(db, 8*time.Second, "CREATE USER IF NOT EXISTS "+quotedUser+" IDENTIFIED BY ?", password); err != nil {
+		if err = execWithTimeout(db, 8*time.Second, buildMySQLCreateUserSQL(quotedUser, password)); err != nil {
 			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
 		}
-		grantSQL := fmt.Sprintf("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP ON %s.* TO %s", quotedDB, quotedUser)
+		grantSQL := buildMySQLGrantSQL(quotedDB, quotedUser)
 		if err = execWithTimeout(db, 8*time.Second, grantSQL); err != nil {
 			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
 		}
@@ -76,7 +78,7 @@ func handleDatabasePasswordReset(job jobs.Job) (jobs.Result, func() error) {
 func handleDatabasePasswordRotate(job jobs.Job) (jobs.Result, func() error) {
 	req, err := parseDatabaseRequest(job)
 	if err != nil {
-		return dbFailure(job.ID, dbErrNameInvalid, err.Error()), nil
+		return dbFailure(job.ID, mapDatabaseParseError(err), err.Error()), nil
 	}
 	db, cleanup, err := openDatabaseAdminConnection(req)
 	if err != nil {
@@ -92,9 +94,9 @@ func handleDatabasePasswordRotate(job jobs.Job) (jobs.Result, func() error) {
 		}
 	} else {
 		quotedUser := quoteUser(req.Username, req.AllowedHost)
-		err = execWithTimeout(db, 8*time.Second, "ALTER USER "+quotedUser+" IDENTIFIED BY ?", password)
+		err = execWithTimeout(db, 8*time.Second, buildMySQLAlterUserSQL(quotedUser, password))
 		if err != nil {
-			err = execWithTimeout(db, 8*time.Second, "SET PASSWORD FOR "+quotedUser+" = PASSWORD(?)", password)
+			err = execWithTimeout(db, 8*time.Second, buildMySQLSetPasswordSQL(quotedUser, password))
 			if err != nil {
 				return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
 			}
@@ -116,7 +118,7 @@ func handleDatabaseGrantApply(job jobs.Job) (jobs.Result, func() error) {
 func handleDatabaseDelete(job jobs.Job) (jobs.Result, func() error) {
 	req, err := parseDatabaseRequest(job)
 	if err != nil {
-		return dbFailure(job.ID, dbErrNameInvalid, err.Error()), nil
+		return dbFailure(job.ID, mapDatabaseParseError(err), err.Error()), nil
 	}
 	db, cleanup, err := openDatabaseAdminConnection(req)
 	if err != nil {
@@ -172,7 +174,21 @@ func parseDatabaseRequest(job jobs.Job) (databaseRequest, error) {
 	if !dbIdentifierRegex.MatchString(req.Database) || !dbIdentifierRegex.MatchString(req.Username) {
 		return req, fmt.Errorf("invalid database or username")
 	}
+	if !isAllowedDatabaseHost(req.AllowedHost) {
+		return req, fmt.Errorf("invalid allowed host")
+	}
 	return req, nil
+}
+
+
+func mapDatabaseParseError(err error) string {
+	if err == nil {
+		return dbErrNameInvalid
+	}
+	if strings.Contains(err.Error(), "missing db connection metadata") {
+		return dbErrMetadataMissing
+	}
+	return dbErrNameInvalid
 }
 
 func openDatabaseAdminConnection(req databaseRequest) (*sql.DB, func(), error) {
@@ -330,14 +346,42 @@ func isNetErr(err error) bool {
 }
 func sanitizeDBError(err error) string {
 	msg := strings.ReplaceAll(strings.TrimSpace(err.Error()), "\n", " ")
+	msg = regexp.MustCompile(`(?i)(password\s*[=:]\s*)([^,\s]+)`).ReplaceAllString(msg, "${1}[redacted]")
 	if len(msg) > 240 {
 		msg = msg[:240]
 	}
 	return msg
 }
 func quoteIdentifier(value string) string { return "`" + strings.ReplaceAll(value, "`", "``") + "`" }
+func quoteStringLiteral(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `'`, `''`)
+	return "'" + replacer.Replace(value) + "'"
+}
 func quoteUser(username, host string) string {
-	return fmt.Sprintf("'%s'@'%s'", strings.ReplaceAll(username, "'", "''"), strings.ReplaceAll(host, "'", "''"))
+	return fmt.Sprintf("%s@%s", quoteStringLiteral(username), quoteStringLiteral(host))
+}
+
+func buildMySQLCreateUserSQL(quotedUser, password string) string {
+	return "CREATE USER IF NOT EXISTS " + quotedUser + " IDENTIFIED BY " + quoteStringLiteral(password)
+}
+
+func buildMySQLGrantSQL(quotedDB, quotedUser string) string {
+	return fmt.Sprintf("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP ON %s.* TO %s", quotedDB, quotedUser)
+}
+
+func buildMySQLAlterUserSQL(quotedUser, password string) string {
+	return "ALTER USER " + quotedUser + " IDENTIFIED BY " + quoteStringLiteral(password)
+}
+
+func buildMySQLSetPasswordSQL(quotedUser, password string) string {
+	return "SET PASSWORD FOR " + quotedUser + " = PASSWORD(" + quoteStringLiteral(password) + ")"
+}
+
+func isAllowedDatabaseHost(host string) bool {
+	if strings.TrimSpace(host) == "" || strings.ContainsAny(host, " ;`'\"\t\r\n") || strings.Contains(host, "..") {
+		return false
+	}
+	return dbHostRegex.MatchString(host)
 }
 func quotePGIdentifier(value string) string { return `"` + strings.ReplaceAll(value, `"`, `""`) + `"` }
 func generateStrongPassword(length int) string {

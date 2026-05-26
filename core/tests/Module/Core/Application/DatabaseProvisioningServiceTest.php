@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Module\Core\Application;
 
 use App\Module\Core\Application\DatabaseProvisioningService;
+use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -16,7 +17,7 @@ final class DatabaseProvisioningServiceTest extends TestCase
 {
     public function testCreatePayloadDoesNotContainPasswordFields(): void
     {
-        $service = new DatabaseProvisioningService();
+        $service = $this->newService();
         $db = $this->newDatabase();
 
         $jobs = $service->buildCreateJobs($db, 'agent-db-1');
@@ -25,11 +26,13 @@ final class DatabaseProvisioningServiceTest extends TestCase
         self::assertArrayNotHasKey('password', $jobs[0]->getPayload());
         self::assertArrayNotHasKey('encrypted_password', $jobs[0]->getPayload());
         self::assertSame('private', $jobs[0]->getPayload()['connection_policy'] ?? null);
+        self::assertSame('root', $jobs[0]->getPayload()['admin_user'] ?? null);
+        self::assertSame('admin-secret', $jobs[0]->getPayload()['admin_secret'] ?? null);
     }
 
     public function testRotateUsesNewJobTypeAndNoSecretPayload(): void
     {
-        $service = new DatabaseProvisioningService();
+        $service = $this->newService();
         $db = $this->newDatabase();
 
         $job = $service->buildPasswordRotateJob($db, 'agent-db-1');
@@ -38,11 +41,21 @@ final class DatabaseProvisioningServiceTest extends TestCase
         self::assertArrayNotHasKey('encrypted_password', $job->getPayload());
     }
 
+    private function newService(): DatabaseProvisioningService
+    {
+        $encryptionService = $this->createMock(EncryptionService::class);
+        $encryptionService->method('decrypt')->willReturn('admin-secret');
+
+        return new DatabaseProvisioningService($encryptionService);
+    }
+
     private function newDatabase(): Database
     {
         $user = new User('customer@example.test', UserType::Customer);
         $agent = new Agent('agent-db-1', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c'], 'DB Agent');
         $node = new DatabaseNode('db-node-1', 'mariadb', '127.0.0.1', 3306, $agent);
+        $node->setAdminUser('root');
+        $node->setEncryptedAdminSecret(['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
 
         return new Database($user, 'mariadb', '127.0.0.1', 3306, 'cust_db_1', 'cust_user_1', null, $node);
     }

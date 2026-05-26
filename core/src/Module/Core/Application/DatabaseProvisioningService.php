@@ -11,6 +11,10 @@ use App\Module\Core\Domain\Enum\ConnectionPolicy;
 
 final class DatabaseProvisioningService
 {
+    public function __construct(
+        private readonly EncryptionService $encryptionService,
+    ) {
+    }
     private const DEFAULT_MAX_ATTEMPTS = 5;
     private const DEFAULT_ALLOWED_HOSTS = '%';
     private const DEFAULT_CONNECTION_POLICY = ConnectionPolicy::Private;
@@ -54,6 +58,16 @@ final class DatabaseProvisioningService
             $payload['tls_mode'] = $node->getTlsMode();
             if ($node->getCaCert() !== null && trim($node->getCaCert()) !== '') {
                 $payload['ca_cert'] = $node->getCaCert();
+            }
+
+            $adminUser = trim((string) $node->getAdminUser());
+            if ($adminUser !== '') {
+                $payload['admin_user'] = $adminUser;
+            }
+
+            $encryptedAdminSecret = $node->getEncryptedAdminSecret();
+            if (is_array($encryptedAdminSecret) && $encryptedAdminSecret !== []) {
+                $payload['admin_secret'] = $this->encryptionService->decrypt($encryptedAdminSecret);
             }
         }
 

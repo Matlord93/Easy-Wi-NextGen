@@ -37,4 +37,11 @@ final class DatabaseNamingPolicyTest extends TestCase
 
         self::assertNotSame([], $policy->validateDatabaseName(' [Select] '));
     }
+
+    public function testCustomerScopedNameIsGeneratedWithPrefix(): void
+    {
+        $policy = new DatabaseNamingPolicy();
+
+        self::assertSame('u42_shop', $policy->buildCustomerScopedName(42, 'Shop'));
+    }
 }

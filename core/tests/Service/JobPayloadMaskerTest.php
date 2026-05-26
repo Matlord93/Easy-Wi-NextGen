@@ -84,4 +84,48 @@ final class JobPayloadMaskerTest extends TestCase
         self::assertSame('[redacted]', $decoded['authorization']);
         self::assertSame('[redacted]', $decoded['nested']['private_key']);
     }
+
+    public function testMasksAdditionalDatabaseSensitiveKeys(): void
+    {
+        $masker = new JobPayloadMasker();
+
+        $payload = [
+            'admin_secret' => 'root-secret',
+            'admin_password' => 'root-pass',
+            'database_password' => 'db-pass',
+            'encryptedAdminSecret' => ['ciphertext' => 'abc'],
+            'encryptedOneTimeCredential' => ['ciphertext' => 'def'],
+            'private_key' => 'pem',
+            'safe' => 'value',
+        ];
+
+        $masked = $masker->maskPayload($payload);
+
+        self::assertSame('[redacted]', $masked['admin_secret']);
+        self::assertSame('[redacted]', $masked['admin_password']);
+        self::assertSame('[redacted]', $masked['database_password']);
+        self::assertSame('[redacted]', $masked['encryptedAdminSecret']);
+        self::assertSame('[redacted]', $masked['encryptedOneTimeCredential']);
+        self::assertSame('[redacted]', $masked['private_key']);
+        self::assertSame('value', $masked['safe']);
+    }
+
+
+    public function testMasksOneTimeDatabaseCredentialFields(): void
+    {
+        $masker = new JobPayloadMasker();
+
+        $payload = [
+            'one_time_credential' => 'temporary-secret',
+            'new_password' => 'pw-123',
+            'password' => 'pw-456',
+        ];
+
+        $masked = $masker->maskPayload($payload);
+
+        self::assertSame('[redacted]', $masked['one_time_credential']);
+        self::assertSame('[redacted]', $masked['new_password']);
+        self::assertSame('[redacted]', $masked['password']);
+    }
+
 }

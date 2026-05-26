@@ -516,6 +516,9 @@
         banDurationPrompt:  {{ t('customer_voice_ban_duration_prompt', locale)|json_encode|raw }},
         banRemove:          {{ t('customer_voice_ban_remove', locale)|json_encode|raw }},
         banRemoveConfirm:   {{ t('customer_voice_ban_remove_confirm', locale)|json_encode|raw }},
+        banRemoving:        {{ t('customer_voice_ban_removing', locale)|json_encode|raw }},
+        banRemoved:         {{ t('customer_voice_ban_removed', locale)|json_encode|raw }},
+        unbanFailed:        {{ t('customer_voice_unban_failed', locale)|json_encode|raw }},
         ban:                {{ t('customer_voice_ban_action', locale)|json_encode|raw }},
         banCriteriaRequired:{{ t('customer_voice_ban_criteria_required', locale)|json_encode|raw }},
         backupCreating:     {{ t('customer_voice_backup_creating', locale)|json_encode|raw }},
@@ -870,10 +873,12 @@
     const loadBans = async (force = false) => {
         const el=$('vs-bans-list');
         if(!el) return;
+        const cacheBust = force ? `?_ts=${Date.now()}` : '';
+        const bansUrl = `${d.urlQueryBase}/bans${cacheBust}`;
         el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.bansLoading)}</div>`;
         try {
-            let data = await apiFetch(`${d.urlQueryBase}/bans`, force ? { cache: 'no-store' } : undefined);
-            if((data.status||'pending')==='pending') data=await pollUntilDone(`${d.urlQueryBase}/bans`, { fetchOpts: force ? { cache: 'no-store' } : undefined });
+            let data = await apiFetch(bansUrl, force ? { cache: 'no-store' } : undefined);
+            if((data.status||'pending')==='pending') data=await pollUntilDone(bansUrl, { fetchOpts: force ? { cache: 'no-store' } : undefined });
             const rows=data.data?.payload||data.payload||[];
             if(!rows.length){ el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.bansEmpty)}</div>`; return; }
             el.innerHTML=`<table class="cust-table">
@@ -1048,17 +1053,34 @@
         if(lockUntil>Date.now()){ showActionStatus('Aktion läuft bereits.', 'info'); return; }
         actionLocks.set(lockKey, Date.now()+10000);
         removeBtn.disabled=true;
-        showActionStatus('Ban wird aufgehoben...', 'info');
+        const row = removeBtn.closest('tr');
+        showActionStatus(i18n.banRemoving, 'info');
         try{
             console.log('[voice-ban-action] sending request', url);
             const res = await apiFetch(url,{method:'POST'});
-            if((res.status||'').toLowerCase()==='failed' || (res.status||'').toLowerCase()==='error'){ throw new Error(res.message||'Ban konnte nicht aufgehoben werden.'); }
-            showActionStatus(res.message||'Ban wurde aufgehoben.', 'success');
+            const status = String(res?.status || '').toLowerCase();
+            const isPending = status === 'pending' && String(res?.action_id || res?.data || '').trim() !== '';
+            const isSuccess = ['ok','success','completed','done'].includes(status) || res?.success === true || (!status && !res?.error);
+            if (status === 'failed' || status === 'error' || res?.success === false) {
+                throw new Error(res.message||'Ban konnte nicht aufgehoben werden.');
+            }
+            if (isPending) {
+                showActionStatus(i18n.banRemoving, 'info');
+            } else if (!isSuccess) {
+                throw new Error(res.message||'Ban konnte nicht aufgehoben werden.');
+            }
+
+            row?.remove();
+            const bansListEl = $('vs-bans-list');
+            if (bansListEl && !bansListEl.querySelector('tbody tr')) {
+                bansListEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--ng-text-muted);font-size:13px;">${esc(i18n.bansEmpty)}</div>`;
+            }
+            showActionStatus(i18n.banRemoved, 'success');
             tabLoaded['bans']=false; await loadBans(true);
             tabLoaded['clients']=false; await loadClients();
             tabLoaded['overview']=false; await loadDetail();
         }catch(err){
-            showError(`Entbannen fehlgeschlagen: ${err.message||err}`);
+            showError(`${i18n.unbanFailed}: ${err.message||err}`);
         }finally{
             removeBtn.disabled=false;
             actionLocks.delete(lockKey);

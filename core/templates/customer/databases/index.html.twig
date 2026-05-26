@@ -63,15 +63,8 @@
                         <label class="cust-form-label">{{ t('customer_databases_name_label', locale) }}</label>
                         <input type="text" name="name" required>
                     </div>
-                    <div>
-                        <label class="cust-form-label">{{ t('customer_databases_user_label', locale) }}</label>
-                        <input type="text" name="username" required>
-                    </div>
                 </div>
-                <div>
-                    <label class="cust-form-label">{{ t('customer_databases_password_label', locale) }}</label>
-                    <input type="password" name="password" minlength="8" required>
-                </div>
+                <p class="cust-form-card__sub">{{ t('customer_databases_create_final_name_hint', locale) }}</p>
                 <button type="submit" class="ui-button ui-button--primary" style="width:100%;" {{ limitReached or databaseNodes is empty ? 'disabled' : '' }}>
                     {{ limitReached ? t('customer_databases_limit_reached', locale) : t('customer_databases_create_action', locale) }}
                 </button>
@@ -122,14 +115,24 @@
                                     <div style="font-size:11px;color:var(--ng-text-muted);margin-top:2px;">ID {{ database.id }} · {{ database.engine|upper }}</div>
                                 </div>
                                 <form method="post" action="/databases/{{ database.id }}/delete">
-                                    <button class="ui-button ui-button--danger ui-button--sm">{{ t('customer_databases_delete', locale) }}</button>
+                                    <button class="ui-button ui-button--danger ui-button--sm" onclick="return confirm('{{ t('customer_databases_delete_confirm', locale)|e('js') }}');">{{ t('customer_databases_delete', locale) }}</button>
                                 </form>
+                            </div>
+                            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                                <a class="ui-button ui-button--ghost ui-button--sm" href="/api/v1/customer/databases/{{ database.id }}/jobs">{{ t('customer_databases_action_details', locale) }}</a>
+                                <form method="post" action="/databases/{{ database.id }}/password/reset">
+                                    <button class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_databases_action_password_reset', locale) }}</button>
+                                </form>
+                                <a class="ui-button ui-button--ghost ui-button--sm" href="/databases/{{ database.id }}/tables">{{ t('customer_databases_action_tables', locale) }}</a>
+                                <a class="ui-button ui-button--ghost ui-button--sm" href="/databases/{{ database.id }}/export">{{ t('customer_databases_action_export', locale) }}</a>
                             </div>
                             <div style="margin-top:12px;display:grid;gap:6px;font-size:13px;color:var(--ng-text);grid-template-columns:repeat(2,1fr);">
                                 <div><span style="color:var(--ng-text-muted);">{{ t('customer_databases_table_host', locale) }}:</span> {{ database.host }}:{{ database.port }}</div>
                                 <div><span style="color:var(--ng-text-muted);">{{ t('customer_databases_table_user', locale) }}:</span> {{ database.username }}</div>
                                 <div><span style="color:var(--ng-text-muted);">{{ t('customer_databases_table_node', locale) }}:</span> {{ database.node ? database.node.name : t('customer_databases_node_unassigned', locale) }}</div>
+                                <div><span style="color:var(--ng-text-muted);">{{ t('customer_databases_table_created', locale) }}:</span> {{ database.created_at|date('Y-m-d H:i') }}</div>
                                 <div><span style="color:var(--ng-text-muted);">{{ t('customer_databases_table_updated', locale) }}:</span> {{ database.updated_at|date('Y-m-d H:i') }}</div>
+                                <div><span style="color:var(--ng-text-muted);">{{ t('customer_databases_table_status', locale) }}:</span> {{ database.status }}</div>
                             </div>
                         </div>
                     {% endfor %}

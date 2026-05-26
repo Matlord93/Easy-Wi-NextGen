@@ -48,6 +48,9 @@ class Database implements ResourceEventSource
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $encryptedPassword = null;
 
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $encryptedOneTimeCredential = null;
+
     #[ORM\Column(length: 20, options: ['default' => 'pending'])]
     private string $status = 'pending';
 
@@ -124,9 +127,21 @@ class Database implements ResourceEventSource
         return $this->name;
     }
 
+    public function setName(string $name): void
+    {
+        $this->name = $name;
+        $this->touch();
+    }
+
     public function getUsername(): string
     {
         return $this->username;
+    }
+
+    public function setUsername(string $username): void
+    {
+        $this->username = $username;
+        $this->touch();
     }
 
     public function getNode(): ?DatabaseNode
@@ -208,6 +223,23 @@ class Database implements ResourceEventSource
     public function setEncryptedPassword(?array $encryptedPassword): void
     {
         $this->encryptedPassword = $encryptedPassword;
+        $this->touch();
+    }
+
+    /**
+     * @return array{key_id: string, nonce: string, ciphertext: string}
+     */
+    public function getEncryptedOneTimeCredential(): ?array
+    {
+        return $this->encryptedOneTimeCredential;
+    }
+
+    /**
+     * @param array{key_id: string, nonce: string, ciphertext: string} $encryptedOneTimeCredential
+     */
+    public function setEncryptedOneTimeCredential(?array $encryptedOneTimeCredential): void
+    {
+        $this->encryptedOneTimeCredential = $encryptedOneTimeCredential;
         $this->touch();
     }
 

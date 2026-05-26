@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 final class DatabaseNamingPolicy
 {
-    private const NAME_REGEX = '/^[a-zA-Z][a-zA-Z0-9_]{2,62}$/';
+    private const NAME_REGEX = '/^[a-z][a-z0-9_]{2,62}$/';
     private const QUOTED_IDENTIFIER_REGEX = '/[`"\[\]]/';
     private const RESERVED_WORDS = [
         'select', 'insert', 'update', 'delete', 'drop', 'create', 'alter', 'grant', 'revoke',
@@ -32,6 +32,13 @@ final class DatabaseNamingPolicy
         }
 
         return [];
+    }
+
+    public function buildCustomerScopedName(int $customerId, string $name): string
+    {
+        $normalized = $this->normalizeIdentifier($name);
+
+        return sprintf('u%d_%s', $customerId, $normalized);
     }
 
     /**

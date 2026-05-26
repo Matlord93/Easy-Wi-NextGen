@@ -67,7 +67,7 @@ final class DatabaseApiController
         try {
             $payload = $request->toArray();
         } catch (\JsonException) {
-            return $this->responseEnvelopeFactory->error($request, 'Invalid JSON payload.', 'invalid_payload', JsonResponse::HTTP_BAD_REQUEST);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('error_invalid_json_payload'), 'invalid_payload', JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $validated = $this->validateCreatePayload($request, $actor, $payload);
@@ -138,7 +138,7 @@ final class DatabaseApiController
         $actor = $this->requireUser($request);
         $database = $this->databaseRepository->find($id);
         if (!$database instanceof Database || !$this->canAccessDatabase($actor, $database)) {
-            return $this->responseEnvelopeFactory->error($request, 'Database not found.', 'database_not_found', JsonResponse::HTTP_NOT_FOUND);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('database_not_found_message'), 'database_not_found', JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->isNodeEligible($database->getNode())) {
@@ -160,7 +160,7 @@ final class DatabaseApiController
             return $this->responseEnvelopeFactory->error($request, 'Another database action is already running.', 'db_action_in_progress', JsonResponse::HTTP_CONFLICT, 10, ['job_id' => $active->getId()]);
         }
 
-        $database->setStatus('pending');
+        $database->setStatus('rotation_pending');
         $database->setLastError(null, null);
 
         $job = $this->provisioningService->buildPasswordRotateJob($database, $database->getNode()?->getAgent()->getId() ?? '');
@@ -177,7 +177,7 @@ final class DatabaseApiController
         $actor = $this->requireUser($request);
         $database = $this->databaseRepository->find($id);
         if (!$database instanceof Database || !$this->canAccessDatabase($actor, $database)) {
-            return $this->responseEnvelopeFactory->error($request, 'Database not found.', 'database_not_found', JsonResponse::HTTP_NOT_FOUND);
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('database_not_found_message'), 'database_not_found', JsonResponse::HTTP_NOT_FOUND);
         }
 
         $active = $this->findActiveDatabaseActionJob((string) $id);
@@ -195,7 +195,11 @@ final class DatabaseApiController
             return $this->responseEnvelopeFactory->error($request, 'Another database action is already running.', 'db_action_in_progress', JsonResponse::HTTP_CONFLICT, 10, ['job_id' => $active->getId()]);
         }
 
-        $database->setStatus('deleting');
+        if ($this->isSystemDatabase($database->getName())) {
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('customer_databases_delete_system_forbidden'), 'database_system_forbidden', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $database->setStatus('delete_pending');
         $database->setLastError(null, null);
 
         $job = $this->provisioningService->buildDeleteJob($database, $database->getNode()?->getAgent()->getId() ?? '');
@@ -216,6 +220,9 @@ final class DatabaseApiController
                 if (!$database instanceof Database || !$this->canAccessDatabase($actor, $database)) {
                     throw new \RuntimeException('database_not_found');
                 }
+                if ($this->isSystemDatabase($database->getName())) {
+                    throw new \RuntimeException('database_system_forbidden');
+                }
 
                 $job = $this->jobRepository->find($jobId);
                 if (!$job instanceof Job || !in_array($job->getType(), ['database.create', 'database.rotate_password'], true)) {
@@ -229,8 +236,11 @@ final class DatabaseApiController
                 if (!$result instanceof JobResult || $result->getStatus()->value !== 'succeeded') {
                     throw new \RuntimeException('credential_not_ready');
                 }
+                if ($job->getType() === 'database.rotate_password' && $database->getStatus() !== 'rotation_succeeded') {
+                    throw new \RuntimeException('credential_not_ready');
+                }
 
-                $encrypted = $database->getEncryptedPassword();
+                $encrypted = $database->getEncryptedOneTimeCredential();
                 if (!is_array($encrypted)) {
                     throw new \RuntimeException('db_credential_already_consumed');
                 }
@@ -240,15 +250,16 @@ final class DatabaseApiController
                     throw new \RuntimeException('db_credential_already_consumed');
                 }
 
-                $database->setEncryptedPassword(null);
+                $database->setEncryptedOneTimeCredential(null);
                 $this->entityManager->flush();
 
                 return $credential;
             });
         } catch (\RuntimeException $exception) {
             return match ($exception->getMessage()) {
-                'database_not_found' => $this->responseEnvelopeFactory->error($request, 'Database not found.', 'database_not_found', JsonResponse::HTTP_NOT_FOUND),
+                'database_not_found' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('database_not_found_message'), 'database_not_found', JsonResponse::HTTP_NOT_FOUND),
                 'job_not_found' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('job_not_found'), 'job_not_found', JsonResponse::HTTP_NOT_FOUND),
+                'database_system_forbidden' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('customer_databases_delete_system_forbidden'), 'database_system_forbidden', JsonResponse::HTTP_FORBIDDEN),
                 'credential_not_ready' => $this->responseEnvelopeFactory->error($request, 'Credential is not available yet.', 'credential_not_ready', JsonResponse::HTTP_CONFLICT, 5),
                 default => $this->responseEnvelopeFactory->error($request, 'Credential already consumed.', 'db_credential_already_consumed', JsonResponse::HTTP_GONE),
             };
@@ -278,7 +289,6 @@ final class DatabaseApiController
     {
         $nodeId = $payload['node_id'] ?? null;
         $name = trim((string) ($payload['name'] ?? ''));
-        $username = trim((string) ($payload['username'] ?? ''));
 
         if (!is_numeric($nodeId)) {
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Node ID must be numeric.', 'database_node_invalid', JsonResponse::HTTP_BAD_REQUEST)];
@@ -297,18 +307,13 @@ final class DatabaseApiController
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Only MySQL/MariaDB/PostgreSQL nodes are allowed.', 'database_engine_unsupported', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
-        if ($name === '' || $username === '') {
+        if ($name === '') {
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_missing_required_fields'), 'validation_failed', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $nameErrors = $this->namingPolicy->validateDatabaseName($name);
         if ($nameErrors !== []) {
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $nameErrors[0], 'db_name_invalid', JsonResponse::HTTP_BAD_REQUEST)];
-        }
-
-        $userErrors = $this->namingPolicy->validateUsername($username);
-        if ($userErrors !== []) {
-            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $userErrors[0], 'db_user_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $customer = $actor;
@@ -319,14 +324,20 @@ final class DatabaseApiController
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('error_customer_not_found'), 'customer_not_found', JsonResponse::HTTP_NOT_FOUND)];
         }
 
-        if ($this->databaseRepository->findOneByCustomerAndName($customer, $engine, $name) instanceof Database) {
+        $scopedName = $this->namingPolicy->buildCustomerScopedName($customer->getId(), $name);
+        $scopedErrors = $this->namingPolicy->validateDatabaseName($scopedName);
+        if ($scopedErrors !== []) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $scopedErrors[0], 'db_name_invalid', JsonResponse::HTTP_BAD_REQUEST)];
+        }
+
+        if ($this->databaseRepository->findOneByCustomerAndName($customer, $engine, $scopedName) instanceof Database) {
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Database name already exists.', 'db_name_conflict', JsonResponse::HTTP_CONFLICT)];
         }
-        if ($this->databaseRepository->findOneByCustomerAndUsername($customer, $engine, $username) instanceof Database) {
+        if ($this->databaseRepository->findOneByCustomerAndUsername($customer, $engine, $scopedName) instanceof Database) {
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Database username already exists.', 'db_user_conflict', JsonResponse::HTTP_CONFLICT)];
         }
 
-        return ['customer' => $customer, 'node' => $node, 'name' => $name, 'username' => $username, 'error' => null];
+        return ['customer' => $customer, 'node' => $node, 'name' => $scopedName, 'username' => $scopedName, 'error' => null];
     }
 
     private function isNodeEligible(?DatabaseNode $node): bool
@@ -341,6 +352,12 @@ final class DatabaseApiController
     private function canAccessDatabase(User $actor, Database $database): bool
     {
         return $actor->isAdmin() || $database->getCustomer()->getId() === $actor->getId();
+    }
+
+
+    private function isSystemDatabase(string $name): bool
+    {
+        return in_array(strtolower(trim($name)), ['mysql', 'information_schema', 'performance_schema', 'sys'], true);
     }
 
     private function findActiveDatabaseActionJob(string $databaseId): ?Job
