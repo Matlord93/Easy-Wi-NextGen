@@ -7,7 +7,7 @@ namespace App\Module\Core\UI\Api;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
-final class ResponseEnvelopeFactory
+class ResponseEnvelopeFactory
 {
     /**
      * @param array<string, mixed> $extra

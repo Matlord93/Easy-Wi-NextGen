@@ -101,7 +101,7 @@ final class DatabaseCredentialRevealFlowTest extends TestCase
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('getConnection')->willReturn($conn);
         $em->method('find')->willReturn($database);
-        $em->method('flush')->willReturn(null);
+        $em->method('flush');
 
         $audit = $this->createMock(AuditLogger::class);
         $prov = $this->createMock(DatabaseProvisioningService::class);

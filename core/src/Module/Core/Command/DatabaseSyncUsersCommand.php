@@ -52,13 +52,16 @@ final class DatabaseSyncUsersCommand extends Command
                 ++$skipped;
                 continue;
             }
-            $customerId = $database->getCustomer()->getId();
-            $scopedName = $this->namingPolicy->buildCustomerScopedName($customerId, $database->getName());
             $needsUsernameRepair = trim($database->getUsername()) === '';
             $needsNameRepair = trim($database->getName()) === '';
 
             if ($needsNameRepair) {
-                $databaseName = $scopedName;
+                $customerId = $database->getCustomer()->getId();
+                if ($customerId === null) {
+                    ++$skipped;
+                    continue;
+                }
+                $databaseName = $this->namingPolicy->buildCustomerScopedName($customerId, $database->getName());
             } else {
                 $databaseName = $database->getName();
             }

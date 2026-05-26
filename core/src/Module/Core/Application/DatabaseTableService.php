@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Database;
 
-final class DatabaseTableService
+class DatabaseTableService
 {
     private const MAX_LIMIT = 50;
     private const EXPORT_BATCH = 500;
