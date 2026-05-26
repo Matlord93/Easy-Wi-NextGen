@@ -84,22 +84,27 @@ final class DatabaseApiControllerJobsRouteTest extends TestCase
     private function buildController(?Database $database = null, bool $createDefaultDatabase = true): array
     {
         $customer = new User('owner@test', UserType::Customer);
+        $this->setEntityId($customer, 7);
         $agent = new Agent('a1', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c'], 'A');
         $node = new DatabaseNode('node1', 'mariadb', '127.0.0.1', 3306, $agent);
         if ($database === null && $createDefaultDatabase) {
             $database = new Database($customer, 'mariadb', '127.0.0.1', 3306, 'u4_demo', 'u4_demo', null, $node);
+            $this->setEntityId($database, 4);
         }
 
-        $ownerJob = new Job('database.create', ['database_id' => (string) $database->getId(), 'admin_secret' => 'top-secret']);
-        new JobResult($ownerJob, JobResultStatus::Succeeded, ['token' => 'abc']);
-
-        $otherJob = new Job('database.delete', ['database_id' => '999', 'password' => 'nope']);
+        $jobs = [];
+        if ($database !== null) {
+            $ownerJob = new Job('database.create', ['database_id' => '4', 'admin_secret' => 'top-secret']);
+            new JobResult($ownerJob, JobResultStatus::Succeeded, ['token' => 'abc']);
+            $jobs[] = $ownerJob;
+        }
+        $jobs[] = new Job('database.delete', ['database_id' => '999', 'password' => 'nope']);
 
         $dbRepo = $this->createMock(DatabaseRepository::class);
         $dbRepo->method('find')->willReturn($database);
 
         $jobRepo = $this->createMock(JobRepository::class);
-        $jobRepo->method('findBy')->willReturn([$ownerJob, $otherJob]);
+        $jobRepo->method('findBy')->willReturn($jobs);
 
         $nodeRepo = $this->createMock(DatabaseNodeRepository::class);
         $userRepo = $this->createMock(UserRepository::class);
@@ -119,6 +124,21 @@ final class DatabaseApiControllerJobsRouteTest extends TestCase
         $request = new Request();
         $request->attributes->set('current_user', $customer);
 
-        return [$controller, $request, $database, [$ownerJob, $otherJob]];
+        return [$controller, $request, $database, $jobs];
+    }
+
+    private function setEntityId(object $entity, int $id): void
+    {
+        $reflection = new \ReflectionObject($entity);
+        while (!$reflection->hasProperty('id') && ($reflection = $reflection->getParentClass()) !== false) {
+        }
+
+        if ($reflection === false) {
+            throw new \RuntimeException('Entity id property not found.');
+        }
+
+        $property = $reflection->getProperty('id');
+        $property->setAccessible(true);
+        $property->setValue($entity, $id);
     }
 }
