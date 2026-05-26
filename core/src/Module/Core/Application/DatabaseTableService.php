@@ -233,6 +233,9 @@ final class DatabaseTableService
         }
 
         $fullNormalized = strtolower(preg_replace('/\s+/', ' ', $this->stripInlineComments($content)) ?? '');
+        if (str_contains($fullNormalized, 'delimiter ')) {
+            throw new \InvalidArgumentException('import_delimiter_not_supported');
+        }
         foreach (['create user','drop user','alter user','grant ','revoke ','set password','load data',' into outfile','create database','drop database','alter database','definer=','create trigger','create procedure','create function','create event'] as $blocked) {
             if (str_contains($fullNormalized, $blocked)) {
                 throw new \InvalidArgumentException('import_statement_blocked');

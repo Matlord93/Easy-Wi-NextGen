@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-final class DatabaseNamingPolicy
+class DatabaseNamingPolicy
 {
     private const NAME_REGEX = '/^[a-z][a-z0-9_]{2,62}$/';
     private const QUOTED_IDENTIFIER_REGEX = '/[`"\[\]]/';

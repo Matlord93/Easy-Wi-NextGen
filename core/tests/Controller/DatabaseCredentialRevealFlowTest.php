@@ -22,6 +22,7 @@ use App\Repository\DatabaseNodeRepository;
 use App\Repository\DatabaseRepository;
 use App\Repository\JobRepository;
 use App\Repository\UserRepository;
+use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -94,9 +95,8 @@ final class DatabaseCredentialRevealFlowTest extends TestCase
         $jobRepo = $this->createMock(JobRepository::class);
         $jobRepo->method('find')->willReturn($job);
 
-        $conn = new class {
-            public function transactional(callable $fn): mixed { return $fn(); }
-        };
+        $conn = $this->createMock(Connection::class);
+        $conn->method('transactional')->willReturnCallback(static fn(callable $fn) => $fn());
 
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('getConnection')->willReturn($conn);

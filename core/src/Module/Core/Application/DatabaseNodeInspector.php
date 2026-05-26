@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Database;
 
-final class DatabaseNodeInspector
+class DatabaseNodeInspector
 {
     public function __construct(private readonly EncryptionService $encryptionService)
     {
