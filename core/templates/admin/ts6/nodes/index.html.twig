@@ -8,6 +8,40 @@
 {% set locale = page_locale() %}
 <div style="display:flex;flex-direction:column;gap:20px;">
 
+    {# ── Hero / KPI ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#a855f7;"></span>
+                        TeamSpeak 6
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_ts6_nodes_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_ts6_nodes_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('total', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ nodes|length }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__label">{{ t('admin_ts3_running', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ nodes|filter(n => n.running)|length }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--pending">
+                        <div class="tkt-kpi__label">{{ t('admin_ts3_stopped', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ nodes|filter(n => not n.running)|length }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);display:flex;gap:8px;align-items:center;">
+            <a class="ui-button ui-button--primary ui-button--sm" href="/admin/ts6/nodes/new">{{ t('admin_ts6_nodes_add', locale) }}</a>
+            <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts6/servers">{{ t('admin_ts6_servers_title', locale) }}</a>
+        </div>
+    </section>
+
     {% for message in app.flashes('success') %}
         <div class="ng-alert ng-alert--success">{{ message }}</div>
     {% endfor %}
@@ -39,8 +73,8 @@
                         {% for node in nodes %}
                             <tr>
                                 <td>
-                                    <div class="font-medium">{{ node.name }}</div>
-                                    <div class="text-xs text-slate-500">#{{ node.id }}</div>
+                                    <div>{{ node.name }}</div>
+                                    <div style="font-size:.75rem;color:var(--color-text-muted,#64748b);">#{{ node.id }}</div>
                                 </td>
                                 <td>
                                     {% set ts6StatusLabel = node.installStatus %}
@@ -53,7 +87,7 @@
                                 <td>{{ node.agentBaseUrl }}</td>
                                 <td>{{ node.installedVersion ?? '—' }}</td>
                                 <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
-                                <td class="text-right">
+                                <td style="text-align:right;">
                                     <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts6/nodes/{{ node.id }}">{{ t('admin_ts6_nodes_details', locale) }}</a>
                                 </td>
                             </tr>

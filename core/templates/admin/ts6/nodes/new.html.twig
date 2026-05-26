@@ -4,32 +4,50 @@
 
 {% block content %}
 {% set locale = page_locale() %}
+
+    {# ── Hero ── #}
+    <section class="ng-card" style="overflow:hidden;margin-bottom:20px;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#a78bfa;"></span>
+                        TeamSpeak 6
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_ts6_node_new_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_ts6_node_new_intro', locale) }}</p>
+                </div>
+                <div>
+                    <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts6/nodes">{{ t('admin_ts6_node_show_back', locale) }}</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
                 <h2 class="ng-data-card__title">{{ t('admin_ts6_node_new_title', locale) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_ts6_node_new_intro', locale) }}</p>
-            </div>
-            <div class="ng-data-card__actions">
-                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts6/nodes">{{ t('admin_ts6_node_show_back', locale) }}</a>
+                <p class="ng-data-card__sub">{{ t('admin_ts6_node_agent_hint', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
-            <p style="color:#64748b;font-size:14px;margin-bottom:16px;">{{ t('admin_ts6_node_agent_hint', locale) }}</p>
             {{ form_start(form) }}
                 {{ form_errors(form) }}
-                {{ form_row(form.name) }}
-                {{ form_row(form.agentNodeId, { label: t('admin_ts6_node_form_agent_node', locale) }) }}
-                {{ form_row(form.osType) }}
-                {{ form_row(form.downloadUrl) }}
-                <p style="color:#64748b;font-size:13px;margin-bottom:8px;">{{ t('admin_ts6_node_download_hint', locale) }}</p>
-                {{ form_row(form.installPath, { label: t('admin_ts6_node_form_install_path', locale) }) }}
-                {{ form_row(form.instanceName) }}
-                {{ form_row(form.serviceName) }}
-                {{ form_row(form.queryBindIp) }}
-                {{ form_row(form.queryHttpsPort) }}
-                {{ form_row(form.voicePort, { label: t('admin_ts6_node_form_voice_port', locale) }) }}
-                <div style="margin-top:20px;">
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    {{ form_row(form.name) }}
+                    {{ form_row(form.agentNodeId, { label: t('admin_ts6_node_form_agent_node', locale) }) }}
+                    {{ form_row(form.osType) }}
+                    {{ form_row(form.downloadUrl) }}
+                    <p style="margin:-8px 0 0;color:var(--ng-text-muted);font-size:13px;">{{ t('admin_ts6_node_download_hint', locale) }}</p>
+                    {{ form_row(form.installPath, { label: t('admin_ts6_node_form_install_path', locale) }) }}
+                    {{ form_row(form.instanceName) }}
+                    {{ form_row(form.serviceName) }}
+                    {{ form_row(form.queryBindIp) }}
+                    {{ form_row(form.queryHttpsPort) }}
+                    {{ form_row(form.voicePort, { label: t('admin_ts6_node_form_voice_port', locale) }) }}
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:20px;">
                     <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts6_node_save', locale) }}</button>
                 </div>
             {{ form_end(form) }}

@@ -300,13 +300,34 @@ func extractVersionFromDownloadURL(downloadURL string) string {
 	}
 
 	base := downloadURL
-	if parsedURL, err := url.Parse(downloadURL); err == nil {
-		if parsedURL.Path != "" {
-			base = path.Base(parsedURL.Path)
+	parentDir := ""
+	if parsedURL, err := url.Parse(downloadURL); err == nil && parsedURL.Path != "" {
+		base = path.Base(parsedURL.Path)
+		parentDir = path.Base(path.Dir(parsedURL.Path))
+	}
+
+	// Strip known archive extensions so the regex doesn't absorb them into the version string.
+	stripped := base
+	for _, suffix := range []string{".tar.bz2", ".tar.xz", ".tar.gz", ".tbz2", ".tgz", ".txz", ".zip"} {
+		if strings.HasSuffix(strings.ToLower(stripped), suffix) {
+			stripped = stripped[:len(stripped)-len(suffix)]
+			break
 		}
 	}
 
-	return teamspeakVersionRegex.FindString(base)
+	if version := teamspeakVersionRegex.FindString(stripped); version != "" {
+		return version
+	}
+
+	// New TS6 release archives don't include the version in the filename; fall back to
+	// the parent path segment which GitHub uses for the release tag (e.g. "v6.0.0-beta10").
+	if parentDir != "" && parentDir != "." && parentDir != "/" {
+		if version := teamspeakVersionRegex.FindString(parentDir); version != "" {
+			return version
+		}
+	}
+
+	return ""
 }
 
 func fallbackVersion(version string) string {
@@ -1194,10 +1215,33 @@ func validateArchive(path string) (err error) {
 	if err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
-	snippet := strings.ToLower(string(buffer[:n]))
+	header := buffer[:n]
+
+	snippet := strings.ToLower(string(header))
 	if strings.Contains(snippet, "<!doctype") || strings.Contains(snippet, "<html") {
 		return fmt.Errorf("downloaded archive looks like HTML; check the download URL for authentication or redirects")
 	}
+
+	// Verify magic bytes match the declared archive format to catch truncated or mis-served downloads.
+	pathLower := strings.ToLower(path)
+	switch {
+	case strings.HasSuffix(pathLower, ".tar.xz") || strings.HasSuffix(pathLower, ".txz"):
+		// xz magic: FD 37 7A 58 5A 00
+		if n < 6 || string(header[:6]) != "\xfd7zXZ\x00" {
+			return fmt.Errorf("downloaded file is not a valid xz archive (bad magic bytes); check the download URL")
+		}
+	case strings.HasSuffix(pathLower, ".tar.bz2") || strings.HasSuffix(pathLower, ".tbz2"):
+		// bz2 magic: 42 5A 68 = "BZh"
+		if n < 3 || string(header[:3]) != "BZh" {
+			return fmt.Errorf("downloaded file is not a valid bz2 archive (bad magic bytes); check the download URL")
+		}
+	case strings.HasSuffix(pathLower, ".tar.gz") || strings.HasSuffix(pathLower, ".tgz"):
+		// gzip magic: 1F 8B
+		if n < 2 || header[0] != 0x1f || header[1] != 0x8b {
+			return fmt.Errorf("downloaded file is not a valid gzip archive (bad magic bytes); check the download URL")
+		}
+	}
+
 	return nil
 }
 

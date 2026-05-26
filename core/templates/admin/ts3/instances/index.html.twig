@@ -69,5 +69,49 @@
         </div>
     </div>
 
+    {# ── Update History ── #}
+    {% if update_logs|default([])|length > 0 %}
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">{{ t('admin_ts_update_history_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_ts_update_history_intro', locale) }}</p>
+            </div>
+        </div>
+        <div class="ng-data-card__body ng-data-card__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t('admin_ts_update_log_instance', locale) }}</th>
+                            <th>{{ t('admin_ts_update_log_old_version', locale) }}</th>
+                            <th>{{ t('admin_ts_update_log_new_version', locale) }}</th>
+                            <th>{{ t('teamspeak_update_executed_by', locale) }}</th>
+                            <th>{{ t('admin_ts_update_log_status', locale) }}</th>
+                            <th>{{ t('teamspeak_update_started_at', locale) }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in update_logs %}
+                        <tr>
+                            <td>#{{ log.instanceId }}</td>
+                            <td style="font-family:monospace;font-size:12px;">{{ log.oldVersion ?? '—' }}</td>
+                            <td style="font-family:monospace;font-size:12px;">{{ log.targetVersion ?? '—' }}</td>
+                            <td>{{ log.executedBy.email ?? '—' }}</td>
+                            <td>
+                                <span class="ui-badge ui-badge--{{ log.status == 'success' ? 'success' : (log.status == 'failed' ? 'danger' : (log.status == 'running' ? 'info' : 'neutral')) }}">
+                                    {{ t('teamspeak_update_status_' ~ log.status, locale) }}
+                                </span>
+                            </td>
+                            <td>{{ log.startedAt|date('Y-m-d H:i') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}

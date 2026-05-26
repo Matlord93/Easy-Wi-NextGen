@@ -8,6 +8,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Application\DatabaseTableService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
@@ -66,7 +67,7 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $translator = $this->createMock(TranslatorInterface::class);
         $translator->method('trans')->willReturn('x');
 
-        $c = new DatabaseApiController($dbRepo,$nodeRepo,$userRepo,$jobRepo,$em,$audit,$prov,$naming,$respFactory,$env,$translator);
+        $c = new DatabaseApiController($dbRepo,$nodeRepo,$userRepo,$jobRepo,$em,$audit,$prov,$naming,$respFactory,$env,new JobPayloadMasker(),$translator);
         $r = new Request(content: json_encode(['node_id'=>1,'name'=>'demo']));
         $r->attributes->set('current_user',$customer);
         $c->create($r);

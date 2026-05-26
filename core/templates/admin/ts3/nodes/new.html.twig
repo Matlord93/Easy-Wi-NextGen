@@ -4,25 +4,41 @@
 
 {% block content %}
 {% set locale = page_locale() %}
+
+    {# ── Hero ── #}
+    <section class="ng-card" style="overflow:hidden;margin-bottom:20px;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div>
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot" style="background:#38bdf8;"></span>
+                        TeamSpeak 3
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_ts3_node_new_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_ts3_node_new_intro', locale) }}</p>
+                </div>
+                <div>
+                    <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts3/nodes">{{ t('admin_ts3_node_back', locale) }}</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
                 <h2 class="ng-data-card__title">{{ t('admin_ts3_node_new_title', locale) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_ts3_node_new_intro', locale) }}</p>
-            </div>
-            <div class="ng-data-card__actions">
-                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts3/nodes">{{ t('admin_ts3_node_back', locale) }}</a>
+                <p class="ng-data-card__sub">{{ t('admin_ts3_node_agent_hint', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
-            <p style="margin-bottom:16px;color:var(--color-text-muted,#64748b);font-size:.875rem;">{{ t('admin_ts3_node_agent_hint', locale) }}</p>
             {{ form_start(form) }}
                 {{ form_errors(form) }}
                 <div style="display:flex;flex-direction:column;gap:16px;">
                     {{ form_row(form.name, { label: t('admin_ts3_node_form_name', locale) }) }}
                     {{ form_row(form.agentNodeId, { label: t('admin_ts3_node_form_agent_node', locale) }) }}
                     {{ form_row(form.downloadUrl, { label: t('admin_ts3_node_form_download_url', locale) }) }}
-                    <p style="color:var(--color-text-muted,#64748b);font-size:.875rem;">{{ t('admin_ts3_node_download_hint', locale) }}</p>
+                    <p style="margin:-8px 0 0;color:var(--ng-text-muted);font-size:13px;">{{ t('admin_ts3_node_download_hint', locale) }}</p>
                     {{ form_row(form.installPath, { label: t('admin_ts3_node_form_install_path', locale) }) }}
                     {{ form_row(form.instanceName, { label: t('admin_ts3_node_form_instance_name', locale) }) }}
                     {{ form_row(form.serviceName, { label: t('admin_ts3_node_form_service_name', locale) }) }}

@@ -61,6 +61,8 @@ parameters:
   app.status_agent_shared_secret_default: ''
   app.status_agent_shared_secret: '%env(default:app.status_agent_shared_secret_default:APP_STATUS_AGENT_SHARED_SECRET)%'
   app.status_agent_signature_skew_seconds_default: '120'
+  app.teamspeak_update_require_checksum_default: '0'
+  app.teamspeak_update_require_checksum: '%env(bool:default:app.teamspeak_update_require_checksum_default:TEAMSPEAK_UPDATE_REQUIRE_CHECKSUM)%'
   app.status_agent_signature_skew_seconds: >-
     %env(int:default:app.status_agent_signature_skew_seconds_default:APP_STATUS_AGENT_SIGNATURE_SKEW_SECONDS)%
   app.status_stale_grace_seconds_default: '20'
@@ -395,3 +397,23 @@ services:
       $consoleLimiter: '@limiter.instance_console_commands'
 
   App\Module\Gameserver\Application\Console\ConsoleCommandLimiterInterface: '@App\Module\Gameserver\Application\Console\SymfonyConsoleCommandLimiter'
+
+  App\Module\Teamspeak\Application\Update\Teamspeak6GithubUpdateProvider:
+    arguments:
+      $httpClient: '@http_client'
+      $githubToken: '%app.core_update_token%'
+
+  App\Module\Teamspeak\Application\Update\TeamspeakUpdateService:
+    arguments:
+      $providers:
+        - '@App\Module\Teamspeak\Application\Update\Teamspeak3UpdateProvider'
+        - '@App\Module\Teamspeak\Application\Update\Teamspeak6GithubUpdateProvider'
+
+  App\Module\Teamspeak\Application\Update\TeamspeakUpdateLockManager:
+    arguments:
+      $lockDir: '%kernel.project_dir%/var/teamspeak-update-locks'
+
+  App\Module\Teamspeak\Application\Update\TeamspeakUpdateDownloadService:
+    arguments:
+      $httpClient: '@http_client'
+      $githubToken: '%app.core_update_token%'

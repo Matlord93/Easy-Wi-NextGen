@@ -214,7 +214,48 @@ final class CustomerDatabaseController
             'activeNav' => 'databases',
             'database' => $database,
             'tables' => $tables,
+            'errors' => [],
         ]));
+    }
+
+    #[Route(path: '/{id}/tables/create', name: 'customer_databases_table_create', methods: ['GET', 'POST'])]
+    public function createTable(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $database = $this->databaseRepository->find($id);
+        if ($database === null || !$this->isOwner($customer, $database)) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
+        }
+        if ($this->isSystemDatabase($database->getName())) {
+            return new Response($this->translator->trans('customer_databases_tables_system_forbidden'), Response::HTTP_FORBIDDEN);
+        }
+
+        if ($request->isMethod('POST')) {
+            $tableName = trim((string) $request->request->get('table_name', ''));
+            $names = (array) $request->request->all('column_name');
+            $types = (array) $request->request->all('column_type');
+            $lengths = (array) $request->request->all('column_length');
+            $defaults = (array) $request->request->all('column_default');
+            $nullable = (array) $request->request->all('column_nullable');
+            $primary = (array) $request->request->all('column_primary');
+            $auto = (array) $request->request->all('column_auto_increment');
+            $columns = [];
+            foreach ($names as $i => $n) {
+                $name = trim((string) $n);
+                if ($name === '') {
+                    continue;
+                }
+                $columns[] = ['name' => $name, 'type' => (string) ($types[$i] ?? ''), 'length' => (string) ($lengths[$i] ?? ''), 'default' => (string) ($defaults[$i] ?? ''), 'nullable' => isset($nullable[$i]), 'primary' => isset($primary[$i]), 'auto_increment' => isset($auto[$i])];
+            }
+            try {
+                $this->databaseTableService->createTable($database, $tableName, $columns);
+                return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.$database->getId().'/tables']);
+            } catch (\InvalidArgumentException $exception) {
+                return new Response($this->twig->render('customer/databases/table_create.html.twig', ['activeNav' => 'databases', 'database' => $database, 'errors' => [$exception->getMessage()] ]), Response::HTTP_BAD_REQUEST);
+            }
+        }
+
+        return new Response($this->twig->render('customer/databases/table_create.html.twig', ['activeNav' => 'databases', 'database' => $database, 'errors' => []]));
     }
 
 
@@ -271,6 +312,41 @@ final class CustomerDatabaseController
             'rows' => $result['rows'],
             'limit' => $result['limit'],
             'offset' => $result['offset'],
+            'primaryKeyColumns' => $this->databaseTableService->listPrimaryKeyColumns($database, $table),
+        ]));
+    }
+
+    #[Route(path: '/{id}/tables/{table}/rows/{pk}/edit', name: 'customer_databases_table_row_edit', methods: ['GET', 'POST'])]
+    public function editRow(Request $request, int $id, string $table, string $pk): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $database = $this->databaseRepository->find($id);
+        if ($database === null || !$this->isOwner($customer, $database)) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
+        }
+        if ($this->isSystemDatabase($database->getName())) {
+            return new Response($this->translator->trans('customer_databases_tables_system_forbidden'), Response::HTTP_FORBIDDEN);
+        }
+
+        try {
+            if ($request->isMethod('POST')) {
+                $this->databaseTableService->updateRow($database, $table, $pk, (array) $request->request->all('fields'));
+                return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.$database->getId().'/tables/'.$table.'/rows']);
+            }
+
+            $data = $this->databaseTableService->getEditableRow($database, $table, $pk);
+        } catch (\InvalidArgumentException $exception) {
+            return new Response($this->translator->trans($exception->getMessage()), Response::HTTP_BAD_REQUEST);
+        }
+
+        return new Response($this->twig->render('customer/databases/table_row_edit.html.twig', [
+            'activeNav' => 'databases',
+            'database' => $database,
+            'table' => $table,
+            'pk' => $pk,
+            'pkColumn' => $data['pk'],
+            'row' => $data['row'],
+            'columns' => $data['columns'],
         ]));
     }
 

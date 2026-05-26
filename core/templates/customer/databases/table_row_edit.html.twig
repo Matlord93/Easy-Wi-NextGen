@@ -1,0 +1,24 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set activeNav = 'databases' %}
+{% block title %}{{ t('customer_databases_row_edit_title', page_locale()) }}{% endblock %}
+{% block content %}
+<div class="ng-grid" style="gap:1rem;">
+<div class="ng-card"><div class="ng-card__header"><h3 class="ng-card__title">{{ t('customer_databases_row_edit_heading', page_locale()) }}</h3></div>
+<div class="ng-card__body">
+<a class="ui-button ui-button--ghost ui-button--sm" href="/databases/{{ database.id }}/tables/{{ table }}/rows">{{ t('customer_databases_back_to_rows', page_locale()) }}</a>
+<form method="post" style="margin-top:1rem;display:grid;gap:.75rem;">
+{% for column in columns %}
+  <label>{{ column.name }}{% if column.primary %} ({{ t('customer_databases_primary_key', page_locale()) }}){% endif %}
+    {% if not column.editable %}
+      <input value="{{ attribute(row, column.name) is same as(null) ? '' : attribute(row, column.name) }}" readonly>
+      <small>{{ t('customer_databases_field_not_editable', page_locale()) }}</small>
+    {% else %}
+      <input name="fields[{{ column.name }}]" value="{{ attribute(row, column.name) is same as(null) ? '' : attribute(row, column.name) }}">
+    {% endif %}
+  </label>
+{% endfor %}
+<div><button class="ui-button ui-button--primary" type="submit">{{ t('save', page_locale()) }}</button> <a class="ui-button ui-button--ghost" href="/databases/{{ database.id }}/tables/{{ table }}/rows">{{ t('cancel', page_locale()) }}</a></div>
+</form>
+</div></div></div>
+{% endblock %}

@@ -11,6 +11,8 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Dto\Ts6\InstallDto;
 use App\Module\Core\Dto\Ts6\Ts6NodeDto;
 use App\Module\Core\Form\Ts6NodeType;
+use App\Module\Teamspeak\Application\Update\Teamspeak6GithubUpdateProvider;
+use App\Module\Teamspeak\Application\Update\UpdateResult;
 use App\Repository\AgentJobRepository;
 use App\Repository\AgentRepository;
 use App\Repository\Ts6NodeRepository;
@@ -41,6 +43,7 @@ final class AdminTs6NodeController
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly ?Teamspeak6GithubUpdateProvider $githubUpdateProvider = null,
     ) {
     }
 
@@ -126,6 +129,7 @@ final class AdminTs6NodeController
             'admin_password' => null,
             'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
+            'latest_release' => $this->checkLatestRelease($node),
         ]));
     }
 
@@ -161,6 +165,7 @@ final class AdminTs6NodeController
             'admin_password' => $adminPassword,
             'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
+            'latest_release' => $this->checkLatestRelease($node),
         ]));
     }
 
@@ -199,6 +204,21 @@ final class AdminTs6NodeController
 
         $this->nodeService->restart($node);
         $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_service_restarted'));
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/update', name: 'admin_ts6_nodes_update', methods: ['POST'])]
+    public function update(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_update_' . $id);
+
+        $this->refreshNodeDownloadUrl($node);
+
+        $this->nodeService->install($node, $this->buildInstallDto($node));
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_update_queued'));
 
         return $this->redirectToNode($node);
     }
@@ -268,6 +288,7 @@ final class AdminTs6NodeController
 
         return [
             'install' => $this->csrfTokenManager->getToken('ts6_install_' . $id)->getValue(),
+            'update' => $this->csrfTokenManager->getToken('ts6_update_' . $id)->getValue(),
             'show_admin' => $this->csrfTokenManager->getToken('ts6_show_admin_' . $id)->getValue(),
             'start' => $this->csrfTokenManager->getToken('ts6_start_' . $id)->getValue(),
             'stop' => $this->csrfTokenManager->getToken('ts6_stop_' . $id)->getValue(),
@@ -350,6 +371,38 @@ final class AdminTs6NodeController
 
         if (trim($dto->serviceName) === '') {
             $form->addError(new FormError($this->translator->trans('form_error_service_name_required')));
+        }
+    }
+
+    private function checkLatestRelease(Ts6Node $node): ?UpdateResult
+    {
+        if ($this->githubUpdateProvider === null) {
+            return null;
+        }
+        try {
+            $installed = $node->getInstalledVersion() ?? '0.0.0';
+            if (in_array(strtolower($installed), ['unknown', ''], true)) {
+                $installed = '0.0.0';
+            }
+            $os = $node->getOsType() ?? 'linux';
+            $arch = str_contains(strtolower($node->getDownloadUrl()), 'arm64') ? 'arm64' : 'amd64';
+            return $this->githubUpdateProvider->checkForUpdates($installed, $os, $arch, 'beta');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function refreshNodeDownloadUrl(Ts6Node $node): void
+    {
+        if ($this->githubUpdateProvider === null) {
+            return;
+        }
+        $os = $node->getOsType() ?? 'linux';
+        $arch = str_contains(strtolower($node->getDownloadUrl()), 'arm64') ? 'arm64' : 'amd64';
+        $latestUrl = $this->githubUpdateProvider->resolveLatestAssetUrl($os, $arch, 'beta');
+        if ($latestUrl !== null && $latestUrl !== $node->getDownloadUrl()) {
+            $node->setDownloadUrl($latestUrl);
+            $this->entityManager->flush();
         }
     }
 

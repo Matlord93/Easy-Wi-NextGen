@@ -8,6 +8,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\Job;
@@ -40,6 +41,7 @@ final class DatabaseApiController
         private readonly DatabaseNamingPolicy $namingPolicy,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly EncryptionService $encryptionService,
+        private readonly JobPayloadMasker $jobPayloadMasker,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -271,6 +273,26 @@ final class DatabaseApiController
         ]);
     }
 
+    #[Route(path: '/api/v1/customer/databases/{id}/jobs', name: 'databases_jobs_list_v1', methods: ['GET'])]
+    public function listJobs(Request $request, int $id): JsonResponse
+    {
+        $actor = $this->requireUser($request);
+        $database = $this->databaseRepository->find($id);
+        if (!$database instanceof Database || !$this->canAccessDatabase($actor, $database)) {
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('database_not_found_message'), 'database_not_found', JsonResponse::HTTP_NOT_FOUND);
+        }
+        if ($this->isSystemDatabase($database->getName())) {
+            return $this->responseEnvelopeFactory->error($request, $this->translator->trans('customer_databases_delete_system_forbidden'), 'database_system_forbidden', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $jobs = $this->jobRepository->findBy([], ['createdAt' => 'DESC'], 500);
+        $databaseJobs = array_values(array_filter($jobs, static fn (Job $job): bool => (string) ($job->getPayload()['database_id'] ?? '') === (string) $id));
+
+        return new JsonResponse([
+            'jobs' => array_map(fn (Job $job): array => $this->normalizeDatabaseJob($job), $databaseJobs),
+        ]);
+    }
+
     private function requireUser(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
@@ -399,6 +421,26 @@ final class DatabaseApiController
                 'name' => $database->getNode()?->getName(),
             ],
             'updated_at' => $database->getUpdatedAt()->format(DATE_RFC3339),
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function normalizeDatabaseJob(Job $job): array
+    {
+        $result = $job->getResult();
+
+        return [
+            'id' => $job->getId(),
+            'action' => $job->getType(),
+            'status' => $job->getStatus()->value,
+            'created_at' => $job->getCreatedAt()->format(DATE_RFC3339),
+            'updated_at' => $job->getUpdatedAt()->format(DATE_RFC3339),
+            'error_code' => $job->getLastErrorCode(),
+            'error_message' => $job->getLastError(),
+            'payload' => $this->jobPayloadMasker->maskPayload($job->getPayload()),
+            'result' => $result instanceof JobResult ? $this->jobPayloadMasker->maskPayload($result->getOutput()) : null,
         ];
     }
 }

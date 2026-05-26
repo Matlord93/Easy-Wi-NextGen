@@ -11,6 +11,9 @@ class DatabaseTableService
     private const MAX_LIMIT = 50;
     private const EXPORT_BATCH = 500;
     public const IMPORT_MAX_BYTES = 10485760;
+    private const ALLOWED_COLUMN_TYPES = ['INT', 'BIGINT', 'VARCHAR', 'TEXT', 'LONGTEXT', 'DECIMAL', 'DATETIME', 'TIMESTAMP', 'DATE', 'TIME', 'BOOLEAN'];
+    private const NON_EDITABLE_TYPES = ['BLOB', 'BINARY', 'VARBINARY', 'LONGBLOB', 'MEDIUMBLOB', 'TINYBLOB', 'GEOMETRY'];
+    private const MAX_EDIT_VALUE_LENGTH = 20000;
 
     public function __construct(
         private readonly EncryptionService $encryptionService,
@@ -113,6 +116,183 @@ class DatabaseTableService
         if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $table)) {
             throw new \InvalidArgumentException('invalid_table_name');
         }
+    }
+
+    private function assertValidColumnName(string $column): void
+    {
+        if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $column)) {
+            throw new \InvalidArgumentException('invalid_column_name');
+        }
+    }
+
+    public function createTable(Database $database, string $tableName, array $columns): void
+    {
+        $this->assertValidTableName($tableName);
+        if ($columns === []) {
+            throw new \InvalidArgumentException('create_table_columns_required');
+        }
+        $pdo = $this->openPdo($database);
+        if ($pdo === null) {
+            throw new \RuntimeException('connection_unavailable');
+        }
+
+        $defs = [];
+        $pk = [];
+        foreach ($columns as $column) {
+            $name = strtoupper(trim((string) ($column['name'] ?? ''))) === '' ? '' : (string) ($column['name'] ?? '');
+            $this->assertValidColumnName($name);
+            $type = strtoupper(trim((string) ($column['type'] ?? '')));
+            if (!in_array($type, self::ALLOWED_COLUMN_TYPES, true)) {
+                throw new \InvalidArgumentException('invalid_column_type');
+            }
+            $length = trim((string) ($column['length'] ?? ''));
+            $nullable = (bool) ($column['nullable'] ?? false);
+            $primary = (bool) ($column['primary'] ?? false);
+            $autoIncrement = (bool) ($column['auto_increment'] ?? false);
+            $defaultValue = $column['default'] ?? null;
+
+            $sqlType = $type;
+            if (in_array($type, ['VARCHAR', 'INT', 'BIGINT'], true) && $length !== '') {
+                if (!preg_match('/^\d{1,4}$/', $length)) {
+                    throw new \InvalidArgumentException('invalid_column_length');
+                }
+                $sqlType .= sprintf('(%d)', (int) $length);
+            } elseif ($type === 'DECIMAL' && $length !== '') {
+                if (!preg_match('/^\d{1,2},\d{1,2}$/', $length)) {
+                    throw new \InvalidArgumentException('invalid_column_length');
+                }
+                $sqlType .= '(' . $length . ')';
+            }
+
+            if ($autoIncrement && !in_array($type, ['INT', 'BIGINT'], true)) {
+                throw new \InvalidArgumentException('invalid_auto_increment');
+            }
+
+            $colDef = sprintf('`%s` %s %s', str_replace('`', '``', $name), $sqlType, $nullable ? 'NULL' : 'NOT NULL');
+            if ($defaultValue !== null && $defaultValue !== '') {
+                $colDef .= ' DEFAULT ' . $pdo->quote((string) $defaultValue);
+            }
+            if ($autoIncrement) {
+                $colDef .= ' AUTO_INCREMENT';
+            }
+            $defs[] = $colDef;
+            if ($primary) {
+                $pk[] = sprintf('`%s`', str_replace('`', '``', $name));
+            }
+        }
+
+        if ($pk !== []) {
+            $defs[] = 'PRIMARY KEY (' . implode(', ', $pk) . ')';
+        }
+
+        $sql = sprintf('CREATE TABLE `%s` (%s)', str_replace('`', '``', $tableName), implode(', ', $defs));
+        $pdo->exec($sql);
+    }
+
+    /** @return list<string> */
+    public function listPrimaryKeyColumns(Database $database, string $table): array
+    {
+        $this->assertValidTableName($table);
+        $columns = $this->describeTable($database, $table);
+        $pk = [];
+        foreach ($columns as $column) {
+            if (($column['key'] ?? '') === 'PRI') {
+                $pk[] = (string) ($column['name'] ?? '');
+            }
+        }
+        return $pk;
+    }
+
+    /** @return list<array{name:string,type:string,editable:bool,primary:bool}> */
+    public function getEditableColumns(Database $database, string $table): array
+    {
+        $columns = $this->describeTable($database, $table);
+        $out = [];
+        foreach ($columns as $column) {
+            $name = (string) ($column['name'] ?? '');
+            $type = strtoupper((string) ($column['type'] ?? ''));
+            $baseType = (string) preg_replace('/\(.*/', '', $type);
+            $isPrimary = (($column['key'] ?? '') === 'PRI');
+            $out[] = [
+                'name' => $name,
+                'type' => $type,
+                'editable' => !$isPrimary && !in_array($baseType, self::NON_EDITABLE_TYPES, true),
+                'primary' => $isPrimary,
+            ];
+        }
+        return $out;
+    }
+
+    /** @return array{pk:string,row:array<string,mixed>,columns:list<array{name:string,type:string,editable:bool,primary:bool}>} */
+    public function getEditableRow(Database $database, string $table, string $pkValue): array
+    {
+        $this->assertValidTableName($table);
+        $pk = $this->listPrimaryKeyColumns($database, $table);
+        if ($pk === []) {
+            throw new \InvalidArgumentException('edit_requires_primary_key');
+        }
+        if (count($pk) > 1) {
+            throw new \InvalidArgumentException('edit_composite_primary_key_not_supported');
+        }
+        $this->assertValidColumnName($pk[0]);
+        $pdo = $this->openPdo($database);
+        if ($pdo === null) {
+            throw new \RuntimeException('connection_unavailable');
+        }
+        $qTable = sprintf('`%s`', str_replace('`', '``', $table));
+        $qPk = sprintf('`%s`', str_replace('`', '``', $pk[0]));
+        $stmt = $pdo->prepare(sprintf('SELECT * FROM %s WHERE %s = :pk LIMIT 1', $qTable, $qPk));
+        $stmt->execute(['pk' => $pkValue]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            throw new \InvalidArgumentException('edit_row_not_found');
+        }
+
+        return ['pk' => $pk[0], 'row' => $row, 'columns' => $this->getEditableColumns($database, $table)];
+    }
+
+    public function updateRow(Database $database, string $table, string $pkValue, array $input): void
+    {
+        $row = $this->getEditableRow($database, $table, $pkValue);
+        $pk = $row['pk'];
+        $editable = array_filter($row['columns'], static fn (array $column): bool => ($column['editable'] ?? false) === true);
+        $editableNames = array_map(static fn (array $column): string => (string) ($column['name'] ?? ''), $editable);
+        foreach (array_keys($input) as $inputColumnName) {
+            if (!is_string($inputColumnName)) {
+                throw new \InvalidArgumentException('invalid_column_name');
+            }
+            $this->assertValidColumnName($inputColumnName);
+            if (!in_array($inputColumnName, $editableNames, true)) {
+                throw new \InvalidArgumentException('invalid_column_name');
+            }
+        }
+        $sets = [];
+        $params = ['pk' => $pkValue];
+        foreach ($editable as $column) {
+            $name = (string) ($column['name'] ?? '');
+            $this->assertValidColumnName($name);
+            if (!array_key_exists($name, $input)) {
+                continue;
+            }
+            $value = $input[$name];
+            if (is_string($value) && strlen($value) > self::MAX_EDIT_VALUE_LENGTH) {
+                throw new \InvalidArgumentException('edit_value_too_large');
+            }
+            $param = 'c_' . $name;
+            $sets[] = sprintf('`%s` = :%s', str_replace('`', '``', $name), $param);
+            $params[$param] = ($value === '__NULL__') ? null : $value;
+        }
+        if ($sets === []) {
+            throw new \InvalidArgumentException('edit_no_editable_fields');
+        }
+        $pdo = $this->openPdo($database);
+        if ($pdo === null) {
+            throw new \RuntimeException('connection_unavailable');
+        }
+        $qTable = sprintf('`%s`', str_replace('`', '``', $table));
+        $qPk = sprintf('`%s`', str_replace('`', '``', $pk));
+        $stmt = $pdo->prepare(sprintf('UPDATE %s SET %s WHERE %s = :pk', $qTable, implode(', ', $sets), $qPk));
+        $stmt->execute($params);
     }
 
     private function openPdo(Database $database): ?object

@@ -1,0 +1,34 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set activeNav = 'databases' %}
+{% block title %}{{ t('customer_databases_table_create_title', page_locale()) }}{% endblock %}
+{% block content %}
+<div class="ng-grid" style="gap:1rem;">
+  <div class="ng-card">
+    <div class="ng-card__header">
+      <h3 class="ng-card__title">{{ t('customer_databases_table_create_heading', page_locale()) }}</h3>
+    </div>
+    <div class="ng-card__body">
+      <a class="ui-button ui-button--ghost ui-button--sm" href="/databases/{{ database.id }}/tables">{{ t('customer_databases_back_to_tables', page_locale()) }}</a>
+      {% if errors is not empty %}
+      <div class="cust-alert cust-alert--danger" style="margin-top:1rem;">{% for e in errors %}<div>{{ t(e, page_locale()) }}</div>{% endfor %}</div>
+      {% endif %}
+      <form method="post" style="margin-top:1rem;display:grid;gap:.75rem;">
+        <label>{{ t('customer_databases_table_name', page_locale()) }} <input name="table_name" required maxlength="64" pattern="[A-Za-z0-9_]+"></label>
+        {% for i in 0..4 %}
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr 1fr;gap:.5rem;">
+          <input name="column_name[]" placeholder="{{ t('customer_databases_col_name', page_locale()) }}">
+          <select name="column_type[]">{% for tp in ['INT','BIGINT','VARCHAR','TEXT','LONGTEXT','DECIMAL','DATETIME','TIMESTAMP','DATE','TIME','BOOLEAN'] %}<option value="{{ tp }}">{{ tp }}</option>{% endfor %}</select>
+          <input name="column_length[]" placeholder="len">
+          <input name="column_default[]" placeholder="default">
+          <label><input type="checkbox" name="column_nullable[{{ i }}]"> NULL</label>
+          <label><input type="checkbox" name="column_primary[{{ i }}]"> PK</label>
+          <label><input type="checkbox" name="column_auto_increment[{{ i }}]"> AI</label>
+        </div>
+        {% endfor %}
+        <div><button class="ui-button ui-button--primary" type="submit">{{ t('customer_databases_table_create_submit', page_locale()) }}</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

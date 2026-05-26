@@ -202,6 +202,19 @@ final class AdminTs3NodeController
         return $this->redirectToNode($node);
     }
 
+    #[Route(path: '/{id}/update', name: 'admin_ts3_nodes_update', methods: ['POST'])]
+    public function update(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts3_update_' . $id);
+
+        $this->nodeService->install($node, $this->buildInstallDto($node));
+        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_node_update_queued'));
+
+        return $this->redirectToNode($node);
+    }
+
     #[Route(path: '/{id}/delete', name: 'admin_ts3_nodes_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
@@ -267,6 +280,7 @@ final class AdminTs3NodeController
 
         return [
             'install' => $this->csrfTokenManager->getToken('ts3_install_' . $id)->getValue(),
+            'update' => $this->csrfTokenManager->getToken('ts3_update_' . $id)->getValue(),
             'show_admin' => $this->csrfTokenManager->getToken('ts3_show_admin_' . $id)->getValue(),
             'start' => $this->csrfTokenManager->getToken('ts3_start_' . $id)->getValue(),
             'stop' => $this->csrfTokenManager->getToken('ts3_stop_' . $id)->getValue(),

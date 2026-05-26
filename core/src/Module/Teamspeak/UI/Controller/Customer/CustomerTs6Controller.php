@@ -24,7 +24,11 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 use App\Module\Core\Attribute\RequiresModule;
+use App\Module\Teamspeak\Application\Update\TeamspeakUpdateService;
+use App\Module\Teamspeak\Application\Update\TeamspeakUpdateInstallerService;
+use App\Repository\TeamspeakUpdateLogRepository;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 
 #[Route(path: '/ts6')]
 #[RequiresModule('ts6')]
@@ -41,6 +45,9 @@ final class CustomerTs6Controller
         private readonly string $projectDir,
         private readonly AgentJobDispatcher $jobDispatcher,
         private readonly TranslatorInterface $translator,
+        private readonly TeamspeakUpdateService $updateService,
+        private readonly TeamspeakUpdateInstallerService $installerService,
+        private readonly TeamspeakUpdateLogRepository $updateLogRepository,
     ) {
     }
 
@@ -95,6 +102,66 @@ final class CustomerTs6Controller
         $this->entityManager->flush();
 
         return $this->redirectToIndex('customer_ts6_action_queued');
+    }
+
+    #[Route(path: '/{id}/updates', name: 'customer_ts6_updates', methods: ['GET'])]
+    public function updates(Request $request, int $id): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->ts6InstanceRepository->findOneBy(['id' => $id, 'customer' => $customer]);
+        if ($instance === null) {
+            return new JsonResponse(['error_code' => 'ts6_instance_not_found', 'message_key' => 'customer_ts6_update_error_not_found', 'message_params' => []], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        return new JsonResponse([
+            'installed_version' => $instance->getInstalledVersion(),
+            'available_version' => $instance->getAvailableVersion(),
+            'update_channel' => $instance->getUpdateChannel(),
+            'last_update_check_at' => $instance->getLastUpdateCheckAt()?->format(DATE_ATOM),
+            'status' => $instance->getStatus()->value,
+            'platform_os' => $instance->getPlatformOs(),
+            'platform_arch' => $instance->getPlatformArch(),
+            'install_path' => $instance->getInstallPath(),
+        ]);
+    }
+
+    #[Route(path: '/{id}/updates/check', name: 'customer_ts6_updates_check', methods: ['POST'])]
+    public function checkUpdates(Request $request, int $id): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->ts6InstanceRepository->findOneBy(['id' => $id, 'customer' => $customer]);
+        if ($instance === null) {
+            return new JsonResponse(['error_code' => 'ts6_instance_not_found', 'message_key' => 'customer_ts6_update_error_not_found', 'message_params' => []], JsonResponse::HTTP_NOT_FOUND);
+        }
+        return new JsonResponse($this->updateService->checkTs6($instance)->toArray());
+    }
+
+    #[Route(path: '/{id}/updates/install', name: 'customer_ts6_updates_install', methods: ['POST'])]
+    public function installUpdate(Request $request, int $id): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->ts6InstanceRepository->findOneBy(['id' => $id, 'customer' => $customer]);
+        if ($instance === null) {
+            return new JsonResponse(['error_code' => 'ts6_instance_not_found', 'message_key' => 'customer_ts6_update_error_not_found', 'message_params' => []], JsonResponse::HTTP_NOT_FOUND);
+        }
+        try {
+            $log = $this->installerService->installTs6($instance, $customer);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['status' => 'failed', 'error_code' => 'ts6_update_install_failed', 'message_key' => 'customer_ts6_update_install_failed', 'message_params' => []], JsonResponse::HTTP_CONFLICT);
+        }
+        return new JsonResponse(['status' => $log->getStatus(), 'target_version' => $instance->getAvailableVersion(), 'update_log_id' => $log->getId(), 'message_key' => 'customer_ts6_update_install_queued', 'message_params' => []]);
+    }
+
+    #[Route(path: '/{id}/updates/logs', name: 'customer_ts6_updates_logs', methods: ['GET'])]
+    public function updateLogs(Request $request, int $id): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->ts6InstanceRepository->findOneBy(['id' => $id, 'customer' => $customer]);
+        if ($instance === null) {
+            return new JsonResponse(['error_code' => 'ts6_instance_not_found', 'message_key' => 'customer_ts6_update_error_not_found', 'message_params' => []], JsonResponse::HTTP_NOT_FOUND);
+        }
+        $logs = $this->updateLogRepository->findLatestForInstance('ts6', $id, 10);
+        return new JsonResponse(['logs' => array_map(static fn($log) => $log->toArray(), $logs)]);
     }
 
     private function requireCustomer(Request $request): User
@@ -180,6 +247,10 @@ final class CustomerTs6Controller
                 'status_label' => $instance->getStatus()->name,
                 'node' => $nodeLabel,
                 'updated_at' => $instance->getUpdatedAt(),
+                'installed_version' => $instance->getInstalledVersion(),
+                'available_version' => $instance->getAvailableVersion(),
+                'update_channel' => $instance->getUpdateChannel(),
+                'last_update_check_at' => $instance->getLastUpdateCheckAt(),
             ];
         }, $instances);
     }

@@ -68,6 +68,20 @@ class Ts3Instance implements ResourceEventSource
 
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
+    #[ORM\Column(length: 32, nullable: true)]
+    private ?string $installedVersion = null;
+    #[ORM\Column(length: 32, nullable: true)]
+    private ?string $availableVersion = null;
+    #[ORM\Column(length: 16, options: ['default' => 'stable'])]
+    private string $updateChannel = 'stable';
+    #[ORM\Column(length: 16, nullable: true)]
+    private ?string $platformOs = null;
+    #[ORM\Column(length: 16, nullable: true)]
+    private ?string $platformArch = null;
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $installPath = null;
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastUpdateCheckAt = null;
 
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string}|null $databasePassword
@@ -260,4 +274,19 @@ class Ts3Instance implements ResourceEventSource
     {
         $this->updatedAt = new \DateTimeImmutable();
     }
+
+    public function getInstalledVersion(): ?string { return $this->installedVersion; }
+    public function setInstalledVersion(?string $installedVersion): void { $this->installedVersion = $installedVersion; $this->touch(); }
+    public function getAvailableVersion(): ?string { return $this->availableVersion; }
+    public function setAvailableVersion(?string $availableVersion): void { $this->availableVersion = $availableVersion; $this->touch(); }
+    public function getUpdateChannel(): string { return $this->updateChannel; }
+    public function setUpdateChannel(string $updateChannel): void { $this->updateChannel = $updateChannel; $this->touch(); }
+    public function getPlatformOs(): ?string { return $this->platformOs; }
+    public function setPlatformOs(?string $platformOs): void { $this->platformOs = $platformOs; $this->touch(); }
+    public function getPlatformArch(): ?string { return $this->platformArch; }
+    public function setPlatformArch(?string $platformArch): void { $this->platformArch = $platformArch; $this->touch(); }
+    public function getInstallPath(): ?string { return $this->installPath; }
+    public function setInstallPath(?string $installPath): void { $this->installPath = $installPath; $this->touch(); }
+    public function getLastUpdateCheckAt(): ?\DateTimeImmutable { return $this->lastUpdateCheckAt; }
+    public function setLastUpdateCheckAt(?\DateTimeImmutable $lastUpdateCheckAt): void { $this->lastUpdateCheckAt = $lastUpdateCheckAt; $this->touch(); }
 }

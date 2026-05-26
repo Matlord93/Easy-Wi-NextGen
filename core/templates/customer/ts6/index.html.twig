@@ -3,126 +3,55 @@
 {% block content %}
 {% set locale = page_locale() %}
 <div class="cust-page">
+    <div class="cust-hero"><div class="cust-hero__inner"><div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px;"><h1 class="cust-hero__title" style="margin:0;">{{ t('customer_ts6_heading', locale) }}</h1></div><p class="cust-hero__desc">{{ t('customer_ts6_intro', locale) }}</p></div></div></div>
 
-    {# ── Header ── #}
-    <div class="cust-hero">
-        <div class="cust-hero__inner">
-            <div>
-                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px;">
-                    <h1 class="cust-hero__title" style="margin:0;">{{ t('customer_ts6_heading', page_locale()) }}</h1>
-                    <span class="ui-badge ui-badge--warning">{{ t('customer_ts6_badge_planned', page_locale()) }}</span>
-                    <span class="ui-badge ui-badge--info">{{ t('customer_ts6_badge_experimental', page_locale()) }}</span>
-                </div>
-                <p class="cust-hero__desc">{{ t('customer_ts6_intro', page_locale()) }}</p>
-            </div>
-        </div>
-    </div>
-
-    {% if notice %}
-        <div class="cust-alert cust-alert--success">{{ t(notice, page_locale()) }}</div>
-    {% endif %}
-
-    {# ── TS6 Instances ── #}
     <div class="cust-panel" style="padding:0;overflow:hidden;">
         <div style="padding:14px 20px;border-bottom:1px solid var(--ng-border);">
-            <h2 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_ts6_instances_title', page_locale()) }}</h2>
-            <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_ts6_instances_intro', page_locale()) }}</p>
+            <h2 style="margin:0;font-size:14px;font-weight:700;">{{ t('customer_ts6_instances_title', locale) }}</h2>
         </div>
-
-        {% if instances is empty %}
-            <div style="padding:40px;text-align:center;color:var(--ng-text-muted);font-size:13px;">
-                {{ t('customer_ts6_instances_empty', page_locale()) }}
+        {% for instance in instances %}
+        <div class="ts6-instance-row" data-ts6-id="{{ instance.id }}">
+            <div class="ts6-instance-row__info">
+                <div class="ts6-instance-row__name">{{ instance.name }}</div>
+                <div class="ts6-instance-row__sub">Node: {{ instance.node }} · {{ instance.updated_at|date('Y-m-d H:i') }}</div>
+                <div class="ts6-instance-row__sub">{{ t('teamspeak.status.installation.' ~ (instance.installation_status ?? 'unknown'), locale) }} · {{ t('teamspeak.status.runtime.' ~ (instance.runtime_status ?? 'unknown'), locale) }}</div>
             </div>
-        {% else %}
-            {% set statusColors = {
-                planned:      'rgba(245,158,11,.12)|#fbbf24',
-                provisioning: 'rgba(56,189,248,.12)|#38bdf8',
-                running:      'rgba(34,197,94,.12)|#4ade80',
-                stopped:      'rgba(148,163,184,.12)|#94a3b8',
-                error:        'rgba(239,68,68,.12)|#f87171'
-            } %}
-            {% for instance in instances %}
-                {% set parts = (statusColors[instance.status] ?? 'rgba(148,163,184,.12)|#94a3b8')|split('|') %}
-                <div class="ts6-instance-row">
-                    <div class="ts6-instance-row__info">
-                        <div class="ts6-instance-row__name">{{ instance.name }}</div>
-                        <div class="ts6-instance-row__sub">Node: {{ instance.node }} · {{ instance.updated_at|date('Y-m-d H:i') }}</div>
-                    </div>
-                    <div>
-                        <span class="ts6-status-badge" style="background:{{ parts[0] }};color:{{ parts[1] }};">
-                            {{ t('customer_ts6_status_' ~ instance.status, page_locale()) }}
-                        </span>
-                    </div>
-                    <div class="ts6-instance-row__actions">
-                        <form method="post" action="/ts6/{{ instance.id }}/action">
-                            <input type="hidden" name="action" value="start">
-                            <button class="ui-button ui-button--ghost ui-button--sm" style="color:#4ade80;border-color:rgba(34,197,94,.3);">{{ t('customer_ts6_action_start', page_locale()) }}</button>
-                        </form>
-                        <form method="post" action="/ts6/{{ instance.id }}/action">
-                            <input type="hidden" name="action" value="stop">
-                            <button class="ui-button ui-button--ghost ui-button--sm" style="color:#f87171;border-color:rgba(239,68,68,.3);">{{ t('customer_ts6_action_stop', page_locale()) }}</button>
-                        </form>
-                        <form method="post" action="/ts6/{{ instance.id }}/action">
-                            <input type="hidden" name="action" value="restart">
-                            <button class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_ts6_action_restart', page_locale()) }}</button>
-                        </form>
-                        <form method="post" action="/ts6/{{ instance.id }}/action">
-                            <input type="hidden" name="action" value="update">
-                            <button class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_ts6_action_update', page_locale()) }}</button>
-                        </form>
-                    </div>
+            <div class="ts6-instance-row__actions">
+                <button class="ui-button ui-button--ghost ui-button--sm js-ts6-check">{{ t('teamspeak.update.check', locale) }}</button>
+                <button class="ui-button ui-button--ghost ui-button--sm js-ts6-install">{{ t('teamspeak.update.install', locale) }}</button>
+            </div>
+            <div class="ts6-update-panel" style="width:100%;margin-top:10px;border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
+                <h3 style="margin:0 0 8px 0;font-size:13px;">{{ t('teamspeak.update.title', locale) }}</h3>
+                <div class="ts6-grid">
+                    <div><strong>{{ t('teamspeak.update.installed_version', locale) }}:</strong> <span class="f-installed">{{ instance.installed_version ?? '—' }}</span></div>
+                    <div><strong>{{ t('teamspeak.update.available_version', locale) }}:</strong> <span class="f-available">{{ instance.available_version ?? '—' }}</span></div>
+                    <div><strong>{{ t('teamspeak.update.channel', locale) }}:</strong> <span class="f-channel">{{ instance.update_channel ?? '—' }}</span></div>
+                    <div><strong>{{ t('teamspeak.update.last_check', locale) }}:</strong> <span class="f-last-check">{{ instance.last_update_check_at ? instance.last_update_check_at|date('Y-m-d H:i') : '—' }}</span></div>
+                    <div><strong>{{ t('teamspeak.update.status', locale) }}:</strong> <span class="f-status">—</span></div>
+                    <div><strong>{{ t('teamspeak.update.checksum_status', locale) }}:</strong> <span class="f-checksum-status">—</span></div>
+                    <div><strong>{{ t('teamspeak.update.checksum_source', locale) }}:</strong> <span class="f-checksum-source">—</span></div>
+                    <div><strong>{{ t('teamspeak.update.last_log', locale) }}:</strong> <span class="f-last-log">—</span></div>
                 </div>
-            {% endfor %}
-        {% endif %}
-    </div>
-
-    {# ── Virtual Servers ── #}
-    {% if virtual_servers_enabled %}
-    <div class="cust-panel" style="padding:0;overflow:hidden;">
-        <div style="padding:14px 20px;border-bottom:1px solid var(--ng-border);">
-            <h2 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_ts6_virtual_title', page_locale()) }}</h2>
-            <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_ts6_virtual_intro', page_locale()) }}</p>
+                <div style="margin-top:8px;color:#f59e0b;">{{ t('teamspeak.update.warning.server_will_stop', locale) }}</div>
+                <div class="f-message" style="margin-top:8px;"></div>
+            </div>
         </div>
-
-        {% if virtual_servers is empty %}
-            <div style="padding:40px;text-align:center;color:var(--ng-text-muted);font-size:13px;">
-                {{ t('customer_ts6_virtual_empty', page_locale()) }}
-            </div>
-        {% else %}
-            {% set vsStatusColors = {
-                planned: 'rgba(245,158,11,.12)|#fbbf24',
-                active:  'rgba(34,197,94,.12)|#4ade80',
-                stopped: 'rgba(148,163,184,.12)|#94a3b8',
-                error:   'rgba(239,68,68,.12)|#f87171'
-            } %}
-            {% for server in virtual_servers %}
-                {% set vparts = (vsStatusColors[server.status] ?? 'rgba(148,163,184,.12)|#94a3b8')|split('|') %}
-                <div class="ts6-instance-row">
-                    <div class="ts6-instance-row__info">
-                        <div class="ts6-instance-row__name">{{ server.name }}</div>
-                        <div class="ts6-instance-row__sub">Instanz: {{ server.instance }} · Slots: {{ server.slots }} · {{ server.updated_at|date('Y-m-d H:i') }}</div>
-                    </div>
-                    <div>
-                        <span class="ts6-status-badge" style="background:{{ vparts[0] }};color:{{ vparts[1] }};">
-                            {{ t('customer_ts6_status_' ~ server.status, page_locale()) }}
-                        </span>
-                    </div>
-                    <div></div>
-                </div>
-            {% endfor %}
-        {% endif %}
+        {% else %}<div style="padding:20px;">{{ t('customer_ts6_instances_empty', locale) }}</div>{% endfor %}
     </div>
-    {% endif %}
-
 </div>
-
-<style>
-.ts6-instance-row { display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--ng-border); }
-.ts6-instance-row:last-child { border-bottom:none; }
-.ts6-instance-row__info { flex:1;min-width:160px; }
-.ts6-instance-row__name { font-size:14px;font-weight:700;color:var(--ng-text); }
-.ts6-instance-row__sub { font-size:11px;color:var(--ng-text-muted);margin-top:3px; }
-.ts6-instance-row__actions { display:flex;gap:6px;flex-wrap:wrap; }
-.ts6-status-badge { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:99px; }
-</style>
+<style>.ts6-instance-row{padding:12px 20px;border-bottom:1px solid var(--ng-border)}.ts6-instance-row__actions{display:flex;gap:6px}.ts6-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px}</style>
+<script>
+const T={ ok:{{ t('teamspeak.update.install_success',locale)|json_encode|raw }}, fail:{{ t('teamspeak.update.install_failed',locale)|json_encode|raw }}, running:{{ t('teamspeak.update.install_running',locale)|json_encode|raw }}, noUpdate:{{ t('teamspeak.update.no_update_available',locale)|json_encode|raw }}, updAvail:{{ t('teamspeak.update.update_available',locale)|json_encode|raw }}, notFound:{{ t('customer_ts6_update_error_not_found',locale)|json_encode|raw }} };
+const ST={installed:{{ t('teamspeak.status.installation.installed',locale)|json_encode|raw }},not_installed:{{ t('teamspeak.status.installation.not_installed',locale)|json_encode|raw }},running:{{ t('teamspeak.status.runtime.running',locale)|json_encode|raw }},stopped:{{ t('teamspeak.status.runtime.stopped',locale)|json_encode|raw }},unknown:{{ t('teamspeak.status.runtime.unknown',locale)|json_encode|raw }}};
+const us=(s)=>window.ts6StatusI18n?.[s]||s||'—';
+const MK={customer_ts6_update_error_not_found:T.notFound,customer_ts6_update_install_failed:T.fail};
+const apiMessage=(d,fb)=>MK[d?.message_key]||d?.error_code||fb;
+async function loadLogs(id,row){const r=await fetch(`/ts6/${id}/updates/logs`);const d=await r.json();const last=(d.logs&&d.logs[0])?d.logs[0]:null;row.querySelector('.f-last-log').textContent=last?(last.messageKey||last.errorCode||last.status||'—'):'—'; if(last&&last.step){row.querySelector('.f-status').textContent=us(last.step);} }
+async function refresh(id,row){const r=await fetch(`/ts6/${id}/updates`);const d=await r.json();row.querySelector('.f-installed').textContent=d.installed_version||'—';row.querySelector('.f-available').textContent=d.available_version||'—';row.querySelector('.f-channel').textContent=d.update_channel||'—';row.querySelector('.f-last-check').textContent=d.last_update_check_at||'—';}
+for (const row of document.querySelectorAll('[data-ts6-id]')){const id=row.dataset.ts6Id; const bCheck=row.querySelector('.js-ts6-check'); const bInstall=row.querySelector('.js-ts6-install'); const msg=row.querySelector('.f-message');
+refresh(id,row);loadLogs(id,row);
+bCheck.onclick=async()=>{const r=await fetch(`/ts6/${id}/updates/check`,{method:'POST'});const d=await r.json();if(!r.ok){msg.textContent=apiMessage(d,T.fail);return;}row.querySelector('.f-available').textContent=d.available_version||'—';row.querySelector('.f-status').textContent=us(d.status);row.querySelector('.f-checksum-status').textContent=d.checksum?{{ t('teamspeak.update.checksum.available',locale)|json_encode|raw }}:{{ t('teamspeak.update.checksum.not_available',locale)|json_encode|raw }};row.querySelector('.f-checksum-source').textContent=(d.checksum&&d.checksum.source)||'—';const canInstall=!!d.update_available && d.status!=='running' && d.status!=='asset_not_found' && d.status!=='source_not_configured';bInstall.disabled=!canInstall;msg.textContent=d.update_available?T.updAvail:T.noUpdate;};
+bInstall.onclick=async()=>{const r=await fetch(`/ts6/${id}/updates/install`,{method:'POST'});const d=await r.json();if(!r.ok){msg.textContent=apiMessage(d,T.fail);return;}msg.textContent=d.status==='running'?T.running:T.ok;await loadLogs(id,row);};
+}
+</script>
 {% endblock %}

@@ -1,6 +1,9 @@
-{% extends 'layouts/customer.html.twig' %}
+{% extends 'customer/base.html.twig' %}
+
+{% set activeNav = 'databases' %}
 {% block title %}{{ t('customer_databases_table_structure_title', page_locale()) }}{% endblock %}
-{% block body %}
+{% block content %}
+<a class="ui-button ui-button--ghost ui-button--sm" href="/databases/{{ database.id }}/tables">{{ t('customer_databases_back_to_tables', page_locale()) }}</a>
 <h3>{{ t('customer_databases_table_structure_heading', page_locale()) }}: {{ table }}</h3>
 <table class="cust-table"><thead><tr><th>{{ t('customer_databases_col_name', page_locale()) }}</th><th>{{ t('customer_databases_col_type', page_locale()) }}</th><th>{{ t('customer_databases_col_null', page_locale()) }}</th><th>{{ t('customer_databases_col_key', page_locale()) }}</th><th>{{ t('customer_databases_col_default', page_locale()) }}</th><th>{{ t('customer_databases_col_extra', page_locale()) }}</th></tr></thead><tbody>
 {% for c in columns %}<tr><td>{{ c.name }}</td><td>{{ c.type }}</td><td>{{ c.null }}</td><td>{{ c.key }}</td><td>{{ c.default is null ? t('customer_databases_value_null', page_locale()) : c.default }}</td><td>{{ c.extra }}</td></tr>{% endfor %}

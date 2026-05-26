@@ -8,6 +8,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -120,7 +121,7 @@ final class DatabaseCredentialRevealFlowTest extends TestCase
         $translator = $this->createMock(TranslatorInterface::class);
         $translator->method('trans')->willReturn('translated');
 
-        $controller = new DatabaseApiController($dbRepo, $nodeRepo, $userRepo, $jobRepo, $em, $audit, $prov, $naming, $respFactory, $encryption, $translator);
+        $controller = new DatabaseApiController($dbRepo, $nodeRepo, $userRepo, $jobRepo, $em, $audit, $prov, $naming, $respFactory, $encryption, new JobPayloadMasker(), $translator);
 
         $request = new Request();
         $request->attributes->set('current_user', $customer);

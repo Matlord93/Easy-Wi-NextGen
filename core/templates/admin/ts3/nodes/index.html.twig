@@ -26,18 +26,20 @@
                         <div class="tkt-kpi__value">{{ nodes|length }}</div>
                     </div>
                     <div class="tkt-kpi tkt-kpi--open">
-                        <div class="tkt-kpi__label">Running</div>
+                        <div class="tkt-kpi__label">{{ t('admin_ts3_running', locale) }}</div>
                         <div class="tkt-kpi__value">{{ nodes|filter(n => n.running)|length }}</div>
                     </div>
                     <div class="tkt-kpi tkt-kpi--pending">
-                        <div class="tkt-kpi__label">Stopped</div>
+                        <div class="tkt-kpi__label">{{ t('admin_ts3_stopped', locale) }}</div>
                         <div class="tkt-kpi__value">{{ nodes|filter(n => not n.running)|length }}</div>
                     </div>
                 </div>
             </div>
         </div>
-        <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+        <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);display:flex;gap:8px;align-items:center;">
             <a class="ui-button ui-button--primary ui-button--sm" href="/admin/ts3/nodes/new">{{ t('admin_ts3_nodes_add', locale) }}</a>
+            <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts3/instances">{{ t('admin_ts3_heading', locale) }}</a>
+            <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts3/servers">{{ t('admin_ts3_servers_title', locale) }}</a>
         </div>
     </section>
 

@@ -1,10 +1,13 @@
-{% extends 'layouts/customer.html.twig' %}
+{% extends 'customer/base.html.twig' %}
+
+{% set activeNav = 'databases' %}
 {% block title %}{{ t('customer_databases_table_rows_title', page_locale()) }}{% endblock %}
-{% block body %}
+{% block content %}
+<a class="ui-button ui-button--ghost ui-button--sm" href="/databases/{{ database.id }}/tables">{{ t('customer_databases_back_to_tables', page_locale()) }}</a>
 <h3>{{ t('customer_databases_table_rows_heading', page_locale()) }}: {{ table }}</h3>
 <p>{{ t('customer_databases_table_rows_meta', page_locale()) }} {{ limit }} / {{ offset }}</p>
 {% if rows is empty %}<div class="cust-empty">{{ t('customer_databases_tables_empty', page_locale()) }}</div>{% else %}
-<table class="cust-table"><thead><tr>{% for k,v in rows[0] %}<th>{{ k }}</th>{% endfor %}</tr></thead><tbody>
-{% for row in rows %}<tr>{% for k,v in row %}<td>{{ v is same as(null) ? 'NULL' : v }}</td>{% endfor %}</tr>{% endfor %}
+<table class="cust-table"><thead><tr>{% for k,v in rows[0] %}<th>{{ k }}</th>{% endfor %}<th>{{ t('customer_databases_table_actions', page_locale()) }}</th></tr></thead><tbody>
+{% for row in rows %}<tr>{% for k,v in row %}<td>{{ v is same as(null) ? 'NULL' : v }}</td>{% endfor %}<td>{% if primaryKeyColumns|length == 1 %}<a class="ui-button ui-button--ghost ui-button--sm" href="/databases/{{ database.id }}/tables/{{ table }}/rows/{{ attribute(row, primaryKeyColumns[0])|url_encode }}/edit">{{ t('edit', page_locale()) }}</a>{% elseif primaryKeyColumns is empty %}<span>{{ t('customer_databases_edit_no_primary_key', page_locale()) }}</span>{% else %}<span>{{ t('customer_databases_edit_composite_not_supported', page_locale()) }}</span>{% endif %}</td></tr>{% endfor %}
 </tbody></table>{% endif %}
 {% endblock %}

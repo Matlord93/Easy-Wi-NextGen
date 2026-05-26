@@ -65,6 +65,7 @@ use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class AgentApiController
 {
@@ -141,6 +142,7 @@ final class AgentApiController
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly JobLogger $jobLogger,
         private readonly LoggerInterface $logger,
+        private readonly TranslatorInterface $translator,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%app.windows_nodes_enabled%')]
         private readonly bool $windowsNodesEnabled,
     ) {
