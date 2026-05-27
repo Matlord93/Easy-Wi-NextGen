@@ -29,6 +29,67 @@ func TestResolveSniperUserHomeAndGameDir(t *testing.T) {
 	})
 }
 
+func TestTemplateValuesUseGameDirAsInstanceDir(t *testing.T) {
+	userHome := "/home/gs23"
+	gameDir := "/home/gs23/game"
+	values := buildInstanceTemplateValues(userHome, gameDir, "", []int{}, map[string]any{})
+	if values["INSTANCE_DIR"] != gameDir {
+		t.Fatalf("INSTANCE_DIR mismatch: %q", values["INSTANCE_DIR"])
+	}
+	if values["INSTALL_DIR"] != gameDir || values["GAME_DIR"] != gameDir {
+		t.Fatalf("game/install dir mismatch: install=%q game=%q", values["INSTALL_DIR"], values["GAME_DIR"])
+	}
+	if values["USER_HOME_DIR"] != userHome {
+		t.Fatalf("USER_HOME_DIR mismatch: %q", values["USER_HOME_DIR"])
+	}
+}
+
+func TestL4D2RenderInstallAndStartParamsWithGameDir(t *testing.T) {
+	userHome := "/home/gs23"
+	gameDir := "/home/gs23/game"
+	values := buildInstanceTemplateValues(userHome, gameDir, "", []int{}, map[string]any{})
+	installTpl := "steamcmd +force_install_dir {{INSTANCE_DIR}} +app_update 222860 validate +quit"
+	startTpl := "{{INSTANCE_DIR}}/srcds_run -game left4dead2"
+	renderedInstall, err := renderTemplateStrict(installTpl, values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderedStart, err := renderTemplateStrict(startTpl, values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if renderedInstall != "steamcmd +force_install_dir /home/gs23/game +app_update 222860 validate +quit" {
+		t.Fatalf("unexpected install render: %q", renderedInstall)
+	}
+	if renderedStart != "/home/gs23/game/srcds_run -game left4dead2" {
+		t.Fatalf("unexpected start render: %q", renderedStart)
+	}
+}
+
+func TestSharedNormalizeKeepsStartParamsOnGameDir(t *testing.T) {
+	gameDir := "/home/gs23/game"
+	sharedServerDir := "/home/Shared/1/server"
+	values := buildInstanceTemplateValues("/home/gs23", gameDir, "", []int{}, map[string]any{})
+	command, err := renderTemplateStrict("steamcmd +force_install_dir {{INSTANCE_DIR}} +app_update 222860 validate +quit", values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(command, "+force_install_dir /home/gs23/game") {
+		t.Fatalf("unexpected pre-normalize command: %q", command)
+	}
+	normalized := normalizeSteamCmdInstallDir(command, sharedServerDir)
+	if !strings.Contains(normalized, "+force_install_dir /home/Shared/1/server") {
+		t.Fatalf("unexpected normalized command: %q", normalized)
+	}
+	start, err := renderTemplateStrict("{{INSTANCE_DIR}}/srcds_run -game left4dead2", values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if start != "/home/gs23/game/srcds_run -game left4dead2" {
+		t.Fatalf("unexpected shared start render: %q", start)
+	}
+}
+
 func TestSharedPrepareUsesGameDir(t *testing.T) {
 	base := t.TempDir()
 	shared := filepath.Join(base, "Shared", "1", "server")

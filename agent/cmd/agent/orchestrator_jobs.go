@@ -1636,7 +1636,7 @@ func handleTs6InstanceUpdate(job jobs.Job) orchestratorResult {
 	if updateCommand != "" {
 		instanceDir := ts6InstanceDirFromJob(job)
 		if instanceDir != "" {
-			templateValues := buildInstanceTemplateValues(instanceDir, "", []int{}, job.Payload)
+			templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, "", []int{}, job.Payload)
 			rendered, err := renderTemplateStrict(updateCommand, templateValues)
 			if err != nil {
 				return orchestratorResult{status: "failed", errorText: err.Error()}

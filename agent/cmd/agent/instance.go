@@ -133,7 +133,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
-	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
 	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
 	if err != nil {
 		return failureResult(job.ID, err)
@@ -835,7 +835,7 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 
-	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
 	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
 	if err != nil {
 		return failureResult(job.ID, err)
@@ -1150,10 +1150,20 @@ func intSliceToStrings(values []int) []string {
 	return parts
 }
 
-func buildInstanceTemplateValues(instanceDir, requiredPortsRaw string, allocatedPorts []int, payload map[string]any) map[string]string {
+func buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw string, allocatedPorts []int, payload map[string]any) map[string]string {
+	if strings.TrimSpace(userHomeDir) == "" {
+		userHomeDir = instanceDir
+	}
 	values := map[string]string{
-		"INSTANCE_DIR": instanceDir,
-		"INSTALL_DIR":  instanceDir,
+		"INSTANCE_DIR":  instanceDir,
+		"INSTALL_DIR":   instanceDir,
+		"GAME_DIR":      instanceDir,
+		"instance_dir":  instanceDir,
+		"install_path":  instanceDir,
+		"game_dir":      instanceDir,
+		"SERVER_DIR":    instanceDir,
+		"USER_HOME_DIR": userHomeDir,
+		"HOME_DIR":      userHomeDir,
 	}
 
 	for key, value := range parseEnvVars(payload) {
@@ -1483,7 +1493,7 @@ func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, e
 	if startParams != "" {
 		requiredPortsRaw := payloadValue(payload, "required_ports")
 		allocatedPorts := parsePayloadPorts(payload)
-		templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, payload)
+		templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, requiredPortsRaw, allocatedPorts, payload)
 		renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
 		if err != nil {
 			return updates, err

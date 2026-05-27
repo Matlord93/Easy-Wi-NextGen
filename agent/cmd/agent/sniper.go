@@ -148,7 +148,7 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 		logSender.Send(job.ID, []string{fmt.Sprintf("Shared update may affect running instances using shared_key=%s", sharedKey)}, nil)
 	}
 	osUsername := buildInstanceUsername(payloadValue(job.Payload, "customer_id"), payloadValue(job.Payload, "instance_id"))
-	templateValues := buildInstanceTemplateValues(sharedServer, payloadValue(job.Payload, "required_ports"), parsePayloadPorts(job.Payload), job.Payload)
+	templateValues := buildInstanceTemplateValues(sharedServer, sharedServer, payloadValue(job.Payload, "required_ports"), parsePayloadPorts(job.Payload), job.Payload)
 	renderedCommand, err := renderTemplateStrict(updateCommand, templateValues)
 	if err != nil {
 		_ = markSharedManifestFailed(manifestPath, err)
@@ -608,7 +608,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	allocatedPorts := parsePayloadPorts(job.Payload)
-	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	templateValues := buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
 
 	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
 	if err != nil {
@@ -734,9 +734,16 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			fmt.Sprintf("user_home_dir=%s", userHomeDir),
 			fmt.Sprintf("game_dir=%s", instanceDir),
 			fmt.Sprintf("instance_dir=%s", instanceDir),
+			fmt.Sprintf("template_INSTANCE_DIR=%s", templateValues["INSTANCE_DIR"]),
 		}, nil)
 		for i, sp := range sharedSpecs {
 			logSender.Send(job.ID, []string{fmt.Sprintf("shared_paths[%d]: source=%s target=%s mode=%s exclude=%v", i, sp.Source, sp.Target, sp.Mode, sp.Exclude)}, nil)
+		}
+		for _, legacyName := range []string{"srcds_run", "steamapps", "left4dead2", "bin", "platform"} {
+			legacyPath := filepath.Join(userHomeDir, legacyName)
+			if info, statErr := os.Stat(legacyPath); statErr == nil {
+				logSender.Send(job.ID, []string{fmt.Sprintf("legacy_home_install_artifact_detected path=%s is_dir=%t", legacyPath, info.IsDir())}, nil)
+			}
 		}
 	}
 	if sharedEnabled {
@@ -831,6 +838,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			fmt.Sprintf("shared_runtime_validation_required=%t", action != "update"),
 			fmt.Sprintf("runtime_prepare_required=%t", action != "update"),
 			fmt.Sprintf("sniper %s starting (steam_app_id=%s uses_steamcmd=%t command=%s)", action, steamAppID, usesSteamCmd, maskedInstall),
+			fmt.Sprintf("rendered_install_command=%s", maskedInstall),
 		}, nil)
 		if sharedEnabled && usesSteamCmd {
 			steamCmdValidate := resolveSteamCmdValidateFlag(job.Payload, "manual_update", true)
@@ -1002,6 +1010,14 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		validationMode = "generated_script"
 	}
 	if validationRequired && expectedStartExecutablePath != "" && (!scriptExists || !scriptExecutable) {
+		userHomeExecutablePath := filepath.Join(userHomeDir, filepath.Base(expectedStartExecutablePath))
+		if strings.HasPrefix(expectedStartExecutablePath, filepath.Clean(instanceDir)+string(os.PathSeparator)) {
+			if info, statErr := os.Stat(userHomeExecutablePath); statErr == nil && !info.IsDir() {
+				err := fmt.Errorf("INSTALL_DIR_MISMATCH expected=%s actual=%s", instanceDir, userHomeDir)
+				markSharedFailure(err)
+				return failureResult(job.ID, err)
+			}
+		}
 		err := fmt.Errorf("START_EXECUTABLE_MISSING path=%s mode=%s template=%s", expectedStartExecutablePath, validationMode, strings.TrimSpace(payloadValue(job.Payload, "template_key")))
 		markSharedFailure(err)
 		return failureResult(job.ID, err)

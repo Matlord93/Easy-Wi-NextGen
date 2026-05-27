@@ -81,7 +81,7 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 	}
 
 	if installCommand != "" {
-		templateValues := buildInstanceTemplateValues(instanceDir, "", []int{}, job.Payload)
+		templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, "", []int{}, job.Payload)
 		renderedInstallCommand, err := renderTemplateStrict(installCommand, templateValues)
 		if err != nil {
 			return failureResult(job.ID, err)
@@ -171,7 +171,7 @@ func handleTs3Update(job jobs.Job) (jobs.Result, func() error) {
 		if instanceDir == "" || username == "" {
 			return failureResult(job.ID, fmt.Errorf("missing instance_dir or username for update"))
 		}
-		templateValues := buildInstanceTemplateValues(instanceDir, "", []int{}, job.Payload)
+		templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, "", []int{}, job.Payload)
 		renderedUpdateCommand, err := renderTemplateStrict(updateCommand, templateValues)
 		if err != nil {
 			return failureResult(job.ID, err)
