@@ -23,6 +23,7 @@ use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\ConsoleCommandSettings;
 use App\Module\Gameserver\Application\ConsoleCommandValidator;
 use App\Module\Gameserver\Application\GameServerPathResolver;
+use App\Module\Gameserver\Application\GithubReleaseAssetUrlResolver;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
@@ -134,6 +135,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
+            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
             $this->createMock(TranslatorInterface::class),
@@ -217,6 +219,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
+            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
             $this->createMock(TranslatorInterface::class),
@@ -272,6 +275,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $this->createMock(MessageBusInterface::class),
+            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
             $this->createMock(TranslatorInterface::class),

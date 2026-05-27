@@ -84,12 +84,12 @@ final class CustomerInstanceActionApiController
         private readonly RateLimiterFactory $consoleLimiter,
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
-        private readonly GithubReleaseAssetUrlResolver $githubReleaseAssetUrlResolver,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly EncryptionService $encryptionService,
         private readonly TranslatorInterface $translator,
         private readonly ?AgentGameServerClient $agentGameServerClient = null,
         private readonly ?ConsoleStreamDiagnostics $consoleStreamDiagnostics = null,
+        private readonly ?GithubReleaseAssetUrlResolver $githubReleaseAssetUrlResolver = null,
     ) {
     }
 
@@ -1660,7 +1660,7 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $resolvedDownloadUrl = $this->githubReleaseAssetUrlResolver->resolve($plugin->getDownloadUrl()) ?? $plugin->getDownloadUrl();
+        $resolvedDownloadUrl = $this->githubReleaseAssetUrlResolver?->resolve($plugin->getDownloadUrl()) ?? $plugin->getDownloadUrl();
         if (str_starts_with($plugin->getDownloadUrl(), 'github://') && $resolvedDownloadUrl === $plugin->getDownloadUrl()) {
             return $this->responseEnvelopeFactory->error(
                 $request,

@@ -118,25 +118,29 @@ func TestIsCS2TemplateDetection(t *testing.T) {
 
 func TestResolveExpectedStartExecutable(t *testing.T) {
 	gameDir := "/home/gs227/game"
-	p, mode, required, err := resolveExpectedStartExecutable(gameDir, "", "/home/gs21/game/srcds_run -game left4dead2 -port 27015", "", map[string]any{"game_key": "l4d2"})
+	p, mode, required, err := resolveExpectedStartExecutable(gameDir, "/home/gs21/game/srcds_run -game left4dead2 -port 27015", "")
 	if err != nil || p != "/home/gs21/game/srcds_run" || mode != "direct_binary" || !required {
 		t.Fatalf("l4d2 absolute expected direct binary, got path=%s mode=%s required=%t err=%v", p, mode, required, err)
 	}
-	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "", "./srcds_run -game left4dead2", "", map[string]any{"game_key": "l4d2"})
+	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "./srcds_run -game left4dead2", "")
 	if err != nil || p != "/home/gs227/game/srcds_run" || mode != "direct_binary" || !required {
 		t.Fatalf("relative expected direct binary, got path=%s mode=%s required=%t err=%v", p, mode, required, err)
 	}
-	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "", "", "", map[string]any{"game_key": "rust"})
+	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "", "")
 	if err != nil || p == "/home/gs227/game/start.sh" {
 		t.Fatalf("must not fallback to start.sh, got path=%s mode=%s required=%t err=%v", p, mode, required, err)
 	}
-	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "", "./server_binary", "/home/gs227/game/start.sh", map[string]any{"start_script": "start.sh"})
+	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "./server_binary", "/home/gs227/game/start.sh")
 	if err != nil || p != "/home/gs227/game/start.sh" || mode != "generated_script" || !required {
 		t.Fatalf("generated script expected, got path=%s mode=%s required=%t err=%v", p, mode, required, err)
 	}
-	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "/bin/bash -lc \"echo test && ./server\"", "", "", map[string]any{})
+	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "/bin/bash -lc \"echo test && ./server\"", "")
 	if err != nil || p != "" || mode != "shell_command" || required {
 		t.Fatalf("expected shell command mode, got path=%s mode=%s required=%t err=%v", p, mode, required, err)
+	}
+	p, mode, required, err = resolveExpectedStartExecutable(gameDir, "srcds_run -game left4dead2", "")
+	if err != nil || p != "/home/gs227/game/srcds_run" || mode != "direct_binary" || !required {
+		t.Fatalf("plain binary expected in game dir, got path=%s mode=%s required=%t err=%v", p, mode, required, err)
 	}
 }
 

@@ -33,7 +33,7 @@ final class CustomerInstanceAddonsApiController
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly InstanceAddonResolver $instanceAddonResolver,
         private readonly MessageBusInterface $messageBus,
-        private readonly GithubReleaseAssetUrlResolver $githubReleaseAssetUrlResolver,
+        private readonly ?GithubReleaseAssetUrlResolver $githubReleaseAssetUrlResolver = null,
     ) {
     }
 
@@ -181,7 +181,7 @@ final class CustomerInstanceAddonsApiController
             return $this->apiError($request, 'CONFLICT', $blockMessage, JsonResponse::HTTP_CONFLICT);
         }
 
-        $resolvedDownloadUrl = $this->githubReleaseAssetUrlResolver->resolve($addon->getDownloadUrl()) ?? $addon->getDownloadUrl();
+        $resolvedDownloadUrl = $this->githubReleaseAssetUrlResolver?->resolve($addon->getDownloadUrl()) ?? $addon->getDownloadUrl();
         if (str_starts_with($addon->getDownloadUrl(), 'github://') && $resolvedDownloadUrl === $addon->getDownloadUrl()) {
             return $this->apiError($request, 'UPSTREAM_ERROR', 'Unable to resolve GitHub latest-release asset URL for this addon.', JsonResponse::HTTP_BAD_GATEWAY);
         }

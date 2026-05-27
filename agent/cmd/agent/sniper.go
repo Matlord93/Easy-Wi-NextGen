@@ -950,7 +950,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if strings.EqualFold(startScriptName, "start.sh") {
 		generatedStartScriptPath = filepath.Join(instanceDir, "start.sh")
 	}
-	expectedStartExecutablePath, validationMode, validationRequired, resolveErr := resolveExpectedStartExecutable(instanceDir, installCommand, renderedStartParams, generatedStartScriptPath, job.Payload)
+	expectedStartExecutablePath, validationMode, validationRequired, resolveErr := resolveExpectedStartExecutable(instanceDir, renderedStartParams, generatedStartScriptPath)
 	if resolveErr != nil {
 		markSharedFailure(resolveErr)
 		return failureResult(job.ID, resolveErr)
@@ -964,7 +964,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		strings.TrimSpace(payloadValue(job.Payload, "steam_app_id")),
 		isCS2,
 		maskSensitiveValues(startParams, templateValues),
-		maskSensitiveValues(installCommand, templateValues),
+		maskSensitiveValues(renderedStartParams, templateValues),
 		maskSensitiveValues(renderedStartParams, templateValues),
 		startScriptName,
 		strings.TrimSpace(payloadValue(job.Payload, "start_script_path")),
@@ -979,7 +979,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
 	}
-	scriptExists, scriptExecutable, scriptErr := validateExpectedStartExecutablePath(instanceDir, expectedStartExecutablePath, true)
+	scriptExists, scriptExecutable, scriptErr := validateExpectedStartExecutablePath(instanceDir, expectedStartExecutablePath, false)
 	if scriptErr != nil {
 		markSharedFailure(scriptErr)
 		return failureResult(job.ID, scriptErr)
@@ -994,7 +994,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		if uid, gid, err := lookupIDs(osUsername, osUsername); err == nil {
 			_ = os.Chown(expectedStartExecutablePath, uid, gid)
 		}
-		scriptExists, scriptExecutable, scriptErr = validateExpectedStartExecutablePath(instanceDir, expectedStartExecutablePath, true)
+		scriptExists, scriptExecutable, scriptErr = validateExpectedStartExecutablePath(instanceDir, expectedStartExecutablePath, false)
 		if scriptErr != nil {
 			markSharedFailure(scriptErr)
 			return failureResult(job.ID, scriptErr)
@@ -1005,6 +1005,9 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		err := fmt.Errorf("START_EXECUTABLE_MISSING path=%s mode=%s template=%s", expectedStartExecutablePath, validationMode, strings.TrimSpace(payloadValue(job.Payload, "template_key")))
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
+	}
+	if !validationRequired {
+		log.Printf("start_validation_skipped mode=%s", validationMode)
 	}
 	startScriptPath, err := writeStartScript(userHomeDir, renderedStartParams)
 	if err != nil {
@@ -1126,43 +1129,48 @@ func resolveStartScriptName(payload map[string]any, templateValues map[string]st
 	return ""
 }
 
-func resolveExecutableCandidatePath(gameDir, value string) (string, bool) {
-	fields := strings.Fields(strings.TrimSpace(value))
+func parseCommandFirstToken(command string) string {
+	cmd := strings.TrimSpace(command)
+	if cmd == "" {
+		return ""
+	}
+	fields := strings.Fields(cmd)
 	if len(fields) == 0 {
-		return "", false
+		return ""
 	}
-	first := strings.TrimSpace(fields[0])
-	if first == "" || strings.HasPrefix(first, "-") || strings.ContainsAny(first, "|&;<>(){}") {
-		return "", false
-	}
-	base := filepath.Base(first)
-	switch base {
-	case "bash", "sh", "zsh", "env":
-		return "", false
-	}
-	if filepath.IsAbs(first) {
-		return filepath.Clean(first), true
-	}
-	first = strings.TrimPrefix(first, "./")
-	return filepath.Clean(filepath.Join(gameDir, first)), true
+	return strings.Trim(fields[0], `"'`)
 }
 
-func resolveExpectedStartExecutable(gameDir string, renderedStartCommand string, renderedStartParams string, generatedStartScriptPath string, templateMeta map[string]any) (path string, mode string, required bool, err error) {
+func resolveExecutableCandidatePath(gameDir, value string) (string, string, bool) {
+	first := parseCommandFirstToken(value)
+	if first == "" || strings.HasPrefix(first, "-") || strings.ContainsAny(first, "|&;<>(){}") {
+		return "", "", false
+	}
+	base := strings.ToLower(filepath.Base(first))
+	switch base {
+	case "bash", "sh", "zsh", "env", "runuser", "screen", "tmux":
+		return "", "shell_command", true
+	}
+	if filepath.IsAbs(first) {
+		return filepath.Clean(first), "direct_binary", true
+	}
+	if strings.HasPrefix(first, "./") {
+		return filepath.Clean(filepath.Join(gameDir, strings.TrimPrefix(first, "./"))), "direct_binary", true
+	}
+	if strings.Contains(first, "/") || strings.Contains(first, ".") || strings.HasSuffix(first, "_run") || strings.HasPrefix(first, "srcds") || strings.HasPrefix(first, "server") {
+		return filepath.Clean(filepath.Join(gameDir, first)), "direct_binary", true
+	}
+	return "", "", false
+}
+
+func resolveExpectedStartExecutable(gameDir string, renderedStartCommand string, generatedStartScriptPath string) (path string, mode string, required bool, err error) {
 	if p := strings.TrimSpace(generatedStartScriptPath); p != "" {
 		return filepath.Clean(p), "generated_script", true, nil
 	}
-	for _, key := range []string{"start_script_path", "start_script"} {
-		if candidate := strings.TrimSpace(payloadValue(templateMeta, key)); candidate != "" {
-			if filepath.IsAbs(candidate) {
-				return filepath.Clean(candidate), "template_script", true, nil
-			}
-			return filepath.Clean(filepath.Join(gameDir, filepath.Base(candidate))), "template_script", true, nil
+	if candidate, candidateMode, ok := resolveExecutableCandidatePath(gameDir, renderedStartCommand); ok {
+		if candidateMode == "shell_command" {
+			return "", "shell_command", false, nil
 		}
-	}
-	if candidate, ok := resolveExecutableCandidatePath(gameDir, renderedStartParams); ok {
-		return candidate, "direct_binary", true, nil
-	}
-	if candidate, ok := resolveExecutableCandidatePath(gameDir, renderedStartCommand); ok {
 		return candidate, "direct_binary", true, nil
 	}
 	return "", "shell_command", false, nil
@@ -1186,12 +1194,15 @@ func validateExpectedStartExecutablePath(gameDir, expectedPath string, allowExte
 		return false, false, err
 	}
 	if st.Mode()&os.ModeSymlink != 0 {
-		if _, err := os.Stat(cleanResolved); err != nil {
+		targetInfo, err := os.Stat(cleanResolved)
+		if err != nil {
 			if os.IsNotExist(err) {
 				return false, false, nil
 			}
 			return false, false, err
 		}
+		execOk := targetInfo.Mode()&0o111 != 0
+		return true, execOk, nil
 	}
 	execOk := st.Mode()&0o111 != 0
 	return true, execOk, nil

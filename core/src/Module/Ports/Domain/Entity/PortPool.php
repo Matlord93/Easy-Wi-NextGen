@@ -22,7 +22,7 @@ class PortPool implements ResourceEventSource
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Agent::class)]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(name: 'node_id', referencedColumnName: 'id', nullable: false, columnDefinition: 'VARCHAR(64) NOT NULL')]
     private Agent $node;
 
     #[ORM\Column(length: 120)]
