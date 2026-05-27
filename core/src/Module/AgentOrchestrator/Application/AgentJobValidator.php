@@ -34,7 +34,7 @@ final class AgentJobValidator
             'ts3.virtual.client.poke', 'ts6.virtual.client.poke' => $this->requireKeys($payload, ['virtual_server_id', 'sid', 'clid', 'message']),
             'ts3.virtual.ban.add', 'ts6.virtual.ban.add' => $this->requireKeys($payload, ['virtual_server_id', 'sid']),
             'ts3.virtual.ban.remove', 'ts6.virtual.ban.remove', 'ts3.virtual.ban.delete', 'ts6.virtual.ban.delete' => $this->requireKeys($payload, ['virtual_server_id', 'sid', 'banid']),
-            'ts6.virtual.list' => $this->requireKeys($payload, ['node_id']),
+            'ts3.virtual.list', 'ts6.virtual.list' => $this->requireKeys($payload, ['node_id']),
             'ts3.viewer.snapshot', 'ts6.viewer.snapshot' => $this->requireKeys($payload, ['virtual_server_id', 'cache_key']),
             'admin.ssh_key.store' => $this->requireKeys($payload, ['user_id', 'authorized_keys_path', 'public_key']),
             'core.ssh.policy.apply' => $this->requireKeys($payload, ['agent_id', 'access_mode', 'authorized_keys_path']),

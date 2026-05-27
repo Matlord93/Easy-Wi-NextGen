@@ -255,6 +255,27 @@ func handleTs6VirtualList(job jobs.Job) orchestratorResult {
 	}
 }
 
+func handleTs3VirtualList(job jobs.Job) orchestratorResult {
+	client, err := newTs3QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	servers, err := listVirtualServers(client)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	normalized := normalizeVirtualServerList(servers)
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			"servers": normalized,
+		},
+	}
+}
+
 func handleTs3VirtualTokenRotate(job jobs.Job) orchestratorResult {
 	client, err := newTs3QueryClient(job.Payload)
 	if err != nil {

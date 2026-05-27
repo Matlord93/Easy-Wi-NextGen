@@ -9,6 +9,7 @@ use App\Module\Core\Application\VirtualServerDtoFactory;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Dto\Ts3\AdminCreateVirtualServerDto;
 use App\Module\Core\Form\Ts3AdminCreateVirtualServerType;
+use App\Repository\AgentJobRepository;
 use App\Repository\Ts3NodeRepository;
 use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\UserRepository;
@@ -33,6 +34,7 @@ final class AdminTs3ServerController
         private readonly UserRepository $userRepository,
         private readonly Ts3VirtualServerRepository $virtualServerRepository,
         private readonly Ts3VirtualServerService $virtualServerService,
+        private readonly AgentJobRepository $agentJobRepository,
         private readonly FormFactoryInterface $formFactory,
         private readonly VirtualServerDtoFactory $dtoFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
@@ -45,6 +47,8 @@ final class AdminTs3ServerController
     public function index(Request $request): Response
     {
         $this->requireAdmin($request);
+        $nodes = $this->nodeRepository->findBy([], ['name' => 'ASC']);
+        $this->queueVirtualServerSync($nodes);
 
         $servers = $this->virtualServerRepository->findBy(['archivedAt' => null], ['updatedAt' => 'DESC']);
         $customers = $this->userRepository->findCustomers();
@@ -218,5 +222,25 @@ final class AdminTs3ServerController
         }
 
         return null;
+    }
+
+    /**
+     * @param \App\Module\Core\Domain\Entity\Ts3Node[] $nodes
+     */
+    private function queueVirtualServerSync(array $nodes): void
+    {
+        if ($nodes === []) {
+            return;
+        }
+
+        $cutoff = new \DateTimeImmutable('-2 minutes');
+        foreach ($nodes as $node) {
+            $agentId = $node->getAgent()->getId();
+            $jobs = $this->agentJobRepository->findLatestForNodeAndTypes($agentId, ['ts3.virtual.list'], 1);
+            if ($jobs !== [] && $jobs[0]->getCreatedAt() >= $cutoff) {
+                continue;
+            }
+            $this->virtualServerService->queueVirtualServerSync($node);
+        }
     }
 }

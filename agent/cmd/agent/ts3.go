@@ -63,7 +63,10 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 		serviceName = fmt.Sprintf("ts3-%s", instanceID)
 	}
 	if startCommand == "" {
-		startCommand = "/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1"
+		startCommand = fmt.Sprintf(
+			"/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1 serveradmin_password=%s",
+			quotePOSIXShellArg(adminPassword),
+		)
 	}
 
 	osUsername := buildTs3Username(customerID, instanceID)
@@ -410,6 +413,18 @@ func buildTs3Username(customerID, instanceID string) string {
 		sanitized = sanitized[:8]
 	}
 	return fmt.Sprintf("ts%s%s", customerID, sanitized)
+}
+
+func ensureTs3AdminPassword(password string) string {
+	trimmed := strings.TrimSpace(password)
+	if trimmed != "" {
+		return trimmed
+	}
+	buf := make([]byte, 12)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("ts3-%d", time.Now().UTC().UnixNano())
+	}
+	return hex.EncodeToString(buf)
 }
 
 func ts3InstanceDir(job jobs.Job) string {

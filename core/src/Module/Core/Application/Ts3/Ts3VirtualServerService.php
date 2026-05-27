@@ -123,6 +123,19 @@ final class Ts3VirtualServerService
         $this->applyServerAction($server, 'delete');
     }
 
+    public function queueVirtualServerSync(Ts3Node $node): AgentJob
+    {
+        $payload = [
+            'node_id' => (string) ($node->getId() ?? ''),
+            'query_bind_ip' => $node->getQueryConnectIp(),
+            'query_port' => $node->getQueryPort(),
+            'admin_username' => $node->getAdminUsername(),
+            'admin_password' => $node->getAdminPassword($this->crypto),
+        ];
+
+        return $this->jobDispatcher->dispatch($node->getAgent(), 'ts3.virtual.list', $payload);
+    }
+
     public function queueServerGroupList(Ts3VirtualServer $server, string $cacheKey): AgentJob
     {
         $jobPayload = [

@@ -103,6 +103,8 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		}
 	case "ts6.virtual.list":
 		return handleTs6VirtualList(job)
+	case "ts3.virtual.list":
+		return handleTs3VirtualList(job)
 	case "ts3.virtual.servergroup.list":
 		return handleTs3ServerGroupList(job)
 	case "ts6.virtual.servergroup.list":
@@ -351,6 +353,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 	fileIP := payloadValue(job.Payload, "filetransfer_ip")
 	licensePath := payloadValue(job.Payload, "licensepath", "license_path")
 	adminPassword := payloadValue(job.Payload, "admin_password", "serveradmin_password")
+	adminPassword = ensureTs3AdminPassword(adminPassword)
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
@@ -394,7 +397,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 		if err := writeFile(configPath, config); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
-		serviceCommand := fmt.Sprintf("\"%s\" inifile=ts3server.ini license_accepted=1", exePath)
+		serviceCommand := fmt.Sprintf("\"%s\" inifile=ts3server.ini license_accepted=1 serveradmin_password=%s", exePath, adminPassword)
 		if err := runCommand("sc", "create", serviceName, "binPath=", serviceCommand); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
@@ -425,7 +428,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	startCommand := "/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1"
+	startCommand := fmt.Sprintf("/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1 serveradmin_password=%s", quotePOSIXShellArg(adminPassword))
 	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, startCommand, "", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}

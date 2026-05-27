@@ -291,6 +291,11 @@ final class AgentJobResultApplier
 
     private function applyTs3VirtualServerResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
     {
+        if ($job->getType() === 'ts3.virtual.list') {
+            $this->applyTs3VirtualServerList($job, $status, $payload);
+            return;
+        }
+
         $virtualId = $job->getPayload()['virtual_server_id'] ?? null;
         if (!is_int($virtualId) && !is_string($virtualId)) {
             return;
@@ -331,6 +336,78 @@ final class AgentJobResultApplier
 
         if ($job->getType() === 'ts3.virtual.token.rotate' && is_array($payload)) {
             $this->applyVirtualToken($server, Ts3Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
+        }
+    }
+
+    private function applyTs3VirtualServerList(AgentJob $job, AgentJobStatus $status, ?array $payload): void
+    {
+        if ($status !== AgentJobStatus::Success || !is_array($payload)) {
+            return;
+        }
+
+        $nodeId = $job->getPayload()['node_id'] ?? null;
+        if (!is_int($nodeId) && !is_string($nodeId)) {
+            return;
+        }
+        $node = $this->ts3NodeRepository->find((int) $nodeId);
+        if (!$node instanceof Ts3Node) {
+            return;
+        }
+
+        $servers = $payload['servers'] ?? null;
+        if (!is_array($servers)) {
+            return;
+        }
+
+        $seen = [];
+        foreach ($servers as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $sid = isset($entry['sid']) && is_numeric($entry['sid']) ? (int) $entry['sid'] : 0;
+            $name = is_string($entry['name'] ?? null) ? trim((string) $entry['name']) : '';
+            if ($sid <= 0 && $name === '') {
+                continue;
+            }
+
+            $server = null;
+            if ($sid > 0) {
+                $server = $this->ts3VirtualServerRepository->findOneBy(['node' => $node, 'sid' => $sid, 'archivedAt' => null]);
+            }
+            if (!$server instanceof Ts3VirtualServer && $name !== '') {
+                $server = $this->ts3VirtualServerRepository->findOneBy(['node' => $node, 'name' => $name, 'archivedAt' => null]);
+                if ($server instanceof Ts3VirtualServer && $sid > 0 && $server->getSid() <= 0) {
+                    $server->setSid($sid);
+                }
+            }
+            if (!$server instanceof Ts3VirtualServer) {
+                $server = new Ts3VirtualServer($node, 0, $sid, $name !== '' ? $name : sprintf('TS3 Server %d', $sid));
+                $server->setStatus('external');
+                $this->entityManager->persist($server);
+            } elseif ($name !== '' && $server->getName() !== $name) {
+                $server->setName($name);
+            }
+
+            if (isset($entry['voice_port']) && is_numeric($entry['voice_port'])) {
+                $server->setVoicePort((int) $entry['voice_port']);
+            }
+            if (isset($entry['filetransfer_port']) && is_numeric($entry['filetransfer_port'])) {
+                $server->setFiletransferPort((int) $entry['filetransfer_port']);
+            }
+            if (is_string($entry['status'] ?? null) && $entry['status'] !== '') {
+                $server->setStatus((string) $entry['status']);
+            }
+            if ($sid > 0) {
+                $seen[$sid] = true;
+            }
+        }
+
+        $existingServers = $this->ts3VirtualServerRepository->findBy(['node' => $node, 'archivedAt' => null]);
+        foreach ($existingServers as $existing) {
+            $sid = $existing->getSid();
+            if ($sid > 0 && !isset($seen[$sid])) {
+                $existing->setStatus('missing');
+            }
         }
     }
 
