@@ -85,12 +85,12 @@ func TestSharedPrepareUsesGameDir(t *testing.T) {
 
 func TestNormalizeRenderedStartCommandFixesDoubleGameSegment(t *testing.T) {
 	gameDir := "/home/gs226/game"
-	got := normalizeRenderedStartCommand("/home/gs226/game/game/cs2.sh -dedicated +map de_dust2", gameDir)
+	got := normalizeRenderedStartCommand("/home/gs226/game/game/cs2.sh -dedicated +map de_dust2", gameDir, "cs2.sh")
 	wantPrefix := "/home/gs226/game/cs2.sh"
 	if got[:len(wantPrefix)] != wantPrefix {
 		t.Fatalf("normalized start command=%q", got)
 	}
-	if filepath.Clean(resolveGameScriptPath(gameDir)) != "/home/gs226/game/cs2.sh" {
+	if filepath.Clean(resolveGameScriptPath(gameDir, "cs2.sh")) != "/home/gs226/game/cs2.sh" {
 		t.Fatalf("resolved game script path invalid")
 	}
 }
@@ -102,7 +102,7 @@ func TestValidateGameScriptPathRejectsInvalidAndRequiresExecutable(t *testing.T)
 		t.Fatal(err)
 	}
 	cmd := filepath.Join(gameDir, "game", "cs2.sh") + " -dedicated"
-	_, _, _, err := validateGameScriptPath(gameDir, cmd)
+	_, _, _, err := validateGameScriptPath(gameDir, cmd, "cs2.sh")
 	if err == nil {
 		t.Fatalf("expected invalid path error")
 	}
@@ -111,7 +111,7 @@ func TestValidateGameScriptPathRejectsInvalidAndRequiresExecutable(t *testing.T)
 	if err := os.WriteFile(script, []byte("#!/bin/sh\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, exists, executable, err := validateGameScriptPath(gameDir, script+" -dedicated")
+	_, exists, executable, err := validateGameScriptPath(gameDir, script+" -dedicated", "cs2.sh")
 	if err == nil || !exists || executable {
 		t.Fatalf("expected non-executable script to fail, exists=%t executable=%t err=%v", exists, executable, err)
 	}
@@ -119,9 +119,34 @@ func TestValidateGameScriptPathRejectsInvalidAndRequiresExecutable(t *testing.T)
 	if err := os.Chmod(script, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	_, exists, executable, err = validateGameScriptPath(gameDir, script+" -dedicated +map de_dust2")
+	_, exists, executable, err = validateGameScriptPath(gameDir, script+" -dedicated +map de_dust2", "cs2.sh")
 	if err != nil || !exists || !executable {
 		t.Fatalf("expected valid executable script, exists=%t executable=%t err=%v", exists, executable, err)
+	}
+}
+
+func TestIsCS2TemplateDetection(t *testing.T) {
+	if !isCS2Template(map[string]any{"steam_app_id": "730"}, nil) {
+		t.Fatalf("expected cs2 by steam app id")
+	}
+	if isCS2Template(map[string]any{"uses_steamcmd": true, "steam_app_id": "258550", "game_key": "rust"}, nil) {
+		t.Fatalf("rust steamcmd template must not be cs2")
+	}
+}
+
+func TestValidateGameScriptPathGenericScript(t *testing.T) {
+	base := t.TempDir()
+	gameDir := filepath.Join(base, "home", "gs227", "game")
+	if err := os.MkdirAll(gameDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(gameDir, "start.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, exists, executable, err := validateGameScriptPath(gameDir, script+" +foo", "start.sh")
+	if err != nil || !exists || !executable {
+		t.Fatalf("expected generic start.sh to validate, exists=%t executable=%t err=%v", exists, executable, err)
 	}
 }
 

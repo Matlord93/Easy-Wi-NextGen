@@ -889,11 +889,11 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("STEAM_RUNTIME_LINK_FAILED: %w", err))
 		}
-		if err := ensureSharedStartScript(instanceDir, installTargetDir, osUsername, payloadValue(job.Payload, "start_script", "game_script", "server_script")); err != nil {
+		if err := ensureSharedStartScript(instanceDir, installTargetDir, osUsername, resolveStartScriptName(job.Payload, templateValues, isCS2Template(job.Payload, templateValues))); err != nil {
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("STARTSCRIPT_MISSING: %w", err))
 		}
-		if err := validateSharedInstanceLayout(instanceDir, installTargetDir, sharedSpecs); err != nil {
+		if err := validateSharedInstanceLayout(instanceDir, installTargetDir, sharedSpecs, isCS2Template(job.Payload, templateValues)); err != nil {
 			markSharedFailure(err)
 			return failureResult(job.ID, fmt.Errorf("SHARED_INSTANCE_PREPARE_FAILED: %w", err))
 		}
@@ -944,8 +944,26 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
 	}
-	renderedStartParams = normalizeRenderedStartCommand(renderedStartParams, instanceDir)
-	resolvedScriptPath, scriptExists, scriptExecutable, scriptErr := validateGameScriptPath(instanceDir, renderedStartParams)
+	isCS2 := isCS2Template(job.Payload, templateValues)
+	startScriptName := resolveStartScriptName(job.Payload, templateValues, isCS2)
+	validationMode := "generic"
+	if isCS2 {
+		validationMode = "cs2"
+	}
+	renderedStartParams = normalizeRenderedStartCommand(renderedStartParams, instanceDir, startScriptName)
+	resolvedScriptPath, scriptExists, scriptExecutable, scriptErr := validateGameScriptPath(instanceDir, renderedStartParams, startScriptName)
+	log.Printf("template_id=%s template_key=%s template_slug=%s game_key=%s template_name=%s steam_app_id=%s is_cs2_template=%t resolved_start_script_path=%s resolved_start_command=%s validation_mode=%s",
+		strings.TrimSpace(payloadValue(job.Payload, "template_id")),
+		strings.TrimSpace(payloadValue(job.Payload, "template_key")),
+		strings.TrimSpace(payloadValue(job.Payload, "template_slug")),
+		strings.TrimSpace(payloadValue(job.Payload, "game_key")),
+		strings.TrimSpace(payloadValue(job.Payload, "template_name")),
+		strings.TrimSpace(payloadValue(job.Payload, "steam_app_id")),
+		isCS2,
+		resolvedScriptPath,
+		maskSensitiveValues(renderedStartParams, templateValues),
+		validationMode,
+	)
 	log.Printf("game_dir=%s resolved_script_path=%s script_exists=%t script_executable=%t shared_enabled=%t shared_key=%s", instanceDir, resolvedScriptPath, scriptExists, scriptExecutable, sharedEnabled, sharedKey)
 	if scriptErr != nil {
 		markSharedFailure(scriptErr)
@@ -1031,24 +1049,68 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}, nil
 }
 
-func resolveGameScriptPath(gameDir string) string {
-	return filepath.Clean(filepath.Join(gameDir, "cs2.sh"))
+func isCS2Template(payload map[string]any, templateValues map[string]string) bool {
+	candidates := []string{
+		strings.ToLower(strings.TrimSpace(payloadValue(payload, "game_key"))),
+		strings.ToLower(strings.TrimSpace(payloadValue(payload, "template_key"))),
+		strings.ToLower(strings.TrimSpace(payloadValue(payload, "template_slug"))),
+		strings.ToLower(strings.TrimSpace(payloadValue(payload, "steam_app_id"))),
+		strings.ToLower(strings.TrimSpace(payloadValue(payload, "template_name"))),
+		strings.ToLower(strings.TrimSpace(templateValues["GAME_KEY"])),
+		strings.ToLower(strings.TrimSpace(templateValues["TEMPLATE_KEY"])),
+		strings.ToLower(strings.TrimSpace(templateValues["TEMPLATE_SLUG"])),
+		strings.ToLower(strings.TrimSpace(templateValues["STEAM_APP_ID"])),
+		strings.ToLower(strings.TrimSpace(templateValues["TEMPLATE_NAME"])),
+	}
+	for _, c := range candidates {
+		switch c {
+		case "cs2", "730", "counter-strike 2", "counter strike 2":
+			return true
+		}
+	}
+	return false
 }
 
-func normalizeRenderedStartCommand(startCommand, gameDir string) string {
+func resolveStartScriptName(payload map[string]any, templateValues map[string]string, isCS2 bool) string {
+	for _, key := range []string{"start_script", "game_script", "server_script"} {
+		if v := strings.TrimSpace(payloadValue(payload, key)); v != "" {
+			return filepath.Base(v)
+		}
+	}
+	if cmd := strings.TrimSpace(templateValues["START_COMMAND"]); cmd != "" {
+		first := strings.Fields(cmd)
+		if len(first) > 0 && strings.HasSuffix(first[0], ".sh") {
+			return filepath.Base(first[0])
+		}
+	}
+	if isCS2 {
+		return "cs2.sh"
+	}
+	return "start.sh"
+}
+
+func resolveGameScriptPath(gameDir, scriptName string) string {
+	script := strings.TrimSpace(scriptName)
+	if script == "" {
+		script = "start.sh"
+	}
+	return filepath.Clean(filepath.Join(gameDir, filepath.Base(script)))
+}
+
+func normalizeRenderedStartCommand(startCommand, gameDir, scriptName string) string {
 	if strings.TrimSpace(startCommand) == "" {
 		return startCommand
 	}
-	resolved := resolveGameScriptPath(gameDir)
-	badPath := filepath.Clean(filepath.Join(gameDir, "game", "cs2.sh"))
+	resolved := resolveGameScriptPath(gameDir, scriptName)
+	badPath := filepath.Clean(filepath.Join(gameDir, "game", filepath.Base(scriptName)))
 	if badPath != resolved {
 		startCommand = strings.ReplaceAll(startCommand, badPath, resolved)
 	}
 	return strings.ReplaceAll(startCommand, "//", "/")
 }
 
-func validateGameScriptPath(gameDir, startCommand string) (string, bool, bool, error) {
-	resolved := resolveGameScriptPath(gameDir)
+func validateGameScriptPath(gameDir, startCommand, scriptName string) (string, bool, bool, error) {
+	resolved := resolveGameScriptPath(gameDir, scriptName)
 	cleanResolved := filepath.Clean(resolved)
 	if strings.Contains(cleanResolved, string(os.PathSeparator)+"game"+string(os.PathSeparator)+"game"+string(os.PathSeparator)) || strings.Contains(cleanResolved, string(os.PathSeparator)+"server"+string(os.PathSeparator)+"server"+string(os.PathSeparator)) {
 		return cleanResolved, false, false, fmt.Errorf("invalid_game_script_path resolved_path=%s", cleanResolved)
@@ -1093,7 +1155,7 @@ func resolveSniperUserHomeAndGameDir(payloadInstallPath string, osUsername strin
 
 func ensureSharedStartScript(gameDir, sharedServer, osUsername, scriptName string) error {
 	if strings.TrimSpace(scriptName) == "" {
-		scriptName = "cs2.sh"
+		scriptName = "start.sh"
 	}
 	src := filepath.Join(sharedServer, "game", filepath.Base(scriptName))
 	if _, err := os.Stat(src); err != nil {
@@ -1116,12 +1178,19 @@ func ensureSharedStartScript(gameDir, sharedServer, osUsername, scriptName strin
 	return nil
 }
 
-func validateSharedInstanceLayout(gameDir, sharedServer string, specs []sharedPathSpec) error {
+func validateSharedInstanceLayout(gameDir, sharedServer string, specs []sharedPathSpec, cs2Template bool) error {
 	for _, sp := range specs {
 		target := filepath.Join(gameDir, sp.Target)
-		if _, err := os.Lstat(target); err != nil {
+		info, err := os.Lstat(target)
+		if err != nil {
 			return fmt.Errorf("missing shared target %s: %w", target, err)
 		}
+		if sp.Mode == "symlink" && info.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("%s must be symlink", sp.Target)
+		}
+	}
+	if !cs2Template {
+		return nil
 	}
 	requiredSymlinks := []string{"bin", "platform", "core", "csgo_community_addons"}
 	for _, rel := range requiredSymlinks {
