@@ -135,12 +135,12 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
-            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
             $this->createMock(TranslatorInterface::class),
             null,
             null,
+            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
         );
 
         $customer = $instance->getCustomer();
@@ -219,12 +219,12 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
-            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
             $this->createMock(TranslatorInterface::class),
             null,
             null,
+            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
         );
 
         $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode([]));
@@ -275,12 +275,12 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $this->createMock(MessageBusInterface::class),
-            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
             new ResponseEnvelopeFactory(),
             $this->createMock(EncryptionService::class),
             $this->createMock(TranslatorInterface::class),
             null,
             null,
+            $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
         );
 
         $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode(['confirm' => true]));
