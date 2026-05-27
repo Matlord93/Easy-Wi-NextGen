@@ -1652,7 +1652,7 @@ final class GameTemplateSeedCatalog
                 'MetaMod:Source',
                 '2.0.0-dev',
                 '',
-                'https://github.com/alliedmodders/metamod-source/releases/latest/download/mmsource-latest-linux',
+                'github://alliedmodders/metamod-source/releases/latest?asset=mmsource-*-linux.tar.gz',
                 'Core plugin loader for CS2 (Source 2).',
                 'extract',
                 'game/csgo',
@@ -1679,8 +1679,8 @@ final class GameTemplateSeedCatalog
      */
     private function source1Plugins(): array
     {
-        $mmsUrl = 'https://github.com/alliedmodders/metamod-source/releases/latest/download/mmsource-latest-linux';
-        $smUrl  = 'https://github.com/alliedmodders/sourcemod/releases/latest/download/sourcemod-latest-linux';
+        $mmsUrl = 'github://alliedmodders/metamod-source/releases/latest?asset=mmsource-*-linux.tar.gz';
+        $smUrl  = 'github://alliedmodders/sourcemod/releases/latest?asset=sourcemod-*-linux.tar.gz';
         $mmsVer = '2.0.0-dev';
         $smVer  = '1.13.0-dev';
 

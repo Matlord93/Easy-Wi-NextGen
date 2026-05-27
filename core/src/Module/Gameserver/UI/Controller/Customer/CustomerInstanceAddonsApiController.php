@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Gameserver\Application\GithubReleaseAssetUrlResolver;
 use App\Module\Gameserver\Application\InstanceAddonResolver;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
@@ -32,6 +33,7 @@ final class CustomerInstanceAddonsApiController
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly InstanceAddonResolver $instanceAddonResolver,
         private readonly MessageBusInterface $messageBus,
+        private readonly GithubReleaseAssetUrlResolver $githubReleaseAssetUrlResolver,
     ) {
     }
 
@@ -179,6 +181,11 @@ final class CustomerInstanceAddonsApiController
             return $this->apiError($request, 'CONFLICT', $blockMessage, JsonResponse::HTTP_CONFLICT);
         }
 
+        $resolvedDownloadUrl = $this->githubReleaseAssetUrlResolver->resolve($addon->getDownloadUrl()) ?? $addon->getDownloadUrl();
+        if (str_starts_with($addon->getDownloadUrl(), 'github://') && $resolvedDownloadUrl === $addon->getDownloadUrl()) {
+            return $this->apiError($request, 'UPSTREAM_ERROR', 'Unable to resolve GitHub latest-release asset URL for this addon.', JsonResponse::HTTP_BAD_GATEWAY);
+        }
+
         $payload = [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $customer->getId(),
@@ -188,7 +195,7 @@ final class CustomerInstanceAddonsApiController
             'plugin_name' => $addon->getName(),
             'plugin_version' => $addon->getVersion(),
             'plugin_checksum' => $addon->getChecksum(),
-            'plugin_download_url' => $addon->getDownloadUrl(),
+            'plugin_download_url' => $resolvedDownloadUrl,
             'plugin_install_mode' => $addon->getInstallMode(),
             'plugin_extract_subdir' => $addon->getExtractSubdir() ?? '',
         ] + $this->buildCs2MetamodGameInfoPatchPayload($instance, $addon, $action);

@@ -474,7 +474,7 @@ final class AdminPluginCatalogController
         }
         if ($downloadUrl === '') {
             $errors[] = 'Download URL is required.';
-        } elseif (!filter_var($downloadUrl, FILTER_VALIDATE_URL)) {
+        } elseif (!$this->isValidDownloadUrl($downloadUrl)) {
             $errors[] = 'Download URL must be valid.';
         }
 
@@ -583,7 +583,7 @@ final class AdminPluginCatalogController
         }
         if ($downloadUrl === '') {
             $entryErrors[] = 'Download URL is required.';
-        } elseif (!filter_var($downloadUrl, FILTER_VALIDATE_URL)) {
+        } elseif (!$this->isValidDownloadUrl($downloadUrl)) {
             $entryErrors[] = 'Download URL must be valid.';
         }
 
@@ -604,6 +604,28 @@ final class AdminPluginCatalogController
             'download_url' => $downloadUrl,
             'description' => $description !== '' ? $description : null,
         ];
+    }
+
+
+    private function isValidDownloadUrl(string $downloadUrl): bool
+    {
+        if (filter_var($downloadUrl, FILTER_VALIDATE_URL) !== false) {
+            return true;
+        }
+
+        return $this->isValidGithubLatestReleaseAssetUrl($downloadUrl);
+    }
+
+    private function isValidGithubLatestReleaseAssetUrl(string $downloadUrl): bool
+    {
+        if (!preg_match('#^github://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/releases/latest\?(.*)$#', $downloadUrl, $matches)) {
+            return false;
+        }
+
+        parse_str($matches[3], $query);
+        $assetPattern = is_string($query['asset'] ?? null) ? trim($query['asset']) : '';
+
+        return $assetPattern !== '';
     }
 
     private function formatImportError(int $index, string $message): string
@@ -716,7 +738,7 @@ final class AdminPluginCatalogController
                 'name' => 'Metamod:Source',
                 'version' => '2.0-stable',
                 'checksum' => 'manual-verification-required',
-                'download_url' => 'https://github.com/alliedmodders/metamod-source/releases/latest/download/mmsource-latest-linux',
+                'download_url' => 'github://alliedmodders/metamod-source/releases/latest?asset=mmsource-*-linux.tar.gz',
                 'description' => 'Core mod loader for CS2/Source2. Nach Installation muss game/csgo/gameinfo.gi den Eintrag "Game csgo/addons/metamod" enthalten (zwischen Game_LowViolence csgo_lv und Game csgo).',
             ],
             [
@@ -764,7 +786,7 @@ final class AdminPluginCatalogController
                 'name' => 'SourceMod',
                 'version' => 'latest',
                 'checksum' => 'manual-verification-required',
-                'download_url' => 'https://github.com/alliedmodders/sourcemod/releases/latest/download/sourcemod-latest-linux',
+                'download_url' => 'github://alliedmodders/sourcemod/releases/latest?asset=sourcemod-*-linux.tar.gz',
                 'description' => 'TF2 plugin framework (requires Metamod).',
             ],
             [

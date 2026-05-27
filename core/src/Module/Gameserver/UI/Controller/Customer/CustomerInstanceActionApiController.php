@@ -27,6 +27,7 @@ use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
+use App\Module\Gameserver\Application\GithubReleaseAssetUrlResolver;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
@@ -83,6 +84,7 @@ final class CustomerInstanceActionApiController
         private readonly RateLimiterFactory $consoleLimiter,
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
+        private readonly GithubReleaseAssetUrlResolver $githubReleaseAssetUrlResolver,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly EncryptionService $encryptionService,
         private readonly TranslatorInterface $translator,
@@ -1658,6 +1660,16 @@ final class CustomerInstanceActionApiController
             );
         }
 
+        $resolvedDownloadUrl = $this->githubReleaseAssetUrlResolver->resolve($plugin->getDownloadUrl()) ?? $plugin->getDownloadUrl();
+        if (str_starts_with($plugin->getDownloadUrl(), 'github://') && $resolvedDownloadUrl === $plugin->getDownloadUrl()) {
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                'Unable to resolve GitHub latest-release asset URL for this addon.',
+                'addon_download_resolve_failed',
+                JsonResponse::HTTP_BAD_GATEWAY,
+            );
+        }
+
         $payload = [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
@@ -1667,7 +1679,7 @@ final class CustomerInstanceActionApiController
             'plugin_name' => $plugin->getName(),
             'plugin_version' => $plugin->getVersion(),
             'plugin_checksum' => $plugin->getChecksum(),
-            'plugin_download_url' => $plugin->getDownloadUrl(),
+            'plugin_download_url' => $resolvedDownloadUrl,
         ] + $this->buildCs2MetamodGameInfoPatchPayload($instance, $plugin, $action);
 
         $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), $customer->getId(), $instance->getId(), $payload);
