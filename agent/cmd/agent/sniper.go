@@ -732,9 +732,12 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			fmt.Sprintf("steam_app_id=%s", steamAppID),
 			fmt.Sprintf("template_id=%s", payloadValue(job.Payload, "template_id")),
 			fmt.Sprintf("user_home_dir=%s", userHomeDir),
+			fmt.Sprintf("legacy_instance_dir=%s", defaultHomeDir),
 			fmt.Sprintf("game_dir=%s", instanceDir),
 			fmt.Sprintf("instance_dir=%s", instanceDir),
 			fmt.Sprintf("template_INSTANCE_DIR=%s", templateValues["INSTANCE_DIR"]),
+			fmt.Sprintf("effective_install_dir=%s", installTargetDir),
+			fmt.Sprintf("shared_server_dir=%s", sharedInstallRoot),
 		}, nil)
 		for i, sp := range sharedSpecs {
 			logSender.Send(job.ID, []string{fmt.Sprintf("shared_paths[%d]: source=%s target=%s mode=%s exclude=%v", i, sp.Source, sp.Target, sp.Mode, sp.Exclude)}, nil)
@@ -1229,20 +1232,12 @@ func resolveSniperUserHomeAndGameDir(payloadInstallPath string, osUsername strin
 		return "", "", fmt.Errorf("invalid install_path")
 	}
 	userHome := filepath.Clean(filepath.Join("/home", osUsername))
-	gameDir := ""
-	if strings.EqualFold(filepath.Base(installPath), "game") {
-		userHome = filepath.Dir(installPath)
-		gameDir = installPath
-	} else if installPath == userHome {
-		gameDir = filepath.Join(installPath, "game")
-	} else {
-		gameDir = filepath.Join(installPath, "game")
-	}
-	rel, err := filepath.Rel(userHome, gameDir)
+	instanceDir := installPath
+	rel, err := filepath.Rel(userHome, instanceDir)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", "", fmt.Errorf("game dir must be inside user home")
+		return "", "", fmt.Errorf("instance dir must be inside user home")
 	}
-	return userHome, gameDir, nil
+	return userHome, instanceDir, nil
 }
 
 func ensureSharedStartScript(gameDir, sharedServer, osUsername, scriptName string) error {

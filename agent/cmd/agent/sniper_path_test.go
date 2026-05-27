@@ -10,33 +10,33 @@ import (
 
 func TestResolveSniperUserHomeAndGameDir(t *testing.T) {
 	t.Run("home path", func(t *testing.T) {
-		home, game, err := resolveSniperUserHomeAndGameDir("/home/gs225", "gs225")
+		home, instance, err := resolveSniperUserHomeAndGameDir("/home/gs225", "gs225")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if home != "/home/gs225" || game != "/home/gs225/game" {
-			t.Fatalf("got %s %s", home, game)
+		if home != "/home/gs225" || instance != "/home/gs225" {
+			t.Fatalf("got %s %s", home, instance)
 		}
 	})
 	t.Run("game path", func(t *testing.T) {
-		home, game, err := resolveSniperUserHomeAndGameDir("/home/gs225/game", "gs225")
+		home, instance, err := resolveSniperUserHomeAndGameDir("/home/gs225/game", "gs225")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if home != "/home/gs225" || game != "/home/gs225/game" {
-			t.Fatalf("got %s %s", home, game)
+		if home != "/home/gs225" || instance != "/home/gs225/game" {
+			t.Fatalf("got %s %s", home, instance)
 		}
 	})
 }
 
-func TestTemplateValuesUseGameDirAsInstanceDir(t *testing.T) {
+func TestTemplateValuesUseLegacyInstanceDirByDefault(t *testing.T) {
 	userHome := "/home/gs23"
-	gameDir := "/home/gs23/game"
-	values := buildInstanceTemplateValues(userHome, gameDir, "", []int{}, map[string]any{})
-	if values["INSTANCE_DIR"] != gameDir {
+	instanceDir := "/home/gs23"
+	values := buildInstanceTemplateValues(userHome, instanceDir, "", []int{}, map[string]any{})
+	if values["INSTANCE_DIR"] != instanceDir {
 		t.Fatalf("INSTANCE_DIR mismatch: %q", values["INSTANCE_DIR"])
 	}
-	if values["INSTALL_DIR"] != gameDir || values["GAME_DIR"] != gameDir {
+	if values["INSTALL_DIR"] != instanceDir || values["GAME_DIR"] != instanceDir {
 		t.Fatalf("game/install dir mismatch: install=%q game=%q", values["INSTALL_DIR"], values["GAME_DIR"])
 	}
 	if values["USER_HOME_DIR"] != userHome {
@@ -44,10 +44,10 @@ func TestTemplateValuesUseGameDirAsInstanceDir(t *testing.T) {
 	}
 }
 
-func TestL4D2RenderInstallAndStartParamsWithGameDir(t *testing.T) {
+func TestL4D2RenderInstallAndStartParamsLegacyPath(t *testing.T) {
 	userHome := "/home/gs23"
-	gameDir := "/home/gs23/game"
-	values := buildInstanceTemplateValues(userHome, gameDir, "", []int{}, map[string]any{})
+	instanceDir := "/home/gs23"
+	values := buildInstanceTemplateValues(userHome, instanceDir, "", []int{}, map[string]any{})
 	installTpl := "steamcmd +force_install_dir {{INSTANCE_DIR}} +app_update 222860 validate +quit"
 	startTpl := "{{INSTANCE_DIR}}/srcds_run -game left4dead2"
 	renderedInstall, err := renderTemplateStrict(installTpl, values)
@@ -58,23 +58,30 @@ func TestL4D2RenderInstallAndStartParamsWithGameDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if renderedInstall != "steamcmd +force_install_dir /home/gs23/game +app_update 222860 validate +quit" {
+	if renderedInstall != "steamcmd +force_install_dir /home/gs23 +app_update 222860 validate +quit" {
 		t.Fatalf("unexpected install render: %q", renderedInstall)
 	}
-	if renderedStart != "/home/gs23/game/srcds_run -game left4dead2" {
+	if renderedStart != "/home/gs23/srcds_run -game left4dead2" {
 		t.Fatalf("unexpected start render: %q", renderedStart)
+	}
+	expected, mode, required, err := resolveExpectedStartExecutable(instanceDir, renderedStart, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !required || mode != "direct_binary" || expected != "/home/gs23/srcds_run" {
+		t.Fatalf("unexpected start executable resolution: path=%q mode=%q required=%t", expected, mode, required)
 	}
 }
 
-func TestSharedNormalizeKeepsStartParamsOnGameDir(t *testing.T) {
-	gameDir := "/home/gs23/game"
+func TestSharedNormalizeRewritesOnlyInstallDir(t *testing.T) {
+	instanceDir := "/home/gs23"
 	sharedServerDir := "/home/Shared/1/server"
-	values := buildInstanceTemplateValues("/home/gs23", gameDir, "", []int{}, map[string]any{})
+	values := buildInstanceTemplateValues("/home/gs23", instanceDir, "", []int{}, map[string]any{})
 	command, err := renderTemplateStrict("steamcmd +force_install_dir {{INSTANCE_DIR}} +app_update 222860 validate +quit", values)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(command, "+force_install_dir /home/gs23/game") {
+	if !strings.Contains(command, "+force_install_dir /home/gs23") {
 		t.Fatalf("unexpected pre-normalize command: %q", command)
 	}
 	normalized := normalizeSteamCmdInstallDir(command, sharedServerDir)
@@ -85,8 +92,30 @@ func TestSharedNormalizeKeepsStartParamsOnGameDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if start != "/home/gs23/game/srcds_run -game left4dead2" {
+	if start != "/home/gs23/srcds_run -game left4dead2" {
 		t.Fatalf("unexpected shared start render: %q", start)
+	}
+}
+
+func TestExplicitGameInstallPathRemainsGameDir(t *testing.T) {
+	values := buildInstanceTemplateValues("/home/gs23", "/home/gs23/game", "", []int{}, map[string]any{})
+	command, err := renderTemplateStrict("steamcmd +force_install_dir {{INSTANCE_DIR}} +app_update 222860 validate +quit", values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(command, "+force_install_dir /home/gs23/game") {
+		t.Fatalf("unexpected install command: %q", command)
+	}
+	start, err := renderTemplateStrict("{{INSTANCE_DIR}}/srcds_run -game left4dead2", values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, mode, required, err := resolveExpectedStartExecutable("/home/gs23/game", start, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !required || mode != "direct_binary" || expected != "/home/gs23/game/srcds_run" {
+		t.Fatalf("unexpected start executable resolution: path=%q mode=%q required=%t", expected, mode, required)
 	}
 }
 
