@@ -48,7 +48,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly string $releaseChannel,
         private readonly string $kernelEnvironment,
         private readonly bool $kernelDebug,
-        private readonly string $phpCliBinary = '',
+        private readonly ?string $phpCliBinary = null,
         private readonly int $keepReleases = 2,
         private readonly ?PanelUpdateNewsPublisher $panelUpdateNewsPublisher = null,
         private readonly ?CoreReleaseChecker $coreReleaseChecker = null,
@@ -2024,7 +2024,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     private function resolvePhpCliBinary(): ?string
     {
         $candidates = [];
-        $configured = trim($this->phpCliBinary);
+        $configured = trim($this->phpCliBinary ?? '');
         if ($configured === '') {
             $configured = trim((string) ($_SERVER['EASYWI_PHP_BIN'] ?? $_ENV['EASYWI_PHP_BIN'] ?? getenv('EASYWI_PHP_BIN') ?: ''));
         }

@@ -216,7 +216,7 @@ func downloadFileAtomic(url, dest string, perm os.FileMode) error {
 	if err != nil {
 		return fmt.Errorf("download %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("download %s failed: HTTP %d", url, resp.StatusCode)
 	}
@@ -225,7 +225,7 @@ func downloadFileAtomic(url, dest string, perm os.FileMode) error {
 		return fmt.Errorf("create temp file for %s: %w", dest, err)
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("write temp file for %s: %w", dest, err)
