@@ -179,10 +179,53 @@ func TestWindroseUnsupportedDistributionMessage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("managed")) }))
 	defer server.Close()
 	runner := &fakeWindroseRunner{installed: map[string]bool{}, outputs: map[string]string{}, paths: map[string]string{}}
-	setupWindroseDepsTest(t, runner, "ID=debian\nVERSION_CODENAME=bookworm\n", server)
+	setupWindroseDepsTest(t, runner, "ID=fedora\nVERSION_CODENAME=\n", server)
 	var output strings.Builder
 	err := ensureWindroseWineDependencies(&output)
-	if err == nil || !strings.Contains(err.Error(), "Ubuntu Noble") {
-		t.Fatalf("expected unsupported Ubuntu Noble message, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "unsupported distribution") {
+		t.Fatalf("expected unsupported distribution message, got %v", err)
+	}
+}
+
+func TestWindroseConstantsUseOfficialWineHQDebianURLs(t *testing.T) {
+	oldSourceDir := wineHQSourceDir
+	wineHQSourceDir = "/etc/apt/sources.list.d"
+	t.Cleanup(func() { wineHQSourceDir = oldSourceDir })
+	url, path := wineHQDebianSource("bookworm")
+	if url != "https://dl.winehq.org/wine-builds/debian/dists/bookworm/winehq-bookworm.sources" {
+		t.Fatalf("unexpected Debian source URL: %s", url)
+	}
+	if path != "/etc/apt/sources.list.d/winehq-bookworm.sources" {
+		t.Fatalf("unexpected Debian source path: %s", path)
+	}
+}
+
+func TestWindroseDebianInstallsRequiredPackagesAndAddsI386(t *testing.T) {
+	requests := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
+		_, _ = w.Write([]byte("managed"))
+	}))
+	defer server.Close()
+	runner := &fakeWindroseRunner{installed: map[string]bool{}, available: map[string]bool{}, outputs: map[string]string{}, paths: map[string]string{"wine": "/usr/bin/wine", "xvfb-run": "/usr/bin/xvfb-run", "taskset": "/usr/bin/taskset", "screen": "/usr/bin/screen"}}
+	_, _ = setupWindroseDepsTest(t, runner, "ID=debian\nVERSION_CODENAME=trixie\n", server)
+	oldWineSource := wineHQDebianSource
+	wineHQDebianSource = func(codename string) (string, string) {
+		return server.URL + "/wine-builds/debian/dists/trixie/winehq-trixie.sources", filepath.Join(wineHQSourceDir, "winehq-"+codename+".sources")
+	}
+	t.Cleanup(func() { wineHQDebianSource = oldWineSource })
+
+	var output strings.Builder
+	if err := ensureWindroseWineDependencies(&output); err != nil {
+		t.Fatalf("ensure failed: %v\n%s", err, output.String())
+	}
+	joined := strings.Join(runner.commands, "\n")
+	for _, want := range []string{"dpkg --add-architecture i386", "apt-get update", "winehq-stable", "screen", "xvfb", "xauth", "libgd3:amd64", "libgd3:i386"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected command log to contain %q, got:\n%s", want, joined)
+		}
+	}
+	if len(requests) != 2 || requests[0] != "/wine-builds/winehq.key" || requests[1] != "/wine-builds/debian/dists/trixie/winehq-trixie.sources" {
+		t.Fatalf("unexpected downloads: %v", requests)
 	}
 }

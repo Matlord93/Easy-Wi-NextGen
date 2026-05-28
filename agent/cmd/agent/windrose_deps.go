@@ -48,11 +48,18 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 		return err
 	}
 	appendOutput(output, fmt.Sprintf("windrose_os_detected id=%s version_codename=%s", info.ID, info.VersionCodename))
-	if info.ID != "ubuntu" {
-		return fmt.Errorf("windrose wine dependencies unsupported distribution: ID=%s VERSION_CODENAME=%s; currently Ubuntu Noble (24.04) is tested/supported", info.ID, info.VersionCodename)
+
+	var sourceURLFn func(string) (string, string)
+	switch info.ID {
+	case "ubuntu":
+		sourceURLFn = wineHQUbuntuSource
+	case "debian":
+		sourceURLFn = wineHQDebianSource
+	default:
+		return fmt.Errorf("windrose wine dependencies unsupported distribution: ID=%s VERSION_CODENAME=%s; currently Ubuntu and Debian are tested/supported", info.ID, info.VersionCodename)
 	}
 	if strings.TrimSpace(info.VersionCodename) == "" {
-		return fmt.Errorf("windrose wine dependencies unsupported Ubuntu release: VERSION_CODENAME is empty")
+		return fmt.Errorf("windrose wine dependencies unsupported release for %s: VERSION_CODENAME is empty", info.ID)
 	}
 
 	archChanged, err := ensureI386Architecture(output)
@@ -63,7 +70,7 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 	if err != nil {
 		return err
 	}
-	sourceURL, sourcePath := wineHQUbuntuSource(info.VersionCodename)
+	sourceURL, sourcePath := sourceURLFn(info.VersionCodename)
 	appendOutput(output, "windrose_winehq_source_url="+sourceURL)
 	sourceChanged, err := ensureWineHQSource(sourceURL, sourcePath, output)
 	if err != nil {
@@ -119,6 +126,12 @@ var wineHQUbuntuSource = func(codename string) (string, string) {
 	codename = strings.ToLower(strings.TrimSpace(codename))
 	file := fmt.Sprintf("winehq-%s.sources", codename)
 	return fmt.Sprintf("https://dl.winehq.org/wine-builds/ubuntu/dists/%s/%s", codename, file), filepath.Join(wineHQSourceDir, file)
+}
+
+var wineHQDebianSource = func(codename string) (string, string) {
+	codename = strings.ToLower(strings.TrimSpace(codename))
+	file := fmt.Sprintf("winehq-%s.sources", codename)
+	return fmt.Sprintf("https://dl.winehq.org/wine-builds/debian/dists/%s/%s", codename, file), filepath.Join(wineHQSourceDir, file)
 }
 
 func readWindroseOSRelease(path string) (osReleaseInfo, error) {
