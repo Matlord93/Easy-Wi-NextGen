@@ -64,8 +64,15 @@ jobs:
           (cd . && zip -qr "dist/release/easywi-webinterface-${VERSION}.zip" core \
             -x 'core/.env.local' 'core/.env.local.php' 'core/var/*' 'core/storage/*' 'core/uploads/*' 'core/srv/*' 'core/node_modules/*' 'core/vendor/*')
 
-          tar -tzf dist/release/easywi-core.tar.gz | grep -Fxq core/.env \
-            || { echo 'core/.env missing from easywi-core.tar.gz' >&2; exit 1; }
+          python - <<'PYTAR'
+import tarfile
+import sys
+
+with tarfile.open('dist/release/easywi-core.tar.gz', 'r:gz') as archive:
+    if 'core/.env' not in archive.getnames():
+        print('core/.env missing from easywi-core.tar.gz', file=sys.stderr)
+        sys.exit(1)
+PYTAR
           unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" core/.env >/dev/null \
             || { echo 'core/.env missing from easywi-webinterface zip' >&2; exit 1; }
 
@@ -85,7 +92,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          (cd dist/release && sha256sum easywi-core.tar.gz easywi-webinterface-*.zip > checksums-core.txt)
+          (cd dist/release && sha256sum easywi-core.tar.gz > checksums-core.txt)
+          (cd dist/release && sha256sum easywi-webinterface-*.zip > checksums-webinterface.txt)
           if compgen -G "dist/release/easywi-agent-*.zip" > /dev/null || compgen -G "dist/release/easywi-agent-*.tar.gz" > /dev/null; then
             (cd dist/release && sha256sum easywi-agent-*.zip easywi-agent-*.tar.gz 2>/dev/null > checksums-agent.txt || sha256sum easywi-agent-*.zip > checksums-agent.txt)
           else
@@ -104,6 +112,7 @@ jobs:
           fi
           printf '%s' "$EASYWI_RELEASE_PRIVATE_KEY" > /tmp/easywi-release-key.pem
           openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-core.txt.asc dist/release/checksums-core.txt
+          openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-webinterface.txt.asc dist/release/checksums-webinterface.txt
           if [[ -s dist/release/checksums-agent.txt ]]; then
             openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-agent.txt.asc dist/release/checksums-agent.txt
           fi
@@ -121,6 +130,7 @@ jobs:
             - easywi-core.tar.gz
             - easywi-webinterface-<version>.zip (version without leading v)
             - checksums-core.txt
+            - checksums-webinterface.txt
             - easywi-agent-linux-amd64.tar.gz
             - easywi-agent-linux-amd64.zip
             - easywi-agent-windows-amd64.zip
@@ -130,6 +140,8 @@ jobs:
             dist/release/easywi-webinterface-*.zip
             dist/release/checksums-core.txt
             dist/release/checksums-core.txt.asc
+            dist/release/checksums-webinterface.txt
+            dist/release/checksums-webinterface.txt.asc
             dist/release/easywi-agent-linux-amd64.tar.gz
             dist/release/easywi-agent-linux-amd64.zip
             dist/release/easywi-agent-windows-amd64.zip
