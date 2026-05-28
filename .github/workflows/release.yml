@@ -65,14 +65,14 @@ jobs:
             -x 'core/.env.local' 'core/.env.local.php' 'core/var/*' 'core/storage/*' 'core/uploads/*' 'core/srv/*' 'core/node_modules/*' 'core/vendor/*')
 
           python - <<'PYTAR'
-import tarfile
-import sys
+          import tarfile
+          import sys
 
-with tarfile.open('dist/release/easywi-core.tar.gz', 'r:gz') as archive:
-    if 'core/.env' not in archive.getnames():
-        print('core/.env missing from easywi-core.tar.gz', file=sys.stderr)
-        sys.exit(1)
-PYTAR
+          with tarfile.open('dist/release/easywi-core.tar.gz', 'r:gz') as archive:
+              if 'core/.env' not in archive.getnames():
+                  print('core/.env missing from easywi-core.tar.gz', file=sys.stderr)
+                  sys.exit(1)
+          PYTAR
           unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" core/.env >/dev/null \
             || { echo 'core/.env missing from easywi-webinterface zip' >&2; exit 1; }
 
