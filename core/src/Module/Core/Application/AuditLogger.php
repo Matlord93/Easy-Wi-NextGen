@@ -18,12 +18,18 @@ class AuditLogger
         private readonly AuditLogHasher $auditLogHasher,
         private readonly EntityManagerInterface $entityManager,
         private readonly JobPayloadMasker $jobPayloadMasker,
+        private readonly ?DatabaseLogFilter $databaseLogFilter = null,
     ) {
     }
 
-    public function log(?User $actor, string $action, array $payload): AuditLog
+    public function log(?User $actor, string $action, array $payload): ?AuditLog
     {
-        $auditLog = new AuditLog($actor, $action, $this->normalizePayload($this->jobPayloadMasker->maskPayload($payload)));
+        $payload = $this->normalizePayload($this->jobPayloadMasker->maskPayload($payload));
+        if ($this->databaseLogFilter !== null && !$this->databaseLogFilter->shouldStore($action, $payload)) {
+            return null;
+        }
+
+        $auditLog = new AuditLog($actor, $action, $payload);
         $previousHash = $this->auditLogRepository->findLatestHash();
 
         $auditLog->setHashPrev($previousHash);

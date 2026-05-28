@@ -13,7 +13,6 @@ use App\Module\Core\Domain\Entity\Backup;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
-use App\Module\Core\Domain\Entity\ScheduledTaskRun;
 use App\Module\Core\Domain\Enum\BackupStatus;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
@@ -459,11 +458,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
 
     private function writeSchedulerHeartbeat(string $status): void
     {
-        $now = new \DateTimeImmutable();
-        $run = new ScheduledTaskRun('system', 'app:run-schedules', 'Scheduler heartbeat', 'scheduler.heartbeat', 'core', $now, $status, 'app:run-schedules heartbeat');
-        $run->finish($status, 'app:run-schedules heartbeat', [], $now);
-        $this->entityManager->persist($run);
-        $this->entityManager->flush();
+        $this->appSettingsService->markSchedulerHeartbeat($status);
     }
 
     /**

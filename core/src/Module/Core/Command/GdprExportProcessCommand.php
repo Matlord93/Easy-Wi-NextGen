@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\GdprExportService;
-use App\Repository\GdprExportRepository;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Module\Core\Application\PrivacyGdprBackgroundJobService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -15,15 +12,11 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-#[AsCommand(name: 'app:gdpr:exports:process', description: 'Process pending GDPR export requests in the background.')]
+#[AsCommand(name: 'app:gdpr:exports:process', description: 'Process pending GDPR export requests in the background. Prefer the internal Privacy & GDPR scheduler in the panel for automation.')]
 final class GdprExportProcessCommand extends Command
 {
-    public function __construct(
-        private readonly GdprExportRepository $exportRepository,
-        private readonly GdprExportService $exportService,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-    ) {
+    public function __construct(private readonly PrivacyGdprBackgroundJobService $backgroundJobService)
+    {
         parent::__construct();
     }
 
@@ -36,42 +29,14 @@ final class GdprExportProcessCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $limit = max(1, (int) $input->getOption('limit'));
+        $processed = $this->backgroundJobService->processPendingExportsOnly($limit);
 
-        $pending = $this->exportRepository->claimPending($limit);
-        if ($pending === []) {
+        if ($processed === 0) {
             $io->success('No pending GDPR exports.');
             return Command::SUCCESS;
         }
 
-        foreach ($pending as $export) {
-            try {
-                $data = $this->exportService->buildExportData($export->getCustomer());
-                $export->markReady(
-                    $data['fileName'],
-                    $data['fileSize'],
-                    $data['encryptedPayload'],
-                    $data['expiresAt'],
-                    $data['readyAt'],
-                );
-                $this->auditLogger->log(null, 'gdpr.export_ready', [
-                    'export_id' => $export->getId(),
-                    'user_id' => $export->getCustomer()->getId(),
-                    'file_name' => $export->getFileName(),
-                ]);
-            } catch (\Throwable $exception) {
-                $export->markFailed();
-                $this->auditLogger->log(null, 'gdpr.export_failed', [
-                    'export_id' => $export->getId(),
-                    'user_id' => $export->getCustomer()->getId(),
-                    'error' => $exception->getMessage(),
-                ]);
-            }
-
-            $this->entityManager->persist($export);
-        }
-
-        $this->entityManager->flush();
-        $io->success(sprintf('Processed %d GDPR export request(s).', count($pending)));
+        $io->success(sprintf('Processed %d GDPR export request(s).', $processed));
 
         return Command::SUCCESS;
     }

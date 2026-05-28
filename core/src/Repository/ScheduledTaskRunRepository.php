@@ -52,6 +52,18 @@ final class ScheduledTaskRunRepository extends ServiceEntityRepository
         return $count;
     }
 
+    public function deleteHeartbeatRunsOlderThan(\DateTimeImmutable $cutoff): int
+    {
+        return (int) $this->createQueryBuilder('run')
+            ->delete()
+            ->andWhere('run.type = :type')
+            ->andWhere('run.startedAt < :cutoff')
+            ->setParameter('type', 'scheduler.heartbeat')
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->execute();
+    }
+
     /** @return ScheduledTaskRun[] */
     public function findRecent(int $limit = 100): array
     {

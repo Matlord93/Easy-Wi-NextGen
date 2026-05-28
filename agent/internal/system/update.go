@@ -440,10 +440,50 @@ Start-Process -FilePath $BinaryPath -ArgumentList $argsList
 }
 
 // RestartOrExit restarts the agent, or exits for supervisors to relaunch it.
+type restartMode int
+
+const (
+	restartModeManual restartMode = iota
+	restartModeSystemd
+	restartModeSupervisorExit
+)
+
+type restartPlan struct {
+	mode restartMode
+	name string
+	args []string
+}
+
+func planRestart(binaryPath string, args []string, goos string, supervisor bool, systemdActive bool) restartPlan {
+	if goos == "windows" {
+		return restartPlan{mode: restartModeManual, name: binaryPath, args: args}
+	}
+	if systemdActive {
+		return restartPlan{mode: restartModeSystemd, name: "systemctl", args: []string{"restart", "--no-block", "easywi-agent.service"}}
+	}
+	if supervisor {
+		return restartPlan{mode: restartModeSupervisorExit}
+	}
+	return restartPlan{mode: restartModeManual, name: binaryPath, args: args}
+}
+
 func RestartOrExit(binaryPath string) error {
 	args := os.Args[1:]
-	if runtime.GOOS == "windows" {
-		cmd := exec.Command(binaryPath, args...)
+	plan := planRestart(binaryPath, args, runtime.GOOS, os.Getenv("EASYWI_SUPERVISOR") != "", IsSystemdServiceActive("easywi-agent.service"))
+	switch plan.mode {
+	case restartModeSystemd:
+		if err := CleanupStaleAgentProcesses("easywi-agent.service"); err != nil {
+			return err
+		}
+		cmd := exec.Command(plan.name, plan.args...)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("systemd restart easywi-agent.service: %w", err)
+		}
+		os.Exit(0)
+	case restartModeSupervisorExit:
+		os.Exit(0)
+	case restartModeManual:
+		cmd := exec.Command(plan.name, plan.args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
@@ -451,15 +491,17 @@ func RestartOrExit(binaryPath string) error {
 		}
 		os.Exit(0)
 	}
+	return nil
+}
 
-	if os.Getenv("EASYWI_SUPERVISOR") != "" {
-		os.Exit(0)
+func IsSystemdServiceActive(service string) bool {
+	if runtime.GOOS != "linux" {
+		return false
 	}
-
-	execCmd := exec.Command(binaryPath, args...)
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
-	return execCmd.Start()
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return false
+	}
+	return exec.Command("systemctl", "is-active", "--quiet", service).Run() == nil
 }
 
 func assetNameFromURL(downloadURL string) (string, error) {

@@ -21,7 +21,7 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
             'cache:clear' => 0,
         ]);
         $logger = new CapturingLogger();
-        $service = $this->newService($appRoot, $logger);
+        $service = $this->newService(appRoot: $appRoot, logger: $logger);
 
         $result = $service->applyMigrations();
 
@@ -44,7 +44,7 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
             'app:settings:ensure-defaults' => 0,
             'cache:clear' => 0,
         ]);
-        $service = $this->newService($appRoot, new CapturingLogger());
+        $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger());
 
         $result = $service->applyMigrations();
 
@@ -62,7 +62,7 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
             'app:settings:ensure-defaults' => 0,
             'cache:clear' => 0,
         ]);
-        $service = $this->newService($appRoot, new CapturingLogger());
+        $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger());
 
         $result = $service->applyMigrations();
 
@@ -75,7 +75,7 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
     public function testRunCommandPreservesStdoutAndStderr(): void
     {
         $appRoot = $this->createFakeAppRoot([]);
-        $service = $this->newService($appRoot, new CapturingLogger());
+        $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger());
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('runCommand');
         $method->setAccessible(true);
@@ -93,7 +93,7 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
     public function testCleanupKeepOneRemovesOlderReleases(): void
     {
         $appRoot = $this->createFakeAppRoot([]);
-        $service = $this->newService($appRoot, new CapturingLogger(), 1);
+        $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger(), keepReleases: 1);
         $this->seedReleases($appRoot, ['1.0.0', '1.1.0', '1.2.0']);
 
         $this->invokeCleanup($service, $appRoot . '/releases/1.2.0', $appRoot . '/update.log');
@@ -106,7 +106,7 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
     public function testCleanupKeepTwoKeepsCurrentAndPrevious(): void
     {
         $appRoot = $this->createFakeAppRoot([]);
-        $service = $this->newService($appRoot, new CapturingLogger(), 2);
+        $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger(), keepReleases: 2);
         $this->seedReleases($appRoot, ['1.0.0', '1.1.0', '1.2.0']);
 
         $this->invokeCleanup($service, $appRoot . '/releases/1.2.0', $appRoot . '/update.log');
@@ -119,7 +119,7 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
     public function testCleanupNeverDeletesCurrentSymlinkTarget(): void
     {
         $appRoot = $this->createFakeAppRoot([]);
-        $service = $this->newService($appRoot, new CapturingLogger(), 1);
+        $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger(), keepReleases: 1);
         $this->seedReleases($appRoot, ['1.0.0', '1.1.0']);
 
         $this->invokeCleanup($service, $appRoot . '/releases/1.0.0', $appRoot . '/update.log');

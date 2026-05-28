@@ -73,11 +73,84 @@ if b"DB-Port" not in output:
     sys.stderr.write(output.decode("utf-8", "replace"))
     raise SystemExit("installer exited before accepting an empty DB root password")
 PY_PROMPT_TEST
+
+  python3 - "$repo_root/installer/easywi-installer-menu-linux.sh" <<'PY_AGENT_PROMPT_TEST'
+import os
+import select
+import signal
+import subprocess
+import sys
+import time
+
+script = sys.argv[1]
+master, slave = os.openpty()
+proc = subprocess.Popen(
+    ["bash", script],
+    stdin=slave,
+    stdout=slave,
+    stderr=slave,
+    preexec_fn=os.setsid,
+)
+os.close(slave)
+output = b""
+try:
+    deadline = time.time() + 8
+    menu_sent = False
+    prompt_replies = 0
+    last_len = 0
+    while time.time() < deadline:
+        readable, _, _ = select.select([master], [], [], 0.1)
+        if readable:
+            try:
+                chunk = os.read(master, 4096)
+            except OSError:
+                break
+            if not chunk:
+                break
+            output += chunk
+        if not menu_sent and b"Auswahl [1-7]:" in output:
+            os.write(master, b"2\n")
+            menu_sent = True
+            last_len = len(output)
+        elif menu_sent and len(output) != last_len and output.rstrip().endswith(b":") and prompt_replies < 8:
+            os.write(master, b"\n")
+            prompt_replies += 1
+            last_len = len(output)
+        if b"Wie oft soll der Agent neue Aufgaben" in output and b"Netzwerk-Traffic" in output:
+            break
+finally:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+    os.close(master)
+
+if b"Wie oft soll der Agent neue Aufgaben" not in output or b"Netzwerk-Traffic" not in output:
+    sys.stderr.write(output.decode("utf-8", "replace"))
+    raise SystemExit("standalone agent prompt or traffic warning missing")
+PY_AGENT_PROMPT_TEST
 else
   echo "not root; skipping interactive installer prompt regression check"
 fi
 
 
+rg -q 'cleanup_old_easywi_agent_processes' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'expected_config="/etc/easywi/agent.conf"' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'ensure_agent_service_interval_environment' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'easywi-agent.service.d/intervals.conf' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'systemctl stop easywi-agent.service' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'systemctl start easywi-agent.service' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS=\$\{poll_interval_seconds\}' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'poll_interval=\$\{poll_interval_seconds\}s' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'Wie oft soll der Agent neue Aufgaben beim Panel abfragen\? Sekunden' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'validate_agent_interval_seconds "\$\{poll_interval_seconds\}" "Agent-Polling-Intervall" 2 300' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'niedriges Intervall den Netzwerk-Traffic' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS:-2' "$repo_root/installer/easywi-installer-menu-linux.sh"
 rg -q 'verify_checksum' "$repo_root/installer/linux-agent/install-agent.sh"
 rg -q 'PROXY_URL' "$repo_root/installer/linux-agent/install-agent.sh"
 rg -q 'LOG_PATH' "$repo_root/installer/linux-agent/install-agent.sh"

@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -130,10 +131,8 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 
-	if checksum != "" {
-		if err := verifyChecksum(archivePath, checksum); err != nil {
-			return failureResult(job.ID, err)
-		}
+	if err := verifyAddonChecksum(archivePath, checksum); err != nil {
+		return failureResult(job.ID, err)
 	}
 
 	var entries []string
@@ -293,6 +292,24 @@ func listArchiveEntries(archivePath, downloadURL string) ([]string, error) {
 	return entries, nil
 }
 
+func verifyAddonChecksum(path, expected string) error {
+	normalized := strings.ToLower(strings.TrimSpace(expected))
+	if normalized == "" || isChecksumPlaceholder(normalized) {
+		return nil
+	}
+
+	return verifyChecksum(path, normalized)
+}
+
+func isChecksumPlaceholder(checksum string) bool {
+	switch strings.ToLower(strings.TrimSpace(checksum)) {
+	case "manual-verification-required", "none", "n/a", "skip":
+		return true
+	default:
+		return false
+	}
+}
+
 func verifyChecksum(path, expected string) (err error) {
 	normalized := strings.ToLower(strings.TrimSpace(expected))
 	// Strip algorithm prefix (e.g. "sha256:", "sha1:", "md5:")
@@ -307,6 +324,8 @@ func verifyChecksum(path, expected string) (err error) {
 		algo = "sha1"
 	case 64:
 		algo = "sha256"
+	case 128:
+		algo = "sha512"
 	default:
 		return fmt.Errorf("unsupported checksum length")
 	}
@@ -336,6 +355,12 @@ func verifyChecksum(path, expected string) (err error) {
 		sum = hex.EncodeToString(hash.Sum(nil))
 	case "sha256":
 		hash := sha256.New()
+		if _, err := io.Copy(hash, file); err != nil {
+			return fmt.Errorf("checksum read: %w", err)
+		}
+		sum = hex.EncodeToString(hash.Sum(nil))
+	case "sha512":
+		hash := sha512.New()
 		if _, err := io.Copy(hash, file); err != nil {
 			return fmt.Errorf("checksum read: %w", err)
 		}

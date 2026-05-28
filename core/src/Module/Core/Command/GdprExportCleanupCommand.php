@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Repository\GdprExportRepository;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Module\Core\Application\PrivacyGdprBackgroundJobService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -14,14 +12,11 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-#[AsCommand(name: 'app:gdpr:exports:cleanup', description: 'Delete expired GDPR exports and log GDPR deletion audits.')]
+#[AsCommand(name: 'app:gdpr:exports:cleanup', description: 'Delete expired GDPR exports and log GDPR deletion audits. Prefer the internal Privacy & GDPR scheduler in the panel for automation.')]
 final class GdprExportCleanupCommand extends Command
 {
-    public function __construct(
-        private readonly GdprExportRepository $exportRepository,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-    ) {
+    public function __construct(private readonly PrivacyGdprBackgroundJobService $backgroundJobService)
+    {
         parent::__construct();
     }
 
@@ -34,26 +29,14 @@ final class GdprExportCleanupCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $limit = max(1, (int) $input->getOption('limit'));
-        $now = new \DateTimeImmutable();
+        $deleted = $this->backgroundJobService->deleteExpiredExportsOnly($limit);
 
-        $expired = $this->exportRepository->findExpired($now, $limit);
-        if ($expired === []) {
+        if ($deleted === 0) {
             $io->success('No expired GDPR exports to delete.');
             return Command::SUCCESS;
         }
 
-        foreach ($expired as $export) {
-            $this->auditLogger->log(null, 'gdpr.export_deleted', [
-                'export_id' => $export->getId(),
-                'user_id' => $export->getCustomer()->getId(),
-                'expired_at' => $export->getExpiresAt()->format(DATE_RFC3339),
-                'deleted_at' => $now->format(DATE_RFC3339),
-            ]);
-            $this->entityManager->remove($export);
-        }
-
-        $this->entityManager->flush();
-        $io->success(sprintf('Deleted %d expired GDPR export(s).', count($expired)));
+        $io->success(sprintf('Deleted %d expired GDPR export(s).', $deleted));
 
         return Command::SUCCESS;
     }

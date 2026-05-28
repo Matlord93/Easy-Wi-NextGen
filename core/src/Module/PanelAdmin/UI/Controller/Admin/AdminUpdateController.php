@@ -7,6 +7,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AgentUpdateQueueService;
 use App\Module\Core\Application\CoreReleaseChecker;
+use App\Module\Core\Application\PanelUpdateTickProcessor;
 use App\Module\Core\Application\UpdateJobService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
@@ -38,6 +39,7 @@ final class AdminUpdateController
         private readonly AgentUpdateQueueService $agentUpdateQueueService,
         private readonly CoreReleaseChecker $coreReleaseChecker,
         private readonly UpdateJobService $updateJobService,
+        private readonly PanelUpdateTickProcessor $tickProcessor,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         #[Autowire(service: 'limiter.admin_update_jobs')]
         private readonly RateLimiterFactory $updateLimiter,
@@ -114,14 +116,38 @@ final class AdminUpdateController
         }
 
         $job = $this->updateJobService->createJob($type, $createdBy, $payload);
-        $triggered = $this->updateJobService->triggerRunner($job['id']);
+        $jobPath = rtrim($this->updateJobService->getJobsDir(), '/') . '/' . $job['id'] . '.json';
+        $job['currentStep'] = 'created';
+        $job['nextStep'] = $type === 'migrate' ? 'apply_migrations' : 'apply_update';
+        file_put_contents($jobPath, (string) json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
 
         $summary = $this->buildCoreUpdateSummary();
-        if ($triggered) {
-            $summary['notice'] = $this->translateUpdateMessage('admin_updates_job_started', $request->getLocale());
-        } else {
-            $this->updateJobService->markJobFailedToStart($job['id'], 'Update-Runner konnte nicht gestartet werden. PHP-Fallback wurde ebenfalls versucht. Details siehe Log.');
-            $summary['error'] = $this->translateUpdateMessage('admin_updates_runner_not_found', $request->getLocale());
+        $summary['notice'] = $this->translateUpdateMessage('admin_updates_job_started', $request->getLocale());
+
+        return $this->renderUpdateCard($summary);
+    }
+
+
+    #[Route(path: '/job/{id}/tick', name: 'admin_updates_job_tick', methods: ['POST'])]
+    public function tickJob(Request $request, string $id): Response
+    {
+        if (!$this->isSuperAdmin($request)) {
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        }
+
+        $token = new CsrfToken('admin_update_tick_' . $id, (string) $request->request->get('csrf_token'));
+        if (!$this->csrfTokenManager->isTokenValid($token)) {
+            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+        }
+
+        $result = $this->tickProcessor->tick($id);
+        if ($result['notFound']) {
+            return new Response('Not Found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $summary = $this->buildCoreUpdateSummary();
+        if ($result['locked']) {
+            $summary['notice'] = $this->translateUpdateMessage('admin_updates_job_locked', $request->getLocale());
         }
 
         return $this->renderUpdateCard($summary);
@@ -344,6 +370,7 @@ final class AdminUpdateController
                 'both' => $this->csrfTokenManager->getToken('admin_update_both')->getValue(),
                 'rollback' => $this->csrfTokenManager->getToken('admin_update_rollback')->getValue(),
                 'core_channel' => $this->csrfTokenManager->getToken('admin_update_core_channel')->getValue(),
+                'tick' => is_array($latestJob) && is_string($latestJob['id'] ?? null) ? $this->csrfTokenManager->getToken('admin_update_tick_' . $latestJob['id'])->getValue() : null,
             ],
         ];
     }

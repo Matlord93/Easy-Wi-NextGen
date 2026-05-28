@@ -161,3 +161,38 @@ func TestHandleInstanceAddonRemoveDoesNotDeleteSharedCfgDirectory(t *testing.T) 
 		t.Fatalf("shared cfg dir was removed: %v", err)
 	}
 }
+
+func TestVerifyAddonChecksumSkipsEmptyChecksum(t *testing.T) {
+	if err := verifyAddonChecksum(filepath.Join(t.TempDir(), "missing.tar.gz"), "   "); err != nil {
+		t.Fatalf("verifyAddonChecksum returned error for empty checksum: %v", err)
+	}
+}
+
+func TestVerifyAddonChecksumSkipsManualVerificationPlaceholder(t *testing.T) {
+	if err := verifyAddonChecksum(filepath.Join(t.TempDir(), "missing.tar.gz"), " manual-verification-required "); err != nil {
+		t.Fatalf("verifyAddonChecksum returned error for placeholder checksum: %v", err)
+	}
+}
+
+func TestVerifyAddonChecksumAcceptsValidSHA256(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "addon.tar.gz")
+	if err := os.WriteFile(archivePath, []byte("addon archive"), 0o600); err != nil {
+		t.Fatalf("write archive: %v", err)
+	}
+
+	checksum := "4ce58ca1430bc00dfa03fe0c0402bf7c2e0a938bae4512dcc1da4c30898a72f4"
+	if err := verifyAddonChecksum(archivePath, checksum); err != nil {
+		t.Fatalf("verifyAddonChecksum returned error for valid SHA256: %v", err)
+	}
+}
+
+func TestVerifyAddonChecksumRejectsInvalidChecksum(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "addon.tar.gz")
+	if err := os.WriteFile(archivePath, []byte("addon archive"), 0o600); err != nil {
+		t.Fatalf("write archive: %v", err)
+	}
+
+	if err := verifyAddonChecksum(archivePath, "abc"); err == nil {
+		t.Fatal("verifyAddonChecksum returned nil for invalid checksum, want error")
+	}
+}

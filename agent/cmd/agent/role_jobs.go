@@ -118,6 +118,11 @@ func ensureBaseForRole(role string) (string, error) {
 	}
 
 	if role == "game" {
+		if shouldEnsureWindroseWineDependencies(role, family) {
+			if err := ensureWindroseWineDependencies(&output); err != nil {
+				return output.String(), err
+			}
+		}
 		if err := installSteamCmd(&output); err != nil {
 			return output.String(), err
 		}
@@ -545,6 +550,10 @@ func installPackages(family string, packages []string, output *strings.Builder) 
 	}
 
 	return nil
+}
+
+func shouldEnsureWindroseWineDependencies(role, family string) bool {
+	return role == "game" && family == "debian"
 }
 
 func installSteamCmd(output *strings.Builder) error {

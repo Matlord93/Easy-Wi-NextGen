@@ -41,6 +41,7 @@
                 { key: 'customer', label: t('admin_webinterface_tab_customer', page_locale()) },
                 { key: 'security', label: t('admin_webinterface_tab_security', page_locale()) },
                 { key: 'maintenance', label: t('admin_webinterface_tab_maintenance', page_locale()) },
+                { key: 'logging', label: 'Logging' },
                 { key: 'agent', label: t('admin_webinterface_tab_agent', page_locale()) },
                 { key: 'mail_templates', label: t('admin_settings_mail_templates_tab', page_locale()) }
             ] %}
@@ -406,6 +407,28 @@
                             <textarea name="cms_maintenance_allowlist" rows="3" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;resize:vertical;font-family:monospace;" placeholder="203.0.113.10&#10;198.51.100.0/24">{{ settings.cms_maintenance_allowlist }}</textarea>
                             <p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--ng-text-muted);">{{ t('admin_webinterface_maintenance_hint', page_locale()) }}</p>
                         </div>
+                    </div>
+
+
+                {# ── Logging ── #}
+                {% elseif activeTab == 'logging' %}
+                    <div style="display:flex;flex-direction:column;gap:1rem;max-width:720px;">
+                        <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
+                            <input type="checkbox" name="database_logging_store_routine" value="1" {{ settings.database_logging_store_routine ? 'checked' : '' }}>
+                            Routine-Logs in Datenbank speichern
+                        </label>
+                        <p style="margin:0;font-size:0.8125rem;color:var(--ng-text-muted);">Das Deaktivieren von Routine-Logs reduziert Datenbanklast und Speicherverbrauch. Fehler, Warnungen und sicherheitsrelevante Ereignisse werden weiterhin gespeichert.</p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">Routine-Log-Retention (Tage)</label>
+                                <input type="number" min="1" name="database_logging_routine_retention_days" value="{{ settings.database_logging_routine_retention_days }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                                <label style="font-size:0.8125rem;font-weight:500;color:var(--ng-text);">Fehler-/Security-Log-Retention (Tage)</label>
+                                <input type="number" min="1" name="database_logging_error_retention_days" value="{{ settings.database_logging_error_retention_days }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
+                            </div>
+                        </div>
+                        <p style="margin:0;font-size:0.8125rem;color:var(--ng-text-muted);">Fehler immer speichern: WARNING, ERROR und CRITICAL sowie Security-/Admin-Aktionen werden unabhängig vom Routine-Toggle in der Datenbank behalten.</p>
                     </div>
 
                 {# ── Agent ── #}

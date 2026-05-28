@@ -48,6 +48,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly string $releaseChannel,
         private readonly string $kernelEnvironment,
         private readonly bool $kernelDebug,
+        private readonly string $phpCliBinary = '',
         private readonly int $keepReleases = 2,
         private readonly ?PanelUpdateNewsPublisher $panelUpdateNewsPublisher = null,
         private readonly ?CoreReleaseChecker $coreReleaseChecker = null,
@@ -271,17 +272,20 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             }
 
             $appRoot = $this->resolveAppRoot($currentDir);
-            if (!is_file(PHP_BINARY) && !$this->commandExists(PHP_BINARY)) {
-                $this->log($logPath, 'PHP-Binary nicht gefunden. Migrationen können nicht ausgeführt werden: ' . PHP_BINARY);
+            $phpCliBinary = $this->resolvePhpCliBinary();
+            if ($phpCliBinary === null) {
+                $message = 'PHP CLI binary not found. Please set EASYWI_PHP_BIN=/usr/bin/php or /usr/bin/php8.4.';
+                $this->log($logPath, $message);
                 return new UpdateResult(
                     false,
-                    'PHP nicht gefunden.',
-                    'PHP CLI ist nicht verfügbar.',
+                    'PHP CLI nicht gefunden.',
+                    $message,
                     $logPath,
                     $this->getInstalledVersion(),
                     null,
                 );
             }
+            $this->log($logPath, 'PHP CLI binary: ' . $phpCliBinary);
 
             if (!is_file($appRoot . '/bin/console')) {
                 $this->log($logPath, 'bin/console nicht gefunden. Migrationen können nicht ausgeführt werden.');
@@ -1623,10 +1627,12 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             $this->log($logPath, 'Composer nicht gefunden oder composer.json fehlt. Schritt übersprungen.');
         }
 
-        if (!is_file(PHP_BINARY) && !$this->commandExists(PHP_BINARY)) {
-            $this->log($logPath, 'PHP-Binary nicht gefunden. Migrationen/Cache können nicht ausgeführt werden: ' . PHP_BINARY);
+        $phpCliBinary = $this->resolvePhpCliBinary();
+        if ($phpCliBinary === null) {
+            $this->log($logPath, 'PHP CLI binary not found. Please set EASYWI_PHP_BIN=/usr/bin/php or /usr/bin/php8.4.');
             return false;
         }
+        $this->log($logPath, 'PHP CLI binary: ' . $phpCliBinary);
 
         $consolePath = $appRoot . '/bin/console';
         if (!is_file($consolePath)) {
@@ -2007,7 +2013,120 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
      */
     private function buildConsoleCommand(string $name, array $arguments = []): array
     {
-        return array_merge([PHP_BINARY, 'bin/console', $name], $arguments);
+        $php = $this->resolvePhpCliBinary();
+        if ($php === null) {
+            throw new \RuntimeException('PHP CLI binary not found. Please set EASYWI_PHP_BIN=/usr/bin/php or /usr/bin/php8.4.');
+        }
+
+        return array_merge([$php, 'bin/console', $name], $arguments);
+    }
+
+    private function resolvePhpCliBinary(): ?string
+    {
+        $candidates = [];
+        $configured = trim($this->phpCliBinary);
+        if ($configured === '') {
+            $configured = trim((string) ($_SERVER['EASYWI_PHP_BIN'] ?? $_ENV['EASYWI_PHP_BIN'] ?? getenv('EASYWI_PHP_BIN') ?: ''));
+        }
+        if ($configured !== '') {
+            $candidates[] = $configured;
+        }
+
+        $phpCliBinary = trim((string) ($_SERVER['PHP_CLI_BINARY'] ?? $_ENV['PHP_CLI_BINARY'] ?? getenv('PHP_CLI_BINARY') ?: ''));
+        if ($phpCliBinary !== '') {
+            $candidates[] = $phpCliBinary;
+        }
+
+        if (defined('PHP_CLI_BINARY')) {
+            $phpCliBinaryConstant = trim((string) constant('PHP_CLI_BINARY'));
+            if ($phpCliBinaryConstant !== '') {
+                $candidates[] = $phpCliBinaryConstant;
+            }
+        }
+
+        $candidates[] = '/usr/bin/php8.4';
+        $candidates[] = '/usr/bin/php';
+        $candidates[] = '/usr/local/bin/php';
+
+        $phpFromPath = trim((string) shell_exec('command -v php 2>/dev/null'));
+        if ($phpFromPath !== '') {
+            $candidates[] = $phpFromPath;
+        }
+
+        $checked = [];
+        foreach ($candidates as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '' || isset($checked[$candidate])) {
+                continue;
+            }
+            $checked[$candidate] = true;
+
+            if ($this->isValidPhpCliBinary($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function isValidPhpCliBinary(string $candidate): bool
+    {
+        if (str_contains(strtolower($candidate), 'php-fpm')) {
+            return false;
+        }
+
+        if (!$this->isExecutableCommand($candidate)) {
+            return false;
+        }
+
+        $result = $this->runPhpSapiProbe($candidate);
+
+        return $result['exitCode'] === 0 && trim($result['output']) === 'cli';
+    }
+
+    private function isExecutableCommand(string $candidate): bool
+    {
+        if (str_contains($candidate, '/')) {
+            return is_file($candidate) && is_executable($candidate);
+        }
+
+        return $this->commandExists($candidate);
+    }
+
+    /**
+     * @return array{exitCode: int, output: string}
+     */
+    private function runPhpSapiProbe(string $candidate): array
+    {
+        if (class_exists(Process::class)) {
+            $process = new Process([$candidate, '-r', 'echo PHP_SAPI;'], null, $this->currentProcessEnvironment(), null, 10);
+            $process->run();
+
+            return [
+                'exitCode' => $process->getExitCode() ?? 1,
+                'output' => trim($process->getOutput() . $process->getErrorOutput()),
+            ];
+        }
+
+        $descriptorSpec = [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+        $process = proc_open([$candidate, '-r', 'echo PHP_SAPI;'], $descriptorSpec, $pipes, null, $this->currentProcessEnvironment());
+        if (!is_resource($process)) {
+            return ['exitCode' => 1, 'output' => ''];
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        return [
+            'exitCode' => is_int($exitCode) ? $exitCode : 1,
+            'output' => trim((string) $stdout . (string) $stderr),
+        ];
     }
 
     /**

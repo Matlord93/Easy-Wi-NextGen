@@ -148,9 +148,14 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 		_ = httpServer.Shutdown(shutdownCtx)
 	}()
 
+	listener, err := net.Listen("tcp", listen)
+	if err != nil {
+		log.Fatalf("agent service failed to bind %s: %v; another easywi-agent process may still be running", listen, err)
+	}
+
 	go func() {
 		log.Printf("agent service listening on %s", listen)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Printf("agent service failed: %v", err)
 		}
 	}()

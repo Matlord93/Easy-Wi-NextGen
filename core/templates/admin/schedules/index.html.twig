@@ -69,10 +69,16 @@
                                 <td><code>{{ schedule.source }}:{{ schedule.id }}</code></td>
                                 <td>
                                     <span class="font-medium">{{ schedule.name }}</span>
+                                    {% if schedule.payload.description is defined %}
+                                        <p class="mt-1 text-sm text-slate-500">{{ schedule.payload.description }}</p>
+                                    {% endif %}
                                     {% if not schedule.handler_active %}
                                         <p class="mt-1">
                                             <span class="ui-badge ui-badge--warning">{{ schedule.warning ?: t('admin_schedules_no_handler', locale) }}</span>
                                         </p>
+                                    {% endif %}
+                                    {% if schedule.payload.privacy_gdpr is defined and schedule.payload.privacy_gdpr %}
+                                        <p class="mt-1 text-sm text-slate-500">Diese Hintergrundjobs bereinigen Datenschutz-/GDPR-bezogene temporäre Daten. Sie können selbst entscheiden, ob diese Automatisierung aktiv ist.</p>
                                     {% endif %}
                                 </td>
                                 <td>{{ schedule.module }}</td>

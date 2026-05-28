@@ -39,6 +39,28 @@ final class GameTemplateSeedSyncServiceTest extends TestCase
         self::assertSame('overlay', $shared[3]['mode']);
     }
 
+    public function testWindroseLinuxTemplateUsesWineXvfbTasksetCommand(): void
+    {
+        $catalog = new GameTemplateSeedCatalog();
+        $template = null;
+        foreach ($catalog->listTemplates() as $candidate) {
+            if (($candidate['display_name'] ?? null) === 'Windrose Dedicated Server (Linux via Wine)') {
+                $template = $candidate;
+                break;
+            }
+        }
+
+        self::assertNotNull($template);
+        $startParams = $template['start_params'];
+        self::assertStringContainsString('cd {{INSTANCE_DIR}}', $startParams);
+        self::assertStringContainsString('xvfb-run --auto-servernum', $startParams);
+        self::assertStringContainsString("--server-args='-screen 0 1024x768x24'", $startParams);
+        self::assertStringContainsString('WINE_NO_STRICT_PROT=1', $startParams);
+        self::assertStringContainsString('taskset -c 0-11', $startParams);
+        self::assertStringContainsString('wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe', $startParams);
+        self::assertStringContainsString('-nullrhi -log', $startParams);
+    }
+
     private function createTemplate(string $gameKey, ?int $steamAppId, array $sharedPaths): Template
     {
         return new Template($gameKey, 'Test', null, $steamAppId, 'steam', [], 'run', [], [], [], [], 'install', 'update', [], [], [], [], ['linux'], [], ['shared_paths' => $sharedPaths]);

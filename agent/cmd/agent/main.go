@@ -78,11 +78,20 @@ func main() {
 		return
 	}
 
+	lock, err := system.AcquireAgentProcessLock()
+	if err != nil {
+		logger.Error(context.Background(), "agent.lock_failed", "AGENT_ALREADY_RUNNING", fmt.Sprintf("agent process lock failed: %v; if this is an update, stop easywi-agent via systemd before starting the new binary", err), nil)
+		os.Exit(1)
+	}
+	defer func() { _ = lock.Release() }()
+
 	client, err := api.NewClient(cfg.APIURL, cfg.AgentID, cfg.Secret, version)
 	if err != nil {
 		logger.Error(context.Background(), "agent.client_init_failed", "CLIENT_INIT_FAILED", fmt.Sprintf("init api client: %v", err), nil)
 		os.Exit(1)
 	}
+	client.RetryPolicy.RequestTimeout = cfg.RequestTimeout
+	client.Client = api.NewRetryHTTPClient(client.RetryPolicy)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

@@ -189,7 +189,7 @@ final class AgentApiController
         $this->entityManager->persist($agent);
         $ingested = $this->metricsIngestionService->ingestBatch($agent, [is_array($stats['metrics'] ?? null) ? $stats['metrics'] : []]);
         if ($ingested > 0) {
-            $this->auditLogger->log(null, 'agent.metrics_ingested', [
+            $this->auditLogger->log(null, 'agent.metrics.batch_recorded', [
                 'agent_id' => $agent->getId(),
                 'ingested' => $ingested,
             ]);
@@ -263,7 +263,7 @@ final class AgentApiController
         }
 
         $ingested = $this->metricsIngestionService->ingestBatch($agent, array_values(array_filter($samples, static fn ($v): bool => is_array($v))));
-        $this->auditLogger->log(null, 'agent.metrics_batch_ingested', ['agent_id' => $agent->getId(), 'ingested' => $ingested]);
+        $this->auditLogger->log(null, 'agent.metrics.batch_recorded', ['agent_id' => $agent->getId(), 'ingested' => $ingested]);
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'ok', 'ingested' => $ingested]);
@@ -631,7 +631,7 @@ final class AgentApiController
             new \App\Extension\Event\JobAfterResultEvent($job, $jobResult, $agent),
             'extension.job.after_result',
         );
-        $this->auditLogger->log(null, 'agent.job_completed', [
+        $this->auditLogger->log(null, 'agent.job.completed', [
             'agent_id' => $agent->getId(),
             'job_id' => $job->getId(),
             'status' => $resultStatus->value,

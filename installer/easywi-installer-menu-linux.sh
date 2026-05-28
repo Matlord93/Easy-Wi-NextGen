@@ -101,6 +101,18 @@ prompt_yes_no() {
   case "${value}" in j|J|ja|JA|Ja|y|Y|yes) return 0 ;; *) return 1 ;; esac
 }
 
+
+validate_agent_interval_seconds() {
+  local value="${1:-}" name="${2:-Intervall}" min="${3:-2}" max="${4:-300}"
+  [[ "${value}" =~ ^[0-9]+$ ]] || fatal "${name} muss eine Zahl zwischen ${min} und ${max} sein."
+  (( value >= min && value <= max )) || fatal "${name} muss zwischen ${min} und ${max} Sekunden liegen."
+  printf '%s' "${value}"
+}
+
+agent_interval_traffic_hint() {
+  warn "Je niedriger das Intervall, desto schneller reagiert der Agent. Auf getrennten Systemen erhöht ein niedriges Intervall den Netzwerk-Traffic zwischen Agent und Panel."
+}
+
 # ---------------------------------------------------------------------------
 # OS detection
 # ---------------------------------------------------------------------------
@@ -1484,6 +1496,7 @@ setup_certbot() {
 
 write_agent_service() {
   local instance_base_dir="$1" sftp_base_dir="$2"
+  local poll_interval_seconds="${3:-30}" heartbeat_interval_seconds="${4:-60}" request_timeout_seconds="${5:-15}"
 
   if has_systemctl; then
     cat > /etc/systemd/system/easywi-agent.service <<UNIT
@@ -1496,9 +1509,14 @@ Wants=network-online.target
 Type=simple
 Environment=EASYWI_INSTANCE_BASE_DIR=${instance_base_dir}
 Environment=EASYWI_SFTP_BASE_DIR=${sftp_base_dir}
+Environment=EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS=${poll_interval_seconds}
+Environment=EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS=${heartbeat_interval_seconds}
+Environment=EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS=${request_timeout_seconds}
 ExecStart=/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf
 Restart=on-failure
 RestartSec=5
+RuntimeDirectory=easywi-agent
+RuntimeDirectoryMode=0755
 
 [Install]
 WantedBy=multi-user.target
@@ -1515,6 +1533,9 @@ command_background=true
 pidfile="/run/easywi-agent.pid"
 export EASYWI_INSTANCE_BASE_DIR="${instance_base_dir}"
 export EASYWI_SFTP_BASE_DIR="${sftp_base_dir}"
+export EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS="${poll_interval_seconds}"
+export EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS="${heartbeat_interval_seconds}"
+export EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS="${request_timeout_seconds}"
 INIT
     chmod +x /etc/init.d/easywi-agent
     rc-update add easywi-agent default 2>/dev/null || true
@@ -2310,6 +2331,7 @@ complete_agent_registration() {
 write_agent_conf() {
   local agent_id="$1" secret="$2" api_url="$3"
   local file_base_dir="$4" sftp_base_dir="$5" bind_ips="$6"
+  local poll_interval_seconds="${7:-30}" heartbeat_interval_seconds="${8:-60}" request_timeout_seconds="${9:-15}"
 
   mapfile -t bdc < <(build_agent_base_dir_config "${file_base_dir}")
   local primary="${bdc[0]}" all_dirs="${bdc[1]}"
@@ -2320,6 +2342,9 @@ agent_id=${agent_id}
 secret=${secret}
 api_url=${api_url}
 service_listen=0.0.0.0:7456
+poll_interval=${poll_interval_seconds}s
+heartbeat_interval=${heartbeat_interval_seconds}s
+request_timeout=${request_timeout_seconds}s
 file_base_dir=${primary}
 file_base_dirs=${all_dirs}
 bind_ip_addresses=${bind_ips}
@@ -2338,6 +2363,9 @@ write_agent_conf_placeholder() {
 # secret=<SECRET>
 # api_url=https://panel.example.com
 # service_listen=0.0.0.0:7456
+# poll_interval=30s
+# heartbeat_interval=60s
+# request_timeout=15s
 # file_base_dir=/home
 # file_base_dirs=/home,/var/www
 CONF
@@ -2489,6 +2517,66 @@ install_panel() {
   printf '  ╚══════════════════════════════════════╝\n'
 }
 
+cleanup_old_easywi_agent_processes() {
+  local main_pid="0" pid exe cmdline
+  local expected_config="/etc/easywi/agent.conf"
+  if has_systemctl; then
+    main_pid="$(systemctl show --property MainPID --value easywi-agent.service 2>/dev/null || echo 0)"
+    [[ -z "${main_pid}" ]] && main_pid="0"
+  fi
+  while IFS= read -r pid; do
+    [[ -z "${pid}" || "${pid}" == "${main_pid}" || "${pid}" == "$$" ]] && continue
+    exe="$(readlink -f "/proc/${pid}/exe" 2>/dev/null || true)"
+    cmdline="$(tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null || true)"
+    if [[ "${exe}" != "/usr/local/bin/easywi-agent" ]]; then
+      continue
+    fi
+    if [[ " ${cmdline} " != *" --config ${expected_config} "* && " ${cmdline} " != *" --config=${expected_config} "* ]]; then
+      continue
+    fi
+    if [[ " ${cmdline} " == *" --wrapper "* || " ${cmdline} " == *" --self-update "* || " ${cmdline} " == *" --version "* ]]; then
+      continue
+    fi
+    warn "Beende alten manuellen EasyWI-Agent-Prozess PID ${pid} (Config ${expected_config})."
+    kill "${pid}" 2>/dev/null || true
+    sleep 1
+    kill -0 "${pid}" 2>/dev/null && kill -TERM "${pid}" 2>/dev/null || true
+  done < <(pgrep -f '(^|/)easywi-agent([[:space:]]|$)' 2>/dev/null || true)
+}
+
+
+read_agent_interval_seconds_from_conf() {
+  local key="$1" default="$2" value=""
+  if [[ -f /etc/easywi/agent.conf ]]; then
+    value="$(awk -F= -v key="${key}" 'tolower($1)==key {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}' /etc/easywi/agent.conf 2>/dev/null || true)"
+  fi
+  value="${value%s}"
+  if [[ "${value}" =~ ^[0-9]+$ ]]; then
+    validate_agent_interval_seconds "${value}" "${key}" 2 300
+  else
+    printf '%s' "${default}"
+  fi
+}
+
+ensure_agent_service_interval_environment() {
+  has_systemctl || return 0
+  local poll heartbeat timeout
+  poll="${EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS:-$(read_agent_interval_seconds_from_conf poll_interval 15)}"
+  heartbeat="${EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS:-$(read_agent_interval_seconds_from_conf heartbeat_interval 30)}"
+  timeout="${EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS:-$(read_agent_interval_seconds_from_conf request_timeout 10)}"
+  poll="$(validate_agent_interval_seconds "${poll}" "Agent-Polling-Intervall" 2 300)"
+  heartbeat="$(validate_agent_interval_seconds "${heartbeat}" "Agent-Heartbeat-Intervall" 2 300)"
+  timeout="$(validate_agent_interval_seconds "${timeout}" "Agent-Request-Timeout" 2 300)"
+  mkdir -p /etc/systemd/system/easywi-agent.service.d
+  cat > /etc/systemd/system/easywi-agent.service.d/intervals.conf <<DROPIN
+[Service]
+Environment=EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS=${poll}
+Environment=EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS=${heartbeat}
+Environment=EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS=${timeout}
+DROPIN
+}
+
+
 # ---------------------------------------------------------------------------
 # Agent install core logic
 # ---------------------------------------------------------------------------
@@ -2503,14 +2591,22 @@ install_agent() {
   # $7 agent_hostname
   # $8 bind_ips
   # $9 api_url_override – (optional) echte Panel-URL für agent.conf wenn Bootstrap über localhost läuft
+  # $10-$12 poll/heartbeat/request-timeout seconds
   local core_url="$1" bootstrap_token="$2" agent_version="$3"
   local file_base_dir="$4" sftp_base_dir="$5"
   local agent_name="$6" agent_hostname="$7" bind_ips="$8"
   local api_url_override="${9:-}"
+  local poll_interval_seconds="${10:-${EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS:-15}}"
+  local heartbeat_interval_seconds="${11:-${EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS:-30}}"
+  local request_timeout_seconds="${12:-${EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS:-10}}"
   local state_file="${EASYWI_BOOTSTRAP_STATE_FILE:-/etc/easywi/bootstrap-state.json}"
 
   # URL die in agent.conf als api_url landet – echte Panel-URL, nicht 127.0.0.1
   local api_url="${api_url_override:-${core_url}}"
+
+  poll_interval_seconds="$(validate_agent_interval_seconds "${poll_interval_seconds}" "Agent-Polling-Intervall" 2 300)"
+  heartbeat_interval_seconds="$(validate_agent_interval_seconds "${heartbeat_interval_seconds}" "Agent-Heartbeat-Intervall" 2 300)"
+  request_timeout_seconds="$(validate_agent_interval_seconds "${request_timeout_seconds}" "Agent-Request-Timeout" 2 300)"
 
   local manager; manager="$(detect_package_manager)"
   install_packages "${manager}" ca-certificates curl openssl jq
@@ -2518,6 +2614,7 @@ install_agent() {
   local arch; arch="$(detect_arch_suffix)"
   install_agent_binaries "${arch}" "${agent_version}"
   prepare_agent_dirs
+  cleanup_old_easywi_agent_processes
 
   mapfile -t bdc < <(build_agent_base_dir_config "${file_base_dir}")
   local primary_base="${bdc[0]}"
@@ -2525,7 +2622,7 @@ install_agent() {
   if [[ -z "${core_url}" ]]; then
     warn "Kein Core-URL angegeben – nur Binaries installiert, keine Registrierung."
     write_agent_conf_placeholder
-    write_agent_service "${primary_base}" "${sftp_base_dir}"
+    write_agent_service "${primary_base}" "${sftp_base_dir}" "${poll_interval_seconds}" "${heartbeat_interval_seconds}" "${request_timeout_seconds}"
     if has_systemctl; then
       systemctl daemon-reload
       systemctl enable easywi-agent.service
@@ -2565,8 +2662,9 @@ install_agent() {
 
   # agent.conf bekommt die echte Panel-URL (api_url), nicht die Bootstrap-URL (127.0.0.1)
   write_agent_conf "${agent_id}" "${agent_secret}" "${api_url}" \
-    "${file_base_dir}" "${sftp_base_dir}" "${bind_ips}"
-  write_agent_service "${primary_base}" "${sftp_base_dir}"
+    "${file_base_dir}" "${sftp_base_dir}" "${bind_ips}" \
+    "${poll_interval_seconds}" "${heartbeat_interval_seconds}" "${request_timeout_seconds}"
+  write_agent_service "${primary_base}" "${sftp_base_dir}" "${poll_interval_seconds}" "${heartbeat_interval_seconds}" "${request_timeout_seconds}"
 
   if has_systemctl; then
     systemctl daemon-reload
@@ -2602,15 +2700,22 @@ update_agent() {
     fi
   fi
 
+  cleanup_old_easywi_agent_processes
   install_agent_binaries "${arch}" "${agent_version}"
 
   if has_systemctl; then
+    ensure_agent_service_interval_environment
     systemctl daemon-reload
   fi
 
   if "${was_active}"; then
     log "Starte Agent neu."
-    service_enable_start easywi-agent
+    if has_systemctl; then
+      systemctl start easywi-agent.service 2>/dev/null || fatal "Konnte easywi-agent.service nicht starten. Prüfe: systemctl status easywi-agent.service"
+      systemctl is-active --quiet easywi-agent.service 2>/dev/null || fatal "easywi-agent.service ist nach dem Update nicht aktiv."
+    else
+      service_enable_start easywi-agent
+    fi
   fi
 
   local installed_ver="unknown"
@@ -2740,6 +2845,9 @@ INFO
   local agent_name="${EASYWI_AGENT_NAME:-}"
   local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
   local bind_ips="${EASYWI_BIND_IP_ADDRESSES:-}"
+  local poll_interval_seconds="${EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS:-15}"
+  local heartbeat_interval_seconds="${EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS:-30}"
+  local request_timeout_seconds="${EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS:-10}"
 
   [[ -z "${file_base_dir}" ]] && file_base_dir="$(detect_default_base_dirs)"
   [[ -z "${bind_ips}" ]]      && bind_ips="$(detect_primary_ipv4)"
@@ -2753,13 +2861,23 @@ INFO
   prompt_value bind_ips        "Bind-IP-Adressen (optional)"          "${bind_ips}"
   prompt_value agent_name      "Agent-Name (optional)"                "${agent_name}"
   prompt_value agent_hostname  "Agent-Hostname (optional)"            "${agent_hostname}"
+  agent_interval_traffic_hint
+  if is_tty; then
+    local requested_poll_interval
+    requested_poll_interval="$(read_from_tty "Wie oft soll der Agent neue Aufgaben beim Panel abfragen? Sekunden [${poll_interval_seconds}]: ")"
+    [[ -n "${requested_poll_interval}" ]] && poll_interval_seconds="${requested_poll_interval}"
+  fi
+  poll_interval_seconds="$(validate_agent_interval_seconds "${poll_interval_seconds}" "Agent-Polling-Intervall" 2 300)"
+  heartbeat_interval_seconds="$(validate_agent_interval_seconds "${heartbeat_interval_seconds}" "Agent-Heartbeat-Intervall" 2 300)"
+  request_timeout_seconds="$(validate_agent_interval_seconds "${request_timeout_seconds}" "Agent-Request-Timeout" 2 300)"
 
   [[ -n "${core_url}" ]] && core_url="${core_url%/}"
 
   install_agent \
     "${core_url}" "${bootstrap_token}" "${agent_version}" \
     "${file_base_dir}" "${sftp_base_dir}" \
-    "${agent_name}" "${agent_hostname}" "${bind_ips}"
+    "${agent_name}" "${agent_hostname}" "${bind_ips}" "" \
+    "${poll_interval_seconds}" "${heartbeat_interval_seconds}" "${request_timeout_seconds}"
 }
 
 run_agent_update() {
@@ -2827,6 +2945,9 @@ INFO
   local agent_name="${EASYWI_AGENT_NAME:-}"
   local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
   local bind_ips="${EASYWI_BIND_IP_ADDRESSES:-}"
+  local poll_interval_seconds="${EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS:-2}"
+  local heartbeat_interval_seconds="${EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS:-10}"
+  local request_timeout_seconds="${EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS:-10}"
 
   [[ -z "${file_base_dir}" ]] && file_base_dir="$(detect_default_base_dirs)"
   [[ -z "${bind_ips}" ]]      && bind_ips="$(detect_primary_ipv4)"
@@ -2888,6 +3009,10 @@ HDR
   prompt_value bind_ips       "Bind-IP-Adressen (optional)"              "${bind_ips}"
   prompt_value agent_name     "Agent-Name (optional)"                    "${agent_name}"
   prompt_value agent_hostname "Agent-Hostname (optional)"                "${agent_hostname}"
+  poll_interval_seconds="$(validate_agent_interval_seconds "${poll_interval_seconds}" "Agent-Polling-Intervall" 2 300)"
+  heartbeat_interval_seconds="$(validate_agent_interval_seconds "${heartbeat_interval_seconds}" "Agent-Heartbeat-Intervall" 2 300)"
+  request_timeout_seconds="$(validate_agent_interval_seconds "${request_timeout_seconds}" "Agent-Request-Timeout" 2 300)"
+  log "Gemeinsame Panel+Agent-Installation: schnelle Agent-Intervalle werden gesetzt (Polling ${poll_interval_seconds}s, Heartbeat ${heartbeat_interval_seconds}s, Timeout ${request_timeout_seconds}s)."
 
   # ── Registrierungs-Token automatisch generieren ───────────────────────────
   # Der Token wird in Panel-.env.local UND für den Agent-Bootstrap verwendet.
@@ -2941,7 +3066,8 @@ HDR
     "${bootstrap_url}" "${reg_token}" "${agent_version}" \
     "${file_base_dir}" "${sftp_base_dir}" \
     "${agent_name}" "${agent_hostname}" "${bind_ips}" \
-    "${real_panel_url}"
+    "${real_panel_url}" \
+    "${poll_interval_seconds}" "${heartbeat_interval_seconds}" "${request_timeout_seconds}"
 
   # ── Abschlussmeldung ─────────────────────────────────────────────────────
   printf '\n'

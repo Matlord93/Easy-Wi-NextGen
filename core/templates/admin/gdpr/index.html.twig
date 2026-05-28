@@ -35,6 +35,63 @@
         </div>
     </section>
 
+
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">{{ t('admin_gdpr_background_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_gdpr_background_hint', locale) }}</p>
+            </div>
+            <div class="ng-data-card__actions">
+                {% if privacyGdprSchedule.enabled %}
+                    <span class="ui-badge ui-badge--success">{{ t('admin_gdpr_background_status_active', locale) }}</span>
+                {% else %}
+                    <span class="ui-badge ui-badge--neutral">{{ t('admin_gdpr_background_status_inactive', locale) }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="ng-data-card__body" style="display:grid;gap:16px;">
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
+                <div class="tkt-kpi">
+                    <div class="tkt-kpi__label">{{ t('admin_gdpr_background_enabled', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ t(privacyGdprSchedule.enabled ? 'admin_yes' : 'admin_no', locale) }}</div>
+                </div>
+                <div class="tkt-kpi">
+                    <div class="tkt-kpi__label">{{ t('admin_gdpr_background_last_run', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ privacyGdprSchedule.last_run_at ? privacyGdprSchedule.last_run_at|date('Y-m-d H:i') : '—' }}</div>
+                </div>
+                <div class="tkt-kpi">
+                    <div class="tkt-kpi__label">{{ t('admin_gdpr_background_next_run', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ privacyGdprSchedule.next_run_at ? privacyGdprSchedule.next_run_at|date('Y-m-d H:i') : '—' }}</div>
+                </div>
+                <div class="tkt-kpi">
+                    <div class="tkt-kpi__label">{{ t('admin_gdpr_background_last_status', locale) }}</div>
+                    <div class="tkt-kpi__value">{{ privacyGdprSchedule.last_status ?: '—' }}</div>
+                </div>
+            </div>
+            {% if privacyGdprSchedule.last_error %}
+                <div class="ng-alert ng-alert--danger">{{ privacyGdprSchedule.last_error }}</div>
+            {% endif %}
+            <div style="border-radius:0.5rem;background:var(--ng-surface-soft);border:1px solid var(--ng-border);padding:0.75rem 1rem;font-size:0.875rem;color:var(--ng-text-muted);">
+                {{ t('admin_gdpr_background_notice', locale) }} {{ t('admin_gdpr_background_disable_anytime', locale) }}
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <form method="post" action="{{ path('admin_gdpr_background_jobs_toggle') }}">
+                    <input type="hidden" name="enabled" value="{{ privacyGdprSchedule.enabled ? '0' : '1' }}">
+                    <button class="ui-button ui-button--primary" type="submit">{{ t(privacyGdprSchedule.enabled ? 'admin_schedules_disable' : 'admin_schedules_enable', locale) }}</button>
+                </form>
+                {% if isSuperadmin %}
+                    <form method="post" action="{{ path('admin_gdpr_background_jobs_run_now') }}">
+                        <button class="ui-button ui-button--ghost" type="submit">{{ t('admin_gdpr_background_run_now', locale) }}</button>
+                    </form>
+                {% else %}
+                    <span class="ui-button ui-button--ghost text-slate-400 cursor-not-allowed">{{ t('admin_gdpr_background_run_now_superadmin', locale) }}</span>
+                {% endif %}
+                <a class="ui-button ui-button--ghost" href="{{ path('admin_schedules') }}">{{ t('admin_schedules_page_title', locale) }}</a>
+            </div>
+        </div>
+    </div>
+
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
@@ -97,7 +154,7 @@
             </div>
             <div class="ng-data-card__body">
                 <p style="color:var(--ng-text-muted);font-size:0.875rem;margin-bottom:0.75rem">{{ t('admin_gdpr_overview_export_intro', locale) }}</p>
-                <code class="ng-code-block">php bin/console app:gdpr:exports:process --limit=25 && php bin/console app:gdpr:exports:cleanup --limit=100</code>
+                <p style="color:var(--ng-text-muted);font-size:0.875rem;margin:0">{{ t('admin_gdpr_background_panel_managed', locale) }}</p>
             </div>
         </div>
 

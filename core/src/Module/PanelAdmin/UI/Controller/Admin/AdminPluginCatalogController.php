@@ -469,8 +469,9 @@ final class AdminPluginCatalogController
         if ($version === '') {
             $errors[] = 'Version is required.';
         }
-        if ($checksum === '') {
-            $errors[] = 'Checksum is required.';
+        $checksumError = $this->validateChecksum($checksum);
+        if ($checksumError !== null) {
+            $errors[] = $checksumError;
         }
         if ($downloadUrl === '') {
             $errors[] = 'Download URL is required.';
@@ -578,8 +579,9 @@ final class AdminPluginCatalogController
         if ($version === '') {
             $entryErrors[] = 'Version is required.';
         }
-        if ($checksum === '') {
-            $entryErrors[] = 'Checksum is required.';
+        $checksumError = $this->validateChecksum($checksum);
+        if ($checksumError !== null) {
+            $entryErrors[] = $checksumError;
         }
         if ($downloadUrl === '') {
             $entryErrors[] = 'Download URL is required.';
@@ -606,6 +608,18 @@ final class AdminPluginCatalogController
         ];
     }
 
+    private function validateChecksum(string $checksum): ?string
+    {
+        if ($checksum === '') {
+            return null;
+        }
+
+        if (preg_match('/\A(?:[a-f0-9]{32}|[a-f0-9]{40}|[a-f0-9]{64}|[a-f0-9]{128})\z/i', $checksum) === 1) {
+            return null;
+        }
+
+        return 'Checksum must be empty or a valid MD5, SHA1, SHA256, or SHA512 hex digest.';
+    }
 
     private function isValidDownloadUrl(string $downloadUrl): bool
     {
@@ -737,7 +751,7 @@ final class AdminPluginCatalogController
                 'game_key' => 'cs2',
                 'name' => 'Metamod:Source',
                 'version' => '2.0-stable',
-                'checksum' => 'manual-verification-required',
+                'checksum' => '',
                 'download_url' => 'github://alliedmodders/metamod-source/releases/latest?asset=mmsource-*-linux.tar.gz',
                 'description' => 'Core mod loader for CS2/Source2. Nach Installation muss game/csgo/gameinfo.gi den Eintrag "Game csgo/addons/metamod" enthalten (zwischen Game_LowViolence csgo_lv und Game csgo).',
             ],
@@ -745,7 +759,7 @@ final class AdminPluginCatalogController
                 'game_key' => 'cs2',
                 'name' => 'CounterStrikeSharp',
                 'version' => 'latest',
-                'checksum' => 'manual-verification-required',
+                'checksum' => '',
                 'download_url' => 'https://github.com/roflmuffin/CounterStrikeSharp/releases/latest/download/counterstrikesharp-with-runtime-build.zip',
                 'description' => 'CS2 plugin framework for C# plugins.',
             ],
@@ -753,7 +767,7 @@ final class AdminPluginCatalogController
                 'game_key' => 'rust',
                 'name' => 'uMod/Oxide for Rust',
                 'version' => 'latest',
-                'checksum' => 'manual-verification-required',
+                'checksum' => '',
                 'download_url' => 'https://github.com/OxideMod/Oxide.Rust/releases/latest/download/Oxide.Rust-linux.zip',
                 'description' => 'Most used Rust plugin framework (uMod/Oxide).',
             ],
@@ -761,7 +775,7 @@ final class AdminPluginCatalogController
                 'game_key' => 'rust',
                 'name' => 'Carbon for Rust',
                 'version' => 'latest',
-                'checksum' => 'manual-verification-required',
+                'checksum' => '',
                 'download_url' => 'https://github.com/CarbonCommunity/Carbon/releases/latest/download/Carbon.Linux.Release.tar.gz',
                 'description' => 'Alternative Rust mod framework with Oxide compatibility layer.',
             ],
@@ -769,7 +783,7 @@ final class AdminPluginCatalogController
                 'game_key' => 'minecraft',
                 'name' => 'LuckPerms',
                 'version' => 'latest',
-                'checksum' => 'manual-verification-required',
+                'checksum' => '',
                 'download_url' => 'https://download.luckperms.net/1565/bukkit/loader/LuckPerms-Bukkit-5.4.121.jar',
                 'description' => 'Popular permissions plugin for Spigot/Paper based servers.',
             ],
@@ -777,7 +791,7 @@ final class AdminPluginCatalogController
                 'game_key' => 'minecraft',
                 'name' => 'EssentialsX',
                 'version' => 'latest',
-                'checksum' => 'manual-verification-required',
+                'checksum' => '',
                 'download_url' => 'https://github.com/EssentialsX/Essentials/releases/latest/download/EssentialsX-2.21.0.jar',
                 'description' => 'Popular essentials command/admin plugin for Bukkit/Paper.',
             ],
@@ -785,7 +799,7 @@ final class AdminPluginCatalogController
                 'game_key' => 'tf2',
                 'name' => 'SourceMod',
                 'version' => 'latest',
-                'checksum' => 'manual-verification-required',
+                'checksum' => '',
                 'download_url' => 'github://alliedmodders/sourcemod/releases/latest?asset=sourcemod-*-linux.tar.gz',
                 'description' => 'TF2 plugin framework (requires Metamod).',
             ],
@@ -793,7 +807,7 @@ final class AdminPluginCatalogController
                 'game_key' => 'gmod',
                 'name' => 'ULX Admin Mod',
                 'version' => 'latest',
-                'checksum' => 'manual-verification-required',
+                'checksum' => '',
                 'download_url' => 'https://github.com/TeamUlysses/ulx/archive/refs/heads/master.zip',
                 'description' => 'Popular admin mod for Garry\'s Mod (paired with ULib).',
             ],

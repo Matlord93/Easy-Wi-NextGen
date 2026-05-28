@@ -6,10 +6,13 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\Scheduler\CentralSchedulerRunner;
 use App\Module\Core\Application\Scheduler\InternalSchedule;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\Scheduler\InternalScheduleProvider;
+use App\Module\Core\Application\Scheduler\PrivacyGdprScheduleHandler;
 use App\Module\Core\Domain\Entity\BackupSchedule;
 use App\Module\Core\Domain\Entity\InstanceSchedule;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\BackupScheduleRepository;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\ScheduledTaskRunRepository;
@@ -32,6 +35,7 @@ final class AdminScheduleController
         private readonly ScheduledTaskRunRepository $runRepository,
         private readonly BackupScheduleRepository $backupScheduleRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
+        private readonly AppSettingsService $settingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
@@ -70,10 +74,14 @@ final class AdminScheduleController
     #[Route(path: '/admin/schedules/run-now', name: 'admin_schedules_run_now', methods: ['POST'])]
     public function runNow(Request $request): JsonResponse|RedirectResponse
     {
-        $this->requireAdmin($request);
+        $actor = $this->requireAdmin($request);
         $type = (string) ($request->request->get('type') ?? '');
         $source = (string) ($request->request->get('source') ?? '');
         $id = (string) ($request->request->get('id') ?? '');
+
+        if ($type === PrivacyGdprScheduleHandler::TYPE && $actor->getType() !== UserType::Superadmin) {
+            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
+        }
 
         $result = $this->schedulerRunner->runNow($type, $source, $id, new \DateTimeImmutable());
 
@@ -104,6 +112,10 @@ final class AdminScheduleController
                 $schedule->update($schedule->getCronExpression(), $schedule->getRetentionDays(), $schedule->getRetentionCount(), $enabled, $schedule->getTimeZone(), $schedule->getCompression(), $schedule->isStopBefore());
                 $this->entityManager->persist($schedule);
             }
+        }
+
+        if ($source === 'system' && (string) ($request->request->get('id') ?? '') === PrivacyGdprScheduleHandler::SCHEDULE_ID) {
+            $this->settingsService->setPrivacyGdprJobsEnabled($enabled);
         }
 
         if ($source === 'instance_schedule') {
@@ -182,8 +194,8 @@ final class AdminScheduleController
     {
         $now = new \DateTimeImmutable();
         $since = $now->modify('-24 hours');
-        $lastRun = $this->runRepository->findLatestRun();
-        $lastHeartbeat = $lastRun?->getStartedAt();
+        $settings = $this->settingsService->getSettings();
+        $lastHeartbeat = $this->parseDate($settings[AppSettingsService::KEY_SCHEDULER_LAST_HEARTBEAT_AT] ?? null);
         $schedulerRunning = $lastHeartbeat !== null && $lastHeartbeat >= $now->modify('-5 minutes');
         $due = 0;
         foreach ($schedules as $schedule) {
@@ -203,6 +215,20 @@ final class AdminScheduleController
             'failed_24h' => $this->runRepository->countFailedSince($since),
             'created_jobs_24h' => $this->runRepository->countCreatedJobsSince($since),
         ];
+    }
+
+
+    private function parseDate(mixed $value): ?\DateTimeImmutable
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return new \DateTimeImmutable($value);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function requireAdmin(Request $request): User

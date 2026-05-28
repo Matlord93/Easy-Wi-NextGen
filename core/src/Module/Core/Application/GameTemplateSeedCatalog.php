@@ -1531,7 +1531,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ],
-                'cd {{INSTANCE_DIR}} && DISPLAY=:0 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe',
+                "cd {{INSTANCE_DIR}} && xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' env WINE_NO_STRICT_PROT=1 taskset -c 0-11 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe -nullrhi -log",
                 [
                     ['key' => 'MAX_PLAYERS', 'value' => '8'],
                 ],
@@ -1552,8 +1552,8 @@ final class GameTemplateSeedCatalog
                 ],
                 [],
                 $fastdl,
-                'bash -lc "set -e; if ! command -v wine >/dev/null 2>&1; then if command -v apt-get >/dev/null 2>&1; then export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y --no-install-recommends wine-stable screen; elif command -v dnf >/dev/null 2>&1; then dnf install -y wine screen; elif command -v yum >/dev/null 2>&1; then yum install -y wine screen; elif command -v zypper >/dev/null 2>&1; then zypper --non-interactive install wine screen; else echo \"wine is required but no supported package manager found\" >&2; exit 1; fi; fi; steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 validate +quit; cd {{INSTANCE_DIR}}; if [ ! -f R5/ServerDescription.json ]; then timeout 30s env DISPLAY=:0 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe >/dev/null 2>&1 || true; fi"',
-                'bash -lc "set -e; if ! command -v wine >/dev/null 2>&1; then if command -v apt-get >/dev/null 2>&1; then export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y --no-install-recommends wine-stable screen; elif command -v dnf >/dev/null 2>&1; then dnf install -y wine screen; elif command -v yum >/dev/null 2>&1; then yum install -y wine screen; elif command -v zypper >/dev/null 2>&1; then zypper --non-interactive install wine screen; else echo \"wine is required but no supported package manager found\" >&2; exit 1; fi; fi; steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 +quit"',
+                'bash -lc "set -e; steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 validate +quit; cd {{INSTANCE_DIR}}; export WINEPREFIX=\"{{INSTANCE_DIR}}/.wine\" WINEARCH=win64 WINEDEBUG=-all; if [ ! -d \"$WINEPREFIX\" ]; then wineboot --init >/dev/null 2>&1 || true; wineserver -w >/dev/null 2>&1 || true; fi; if [ ! -f R5/ServerDescription.json ]; then timeout 30s xvfb-run --auto-servernum --server-args=\"-screen 0 1024x768x24\" env WINE_NO_STRICT_PROT=1 taskset -c 0-11 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe -nullrhi -log >/dev/null 2>&1 || true; fi"',
+                'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 +quit',
                 [],
                 ['linux'],
             ),

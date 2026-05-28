@@ -55,6 +55,87 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         self::assertSame('zip123', $status->assetSha256);
     }
 
+    public function testEasywiPhpBinIsPreferredForConsoleCommands(): void
+    {
+        $php84 = $this->createFakePhpBinary('usr/bin/php8.4');
+        $service = $this->newWebinterfaceUpdateService([
+            'phpCliBinary' => $php84,
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService('/tmp'),
+            'manifestUrl' => 'https://example.invalid/feed.json',
+            'installDir' => '/tmp/install',
+            'releasesDir' => '/tmp/releases',
+            'currentSymlink' => '/tmp/current',
+            'lockFile' => '/tmp/lock',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'excludes' => '',
+        ]);
+
+        $command = $this->invokeBuildConsoleCommand($service, 'doctrine:migrations:migrate', ['--no-interaction']);
+
+        self::assertSame($php84, $command[0]);
+        self::assertStringContainsString('/usr/bin/php8.4', $command[0]);
+        self::assertSame('bin/console', $command[1]);
+        self::assertSame('doctrine:migrations:migrate', $command[2]);
+    }
+
+    public function testPhpFpmBinaryIsRejected(): void
+    {
+        $phpFpm = $this->createFakePhpBinary('usr/sbin/php-fpm8.4');
+        $service = $this->newWebinterfaceUpdateService([
+            'phpCliBinary' => $phpFpm,
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService('/tmp'),
+            'manifestUrl' => 'https://example.invalid/feed.json',
+            'installDir' => '/tmp/install',
+            'releasesDir' => '/tmp/releases',
+            'currentSymlink' => '/tmp/current',
+            'lockFile' => '/tmp/lock',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'excludes' => '',
+        ]);
+
+        $method = new \ReflectionMethod($service, 'isValidPhpCliBinary');
+        $method->setAccessible(true);
+
+        self::assertFalse($method->invoke($service, $phpFpm));
+    }
+
+    public function testBuildConsoleCommandUsesPhp84CliAndNeverPhpFpm(): void
+    {
+        $php84 = $this->createFakePhpBinary('usr/bin/php8.4');
+        $service = $this->newWebinterfaceUpdateService([
+            'phpCliBinary' => $php84,
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService('/tmp'),
+            'manifestUrl' => 'https://example.invalid/feed.json',
+            'installDir' => '/tmp/install',
+            'releasesDir' => '/tmp/releases',
+            'currentSymlink' => '/tmp/current',
+            'lockFile' => '/tmp/lock',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'excludes' => '',
+        ]);
+
+        $command = $this->invokeBuildConsoleCommand($service, 'doctrine:migrations:migrate', ['--no-interaction']);
+        $commandLine = implode(' ', $command);
+
+        self::assertStringContainsString('/usr/bin/php8.4', $command[0]);
+        self::assertStringNotContainsString('/usr/sbin/php-fpm8.4', $commandLine);
+    }
+
     /**
      * @param array<string, mixed> $namedOverrides
      */
@@ -98,6 +179,35 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         $service = $reflection->newInstanceArgs($args);
 
         return $service;
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @return list<string>
+     */
+    private function invokeBuildConsoleCommand(WebinterfaceUpdateService $service, string $name, array $arguments = []): array
+    {
+        $method = new \ReflectionMethod($service, 'buildConsoleCommand');
+        $method->setAccessible(true);
+
+        return $method->invoke($service, $name, $arguments);
+    }
+
+    private function createFakePhpBinary(string $relativePath): string
+    {
+        $path = sys_get_temp_dir() . '/easywi-php-bin-test-' . bin2hex(random_bytes(6)) . '/' . $relativePath;
+        mkdir(dirname($path), 0770, true);
+        file_put_contents($path, <<<'PHP_SCRIPT'
+#!/bin/sh
+if [ "$1" = "-r" ]; then
+    echo -n "cli"
+    exit 0
+fi
+exit 0
+PHP_SCRIPT);
+        chmod($path, 0770);
+
+        return $path;
     }
 
     private function tryInstantiateDependency(string $className): object|null

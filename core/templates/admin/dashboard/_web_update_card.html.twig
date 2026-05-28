@@ -1,5 +1,5 @@
 {% set isRunning = coreUpdate.latestJob and coreUpdate.latestJob.status in ['pending', 'running'] %}
-<div id="core-update-card" class="ng-card" style="overflow:hidden;"{% if isRunning %} hx-get="/admin/updates/webinterface/check" hx-trigger="every 3s" hx-target="#core-update-card" hx-swap="outerHTML"{% endif %}>
+<div id="core-update-card" class="ng-card" style="overflow:hidden;"{% if isRunning %} hx-post="/admin/updates/job/{{ coreUpdate.latestJob.id }}/tick" hx-vals='{{ {csrf_token: coreUpdate.csrf.tick}|json_encode|e('html_attr') }}' hx-trigger="load, every 2s" hx-target="#core-update-card" hx-swap="outerHTML"{% endif %}>
 
     {# ── Card Header ── #}
     <div style="padding:20px 24px 0;">
@@ -195,7 +195,7 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
                 <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_id', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.id }}</span></div>
                 <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_status', page_locale()) }}
-                    <span style="font-weight:700;color:{% if coreUpdate.latestJob.status in ['done', 'finished'] %}#4ade80{% elseif coreUpdate.latestJob.status == 'failed' %}#f87171{% else %}var(--ng-text){% endif %};">{{ coreUpdate.latestJob.status }}</span>
+                    <span style="font-weight:700;color:{% if coreUpdate.latestJob.status == 'success' %}#4ade80{% elseif coreUpdate.latestJob.status == 'failed' %}#f87171{% else %}var(--ng-text){% endif %};">{{ coreUpdate.latestJob.status }}</span>
                 </div>
                 <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_type', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);">{{ coreUpdate.latestJob.type }}</span></div>
                 <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_exit', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.exitCode ?? '—' }}</span></div>

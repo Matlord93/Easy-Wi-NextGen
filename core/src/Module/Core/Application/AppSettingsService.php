@@ -80,6 +80,16 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_VOICE_PROBE_CACHE_SECONDS = 'voice_probe_cache_seconds';
     public const KEY_VOICE_PROBE_COOLDOWN_SECONDS = 'voice_probe_cooldown_seconds';
     public const KEY_SECURITY_MAX_CONCURRENT_SESSIONS = 'security_max_concurrent_sessions';
+    public const KEY_PRIVACY_GDPR_JOBS_ENABLED = 'privacy_gdpr_jobs_enabled';
+    public const KEY_PRIVACY_GDPR_JOBS_INTERVAL = 'privacy_gdpr_jobs_interval';
+    public const KEY_PRIVACY_GDPR_LAST_RUN_AT = 'privacy_gdpr_last_run_at';
+    public const KEY_PRIVACY_GDPR_LAST_STATUS = 'privacy_gdpr_last_status';
+    public const KEY_PRIVACY_GDPR_LAST_ERROR = 'privacy_gdpr_last_error';
+    public const KEY_DATABASE_LOGGING_STORE_ROUTINE = 'database_logging_store_routine';
+    public const KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS = 'database_logging_routine_retention_days';
+    public const KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS = 'database_logging_error_retention_days';
+    public const KEY_SCHEDULER_LAST_HEARTBEAT_AT = 'scheduler_last_heartbeat_at';
+    public const KEY_SCHEDULER_LAST_HEARTBEAT_STATUS = 'scheduler_last_heartbeat_status';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
 <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
@@ -194,6 +204,16 @@ TWIG;
         self::KEY_VOICE_PROBE_CACHE_SECONDS => 45,
         self::KEY_VOICE_PROBE_COOLDOWN_SECONDS => 10,
         self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS => 5,
+        self::KEY_PRIVACY_GDPR_JOBS_ENABLED => false,
+        self::KEY_PRIVACY_GDPR_JOBS_INTERVAL => '0 3 * * *',
+        self::KEY_PRIVACY_GDPR_LAST_RUN_AT => null,
+        self::KEY_PRIVACY_GDPR_LAST_STATUS => null,
+        self::KEY_PRIVACY_GDPR_LAST_ERROR => null,
+        self::KEY_DATABASE_LOGGING_STORE_ROUTINE => false,
+        self::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS => 30,
+        self::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS => 180,
+        self::KEY_SCHEDULER_LAST_HEARTBEAT_AT => null,
+        self::KEY_SCHEDULER_LAST_HEARTBEAT_STATUS => null,
     ];
 
     private const SECRET_KEYS = [
@@ -735,6 +755,8 @@ TWIG;
                 self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT,
                 self::KEY_MAILER_VERIFY_TLS,
                 self::KEY_MAIL_ENABLED,
+                self::KEY_PRIVACY_GDPR_JOBS_ENABLED,
+                self::KEY_DATABASE_LOGGING_STORE_ROUTINE,
             ], true)) {
                 $value = (bool) $value;
             }
@@ -776,12 +798,18 @@ TWIG;
                 self::KEY_METRICS_INSTANCE_RETENTION_DAYS,
                 self::KEY_VOICE_PROBE_CACHE_SECONDS,
                 self::KEY_VOICE_PROBE_COOLDOWN_SECONDS,
+                self::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS,
+                self::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS,
             ], true)) {
                 $value = is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[$key];
             }
 
             if ($key === self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS) {
                 $value = is_numeric($value) ? max(0, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS];
+            }
+
+            if ($key === self::KEY_PRIVACY_GDPR_JOBS_INTERVAL) {
+                $value = is_string($value) && $value !== '' ? $value : self::DEFAULTS[self::KEY_PRIVACY_GDPR_JOBS_INTERVAL];
             }
 
             $normalized[$key] = $value;
@@ -858,6 +886,58 @@ TWIG;
     public function getAntiAbuseDailyIpLimit(): int
     {
         return (int) ($this->getSettings()[self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT] ?? 20);
+    }
+
+
+    public function isPrivacyGdprJobsEnabled(): bool
+    {
+        return (bool) ($this->getSettings()[self::KEY_PRIVACY_GDPR_JOBS_ENABLED] ?? false);
+    }
+
+    public function getPrivacyGdprJobsInterval(): string
+    {
+        $value = $this->getSettings()[self::KEY_PRIVACY_GDPR_JOBS_INTERVAL] ?? self::DEFAULTS[self::KEY_PRIVACY_GDPR_JOBS_INTERVAL];
+
+        return is_string($value) && $value !== '' ? $value : self::DEFAULTS[self::KEY_PRIVACY_GDPR_JOBS_INTERVAL];
+    }
+
+    public function setPrivacyGdprJobsEnabled(bool $enabled): void
+    {
+        $this->updateSettings([self::KEY_PRIVACY_GDPR_JOBS_ENABLED => $enabled]);
+    }
+
+    public function markPrivacyGdprJobsRun(string $status, ?string $error = null, ?\DateTimeImmutable $now = null): void
+    {
+        $now ??= new \DateTimeImmutable();
+        $this->updateSettings([
+            self::KEY_PRIVACY_GDPR_LAST_RUN_AT => $now->format(DATE_ATOM),
+            self::KEY_PRIVACY_GDPR_LAST_STATUS => $status,
+            self::KEY_PRIVACY_GDPR_LAST_ERROR => $error,
+        ]);
+    }
+
+    public function shouldStoreRoutineDatabaseLogs(): bool
+    {
+        return (bool) ($this->getSettings()[self::KEY_DATABASE_LOGGING_STORE_ROUTINE] ?? false);
+    }
+
+    public function getDatabaseLoggingRoutineRetentionDays(): int
+    {
+        return max(1, (int) ($this->getSettings()[self::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS] ?? 30));
+    }
+
+    public function getDatabaseLoggingErrorRetentionDays(): int
+    {
+        return max(1, (int) ($this->getSettings()[self::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS] ?? 180));
+    }
+
+    public function markSchedulerHeartbeat(string $status, ?\DateTimeImmutable $now = null): void
+    {
+        $now ??= new \DateTimeImmutable();
+        $this->updateSettings([
+            self::KEY_SCHEDULER_LAST_HEARTBEAT_AT => $now->format(DATE_ATOM),
+            self::KEY_SCHEDULER_LAST_HEARTBEAT_STATUS => $status,
+        ]);
     }
 
     /**

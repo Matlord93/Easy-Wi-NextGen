@@ -21,6 +21,7 @@ type Config struct {
 	BootstrapToken    string
 	PollInterval      time.Duration
 	HeartbeatInterval time.Duration
+	RequestTimeout    time.Duration
 	MaxConcurrency    int
 	Version           string
 	UpdateURL         string
@@ -108,6 +109,11 @@ func Load(path string) (cfg Config, err error) {
 			cfg.HeartbeatInterval, err = time.ParseDuration(value)
 			if err != nil {
 				return Config{}, fmt.Errorf("parse heartbeat_interval: %w", err)
+			}
+		case "request_timeout":
+			cfg.RequestTimeout, err = time.ParseDuration(value)
+			if err != nil {
+				return Config{}, fmt.Errorf("parse request_timeout: %w", err)
 			}
 		case "max_concurrency":
 			parsed, parseErr := strconv.Atoi(value)
@@ -201,12 +207,33 @@ func Load(path string) (cfg Config, err error) {
 		return Config{}, fmt.Errorf("scan config: %w", err)
 	}
 
+	applyEnvOverrides(&cfg)
+
 	if err := validate(cfg); err != nil {
 		return Config{}, err
 	}
 
 	applyDefaults(&cfg)
 	return cfg, nil
+}
+
+func applyEnvOverrides(cfg *Config) {
+	applySecondsEnv := func(name string, target *time.Duration) {
+		value := strings.TrimSpace(os.Getenv(name))
+		if value == "" {
+			return
+		}
+		seconds, err := strconv.Atoi(value)
+		if err != nil || seconds <= 0 {
+			fmt.Fprintf(os.Stderr, "warning: ignoring invalid %s=%q\n", name, value)
+			return
+		}
+		*target = time.Duration(seconds) * time.Second
+	}
+
+	applySecondsEnv("EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS", &cfg.PollInterval)
+	applySecondsEnv("EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS", &cfg.HeartbeatInterval)
+	applySecondsEnv("EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS", &cfg.RequestTimeout)
 }
 
 func validate(cfg Config) error {
@@ -228,6 +255,9 @@ func validate(cfg Config) error {
 	}
 	if cfg.HeartbeatInterval < 0 {
 		return errors.New("heartbeat_interval must be positive")
+	}
+	if cfg.RequestTimeout < 0 {
+		return errors.New("request_timeout must be positive")
 	}
 	if cfg.MaxConcurrency < 0 {
 		return errors.New("max_concurrency must be positive")
@@ -261,6 +291,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.HeartbeatInterval == 0 {
 		cfg.HeartbeatInterval = 60 * time.Second
+	}
+	if cfg.RequestTimeout == 0 {
+		cfg.RequestTimeout = 15 * time.Second
 	}
 	if cfg.MaxConcurrency == 0 {
 		cfg.MaxConcurrency = max(2, runtime.NumCPU())

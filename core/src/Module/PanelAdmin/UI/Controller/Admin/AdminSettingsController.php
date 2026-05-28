@@ -78,6 +78,8 @@ final class AdminSettingsController
         $maintenanceStartsRaw = trim((string) $request->request->get('cms_maintenance_starts_at', ''));
         $maintenanceEndsRaw = trim((string) $request->request->get('cms_maintenance_ends_at', ''));
         $maintenanceAllowlistRaw = trim((string) $request->request->get('cms_maintenance_allowlist', ''));
+        $routineRetentionRaw = trim((string) $request->request->get('database_logging_routine_retention_days', '30'));
+        $errorRetentionRaw = trim((string) $request->request->get('database_logging_error_retention_days', '180'));
         $errors = [];
         if ($sftpPortRaw !== '' && !is_numeric($sftpPortRaw)) {
             $errors[] = 'SFTP port must be numeric.';
@@ -156,6 +158,15 @@ final class AdminSettingsController
             }
         }
 
+        if ($activeTab === 'logging') {
+            if (!is_numeric($routineRetentionRaw) || (int) $routineRetentionRaw < 1) {
+                $errors[] = 'Routine log retention must be at least 1 day.';
+            }
+            if (!is_numeric($errorRetentionRaw) || (int) $errorRetentionRaw < 1) {
+                $errors[] = 'Error log retention must be at least 1 day.';
+            }
+        }
+
         if ($errors !== []) {
             return new Response($this->twig->render('admin/settings/index.html.twig', [
                 'activeNav' => 'settings',
@@ -219,6 +230,11 @@ final class AdminSettingsController
                 AppSettingsService::KEY_ANTI_ABUSE_POW_DIFFICULTY => $powDifficultyRaw,
                 AppSettingsService::KEY_ANTI_ABUSE_DAILY_IP_LIMIT => $dailyIpLimitRaw,
             ],
+            'logging' => [
+                AppSettingsService::KEY_DATABASE_LOGGING_STORE_ROUTINE => $request->request->get('database_logging_store_routine') === '1',
+                AppSettingsService::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS => $routineRetentionRaw,
+                AppSettingsService::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS => $errorRetentionRaw,
+            ],
             'maintenance' => [
                 AppSettingsService::KEY_CMS_MAINTENANCE_ENABLED => $request->request->get('cms_maintenance_enabled') === '1',
                 AppSettingsService::KEY_CMS_MAINTENANCE_MESSAGE => trim((string) $request->request->get('cms_maintenance_message', '')),
@@ -272,7 +288,7 @@ final class AdminSettingsController
     private function resolveTab(string $tab): string
     {
         $tab = strtolower(trim($tab));
-        $allowed = ['general', 'email', 'gameserver', 'customer', 'security', 'maintenance', 'agent', 'mail_templates'];
+        $allowed = ['general', 'email', 'gameserver', 'customer', 'security', 'maintenance', 'logging', 'agent', 'mail_templates'];
 
         return in_array($tab, $allowed, true) ? $tab : 'general';
     }

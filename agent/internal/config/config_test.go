@@ -150,3 +150,59 @@ func TestLoadRejectsNegativeConcurrency(t *testing.T) {
 		t.Fatalf("Load() error = %q, want max_concurrency validation", err)
 	}
 }
+
+func TestLoadAppliesAgentIntervalEnvOverrides(t *testing.T) {
+	t.Setenv("EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS", "2")
+	t.Setenv("EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS", "10")
+	t.Setenv("EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS", "10")
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "agent.conf")
+	if err := os.WriteFile(configPath, []byte(strings.Join([]string{
+		"agent_id=agent-123",
+		"secret=super-secret",
+		"api_url=https://api.example.test",
+		"poll_interval=45s",
+		"heartbeat_interval=90s",
+		"request_timeout=20s",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.PollInterval != 2*time.Second {
+		t.Fatalf("PollInterval = %v, want %v", cfg.PollInterval, 2*time.Second)
+	}
+	if cfg.HeartbeatInterval != 10*time.Second {
+		t.Fatalf("HeartbeatInterval = %v, want %v", cfg.HeartbeatInterval, 10*time.Second)
+	}
+	if cfg.RequestTimeout != 10*time.Second {
+		t.Fatalf("RequestTimeout = %v, want %v", cfg.RequestTimeout, 10*time.Second)
+	}
+}
+
+func TestLoadInvalidAgentIntervalEnvFallsBackToConfig(t *testing.T) {
+	t.Setenv("EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS", "bad")
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "agent.conf")
+	if err := os.WriteFile(configPath, []byte(strings.Join([]string{
+		"agent_id=agent-123",
+		"secret=super-secret",
+		"api_url=https://api.example.test",
+		"poll_interval=45s",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.PollInterval != 45*time.Second {
+		t.Fatalf("PollInterval = %v, want %v", cfg.PollInterval, 45*time.Second)
+	}
+}

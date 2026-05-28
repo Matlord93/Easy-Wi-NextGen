@@ -70,6 +70,18 @@ parameters:
   app.status_stale_grace_seconds_default: '20'
   app.status_stale_grace_seconds: >-
     %env(int:default:app.status_stale_grace_seconds_default:APP_STATUS_STALE_GRACE_SECONDS)%
+
+  database_logging.drop_info_events:
+    - scheduler.heartbeat
+    - audit_event_instance_query_checked
+    - instance.query.checked
+    - agent.heartbeat
+    - agent.metrics_ingested
+    - agent.metrics_batch_ingested
+    - agent.metrics.batch_recorded
+    - agent.job_completed
+    - agent.job.completed
+    - public_server.status_checked
   app.hosting_panel_secret_key_default: ''
   app.identifier_hash_pepper_default: 'change_this_identifier_pepper'
   app.hosting_panel_secret_key: '%env(default:app.hosting_panel_secret_key_default:APP_HOSTING_PANEL_SECRET_KEY)%'
@@ -84,12 +96,15 @@ services:
     bind:
       string $projectDir: '%kernel.project_dir%'
       string $kernelEnvironment: '%kernel.environment%'
+      $dropInfoEvents: '%database_logging.drop_info_events%'
 
 
 
   _instanceof:
     App\Module\Core\Application\Scheduler\ScheduleHandlerInterface:
       tags: ['app.schedule_handler']
+
+  App\Module\Core\Application\PrivacyGdprBackgroundJobRunnerInterface: '@App\Module\Core\Application\PrivacyGdprBackgroundJobService'
 
   App\Module\Core\Application\Scheduler\ScheduleHandlerRegistry:
     arguments:
@@ -199,6 +214,8 @@ services:
       $workflowFile: '%app.core_update_workflow%'
       $token: '%app.core_update_token%'
 
+  App\Module\Setup\Application\WebinterfaceUpdateServiceInterface: '@App\Module\Setup\Application\WebinterfaceUpdateService'
+
   App\Module\Setup\Application\WebinterfaceUpdateService:
     arguments:
       $httpClient: '@http_client'
@@ -209,15 +226,18 @@ services:
       $currentSymlink: '%app.core_update_current_symlink%'
       $lockFile: '%app.core_update_lock_file%'
       $excludes: '%app.core_update_excludes%'
-      $keepReleases: '%app.core_update_keep_releases%'
       $fallbackVersion: '%app.core_version%'
       $releaseRepository: '%app.core_release_repository%'
       $releaseChannel: '%app.core_release_channel%'
       $kernelEnvironment: '%kernel.environment%'
       $kernelDebug: '%kernel.debug%'
+      $phpCliBinary: '%env(default::EASYWI_PHP_BIN)%'
+      $keepReleases: '%app.core_update_keep_releases%'
       $panelUpdateNewsPublisher: '@App\Module\Core\Application\PanelUpdateNewsPublisher'
       $coreReleaseChecker: '@App\Module\Core\Application\CoreReleaseChecker'
       $githubToken: '%app.core_update_token%'
+
+  App\Module\Core\Application\UpdateJobServiceInterface: '@App\Module\Core\Application\UpdateJobService'
 
   App\Module\Core\Application\UpdateJobService:
     arguments:

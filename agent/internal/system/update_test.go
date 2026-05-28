@@ -123,3 +123,20 @@ func createZipWithFile(t *testing.T, archivePath, fileName, content string) {
 		t.Fatalf("write zip entry: %v", err)
 	}
 }
+
+func TestPlanRestartUsesSystemdWhenServiceIsActive(t *testing.T) {
+	plan := planRestart("/usr/local/bin/easywi-agent", []string{"--config", "/etc/easywi/agent.conf"}, "linux", false, true)
+	if plan.mode != restartModeSystemd {
+		t.Fatalf("mode = %v, want systemd", plan.mode)
+	}
+	if plan.name != "systemctl" || strings.Join(plan.args, " ") != "restart --no-block easywi-agent.service" {
+		t.Fatalf("unexpected systemd restart command: %s %v", plan.name, plan.args)
+	}
+}
+
+func TestPlanRestartAvoidsManualStartWhenSupervisorOwnsProcess(t *testing.T) {
+	plan := planRestart("/usr/local/bin/easywi-agent", nil, "linux", true, false)
+	if plan.mode != restartModeSupervisorExit {
+		t.Fatalf("mode = %v, want supervisor exit", plan.mode)
+	}
+}

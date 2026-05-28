@@ -1028,6 +1028,13 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if !validationRequired {
 		log.Printf("start_validation_skipped mode=%s", validationMode)
 	}
+	if isWindroseTemplate(job.Payload, renderedStartParams) {
+		log.Printf("windrose_start_command=%s", maskSensitiveValues(renderedStartParams, templateValues))
+		if err := runWindrosePreflight(instanceDir, job.Payload, renderedStartParams); err != nil {
+			markSharedFailure(err)
+			return failureResult(job.ID, err)
+		}
+	}
 	startScriptPath, err := writeStartScript(userHomeDir, renderedStartParams)
 	if err != nil {
 		markSharedFailure(err)

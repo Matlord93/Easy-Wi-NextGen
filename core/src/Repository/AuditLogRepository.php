@@ -93,6 +93,24 @@ class AuditLogRepository extends ServiceEntityRepository
         return $this->findRecentSummaries($limit);
     }
 
+
+    /** @param list<string> $actions */
+    public function deleteRoutineActionsOlderThan(array $actions, \DateTimeImmutable $cutoff): int
+    {
+        if ($actions === []) {
+            return 0;
+        }
+
+        return (int) $this->createQueryBuilder('audit')
+            ->delete()
+            ->andWhere('audit.action IN (:actions)')
+            ->andWhere('audit.createdAt < :cutoff')
+            ->setParameter('actions', $actions)
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->execute();
+    }
+
     /**
      * @param list<string> $actions
      * @return AuditLog[]

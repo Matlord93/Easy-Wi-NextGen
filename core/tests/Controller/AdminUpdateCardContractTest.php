@@ -48,8 +48,59 @@ final class AdminUpdateCardContractTest extends TestCase
     public function testUpdateCardPollsOnlyWhenJobIsRunning(): void
     {
         $template = (string) file_get_contents(__DIR__.'/../../templates/admin/dashboard/_web_update_card.html.twig');
-        self::assertStringContainsString('hx-trigger="every 3s"', $template);
-        self::assertStringContainsString('{% if isRunning %} hx-get="/admin/updates/webinterface/check"', $template);
+        self::assertStringContainsString('hx-trigger="load, every 2s"', $template);
+        self::assertStringContainsString('{% if isRunning %} hx-post="/admin/updates/job/{{ coreUpdate.latestJob.id }}/tick"', $template);
+        self::assertStringContainsString('hx-vals=', $template);
+        self::assertStringContainsString('coreUpdate.csrf.tick', $template);
+    }
+
+
+    public function testTickEndpointIsCsrfProtectedAndUsesProcessor(): void
+    {
+        $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelAdmin/UI/Controller/Admin/AdminUpdateController.php');
+        self::assertStringContainsString("new CsrfToken('admin_update_tick_' . $id", $controller);
+        self::assertStringContainsString('$this->csrfTokenManager->isTokenValid($token)', $controller);
+        self::assertStringContainsString('$this->tickProcessor->tick($id)', $controller);
+    }
+
+    public function testCreateJobDoesNotTriggerRunner(): void
+    {
+        $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelAdmin/UI/Controller/Admin/AdminUpdateController.php');
+        $createStart = strpos($controller, 'public function createJob');
+        $tickStart = strpos($controller, 'public function tickJob');
+        self::assertIsInt($createStart);
+        self::assertIsInt($tickStart);
+        $createJobBody = substr($controller, $createStart, $tickStart - $createStart);
+        self::assertStringNotContainsString('triggerRunner', $createJobBody);
+        self::assertStringNotContainsString('markJobFailedToStart', $createJobBody);
+    }
+
+    public function testNoRunnerRequirementTextIsRenderedInUpdateTranslations(): void
+    {
+        $translations = (string) file_get_contents(__DIR__.'/../../translations/portal.de.yaml')
+            . (string) file_get_contents(__DIR__.'/../../translations/portal.en.yaml');
+        self::assertStringNotContainsString('easywi-core-runner', $translations);
+        self::assertStringNotContainsString('APP_CORE_UPDATE_RUNNER', $translations);
+        self::assertStringContainsString('Panel-Updates werden ohne Runner verarbeitet', $translations);
+    }
+
+    public function testPanelTickProcessorUsesPerJobFlockAndWorkflowSteps(): void
+    {
+        $processor = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Application/PanelUpdateTickProcessor.php');
+        self::assertStringContainsString("'/' . $jobId . '.lock'", $processor);
+        self::assertStringContainsString('flock($handle, LOCK_EX | LOCK_NB)', $processor);
+        self::assertStringContainsString("'update' => ['apply_update']", $processor);
+        self::assertStringContainsString("'migrate' => ['apply_migrations']", $processor);
+        self::assertStringContainsString("'both' => ['apply_update', 'apply_migrations']", $processor);
+        self::assertStringContainsString('legacySynchronousSteps', $processor);
+        self::assertStringContainsString('set_time_limit(self::TICK_TIME_LIMIT_SECONDS)', $processor);
+    }
+
+    public function testPollingStopsForSuccessAndFailedJobs(): void
+    {
+        $template = (string) file_get_contents(__DIR__.'/../../templates/admin/dashboard/_web_update_card.html.twig');
+        self::assertStringContainsString("coreUpdate.latestJob.status in ['pending', 'running']", $template);
+        self::assertStringContainsString('{% if isRunning %}', $template);
     }
 
     public function testUpdateControllerSetsNoStoreCacheHeaders(): void
