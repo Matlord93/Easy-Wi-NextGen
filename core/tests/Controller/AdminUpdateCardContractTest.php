@@ -58,7 +58,7 @@ final class AdminUpdateCardContractTest extends TestCase
     public function testTickEndpointIsCsrfProtectedAndUsesProcessor(): void
     {
         $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelAdmin/UI/Controller/Admin/AdminUpdateController.php');
-        self::assertStringContainsString("new CsrfToken('admin_update_tick_' . $id", $controller);
+        self::assertStringContainsString("new CsrfToken('admin_update_tick_' . \$id", $controller);
         self::assertStringContainsString('$this->csrfTokenManager->isTokenValid($token)', $controller);
         self::assertStringContainsString('$this->tickProcessor->tick($id)', $controller);
     }
