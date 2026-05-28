@@ -55,4 +55,22 @@ final class AgentJobsMigrationCollationTest extends TestCase
         self::assertStringContainsString('ALTER TABLE agent_jobs CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci', $migration);
         self::assertStringContainsString('ALTER TABLE agent_jobs MODIFY node_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL', $migration);
     }
+
+    public function testAgentJobsMigrationNormalisesAgentsIdCollationBeforeForeignKey(): void
+    {
+        $migration = self::migrationSql();
+
+        self::assertStringContainsString(
+            'ALTER TABLE agents MODIFY id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL',
+            $migration
+        );
+    }
+
+    public function testAgentJobsMigrationSkipsForeignKeyWhenAgentsTableAbsent(): void
+    {
+        $migration = self::migrationSql();
+
+        self::assertStringContainsString("tableExists('agents')", $migration);
+        self::assertMatchesRegularExpression("/tableExists\('agents'\)[^}]+return;/s", $migration);
+    }
 }
