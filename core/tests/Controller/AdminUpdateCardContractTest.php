@@ -64,6 +64,6 @@ final class AdminUpdateCardContractTest extends TestCase
         self::assertStringContainsString('private function htmxRefresh(): Response', $controller);
         self::assertStringContainsString("'HX-Refresh' => 'true'", $controller);
         self::assertStringContainsString('private function htmxRedirect(string $url): Response', $controller);
-        self::assertStringContainsString("'HX-Redirect' => $url", $controller);
+        self::assertStringContainsString('\'HX-Redirect\' => $url', $controller);
     }
 }
