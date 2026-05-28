@@ -87,7 +87,7 @@ final class AdminUpdateCardContractTest extends TestCase
     public function testPanelTickProcessorUsesPerJobFlockAndWorkflowSteps(): void
     {
         $processor = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Application/PanelUpdateTickProcessor.php');
-        self::assertStringContainsString("'/' . $jobId . '.lock'", $processor);
+        self::assertStringContainsString("'/' . \$jobId . '.lock'", $processor);
         self::assertStringContainsString('flock($handle, LOCK_EX | LOCK_NB)', $processor);
         self::assertStringContainsString("'update' => ['apply_update']", $processor);
         self::assertStringContainsString("'migrate' => ['apply_migrations']", $processor);
