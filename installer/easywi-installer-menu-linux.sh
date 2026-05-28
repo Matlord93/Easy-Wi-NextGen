@@ -2540,7 +2540,9 @@ cleanup_old_easywi_agent_processes() {
     warn "Beende alten manuellen EasyWI-Agent-Prozess PID ${pid} (Config ${expected_config})."
     kill "${pid}" 2>/dev/null || true
     sleep 1
-    kill -0 "${pid}" 2>/dev/null && kill -TERM "${pid}" 2>/dev/null || true
+    if kill -0 "${pid}" 2>/dev/null; then
+      kill -TERM "${pid}" 2>/dev/null || true
+    fi
   done < <(pgrep -f '(^|/)easywi-agent([[:space:]]|$)' 2>/dev/null || true)
 }
 
