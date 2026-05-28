@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: AuditLogRepository::class)]
 #[ORM\Table(name: 'audit_logs')]
+#[ORM\Index(name: 'idx_audit_logs_action_created_at', columns: ['action', 'created_at'])]
 class AuditLog
 {
     #[ORM\Id]

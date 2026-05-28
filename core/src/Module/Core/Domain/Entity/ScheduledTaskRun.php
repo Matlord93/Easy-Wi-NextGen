@@ -11,6 +11,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'scheduled_task_runs')]
 #[ORM\Index(name: 'idx_scheduled_task_runs_schedule', columns: ['schedule_source', 'schedule_id', 'started_at'])]
 #[ORM\Index(name: 'idx_scheduled_task_runs_type', columns: ['type', 'started_at'])]
+#[ORM\Index(name: 'idx_scheduled_task_runs_status_started_at', columns: ['status', 'started_at'])]
 class ScheduledTaskRun
 {
     #[ORM\Id]

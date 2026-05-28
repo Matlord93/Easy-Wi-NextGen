@@ -79,7 +79,8 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 
 	missingMain := missingDebPackages(windroseMainPackages())
 	missingLibGD := missingDebPackages([]string{"libgd3:amd64", "libgd3:i386"})
-	if archChanged || keyChanged || sourceChanged || len(missingMain) > 0 || len(missingLibGD) > 0 {
+	wineInstalled := isDebPackageInstalled("winehq-stable") || isDebPackageInstalled("winehq-staging")
+	if archChanged || keyChanged || sourceChanged || len(missingMain) > 0 || len(missingLibGD) > 0 || !wineInstalled {
 		if _, err := runWindroseCommand("apt-get", []string{"update"}, debianNonInteractiveEnv(), output); err != nil {
 			return err
 		}
@@ -96,6 +97,12 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 		appendOutput(output, "windrose_packages_installed="+strings.Join(missingMain, ","))
 	} else {
 		appendOutput(output, "windrose_packages_installed=none")
+	}
+
+	if !wineInstalled {
+		if err := ensureWindroseWineHQ(output); err != nil {
+			return err
+		}
 	}
 	libGDPackages := []string{"libgd3:amd64", "libgd3:i386"}
 	if len(missingLibGD) > 0 || archChanged || sourceChanged {
@@ -119,7 +126,113 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 }
 
 func windroseMainPackages() []string {
-	return []string{"winehq-stable", "screen", "xvfb", "xauth", "util-linux", "procps", "cabextract", "unzip", "p7zip-full", "curl", "wget", "ca-certificates", "tar", "fonts-liberation"}
+	return []string{"screen", "xvfb", "xauth", "util-linux", "procps", "cabextract", "unzip", "p7zip-full", "curl", "wget", "ca-certificates", "tar", "fonts-liberation"}
+}
+
+// ensureWindroseWineHQ installs WineHQ, trying winehq-stable first and
+// falling back to winehq-staging when stable has unresolvable dependencies
+// (a known issue on newer Debian releases such as trixie).
+// When both fail outright the i386 dummy fallback is attempted.
+func ensureWindroseWineHQ(output *strings.Builder) error {
+	for _, pkg := range []string{"winehq-stable", "winehq-staging"} {
+		if isDebPackageInstalled(pkg) {
+			appendOutput(output, "windrose_wine="+pkg+":already_installed")
+			return nil
+		}
+		args := []string{"install", "-y", "--install-recommends", pkg}
+		if _, err := runWindroseCommand("apt-get", args, debianNonInteractiveEnv(), output); err != nil {
+			appendOutput(output, "windrose_wine_package_failed="+pkg)
+			continue
+		}
+		appendOutput(output, "windrose_wine="+pkg+":installed")
+		return nil
+	}
+	// Both direct installs failed (most likely wine-staging-i386 is absent from the
+	// WineHQ trixie repo). Create a dummy i386 package that satisfies the dependency
+	// and retry with winehq-staging.
+	return ensureWindroseWineWithI386Dummy(output)
+}
+
+// windroseBuildDummyDebFn is injectable for tests.
+var windroseBuildDummyDebFn = defaultBuildWineI386DummyDeb
+
+// ensureWindroseWineWithI386Dummy creates a dummy wine-staging-i386 .deb that
+// satisfies the multi-arch dependency, installs it, then installs winehq-staging.
+func ensureWindroseWineWithI386Dummy(output *strings.Builder) error {
+	version := detectWineStagingAmd64Version(output)
+	if version == "" {
+		return fmt.Errorf("failed to install WineHQ: tried winehq-stable and winehq-staging; " +
+			"cannot detect wine-staging-amd64 version for i386 dummy workaround — check WineHQ repository")
+	}
+	appendOutput(output, "windrose_wine_i386_dummy_version="+version)
+
+	debPath, cleanup, err := windroseBuildDummyDebFn("wine-staging-i386", version)
+	if err != nil {
+		return fmt.Errorf("build wine-staging-i386 dummy: %w", err)
+	}
+	defer cleanup()
+
+	if _, err := runWindroseCommand("dpkg", []string{"-i", debPath}, nil, output); err != nil {
+		return fmt.Errorf("install wine-staging-i386 dummy: %w", err)
+	}
+	appendOutput(output, "windrose_wine_i386_dummy_installed=true")
+
+	args := []string{"install", "-y", "--install-recommends", "winehq-staging"}
+	if _, err := runWindroseCommand("apt-get", args, debianNonInteractiveEnv(), output); err != nil {
+		return fmt.Errorf("install winehq-staging with i386 dummy: %w", err)
+	}
+	appendOutput(output, "windrose_wine=winehq-staging:installed_with_i386_dummy")
+	return nil
+}
+
+// detectWineStagingAmd64Version asks apt-cache for the version of
+// wine-staging-amd64, which equals the required wine-staging-i386 version.
+func detectWineStagingAmd64Version(output *strings.Builder) string {
+	out, err := windroseDepsRunner.Run("apt-cache", []string{"show", "wine-staging-amd64"}, nil)
+	if err != nil {
+		appendOutput(output, "windrose_wine_amd64_version_detect=failed")
+		return ""
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "Version:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "Version:"))
+		}
+	}
+	return ""
+}
+
+// defaultBuildWineI386DummyDeb builds a minimal i386 .deb for pkgName at version
+// using dpkg-deb (always available on Debian). Returns the .deb path and a
+// cleanup func that removes the temp files.
+func defaultBuildWineI386DummyDeb(pkgName, version string) (string, func(), error) {
+	tmpDir, err := os.MkdirTemp("", "easywi-wine-dummy-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(tmpDir) }
+
+	if err := os.Mkdir(filepath.Join(tmpDir, "DEBIAN"), 0o755); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("create DEBIAN dir: %w", err)
+	}
+	control := "Package: " + pkgName + "\n" +
+		"Version: " + version + "\n" +
+		"Architecture: i386\n" +
+		"Installed-Size: 0\n" +
+		"Maintainer: easywi-agent\n" +
+		"Description: Dummy package to satisfy wine i386 multi-arch dependency\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "DEBIAN", "control"), []byte(control), 0o644); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("write control file: %w", err)
+	}
+
+	debPath := filepath.Join(tmpDir, pkgName+"_"+version+"_i386.deb")
+	out, err := exec.Command("dpkg-deb", "--build", tmpDir, debPath).CombinedOutput()
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("dpkg-deb --build: %w: %s", err, string(out))
+	}
+	return debPath, cleanup, nil
 }
 
 var wineHQUbuntuSource = func(codename string) (string, string) {
