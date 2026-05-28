@@ -1,6 +1,6 @@
 ---
 name: Bug report / Fehlermeldung
-about / Über: Create a report to help us improve / Erstellen Sie eine Meldung, um uns bei der Verbesserung zu helfen
+about: Create a report to help us improve / Erstellen Sie eine Meldung, um uns bei der Verbesserung zu helfen
 title: "[BUG] "
 labels: bug
 assignees: ''
