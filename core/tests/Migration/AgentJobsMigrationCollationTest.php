@@ -36,6 +36,23 @@ final class AgentJobsMigrationCollationTest extends TestCase
     {
         $migration = self::migrationSql();
 
+        self::assertStringNotContainsString('utf8mb4_uca1400_ai_ci', strtolower($migration));
         self::assertStringNotContainsString('uca1400', strtolower($migration));
+    }
+
+    public function testAgentJobsMigrationHandlesFailedEmptyPartialTable(): void
+    {
+        $migration = self::migrationSql();
+
+        self::assertStringContainsString("SELECT COUNT(*) FROM %s", $migration);
+        self::assertStringContainsString("DROP TABLE agent_jobs", $migration);
+    }
+
+    public function testAgentJobsMigrationRepairsNonEmptyPartialTableCollation(): void
+    {
+        $migration = self::migrationSql();
+
+        self::assertStringContainsString('ALTER TABLE agent_jobs CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci', $migration);
+        self::assertStringContainsString('ALTER TABLE agent_jobs MODIFY node_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL', $migration);
     }
 }
