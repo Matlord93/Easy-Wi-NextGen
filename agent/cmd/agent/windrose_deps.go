@@ -106,11 +106,17 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 	}
 	libGDPackages := []string{"libgd3:amd64", "libgd3:i386"}
 	if len(missingLibGD) > 0 || archChanged || sourceChanged {
-		args := append([]string{"install", "-y", "--allow-downgrades"}, libGDPackages...)
+		pkgsToInstall := libGDPackages
+		// Pin both architectures to the same version to avoid Multi-Arch: same
+		// conflicts when the amd64 package is newer than the i386 candidate.
+		if v := debPackageCandidateVersion("libgd3:i386"); v != "" {
+			pkgsToInstall = []string{"libgd3:amd64=" + v, "libgd3:i386=" + v}
+		}
+		args := append([]string{"install", "-y", "--allow-downgrades"}, pkgsToInstall...)
 		if _, err := runWindroseCommand("apt-get", args, debianNonInteractiveEnv(), output); err != nil {
 			return err
 		}
-		appendOutput(output, "windrose_libgd_installed="+strings.Join(libGDPackages, ","))
+		appendOutput(output, "windrose_libgd_installed="+strings.Join(pkgsToInstall, ","))
 	} else {
 		appendOutput(output, "windrose_libgd_installed=already_present")
 	}
@@ -387,6 +393,25 @@ func isDebPackageInstalled(pkg string) bool {
 func isDebPackageAvailable(pkg string) bool {
 	_, err := windroseDepsRunner.Run("apt-cache", []string{"show", pkg}, nil)
 	return err == nil
+}
+
+// debPackageCandidateVersion returns the apt candidate version for pkg by
+// parsing "apt-cache policy" output, or "" if unavailable.
+func debPackageCandidateVersion(pkg string) string {
+	out, err := windroseDepsRunner.Run("apt-cache", []string{"policy", pkg}, nil)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(out, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Candidate:") {
+			v := strings.TrimSpace(strings.TrimPrefix(trimmed, "Candidate:"))
+			if v != "(none)" {
+				return v
+			}
+		}
+	}
+	return ""
 }
 
 func logWindroseRuntimeTools(output *strings.Builder) {

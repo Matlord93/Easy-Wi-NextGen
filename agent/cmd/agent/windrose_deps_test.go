@@ -47,6 +47,13 @@ func (f *fakeWindroseRunner) Run(name string, args []string, env []string) (stri
 			}
 			return "", errors.New("not available")
 		}
+		if len(args) == 2 && args[0] == "policy" {
+			pkg := args[1]
+			if v, ok := f.outputs["apt-cache policy "+pkg]; ok {
+				return v, nil
+			}
+			return "", errors.New("not available")
+		}
 		pkg := args[len(args)-1]
 		if f.available[pkg] {
 			return "Package: " + pkg, nil
@@ -384,5 +391,35 @@ func TestWindroseDebianInstallsRequiredPackagesAndAddsI386(t *testing.T) {
 	}
 	if len(requests) != 2 || requests[0] != "/wine-builds/winehq.key" || requests[1] != "/wine-builds/debian/dists/trixie/winehq-trixie.sources" {
 		t.Fatalf("unexpected downloads: %v", requests)
+	}
+}
+
+func TestWindroseLibGD3PinnedToI386CandidateVersion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("managed"))
+	}))
+	defer server.Close()
+	runner := &fakeWindroseRunner{
+		installed: map[string]bool{},
+		available: map[string]bool{},
+		outputs: map[string]string{
+			"apt-cache policy libgd3:i386": "libgd3:i386:\n  Installed: (none)\n  Candidate: 2.3.3-13\n",
+		},
+		paths: map[string]string{"wine": "/usr/bin/wine", "xvfb-run": "/usr/bin/xvfb-run", "taskset": "/usr/bin/taskset", "screen": "/usr/bin/screen"},
+	}
+	_, _ = setupWindroseDepsTest(t, runner, "ID=debian\nVERSION_CODENAME=trixie\n", server)
+	oldWineSource := wineHQDebianSource
+	wineHQDebianSource = func(codename string) (string, string) {
+		return server.URL + "/wine-builds/debian/dists/trixie/winehq-trixie.sources", filepath.Join(wineHQSourceDir, "winehq-"+codename+".sources")
+	}
+	t.Cleanup(func() { wineHQDebianSource = oldWineSource })
+
+	var output strings.Builder
+	if err := ensureWindroseWineDependencies(&output); err != nil {
+		t.Fatalf("ensure failed: %v\n%s", err, output.String())
+	}
+	joined := strings.Join(runner.commands, "\n")
+	if !strings.Contains(joined, "apt-get install -y --allow-downgrades libgd3:amd64=2.3.3-13 libgd3:i386=2.3.3-13") {
+		t.Fatalf("expected version-pinned libgd3 install, got:\n%s", joined)
 	}
 }
