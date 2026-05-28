@@ -1,4 +1,5 @@
-<div id="core-update-card" class="ng-card" style="overflow:hidden;">
+{% set isRunning = coreUpdate.latestJob and coreUpdate.latestJob.status in ['pending', 'running'] %}
+<div id="core-update-card" class="ng-card" style="overflow:hidden;"{% if isRunning %} hx-get="/admin/updates/webinterface/check" hx-trigger="every 3s" hx-target="#core-update-card" hx-swap="outerHTML"{% endif %}>
 
     {# ── Card Header ── #}
     <div style="padding:20px 24px 0;">
@@ -126,7 +127,7 @@
                 </label>
                 <span style="font-size:13px;color:var(--ng-text);">{{ coreUpdate.autoEnabled ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</span>
             </form>
-            <p style="margin:6px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_web_update_auto_hint', page_locale())|replace({'app:update:auto': '<code style="border-radius:4px;background:var(--ng-surface);padding:1px 4px;font-family:monospace;">app:update:auto</code>'})|raw }}</p>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_web_update_internal_scheduler_hint', page_locale()) }}</p>
         </div>
         <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
             <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('update_auto_migrate_label', page_locale()) }}</p>
@@ -179,6 +180,14 @@
         </div>
     {% endif %}
 
+    <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+        <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_updates_release_retention_title', page_locale()) }}</p>
+        <p style="margin:0;font-size:12px;color:var(--ng-text);">{{ t('admin_updates_release_retention_count', page_locale())|replace({'%count%': coreUpdate.releaseRetentionCount|default(2)}) }}</p>
+        {% if coreUpdate.releaseStorageBytes is defined %}
+            <p style="margin:6px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_updates_release_retention_storage', page_locale())|replace({'%bytes%': coreUpdate.releaseStorageBytes}) }}</p>
+        {% endif %}
+    </div>
+
     {# ── Last Job ── #}
     <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
         <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_last_job', page_locale()) }}</p>
@@ -201,13 +210,22 @@
     </div>
 
     {# ── Update Log ── #}
-    <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
-        <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_update_logs', page_locale()) }}</p>
-        <pre style="margin:0;max-height:200px;overflow:auto;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface);padding:12px;font-size:11px;color:var(--ng-text);line-height:1.6;">{{ coreUpdate.logLines|join("\n") }}</pre>
+    <div style="margin:8px 24px 0;padding:10px 12px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
+        <details {% if isRunning %}open{% endif %}>
+            <summary style="cursor:pointer;list-style:none;font-size:12px;color:var(--ng-text);font-weight:600;">
+                {{ isRunning ? t('update_logs_hide', page_locale()) : t('update_logs_show', page_locale()) }}
+            </summary>
+            <p style="margin:8px 0 6px;font-size:11px;color:var(--ng-text-muted);">{{ t('update_logs_tail_hint', page_locale())|replace({'%count%': 50}) }}</p>
+            {% if coreUpdate.logLines is empty %}
+                <p style="margin:0;font-size:11px;color:var(--ng-text-muted);">{{ t('update_logs_empty', page_locale()) }}</p>
+            {% else %}
+                <pre style="margin:0;max-height:200px;overflow:auto;overflow-x:auto;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface);padding:8px;font-size:11px;color:var(--ng-text);line-height:1.45;white-space:pre;word-break:normal;">{{ coreUpdate.logLines|join("\n") }}</pre>
+            {% endif %}
+        </details>
     </div>
 
     {# ── Rollback ── #}
-    {% if coreUpdate.backups is not empty %}
+    {% if coreUpdate.rollbackAvailable and coreUpdate.backups is not empty %}
         <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
             <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_rollback', page_locale()) }}</p>
             <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
@@ -225,11 +243,15 @@
         </div>
     {% endif %}
 
-    {# ── Cron / Automation ── #}
+    {# ── Internal Automation ── #}
     <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
-        <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_updates_cron_section', page_locale()) }}</p>
-        <p style="margin:0 0 8px;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_updates_crontab_instruction', page_locale()) }}</p>
-        <pre style="margin:0;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface);padding:10px 12px;font-size:11px;color:var(--ng-text);overflow:auto;">{{ coreUpdate.cronCommand }}</pre>
+        <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_updates_internal_scheduler_section', page_locale()) }}</p>
+        <p style="margin:0;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_updates_internal_scheduler_description', page_locale()) }}</p>
+        <p style="margin:8px 0 0;font-size:12px;color:var(--ng-text);">{{ t('admin_updates_internal_scheduler_status', page_locale()) }}: <strong>{{ t('admin_updates_internal_scheduler_registered', page_locale()) }}</strong></p>
+        <p style="margin:4px 0 0;font-size:12px;color:var(--ng-text);">{{ t('update_auto_enabled_label', page_locale()) }}: <strong>{{ coreUpdate.autoEnabled ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</strong></p>
+        {% if coreUpdate.latestJob and coreUpdate.latestJob.finishedAt is defined and coreUpdate.latestJob.finishedAt %}
+            <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_updates_internal_scheduler_last_run', page_locale()) }}: {{ coreUpdate.latestJob.finishedAt|date('Y-m-d H:i:s') }}</p>
+        {% endif %}
     </div>
 
 

@@ -50,7 +50,10 @@ final class UpdateRunCommand extends Command
         $jobPath = rtrim($this->updateJobService->getJobsDir(), '/') . '/' . $jobId . '.json';
         file_put_contents($jobPath, (string) json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
 
-        $result = $this->updateService->applyUpdate();
+        $type = (string) ($job['type'] ?? 'update');
+        $job['lastStep'] = 'dispatch';
+        file_put_contents($jobPath, (string) json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        $result = $this->runJobByType($type, $job, $jobPath);
 
         $job = $this->updateJobService->getJob($jobId) ?? $job;
         $job['status'] = $result->success ? 'success' : 'failed';
@@ -63,5 +66,41 @@ final class UpdateRunCommand extends Command
         file_put_contents($jobPath, (string) json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
 
         return $result->success ? Command::SUCCESS : Command::FAILURE;
+    }
+
+    /**
+     * @param array<string,mixed> $job
+     */
+    private function runJobByType(string $type, array $job, string $jobPath): \App\Module\Core\Update\UpdateResult
+    {
+        return match ($type) {
+            'update' => $this->runStep($job, $jobPath, 'update', fn () => $this->updateService->applyUpdate()),
+            'migrate' => $this->runStep($job, $jobPath, 'migrate', fn () => $this->updateService->applyMigrations()),
+            'both' => $this->runBoth($job, $jobPath),
+            'rollback' => new \App\Module\Core\Update\UpdateResult(false, 'Rollback ist aktuell nicht implementiert.', 'rollback_not_implemented', $job['logPath'] ?? null, null, null),
+            default => new \App\Module\Core\Update\UpdateResult(false, 'Unbekannter Job-Typ.', 'unknown_job_type: ' . $type, $job['logPath'] ?? null, null, null),
+        };
+    }
+
+    /** @param array<string,mixed> $job */
+    private function runBoth(array $job, string $jobPath): \App\Module\Core\Update\UpdateResult
+    {
+        $updateResult = $this->runStep($job, $jobPath, 'update', fn () => $this->updateService->applyUpdate());
+        if (!$updateResult->success) {
+            return new \App\Module\Core\Update\UpdateResult(false, 'Update fehlgeschlagen, Migration wurde nicht gestartet.', $updateResult->error ?? 'update_failed', $updateResult->logPath, $updateResult->currentVersion, $updateResult->latestVersion);
+        }
+
+        return $this->runStep($job, $jobPath, 'migrate', fn () => $this->updateService->applyMigrations());
+    }
+
+    /**
+     * @param array<string,mixed> $job
+     * @param callable():\App\Module\Core\Update\UpdateResult $callback
+     */
+    private function runStep(array $job, string $jobPath, string $step, callable $callback): \App\Module\Core\Update\UpdateResult
+    {
+        $job['lastStep'] = $step;
+        file_put_contents($jobPath, (string) json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        return $callback();
     }
 }

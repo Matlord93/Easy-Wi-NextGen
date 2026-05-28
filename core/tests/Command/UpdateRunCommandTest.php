@@ -14,7 +14,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 final class UpdateRunCommandTest extends TestCase
 {
-    public function testSuccessfulRunTransitionsToSuccess(): void
+    public function testRunsUpdateType(): void
     {
         $dir = sys_get_temp_dir() . '/update-run-test-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -33,7 +33,8 @@ final class UpdateRunCommandTest extends TestCase
         });
 
         $updateService = $this->createMock(WebinterfaceUpdateServiceInterface::class);
-        $updateService->method('applyUpdate')->willReturn(new UpdateResult(true, 'ok', null, $dir . '/result.log', '1', '2'));
+        $updateService->expects(self::once())->method('applyUpdate')->willReturn(new UpdateResult(true, 'ok', null, $dir . '/result.log', '1', '2'));
+        $updateService->expects(self::never())->method('applyMigrations');
 
         $command = new UpdateRunCommand($jobService, $updateService);
         $tester = new CommandTester($command);
@@ -45,13 +46,13 @@ final class UpdateRunCommandTest extends TestCase
         self::assertNotEmpty($written['startedAt']);
     }
 
-    public function testFailedRunTransitionsToFailed(): void
+    public function testRunsMigrateType(): void
     {
         $dir = sys_get_temp_dir() . '/update-run-test-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
         $jobId = 'job-failed';
         $jobPath = $dir . '/' . $jobId . '.json';
-        file_put_contents($jobPath, json_encode(['id' => $jobId, 'status' => 'pending', 'logPath' => $dir . '/log.log'], JSON_PRETTY_PRINT));
+        file_put_contents($jobPath, json_encode(['id' => $jobId, 'status' => 'pending', 'type' => 'migrate', 'logPath' => $dir . '/log.log'], JSON_PRETTY_PRINT));
 
         $jobService = $this->createMock(UpdateJobServiceInterface::class);
         $jobService->method('getJobsDir')->willReturn($dir);
@@ -64,7 +65,8 @@ final class UpdateRunCommandTest extends TestCase
         });
 
         $updateService = $this->createMock(WebinterfaceUpdateServiceInterface::class);
-        $updateService->method('applyUpdate')->willReturn(new UpdateResult(false, 'no', 'boom', $dir . '/result.log', '1', '2'));
+        $updateService->expects(self::never())->method('applyUpdate');
+        $updateService->expects(self::once())->method('applyMigrations')->willReturn(new UpdateResult(false, 'no', 'boom', $dir . '/result.log', '1', '2'));
 
         $command = new UpdateRunCommand($jobService, $updateService);
         $tester = new CommandTester($command);
@@ -74,5 +76,47 @@ final class UpdateRunCommandTest extends TestCase
         self::assertSame('failed', $written['status']);
         self::assertSame(1, $written['exitCode']);
         self::assertSame('boom', $written['error']);
+    }
+
+    public function testBothStopsWhenUpdateFails(): void
+    {
+        $dir = sys_get_temp_dir() . '/update-run-test-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        $jobId = 'job-both';
+        $jobPath = $dir . '/' . $jobId . '.json';
+        file_put_contents($jobPath, json_encode(['id' => $jobId, 'status' => 'pending', 'type' => 'both', 'logPath' => $dir . '/log.log'], JSON_PRETTY_PRINT));
+        $jobService = $this->mockJobService($jobPath, $jobId, $dir);
+        $updateService = $this->createMock(WebinterfaceUpdateServiceInterface::class);
+        $updateService->expects(self::once())->method('applyUpdate')->willReturn(new UpdateResult(false, 'no', 'boom', $dir . '/result.log', '1', '2'));
+        $updateService->expects(self::never())->method('applyMigrations');
+        $tester = new CommandTester(new UpdateRunCommand($jobService, $updateService));
+        self::assertSame(Command::FAILURE, $tester->execute(['job-id' => $jobId]));
+    }
+
+    public function testUnknownTypeFails(): void
+    {
+        $dir = sys_get_temp_dir() . '/update-run-test-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        $jobId = 'job-unknown';
+        $jobPath = $dir . '/' . $jobId . '.json';
+        file_put_contents($jobPath, json_encode(['id' => $jobId, 'status' => 'pending', 'type' => 'wat', 'logPath' => $dir . '/log.log'], JSON_PRETTY_PRINT));
+        $jobService = $this->mockJobService($jobPath, $jobId, $dir);
+        $updateService = $this->createMock(WebinterfaceUpdateServiceInterface::class);
+        $tester = new CommandTester(new UpdateRunCommand($jobService, $updateService));
+        self::assertSame(Command::FAILURE, $tester->execute(['job-id' => $jobId]));
+    }
+
+    private function mockJobService(string $jobPath, string $jobId, string $dir): UpdateJobServiceInterface
+    {
+        $jobService = $this->createMock(UpdateJobServiceInterface::class);
+        $jobService->method('getJobsDir')->willReturn($dir);
+        $jobService->method('getJob')->willReturnCallback(static function (string $id) use ($jobPath, $jobId): ?array {
+            if ($id !== $jobId) {
+                return null;
+            }
+            $decoded = json_decode((string) file_get_contents($jobPath), true);
+            return is_array($decoded) ? $decoded : null;
+        });
+        return $jobService;
     }
 }

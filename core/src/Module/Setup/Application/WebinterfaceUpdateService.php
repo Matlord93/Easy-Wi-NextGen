@@ -43,6 +43,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly string $currentSymlink,
         private readonly string $lockFile,
         private readonly string $excludes,
+        private readonly int $keepReleases = 2,
         private readonly string $fallbackVersion,
         private readonly string $releaseRepository,
         private readonly string $releaseChannel,
@@ -53,6 +54,16 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly ?string $githubToken = null,
         private readonly ?LoggerInterface $logger = null,
     ) {
+    }
+
+    public function getKeepReleasesCount(): int
+    {
+        return $this->normalizeKeepReleases($this->keepReleases);
+    }
+
+    public function getReleasesDirSizeBytes(): int
+    {
+        return $this->calculateDirectorySize($this->releasesDir);
     }
 
     public function checkForUpdate(bool $force = false): UpdateStatus
@@ -1406,8 +1417,111 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         symlink($releaseDir, $this->currentSymlink);
         $this->log($logPath, 'Symlink auf neue Version gesetzt: ' . $releaseDir);
+        $this->cleanupOldReleases($releaseDir, $logPath);
 
         return true;
+    }
+
+    private function cleanupOldReleases(string $currentReleaseDir, string $logPath): void
+    {
+        $keepReleases = $this->normalizeKeepReleases($this->keepReleases);
+        $releasesRoot = realpath($this->releasesDir);
+        if ($releasesRoot === false || !is_dir($releasesRoot)) {
+            return;
+        }
+
+        $currentTarget = realpath($currentReleaseDir) ?: $currentReleaseDir;
+        $entries = [];
+        foreach (new \DirectoryIterator($releasesRoot) as $fileInfo) {
+            if (!$fileInfo->isDir() || $fileInfo->isDot()) {
+                continue;
+            }
+
+            $name = $fileInfo->getFilename();
+            if (preg_match('/^[0-9A-Za-z._-]+$/', $name) !== 1) {
+                continue;
+            }
+
+            $entries[] = [
+                'name' => $name,
+                'path' => $fileInfo->getPathname(),
+                'realpath' => realpath($fileInfo->getPathname()) ?: $fileInfo->getPathname(),
+                'mtime' => $fileInfo->getMTime(),
+            ];
+        }
+
+        usort($entries, static fn (array $a, array $b): int => $b['mtime'] <=> $a['mtime']);
+        $this->log($logPath, sprintf('Release-Cleanup: %d Release-Ordner gefunden.', count($entries)));
+
+        $keepPaths = [$currentTarget => true];
+        foreach ($entries as $entry) {
+            if (count($keepPaths) >= $keepReleases) {
+                break;
+            }
+            $keepPaths[$entry['realpath']] = true;
+        }
+
+        $this->log($logPath, 'Release-Cleanup: behalten: ' . implode(', ', array_keys($keepPaths)));
+
+        foreach ($entries as $entry) {
+            $path = $entry['path'];
+            $real = realpath($path);
+            if ($real === false || isset($keepPaths[$real])) {
+                continue;
+            }
+
+            if (!$this->isPathInside($real, $releasesRoot) || $real === realpath($this->installDir) || $real === realpath($this->currentSymlink)) {
+                $this->log($logPath, 'Release-Cleanup: übersprungen (Sicherheitscheck): ' . $path);
+                continue;
+            }
+
+            try {
+                $this->removeDirectory($real);
+                $this->log($logPath, 'Release-Cleanup: gelöscht: ' . $real);
+            } catch (\Throwable $exception) {
+                $this->logger?->warning('update.release_cleanup_failed', ['path' => $real, 'exception' => $exception]);
+                $this->log($logPath, 'Release-Cleanup: Warnung, Löschen fehlgeschlagen: ' . $real);
+            }
+        }
+    }
+
+    private function normalizeKeepReleases(int $value): int
+    {
+        if ($value <= 0) {
+            return 2;
+        }
+
+        return max(1, $value);
+    }
+
+    private function isPathInside(string $path, string $baseDir): bool
+    {
+        $normalizedPath = rtrim(str_replace('\\', '/', $path), '/');
+        $normalizedBase = rtrim(str_replace('\\', '/', $baseDir), '/');
+
+        return $normalizedPath === $normalizedBase || str_starts_with($normalizedPath, $normalizedBase . '/');
+    }
+
+    private function calculateDirectorySize(string $directory): int
+    {
+        $root = realpath($directory);
+        if ($root === false || !is_dir($root)) {
+            return 0;
+        }
+
+        $size = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST,
+        );
+
+        foreach ($iterator as $item) {
+            if ($item instanceof \SplFileInfo && $item->isFile()) {
+                $size += (int) $item->getSize();
+            }
+        }
+
+        return $size;
     }
 
     private function deployInPlace(string $sourceDir, string $version, string $logPath, array $excludes): bool

@@ -31,6 +31,8 @@ parameters:
   app.core_update_lock_file: '%env(APP_CORE_UPDATE_LOCK_FILE)%'
   app.core_update_excludes_default: '.env,config/local*,var/,storage/,uploads/,vendor/'
   app.core_update_excludes: '%env(default:app.core_update_excludes_default:APP_CORE_UPDATE_EXCLUDES)%'
+  app.core_update_keep_releases_default: '2'
+  app.core_update_keep_releases: '%env(int:default:app.core_update_keep_releases_default:APP_CORE_UPDATE_KEEP_RELEASES)%'
   app.core_update_jobs_dir_default: '%kernel.project_dir%/srv/update/jobs'
   app.core_update_logs_dir_default: '%kernel.project_dir%/srv/update/logs'
   app.core_update_backups_dir_default: '%kernel.project_dir%/srv/update/backups'
@@ -81,6 +83,7 @@ services:
     autoconfigure: true
     bind:
       string $projectDir: '%kernel.project_dir%'
+      string $kernelEnvironment: '%kernel.environment%'
 
 
 
@@ -206,6 +209,7 @@ services:
       $currentSymlink: '%app.core_update_current_symlink%'
       $lockFile: '%app.core_update_lock_file%'
       $excludes: '%app.core_update_excludes%'
+      $keepReleases: '%app.core_update_keep_releases%'
       $fallbackVersion: '%app.core_version%'
       $releaseRepository: '%app.core_release_repository%'
       $releaseChannel: '%app.core_release_channel%'

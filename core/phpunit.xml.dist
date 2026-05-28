@@ -43,6 +43,7 @@
     <env name="APP_CORE_UPDATE_REPOSITORY" value="Matlord93/Easy-Wi-NextGen" force="true"/>
     <env name="APP_CORE_UPDATE_PACKAGE_URL" value="" force="true"/>
     <env name="APP_CORE_UPDATE_RUNNER" value="/usr/local/bin/easywi-core-runner" force="true"/>
+    <env name="APP_CORE_UPDATE_KEEP_RELEASES" value="2" force="true"/>
     <env name="APP_CORE_UPDATE_EXCLUDES" value=".env,config/local*,var/,storage/,uploads/" force="true"/>
     <env name="APP_CORE_UPDATE_JOBS_DIR" value="/workspace/webinterface/core/srv/update/jobs" force="true"/>
     <env name="APP_CORE_UPDATE_LOGS_DIR" value="/workspace/webinterface/core/srv/update/logs" force="true"/>

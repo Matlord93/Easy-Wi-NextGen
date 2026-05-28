@@ -145,28 +145,137 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
 
     public function triggerRunner(string $jobId): bool
     {
-        $commands = [];
-        if (trim($this->runnerCommand) !== '') {
-            $commands[] = sprintf('%s --run-job %s', $this->runnerCommand, escapeshellarg($jobId));
+        $commandData = $this->buildDetachedPhpFallbackCommand($jobId);
+        if ($commandData === null) {
+            $this->logger->warning('update.runner_php_fallback_unavailable', [
+                'job_id' => $jobId,
+                'php_binary' => PHP_BINARY,
+                'core_dir' => $this->coreDir,
+                'console' => rtrim($this->coreDir, '/') . '/bin/console',
+            ]);
+
+            return false;
         }
-        $commands[] = sprintf('%s bin/console app:update:run %s --no-interaction', escapeshellarg(PHP_BINARY), escapeshellarg($jobId));
 
-        foreach ($commands as $command) {
-            try {
-                $process = Process::fromShellCommandline($command, $this->coreDir, ['EASYWI_PHP_BIN' => PHP_BINARY], null, null);
-                $process->start();
+        try {
+            $process = Process::fromShellCommandline($commandData['shell_command']);
+            $process->setTimeout(15);
+            $process->run();
 
-                return true;
-            } catch (\Throwable $exception) {
+            if (!$process->isSuccessful()) {
                 $this->logger->warning('update.runner_failed', [
                     'job_id' => $jobId,
-                    'command' => $command,
-                    'exception' => $exception,
+                    'command' => $commandData['safe_command'],
+                    'error_output' => $process->getErrorOutput(),
+                    'output' => $process->getOutput(),
+                ]);
+
+                return false;
+            }
+
+            $pid = trim($process->getOutput());
+            if (!preg_match('/^\d+$/', $pid) || (int) $pid <= 0) {
+                $this->logger->warning('update.runner_failed', [
+                    'job_id' => $jobId,
+                    'command' => $commandData['safe_command'],
+                    'output' => $process->getOutput(),
+                    'error_output' => $process->getErrorOutput(),
+                ]);
+
+                return false;
+            }
+
+            $this->logger->info('update.runner_started', [
+                'job_id' => $jobId,
+                'pid' => (int) $pid,
+                'command' => $commandData['safe_command'],
+                'jobs_dir' => $this->jobsDir,
+                'log_path' => $commandData['log_path'],
+            ]);
+
+            usleep(500000);
+            $job = $this->getJob($jobId);
+            if (is_array($job) && ($job['status'] ?? 'pending') === 'pending') {
+                $this->logger->warning('update.runner_started_but_job_still_pending', [
+                    'job_id' => $jobId,
+                    'pid' => (int) $pid,
+                    'jobs_dir' => $this->jobsDir,
+                    'log_path' => $commandData['log_path'],
                 ]);
             }
+
+            return true;
+        } catch (\Throwable $exception) {
+            $this->logger->warning('update.runner_failed', [
+                'job_id' => $jobId,
+                'command' => $commandData['safe_command'],
+                'exception' => $exception,
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * @return array{shell_command: string, safe_command: string, log_path: string}|null
+     */
+    private function buildDetachedPhpFallbackCommand(string $jobId): ?array
+    {
+        if (!is_dir($this->coreDir)) {
+            return null;
         }
 
-        return false;
+        $consolePath = rtrim($this->coreDir, '/') . '/bin/console';
+        if (!is_file($consolePath)) {
+            return null;
+        }
+
+        $phpBinary = PHP_BINARY;
+        if ($phpBinary === '') {
+            return null;
+        }
+
+        if (!is_executable($phpBinary) && !$this->commandExists($phpBinary)) {
+            return null;
+        }
+
+        $job = $this->getJob($jobId);
+        $jobLogPath = is_array($job) && is_string($job['logPath'] ?? null) && $job['logPath'] !== ''
+            ? $job['logPath']
+            : rtrim($this->logsDir, '/') . '/' . $jobId . '.log';
+
+        $escapedCoreDir = escapeshellarg($this->coreDir);
+        $escapedPhpBinary = escapeshellarg($phpBinary);
+        $escapedConsolePath = escapeshellarg($consolePath);
+        $escapedJobId = escapeshellarg($jobId);
+        $escapedLogPath = escapeshellarg($jobLogPath);
+
+        $runnerCommand = sprintf(
+            'cd %s && %s %s app:update:run %s --no-interaction >> %s 2>&1 & echo $!',
+            $escapedCoreDir,
+            $escapedPhpBinary,
+            $escapedConsolePath,
+            $escapedJobId,
+            $escapedLogPath,
+        );
+
+        return [
+            'shell_command' => "sh -c " . escapeshellarg($runnerCommand),
+            'safe_command' => $runnerCommand,
+            'log_path' => $jobLogPath,
+        ];
+    }
+
+    private function commandExists(string $command): bool
+    {
+        try {
+            $process = new Process(['command', '-v', $command]);
+            $process->run();
+
+            return $process->isSuccessful();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     public function markJobFailedToStart(string $jobId, string $message): void

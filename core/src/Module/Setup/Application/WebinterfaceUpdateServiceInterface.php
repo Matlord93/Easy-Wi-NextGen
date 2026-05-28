@@ -9,4 +9,6 @@ use App\Module\Core\Update\UpdateResult;
 interface WebinterfaceUpdateServiceInterface
 {
     public function applyUpdate(): UpdateResult;
+
+    public function applyMigrations(): UpdateResult;
 }

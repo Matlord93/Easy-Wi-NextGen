@@ -60,11 +60,13 @@ final class AdminUpdateController
         $forceRefresh = $request->query->getBoolean('force') || $request->query->getBoolean('refresh');
         $latestVersion = $this->releaseChecker->getLatestVersionForChannel($agentChannel, $forceRefresh);
 
-        return new Response($this->twig->render('admin/updates/index.html.twig', [
+        $response = new Response($this->twig->render('admin/updates/index.html.twig', [
             'activeNav' => 'updates',
             'coreUpdate' => $this->buildCoreUpdateSummary($forceRefresh),
             'agentUpdate' => $this->buildAgentUpdateSummary($agents, $latestVersion, $request->getLocale()),
         ]));
+
+        return $this->withNoCache($response);
     }
 
     #[Route(path: '/job', name: 'admin_updates_job', methods: ['POST'])]
@@ -79,7 +81,7 @@ final class AdminUpdateController
         }
 
         $type = (string) $request->request->get('type');
-        $allowed = ['update', 'migrate', 'both', 'rollback'];
+        $allowed = ['update', 'migrate', 'both'];
         if (!in_array($type, $allowed, true)) {
             return new Response('Invalid type.', Response::HTTP_BAD_REQUEST);
         }
@@ -92,10 +94,6 @@ final class AdminUpdateController
         $actor = $request->attributes->get('current_user');
         $createdBy = $actor instanceof User ? $actor->getEmail() : 'system';
         $payload = [];
-        if ($type === 'rollback') {
-            $payload['backup_path'] = (string) $request->request->get('backup_path');
-        }
-
         if ($type === 'update' || $type === 'both') {
             $channel = $this->updateSettingsService->getCoreChannel();
             $releasePackage = $this->coreReleaseChecker->getReleasePackageForChannel($channel);
@@ -122,7 +120,7 @@ final class AdminUpdateController
         if ($triggered) {
             $summary['notice'] = $this->translateUpdateMessage('admin_updates_job_started', $request->getLocale());
         } else {
-            $this->updateJobService->markJobFailedToStart($job['id'], 'Update-Runner konnte nicht gestartet werden.');
+            $this->updateJobService->markJobFailedToStart($job['id'], 'Update-Runner konnte nicht gestartet werden. PHP-Fallback wurde ebenfalls versucht. Details siehe Log.');
             $summary['error'] = $this->translateUpdateMessage('admin_updates_runner_not_found', $request->getLocale());
         }
 
@@ -305,28 +303,6 @@ final class AdminUpdateController
         return $actor instanceof User && $actor->getType() === UserType::Superadmin;
     }
 
-    private function buildCronCommand(): string
-    {
-        $snapshotPath = $this->projectDir . '/srv/setup/cron/easywi-automation.cron';
-        if (is_file($snapshotPath)) {
-            $content = file_get_contents($snapshotPath);
-            if ($content !== false) {
-                foreach (explode("\n", $content) as $line) {
-                    if (str_contains($line, 'app:update:auto')) {
-                        return trim($line);
-                    }
-                }
-            }
-        }
-
-        $escaped = str_replace("'", "'\"'\"'", $this->projectDir);
-
-        return sprintf(
-            "*/5 * * * * cd '%s' && php bin/console app:update:auto --no-interaction >> var/log/cron-update-auto.log 2>&1",
-            $escaped,
-        );
-    }
-
     private function buildCoreUpdateSummary(bool $force = false): array
     {
         $status = $this->updateService->checkForUpdate($force);
@@ -334,7 +310,7 @@ final class AdminUpdateController
         $versionInfo = $this->updateJobService->getVersionInfo();
         $migrationStatus = $this->updateJobService->getMigrationStatus();
         $latestJob = $this->updateJobService->getLatestJob();
-        $logLines = $this->updateJobService->tailLog($latestJob['logPath'] ?? null);
+        $logLines = $this->updateJobService->tailLog($latestJob['logPath'] ?? null, 50);
         $backups = $this->updateJobService->listBackups();
 
         return [
@@ -353,13 +329,15 @@ final class AdminUpdateController
             'logLines' => $logLines,
             'migrationStatus' => $migrationStatus,
             'backups' => $backups,
+            'rollbackAvailable' => false,
             'notice' => null,
             'error' => null,
             'autoEnabled' => $settings['autoEnabled'],
             'autoMigrate' => $settings['autoMigrate'],
             'channel' => $settings['coreChannel'],
             'channels' => CoreReleaseChecker::channels(),
-            'cronCommand' => $this->buildCronCommand(),
+            'releaseRetentionCount' => $this->updateService->getKeepReleasesCount(),
+            'releaseStorageBytes' => $this->updateService->getReleasesDirSizeBytes(),
             'csrf' => [
                 'update' => $this->csrfTokenManager->getToken('admin_update_update')->getValue(),
                 'migrate' => $this->csrfTokenManager->getToken('admin_update_migrate')->getValue(),
@@ -432,20 +410,37 @@ final class AdminUpdateController
 
     private function renderUpdateCard(array $summary): Response
     {
-        return new Response($this->twig->render('admin/dashboard/_web_update_card.html.twig', [
+        return $this->withNoCache(new Response($this->twig->render('admin/dashboard/_web_update_card.html.twig', [
             'coreUpdate' => $summary,
         ]), HttpResponse::HTTP_OK, [
             'Content-Type' => 'text/html; charset=UTF-8',
-        ]);
+        ]));
     }
 
     private function renderAgentUpdateCard(array $summary): Response
     {
-        return new Response($this->twig->render('admin/updates/_agent_update_card.html.twig', [
+        return $this->withNoCache(new Response($this->twig->render('admin/updates/_agent_update_card.html.twig', [
             'agentUpdate' => $summary,
         ]), HttpResponse::HTTP_OK, [
             'Content-Type' => 'text/html; charset=UTF-8',
-        ]);
+        ]));
+    }
+
+    private function htmxRefresh(): Response
+    {
+        return $this->withNoCache(new Response('', HttpResponse::HTTP_NO_CONTENT, ['HX-Refresh' => 'true']));
+    }
+
+    private function htmxRedirect(string $url): Response
+    {
+        return $this->withNoCache(new Response('', HttpResponse::HTTP_NO_CONTENT, ['HX-Redirect' => $url]));
+    }
+
+    private function withNoCache(Response $response): Response
+    {
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
+
+        return $response;
     }
 
     private function consumeLimiter(Request $request): bool

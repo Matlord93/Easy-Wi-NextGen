@@ -68,6 +68,7 @@ final class CentralSchedulerContractTest extends TestCase
         $watchdogHandler = (string) file_get_contents(__DIR__.'/../../src/Module/Gameserver/Application/Scheduler/GameserverWatchdogScheduleHandler.php');
         $jobsCleanupHandler = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Application/Scheduler/JobsCleanupScheduleHandler.php');
         $backupsCleanupHandler = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Application/Scheduler/BackupsCleanupScheduleHandler.php');
+        $webinterfaceAutoUpdateHandler = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Application/Scheduler/WebinterfaceAutoUpdateScheduleHandler.php');
 
         self::assertStringContainsString('app.schedule_handler', $services);
         self::assertStringContainsString('gameserver.auto_backup', $backupHandler);
@@ -75,6 +76,20 @@ final class CentralSchedulerContractTest extends TestCase
         self::assertStringContainsString('gameserver.watchdog', $watchdogHandler);
         self::assertStringContainsString('cleanup.jobs', $jobsCleanupHandler);
         self::assertStringContainsString('cleanup.backups', $backupsCleanupHandler);
+        self::assertStringContainsString('webinterface.auto_update', $webinterfaceAutoUpdateHandler);
+        self::assertStringContainsString("if (!\$settings['autoEnabled'] && !\$force)", $webinterfaceAutoUpdateHandler);
+        self::assertStringContainsString('ScheduleExecutionResult::skipped', $webinterfaceAutoUpdateHandler);
+    }
+
+    public function testRequestDrivenSchedulerTriggerExistsForCronlessOperation(): void
+    {
+        $subscriber = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Application/Scheduler/RequestDrivenScheduleTriggerSubscriber.php');
+        self::assertStringContainsString('KernelEvents::TERMINATE', $subscriber);
+        self::assertStringContainsString("'app:run-schedules'", $subscriber);
+        self::assertStringContainsString("'--once'", $subscriber);
+        self::assertStringContainsString("configProvider->exists()", $subscriber);
+        self::assertStringContainsString('LOCK_EX | LOCK_NB', $subscriber);
+        self::assertStringContainsString('scheduler.request_trigger_failed', $subscriber);
     }
 
     public function testAppRunSchedulesProcessesGameserverBackupAndRestartHandlers(): void

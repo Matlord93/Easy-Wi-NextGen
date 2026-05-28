@@ -90,6 +90,43 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
         self::assertStringContainsString('err-line', $result['output']);
     }
 
+    public function testCleanupKeepOneRemovesOlderReleases(): void
+    {
+        $appRoot = $this->createFakeAppRoot([]);
+        $service = $this->newService($appRoot, new CapturingLogger(), 1);
+        $this->seedReleases($appRoot, ['1.0.0', '1.1.0', '1.2.0']);
+
+        $this->invokeCleanup($service, $appRoot . '/releases/1.2.0', $appRoot . '/update.log');
+
+        self::assertDirectoryExists($appRoot . '/releases/1.2.0');
+        self::assertDirectoryDoesNotExist($appRoot . '/releases/1.1.0');
+        self::assertDirectoryDoesNotExist($appRoot . '/releases/1.0.0');
+    }
+
+    public function testCleanupKeepTwoKeepsCurrentAndPrevious(): void
+    {
+        $appRoot = $this->createFakeAppRoot([]);
+        $service = $this->newService($appRoot, new CapturingLogger(), 2);
+        $this->seedReleases($appRoot, ['1.0.0', '1.1.0', '1.2.0']);
+
+        $this->invokeCleanup($service, $appRoot . '/releases/1.2.0', $appRoot . '/update.log');
+
+        self::assertDirectoryExists($appRoot . '/releases/1.2.0');
+        self::assertDirectoryExists($appRoot . '/releases/1.1.0');
+        self::assertDirectoryDoesNotExist($appRoot . '/releases/1.0.0');
+    }
+
+    public function testCleanupNeverDeletesCurrentSymlinkTarget(): void
+    {
+        $appRoot = $this->createFakeAppRoot([]);
+        $service = $this->newService($appRoot, new CapturingLogger(), 1);
+        $this->seedReleases($appRoot, ['1.0.0', '1.1.0']);
+
+        $this->invokeCleanup($service, $appRoot . '/releases/1.0.0', $appRoot . '/update.log');
+
+        self::assertDirectoryExists($appRoot . '/releases/1.0.0');
+    }
+
     /**
      * @param array<string, int> $exitCodes
      */
@@ -133,7 +170,7 @@ PHP_SCRIPT;
         return array_values(array_filter(array_map('trim', explode("\n", (string) file_get_contents($path)))));
     }
 
-    private function newService(string $appRoot, CapturingLogger $logger): WebinterfaceUpdateService
+    private function newService(string $appRoot, CapturingLogger $logger, int $keepReleases = 2): WebinterfaceUpdateService
     {
         return new WebinterfaceUpdateService(
             new MockHttpClient(),
@@ -144,6 +181,7 @@ PHP_SCRIPT;
             $appRoot . '/current',
             $appRoot . '/var/update.lock',
             '',
+            $keepReleases,
             '1.0.0',
             'Matlord93/Easy-Wi-NextGen',
             'stable',
@@ -154,6 +192,26 @@ PHP_SCRIPT;
             null,
             $logger,
         );
+    }
+
+    /** @param list<string> $versions */
+    private function seedReleases(string $appRoot, array $versions): void
+    {
+        @mkdir($appRoot . '/releases', 0770, true);
+        foreach ($versions as $index => $version) {
+            $dir = $appRoot . '/releases/' . $version;
+            mkdir($dir, 0770, true);
+            file_put_contents($dir . '/VERSION', $version);
+            touch($dir, time() - (count($versions) - $index) * 10);
+        }
+    }
+
+    private function invokeCleanup(WebinterfaceUpdateService $service, string $currentReleaseDir, string $logPath): void
+    {
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('cleanupOldReleases');
+        $method->setAccessible(true);
+        $method->invoke($service, $currentReleaseDir, $logPath);
     }
 }
 
