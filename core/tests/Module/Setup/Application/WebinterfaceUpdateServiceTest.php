@@ -60,6 +60,10 @@ final class WebinterfaceUpdateServiceTest extends TestCase
      */
     private function newWebinterfaceUpdateService(array $namedOverrides): WebinterfaceUpdateService
     {
+        $namedOverrides = array_merge([
+            'keepReleases' => 2,
+        ], $namedOverrides);
+
         $reflection = new \ReflectionClass(WebinterfaceUpdateService::class);
         $constructor = $reflection->getConstructor();
         if ($constructor === null) {

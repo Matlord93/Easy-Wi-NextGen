@@ -47,7 +47,7 @@ final class UpdateJobServiceTriggerRunnerTest extends TestCase
         $tmp = sys_get_temp_dir() . '/update-job-test-' . bin2hex(random_bytes(4));
         mkdir($tmp, 0777, true);
 
-        $configProvider = $this->createMock(DbConfigProvider::class);
+        $configProvider = $this->createDbConfigProviderFixture();
         $logger = $this->createMock(LoggerInterface::class);
 
         return new UpdateJobService(
@@ -61,6 +61,17 @@ final class UpdateJobServiceTriggerRunnerTest extends TestCase
             $coreDir,
             null,
         );
+    }
+
+
+    private function createDbConfigProviderFixture(): DbConfigProvider
+    {
+        $reflection = new \ReflectionClass(DbConfigProvider::class);
+
+        /** @var DbConfigProvider $provider */
+        $provider = $reflection->newInstanceWithoutConstructor();
+
+        return $provider;
     }
 
     private function createCoreDir(string $consoleScript = '#!/usr/bin/env php\n<?php usleep(700000);\n'): string
