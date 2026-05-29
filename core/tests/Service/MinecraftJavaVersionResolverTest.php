@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Service;
 
 use App\Module\Gameserver\Application\MinecraftJavaVersionResolver;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class MinecraftJavaVersionResolverTest extends TestCase
 {
-    /** @dataProvider javaVersionCases */
+    #[DataProvider('javaVersionCases')]
     public function testResolvesJavaVersionFromMinecraftVersion(?string $mcVersion, string $expected): void
     {
         self::assertSame($expected, (new MinecraftJavaVersionResolver())->resolve($mcVersion));
