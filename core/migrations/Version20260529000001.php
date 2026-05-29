@@ -16,6 +16,10 @@ final class Version20260529000001 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        if (!$schema->hasTable('game_templates')) {
+            return;
+        }
+
         $printf = "printf '%s=%s\\n' \"\$k\" \"\$v\"";
         $setPropertyFn = "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; " . $printf . "; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; };";
 
@@ -70,6 +74,10 @@ final class Version20260529000001 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
+        if (!$schema->hasTable('game_templates')) {
+            return;
+        }
+
         $printf = "printf '%s=%s\\n' \"\$k\" \"\$v\"";
         $setPropertyFn = "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; " . $printf . "; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; };";
 
