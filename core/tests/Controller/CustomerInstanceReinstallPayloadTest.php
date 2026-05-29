@@ -58,32 +58,37 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
-            public function findVersionsByChannel(string $channel): array
+            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
 
-            public function findBuildsGroupedByVersion(string $channel): array
+            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
-            public function findLatestVersion(string $channel): ?string
+            public function findActiveByChannel(string $channel): array
+            {
+                return [];
+            }
+
+            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string
             {
                 return null;
             }
-            public function findLatestBuild(string $channel, string $version): ?string
+            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string
             {
                 return null;
             }
-            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
+            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
             {
                 return null;
             }
-            public function versionExists(string $channel, string $version): bool
+            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool
             {
                 return false;
             }
-            public function buildExists(string $channel, string $version, string $build): bool
+            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool
             {
                 return false;
             }

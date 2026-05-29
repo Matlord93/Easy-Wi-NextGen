@@ -8,23 +8,22 @@ use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 
 interface MinecraftVersionCatalogRepositoryInterface
 {
-    /**
-     * @return array<int, string>
-     */
-    public function findVersionsByChannel(string $channel): array;
+    /** @return array<int, string> */
+    public function findVersionsByChannel(string $channel, bool $activeOnly = true): array;
 
-    /**
-     * @return array<string, array<int, string>>
-     */
-    public function findBuildsGroupedByVersion(string $channel): array;
+    /** @return array<string, array<int, string>> */
+    public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array;
 
-    public function findLatestVersion(string $channel): ?string;
+    /** @return array<int, MinecraftVersionCatalog> */
+    public function findActiveByChannel(string $channel): array;
 
-    public function findLatestBuild(string $channel, string $version): ?string;
+    public function findLatestVersion(string $channel, bool $activeOnly = true): ?string;
 
-    public function findEntry(string $channel, string $version, ?string $build): ?MinecraftVersionCatalog;
+    public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string;
 
-    public function versionExists(string $channel, string $version): bool;
+    public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?MinecraftVersionCatalog;
 
-    public function buildExists(string $channel, string $version, string $build): bool;
+    public function versionExists(string $channel, string $version, bool $activeOnly = true): bool;
+
+    public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool;
 }

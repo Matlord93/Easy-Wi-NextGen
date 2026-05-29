@@ -407,6 +407,10 @@ final class CustomerInstanceSettingsApiController
             return $this->minecraftCatalogService->getUiCatalog()['paper']['versions'] ?? [];
         }
 
+        if ($type === 'minecraft_bedrock') {
+            return $this->minecraftCatalogService->getUiCatalog()['bedrock']['versions'] ?? [];
+        }
+
         $versions = array_values(array_filter([
             $instance->getCurrentVersion(),
             $instance->getLockedVersion(),

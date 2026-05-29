@@ -71,6 +71,20 @@ final class TemplateInstallResolverTest extends TestCase
         self::assertStringContainsString('https://example.com/paper-1.20.4-123.jar', $command);
     }
 
+
+    public function testBedrockInstallCommandUsesDatabaseUrl(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $repository->add(new MinecraftVersionCatalog('bedrock', '1.21.90.03', null, 'https://example.com/bedrock.zip'));
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'minecraft_bedrock'], 'linux');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('https://example.com/bedrock.zip', $command);
+        self::assertStringContainsString('unzip -o bedrock-server.zip', $command);
+    }
+
     public function testPrependsSteamDumpCleanupForLinuxSteamInstallCommands(): void
     {
         $resolver = $this->buildResolver(new InMemoryMinecraftCatalogRepository());
@@ -164,7 +178,7 @@ final class InMemoryMinecraftCatalogRepository implements MinecraftVersionCatalo
         $this->entries[] = $entry;
     }
 
-    public function findVersionsByChannel(string $channel): array
+    public function findVersionsByChannel(string $channel, bool $activeOnly = true): array
     {
         $versions = [];
         foreach ($this->entries as $entry) {
@@ -182,7 +196,7 @@ final class InMemoryMinecraftCatalogRepository implements MinecraftVersionCatalo
         return array_keys($versions);
     }
 
-    public function findBuildsGroupedByVersion(string $channel): array
+    public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array
     {
         $grouped = [];
         foreach ($this->entries as $entry) {
@@ -205,14 +219,19 @@ final class InMemoryMinecraftCatalogRepository implements MinecraftVersionCatalo
         return $grouped;
     }
 
-    public function findLatestVersion(string $channel): ?string
+    public function findActiveByChannel(string $channel): array
+    {
+        return array_values(array_filter($this->entries, static fn (MinecraftVersionCatalog $entry): bool => $entry->getChannel() === $channel && $entry->isActive()));
+    }
+
+    public function findLatestVersion(string $channel, bool $activeOnly = true): ?string
     {
         $versions = $this->findVersionsByChannel($channel);
 
         return $versions[0] ?? null;
     }
 
-    public function findLatestBuild(string $channel, string $version): ?string
+    public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string
     {
         $entries = array_filter($this->entries, static fn (MinecraftVersionCatalog $entry): bool => $entry->getChannel() === $channel && $entry->getMcVersion() === $version);
         if ($entries === []) {
@@ -231,7 +250,7 @@ final class InMemoryMinecraftCatalogRepository implements MinecraftVersionCatalo
         return $entries[0]->getBuild();
     }
 
-    public function findEntry(string $channel, string $version, ?string $build): ?MinecraftVersionCatalog
+    public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?MinecraftVersionCatalog
     {
         if ($build !== null && $build !== '') {
             foreach ($this->entries as $entry) {
@@ -263,7 +282,7 @@ final class InMemoryMinecraftCatalogRepository implements MinecraftVersionCatalo
         return $candidates[0] ?? null;
     }
 
-    public function versionExists(string $channel, string $version): bool
+    public function versionExists(string $channel, string $version, bool $activeOnly = true): bool
     {
         foreach ($this->entries as $entry) {
             if ($entry->getChannel() === $channel && $entry->getMcVersion() === $version) {
@@ -274,7 +293,7 @@ final class InMemoryMinecraftCatalogRepository implements MinecraftVersionCatalo
         return false;
     }
 
-    public function buildExists(string $channel, string $version, string $build): bool
+    public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool
     {
         foreach ($this->entries as $entry) {
             if ($entry->getChannel() === $channel && $entry->getMcVersion() === $version && $entry->getBuild() === $build) {

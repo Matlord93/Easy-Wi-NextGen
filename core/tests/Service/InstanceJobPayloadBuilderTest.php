@@ -74,37 +74,42 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         $instance->setConfigOverride('server.cfg', 'sv_hostname "My Server"');
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
-            public function findVersionsByChannel(string $channel): array
+            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
 
-            public function findBuildsGroupedByVersion(string $channel): array
+            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
 
-            public function findLatestVersion(string $channel): ?string
+            public function findActiveByChannel(string $channel): array
+            {
+                return [];
+            }
+
+            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string
             {
                 return null;
             }
 
-            public function findLatestBuild(string $channel, string $version): ?string
+            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string
             {
                 return null;
             }
 
-            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
+            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
             {
                 return null;
             }
 
-            public function versionExists(string $channel, string $version): bool
+            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool
             {
                 return false;
             }
 
-            public function buildExists(string $channel, string $version, string $build): bool
+            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool
             {
                 return false;
             }
@@ -177,31 +182,36 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         );
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
-            public function findVersionsByChannel(string $channel): array
+            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
-            public function findBuildsGroupedByVersion(string $channel): array
+            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
-            public function findLatestVersion(string $channel): ?string
+            public function findActiveByChannel(string $channel): array
+            {
+                return [];
+            }
+
+            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string
             {
                 return null;
             }
-            public function findLatestBuild(string $channel, string $version): ?string
+            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string
             {
                 return null;
             }
-            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
+            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
             {
                 return null;
             }
-            public function versionExists(string $channel, string $version): bool
+            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool
             {
                 return false;
             }
-            public function buildExists(string $channel, string $version, string $build): bool
+            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool
             {
                 return false;
             }
@@ -252,13 +262,18 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         $agent = new Agent('node-1', ['key_id' => 'key-1', 'nonce' => 'nonce', 'ciphertext' => 'ciphertext']);
         $instance = new Instance($customer, $template, $agent, 100, 1024, 10240, null, InstanceStatus::Stopped, InstanceUpdatePolicy::Manual);
         $resolver = new TemplateInstallResolver(new MinecraftCatalogService(new class () implements MinecraftVersionCatalogRepositoryInterface {
-            public function findVersionsByChannel(string $channel): array { return []; }
-            public function findBuildsGroupedByVersion(string $channel): array { return []; }
-            public function findLatestVersion(string $channel): ?string { return null; }
-            public function findLatestBuild(string $channel, string $version): ?string { return null; }
-            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog { return null; }
-            public function versionExists(string $channel, string $version): bool { return false; }
-            public function buildExists(string $channel, string $version, string $build): bool { return false; }
+            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array { return []; }
+            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array { return []; }
+            public function findActiveByChannel(string $channel): array
+            {
+                return [];
+            }
+
+            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string { return null; }
+            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string { return null; }
+            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog { return null; }
+            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool { return false; }
+            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool { return false; }
         }));
         $builder = new InstanceJobPayloadBuilder($resolver, new class () implements PortBlockFinderInterface {
             public function findByInstance(Instance $instance): ?\App\Module\Ports\Domain\Entity\PortBlock { return null; }
@@ -317,31 +332,36 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         $instance->setInstallPath('/srv/instances/gs12');
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
-            public function findVersionsByChannel(string $channel): array
+            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
-            public function findBuildsGroupedByVersion(string $channel): array
+            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
-            public function findLatestVersion(string $channel): ?string
+            public function findActiveByChannel(string $channel): array
+            {
+                return [];
+            }
+
+            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string
             {
                 return null;
             }
-            public function findLatestBuild(string $channel, string $version): ?string
+            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string
             {
                 return null;
             }
-            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
+            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
             {
                 return null;
             }
-            public function versionExists(string $channel, string $version): bool
+            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool
             {
                 return false;
             }
-            public function buildExists(string $channel, string $version, string $build): bool
+            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool
             {
                 return false;
             }
@@ -406,37 +426,42 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         );
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
-            public function findVersionsByChannel(string $channel): array
+            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
 
-            public function findBuildsGroupedByVersion(string $channel): array
+            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array
             {
                 return [];
             }
 
-            public function findLatestVersion(string $channel): ?string
+            public function findActiveByChannel(string $channel): array
+            {
+                return [];
+            }
+
+            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string
             {
                 return null;
             }
 
-            public function findLatestBuild(string $channel, string $version): ?string
+            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string
             {
                 return null;
             }
 
-            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
+            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
             {
                 return null;
             }
 
-            public function versionExists(string $channel, string $version): bool
+            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool
             {
                 return false;
             }
 
-            public function buildExists(string $channel, string $version, string $build): bool
+            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool
             {
                 return false;
             }

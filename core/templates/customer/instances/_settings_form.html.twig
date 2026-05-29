@@ -2,7 +2,7 @@
 {% set templateContext = instance.template ?? {} %}
 {% set installResolver = templateContext.install_resolver ?? templateContext.installResolver ?? {} %}
 {% set resolverType = installResolver.type ?? '' %}
-{% set isMinecraft = resolverType in ['minecraft_vanilla', 'papermc_paper'] %}
+{% set isMinecraft = resolverType in ['minecraft_vanilla', 'papermc_paper', 'minecraft_bedrock'] %}
 {% if detailMode %}
     <form method="post" action="{{ path('customer_instance_settings', {id: instance.id, detail: 1}) }}" class="space-y-5">
 {% else %}
@@ -64,8 +64,22 @@
         {# ─── Versionssperre ─── #}
         <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
             <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">{{ t('customer_instance_version_lock', page_locale()) }}</p>
+
+            {% if isMinecraft %}
+                <div class="mt-3 rounded-lg border border-slate-700/40 bg-slate-900/40 p-3 text-xs text-slate-400">
+                    <div class="font-semibold text-slate-300">
+                        {% if resolverType == 'papermc_paper' %}{{ t('minecraft_type_paper', page_locale()) }}{% elseif resolverType == 'minecraft_bedrock' %}{{ t('minecraft_type_bedrock', page_locale()) }}{% else %}{{ t('minecraft_type_vanilla', page_locale()) }}{% endif %}
+                    </div>
+                    <div class="mt-1">{{ t('minecraft_status_installed', page_locale()) }}: <span class="text-slate-200">{{ instance.installed_version ?? instance.current_version ?? '—' }}</span>{% if (instance.installed_build_id ?? instance.current_build_id ?? '') != '' %} Build {{ instance.installed_build_id ?? instance.current_build_id }}{% endif %}</div>
+                    <div>{{ t('minecraft_status_java', page_locale()) }}: <span class="text-slate-200">{{ resolverType == 'minecraft_bedrock' ? '—' : (instance.installed_java_version ?? '—') }}</span></div>
+                    <div>{{ t('minecraft_status_update_target', page_locale()) }}: <span class="text-slate-200">{{ (instance.locked_version ?? '') == '' and (instance.locked_build_id ?? '') == '' ? t('minecraft_status_latest', page_locale()) : t('minecraft_status_pinned', page_locale()) }}</span></div>
+                    {% if instance.minecraft_newer_available ?? null %}
+                        <div class="text-emerald-400">{{ t('minecraft_status_new_available', page_locale()) }}: {{ instance.minecraft_newer_available.mcVersion }}{% if instance.minecraft_newer_available.build %} Build {{ instance.minecraft_newer_available.build }}{% endif %}</div>
+                    {% endif %}
+                </div>
+            {% endif %}
             {% if isMinecraft and minecraftCatalog is not empty %}
-                {% set versionOptions = resolverType == 'minecraft_vanilla' ? minecraftCatalog.vanilla.versions : minecraftCatalog.paper.versions %}
+                {% set versionOptions = resolverType == 'minecraft_vanilla' ? minecraftCatalog.vanilla.versions : (resolverType == 'minecraft_bedrock' ? minecraftCatalog.bedrock.versions : minecraftCatalog.paper.versions) %}
                 <div class="mt-4 grid gap-3 sm:grid-cols-2">
                     <div>
                         <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_locked_version', page_locale()) }}</label>

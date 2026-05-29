@@ -1467,6 +1467,10 @@ final class AdminTemplateController
         if ($gameKey === 'minecraft_paper_all' && $type !== 'papermc_paper') {
             $errors[] = 'Minecraft Paper templates must use the papermc_paper resolver.';
         }
+
+        if ($gameKey === 'minecraft_bedrock' && $type !== 'minecraft_bedrock') {
+            $errors[] = $this->translator->trans('admin_minecraft_template_bedrock_resolver_required', [], 'portal');
+        }
     }
 
     private function requiresMinecraftResolver(string $gameKey): bool
@@ -1478,6 +1482,7 @@ final class AdminTemplateController
             'minecraft_vanilla_windows',
             'minecraft_paper_all',
             'minecraft_vanilla_all',
+            'minecraft_bedrock',
         ], true);
     }
 

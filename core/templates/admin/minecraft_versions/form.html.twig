@@ -1,0 +1,19 @@
+{% extends 'admin/base.html.twig' %}
+{% set pageTitle = t('admin_minecraft_versions_edit_title', page_locale()) %}
+{% set activeNav = 'minecraft_versions' %}
+{% block content %}
+<div class="ng-card" style="padding:20px;">
+  {% if errors is not empty %}<div class="alert alert-danger">{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+  <form method="post" style="display:grid;gap:12px;max-width:760px;">
+    <label>{{ t('admin_minecraft_versions_active', page_locale()) }} <input type="checkbox" name="is_active" value="1" {% if version.active %}checked{% endif %}></label>
+    <label>{{ t('admin_minecraft_versions_channel', page_locale()) }} <select name="channel">{% for c in ['vanilla','paper','bedrock'] %}<option value="{{ c }}" {% if version.channel == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+    <label>{{ t('admin_minecraft_versions_mc_version', page_locale()) }} <input name="mc_version" value="{{ version.mcVersion }}" required></label>
+    <label>{{ t('admin_minecraft_versions_build', page_locale()) }} <input name="build" value="{{ version.build }}" placeholder="{{ t('admin_minecraft_versions_build_placeholder', page_locale()) }}"></label>
+    <label>{{ t('admin_minecraft_versions_java_version', page_locale()) }} <select name="java_version"><option value="">—</option>{% for j in ['8','16','17','21'] %}<option value="{{ j }}" {% if version.javaVersion == j %}selected{% endif %}>{{ j }}</option>{% endfor %}</select></label>
+    <label>{{ t('admin_minecraft_versions_source', page_locale()) }} <select name="source"><option value="manual" {% if version.source == 'manual' %}selected{% endif %}>manual</option><option value="import" {% if version.source == 'import' %}selected{% endif %}>import</option></select></label>
+    <label>{{ t('admin_minecraft_versions_download_url', page_locale()) }} <input name="download_url" value="{{ version.downloadUrl }}" required style="width:100%"></label>
+    <label>{{ t('admin_minecraft_versions_notes', page_locale()) }} <textarea name="notes" rows="5">{{ version.notes }}</textarea></label>
+    <div><button class="ui-button ui-button--primary">{{ t('save', page_locale()) }}</button> <a href="/admin/minecraft-versions">{{ t('back', page_locale()) }}</a></div>
+  </form>
+</div>
+{% endblock %}

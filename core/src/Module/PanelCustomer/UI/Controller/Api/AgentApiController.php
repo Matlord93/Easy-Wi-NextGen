@@ -2250,6 +2250,16 @@ final class AgentApiController
         $instance->setPreviousVersion($instance->getCurrentVersion());
         $instance->setCurrentBuildId($buildId);
         $instance->setCurrentVersion($version);
+        $instance->setInstalledBuildId($buildId);
+        $instance->setInstalledVersion($version);
+        $instance->setInstalledChannel($this->resolveMinecraftInstalledChannel($instance));
+        $javaVersion = is_string($output['java_version'] ?? null) ? (string) $output['java_version'] : null;
+        if ($javaVersion === null && is_array($job->getPayload())) {
+            $javaBin = (string) (($job->getPayload()['JAVA_BIN'] ?? $job->getPayload()['java_bin'] ?? ''));
+            $javaVersion = preg_match('/(8|16|17|21)$/', $javaBin, $matches) ? $matches[1] : null;
+        }
+        $instance->setInstalledJavaVersion($javaVersion);
+        $instance->setInstalledAt($completedAt);
         $this->entityManager->persist($instance);
 
         $this->auditLogger->log(null, 'instance.build.updated', [
@@ -2259,6 +2269,19 @@ final class AgentApiController
             'version' => $version,
             'completed_at' => $completedAt->format(DATE_RFC3339),
         ]);
+    }
+
+
+    private function resolveMinecraftInstalledChannel(\App\Module\Core\Domain\Entity\Instance $instance): ?string
+    {
+        $resolver = $instance->getTemplate()->getInstallResolver();
+        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        return match ($type) {
+            'minecraft_vanilla' => 'vanilla',
+            'papermc_paper' => 'paper',
+            'minecraft_bedrock' => 'bedrock',
+            default => null,
+        };
     }
 
     private function resolvePostUpdateInstanceStatus(\App\Module\Core\Domain\Entity\Job $job, array $output): \App\Module\Core\Domain\Enum\InstanceStatus

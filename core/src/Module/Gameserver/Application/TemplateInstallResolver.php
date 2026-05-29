@@ -6,11 +6,13 @@ namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 class TemplateInstallResolver
 {
     public function __construct(
         private readonly MinecraftCatalogService $catalogService,
+        private readonly ?TranslatorInterface $translator = null,
     ) {
     }
 
@@ -27,6 +29,7 @@ class TemplateInstallResolver
         $command = match ($type) {
             'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
             'papermc_paper' => $this->resolveMinecraftCommand($instance, 'paper'),
+            'minecraft_bedrock' => $this->resolveMinecraftCommand($instance, 'bedrock'),
             default => $installCommand,
         };
 
@@ -46,6 +49,7 @@ class TemplateInstallResolver
         $command = match ($type) {
             'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
             'papermc_paper' => $this->resolveMinecraftCommand($instance, 'paper'),
+            'minecraft_bedrock' => $this->resolveMinecraftCommand($instance, 'bedrock'),
             default => $updateCommand,
         };
 
@@ -70,9 +74,13 @@ class TemplateInstallResolver
         $os = $this->resolveOs($instance->getNode());
 
         if ($entry === null) {
+            return sprintf('echo %s >&2; exit 1', escapeshellarg($this->trans('minecraft_install_error_no_active_catalog_entry')));
+        }
+
+        if ($channel === 'bedrock') {
             return $os === 'windows'
-                ? $this->buildMinecraftFallbackWindowsCommand($channel)
-                : $this->buildMinecraftFallbackLinuxCommand($channel);
+                ? $this->buildWindowsBedrockCommand($entry->getDownloadUrl())
+                : $this->buildLinuxBedrockCommand($entry->getDownloadUrl());
         }
 
         return $os === 'windows'
@@ -111,6 +119,30 @@ class TemplateInstallResolver
 
         return sprintf(
             'powershell -Command "Invoke-WebRequest -Uri \'%s\' -OutFile \'server.jar\'"',
+            $escaped,
+        );
+    }
+
+
+    private function buildLinuxBedrockCommand(string $url): string
+    {
+        $escaped = escapeshellarg($url);
+
+        return sprintf(
+            'if command -v curl >/dev/null 2>&1; then curl -L -o bedrock-server.zip %1$s; '
+            . 'elif command -v wget >/dev/null 2>&1; then wget -O bedrock-server.zip %1$s; '
+            . 'else echo "Missing curl or wget." >&2; exit 1; fi; '
+            . 'unzip -o bedrock-server.zip && chmod +x bedrock_server',
+            $escaped,
+        );
+    }
+
+    private function buildWindowsBedrockCommand(string $url): string
+    {
+        $escaped = str_replace("'", "''", $url);
+
+        return sprintf(
+            'powershell -Command "Invoke-WebRequest -Uri \'%s\' -OutFile \'bedrock-server.zip\'; Expand-Archive -Force \'bedrock-server.zip\' ."',
             $escaped,
         );
     }
@@ -200,6 +232,12 @@ class TemplateInstallResolver
         $updated = preg_replace('/\+login\s+anonymous\b/i', $replacement, $command, 1);
 
         return $updated ?? $command;
+    }
+
+
+    private function trans(string $key): string
+    {
+        return $this->translator?->trans($key, [], 'portal') ?? $key;
     }
 
 

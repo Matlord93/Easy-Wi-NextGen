@@ -746,6 +746,8 @@ final class CustomerInstanceActionApiController
             $versions = $this->minecraftCatalogService->getUiCatalog()['vanilla']['versions'] ?? [];
         } elseif ($type === 'papermc_paper') {
             $versions = $this->minecraftCatalogService->getUiCatalog()['paper']['versions'] ?? [];
+        } elseif ($type === 'minecraft_bedrock') {
+            $versions = $this->minecraftCatalogService->getUiCatalog()['bedrock']['versions'] ?? [];
         }
 
         foreach ($versions as $version) {

@@ -136,6 +136,21 @@ class Instance implements ResourceEventSource
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $previousVersion = null;
 
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $installedVersion = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $installedBuildId = null;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $installedChannel = null;
+
+    #[ORM\Column(length: 4, nullable: true)]
+    private ?string $installedJavaVersion = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $installedAt = null;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastUpdateQueuedAt = null;
 
@@ -653,6 +668,62 @@ class Instance implements ResourceEventSource
     public function setPreviousVersion(?string $previousVersion): void
     {
         $this->previousVersion = $previousVersion;
+        $this->touch();
+    }
+
+
+    public function getInstalledVersion(): ?string
+    {
+        return $this->installedVersion ?? $this->currentVersion;
+    }
+
+    public function setInstalledVersion(?string $installedVersion): void
+    {
+        $this->installedVersion = $installedVersion;
+        $this->touch();
+    }
+
+    public function getInstalledBuildId(): ?string
+    {
+        return $this->installedBuildId ?? $this->currentBuildId;
+    }
+
+    public function setInstalledBuildId(?string $installedBuildId): void
+    {
+        $this->installedBuildId = $installedBuildId;
+        $this->touch();
+    }
+
+    public function getInstalledChannel(): ?string
+    {
+        return $this->installedChannel;
+    }
+
+    public function setInstalledChannel(?string $installedChannel): void
+    {
+        $this->installedChannel = $installedChannel;
+        $this->touch();
+    }
+
+    public function getInstalledJavaVersion(): ?string
+    {
+        return $this->installedJavaVersion;
+    }
+
+    public function setInstalledJavaVersion(?string $installedJavaVersion): void
+    {
+        $this->installedJavaVersion = $installedJavaVersion;
+        $this->touch();
+    }
+
+    public function getInstalledAt(): ?\DateTimeImmutable
+    {
+        return $this->installedAt;
+    }
+
+    public function setInstalledAt(?\DateTimeImmutable $installedAt): void
+    {
+        $this->installedAt = $installedAt;
         $this->touch();
     }
 

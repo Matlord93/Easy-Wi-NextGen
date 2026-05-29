@@ -575,8 +575,12 @@ final class CustomerInstanceController
 
         $resolver = $instance->getTemplate()->getInstallResolver();
         $resolverType = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
-        if (in_array($resolverType, ['minecraft_vanilla', 'papermc_paper'], true)) {
-            $channel = $resolverType === 'minecraft_vanilla' ? 'vanilla' : 'paper';
+        if (in_array($resolverType, ['minecraft_vanilla', 'papermc_paper', 'minecraft_bedrock'], true)) {
+            $channel = match ($resolverType) {
+                'minecraft_vanilla' => 'vanilla',
+                'papermc_paper' => 'paper',
+                default => 'bedrock',
+            };
             $validationError = $this->minecraftCatalogService->validateSelection($channel, $lockedVersion, $lockedBuildId);
             if ($validationError !== null) {
                 if ($detailMode) {
@@ -974,11 +978,17 @@ final class CustomerInstanceController
             'update_policy' => $instance->getUpdatePolicy()->value,
             'current_build_id' => $instance->getCurrentBuildId(),
             'current_version' => $instance->getCurrentVersion(),
+            'installed_build_id' => $instance->getInstalledBuildId(),
+            'installed_version' => $instance->getInstalledVersion(),
+            'installed_channel' => $instance->getInstalledChannel(),
+            'installed_java_version' => $instance->getInstalledJavaVersion(),
+            'installed_at' => $instance->getInstalledAt(),
             'previous_build_id' => $instance->getPreviousBuildId(),
             'previous_version' => $instance->getPreviousVersion(),
             'locked_build_id' => $instance->getLockedBuildId(),
             'locked_version' => $instance->getLockedVersion(),
             'last_update_queued_at' => $instance->getLastUpdateQueuedAt(),
+            'minecraft_newer_available' => $this->minecraftCatalogService->findNewerAvailable($instance),
             'is_installed' => $instance->getCurrentBuildId() !== null
                 || $instance->getCurrentVersion() !== null
                 || $instance->getStartScriptPath() !== null,

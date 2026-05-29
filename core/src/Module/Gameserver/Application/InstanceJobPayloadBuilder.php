@@ -6,15 +6,32 @@ namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Infrastructure\Repository\PortBlockFinderInterface;
+use App\Repository\MinecraftVersionCatalogRepositoryInterface;
 use App\Repository\SharedStorageTemplateLocatorInterface;
 
 final class InstanceJobPayloadBuilder
 {
+    private MinecraftCatalogService $minecraftCatalogService;
+    private MinecraftJavaVersionResolver $minecraftJavaVersionResolver;
+
     public function __construct(
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly PortBlockFinderInterface $portBlockRepository,
         private readonly SharedStorageTemplateLocatorInterface $templateRepository,
+        ?MinecraftCatalogService $minecraftCatalogService = null,
+        ?MinecraftJavaVersionResolver $minecraftJavaVersionResolver = null,
     ) {
+        $this->minecraftCatalogService = $minecraftCatalogService ?? new MinecraftCatalogService(new class () implements MinecraftVersionCatalogRepositoryInterface {
+            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array { return []; }
+            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array { return []; }
+            public function findActiveByChannel(string $channel): array { return []; }
+            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string { return null; }
+            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string { return null; }
+            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog { return null; }
+            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool { return false; }
+            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool { return false; }
+        });
+        $this->minecraftJavaVersionResolver = $minecraftJavaVersionResolver ?? new MinecraftJavaVersionResolver();
     }
 
     /**
@@ -115,7 +132,28 @@ final class InstanceJobPayloadBuilder
             $payload['locked_version'] = $instance->getLockedVersion();
         }
 
+        $javaBin = $this->resolveMinecraftJavaBin($instance);
+        if ($javaBin !== null) {
+            $payload['java_bin'] = $javaBin;
+            $payload['JAVA_BIN'] = $javaBin;
+        }
+
         return $payload;
+    }
+
+
+    private function resolveMinecraftJavaBin(Instance $instance): ?string
+    {
+        $channel = $this->minecraftCatalogService->channelFromResolver($instance);
+        if (!in_array($channel, ['vanilla', 'paper'], true)) {
+            return null;
+        }
+
+        $entry = $this->minecraftCatalogService->resolveEntry($channel, $instance->getLockedVersion(), $instance->getLockedBuildId());
+        $mcVersion = $entry?->getMcVersion() ?? $instance->getLockedVersion() ?? $instance->getInstalledVersion();
+        $javaVersion = $entry?->getJavaVersion() ?? $instance->getInstalledJavaVersion();
+
+        return $this->minecraftJavaVersionResolver->javaBin($mcVersion, $javaVersion);
     }
 
     /**
@@ -254,6 +292,11 @@ final class InstanceJobPayloadBuilder
 
         if (!isset($setupVarKeys['SERVER_MEMORY']) && $instance->getRamLimit() > 0) {
             $vars['SERVER_MEMORY'] = (string) $instance->getRamLimit();
+        }
+
+        $javaBin = $this->resolveMinecraftJavaBin($instance);
+        if ($javaBin !== null && !isset($setupVarKeys['JAVA_BIN'])) {
+            $vars['JAVA_BIN'] = $javaBin;
         }
 
         foreach (['SERVER_PASSWORD', 'RCON_PASSWORD', 'ADMIN_PASSWORD', 'SERVER_ADMIN_PASSWORD'] as $passwordKey) {

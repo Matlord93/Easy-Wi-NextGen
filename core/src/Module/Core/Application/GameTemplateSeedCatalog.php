@@ -1229,7 +1229,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
                 ],
-                'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
+                '{{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
                 [
                     ['key' => 'JAVA_XMS', 'value' => '1G'],
                     ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -1267,7 +1267,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
                 ],
-                'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
+                '{{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
                 [
                     ['key' => 'JAVA_XMS', 'value' => '1G'],
                     ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -1324,10 +1324,10 @@ final class GameTemplateSeedCatalog
                 ],
                 [],
                 $fastdl,
-                'curl -L -o bedrock-server.zip https://minecraft.azureedge.net/bin-linux/bedrock-server-1.20.62.02.zip && unzip -o bedrock-server.zip && chmod +x bedrock_server',
-                'curl -L -o bedrock-server.zip https://minecraft.azureedge.net/bin-linux/bedrock-server-1.20.62.02.zip && unzip -o bedrock-server.zip && chmod +x bedrock_server',
+                'echo "Install handled by catalog resolver."',
+                'echo "Update handled by catalog resolver."',
                 [],
-                [],
+                ['type' => 'minecraft_bedrock'],
                 ['linux'],
             ),
             $this->template(
