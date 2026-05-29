@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -91,13 +92,21 @@ func setupWindroseDepsTest(t *testing.T, runner *fakeWindroseRunner, osRelease s
 	oldKey := wineHQKeyPath
 	oldSourceDir := wineHQSourceDir
 	oldKeyringDir := wineHQKeyringDir
+	oldDearmor := dearmorReaderAtomic
 	windroseDepsRunner = runner
 	osReleasePath = filepath.Join(tmp, "os-release")
 	wineDepsHTTPClient = server.Client()
 	wineHQKeyURL = server.URL + "/wine-builds/winehq.key"
-	wineHQKeyPath = filepath.Join(tmp, "keyrings", "winehq-archive.key")
+	wineHQKeyPath = filepath.Join(tmp, "keyrings", "winehq-archive.gpg")
 	wineHQKeyringDir = filepath.Join(tmp, "keyrings")
 	wineHQSourceDir = filepath.Join(tmp, "sources.list.d")
+	dearmorReaderAtomic = func(r io.Reader, dest string, perm os.FileMode) error {
+		content, err := io.ReadAll(r)
+		if err != nil {
+			return err
+		}
+		return writeFileAtomic(dest, append([]byte("gpg:"), content...), perm)
+	}
 	if err := os.WriteFile(osReleasePath, []byte(osRelease), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -109,8 +118,33 @@ func setupWindroseDepsTest(t *testing.T, runner *fakeWindroseRunner, osRelease s
 		wineHQKeyPath = oldKey
 		wineHQSourceDir = oldSourceDir
 		wineHQKeyringDir = oldKeyringDir
+		dearmorReaderAtomic = oldDearmor
 	})
 	return tmp, server.URL + "/wine-builds/ubuntu/dists/noble/winehq-noble.sources"
+}
+
+func TestWindroseConstantsUseGPGKeyringPath(t *testing.T) {
+	if wineHQKeyPath != "/etc/apt/keyrings/winehq-archive.gpg" {
+		t.Fatalf("unexpected WineHQ key path: %s", wineHQKeyPath)
+	}
+}
+
+func TestNormalizeWineHQSourceUsesGPGKeyring(t *testing.T) {
+	oldKey := wineHQKeyPath
+	wineHQKeyPath = "/tmp/keyrings/winehq-archive.gpg"
+	t.Cleanup(func() { wineHQKeyPath = oldKey })
+
+	deb822 := "Types: deb\nURIs: https://dl.winehq.org/wine-builds/ubuntu\nSuites: resolute\nComponents: main\nArchitectures: amd64\nSigned-By: " + legacyWineHQKeyPath() + "\n"
+	normalized := normalizeWineHQSource(deb822)
+	if strings.Contains(normalized, legacyWineHQKeyPath()) || !strings.Contains(normalized, "Signed-By: "+wineHQKeyPath) {
+		t.Fatalf("expected Deb822 source to use gpg keyring, got:\n%s", normalized)
+	}
+
+	classic := "deb https://dl.winehq.org/wine-builds/ubuntu resolute main\n"
+	normalized = normalizeWineHQSource(classic)
+	if !strings.Contains(normalized, "deb [signed-by="+wineHQKeyPath+"] https://dl.winehq.org/wine-builds/ubuntu resolute main") {
+		t.Fatalf("expected classic source to receive signed-by gpg keyring, got:\n%s", normalized)
+	}
 }
 
 func TestParseOSReleaseUbuntuNoble(t *testing.T) {
@@ -175,9 +209,9 @@ func TestWindroseI386NotAddedWhenPresent(t *testing.T) {
 	runner := &fakeWindroseRunner{installed: map[string]bool{"winehq-stable": true, "screen": true, "xvfb": true, "xauth": true, "util-linux": true, "procps": true, "cabextract": true, "unzip": true, "p7zip-full": true, "curl": true, "wget": true, "ca-certificates": true, "tar": true, "fonts-liberation": true, "libgd3:amd64": true, "libgd3:i386": true}, outputs: map[string]string{"dpkg --print-foreign-architectures": "i386\n"}, paths: map[string]string{"wine": "/usr/bin/wine", "xvfb-run": "/usr/bin/xvfb-run", "taskset": "/usr/bin/taskset", "screen": "/usr/bin/screen"}}
 	tmp, _ := setupWindroseDepsTest(t, runner, "ID=ubuntu\nVERSION_CODENAME=noble\n", server)
 	_ = os.MkdirAll(filepath.Join(tmp, "keyrings"), 0o755)
-	_ = os.WriteFile(filepath.Join(tmp, "keyrings", "winehq-archive.key"), []byte("key"), 0o644)
+	_ = os.WriteFile(filepath.Join(tmp, "keyrings", "winehq-archive.gpg"), []byte("key"), 0o644)
 	_ = os.MkdirAll(filepath.Join(tmp, "sources.list.d"), 0o755)
-	_ = os.WriteFile(filepath.Join(tmp, "sources.list.d", "winehq-noble.sources"), []byte("https://dl.winehq.org/wine-builds/ubuntu"), 0o644)
+	_ = os.WriteFile(filepath.Join(tmp, "sources.list.d", "winehq-noble.sources"), []byte("Types: deb\nURIs: https://dl.winehq.org/wine-builds/ubuntu\nSuites: noble\nComponents: main\nArchitectures: amd64\nSigned-By: "+wineHQKeyPath+"\n"), 0o644)
 	var output strings.Builder
 	if err := ensureWindroseWineDependencies(&output); err != nil {
 		t.Fatalf("ensure failed: %v", err)

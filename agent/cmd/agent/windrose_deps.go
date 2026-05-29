@@ -9,14 +9,22 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/openpgp/armor"
 )
 
 var (
 	wineHQKeyURL     = "https://dl.winehq.org/wine-builds/winehq.key"
-	wineHQKeyPath    = "/etc/apt/keyrings/winehq-archive.key"
+	wineHQKeyPath    = "/etc/apt/keyrings/winehq-archive.gpg"
 	wineHQSourceDir  = "/etc/apt/sources.list.d"
 	wineHQKeyringDir = "/etc/apt/keyrings"
 )
+
+func legacyWineHQKeyPath() string { return strings.TrimSuffix(wineHQKeyPath, ".gpg") + ".key" }
+
+func legacyWineHQShareKeyPath() string {
+	return "/usr/share/keyrings/" + filepath.Base(legacyWineHQKeyPath())
+}
 
 type osReleaseInfo struct {
 	ID              string
@@ -308,7 +316,7 @@ func ensureI386Architecture(output *strings.Builder) (bool, error) {
 }
 
 func ensureWineHQKey(output *strings.Builder) (bool, error) {
-	if st, err := os.Stat(wineHQKeyPath); err == nil && st.Size() > 0 {
+	if isUsableWineHQKeyring(wineHQKeyPath) {
 		appendOutput(output, "windrose_winehq_key=present")
 		return false, nil
 	}
@@ -318,32 +326,29 @@ func ensureWineHQKey(output *strings.Builder) (bool, error) {
 	if err := os.Chmod(wineHQKeyringDir, 0o755); err != nil {
 		return false, fmt.Errorf("chmod WineHQ keyring dir: %w", err)
 	}
-	if err := downloadFileAtomic(wineHQKeyURL, wineHQKeyPath, 0o644); err != nil {
+	if err := downloadWineHQKeyringAtomic(wineHQKeyURL, wineHQKeyPath, 0o644); err != nil {
 		return false, err
 	}
 	appendOutput(output, "windrose_winehq_key=downloaded url="+wineHQKeyURL)
 	return true, nil
 }
 
-func ensureWineHQSource(sourceURL, sourcePath string, output *strings.Builder) (bool, error) {
-	if !strings.HasPrefix(filepath.Clean(sourcePath), filepath.Clean(wineHQSourceDir)+string(os.PathSeparator)) {
-		return false, fmt.Errorf("invalid WineHQ source path: %s", sourcePath)
+func isUsableWineHQKeyring(path string) bool {
+	content, err := os.ReadFile(path)
+	if err != nil || len(content) == 0 {
+		return false
 	}
-	if existing, err := os.ReadFile(sourcePath); err == nil && strings.Contains(string(existing), "dl.winehq.org/wine-builds/ubuntu") {
-		appendOutput(output, "windrose_winehq_source=present path="+sourcePath)
-		return false, nil
+	if strings.Contains(string(content[:min(len(content), 64)]), "-----BEGIN PGP") {
+		return false
 	}
-	if err := os.MkdirAll(wineHQSourceDir, 0o755); err != nil {
-		return false, fmt.Errorf("create WineHQ source dir: %w", err)
+	if _, err := exec.LookPath("gpg"); err != nil {
+		return true
 	}
-	if err := downloadFileAtomic(sourceURL, sourcePath, 0o644); err != nil {
-		return false, err
-	}
-	appendOutput(output, "windrose_winehq_source=downloaded path="+sourcePath)
-	return true, nil
+	cmd := exec.Command("gpg", "--show-keys", path)
+	return cmd.Run() == nil
 }
 
-func downloadFileAtomic(url, dest string, perm os.FileMode) error {
+func downloadWineHQKeyringAtomic(url, dest string, perm os.FileMode) error {
 	resp, err := wineDepsHTTPClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("download %s: %w", url, err)
@@ -352,13 +357,127 @@ func downloadFileAtomic(url, dest string, perm os.FileMode) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("download %s failed: HTTP %d", url, resp.StatusCode)
 	}
+	return dearmorReaderAtomic(resp.Body, dest, perm)
+}
+
+var dearmorReaderAtomic = func(r io.Reader, dest string, perm os.FileMode) error {
+	block, err := armor.Decode(r)
+	if err != nil {
+		return fmt.Errorf("decode armored WineHQ key: %w", err)
+	}
+	if block.Type != "PGP PUBLIC KEY BLOCK" {
+		return fmt.Errorf("decode armored WineHQ key: unexpected block type %q", block.Type)
+	}
+	gpgTmp, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+".gpg.*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp keyring for %s: %w", dest, err)
+	}
+	gpgName := gpgTmp.Name()
+	defer func() { _ = os.Remove(gpgName) }()
+	if _, err := io.Copy(gpgTmp, block.Body); err != nil {
+		_ = gpgTmp.Close()
+		return fmt.Errorf("write temp keyring for %s: %w", dest, err)
+	}
+	if err := gpgTmp.Chmod(perm); err != nil {
+		_ = gpgTmp.Close()
+		return fmt.Errorf("chmod temp keyring for %s: %w", dest, err)
+	}
+	if err := gpgTmp.Close(); err != nil {
+		return fmt.Errorf("close temp keyring for %s: %w", dest, err)
+	}
+	if err := os.Rename(gpgName, dest); err != nil {
+		return fmt.Errorf("install %s: %w", dest, err)
+	}
+	return nil
+}
+
+func ensureWineHQSource(sourceURL, sourcePath string, output *strings.Builder) (bool, error) {
+	if !strings.HasPrefix(filepath.Clean(sourcePath), filepath.Clean(wineHQSourceDir)+string(os.PathSeparator)) {
+		return false, fmt.Errorf("invalid WineHQ source path: %s", sourcePath)
+	}
+	if existing, err := os.ReadFile(sourcePath); err == nil {
+		existingContent := string(existing)
+		if isWineHQSourceCurrent(existingContent) {
+			appendOutput(output, "windrose_winehq_source=present path="+sourcePath)
+			return false, nil
+		}
+		if strings.Contains(existingContent, "dl.winehq.org/wine-builds/") {
+			normalized := normalizeWineHQSource(existingContent)
+			if isWineHQSourceCurrent(normalized) {
+				if err := writeFileAtomic(sourcePath, []byte(normalized), 0o644); err != nil {
+					return false, err
+				}
+				appendOutput(output, "windrose_winehq_source=updated path="+sourcePath)
+				return true, nil
+			}
+		}
+	}
+	if err := os.MkdirAll(wineHQSourceDir, 0o755); err != nil {
+		return false, fmt.Errorf("create WineHQ source dir: %w", err)
+	}
+	content, err := downloadText(sourceURL)
+	if err != nil {
+		return false, err
+	}
+	content = normalizeWineHQSource(content)
+	if err := writeFileAtomic(sourcePath, []byte(content), 0o644); err != nil {
+		return false, err
+	}
+	appendOutput(output, "windrose_winehq_source=downloaded path="+sourcePath)
+	return true, nil
+}
+
+func isWineHQSourceCurrent(content string) bool {
+	return strings.Contains(content, "dl.winehq.org/wine-builds/") &&
+		!strings.Contains(content, legacyWineHQKeyPath()) &&
+		(strings.Contains(content, "Signed-By: "+wineHQKeyPath) || strings.Contains(content, "signed-by="+wineHQKeyPath))
+}
+
+func normalizeWineHQSource(content string) string {
+	content = strings.ReplaceAll(content, legacyWineHQKeyPath(), wineHQKeyPath)
+	content = strings.ReplaceAll(content, "Signed-By: "+legacyWineHQShareKeyPath(), "Signed-By: "+wineHQKeyPath)
+	content = strings.ReplaceAll(content, "signed-by="+legacyWineHQShareKeyPath(), "signed-by="+wineHQKeyPath)
+	if strings.Contains(content, "Signed-By:") || strings.Contains(content, "signed-by=") {
+		return content
+	}
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "deb ") && strings.Contains(line, "dl.winehq.org/wine-builds/") {
+			lines[i] = strings.Replace(line, "deb ", "deb [signed-by="+wineHQKeyPath+"] ", 1)
+			return strings.Join(lines, "\n")
+		}
+	}
+	if strings.Contains(content, "Types: deb") && strings.Contains(content, "URIs: https://dl.winehq.org/wine-builds/") {
+		trimmed := strings.TrimRight(content, "\n")
+		return trimmed + "\nSigned-By: " + wineHQKeyPath + "\n"
+	}
+	return content
+}
+
+func downloadText(url string) (string, error) {
+	resp, err := wineDepsHTTPClient.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("download %s: %w", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("download %s failed: HTTP %d", url, resp.StatusCode)
+	}
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", url, err)
+	}
+	return string(b), nil
+}
+
+func writeFileAtomic(dest string, content []byte, perm os.FileMode) error {
 	tmp, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+".*.tmp")
 	if err != nil {
 		return fmt.Errorf("create temp file for %s: %w", dest, err)
 	}
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
+	if _, err := tmp.Write(content); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("write temp file for %s: %w", dest, err)
 	}

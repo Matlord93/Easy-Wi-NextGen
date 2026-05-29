@@ -178,8 +178,71 @@ detect_arch_suffix() {
 # Package management
 # ---------------------------------------------------------------------------
 
+apt_lock_holder_info() {
+  local lock="$1" pid="" comm="" inode=""
+
+  [[ -e "${lock}" ]] || return 1
+
+  if command -v fuser >/dev/null 2>&1; then
+    pid="$(fuser "${lock}" 2>/dev/null | awk '{print $1}' || true)"
+  fi
+
+  if [[ -z "${pid}" ]] && command -v lsof >/dev/null 2>&1; then
+    pid="$(lsof -t "${lock}" 2>/dev/null | head -n1 || true)"
+  fi
+
+  if [[ -z "${pid}" && -r /proc/locks ]]; then
+    inode="$(stat -Lc '%i' "${lock}" 2>/dev/null || true)"
+    if [[ -n "${inode}" ]]; then
+      pid="$(awk -v inode="${inode}" 'split($6, a, ":") == 3 && a[3] == inode { print $5; exit }' /proc/locks 2>/dev/null || true)"
+    fi
+  fi
+
+  [[ -n "${pid}" ]] || return 1
+  comm="$(ps -p "${pid}" -o comm= 2>/dev/null || true)"
+  printf '%s|%s|%s\n' "${lock}" "${pid}" "${comm:-unbekannt}"
+}
+
+wait_for_apt_locks() {
+  local timeout="${APT_LOCK_TIMEOUT:-900}"
+  local interval="${APT_LOCK_WAIT_INTERVAL:-10}"
+  local waited=0
+  local locks=(
+    /var/lib/dpkg/lock-frontend
+    /var/lib/dpkg/lock
+    /var/cache/apt/archives/lock
+    /var/lib/apt/lists/lock
+  )
+
+  [[ "${timeout}" =~ ^[0-9]+$ ]] || timeout=900
+  [[ "${interval}" =~ ^[0-9]+$ && "${interval}" -gt 0 ]] || interval=10
+
+  while true; do
+    local blocking_info=""
+    local lock pid comm
+
+    for lock in "${locks[@]}"; do
+      blocking_info="$(apt_lock_holder_info "${lock}" || true)"
+      [[ -n "${blocking_info}" ]] && break
+    done
+
+    [[ -z "${blocking_info}" ]] && return 0
+
+    IFS='|' read -r lock pid comm <<< "${blocking_info}"
+
+    if (( waited >= timeout )); then
+      fatal "APT/dpkg ist seit ${timeout} Sekunden blockiert durch Prozess ${pid} (${comm}) auf ${lock}. Bitte laufenden Prozess prüfen und Installer erneut starten."
+    fi
+
+    warn "APT/dpkg ist gerade durch Prozess ${pid} (${comm}) blockiert (${lock}) – warte ${interval} Sekunden..."
+    sleep "${interval}"
+    waited=$((waited + interval))
+  done
+}
+
 apt_update_once() {
   if [[ "${APT_UPDATED}" -eq 0 ]]; then
+    wait_for_apt_locks
     run_or_fatal "apt-Paketlisten konnten nicht aktualisiert werden" \
       env DEBIAN_FRONTEND=noninteractive apt-get update
     APT_UPDATED=1
@@ -219,7 +282,9 @@ install_packages() {
   log "Installiere Pakete: ${packages[*]}"
   case "${manager}" in
     apt)
+      wait_for_apt_locks
       apt_update_once
+      wait_for_apt_locks
       run_or_fatal "apt-Paketinstallation fehlgeschlagen: ${packages[*]}" \
         env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
       ;;
@@ -257,8 +322,18 @@ setup_php_repo() {
 
   case "${family}" in
     debian)
+      local distro codename
+      distro="$(get_os_field ID)"
+      codename="$(get_os_field VERSION_CODENAME)"
+
+      if [[ "${distro}" == "ubuntu" && "${codename}" == "resolute" ]]; then
+        step "Nutze Ubuntu-PHP-Pakete (PHP ${php_version}); Ondrej/PHP-PPA wird übersprungen."
+        backup_conflicting_ondrej_php_sources
+        apt_update_once
+        return
+      fi
+
       step "Richte PHP-Repository ein (Ondrej/PHP)."
-      local distro; distro="$(get_os_field ID)"
       if [[ "${distro}" == "ubuntu" ]]; then
         backup_conflicting_ondrej_php_sources
       fi
@@ -274,7 +349,6 @@ setup_php_repo() {
         add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 || warn "PPA konnte nicht hinzugefügt werden – nutze Distro-Pakete."
       else
         # Debian: sury.org
-        local codename; codename="$(get_os_field VERSION_CODENAME)"
         [[ -n "${codename}" ]] || fatal "Debian-Codename konnte nicht ermittelt werden (/etc/os-release: VERSION_CODENAME fehlt)."
         mkdir -p /usr/share/keyrings
         curl -fsSL https://packages.sury.org/php/apt.gpg \
@@ -330,6 +404,22 @@ setup_php_repo() {
 # PHP package resolution
 # ---------------------------------------------------------------------------
 
+normalize_php_version_for_os() {
+  local requested="$1" manager="$2" family="$3"
+  local distro codename
+
+  if [[ "${manager}" == "apt" && "${family}" == "debian" ]]; then
+    distro="$(get_os_field ID)"
+    codename="$(get_os_field VERSION_CODENAME)"
+    if [[ "${distro}" == "ubuntu" && "${codename}" == "resolute" ]]; then
+      echo "8.5"
+      return
+    fi
+  fi
+
+  echo "${requested}"
+}
+
 resolve_php_version() {
   local requested="$1" manager="$2" family="$3"
   local ver; ver="$(printf '%s' "${requested}" | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1 || true)"
@@ -337,7 +427,7 @@ resolve_php_version() {
 
   if [[ "${manager}" == "apt" ]]; then
     apt_update_once
-    for candidate in "${ver}" 8.4 8.3 8.2 8.1; do
+    for candidate in "${ver}" 8.5 8.4 8.3 8.2 8.1; do
       if apt-cache show "php${candidate}" >/dev/null 2>&1; then
         [[ "${candidate}" != "${ver}" ]] && warn "PHP ${ver} nicht verfügbar – nutze ${candidate}."
         echo "${candidate}"; return
@@ -350,6 +440,29 @@ resolve_php_version() {
   echo "${ver}"
 }
 
+apt_package_exists() {
+  local pkg="$1"
+  apt-cache show "${pkg}" >/dev/null 2>&1
+}
+
+apt_require_package() {
+  local pkg="$1"
+  if apt_package_exists "${pkg}"; then
+    PHP_BASE_PKGS+=("${pkg}")
+  else
+    fatal "Benötigtes Paket nicht verfügbar: ${pkg}"
+  fi
+}
+
+apt_add_package_if_exists() {
+  local pkg="$1"
+  if apt_package_exists "${pkg}"; then
+    PHP_BASE_PKGS+=("${pkg}")
+  else
+    warn "Paket ${pkg} nicht verfügbar – wird übersprungen."
+  fi
+}
+
 # Build the full list of PHP packages for a given manager/version
 resolve_php_packages() {
   local manager="$1" php_version="$2" db_system="$3"
@@ -359,23 +472,22 @@ resolve_php_packages() {
 
   case "${manager}" in
     apt)
-      PHP_BASE_PKGS=(
-        "php${php_version}"
-        "php${php_version}-fpm"
-        "php${php_version}-cli"
-        "php${php_version}-mbstring"
-        "php${php_version}-xml"
-        "php${php_version}-curl"
-        "php${php_version}-zip"
-        "php${php_version}-gd"
-        "php${php_version}-intl"
-        "php${php_version}-bcmath"
-        "php${php_version}-opcache"
-        "php${php_version}-redis"
-      )
+      apt_require_package "php${php_version}"
+      apt_require_package "php${php_version}-fpm"
+      apt_require_package "php${php_version}-cli"
+
+      apt_add_package_if_exists "php${php_version}-mbstring"
+      apt_add_package_if_exists "php${php_version}-xml"
+      apt_add_package_if_exists "php${php_version}-curl"
+      apt_add_package_if_exists "php${php_version}-zip"
+      apt_add_package_if_exists "php${php_version}-gd"
+      apt_add_package_if_exists "php${php_version}-intl"
+      apt_add_package_if_exists "php${php_version}-bcmath"
+      apt_add_package_if_exists "php${php_version}-opcache"
+      apt_add_package_if_exists "php${php_version}-redis"
       case "${db_system}" in
-        mariadb|mysql) PHP_BASE_PKGS+=("php${php_version}-mysql") ;;
-        postgresql)    PHP_BASE_PKGS+=("php${php_version}-pgsql") ;;
+        mariadb|mysql) apt_add_package_if_exists "php${php_version}-mysql" ;;
+        postgresql)    apt_add_package_if_exists "php${php_version}-pgsql" ;;
       esac
       PHP_FPM_SERVICE="php${php_version}-fpm"
       PHP_FPM_SOCKET="/run/php/php${php_version}-fpm.sock"
@@ -2396,6 +2508,8 @@ install_panel() {
   manager="$(detect_package_manager)"
 
   log "Erkanntes OS-Family: ${family} | Paketmanager: ${manager}"
+
+  php_version="$(normalize_php_version_for_os "${php_version}" "${manager}" "${family}")"
 
   step "Richte PHP-Repositories ein."
   setup_php_repo "${manager}" "${family}" "${php_version}"
