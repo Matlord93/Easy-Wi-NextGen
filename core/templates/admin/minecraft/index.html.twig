@@ -1,0 +1,105 @@
+{% extends 'admin/base.html.twig' %}
+{% set pageTitle = t('admin_minecraft_title', page_locale()) %}
+{% set pageSubtitle = t('admin_minecraft_subtitle', page_locale()) %}
+{% set activeNav = 'minecraft' %}
+{% block content %}
+<div class="ng-data-card">
+  <div class="ng-data-card__header">
+    <div>
+      <h2 class="ng-data-card__title">{{ t('admin_minecraft_title', page_locale()) }}</h2>
+      <p class="ng-data-card__sub">{{ t('admin_minecraft_subtitle', page_locale()) }}</p>
+    </div>
+  </div>
+  <div style="padding:16px;display:grid;gap:24px;">
+
+    {% if importResult %}
+      <div class="alert {{ importResult.errors > 0 ? 'alert-danger' : 'alert-success' }}">
+        <strong>{{ t('admin_minecraft_import_result', page_locale()) }}</strong>
+        <span>{{ t('admin_minecraft_import_created_label', page_locale()) }}: {{ importResult.created }}</span>
+        <span>{{ t('admin_minecraft_import_updated_label', page_locale()) }}: {{ importResult.updated }}</span>
+        <span>{{ t('admin_minecraft_import_skipped_label', page_locale()) }}: {{ importResult.skipped }}</span>
+        <span>{{ t('admin_minecraft_import_deactivated_label', page_locale()) }}: {{ importResult.deactivated }}</span>
+        <span>{{ t('admin_minecraft_import_errors_label', page_locale()) }}: {{ importResult.errors }}</span>
+        {% if importResult.errorMessages is not empty %}
+          <ul>{% for error in importResult.errorMessages %}<li>{{ error }}</li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <section>
+      <h3>{{ t('admin_minecraft_versions_section', page_locale()) }}</h3>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+        {% for channel in ['vanilla', 'paper', 'bedrock'] %}
+          {% set stats = channelStats[channel] %}
+          <div class="ng-data-card" style="padding:16px;">
+            <h4 style="margin:0 0 8px;">{{ t('admin_minecraft_channel_' ~ channel, page_locale()) }}</h4>
+            <p style="margin:0 0 4px;">
+              {{ t('admin_minecraft_versions_active_of_total', page_locale(), {'%active%': stats.active, '%total%': stats.total}) }}
+            </p>
+            <p style="margin:0 0 12px;color:var(--color-text-muted, #888);">
+              {% if stats.latest %}
+                {{ t('admin_minecraft_latest_version', page_locale(), {'%version%': stats.latest}) }}
+              {% else %}
+                {{ t('admin_minecraft_no_versions', page_locale()) }}
+              {% endif %}
+            </p>
+            <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/minecraft-versions?channel={{ channel }}">
+              {{ t('admin_minecraft_manage_versions', page_locale()) }}
+            </a>
+          </div>
+        {% endfor %}
+      </div>
+
+      <form method="post" action="/admin/minecraft/import" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <strong>{{ t('admin_minecraft_import_section', page_locale()) }}</strong>
+        <select name="channel">
+          <option value="all">{{ t('admin_minecraft_import_all', page_locale()) }}</option>
+          <option value="vanilla">{{ t('admin_minecraft_channel_vanilla', page_locale()) }}</option>
+          <option value="paper">{{ t('admin_minecraft_channel_paper', page_locale()) }}</option>
+          <option value="bedrock">{{ t('admin_minecraft_channel_bedrock', page_locale()) }}</option>
+        </select>
+        <label><input type="checkbox" name="force" value="1"> {{ t('admin_minecraft_import_force', page_locale()) }}</label>
+        <label><input type="checkbox" name="deactivate_missing" value="1"> {{ t('admin_minecraft_import_deactivate', page_locale()) }}</label>
+        <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_minecraft_import_run', page_locale()) }}</button>
+      </form>
+    </section>
+
+    <section>
+      <h3>{{ t('admin_minecraft_templates_section', page_locale()) }}</h3>
+      <div class="ng-data-card__body--flush">
+        <table class="ui-table">
+          <thead>
+            <tr>
+              <th>{{ t('admin_minecraft_game_key', page_locale()) }}</th>
+              <th>{{ t('admin_minecraft_display_name', page_locale()) }}</th>
+              <th>{{ t('admin_minecraft_env_vars_count', page_locale()) }}</th>
+              <th>{{ t('admin_minecraft_start_params_hint', page_locale()) }}</th>
+              <th>{{ t('actions', page_locale()) }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for template in templates %}
+              <tr>
+                <td>{{ template.gameKey }}</td>
+                <td>{{ template.displayName }}</td>
+                <td>{{ template.envVars|length }}</td>
+                <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ template.startParams }}">
+                  {{ template.startParams|slice(0, 60) }}{% if template.startParams|length > 60 %}…{% endif %}
+                </td>
+                <td>
+                  <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/templates/{{ template.id }}/edit">
+                    {{ t('admin_minecraft_edit_template', page_locale()) }}
+                  </a>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="5">{{ t('admin_minecraft_no_templates', page_locale()) }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

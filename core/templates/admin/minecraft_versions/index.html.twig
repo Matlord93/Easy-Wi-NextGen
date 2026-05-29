@@ -11,23 +11,41 @@
     </div>
     <a class="ui-button ui-button--primary ui-button--sm" href="/admin/minecraft-versions/new">{{ t('admin_minecraft_versions_new', page_locale()) }}</a>
   </div>
-  <div style="padding:16px;display:flex;gap:12px;flex-wrap:wrap;">
-    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap;">
+  <div style="padding:16px;display:grid;gap:14px;">
+    {% if importResult %}
+      <div class="alert {{ importResult.errors > 0 ? 'alert-danger' : 'alert-success' }}">
+        <strong>{{ t('admin_minecraft_versions_import_result', page_locale()) }}</strong>
+        <span>{{ t('admin_minecraft_versions_import_created_label', page_locale()) }}: {{ importResult.created }}</span>
+        <span>{{ t('admin_minecraft_versions_import_updated_label', page_locale()) }}: {{ importResult.updated }}</span>
+        <span>{{ t('admin_minecraft_versions_import_skipped_label', page_locale()) }}: {{ importResult.skipped }}</span>
+        <span>{{ t('admin_minecraft_versions_import_deactivated_label', page_locale()) }}: {{ importResult.deactivated }}</span>
+        <span>{{ t('admin_minecraft_versions_import_errors_label', page_locale()) }}: {{ importResult.errors }}</span>
+        {% if importResult.errorMessages is not empty %}
+          <ul>{% for error in importResult.errorMessages %}<li>{{ error }}</li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+    {% endif %}
+    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <select name="channel"><option value="">{{ t('admin_minecraft_versions_all_channels', page_locale()) }}</option>{% for c in ['vanilla','paper','bedrock'] %}<option value="{{ c }}" {% if filters.channel == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
       <select name="active"><option value="">{{ t('admin_minecraft_versions_active_filter', page_locale()) }}</option><option value="1" {% if filters.active == '1' %}selected{% endif %}>{{ t('admin_minecraft_versions_active', page_locale()) }}</option><option value="0" {% if filters.active == '0' %}selected{% endif %}>{{ t('admin_minecraft_versions_inactive', page_locale()) }}</option></select>
       <select name="source"><option value="">{{ t('admin_minecraft_versions_all_sources', page_locale()) }}</option><option value="import" {% if filters.source == 'import' %}selected{% endif %}>import</option><option value="manual" {% if filters.source == 'manual' %}selected{% endif %}>manual</option></select>
+      <select name="preview"><option value="">{{ t('admin_minecraft_versions_preview_filter', page_locale()) }}</option><option value="1" {% if filters.preview == '1' %}selected{% endif %}>{{ t('admin_minecraft_versions_yes', page_locale()) }}</option><option value="0" {% if filters.preview == '0' %}selected{% endif %}>{{ t('admin_minecraft_versions_no', page_locale()) }}</option></select>
       <input name="q" value="{{ filters.q }}" placeholder="{{ t('admin_minecraft_versions_search_placeholder', page_locale()) }}">
       <button class="ui-button ui-button--ghost ui-button--sm">{{ t('filter', page_locale()) }}</button>
     </form>
-    <form method="post" action="/admin/minecraft-versions/import" style="display:flex;gap:8px;flex-wrap:wrap;">
+    <form method="post" action="/admin/minecraft-versions/import" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <strong>{{ t('admin_minecraft_versions_import_section', page_locale()) }}</strong>
       <select name="channel"><option value="all">{{ t('admin_minecraft_versions_import_all', page_locale()) }}</option><option value="vanilla">Vanilla</option><option value="paper">Paper</option><option value="bedrock">Bedrock</option></select>
       <label><input type="checkbox" name="force" value="1"> {{ t('admin_minecraft_versions_force', page_locale()) }}</label>
       <label><input type="checkbox" name="deactivate_missing" value="1"> {{ t('admin_minecraft_versions_deactivate_missing', page_locale()) }}</label>
       <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_minecraft_versions_import_start', page_locale()) }}</button>
     </form>
   </div>
-  <div class="ng-data-card__body--flush"><table class="ui-table"><thead><tr><th>{{ t('admin_minecraft_versions_active', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_channel', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_mc_version', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_build', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_java', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_source', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_download_url', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_released_at', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_updated_at', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_notes', page_locale()) }}</th><th>{{ t('actions', page_locale()) }}</th></tr></thead><tbody>
-  {% for version in versions %}<tr><td>{{ version.active ? t('admin_minecraft_versions_active', page_locale()) : t('admin_minecraft_versions_inactive', page_locale()) }}</td><td>{{ version.channel }}</td><td>{{ version.mcVersion }}</td><td>{{ version.build ?: '—' }}</td><td>{{ version.javaVersion ?: '—' }}</td><td>{{ version.source ?: '—' }}</td><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ version.downloadUrl }}</td><td>{{ version.releasedAt ? version.releasedAt|date('Y-m-d') : '—' }}</td><td>{{ version.updatedAt|date('Y-m-d H:i') }}</td><td>{{ version.notes ?: '—' }}</td><td><a href="/admin/minecraft-versions/{{ version.id }}/edit">{{ t('edit', page_locale()) }}</a><form method="post" action="/admin/minecraft-versions/{{ version.id }}/toggle" style="display:inline"><button>{{ version.active ? t('admin_minecraft_versions_deactivate', page_locale()) : t('admin_minecraft_versions_activate', page_locale()) }}</button></form><form method="post" action="/admin/minecraft-versions/{{ version.id }}/delete" style="display:inline"><button onclick="return confirm('{{ t('admin_minecraft_versions_delete_confirm', page_locale())|e('js') }}')">{{ t('delete', page_locale()) }}</button></form></td></tr>{% else %}<tr><td colspan="11">{{ t('admin_minecraft_versions_empty', page_locale()) }}</td></tr>{% endfor %}
+  <div class="ng-data-card__body--flush"><table class="ui-table"><thead><tr><th>{{ t('admin_minecraft_versions_channel', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_mc_version', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_build', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_java', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_source', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_active', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_preview', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_download_url', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_updated_at', page_locale()) }}</th><th>{{ t('actions', page_locale()) }}</th></tr></thead><tbody>
+  {% for version in versions %}
+    {% set isPreview = 'preview' in version.downloadUrl|lower %}
+    <tr><td>{{ version.channel }}</td><td>{{ version.mcVersion }}</td><td>{{ version.build ?: '—' }}</td><td>{{ version.javaVersion ?: '—' }}</td><td>{{ version.source ?: '—' }}</td><td>{{ version.active ? t('admin_minecraft_versions_active', page_locale()) : t('admin_minecraft_versions_inactive', page_locale()) }}</td><td>{{ isPreview ? t('admin_minecraft_versions_yes', page_locale()) : t('admin_minecraft_versions_no', page_locale()) }}</td><td title="{{ version.downloadUrl }}" style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ version.downloadUrl }}</td><td>{{ version.updatedAt|date('Y-m-d H:i') }}</td><td><a href="/admin/minecraft-versions/{{ version.id }}/edit">{{ t('edit', page_locale()) }}</a><form method="post" action="/admin/minecraft-versions/{{ version.id }}/toggle" style="display:inline"><button>{{ version.active ? t('admin_minecraft_versions_deactivate', page_locale()) : t('admin_minecraft_versions_activate', page_locale()) }}</button></form><form method="post" action="/admin/minecraft-versions/{{ version.id }}/delete" style="display:inline"><button onclick="return confirm('{{ t('admin_minecraft_versions_delete_confirm', page_locale())|e('js') }}')">{{ t('delete', page_locale()) }}</button></form></td></tr>
+  {% else %}<tr><td colspan="10">{{ t('admin_minecraft_versions_empty', page_locale()) }}</td></tr>{% endfor %}
   </tbody></table></div>
 </div>
 {% endblock %}

@@ -1229,7 +1229,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
                 ],
-                '{{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
+                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties motd \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties enable-rcon \"true\"; set_property server.properties rcon.password \"{{RCON_PASSWORD}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; {{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui",
                 [
                     ['key' => 'JAVA_XMS', 'value' => '1G'],
                     ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -1247,7 +1247,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'server.properties',
                         'description' => 'Base server settings',
-                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{SERVER_PORT}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nserver-password={{SERVER_PASSWORD}}\n",
+                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{PORT_GAME}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nserver-password={{SERVER_PASSWORD}}\n",
                     ],
                 ],
                 [],
@@ -1267,7 +1267,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
                 ],
-                '{{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
+                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties motd \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties enable-rcon \"true\"; set_property server.properties rcon.password \"{{RCON_PASSWORD}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; {{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui",
                 [
                     ['key' => 'JAVA_XMS', 'value' => '1G'],
                     ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -1285,7 +1285,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'server.properties',
                         'description' => 'Base server settings',
-                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{SERVER_PORT}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nserver-password={{SERVER_PASSWORD}}\n",
+                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{PORT_GAME}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nserver-password={{SERVER_PASSWORD}}\n",
                     ],
                 ],
                 [],
@@ -1305,16 +1305,17 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/bedrock_server',
+                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties server-name \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties server-portv6 \"{{PORT_GAME}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; set_property server.properties online-mode \"true\"; {{INSTANCE_DIR}}/bedrock_server",
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Bedrock'],
+                    ['key' => 'MAX_PLAYERS', 'value' => '10'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
                         'path' => 'server.properties',
                         'description' => 'Base server settings',
-                        'contents' => "server-name={{SERVER_NAME}}\nserver-port={{PORT_GAME}}\nserver-portv6=19133\nmax-players=10\nonline-mode=true\n",
+                        'contents' => "server-name={{SERVER_NAME}}\nserver-port={{PORT_GAME}}\nserver-portv6={{PORT_GAME}}\nmax-players={{MAX_PLAYERS}}\nserver-password={{SERVER_PASSWORD}}\nonline-mode=true\n",
                     ],
                     [
                         'path' => 'allowlist.json',

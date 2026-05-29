@@ -149,7 +149,12 @@ func extractFirstCommandToken(command string) string {
 	if len(fields) == 0 {
 		return ""
 	}
-	return strings.Trim(fields[0], "\"'")
+	token := strings.Trim(fields[0], "\"'")
+	// Shell function declarations (e.g. "set_property() {") are not binaries.
+	if strings.Contains(token, "(") {
+		return ""
+	}
+	return token
 }
 
 func resolveBinaryPath(instanceDir, token string) string {

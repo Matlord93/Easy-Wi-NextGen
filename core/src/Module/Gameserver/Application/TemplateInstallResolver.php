@@ -129,8 +129,8 @@ class TemplateInstallResolver
         $escaped = escapeshellarg($url);
 
         return sprintf(
-            'if command -v curl >/dev/null 2>&1; then curl -L -o bedrock-server.zip %1$s; '
-            . 'elif command -v wget >/dev/null 2>&1; then wget -O bedrock-server.zip %1$s; '
+            'if command -v curl >/dev/null 2>&1; then curl --http1.1 -L -A "Mozilla/5.0" -H "Accept: application/zip" -H "Referer: https://www.minecraft.net/en-us/download/server/bedrock" -o bedrock-server.zip %1$s; '
+            . 'elif command -v wget >/dev/null 2>&1; then wget --user-agent="Mozilla/5.0" --referer="https://www.minecraft.net/en-us/download/server/bedrock" -O bedrock-server.zip %1$s; '
             . 'else echo "Missing curl or wget." >&2; exit 1; fi; '
             . 'unzip -o bedrock-server.zip && chmod +x bedrock_server',
             $escaped,

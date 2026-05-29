@@ -150,7 +150,8 @@ final class MinecraftVersionImportService
             throw new \RuntimeException($this->trans('minecraft_versions_import_error_paper_invalid'));
         }
         $items = [];
-        foreach ($data as $version => $value) {
+        $versions = isset($data['versions']) && is_array($data['versions']) ? $data['versions'] : $data;
+        foreach ($versions as $version => $value) {
             $url = is_string($value) ? $value : (is_array($value) ? (string) ($value['url'] ?? '') : '');
             $build = null;
             if (preg_match('/paper-.+-(\d+)\.jar(?:$|\?)/', basename(parse_url($url, PHP_URL_PATH) ?: ''), $matches)) {

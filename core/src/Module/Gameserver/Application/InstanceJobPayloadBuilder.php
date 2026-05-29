@@ -299,6 +299,11 @@ final class InstanceJobPayloadBuilder
             $vars['JAVA_BIN'] = $javaBin;
         }
 
+        if (!isset($vars['JAVA_BIN']) && str_contains($instance->getTemplate()->getStartParams(), '{{JAVA_BIN}}')) {
+            $mcVersion = $instance->getLockedVersion() ?? $instance->getInstalledVersion();
+            $vars['JAVA_BIN'] = $this->minecraftJavaVersionResolver->javaBin($mcVersion, $instance->getInstalledJavaVersion());
+        }
+
         foreach (['SERVER_PASSWORD', 'RCON_PASSWORD', 'ADMIN_PASSWORD', 'SERVER_ADMIN_PASSWORD'] as $passwordKey) {
             if (!isset($setupVarKeys[$passwordKey]) && isset($vars[$passwordKey]) && strtolower($vars[$passwordKey]) === 'change-me') {
                 unset($vars[$passwordKey]);

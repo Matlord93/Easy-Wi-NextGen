@@ -103,6 +103,12 @@ final class InstanceConfigService
                 'TELNET_PORT' => (string) ($ports['TELNET_PORT'] ?? 8081),
                 'CONTROL_PANEL_PORT' => (string) ($ports['CONTROL_PANEL_PORT'] ?? 8082),
             ]),
+            // NOTE: SERVER_PORT here is a legacy config-enforcement key used by the
+            // ConfigTemplateRegistry / properties apply_mode system (EnforceByConfig).
+            // It is distinct from the sniper's {{PORT_GAME}} template variable, which is
+            // injected by renderTemplateStrict() in the Go agent at start time.
+            // Do NOT rename to PORT_GAME here without also updating ConfigTemplateRegistry
+            // and the config-push pathway.
             'minecraft_vanilla_all', 'minecraft_paper_all' => $this->withConfig($payload, 'server.properties', [
                 'SERVER_PORT' => (string) ($ports['GAME_PORT'] ?? 25565),
             ]),
