@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,8 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/openpgp/armor"
 )
 
 var (
@@ -361,12 +360,9 @@ func downloadWineHQKeyringAtomic(url, dest string, perm os.FileMode) error {
 }
 
 var dearmorReaderAtomic = func(r io.Reader, dest string, perm os.FileMode) error {
-	block, err := armor.Decode(r)
+	binaryKey, err := decodePGPPublicKeyArmor(r)
 	if err != nil {
-		return fmt.Errorf("decode armored WineHQ key: %w", err)
-	}
-	if block.Type != "PGP PUBLIC KEY BLOCK" {
-		return fmt.Errorf("decode armored WineHQ key: unexpected block type %q", block.Type)
+		return err
 	}
 	gpgTmp, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+".gpg.*.tmp")
 	if err != nil {
@@ -374,7 +370,7 @@ var dearmorReaderAtomic = func(r io.Reader, dest string, perm os.FileMode) error
 	}
 	gpgName := gpgTmp.Name()
 	defer func() { _ = os.Remove(gpgName) }()
-	if _, err := io.Copy(gpgTmp, block.Body); err != nil {
+	if _, err := gpgTmp.Write(binaryKey); err != nil {
 		_ = gpgTmp.Close()
 		return fmt.Errorf("write temp keyring for %s: %w", dest, err)
 	}
@@ -389,6 +385,58 @@ var dearmorReaderAtomic = func(r io.Reader, dest string, perm os.FileMode) error
 		return fmt.Errorf("install %s: %w", dest, err)
 	}
 	return nil
+}
+
+func decodePGPPublicKeyArmor(r io.Reader) ([]byte, error) {
+	content, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("read armored WineHQ key: %w", err)
+	}
+	lines := strings.Split(string(content), "\n")
+	const (
+		beginLine = "-----BEGIN PGP PUBLIC KEY BLOCK-----"
+		endLine   = "-----END PGP PUBLIC KEY BLOCK-----"
+	)
+	inBlock := false
+	inBody := false
+	var encoded strings.Builder
+	for _, rawLine := range lines {
+		line := strings.TrimSpace(strings.TrimSuffix(rawLine, "\r"))
+		if !inBlock {
+			if line == beginLine {
+				inBlock = true
+			}
+			continue
+		}
+		if line == endLine {
+			if encoded.Len() == 0 {
+				return nil, fmt.Errorf("decode armored WineHQ key: empty public key block")
+			}
+			binaryKey, err := base64.StdEncoding.DecodeString(encoded.String())
+			if err != nil {
+				return nil, fmt.Errorf("decode armored WineHQ key: %w", err)
+			}
+			return binaryKey, nil
+		}
+		if !inBody {
+			if line == "" {
+				inBody = true
+				continue
+			}
+			if strings.Contains(line, ":") {
+				continue
+			}
+			inBody = true
+		}
+		if line == "" || strings.HasPrefix(line, "=") {
+			continue
+		}
+		encoded.WriteString(line)
+	}
+	if !inBlock {
+		return nil, fmt.Errorf("decode armored WineHQ key: missing PGP public key block")
+	}
+	return nil, fmt.Errorf("decode armored WineHQ key: missing end marker")
 }
 
 func ensureWineHQSource(sourceURL, sourcePath string, output *strings.Builder) (bool, error) {

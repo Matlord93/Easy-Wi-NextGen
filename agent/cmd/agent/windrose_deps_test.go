@@ -147,6 +147,33 @@ func TestNormalizeWineHQSourceUsesGPGKeyring(t *testing.T) {
 	}
 }
 
+func TestDecodePGPPublicKeyArmor(t *testing.T) {
+	armored := strings.Join([]string{
+		"-----BEGIN PGP PUBLIC KEY BLOCK-----",
+		"Version: EasyWI test",
+		"",
+		"AQID",
+		"BAUG",
+		"=wxyz",
+		"-----END PGP PUBLIC KEY BLOCK-----",
+		"",
+	}, "\n")
+	decoded, err := decodePGPPublicKeyArmor(strings.NewReader(armored))
+	if err != nil {
+		t.Fatalf("decodePGPPublicKeyArmor failed: %v", err)
+	}
+	if string(decoded) != string([]byte{1, 2, 3, 4, 5, 6}) {
+		t.Fatalf("unexpected decoded key bytes: %v", decoded)
+	}
+}
+
+func TestDecodePGPPublicKeyArmorRejectsMissingBlock(t *testing.T) {
+	_, err := decodePGPPublicKeyArmor(strings.NewReader("not an armored public key"))
+	if err == nil || !strings.Contains(err.Error(), "missing PGP public key block") {
+		t.Fatalf("expected missing block error, got %v", err)
+	}
+}
+
 func TestParseOSReleaseUbuntuNoble(t *testing.T) {
 	info := parseOSRelease("ID=ubuntu\nVERSION_CODENAME=noble\n")
 	if info.ID != "ubuntu" || info.VersionCodename != "noble" {
