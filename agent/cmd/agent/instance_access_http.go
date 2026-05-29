@@ -100,6 +100,9 @@ var (
 	proFTPDModuleConfigCandidates   = defaultProFTPDModuleConfigCandidates
 	proFTPDModuleSearchPatterns     = defaultProFTPDModuleSearchPatterns
 	proFTPDManagedModulesPath       = defaultProFTPDManagedModulesPath
+	proFTPDAppArmorProfilePath      = "/etc/apparmor.d/proftpd"
+	proFTPDAppArmorLocalPath        = "/etc/apparmor.d/local/proftpd"
+	proFTPDAppArmorActiveFunc       = apparmorLikelyActive
 	ensureLinuxProFTPDSFTPReadyFunc = ensureLinuxProFTPDSFTPReady
 	ensureProFTPDUserFunc           = ensureProFTPDUser
 	checkLinuxProFTPDHealthFunc     = checkLinuxProFTPDHealth
@@ -334,6 +337,9 @@ func ensureLinuxProFTPDSFTPReady() error {
 		return err
 	}
 	if err := ensureProFTPDConfig(confDir); err != nil {
+		return err
+	}
+	if err := ensureProFTPDAppArmorAccess(); err != nil {
 		return err
 	}
 	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
@@ -1000,6 +1006,91 @@ func buildProFTPDManagedConfig(port int) string {
 	}, "\n") + "\n"
 }
 
+func ensureProFTPDAppArmorAccess() error {
+	if !apparmorProfileExists(proFTPDAppArmorProfilePath) {
+		return nil
+	}
+	if !proFTPDAppArmorActiveFunc() {
+		log.Printf("proftpd apparmor profile present but AppArmor appears inactive; skipping profile reload")
+		return nil
+	}
+	localPath := proFTPDAppArmorLocalPath
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		return fmt.Errorf("CONFIG_INVALID: create AppArmor local dir: %w", err)
+	}
+	rules := []string{
+		"# EasyWI ProFTPD/SFTP auth files",
+		"/var/lib/easywi/proftpd/ r,",
+		"/var/lib/easywi/proftpd/passwd r,",
+	}
+	changed, err := appendUniqueLines(localPath, rules, 0o644)
+	if err != nil {
+		return fmt.Errorf("CONFIG_INVALID: update AppArmor local profile: %w", err)
+	}
+	if _, err := accessLookPath("apparmor_parser"); err != nil {
+		log.Printf("proftpd apparmor local profile updated=%t but apparmor_parser is unavailable; reload skipped", changed)
+		return nil
+	}
+	if out, err := accessRunCommandLogged("apparmor_parser", "-r", proFTPDAppArmorProfilePath); err != nil {
+		return fmt.Errorf("CONFIG_INVALID: reload AppArmor proftpd profile failed: %s", strings.TrimSpace(out))
+	}
+	return nil
+}
+
+func apparmorProfileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
+}
+
+func apparmorLikelyActive() bool {
+	for _, path := range []string{"/sys/module/apparmor/parameters/enabled", "/sys/kernel/security/apparmor/profiles"} {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		text := strings.TrimSpace(strings.ToLower(string(raw)))
+		return text == "y" || text == "yes" || strings.Contains(text, "proftpd") || strings.Contains(text, "apparmor")
+	}
+	if _, err := accessLookPath("aa-status"); err == nil {
+		if _, err := accessRunCommandLogged("aa-status", "--enabled"); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func appendUniqueLines(path string, wanted []string, perm os.FileMode) (bool, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	content := string(raw)
+	lines := strings.Split(content, "\n")
+	existing := map[string]bool{}
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			existing[trimmed] = true
+		}
+	}
+	changed := false
+	for _, line := range wanted {
+		if existing[strings.TrimSpace(line)] {
+			continue
+		}
+		if strings.TrimSpace(content) != "" && !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
+		content += line + "\n"
+		existing[strings.TrimSpace(line)] = true
+		changed = true
+	}
+	if !changed {
+		return false, nil
+	}
+	return true, os.WriteFile(path, []byte(content), perm)
+}
+
 func detectProFTPDServiceName() (string, error) {
 	if _, err := accessLookPath("systemctl"); err == nil {
 		out, err := accessRunCommandLogged("systemctl", "list-unit-files", "--type=service", "--no-legend")
@@ -1035,29 +1126,79 @@ func ensureEasyWIUser() error {
 }
 
 func ensureProFTPDAuthFile() error {
+	group, err := proFTPDPrimaryGroupName()
+	if err != nil {
+		return err
+	}
 	dir := filepath.Dir(proFTPDAuthUserFilePath)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: create auth file dir: %w", err)
 	}
-	if err := os.Chmod(dir, 0o700); err != nil {
+	if err := ensureSearchableDirectory(filepath.Dir(dir)); err != nil {
+		return err
+	}
+	if err := accessChownRootGroup(dir, group); err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: chown auth file dir: %w", err)
+	}
+	if err := os.Chmod(dir, 0o750); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: chmod auth file dir: %w", err)
 	}
-	_ = os.Chown(dir, 0, 0)
 	if _, err := os.Stat(proFTPDAuthUserFilePath); err == nil {
-		_ = os.Chown(proFTPDAuthUserFilePath, 0, 0)
-		if err := os.Chmod(proFTPDAuthUserFilePath, 0o600); err != nil {
+		if err := accessChownRootGroup(proFTPDAuthUserFilePath, group); err != nil {
+			return fmt.Errorf("PERMISSION_DENIED: chown auth file: %w", err)
+		}
+		if err := os.Chmod(proFTPDAuthUserFilePath, 0o640); err != nil {
 			return fmt.Errorf("PERMISSION_DENIED: chmod auth file: %w", err)
 		}
 		return nil
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("PERMISSION_DENIED: stat auth file: %w", err)
 	}
-	if err := os.WriteFile(proFTPDAuthUserFilePath, []byte{}, 0o600); err != nil {
+	if err := os.WriteFile(proFTPDAuthUserFilePath, []byte{}, 0o640); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: create auth file: %w", err)
 	}
-	_ = os.Chown(proFTPDAuthUserFilePath, 0, 0)
-	if err := os.Chmod(proFTPDAuthUserFilePath, 0o600); err != nil {
+	if err := accessChownRootGroup(proFTPDAuthUserFilePath, group); err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: chown auth file: %w", err)
+	}
+	if err := os.Chmod(proFTPDAuthUserFilePath, 0o640); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: chmod auth file: %w", err)
+	}
+	return nil
+}
+
+func proFTPDPrimaryGroupName() (string, error) {
+	if _, err := accessRunCommandLogged("id", "-u", "proftpd"); err != nil {
+		return "", fmt.Errorf("CONFIG_INVALID: required system user proftpd does not exist after package installation")
+	}
+	if _, err := accessRunCommandLogged("getent", "group", "nogroup"); err == nil {
+		return "nogroup", nil
+	}
+	out, err := accessRunCommandLogged("id", "-gn", "proftpd")
+	if err != nil || strings.TrimSpace(out) == "" {
+		return "", fmt.Errorf("CONFIG_INVALID: could not determine primary group for proftpd user: %s", strings.TrimSpace(out))
+	}
+	return strings.TrimSpace(out), nil
+}
+
+func accessChownRootGroup(path, group string) error {
+	out, err := accessRunCommandLogged("chown", "root:"+group, path)
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(out))
+	}
+	return nil
+}
+
+func ensureSearchableDirectory(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: stat searchable directory %s: %w", path, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("PERMISSION_DENIED: searchable path %s is not a directory", path)
+	}
+	mode := info.Mode().Perm() | 0o111
+	if err := os.Chmod(path, mode); err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: chmod searchable directory %s: %w", path, err)
 	}
 	return nil
 }
@@ -1137,10 +1278,10 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 	if !replaced {
 		updated = append(updated, entry)
 	}
-	if err := os.WriteFile(proFTPDAuthUserFilePath, []byte(strings.Join(updated, "\n")+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(proFTPDAuthUserFilePath, []byte(strings.Join(updated, "\n")+"\n"), 0o640); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: write auth file: %w", err)
 	}
-	return nil
+	return ensureProFTPDAuthFile()
 }
 
 func ensureProFTPDRootWritable(rootPath, uidString, gidString string) error {
@@ -1304,7 +1445,7 @@ func ensureServiceRunning(service string) error {
 		}
 		if out, err := accessRunCommandLogged("systemctl", "restart", service); err != nil {
 			if out2, err2 := accessRunCommandLogged("systemctl", "start", service); err2 != nil {
-				return fmt.Errorf("SERVICE_START_FAILED: %s | %s", strings.TrimSpace(out), strings.TrimSpace(out2))
+				return fmt.Errorf("SERVICE_START_FAILED: %s | %s %s", strings.TrimSpace(out), strings.TrimSpace(out2), proFTPDServiceFailureDetails(service))
 			}
 		}
 		// Enabling boot-start should not fail provisioning on hosts with custom init wiring.
@@ -1312,9 +1453,35 @@ func ensureServiceRunning(service string) error {
 		return nil
 	}
 	if out, err := accessRunCommandLogged("service", service, "restart"); err != nil {
-		return fmt.Errorf("SERVICE_START_FAILED: %s", strings.TrimSpace(out))
+		return fmt.Errorf("SERVICE_START_FAILED: %s %s", strings.TrimSpace(out), proFTPDServiceFailureDetails(service))
 	}
 	return nil
+}
+
+func proFTPDServiceFailureDetails(service string) string {
+	parts := []string{}
+	if _, err := accessLookPath("systemctl"); err == nil {
+		if out, err := accessRunCommandLogged("systemctl", "status", service, "--no-pager"); out != "" || err != nil {
+			parts = append(parts, "systemctl_status="+sanitizeDiagnosticValue(out))
+		}
+	}
+	if _, err := accessLookPath("journalctl"); err == nil {
+		if out, err := accessRunCommandLogged("journalctl", "-u", service, "-n", "100", "--no-pager"); out != "" || err != nil {
+			parts = append(parts, "journal="+sanitizeDiagnosticValue(out))
+		}
+		if out, err := accessRunCommandLogged("journalctl", "-k", "-n", "100", "--no-pager"); out != "" || err != nil {
+			denials := []string{}
+			for _, line := range strings.Split(out, "\n") {
+				if strings.Contains(strings.ToLower(line), "apparmor") {
+					denials = append(denials, line)
+				}
+			}
+			if len(denials) > 0 {
+				parts = append(parts, "apparmor="+sanitizeDiagnosticValue(strings.Join(denials, "\n")))
+			}
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func checkLinuxProFTPDHealth() error {
@@ -1352,6 +1519,9 @@ func checkLinuxProFTPDHealth() error {
 		if err := ensureProFTPDKeys(); err != nil {
 			return fmt.Errorf("CONFIG_INVALID: host key missing")
 		}
+	}
+	if err := ensureProFTPDAppArmorAccess(); err != nil {
+		return err
 	}
 	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
 		return err

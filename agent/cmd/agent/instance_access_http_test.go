@@ -507,11 +507,16 @@ func TestEnableProFTPDSFTPModuleMissingSOReportsDiagnostics(t *testing.T) {
 
 func TestEnsureProFTPDAuthFileIsIdempotent(t *testing.T) {
 	origAuth := proFTPDAuthUserFilePath
-	t.Cleanup(func() { proFTPDAuthUserFilePath = origAuth })
+	origRun := accessRunCommandLogged
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		accessRunCommandLogged = origRun
+	})
 	tmpDir := t.TempDir()
 	proFTPDAuthUserFilePath = filepath.Join(tmpDir, "proftpd", "passwd")
-	fileModeAssertionsSupported := chmodModeSupported(t, tmpDir, false, 0o600)
-	dirModeAssertionsSupported := chmodModeSupported(t, tmpDir, true, 0o700)
+	accessRunCommandLogged = func(name string, args ...string) (string, error) { return "", nil }
+	fileModeAssertionsSupported := chmodModeSupported(t, tmpDir, false, 0o640)
+	dirModeAssertionsSupported := chmodModeSupported(t, tmpDir, true, 0o750)
 
 	if err := ensureProFTPDAuthFile(); err != nil {
 		t.Fatal(err)
@@ -526,15 +531,15 @@ func TestEnsureProFTPDAuthFileIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fileModeAssertionsSupported && info.Mode().Perm() != 0o600 {
-		t.Fatalf("expected auth file mode 0600, got %o", info.Mode().Perm())
+	if fileModeAssertionsSupported && info.Mode().Perm() != 0o640 {
+		t.Fatalf("expected auth file mode 0640, got %o", info.Mode().Perm())
 	}
 	dirInfo, err := os.Stat(filepath.Dir(proFTPDAuthUserFilePath))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dirModeAssertionsSupported && dirInfo.Mode().Perm() != 0o700 {
-		t.Fatalf("expected auth dir mode 0700, got %o", dirInfo.Mode().Perm())
+	if dirModeAssertionsSupported && dirInfo.Mode().Perm() != 0o750 {
+		t.Fatalf("expected auth dir mode 0750, got %o", dirInfo.Mode().Perm())
 	}
 	raw, err := os.ReadFile(proFTPDAuthUserFilePath)
 	if err != nil {
@@ -623,7 +628,12 @@ func TestEnsureProFTPDUserPreservesExistingRootOwner(t *testing.T) {
 		return "", errors.New("unexpected command: " + name + " " + strings.Join(args, " "))
 	}
 	accessRunCommandLogged = func(name string, args ...string) (string, error) {
-		return "", errors.New("unexpected command: " + name + " " + strings.Join(args, " "))
+		switch name + " " + strings.Join(args, " ") {
+		case "id -u proftpd", "getent group nogroup", "chown root:nogroup " + filepath.Dir(proFTPDAuthUserFilePath), "chown root:nogroup " + proFTPDAuthUserFilePath:
+			return "", nil
+		default:
+			return "", errors.New("unexpected command: " + name + " " + strings.Join(args, " "))
+		}
 	}
 
 	if err := ensureProFTPDUser("sftp42", "secret", rootPath); err != nil {
@@ -656,9 +666,11 @@ func TestEnsureProFTPDUserRepairsWritableTree(t *testing.T) {
 
 	origAuth := proFTPDAuthUserFilePath
 	origRunOutput := accessRunCommandOutput
+	origRunLogged := accessRunCommandLogged
 	t.Cleanup(func() {
 		proFTPDAuthUserFilePath = origAuth
 		accessRunCommandOutput = origRunOutput
+		accessRunCommandLogged = origRunLogged
 	})
 
 	tmpDir := t.TempDir()
@@ -702,6 +714,14 @@ func TestEnsureProFTPDUserRepairsWritableTree(t *testing.T) {
 			return "$6$hash", nil
 		}
 		return "", errors.New("unexpected command: " + name + " " + strings.Join(args, " "))
+	}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		switch name + " " + strings.Join(args, " ") {
+		case "id -u proftpd", "getent group nogroup", "chown root:nogroup " + filepath.Dir(proFTPDAuthUserFilePath), "chown root:nogroup " + proFTPDAuthUserFilePath:
+			return "", nil
+		default:
+			return "", errors.New("unexpected command: " + name + " " + strings.Join(args, " "))
+		}
 	}
 
 	if err := ensureProFTPDUser("sftp42", "secret", rootPath); err != nil {
@@ -1110,5 +1130,213 @@ func TestProvisionLinuxProFTPDUsesSharedReadyPath(t *testing.T) {
 	}
 	if got := strings.Join(calls, ","); got != "ready,user:gs_1:/srv/game,health" {
 		t.Fatalf("unexpected calls %s", got)
+	}
+}
+
+func TestEnsureProFTPDAuthFileUsesProFTPDGroupAndNonWorldReadableModes(t *testing.T) {
+	origAuth := proFTPDAuthUserFilePath
+	origRun := accessRunCommandLogged
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		accessRunCommandLogged = origRun
+	})
+	tmpDir := t.TempDir()
+	proFTPDAuthUserFilePath = filepath.Join(tmpDir, "easywi", "proftpd", "passwd")
+	commands := []string{}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		commands = append(commands, name+" "+strings.Join(args, " "))
+		switch name + " " + strings.Join(args, " ") {
+		case "id -u proftpd", "getent group nogroup":
+			return "ok", nil
+		case "chown root:nogroup " + filepath.Dir(proFTPDAuthUserFilePath), "chown root:nogroup " + proFTPDAuthUserFilePath:
+			return "", nil
+		default:
+			return "", nil
+		}
+	}
+
+	if err := ensureProFTPDAuthFile(); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(proFTPDAuthUserFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0o004 != 0 {
+		t.Fatalf("expected auth file not to be world-readable, got %o", info.Mode().Perm())
+	}
+	if info.Mode().Perm() != 0o640 {
+		t.Fatalf("expected auth file mode 0640, got %o", info.Mode().Perm())
+	}
+	dirInfo, err := os.Stat(filepath.Dir(proFTPDAuthUserFilePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dirInfo.Mode().Perm() != 0o750 {
+		t.Fatalf("expected auth dir mode 0750, got %o", dirInfo.Mode().Perm())
+	}
+	joined := strings.Join(commands, "\n")
+	if !strings.Contains(joined, "chown root:nogroup "+filepath.Dir(proFTPDAuthUserFilePath)) || !strings.Contains(joined, "chown root:nogroup "+proFTPDAuthUserFilePath) {
+		t.Fatalf("expected auth dir/file chown to root:nogroup, got:\n%s", joined)
+	}
+}
+
+func TestProFTPDPrimaryGroupFallsBackToRuntimeGroup(t *testing.T) {
+	origRun := accessRunCommandLogged
+	t.Cleanup(func() { accessRunCommandLogged = origRun })
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		switch name + " " + strings.Join(args, " ") {
+		case "id -u proftpd":
+			return "123", nil
+		case "getent group nogroup":
+			return "", errors.New("missing group")
+		case "id -gn proftpd":
+			return "proftpdgrp\n", nil
+		default:
+			return "", nil
+		}
+	}
+	group, err := proFTPDPrimaryGroupName()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if group != "proftpdgrp" {
+		t.Fatalf("expected fallback runtime group, got %q", group)
+	}
+}
+
+func TestEnsureProFTPDAppArmorAccessIsIdempotent(t *testing.T) {
+	origProfile := proFTPDAppArmorProfilePath
+	origLocal := proFTPDAppArmorLocalPath
+	origActive := proFTPDAppArmorActiveFunc
+	origLook := accessLookPath
+	origRun := accessRunCommandLogged
+	t.Cleanup(func() {
+		proFTPDAppArmorProfilePath = origProfile
+		proFTPDAppArmorLocalPath = origLocal
+		proFTPDAppArmorActiveFunc = origActive
+		accessLookPath = origLook
+		accessRunCommandLogged = origRun
+	})
+	dir := t.TempDir()
+	proFTPDAppArmorProfilePath = filepath.Join(dir, "etc", "apparmor.d", "proftpd")
+	proFTPDAppArmorLocalPath = filepath.Join(dir, "etc", "apparmor.d", "local", "proftpd")
+	if err := os.MkdirAll(filepath.Dir(proFTPDAppArmorProfilePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(proFTPDAppArmorProfilePath, []byte("profile proftpd {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	proFTPDAppArmorActiveFunc = func() bool { return true }
+	reloads := 0
+	accessLookPath = func(file string) (string, error) {
+		if file == "apparmor_parser" {
+			return "/sbin/apparmor_parser", nil
+		}
+		return "", errors.New("missing")
+	}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		if name == "apparmor_parser" && strings.Join(args, " ") == "-r "+proFTPDAppArmorProfilePath {
+			reloads++
+			return "", nil
+		}
+		return "", nil
+	}
+
+	if err := ensureProFTPDAppArmorAccess(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureProFTPDAppArmorAccess(); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(proFTPDAppArmorLocalPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(raw)
+	for _, rule := range []string{"# EasyWI ProFTPD/SFTP auth files", "/var/lib/easywi/proftpd/ r,", "/var/lib/easywi/proftpd/passwd r,"} {
+		if got := strings.Count(content, rule); got != 1 {
+			t.Fatalf("expected AppArmor rule %q exactly once, got %d in %q", rule, got, content)
+		}
+	}
+	if reloads != 2 {
+		t.Fatalf("expected profile reload on each repair run, got %d", reloads)
+	}
+}
+
+func TestEnsureLinuxProFTPDSFTPReadyRunsConfigtestBeforeRestart(t *testing.T) {
+	origAuth := proFTPDAuthUserFilePath
+	origHostKey := proFTPDHostKeyPath
+	origConfDir := detectProFTPDConfDirFunc
+	origService := detectProFTPDServiceNameFunc
+	origEnsureService := ensureServiceRunningFunc
+	origHealth := checkLinuxProFTPDHealthFunc
+	origLook := accessLookPath
+	origRun := accessRunCommandLogged
+	origOutput := accessRunCommandOutput
+	origProfile := proFTPDAppArmorProfilePath
+	origLocal := proFTPDAppArmorLocalPath
+	origActive := proFTPDAppArmorActiveFunc
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		proFTPDHostKeyPath = origHostKey
+		detectProFTPDConfDirFunc = origConfDir
+		detectProFTPDServiceNameFunc = origService
+		ensureServiceRunningFunc = origEnsureService
+		checkLinuxProFTPDHealthFunc = origHealth
+		accessLookPath = origLook
+		accessRunCommandLogged = origRun
+		accessRunCommandOutput = origOutput
+		proFTPDAppArmorProfilePath = origProfile
+		proFTPDAppArmorLocalPath = origLocal
+		proFTPDAppArmorActiveFunc = origActive
+	})
+	dir := t.TempDir()
+	proFTPDAuthUserFilePath = filepath.Join(dir, "easywi", "proftpd", "passwd")
+	proFTPDHostKeyPath = filepath.Join(dir, "easywi_rsa_key")
+	if err := os.WriteFile(proFTPDHostKeyPath, []byte("key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	confDir := filepath.Join(dir, "conf.d")
+	detectProFTPDConfDirFunc = func() (string, error) { return confDir, nil }
+	detectProFTPDServiceNameFunc = func() (string, error) { return "proftpd", nil }
+	checkLinuxProFTPDHealthFunc = func() error { return nil }
+	proFTPDAppArmorProfilePath = filepath.Join(dir, "missing-profile")
+	proFTPDAppArmorLocalPath = filepath.Join(dir, "local-profile")
+	proFTPDAppArmorActiveFunc = func() bool { return false }
+	calls := []string{}
+	ensureServiceRunningFunc = func(service string) error {
+		calls = append(calls, "restart:"+service)
+		return nil
+	}
+	accessLookPath = func(file string) (string, error) {
+		switch file {
+		case "apt-get", "proftpd":
+			return "/usr/bin/" + file, nil
+		default:
+			return "", errors.New("missing")
+		}
+	}
+	accessRunCommandOutput = func(name string, args ...string) (string, error) { return "", nil }
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		cmd := name + " " + strings.Join(args, " ")
+		switch cmd {
+		case "id -u easywi", "id -u proftpd", "getent group nogroup", "chown root:nogroup " + filepath.Dir(proFTPDAuthUserFilePath), "chown root:nogroup " + proFTPDAuthUserFilePath, "apt-get update", "apt-get install -y proftpd-basic proftpd-mod-crypto":
+			return "", nil
+		case "proftpd -l":
+			return "mod_sftp.c\n", nil
+		case "proftpd -t":
+			calls = append(calls, "configtest")
+			return "Syntax check complete", nil
+		default:
+			return "", nil
+		}
+	}
+
+	if err := ensureLinuxProFTPDSFTPReady(); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(calls, ","); got != "configtest,restart:proftpd" {
+		t.Fatalf("expected configtest before restart, got %s", got)
 	}
 }
