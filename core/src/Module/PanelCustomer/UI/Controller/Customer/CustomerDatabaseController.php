@@ -10,10 +10,14 @@ use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\DatabaseTableService;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DatabaseNodeRepository;
 use App\Repository\DatabaseRepository;
+use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,6 +32,7 @@ final class CustomerDatabaseController
     public function __construct(
         private readonly DatabaseRepository $databaseRepository,
         private readonly DatabaseNodeRepository $databaseNodeRepository,
+        private readonly JobRepository $jobRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly DatabaseProvisioningService $provisioningService,
@@ -129,6 +134,32 @@ final class CustomerDatabaseController
         $this->entityManager->flush();
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases']);
+    }
+
+
+    #[Route(path: '/{id}/details', name: 'customer_databases_details', methods: ['GET'])]
+    public function details(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $database = $this->databaseRepository->find($id);
+        if ($database === null || !$this->isOwner($customer, $database)) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
+        }
+
+        if ($this->isSystemDatabase($database->getName())) {
+            return new Response($this->translator->trans('customer_databases_delete_system_forbidden'), Response::HTTP_FORBIDDEN);
+        }
+
+        $credentialJob = $this->findLatestSuccessfulCredentialJob($database);
+        $credentialAvailable = $credentialJob instanceof Job && is_array($database->getEncryptedOneTimeCredential());
+
+        return new Response($this->twig->render('customer/databases/details.html.twig', [
+            'activeNav' => 'databases',
+            'database' => $database,
+            'credentialJobId' => $credentialJob?->getId(),
+            'credentialAvailable' => $credentialAvailable,
+            'credentialAlreadyConsumed' => $credentialJob instanceof Job && !$credentialAvailable,
+        ]));
     }
 
     #[Route(path: '/{id}/delete', name: 'customer_databases_delete', methods: ['POST'])]
@@ -447,6 +478,44 @@ final class CustomerDatabaseController
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.$database->getId().'/tables']);
     }
+
+    private function findLatestSuccessfulCredentialJob(Database $database): ?Job
+    {
+        $databaseId = $database->getId();
+        if ($databaseId === null) {
+            return null;
+        }
+
+        $matchingJobs = [];
+        foreach (['database.create', 'database.rotate_password'] as $type) {
+            foreach ($this->jobRepository->findLatestByType($type, 100) as $job) {
+                if (!$job instanceof Job) {
+                    continue;
+                }
+
+                if ((string) ($job->getPayload()['database_id'] ?? '') !== (string) $databaseId) {
+                    continue;
+                }
+
+                $result = $job->getResult();
+                if (!$result instanceof JobResult || $result->getStatus() !== JobResultStatus::Succeeded) {
+                    continue;
+                }
+
+                $matchingJobs[] = $job;
+                break;
+            }
+        }
+
+        if ($matchingJobs === []) {
+            return null;
+        }
+
+        usort($matchingJobs, static fn (Job $a, Job $b): int => $b->getCreatedAt() <=> $a->getCreatedAt());
+
+        return $matchingJobs[0];
+    }
+
     private function isOwner(User $customer, Database $database): bool
     {
         return $database->getCustomer() === $customer

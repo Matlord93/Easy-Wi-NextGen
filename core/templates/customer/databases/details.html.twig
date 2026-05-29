@@ -1,0 +1,185 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set activeNav = 'databases' %}
+{% set locale = page_locale() %}
+
+{% block title %}{{ t('customer_databases_details_title', locale) }}{% endblock %}
+
+{% block content %}
+<div class="cust-page">
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <div class="cust-hero__label">{{ t('customer_databases_hero_label', locale) }}</div>
+                <h1 class="cust-hero__title">{{ t('customer_databases_details_title', locale) }}: {{ database.name }}</h1>
+                <p class="cust-hero__desc">{{ t('customer_databases_connection_details', locale) }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h3 class="cust-panel__title">{{ t('customer_databases_connection_details', locale) }}</h3>
+                <p class="cust-panel__sub">{{ t('customer_databases_description', locale) }}</p>
+            </div>
+            <a class="ui-button ui-button--ghost ui-button--sm" href="/databases">{{ t('customer_databases_back_to_overview', locale) }}</a>
+        </div>
+        <div class="cust-panel__body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
+                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_host_label', locale) }}</span>
+                    <code>{{ database.host }}</code>
+                </div>
+                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
+                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_port_label', locale) }}</span>
+                    <code>{{ database.port }}</code>
+                </div>
+                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
+                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_engine_label', locale) }}</span>
+                    <code>{{ database.engine }}</code>
+                </div>
+                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
+                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_name_label', locale) }}</span>
+                    <code>{{ database.name }}</code>
+                </div>
+                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
+                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_user_label', locale) }}</span>
+                    <code>{{ database.username }}</code>
+                </div>
+                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
+                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_table_status', locale) }}</span>
+                    <code>{{ database.status }}</code>
+                </div>
+                {% if database.node %}
+                    <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
+                        <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_node_label', locale) }}</span>
+                        <code>{{ database.node.name }}</code>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h3 class="cust-panel__title">{{ t('customer_databases_password_label', locale) }}</h3>
+                <p class="cust-panel__sub">{{ t('customer_databases_password_once_warning', locale) }}</p>
+            </div>
+        </div>
+        <div class="cust-panel__body">
+            {% if credentialAvailable and credentialJobId %}
+                <div id="db-credential-reveal" data-credential-url="/api/v1/customer/databases/{{ database.id }}/jobs/{{ credentialJobId }}/credential">
+                    <div class="cust-alert cust-alert--warning" style="margin-bottom:12px;">
+                        {{ t('customer_databases_password_once_warning', locale) }}
+                    </div>
+                    <button type="button" class="ui-button ui-button--primary ui-button--sm" id="db-password-show-once">
+                        {{ t('customer_databases_password_show_once', locale) }}
+                    </button>
+                    <div id="db-password-output" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
+                        <code id="db-password-value" style="display:inline-block;word-break:break-all;"></code>
+                        <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="db-password-copy" style="margin-left:8px;">
+                            {{ t('customer_databases_password_copy', locale) }}
+                        </button>
+                    </div>
+                    <div id="db-password-message" style="margin-top:12px;color:var(--ng-text-muted);"></div>
+                </div>
+            {% elseif credentialAlreadyConsumed %}
+                <div class="cust-alert cust-alert--warning">{{ t('customer_databases_password_already_consumed', locale) }}</div>
+            {% else %}
+                <div class="cust-alert cust-alert--info">{{ t('customer_databases_password_not_available', locale) }}</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if credentialAvailable and credentialJobId %}
+<script>
+(function () {
+    const root = document.getElementById('db-credential-reveal');
+    if (!root) {
+        return;
+    }
+
+    const showButton = document.getElementById('db-password-show-once');
+    const copyButton = document.getElementById('db-password-copy');
+    const output = document.getElementById('db-password-output');
+    const passwordValue = document.getElementById('db-password-value');
+    const message = document.getElementById('db-password-message');
+    const warning = {{ t('customer_databases_password_once_warning', locale)|json_encode|raw }};
+    const alreadyConsumed = {{ t('customer_databases_password_already_consumed', locale)|json_encode|raw }};
+    const notAvailable = {{ t('customer_databases_password_not_available', locale)|json_encode|raw }};
+    const copied = {{ t('customer_databases_password_copied', locale)|json_encode|raw }};
+
+    const setMessage = function (text) {
+        if (message) {
+            message.textContent = text;
+        }
+    };
+
+    showButton.addEventListener('click', async function () {
+        if (!window.confirm(warning)) {
+            return;
+        }
+
+        showButton.disabled = true;
+        setMessage('');
+
+        try {
+            const response = await fetch(root.dataset.credentialUrl, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            const data = await response.json().catch(function () { return {}; });
+
+            if (!response.ok) {
+                if (response.status === 410 || data.error_code === 'db_credential_already_consumed') {
+                    setMessage(alreadyConsumed);
+                    return;
+                }
+
+                setMessage(notAvailable);
+                return;
+            }
+
+            const password = data && data.details ? String(data.details.password || '') : '';
+            if (password === '') {
+                setMessage(alreadyConsumed);
+                return;
+            }
+
+            passwordValue.textContent = password;
+            output.style.display = 'block';
+            setMessage(warning);
+        } catch (error) {
+            setMessage(notAvailable);
+        }
+    });
+
+    copyButton.addEventListener('click', async function () {
+        const password = passwordValue.textContent || '';
+        if (password === '') {
+            return;
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(password);
+        } else {
+            const input = document.createElement('textarea');
+            input.value = password;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            input.remove();
+        }
+
+        setMessage(copied);
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

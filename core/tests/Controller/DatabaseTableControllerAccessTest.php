@@ -16,6 +16,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerDatabaseController;
 use App\Repository\DatabaseNodeRepository;
 use App\Repository\DatabaseRepository;
+use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -43,7 +44,7 @@ final class DatabaseTableControllerAccessTest extends TestCase
         $translator->method('trans')->willReturn('err');
         $tables = $this->createMock(DatabaseTableService::class);
 
-        $c = new CustomerDatabaseController($dbRepo, $nodeRepo, $em, $audit, $prov, $naming, $twig, $translator, $tables);
+        $c = new CustomerDatabaseController($dbRepo, $nodeRepo, $this->createMock(JobRepository::class), $em, $audit, $prov, $naming, $twig, $translator, $tables);
 
         $r = new Request();
         $r->attributes->set('current_user', $other);

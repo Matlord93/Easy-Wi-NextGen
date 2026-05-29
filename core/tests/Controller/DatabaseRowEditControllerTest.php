@@ -16,6 +16,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerDatabaseController;
 use App\Repository\DatabaseNodeRepository;
 use App\Repository\DatabaseRepository;
+use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -135,6 +136,7 @@ final class DatabaseRowEditControllerTest extends TestCase
         return new CustomerDatabaseController(
             $dbRepo,
             $this->createMock(DatabaseNodeRepository::class),
+            $this->createMock(JobRepository::class),
             $this->createMock(EntityManagerInterface::class),
             $this->createMock(AuditLogger::class),
             $this->createMock(DatabaseProvisioningService::class),

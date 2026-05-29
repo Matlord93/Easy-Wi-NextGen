@@ -119,7 +119,7 @@
                                 </form>
                             </div>
                             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-                                <a class="ui-button ui-button--ghost ui-button--sm" href="/api/v1/customer/databases/{{ database.id }}/jobs">{{ t('customer_databases_action_details', locale) }}</a>
+                                <a class="ui-button ui-button--ghost ui-button--sm" href="/databases/{{ database.id }}/details">{{ t('customer_databases_action_details', locale) }}</a>
                                 <form method="post" action="/databases/{{ database.id }}/password/reset">
                                     <button class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_databases_action_password_reset', locale) }}</button>
                                 </form>

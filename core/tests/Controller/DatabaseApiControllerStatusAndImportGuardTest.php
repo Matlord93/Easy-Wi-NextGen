@@ -99,7 +99,7 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $tables = $this->createMock(DatabaseTableService::class);
         $tables->method('importSql')->willThrowException(new \InvalidArgumentException('weird_unexpected_code'));
 
-        $c = new CustomerDatabaseController($dbRepo,$nodeRepo,$em,$audit,$prov,$naming,$twig,$translator,$tables);
+        $c = new CustomerDatabaseController($dbRepo,$nodeRepo,$this->createMock(JobRepository::class),$em,$audit,$prov,$naming,$twig,$translator,$tables);
         $r = new Request();
         $r->attributes->set('current_user',$customer);
         $resp = $c->importDatabase($r, 1);
