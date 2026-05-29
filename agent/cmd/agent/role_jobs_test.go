@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRolePackagesIncludeSFTPStackForGameAndWeb(t *testing.T) {
 	debianGame := rolePackages("game", "debian")
@@ -49,5 +52,40 @@ func TestRolePackagesMailIncludeDovecotAndSasl(t *testing.T) {
 	rhelMail := rolePackages("mail", "rhel")
 	if !containsString(rhelMail, "dovecot") || !containsString(rhelMail, "cyrus-sasl-plain") {
 		t.Fatalf("expected rhel mail packages to include dovecot + cyrus-sasl-plain, got %v", rhelMail)
+	}
+}
+
+func TestGameRolePackagesDoNotInstallTemurinJDK(t *testing.T) {
+	for _, family := range []string{"debian", "rhel"} {
+		packages := rolePackages("game", family)
+		if containsString(packages, "temurin-25-jdk") {
+			t.Fatalf("expected %s game packages not to include temurin-25-jdk, got %v", family, packages)
+		}
+	}
+}
+
+func TestMinecraftJavaRuntimeSpecs(t *testing.T) {
+	specs := minecraftJavaRuntimeSpecs()
+	if len(specs) != 4 {
+		t.Fatalf("expected 4 minecraft java runtime specs, got %d", len(specs))
+	}
+
+	expectedTargets := map[string]string{
+		"8":  "/opt/easywi/java/8",
+		"16": "/opt/easywi/java/16",
+		"17": "/opt/easywi/java/17",
+		"21": "/opt/easywi/java/21",
+	}
+	for _, spec := range specs {
+		expectedTarget, ok := expectedTargets[spec.version]
+		if !ok {
+			t.Fatalf("unexpected java runtime version %q", spec.version)
+		}
+		if spec.target != expectedTarget {
+			t.Fatalf("expected java %s target %q, got %q", spec.version, expectedTarget, spec.target)
+		}
+		if !strings.Contains(spec.url, "/latest/"+spec.version+"/ga/linux/x64/") {
+			t.Fatalf("expected java %s URL to use Adoptium linux x64 API, got %q", spec.version, spec.url)
+		}
 	}
 }

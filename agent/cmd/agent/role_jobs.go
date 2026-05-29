@@ -93,12 +93,6 @@ func ensureBaseForRole(role string) (string, error) {
 		return output.String(), fmt.Errorf("unsupported role: %s", role)
 	}
 
-	if role == "game" && containsString(packages, "temurin-25-jdk") {
-		if err := ensureTemurinRepo(&output); err != nil {
-			return output.String(), err
-		}
-	}
-
 	if err := installPackages(family, packages, &output); err != nil {
 		return output.String(), err
 	}
@@ -118,6 +112,9 @@ func ensureBaseForRole(role string) (string, error) {
 	}
 
 	if role == "game" {
+		if err := ensureMinecraftJavaRuntimes(&output); err != nil {
+			return output.String(), err
+		}
 		if shouldEnsureWindroseWineDependencies(role, family) {
 			if err := ensureWindroseWineDependencies(&output); err != nil {
 				return output.String(), err
@@ -455,10 +452,10 @@ func rolePackages(role, family string) []string {
 	switch role {
 	case "game":
 		if family == "debian" {
-			return []string{"ca-certificates", "curl", "tar", "xz-utils", "unzip", "tmux", "screen", "lib32gcc-s1", "lib32stdc++6", "libc6-i386", "gnupg", "temurin-25-jdk", "proftpd-basic", "proftpd-mod-crypto"}
+			return []string{"ca-certificates", "curl", "tar", "xz-utils", "unzip", "tmux", "screen", "lib32gcc-s1", "lib32stdc++6", "libc6-i386", "gnupg", "proftpd-basic", "proftpd-mod-crypto"}
 		}
 		if family == "rhel" {
-			return []string{"ca-certificates", "curl", "tar", "xz", "unzip", "tmux", "screen", "glibc.i686", "libstdc++.i686", "temurin-25-jdk", "proftpd", "proftpd-utils", "proftpd-mod_sftp"}
+			return []string{"ca-certificates", "curl", "tar", "xz", "unzip", "tmux", "screen", "glibc.i686", "libstdc++.i686", "proftpd", "proftpd-utils", "proftpd-mod_sftp"}
 		}
 	case "web":
 		if family == "debian" {
@@ -603,6 +600,213 @@ func installSteamCmd(output *strings.Builder) error {
 		}
 	}
 
+	return nil
+}
+
+type minecraftJavaRuntimeSpec struct {
+	version string
+	url     string
+	target  string
+}
+
+func ensureMinecraftJavaRuntimes(output *strings.Builder) error {
+	if runtime.GOARCH != "amd64" {
+		return fmt.Errorf("minecraft java portable runtimes unsupported architecture: %s (only amd64/x64 is currently supported)", runtime.GOARCH)
+	}
+	if !commandExists("tar") {
+		return fmt.Errorf("minecraft java portable runtimes require tar")
+	}
+	if !commandExists("curl") && !commandExists("wget") {
+		return fmt.Errorf("minecraft java portable runtimes require curl or wget")
+	}
+
+	const baseDir = "/opt/easywi/java"
+	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+		return fmt.Errorf("create minecraft java base dir: %w", err)
+	}
+	if err := os.Chmod(baseDir, 0o755); err != nil {
+		return fmt.Errorf("chmod minecraft java base dir: %w", err)
+	}
+
+	for _, spec := range minecraftJavaRuntimeSpecs() {
+		if err := installPortableJavaRuntime(spec, output); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func minecraftJavaRuntimeSpecs() []minecraftJavaRuntimeSpec {
+	const baseURL = "https://api.adoptium.net/v3/binary/latest"
+	// Minecraft Java runtime mapping:
+	// - Minecraft 1.8 bis 1.16.5: Java 8
+	// - Minecraft 1.17.x: Java 16
+	// - Minecraft 1.18.x bis 1.20.4: Java 17
+	// - Minecraft 1.20.5+ / 1.21.x: Java 21
+	return []minecraftJavaRuntimeSpec{
+		{version: "8", url: baseURL + "/8/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/8"},
+		{version: "16", url: baseURL + "/16/ga/linux/x64/jdk/hotspot/normal/eclipse", target: "/opt/easywi/java/16"},
+		{version: "17", url: baseURL + "/17/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/17"},
+		{version: "21", url: baseURL + "/21/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/21"},
+	}
+}
+
+func installPortableJavaRuntime(spec minecraftJavaRuntimeSpec, output *strings.Builder) error {
+	if verifyJavaRuntime(spec.target) {
+		appendOutput(output, "minecraft_java_"+spec.version+"=already_installed")
+		return ensureMinecraftJavaSymlink(spec)
+	}
+
+	baseDir := filepath.Dir(spec.target)
+	tmpDir, err := os.MkdirTemp(baseDir, ".java-"+spec.version+"-")
+	if err != nil {
+		return fmt.Errorf("minecraft java %s create temp dir: %w", spec.version, err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	archivePath := filepath.Join(tmpDir, "runtime.tar.gz")
+	if err := downloadFile(spec.url, archivePath, output); err != nil {
+		return fmt.Errorf("minecraft java %s download from %s failed: %w", spec.version, spec.url, err)
+	}
+
+	extractDir := filepath.Join(tmpDir, "extract")
+	if err := os.MkdirAll(extractDir, 0o755); err != nil {
+		return fmt.Errorf("minecraft java %s create extract dir: %w", spec.version, err)
+	}
+	if err := extractJavaArchive(archivePath, extractDir, output); err != nil {
+		return fmt.Errorf("minecraft java %s extract from %s failed: %w", spec.version, spec.url, err)
+	}
+
+	javaHome, err := findExtractedJavaHome(extractDir)
+	if err != nil {
+		return fmt.Errorf("minecraft java %s archive from %s invalid: %w", spec.version, spec.url, err)
+	}
+	stagingDir := filepath.Join(tmpDir, "runtime")
+	if err := os.Rename(javaHome, stagingDir); err != nil {
+		return fmt.Errorf("minecraft java %s stage runtime: %w", spec.version, err)
+	}
+	if err := os.Chmod(stagingDir, 0o755); err != nil {
+		return fmt.Errorf("minecraft java %s chmod runtime: %w", spec.version, err)
+	}
+	if !verifyJavaRuntime(stagingDir) {
+		return fmt.Errorf("minecraft java %s verification failed after extracting %s", spec.version, spec.url)
+	}
+
+	backupDir := ""
+	if _, err := os.Lstat(spec.target); err == nil {
+		backupDir = spec.target + ".broken-" + time.Now().UTC().Format("20060102150405")
+		if err := os.Rename(spec.target, backupDir); err != nil {
+			return fmt.Errorf("minecraft java %s move existing broken runtime: %w", spec.version, err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("minecraft java %s inspect target: %w", spec.version, err)
+	}
+
+	if err := os.Rename(stagingDir, spec.target); err != nil {
+		if backupDir != "" {
+			_ = os.Rename(backupDir, spec.target)
+		}
+		return fmt.Errorf("minecraft java %s install runtime: %w", spec.version, err)
+	}
+	if err := os.Chmod(spec.target, 0o755); err != nil {
+		return fmt.Errorf("minecraft java %s chmod target: %w", spec.version, err)
+	}
+	if !verifyJavaRuntime(spec.target) {
+		if backupDir != "" {
+			_ = os.RemoveAll(spec.target)
+			_ = os.Rename(backupDir, spec.target)
+		}
+		return fmt.Errorf("minecraft java %s verification failed after installing %s", spec.version, spec.url)
+	}
+	if backupDir != "" {
+		_ = os.RemoveAll(backupDir)
+	}
+	if err := ensureMinecraftJavaSymlink(spec); err != nil {
+		return err
+	}
+	appendOutput(output, "minecraft_java_"+spec.version+"=installed")
+	return nil
+}
+
+func verifyJavaRuntime(path string) bool {
+	javaPath := filepath.Join(path, "bin", "java")
+	if info, err := os.Stat(javaPath); err != nil || info.IsDir() {
+		return false
+	}
+	cmd := exec.Command(javaPath, "-version")
+	return cmd.Run() == nil
+}
+
+func downloadFile(url, dest string, output *strings.Builder) error {
+	switch {
+	case commandExists("curl"):
+		return runCommandWithOutput("curl", []string{"-fL", url, "-o", dest}, output)
+	case commandExists("wget"):
+		return runCommandWithOutput("wget", []string{"-O", dest, url}, output)
+	default:
+		return fmt.Errorf("missing curl or wget")
+	}
+}
+
+func extractJavaArchive(archive, target string, output *strings.Builder) error {
+	return runCommandWithOutput("tar", []string{"-xf", archive, "-C", target}, output)
+}
+
+func findExtractedJavaHome(root string) (string, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		candidate := filepath.Join(root, entry.Name())
+		if _, err := os.Stat(filepath.Join(candidate, "bin", "java")); err == nil {
+			return candidate, nil
+		}
+	}
+	return findJavaHomeRecursive(root)
+}
+
+func findJavaHomeRecursive(dir string) (string, error) {
+	if _, err := os.Stat(filepath.Join(dir, "bin", "java")); err == nil {
+		return dir, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		candidate, err := findJavaHomeRecursive(filepath.Join(dir, entry.Name()))
+		if err == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("bin/java not found")
+}
+
+func ensureMinecraftJavaSymlink(spec minecraftJavaRuntimeSpec) error {
+	linkPath := filepath.Join(filepath.Dir(spec.target), "java"+spec.version)
+	if dest, err := os.Readlink(linkPath); err == nil {
+		if dest == spec.target {
+			return nil
+		}
+		if err := os.Remove(linkPath); err != nil {
+			return fmt.Errorf("minecraft java %s update symlink: %w", spec.version, err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		if info, statErr := os.Lstat(linkPath); statErr == nil && info.Mode()&os.ModeSymlink == 0 {
+			return nil
+		}
+		return fmt.Errorf("minecraft java %s inspect symlink: %w", spec.version, err)
+	}
+	if err := os.Symlink(spec.target, linkPath); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("minecraft java %s create symlink: %w", spec.version, err)
+	}
 	return nil
 }
 
@@ -954,17 +1158,6 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 		}
 		appendOutput(output, "dovecot_auth_written="+authConfPath)
 
-		usersConfPath := filepath.Join(dovecotConfDir, "99-easywi-users.conf")
-		usersConf := "## Managed by Easy-Wi agent\n" +
-			"passdb passwd-file {\n  driver = passwd-file\n  passwd_file_path = /etc/dovecot/users\n}\n\n" +
-			"userdb static {\n  driver = static\n  userdb_fields {\n" +
-			fmt.Sprintf("    uid = %d\n    gid = %d\n    home = /var/mail/vhosts/%%{user|username}\n", uid, gid) +
-			"  }\n}\n"
-		if err := writeManagedWithBackup(usersConfPath, usersConf, 0o640); err != nil {
-			return fmt.Errorf("write dovecot users config: %w", err)
-		}
-		appendOutput(output, "dovecot_users_written="+usersConfPath)
-
 		tlsPath := filepath.Join(dovecotConfDir, "99-ssl-letsencrypt.conf")
 		if mh := strings.TrimSpace(postconfReadValue("myhostname")); mh != "" {
 			fullchain := filepath.Join("/etc/letsencrypt/live", mh, "fullchain.pem")
@@ -982,8 +1175,35 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 				appendOutput(output, "letsencrypt_missing_for="+mh)
 			}
 		}
+
+		usersConfPath := filepath.Join(dovecotConfDir, "99-easywi-users.conf")
+		primaryUsersConf := "## Managed by Easy-Wi agent\n" +
+			"passdb passwd-file {\n  driver = passwd-file\n  passwd_file_path = /etc/dovecot/users\n}\n\n" +
+			"userdb static {\n  driver = static\n  userdb_fields {\n" +
+			fmt.Sprintf("    uid = %d\n    gid = %d\n    home = /var/mail/vhosts/%%{user|username}\n", uid, gid) +
+			"  }\n}\n"
+		fallbackUsersConf := "# Managed by Easy-Wi agent\n" +
+			"passdb {\n" +
+			"  driver = passwd-file\n" +
+			"  args = scheme=SHA512-CRYPT username_format=%u /etc/dovecot/users\n" +
+			"}\n\n" +
+			"userdb {\n" +
+			"  driver = static\n" +
+			fmt.Sprintf("  args = uid=%d gid=%d home=/var/mail/vhosts/%%d/%%n\n", uid, gid) +
+			"}\n"
+		if err := writeManagedWithBackup(usersConfPath, primaryUsersConf, 0o640); err != nil {
+			return fmt.Errorf("write dovecot users config: %w", err)
+		}
+		appendOutput(output, "dovecot_users_written="+usersConfPath)
 		if err := runCommandWithOutput("doveconf", []string{"-n"}, output); err != nil {
-			return fmt.Errorf("dovecot config validation failed: %w", err)
+			appendOutput(output, "dovecot_primary_users_config_failed=true")
+			if fallbackErr := writeManagedWithBackup(usersConfPath, fallbackUsersConf, 0o640); fallbackErr != nil {
+				return fmt.Errorf("write dovecot fallback users config: %w", fallbackErr)
+			}
+			appendOutput(output, "dovecot_users_fallback_written="+usersConfPath)
+			if fallbackErr := runCommandWithOutput("doveconf", []string{"-n"}, output); fallbackErr != nil {
+				return fmt.Errorf("dovecot config validation failed: %w", fallbackErr)
+			}
 		}
 	} else {
 		appendOutput(output, "dovecot_conf_missing=true")
