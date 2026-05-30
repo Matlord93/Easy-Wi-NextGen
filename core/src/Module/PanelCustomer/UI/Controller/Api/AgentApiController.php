@@ -2272,7 +2272,7 @@ final class AgentApiController
         $javaVersion = is_string($output['java_version'] ?? null) ? (string) $output['java_version'] : null;
         if ($javaVersion === null && is_array($job->getPayload())) {
             $javaBin = (string) (($job->getPayload()['JAVA_BIN'] ?? $job->getPayload()['java_bin'] ?? ''));
-            $javaVersion = preg_match('/(8|16|17|21)$/', $javaBin, $matches) ? $matches[1] : null;
+            $javaVersion = preg_match('/(8|16|17|21|25)$/', $javaBin, $matches) ? $matches[1] : null;
         }
         $instance->setInstalledJavaVersion($javaVersion);
         $instance->setInstalledAt($completedAt);

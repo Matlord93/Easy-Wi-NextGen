@@ -99,6 +99,16 @@ func ensureMinecraftServerProperties(instanceDir string, payload map[string]any)
 		if rconPort, ok := tv["PORT_RCON"]; ok && rconPort != "" {
 			lines = setServerProperty(lines, "rcon.port", rconPort)
 		}
+		// Query protocol: must use the same port as the game port so external
+		// status checkers can reach the server.
+		lines = setServerProperty(lines, "enable-query", "true")
+		if gamePort, ok := tv["PORT_GAME"]; ok && gamePort != "" {
+			lines = setServerProperty(lines, "query.port", gamePort)
+		}
+		// Bind to the agent's public IP so the server is reachable externally.
+		if hostIP := payloadValue(payload, "node_ip", "public_ip", "bind_ip"); hostIP != "" {
+			lines = setServerProperty(lines, "server-ip", hostIP)
+		}
 	}
 
 	content := strings.Join(lines, "\n") + "\n"

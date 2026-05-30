@@ -20,11 +20,11 @@ final class MinecraftVersionImportService
         private readonly EntityManagerInterface $entityManager,
         private readonly MinecraftJavaVersionResolver $javaVersionResolver,
         private readonly TranslatorInterface $translator,
-        #[Autowire('%kernel.project_dir%/../minecraft-server-jar-downloads.md')]
+        #[Autowire('%kernel.project_dir%/../minecraft-server.json')]
         private readonly string $vanillaPath,
         #[Autowire('%kernel.project_dir%/../paper-versions.json')]
         private readonly string $paperPath,
-        #[Autowire('%kernel.project_dir%/../bedrock-server-downloads.json')]
+        #[Autowire('%kernel.project_dir%/../bedrock-server.json')]
         private readonly string $bedrockPath,
     ) {
     }
@@ -127,17 +127,21 @@ final class MinecraftVersionImportService
     /** @return array<int, array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string}> */
     private function readVanilla(): array
     {
-        $content = $this->readFile($this->vanillaPath);
+        $data = json_decode($this->readFile($this->vanillaPath), true);
+        if (!is_array($data)) {
+            throw new \RuntimeException($this->trans('minecraft_versions_import_error_vanilla_invalid'));
+        }
         $items = [];
-        foreach (preg_split('/\R/', $content) ?: [] as $line) {
-            if (!preg_match('/^\|\s*([^|]+?)\s*\|\s*(https?:\/\/[^|\s]+)\s*\|/', $line, $matches)) {
+        $versions = isset($data['versions']) && is_array($data['versions']) ? $data['versions'] : $data;
+        foreach ($versions as $version => $value) {
+            if (!is_array($value)) {
                 continue;
             }
-            $version = trim($matches[1]);
-            if ($version === '' || stripos($version, 'Minecraft Version') !== false) {
-                continue;
-            }
-            $items[] = $this->item('vanilla', $version, null, trim($matches[2]), null);
+            $url = (string) ($value['server_url'] ?? '');
+            $javaVersion = isset($value['java_version']) && is_int($value['java_version'])
+                ? (string) $value['java_version']
+                : null;
+            $items[] = $this->item('vanilla', (string) $version, null, $url, null, $javaVersion);
         }
         return $items;
     }
@@ -153,6 +157,9 @@ final class MinecraftVersionImportService
         $versions = isset($data['versions']) && is_array($data['versions']) ? $data['versions'] : $data;
         foreach ($versions as $version => $value) {
             $url = is_string($value) ? $value : (is_array($value) ? (string) ($value['url'] ?? '') : '');
+            $javaVersion = is_array($value) && isset($value['java_version']) && is_int($value['java_version'])
+                ? (string) $value['java_version']
+                : null;
             $build = null;
             if (preg_match('/paper-.+-(\d+)\.jar(?:$|\?)/', basename(parse_url($url, PHP_URL_PATH) ?: ''), $matches)) {
                 $build = $matches[1];
@@ -163,7 +170,7 @@ final class MinecraftVersionImportService
             if ($build === null) {
                 continue;
             }
-            $items[] = $this->item('paper', (string) $version, $build, $url, null);
+            $items[] = $this->item('paper', (string) $version, $build, $url, null, $javaVersion);
         }
         return $items;
     }
@@ -185,10 +192,39 @@ final class MinecraftVersionImportService
                     continue;
                 }
                 $url = (string) ($platforms['linux']['url'] ?? $platforms['windows']['url'] ?? '');
-                $items[] = $this->item('bedrock', (string) $version, null, $url, null);
+                $items[] = $this->item('bedrock', (string) $version, null, $url, null, null);
             }
         }
         return $items;
+    }
+
+    public function replaceDataFile(string $channel, string $jsonContent): void
+    {
+        $data = json_decode($jsonContent, true);
+        if (!is_array($data)) {
+            throw new \RuntimeException($this->trans('minecraft_versions_upload_error_invalid_json'));
+        }
+        if (in_array($channel, ['vanilla', 'paper'], true)) {
+            if (!isset($data['versions']) || !is_array($data['versions']) || $data['versions'] === []) {
+                throw new \RuntimeException($this->trans('minecraft_versions_upload_error_missing_versions'));
+            }
+        } elseif ($channel === 'bedrock') {
+            if (!isset($data['release']) && !isset($data['preview'])) {
+                throw new \RuntimeException($this->trans('minecraft_versions_upload_error_missing_groups'));
+            }
+        } else {
+            throw new \RuntimeException($this->trans('minecraft_versions_upload_error_unknown_channel'));
+        }
+
+        $path = match ($channel) {
+            'vanilla' => $this->vanillaPath,
+            'paper' => $this->paperPath,
+            'bedrock' => $this->bedrockPath,
+        };
+
+        if (file_put_contents($path, $jsonContent) === false) {
+            throw new \RuntimeException($this->trans('minecraft_versions_upload_error_write_failed', ['%path%' => $path]));
+        }
     }
 
     private function readFile(string $path): string
@@ -200,8 +236,11 @@ final class MinecraftVersionImportService
     }
 
     /** @return array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string} */
-    private function item(string $channel, string $mcVersion, ?string $build, string $downloadUrl, ?string $sha256): array
+    private function item(string $channel, string $mcVersion, ?string $build, string $downloadUrl, ?string $sha256, ?string $javaVersion = null): array
     {
+        if ($javaVersion === null && $channel !== 'bedrock') {
+            $javaVersion = $this->javaVersionResolver->resolve($mcVersion);
+        }
         return [
             'channel' => $channel,
             'mcVersion' => trim($mcVersion),
@@ -209,7 +248,7 @@ final class MinecraftVersionImportService
             'downloadUrl' => trim($downloadUrl),
             'sha256' => $sha256,
             'releasedAt' => null,
-            'javaVersion' => $channel === 'bedrock' ? null : $this->javaVersionResolver->resolve($mcVersion),
+            'javaVersion' => $javaVersion,
         ];
     }
 

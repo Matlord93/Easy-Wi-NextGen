@@ -12,6 +12,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
@@ -49,6 +50,8 @@ final class AdminMinecraftVersionController
             'versions' => $qb->getQuery()->getResult(),
             'filters' => ['channel' => $request->query->get('channel', ''), 'source' => $request->query->get('source', ''), 'active' => $active, 'preview' => $preview, 'q' => $q],
             'importResult' => $this->importResultFromQuery($request),
+            'uploadOk' => trim((string) $request->query->get('upload_ok', '')),
+            'uploadError' => trim((string) $request->query->get('upload_error', '')),
             'activeNav' => 'minecraft_versions',
         ]));
     }
@@ -109,6 +112,35 @@ final class AdminMinecraftVersionController
         $this->entityManager->remove($version);
         $this->entityManager->flush();
         return new RedirectResponse('/admin/minecraft-versions');
+    }
+
+    #[Route(path: '/upload-data-file', name: 'admin_minecraft_versions_upload_data_file', methods: ['POST'])]
+    public function uploadDataFile(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) { return new Response($this->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
+
+        $channel = trim((string) $request->request->get('channel', ''));
+        if (!in_array($channel, MinecraftVersionImportService::CHANNELS, true)) {
+            return new RedirectResponse('/admin/minecraft-versions?upload_error='.urlencode($this->trans('admin_minecraft_versions_upload_invalid_channel')));
+        }
+
+        $file = $request->files->get('data_file');
+        if (!$file instanceof UploadedFile || !$file->isValid()) {
+            return new RedirectResponse('/admin/minecraft-versions?upload_error='.urlencode($this->trans('admin_minecraft_versions_upload_no_file')));
+        }
+
+        $content = file_get_contents($file->getPathname());
+        if ($content === false || $content === '') {
+            return new RedirectResponse('/admin/minecraft-versions?upload_error='.urlencode($this->trans('admin_minecraft_versions_upload_empty_file')));
+        }
+
+        try {
+            $this->importService->replaceDataFile($channel, $content);
+        } catch (\RuntimeException $e) {
+            return new RedirectResponse('/admin/minecraft-versions?upload_error='.urlencode($e->getMessage()));
+        }
+
+        return new RedirectResponse('/admin/minecraft-versions?upload_ok='.urlencode($channel));
     }
 
     #[Route(path: '/import', name: 'admin_minecraft_versions_import', methods: ['POST'])]

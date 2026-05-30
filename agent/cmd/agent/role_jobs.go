@@ -643,10 +643,12 @@ func minecraftJavaRuntimeSpecs() []minecraftJavaRuntimeSpec {
 	// - Minecraft 1.17.x: Java 16
 	// - Minecraft 1.18.x bis 1.20.4: Java 17
 	// - Minecraft 1.20.5+ / 1.21.x: Java 21
+	// - Minecraft 26.x+: Java 25
 	return []minecraftJavaRuntimeSpec{
 		{version: "8", url: baseURL + "/8/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/8"},
 		{version: "17", url: baseURL + "/17/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/17"},
 		{version: "21", url: baseURL + "/21/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/21"},
+		{version: "25", url: baseURL + "/25/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/25"},
 	}
 }
 

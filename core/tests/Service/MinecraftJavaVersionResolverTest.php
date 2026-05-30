@@ -91,6 +91,9 @@ final class MinecraftJavaVersionResolverTest extends TestCase
         yield ['1.20.4', '17'];
         yield ['1.20.5', '21'];
         yield ['1.21.6', '21'];
+        yield ['1.21.11', '21'];
+        yield ['26.1.2', '25'];
+        yield ['26.2', '25'];
         yield [null, '21'];
         yield ['latest', '21'];
     }

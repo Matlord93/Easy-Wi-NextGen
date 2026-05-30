@@ -67,14 +67,15 @@ func TestGameRolePackagesDoNotInstallTemurinJDK(t *testing.T) {
 
 func TestMinecraftJavaRuntimeSpecs(t *testing.T) {
 	specs := minecraftJavaRuntimeSpecs()
-	if len(specs) != 3 {
-		t.Fatalf("expected 3 minecraft java runtime specs, got %d", len(specs))
+	if len(specs) != 4 {
+		t.Fatalf("expected 4 minecraft java runtime specs, got %d", len(specs))
 	}
 
 	expectedTargets := map[string]string{
 		"8":  "/opt/easywi/java/8",
 		"17": "/opt/easywi/java/17",
 		"21": "/opt/easywi/java/21",
+		"25": "/opt/easywi/java/25",
 	}
 	for _, spec := range specs {
 		expectedTarget, ok := expectedTargets[spec.version]

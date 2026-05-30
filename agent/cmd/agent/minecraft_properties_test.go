@@ -229,6 +229,60 @@ func TestEnsureMinecraftServerPropertiesNoBedrockPortV6ForJava(t *testing.T) {
 	}
 }
 
+func TestEnsureMinecraftServerPropertiesJavaEnablesQuery(t *testing.T) {
+	dir := t.TempDir()
+	payload := makeMinecraftPayload("minecraft_vanilla_all", nil)
+
+	if err := ensureMinecraftServerProperties(dir, payload); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content := mustReadFile(t, filepath.Join(dir, "server.properties"))
+	assertProperty(t, content, "enable-query", "true")
+}
+
+func TestEnsureMinecraftServerPropertiesJavaSetsQueryPortSameAsGamePort(t *testing.T) {
+	dir := t.TempDir()
+	payload := makeMinecraftPayload("minecraft_vanilla_all", nil)
+
+	if err := ensureMinecraftServerProperties(dir, payload); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content := mustReadFile(t, filepath.Join(dir, "server.properties"))
+	assertProperty(t, content, "query.port", "25565")
+}
+
+func TestEnsureMinecraftServerPropertiesJavaSetsServerIPFromNodeIP(t *testing.T) {
+	dir := t.TempDir()
+	payload := makeMinecraftPayload("minecraft_vanilla_all", map[string]any{
+		"node_ip": "203.0.113.42",
+	})
+
+	if err := ensureMinecraftServerProperties(dir, payload); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content := mustReadFile(t, filepath.Join(dir, "server.properties"))
+	assertProperty(t, content, "server-ip", "203.0.113.42")
+}
+
+func TestEnsureMinecraftServerPropertiesJavaNoServerIPWhenMissing(t *testing.T) {
+	dir := t.TempDir()
+	payload := makeMinecraftPayload("minecraft_vanilla_all", nil)
+
+	if err := ensureMinecraftServerProperties(dir, payload); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content := mustReadFile(t, filepath.Join(dir, "server.properties"))
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "server-ip=") && strings.TrimSpace(line) != "server-ip=" {
+			t.Fatalf("server-ip must not be set when no IP is in payload, got: %q", line)
+		}
+	}
+}
+
 func TestEnsureMinecraftServerPropertiesNoRconForBedrock(t *testing.T) {
 	dir := t.TempDir()
 	payload := makeBedrockPayload(nil)
@@ -243,6 +297,29 @@ func TestEnsureMinecraftServerPropertiesNoRconForBedrock(t *testing.T) {
 	}
 	if strings.Contains(content, "rcon.password") {
 		t.Fatal("Bedrock server must not contain rcon.password")
+	}
+}
+
+func TestEnsureMinecraftServerPropertiesBedrockNoQuerySettings(t *testing.T) {
+	dir := t.TempDir()
+	payload := makeBedrockPayload(map[string]any{"node_ip": "203.0.113.42"})
+
+	if err := ensureMinecraftServerProperties(dir, payload); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content := mustReadFile(t, filepath.Join(dir, "server.properties"))
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "enable-query=") {
+			t.Fatalf("Bedrock must not contain enable-query, got: %q", line)
+		}
+		if strings.HasPrefix(trimmed, "query.port=") {
+			t.Fatalf("Bedrock must not contain query.port, got: %q", line)
+		}
+		if strings.HasPrefix(trimmed, "server-ip=") && trimmed != "server-ip=" {
+			t.Fatalf("Bedrock must not contain server-ip, got: %q", line)
+		}
 	}
 }
 

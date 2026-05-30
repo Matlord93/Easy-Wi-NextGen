@@ -11,6 +11,7 @@ final class MinecraftJavaVersionResolver
         '8' => 'java8',
         '17' => 'java17',
         '21' => 'java21',
+        '25' => 'java25',
     ];
 
     public function __construct(
@@ -21,7 +22,7 @@ final class MinecraftJavaVersionResolver
     public function resolve(?string $mcVersion, ?string $configuredJavaVersion = null): string
     {
         $configured = trim((string) $configuredJavaVersion);
-        if (in_array($configured, ['8', '17', '21'], true)) {
+        if (in_array($configured, ['8', '17', '21', '25'], true)) {
             return $configured;
         }
 
@@ -37,6 +38,11 @@ final class MinecraftJavaVersionResolver
         $major = (int) $matches[1];
         $minor = (int) $matches[2];
         $patch = isset($matches[3]) ? (int) $matches[3] : 0;
+
+        // Year-based versioning (26.x = 2026 releases): requires Java 25
+        if ($major >= 26) {
+            return '25';
+        }
 
         if ($major === 1 && ($minor < 17 || ($minor === 16 && $patch <= 5))) {
             return '8';

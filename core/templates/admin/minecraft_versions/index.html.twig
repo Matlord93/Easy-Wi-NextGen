@@ -12,6 +12,18 @@
     <a class="ui-button ui-button--primary ui-button--sm" href="/admin/minecraft-versions/new">{{ t('admin_minecraft_versions_new', page_locale()) }}</a>
   </div>
   <div style="padding:16px;display:grid;gap:14px;">
+    {% if uploadOk is defined and uploadOk %}
+      <div class="alert alert-success">
+        <strong>{{ t('admin_minecraft_versions_upload_success', page_locale()) }}</strong>
+        {{ t('admin_minecraft_versions_upload_channel_label', page_locale()) }}: {{ uploadOk }}
+      </div>
+    {% endif %}
+    {% if uploadError is defined and uploadError %}
+      <div class="alert alert-danger">
+        <strong>{{ t('admin_minecraft_versions_upload_error', page_locale()) }}</strong>
+        {{ uploadError }}
+      </div>
+    {% endif %}
     {% if importResult %}
       <div class="alert {{ importResult.errors > 0 ? 'alert-danger' : 'alert-success' }}">
         <strong>{{ t('admin_minecraft_versions_import_result', page_locale()) }}</strong>
@@ -39,6 +51,12 @@
       <label><input type="checkbox" name="force" value="1"> {{ t('admin_minecraft_versions_force', page_locale()) }}</label>
       <label><input type="checkbox" name="deactivate_missing" value="1"> {{ t('admin_minecraft_versions_deactivate_missing', page_locale()) }}</label>
       <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_minecraft_versions_import_start', page_locale()) }}</button>
+    </form>
+    <form method="post" action="/admin/minecraft-versions/upload-data-file" enctype="multipart/form-data" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <strong>{{ t('admin_minecraft_versions_upload_section', page_locale()) }}</strong>
+      <select name="channel"><option value="vanilla">Vanilla (minecraft-server.json)</option><option value="paper">Paper (paper-versions.json)</option><option value="bedrock">Bedrock (bedrock-server.json)</option></select>
+      <input type="file" name="data_file" accept=".json,application/json" required>
+      <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_minecraft_versions_upload_button', page_locale()) }}</button>
     </form>
   </div>
   <div class="ng-data-card__body--flush"><table class="ui-table"><thead><tr><th>{{ t('admin_minecraft_versions_channel', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_mc_version', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_build', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_java', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_source', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_active', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_preview', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_download_url', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_updated_at', page_locale()) }}</th><th>{{ t('actions', page_locale()) }}</th></tr></thead><tbody>

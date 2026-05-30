@@ -95,6 +95,7 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_MINECRAFT_JAVA_BINARY_16 = 'minecraft_java_binary_16';
     public const KEY_MINECRAFT_JAVA_BINARY_17 = 'minecraft_java_binary_17';
     public const KEY_MINECRAFT_JAVA_BINARY_21 = 'minecraft_java_binary_21';
+    public const KEY_MINECRAFT_JAVA_BINARY_25 = 'minecraft_java_binary_25';
     public const KEY_MINECRAFT_AUTO_INSTALL_JAVA = 'minecraft_auto_install_java';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
@@ -224,6 +225,7 @@ TWIG;
         self::KEY_MINECRAFT_JAVA_BINARY_16 => 'java16',
         self::KEY_MINECRAFT_JAVA_BINARY_17 => 'java17',
         self::KEY_MINECRAFT_JAVA_BINARY_21 => 'java21',
+        self::KEY_MINECRAFT_JAVA_BINARY_25 => 'java25',
         self::KEY_MINECRAFT_AUTO_INSTALL_JAVA => true,
     ];
 
@@ -1026,7 +1028,7 @@ TWIG;
         $settings = $this->getSettings();
 
         $overrides = [];
-        foreach (['8' => self::KEY_MINECRAFT_JAVA_BINARY_8, '16' => self::KEY_MINECRAFT_JAVA_BINARY_16, '17' => self::KEY_MINECRAFT_JAVA_BINARY_17, '21' => self::KEY_MINECRAFT_JAVA_BINARY_21] as $version => $key) {
+        foreach (['8' => self::KEY_MINECRAFT_JAVA_BINARY_8, '16' => self::KEY_MINECRAFT_JAVA_BINARY_16, '17' => self::KEY_MINECRAFT_JAVA_BINARY_17, '21' => self::KEY_MINECRAFT_JAVA_BINARY_21, '25' => self::KEY_MINECRAFT_JAVA_BINARY_25] as $version => $key) {
             $value = $settings[$key] ?? null;
             if (is_string($value) && $value !== '') {
                 $overrides[$version] = $value;
