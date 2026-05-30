@@ -114,6 +114,12 @@ final class InstanceQueryHostResolver
             return $host;
         }
 
+        // Accept bare IPv6 addresses (brackets stripped if present)
+        $bare = preg_replace('/^\[(.+)\]$/', '$1', $host) ?? $host;
+        if (filter_var($bare, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6) !== false) {
+            return $bare;
+        }
+
         if (filter_var($host, \FILTER_VALIDATE_DOMAIN, \FILTER_FLAG_HOSTNAME) !== false) {
             return $host;
         }

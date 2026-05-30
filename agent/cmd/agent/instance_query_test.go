@@ -129,7 +129,7 @@ func TestNormalizeQueryDialHost(t *testing.T) {
 	}
 }
 
-func TestOrderQueryIPsReturnsOnlyIPv4(t *testing.T) {
+func TestOrderQueryIPsIPv4BeforeIPv6(t *testing.T) {
 	ordered := orderQueryIPs([]net.IP{
 		net.ParseIP("192.0.2.10"),
 		net.ParseIP("2001:db8::10"),
@@ -137,11 +137,16 @@ func TestOrderQueryIPsReturnsOnlyIPv4(t *testing.T) {
 		net.ParseIP("2001:db8::20"),
 	})
 
-	if len(ordered) != 2 {
-		t.Fatalf("ordered len=%d, want 2", len(ordered))
+	if len(ordered) != 4 {
+		t.Fatalf("ordered len=%d, want 4", len(ordered))
 	}
+	// First two must be IPv4.
 	if ordered[0].To4() == nil || ordered[1].To4() == nil {
-		t.Fatalf("expected only IPv4 addresses, got %v", ordered)
+		t.Fatalf("expected first two addresses to be IPv4, got %v", ordered[:2])
+	}
+	// Last two must be IPv6.
+	if ordered[2].To4() != nil || ordered[3].To4() != nil {
+		t.Fatalf("expected last two addresses to be IPv6, got %v", ordered[2:])
 	}
 }
 

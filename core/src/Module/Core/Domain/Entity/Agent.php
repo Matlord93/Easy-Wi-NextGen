@@ -42,6 +42,9 @@ class Agent
     #[ORM\Column(length: 45, nullable: true)]
     private ?string $lastHeartbeatIp = null;
 
+    #[ORM\Column(length: 45, nullable: true)]
+    private ?string $lastHeartbeatIpv6 = null;
+
     #[ORM\Column(length: 40, nullable: true)]
     private ?string $lastHeartbeatVersion = null;
 
@@ -143,6 +146,11 @@ class Agent
     public function getLastHeartbeatIp(): ?string
     {
         return $this->lastHeartbeatIp;
+    }
+
+    public function getLastHeartbeatIpv6(): ?string
+    {
+        return $this->lastHeartbeatIpv6;
     }
 
     public function getLastHeartbeatVersion(): ?string
@@ -372,6 +380,12 @@ class Agent
 
         if ($metadata !== null) {
             $this->setMetadata($metadata);
+
+            // Extract IPv6 from agent-reported metadata
+            if (isset($metadata['ipv6_address']) && is_string($metadata['ipv6_address'])) {
+                $ipv6 = trim($metadata['ipv6_address']);
+                $this->lastHeartbeatIpv6 = $ipv6 !== '' ? $ipv6 : null;
+            }
         }
 
         $this->setStatus($status ?? self::STATUS_ACTIVE);

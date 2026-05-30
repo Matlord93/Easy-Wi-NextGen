@@ -1439,6 +1439,33 @@ func removeUnspecifiedIPv6(values []string, fallback []string) []string {
 	return filtered
 }
 
+func getPublicIPv6Addresses() []string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var result []string
+	for _, addr := range addrs {
+		var ip net.IP
+		switch value := addr.(type) {
+		case *net.IPNet:
+			ip = value.IP
+		case *net.IPAddr:
+			ip = value.IP
+		}
+		if ip == nil || ip.To4() != nil {
+			continue
+		}
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			continue
+		}
+		if ip.IsGlobalUnicast() {
+			result = append(result, ip.String())
+		}
+	}
+	return result
+}
+
 func hostHasIPv6() bool {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {

@@ -105,9 +105,17 @@ final class CustomerInstanceQueryApiController
             $errorCode = $this->resolveQueryErrorCode((string) $queryPayload['error']);
             $errorMessage = $this->resolveQueryErrorMessage((string) $queryPayload['error'], $errorCode, $id);
 
-            return $this->apiError($request, $errorCode, $errorMessage, JsonResponse::HTTP_OK, [
-                'query' => $queryPayload,
-            ]);
+            // Config-level errors (misconfiguration, auth) → API error response
+            // Server-offline errors (timeout, refused, DNS) → normal response with status in query payload
+            $isOfflineError = in_array($errorCode, [
+                'CONNECTION_REFUSED', 'QUERY_TIMEOUT', 'DNS_FAILED', 'INSTANCE_OFFLINE', 'PORT_UNREACHABLE',
+            ], true);
+
+            if (!$isOfflineError) {
+                return $this->apiError($request, $errorCode, $errorMessage, JsonResponse::HTTP_OK, [
+                    'query' => $queryPayload,
+                ]);
+            }
         }
 
         return $this->apiOk($request, [

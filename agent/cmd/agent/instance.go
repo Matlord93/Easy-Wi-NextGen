@@ -1204,6 +1204,17 @@ func buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw stri
 		}
 	}
 
+	// Bedrock uses the same port for IPv4 and IPv6. Derive PORT_GAMEV6 from
+	// PORT_GAME when not explicitly allocated so start-command templates that
+	// reference {{PORT_GAMEV6}} don't fail renderTemplateStrict.
+	if isMinecraftBedrockTemplate(payload) {
+		if _, hasV6 := values["PORT_GAMEV6"]; !hasV6 {
+			if gamePort, hasGame := values["PORT_GAME"]; hasGame {
+				values["PORT_GAMEV6"] = gamePort
+			}
+		}
+	}
+
 	return values
 }
 

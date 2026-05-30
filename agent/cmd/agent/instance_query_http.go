@@ -351,7 +351,7 @@ func normalizeProtocol(raw string) string {
 		return ""
 	case "steam_a2s", "a2s", "source", "source1", "source2", "valve", "steam":
 		return "valve"
-	case "minecraft", "minecraft_java", "java":
+	case "minecraft", "minecraft_java", "java", "minecraft_paper_all", "minecraft_vanilla_all":
 		return "minecraft_java"
 	case "minecraft_bedrock", "bedrock", "mcpe":
 		return "minecraft_bedrock"

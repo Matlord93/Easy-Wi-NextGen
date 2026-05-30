@@ -156,7 +156,7 @@
         if (!cardState.queryHealthUrl || cardState.healthLoaded) return;
         try {
             const payload = await apiClient.request(cardState.queryHealthUrl);
-            updateDebug(cardState, payload.data?.debug || payload.data || {});
+            updateDebug(cardState, payload.data?.query?.debug || {});
             cardState.healthLoaded = true;
         } catch (error) {
             errors.showAll(inlineError, error);

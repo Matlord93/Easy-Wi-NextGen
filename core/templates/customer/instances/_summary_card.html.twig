@@ -117,11 +117,17 @@
                 <strong class="block text-slate-200" data-query-map>{{ query.map ?? '—' }}</strong>
             </div>
         </div>
+        {% if connection.ipv6_address is defined and connection.ipv6_address is not null %}
+        <div class="mt-1 text-slate-400">
+            <span class="text-slate-500">IPv6</span>
+            <strong class="text-slate-200 font-mono text-[10px] ml-1">{{ connection.ipv6_address }}</strong>
+        </div>
+        {% endif %}
 
         <div class="mt-2 grid grid-cols-3 gap-2 border-t border-slate-700/40 pt-2 text-slate-500">
             <div>Host: <strong class="text-slate-400" data-debug-host>{{ queryDebug.resolved_host ?? connection.host ?? '—' }}</strong></div>
             <div>Port: <strong class="text-slate-400" data-debug-port>{{ queryDebug.resolved_port ?? connection.port ?? '—' }}</strong></div>
-            <div>Proto: <strong class="text-slate-400" data-debug-protocol>{{ queryDebug.resolved_protocol ?? 'udp' }}</strong></div>
+            <div>Proto: <strong class="text-slate-400" data-debug-protocol>{{ queryDebug.resolved_protocol ?? '—' }}</strong></div>
         </div>
 
         <details class="mt-1" data-query-details>

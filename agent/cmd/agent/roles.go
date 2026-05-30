@@ -165,6 +165,12 @@ func collectMetadata(cfg config.Config) map[string]any {
 	if runtime.GOOS == "windows" {
 		metadata["capabilities"] = windowsCapabilities()
 	}
+	if ipv6Addrs := getPublicIPv6Addresses(); len(ipv6Addrs) > 0 {
+		metadata["ipv6_address"] = ipv6Addrs[0]
+		if len(ipv6Addrs) > 1 {
+			metadata["ipv6_addresses"] = ipv6Addrs
+		}
+	}
 	if len(metadata) == 0 {
 		return nil
 	}

@@ -93,7 +93,7 @@ func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 			Output:    buildQueryOutput("running", "source", "", startedAt, result),
 			Completed: time.Now().UTC(),
 		}, nil
-	case "minecraft_java", "minecraft":
+	case "minecraft_java", "minecraft", "minecraft_paper_all", "minecraft_vanilla_all":
 		startedAt := time.Now()
 		result, err := queryMinecraftJava(host, port)
 		if err != nil {
@@ -359,13 +359,18 @@ func queryDialCandidates(host, port string) []string {
 }
 
 func orderQueryIPs(ips []net.IP) []net.IP {
-	ordered := make([]net.IP, 0, len(ips))
+	var v4, v6 []net.IP
 	for _, ip := range ips {
-		if ip != nil && ip.To4() != nil {
-			ordered = append(ordered, ip)
+		if ip == nil {
+			continue
+		}
+		if ip.To4() != nil {
+			v4 = append(v4, ip)
+		} else {
+			v6 = append(v6, ip)
 		}
 	}
-	return ordered
+	return append(v4, v6...)
 }
 
 func dialNetworkForAddress(baseNetwork, address string) string {

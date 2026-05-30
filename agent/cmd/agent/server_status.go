@@ -34,7 +34,7 @@ func handleServerStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 	case "a2s", "steam_a2s", "source", "source1", "source2", "valve", "steam":
 		data, err := queryA2S(ip, port)
 		return serverStatusQueryResult(job.ID, "source", startedAt, data, err), nil
-	case "minecraft", "minecraft_java", "java":
+	case "minecraft", "minecraft_java", "java", "minecraft_paper_all", "minecraft_vanilla_all":
 		data, err := queryMinecraftJava(ip, port)
 		return serverStatusQueryResult(job.ID, "minecraft_java", startedAt, data, err), nil
 	case "minecraft_bedrock", "bedrock", "mcpe":

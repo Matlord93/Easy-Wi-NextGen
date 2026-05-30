@@ -2119,6 +2119,7 @@ final class CustomerInstanceController
     private function buildConnectionData(Instance $instance, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock, array $ports): array
     {
         $host = $instance->getNode()->getLastHeartbeatIp();
+        $ipv6Host = $instance->getNode()->getLastHeartbeatIpv6();
         $assignedPorts = [];
         $primaryPort = null;
 
@@ -2153,9 +2154,16 @@ final class CustomerInstanceController
 
         $address = $host !== null && $primaryPort !== null ? sprintf('%s:%d', $host, $primaryPort) : null;
 
+        // IPv6 address with brackets: [2001:db8::1]:27015
+        $ipv6Address = $ipv6Host !== null && $primaryPort !== null
+            ? sprintf('[%s]:%d', $ipv6Host, $primaryPort)
+            : null;
+
         return [
             'host' => $host,
             'address' => $address,
+            'ipv6' => $ipv6Host,
+            'ipv6_address' => $ipv6Address,
             'quick_connect' => $address !== null ? sprintf('steam://connect/%s', $address) : null,
             'port_block' => $portBlock === null ? null : [
                 'start' => $portBlock->getStartPort(),
