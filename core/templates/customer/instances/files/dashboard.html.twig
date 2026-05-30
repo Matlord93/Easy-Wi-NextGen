@@ -40,7 +40,9 @@
         passwordCopied: t('customer_instance_files_sftp_password_copied', locale),
         passwordCopyFailed: t('customer_instance_files_sftp_password_copy_failed', locale)
     } %}
-    <div class="customer-dashboard customer-dashboard--revamp flex flex-col gap-6" id="gameserver-files-app"
+
+    <div class="cust-page"
+         id="gameserver-files-app"
          data-instance-id="{{ instance.id }}"
          data-files-list-url="{{ path('customer_instance_files_api_list', {id: instance.id}) }}"
          data-files-health-url="{{ path('customer_instance_files_api_health', {id: instance.id}) }}"
@@ -54,18 +56,51 @@
          data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
          data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
          data-i18n="{{ fileI18n|json_encode|e('html_attr') }}">
-        <div>
-            <h2 class="text-3xl font-semibold text-slate-100">{{ instance.template.name }} · #{{ instance.id }}</h2>
-            <p class="mt-2 text-base text-slate-400">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
+
+        {# ─── Hero ─── #}
+        <div class="cust-hero">
+            <div class="cust-hero__inner">
+                <div>
+                    <div class="cust-hero__label">{{ instance.template.game_key }}</div>
+                    <h1 class="cust-hero__title">
+                        {{ instance.template.display_name ?? instance.template.name }}
+                        <span style="color:var(--ng-text-muted);font-weight:400"> · #{{ instance.id }}</span>
+                    </h1>
+                    <p class="cust-hero__desc">{{ t('customer_instance_detail_intro', locale) }}</p>
+                </div>
+            </div>
         </div>
 
-        <section class="dashboard-panel">
-            <div class="mt-1 flex flex-wrap gap-2 border-b border-slate-700 pb-3">
+        {# ─── Panel mit Tabs und Inhalt ─── #}
+        <div class="cust-panel">
+            {# ─── Tab-Navigation ─── #}
+            <div class="cust-tabs">
                 {% for tab in tabs %}
-                    <a
-                        href="{{ tab.href }}"
-                        class="rounded-lg px-3 py-2 text-xs font-semibold transition {{ tab.key == activeTab ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-slate-100' }}"
-                    >
+                    <a href="{{ tab.href }}"
+                       class="cust-tabs__item{% if tab.key == activeTab %} cust-tabs__item--active{% endif %}">
+                        {% if tab.key == 'overview' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M0 1.5A1.5 1.5 0 0 1 1.5 0h3A1.5 1.5 0 0 1 6 1.5v3A1.5 1.5 0 0 1 4.5 6h-3A1.5 1.5 0 0 1 0 4.5v-3zm6.5 0A1.5 1.5 0 0 1 8 0h3A1.5 1.5 0 0 1 12.5 1.5v3A1.5 1.5 0 0 1 11 6H8A1.5 1.5 0 0 1 6.5 4.5v-3zm-6.5 6A1.5 1.5 0 0 1 1.5 6h3A1.5 1.5 0 0 1 6 7.5v3A1.5 1.5 0 0 1 4.5 12h-3A1.5 1.5 0 0 1 0 10.5v-3zm6.5 0A1.5 1.5 0 0 1 8 6h3a1.5 1.5 0 0 1 1.5 1.5v3A1.5 1.5 0 0 1 11 12H8a1.5 1.5 0 0 1-1.5-1.5v-3z"/></svg>
+                        {% elseif tab.key == 'console' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/><path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"/></svg>
+                        {% elseif tab.key == 'settings' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/></svg>
+                        {% elseif tab.key == 'configs' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/><path d="M8.646 6.646a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L10.293 9 8.646 7.354a.5.5 0 0 1 0-.708zm-1.292 0a.5.5 0 0 0-.708 0l-2 2a.5.5 0 0 0 0 .708l2 2a.5.5 0 0 0 .708-.708L5.707 9l1.647-1.646a.5.5 0 0 0 0-.708z"/></svg>
+                        {% elseif tab.key == 'addons' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm6.5 0A1.5 1.5 0 0 1 8.5 1h3A1.5 1.5 0 0 1 13 2.5v3A1.5 1.5 0 0 1 11.5 7h-3A1.5 1.5 0 0 1 7 5.5v-3zm-6.5 7A1.5 1.5 0 0 1 2.5 8h3A1.5 1.5 0 0 1 7 9.5v3A1.5 1.5 0 0 1 5.5 14h-3A1.5 1.5 0 0 1 1 12.5v-3zm6.5 0A1.5 1.5 0 0 1 8.5 8h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 7 12.5v-3z"/></svg>
+                        {% elseif tab.key == 'backups' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.963 0 6.286 0 8a3 3 0 0 0 3 3h5v-1.5H3a1.5 1.5 0 1 1-.204-2.99.5.5 0 0 0 .556-.55 4.009 4.009 0 0 1 .185-1.298A3.498 3.498 0 0 1 8 2.5a3.498 3.498 0 0 1 3.463 2.964.5.5 0 0 0 .556.55A1.5 1.5 0 1 1 12.5 8H11v1.5h1.5a3 3 0 1 0-2.937-3.543A5.53 5.53 0 0 0 8 1z"/><path d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V7.5a.5.5 0 0 0-1 0v6.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3z"/></svg>
+                        {% elseif tab.key == 'files' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M.54 3.87.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31zM2.19 4a1 1 0 0 0-.996 1.09l.637 7a1 1 0 0 0 .995.91h10.348a1 1 0 0 0 .995-.91l.637-7A1 1 0 0 0 13.81 4H2.19zm4.69-1.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707z"/></svg>
+                        {% elseif tab.key == 'tasks' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M5 10.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zM3 2h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm0-1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H3z"/></svg>
+                        {% elseif tab.key == 'setup' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H3.5a.5.5 0 0 0 0 1h1.464a8.05 8.05 0 0 0-.044.5H3.5a.5.5 0 0 0 0 1h1.469a7.957 7.957 0 0 0 .07.5H3.5a.5.5 0 0 0 0 1h1.68a5.997 5.997 0 0 0 .416 1H3.5a.5.5 0 0 0 0 1h2.24a5.488 5.488 0 0 0 .635.915A8.027 8.027 0 0 1 3.5 11h-.5V8.5l.5-.5V6l-.5-.5V3.5L4 3h1.5a5.5 5.5 0 0 1 2-.077zM8 2.5V4h-.5a5.5 5.5 0 0 0-3 .922v.077l.5.5V7l-.5.5v1l.5.5V10a5.5 5.5 0 0 0 3 .922H8v1.5a6 6 0 1 1 0-11.5z"/></svg>
+                        {% elseif tab.key == 'reinstall' %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                        {% else %}
+                            <svg class="cust-tabs__icon" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>
+                        {% endif %}
                         {% if tab.label_is_key is defined and not tab.label_is_key %}
                             {{ tab.label }}
                         {% else %}
@@ -75,62 +110,89 @@
                 {% endfor %}
             </div>
 
-            <div class="dashboard-panel__header mt-4">
-                <div>
-                    <h3>{{ t('customer_instance_files_title', page_locale()) }}</h3>
-                    <p>{{ t('customer_instance_files_intro', page_locale()) }}</p>
-                </div>
-            </div>
-            <div id="gameserver-files-inline-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
-            <div class="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-200">
-                <button type="button" class="ui-button ui-button--ghost" id="gf-up">{{ t('customer_instance_files_up', locale) }}</button>
-                <button type="button" class="ui-button ui-button--primary" id="gf-refresh">{{ t('customer_instance_files_refresh', locale) }}</button>
-                <button type="button" class="ui-button ui-button--ghost" id="gf-mkdir">{{ t('customer_instance_files_new_folder', locale) }}</button>
-                <div class="ml-auto text-xs text-slate-400" id="gf-cwd"></div>
-            </div>
-            <div class="mt-3 text-sm text-slate-300" id="gf-breadcrumbs"></div>
-
-            <div class="mt-4 grid gap-3 lg:grid-cols-2">
-                <div class="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
-                    <p class="text-xs uppercase tracking-wide text-indigo-300">{{ t('customer_instance_files_sftp_title', locale) }}</p>
-                    <div id="gf-access-meta" class="mt-2 space-y-1 text-sm text-slate-200">
-                        <div>{{ t('customer_instance_files_sftp_loading', locale) }}</div>
-                    </div>
-                    <div class="mt-3 flex flex-wrap gap-2">
-                        <button type="button" class="ui-button ui-button--ghost" id="gf-access-reveal">{{ t('customer_instance_files_sftp_reveal_password', locale) }}</button>
-                        <button type="button" class="ui-button ui-button--primary" id="gf-access-reset">{{ t('customer_instance_files_sftp_reset', locale) }}</button>
+            {# ─── Abschnitts-Kopf ─── #}
+            <div class="cust-panel__head">
+                <div style="display:flex;align-items:center;gap:.5rem">
+                    <svg style="width:1.25rem;height:1.25rem;flex-shrink:0" fill="currentColor" viewBox="0 0 16 16"><path d="M.54 3.87.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31zM2.19 4a1 1 0 0 0-.996 1.09l.637 7a1 1 0 0 0 .995.91h10.348a1 1 0 0 0 .995-.91l.637-7A1 1 0 0 0 13.81 4H2.19zm4.69-1.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707z"/></svg>
+                    <div>
+                        <h2 class="cust-panel__title">{{ t('customer_instance_files_title', locale) }}</h2>
+                        <p class="cust-panel__sub">{{ t('customer_instance_files_intro', locale) }}</p>
                     </div>
                 </div>
-                <div class="rounded-xl border border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-300">
-                    <p class="text-xs uppercase tracking-wide text-indigo-300">{{ t('customer_instance_files_hint_title', locale) }}</p>
-                    <p class="mt-2">{{ t('customer_instances_files_sftp_hint', page_locale()) }}</p>
+            </div>
+
+            {# ─── Panel-Inhalt ─── #}
+            <div class="cust-panel__body">
+
+                {# ─── Fehleranzeige ─── #}
+                <div id="gameserver-files-inline-error" class="ng-alert ng-alert--danger" style="display:none;margin-bottom:1rem"></div>
+
+                {# ─── Aktions-Leiste ─── #}
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem">
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="gf-up">{{ t('customer_instance_files_up', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--primary ui-button--sm" id="gf-refresh">{{ t('customer_instance_files_refresh', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="gf-mkdir">{{ t('customer_instance_files_new_folder', locale) }}</button>
+                    <div style="margin-left:auto;font-size:.75rem;color:var(--ng-text-muted)" id="gf-cwd"></div>
                 </div>
-            </div>
 
-            <div class="dashboard-table-wrapper mt-4">
-                <table class="dashboard-table">
-                    <thead>
-                    <tr>
-                        <th>{{ t('customer_files_name', locale) }}</th>
-                        <th>{{ t('customer_files_type', locale) }}</th>
-                        <th>{{ t('customer_files_size', locale) }}</th>
-                        <th>{{ t('customer_files_modified', locale) }}</th>
-                        <th>{{ t('customer_voice_col_actions', locale) }}</th>
-                    </tr>
-                    </thead>
-                    <tbody id="gf-list">
-                    <tr><td colspan="5" class="dashboard-table__empty">{{ t('customer_instance_files_loading', locale) }}</td></tr>
-                    </tbody>
-                </table>
-            </div>
+                {# ─── Breadcrumbs ─── #}
+                <div style="margin-top:.75rem;font-size:.8rem;color:var(--ng-text-muted)" id="gf-breadcrumbs"></div>
 
-            <div class="mt-4 rounded-lg border border-dashed border-slate-600 p-4">
-                <label class="text-sm text-slate-200">{{ t('customer_instance_files_upload_file', locale) }}</label>
-                <input type="file" id="gf-upload" class="mt-2 block w-full text-sm text-slate-300">
-            </div>
-        </section>
-    </div>
+                {# ─── SFTP + Hinweis ─── #}
+                <div class="cust-grid-2" style="margin-top:1rem">
+                    <div class="cust-panel">
+                        <div class="cust-panel__head">
+                            <h3 class="cust-panel__title">{{ t('customer_instance_files_sftp_title', locale) }}</h3>
+                        </div>
+                        <div class="cust-panel__body">
+                            <div id="gf-access-meta" style="font-size:.875rem;color:var(--ng-text-base)">
+                                <div>{{ t('customer_instance_files_sftp_loading', locale) }}</div>
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem">
+                                <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="gf-access-reveal">{{ t('customer_instance_files_sftp_reveal_password', locale) }}</button>
+                                <button type="button" class="ui-button ui-button--primary ui-button--sm" id="gf-access-reset">{{ t('customer_instance_files_sftp_reset', locale) }}</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cust-panel">
+                        <div class="cust-panel__head">
+                            <h3 class="cust-panel__title">{{ t('customer_instance_files_hint_title', locale) }}</h3>
+                        </div>
+                        <div class="cust-panel__body" style="font-size:.875rem;color:var(--ng-text-muted)">
+                            {{ t('customer_instances_files_sftp_hint', locale) }}
+                        </div>
+                    </div>
+                </div>
 
+                {# ─── Dateiliste ─── #}
+                <div class="cust-ws-table-wrap" style="margin-top:1rem">
+                    <table class="cust-table">
+                        <thead>
+                        <tr>
+                            <th>{{ t('customer_files_name', locale) }}</th>
+                            <th>{{ t('customer_files_type', locale) }}</th>
+                            <th>{{ t('customer_files_size', locale) }}</th>
+                            <th>{{ t('customer_files_modified', locale) }}</th>
+                            <th>{{ t('customer_voice_col_actions', locale) }}</th>
+                        </tr>
+                        </thead>
+                        <tbody id="gf-list">
+                        <tr><td colspan="5" class="cust-table__empty">{{ t('customer_instance_files_loading', locale) }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {# ─── Datei-Upload ─── #}
+                <div style="margin-top:1rem;padding:1rem;border:1px dashed var(--ng-border);border-radius:.5rem">
+                    <label style="font-size:.875rem;color:var(--ng-text-base)">{{ t('customer_instance_files_upload_file', locale) }}</label>
+                    <input type="file" id="gf-upload" style="display:block;margin-top:.5rem;width:100%;font-size:.875rem;color:var(--ng-text-muted)">
+                </div>
+
+            </div>{# end cust-panel__body #}
+        </div>{# end cust-panel #}
+    </div>{# end cust-page #}
+
+    {# ─── Editor-Modal ─── #}
     <div id="gf-editor-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-950/70 p-4">
         <div class="w-full max-w-4xl rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl">
             <div class="flex items-center justify-between">
@@ -146,35 +208,36 @@
         </div>
     </div>
 
-
+    {# ─── Passwort-Modal ─── #}
     <div id="gf-password-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-950/70 p-4">
         <div class="w-full max-w-lg rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl">
             <div class="flex items-center justify-between gap-4">
                 <div>
-                    <h4 class="text-base font-semibold text-slate-100">{{ t('customer_instances_files_sftp_password_title', page_locale()) }}</h4>
-                    <p class="mt-1 text-xs text-slate-400">{{ t('customer_instances_files_sftp_password_hint', page_locale()) }}</p>
+                    <h4 class="text-base font-semibold text-slate-100">{{ t('customer_instances_files_sftp_password_title', locale) }}</h4>
+                    <p class="mt-1 text-xs text-slate-400">{{ t('customer_instances_files_sftp_password_hint', locale) }}</p>
                 </div>
-                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close aria-label="{{ t('customer_instances_files_sftp_close_aria', page_locale()) }}">×</button>
+                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close aria-label="{{ t('customer_instances_files_sftp_close_aria', locale) }}">×</button>
             </div>
             <div class="mt-4 grid gap-2 rounded-lg border border-slate-700 bg-slate-950/60 p-3 text-sm text-slate-200 sm:grid-cols-3">
                 <div>{{ t('customer_instance_files_sftp_host', locale) }}: <span class="font-semibold" id="gf-password-host">—</span></div>
                 <div>{{ t('customer_instance_files_sftp_port', locale) }}: <span class="font-semibold" id="gf-password-port">—</span></div>
                 <div>{{ t('customer_instance_files_sftp_username', locale) }}: <span class="font-semibold" id="gf-password-user">—</span></div>
             </div>
-            <label for="gf-password-value" class="mt-4 block text-sm font-semibold text-slate-200">{{ t('customer_instances_files_sftp_password_label', page_locale()) }}</label>
+            <label for="gf-password-value" class="mt-4 block text-sm font-semibold text-slate-200">{{ t('customer_instances_files_sftp_password_label', locale) }}</label>
             <input id="gf-password-value" type="text" readonly class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-sm text-slate-100">
             <div id="gf-password-error" class="hidden"></div>
             <div class="mt-4 flex flex-wrap justify-end gap-2">
-                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close>{{ t('customer_instances_files_sftp_close', page_locale()) }}</button>
-                <button type="button" class="ui-button ui-button--primary" id="gf-password-copy">{{ t('customer_instances_files_sftp_copy', page_locale()) }}</button>
+                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close>{{ t('customer_instances_files_sftp_close', locale) }}</button>
+                <button type="button" class="ui-button ui-button--primary" id="gf-password-copy">{{ t('customer_instances_files_sftp_copy', locale) }}</button>
             </div>
         </div>
     </div>
 
+    {# ─── Toast ─── #}
     <div id="gameserver-files-toast" class="hidden fixed bottom-4 right-4 z-50 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-xl"></div>
+
     <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
     <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
     <script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
     <script src="{{ asset('js/gameserver-files-app.js') }}"></script>
 {% endblock %}
-
