@@ -118,30 +118,43 @@
 (function () {
     const rows = document.querySelectorAll('[data-summary-url][data-slots]');
     if (!rows.length) { return; }
-    rows.forEach((slotCell) => {
-        const url = slotCell.dataset.summaryUrl;
-        if (!url) { return; }
+
+    const fetchSlot = (slotCell, url, isPending) => {
         let attempts = 0;
-        const maxAttempts = 6;
+        const maxAttempts = isPending ? 6 : 1;
         const delayMs = 1500;
-        const loadSummary = () => {
+        const load = () => {
             fetch(url)
                 .then((r) => r.json())
                 .then((data) => {
                     if (!data) { return; }
                     if (data.status === 'pending' && attempts < maxAttempts) {
                         attempts += 1;
-                        setTimeout(loadSummary, delayMs);
+                        setTimeout(load, delayMs);
                         return;
                     }
                     if (data.status === 'pending') { slotCell.textContent = '—/—'; return; }
                     if (data.status !== 'ok') { return; }
                     slotCell.textContent = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
-                    if ((data.clients_online ?? 0) > 0) slotCell.style.color = '#4ade80';
+                    slotCell.style.color = (data.clients_online ?? 0) > 0 ? '#4ade80' : '';
                 })
                 .catch(() => {});
         };
-        loadSummary();
+        load();
+    };
+
+    rows.forEach((slotCell) => {
+        const url = slotCell.dataset.summaryUrl;
+        if (!url) { return; }
+        fetchSlot(slotCell, url, true);
     });
+
+    setInterval(() => {
+        rows.forEach((slotCell) => {
+            const url = slotCell.dataset.summaryUrl;
+            if (!url) { return; }
+            fetchSlot(slotCell, url, false);
+        });
+    }, 15000);
 })();
 </script>

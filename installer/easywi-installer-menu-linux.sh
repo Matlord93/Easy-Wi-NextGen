@@ -2317,7 +2317,7 @@ build_agent_base_dir_config() {
     for d in "${dirs[@]+"${dirs[@]}"}"; do [[ "${d}" == "${dir}" ]] && dup=true && break; done
     "${dup}" || dirs+=("${dir}")
   done
-  [[ -z "${primary}" ]] && primary="/home" && dirs=("/home" "/var/www")
+  [[ -z "${primary}" ]] && primary="/var/www" && dirs=("/home" "/var/www")
   for dir in "${dirs[@]}"; do joined="${joined:+${joined},}${dir}"; done
   printf '%s\n%s\n' "${primary}" "${joined}"
 }
@@ -2478,7 +2478,7 @@ write_agent_conf_placeholder() {
 # poll_interval=30s
 # heartbeat_interval=60s
 # request_timeout=15s
-# file_base_dir=/home
+# file_base_dir=/var/www
 # file_base_dirs=/home,/var/www
 CONF
   chmod 600 /etc/easywi/agent.conf
@@ -2593,7 +2593,18 @@ install_panel() {
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
 
   if [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]]; then
-    setup_certbot "${manager}" "${web_hostname}" "${ssl_email}" || true
+    if setup_certbot "${manager}" "${web_hostname}" "${ssl_email}"; then
+      local agent_conf="/etc/easywi/agent.conf"
+      if [[ -f "${agent_conf}" ]]; then
+        if grep -q "^api_url=" "${agent_conf}"; then
+          sed -i "s|^api_url=http://|api_url=https://|" "${agent_conf}"
+          ok "Agent-Konfiguration auf HTTPS aktualisiert (${agent_conf})."
+        fi
+        if systemctl is-active --quiet easywi-agent.service 2>/dev/null; then
+          systemctl restart easywi-agent.service && ok "easywi-agent Dienst neu gestartet." || warn "Neustart von easywi-agent fehlgeschlagen – bitte manuell prüfen."
+        fi
+      fi
+    fi
   fi
 
   if [[ "${run_migrations}" == "true" ]]; then

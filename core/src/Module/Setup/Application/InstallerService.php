@@ -8,6 +8,7 @@ use App\Infrastructure\Config\DbConfigProvider;
 use App\Infrastructure\Filesystem\WritablePathProbe;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\AppSetting;
+use App\Module\Core\Domain\Entity\CmsPage;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
@@ -922,6 +923,21 @@ final class InstallerService
             'media' => true,
             'gameserver' => true,
         ]);
+
+        $pageRepository = $entityManager->getRepository(CmsPage::class);
+        $defaultPages = [
+            (string) ($data['cms_homepage_slug'] ?? 'startseite') => 'Startseite',
+            'ueber-uns' => 'Über uns',
+            'agb' => 'AGB',
+            'impressum' => 'Impressum',
+            'datenschutz' => 'Datenschutz',
+            'kontakt' => 'Kontakt',
+        ];
+        foreach ($defaultPages as $slug => $title) {
+            if ($pageRepository->findOneBy(['site' => $site, 'slug' => $slug]) === null) {
+                $entityManager->persist(new CmsPage($site, $title, $slug, true));
+            }
+        }
 
         $entityManager->flush();
     }

@@ -950,6 +950,15 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}
 	}
 
+	if err := ensureMinecraftEula(instanceDir, job.Payload); err != nil {
+		markSharedFailure(err)
+		return failureResult(job.ID, fmt.Errorf("eula: %w", err))
+	}
+	if err := ensureMinecraftServerProperties(instanceDir, job.Payload); err != nil {
+		markSharedFailure(err)
+		return failureResult(job.ID, fmt.Errorf("server.properties: %w", err))
+	}
+
 	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
 	if err != nil {
 		markSharedFailure(err)

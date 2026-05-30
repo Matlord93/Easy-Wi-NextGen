@@ -6,185 +6,474 @@
 
 {% block content %}
 {% set locale = page_locale() %}
+{% set activeThemeKey = current_theme ?: 'minimal' %}
+{% set activeModuleCount = module_toggles|filter(v => v)|length %}
+
 <div style="display:flex;flex-direction:column;gap:20px;">
 
     {% if saved %}
         <div class="ng-alert ng-alert--success">{{ t('admin_cms_settings_saved', locale) }}</div>
     {% endif %}
 
-    <section class="ng-card" style="overflow:hidden;">
+    {# ── Hero + KPI + Tabs ── #}
+    <div class="ng-card" style="overflow:hidden;">
         <div class="tkt-hero">
             <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot"></span>
+                        CMS
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:8px;">{{ t('admin_cms_settings_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('admin_cms_settings_intro', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('admin_cms_settings_theme_active', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;font-family:monospace;">{{ activeThemeKey }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--resolved">
+                        <div class="tkt-kpi__label">{{ t('admin_cms_settings_modules_title', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ activeModuleCount }}</div>
+                    </div>
+                    <div class="tkt-kpi {{ maintenance.enabled ? 'tkt-kpi--pending' : 'tkt-kpi--resolved' }}">
+                        <div class="tkt-kpi__label">{{ t('admin_cms_settings_maintenance_title', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:13px;">{{ maintenance.enabled ? '⚠ Aktiv' : '✓ Inaktiv' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── Tab nav ── #}
+        <div class="prof-tabs">
+            <button type="button" class="prof-tab-btn" data-tab-btn="design">
+                <svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;">
+                    <path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5zm6 1H5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1z"/>
+                    <path d="M4 1h8a1 1 0 0 1 1 1v1h-1V2H4v1H3V2a1 1 0 0 1 1-1zm0 13v-1H3v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h-1v1H4z"/>
+                </svg>
+                {{ t('admin_cms_settings_theme_title', locale) }}
+            </button>
+            <button type="button" class="prof-tab-btn" data-tab-btn="branding">
+                <svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;">
+                    <path d="M2 6a6 6 0 1 1 10.174 4.31c-.203.196-.359.4-.453.619l-.762 1.769A.5.5 0 0 1 10.5 13h-5a.5.5 0 0 1-.46-.302l-.761-1.77a1.964 1.964 0 0 0-.453-.618A5.984 5.984 0 0 1 2 6zm3 8.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1l-.224.447a1 1 0 0 1-.894.553H6.618a1 1 0 0 1-.894-.553L5.5 15a.5.5 0 0 1-.5-.5z"/>
+                </svg>
+                {{ t('admin_cms_settings_branding_title', locale) }}
+            </button>
+            <button type="button" class="prof-tab-btn" data-tab-btn="module">
+                <svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;">
+                    <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3A1.5 1.5 0 0 1 15 10.5v3A1.5 1.5 0 0 1 13.5 15h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+                </svg>
+                {{ t('admin_cms_settings_modules_title', locale) }}
+            </button>
+            <button type="button" class="prof-tab-btn" data-tab-btn="nav">
+                <svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;">
+                    <path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
+                </svg>
+                {{ t('admin_cms_settings_nav_title', locale) }}
+            </button>
+            <button type="button" class="prof-tab-btn" data-tab-btn="legal">
+                <svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;">
+                    <path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994-1.105C10.413.809 8.985.936 8 1.783z"/>
+                </svg>
+                {{ t('admin_cms_settings_legal_title', locale) }}
+            </button>
+            <button type="button" class="prof-tab-btn" data-tab-btn="maintenance">
+                <svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;">
+                    <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
+                </svg>
+                {{ t('admin_cms_settings_maintenance_title', locale) }}
+            </button>
+        </div>
+    </div>
+
+    {# ── Main form (wraps all tab panels) ── #}
+    <form method="post" action="/admin/cms/settings" style="display:contents;">
+
+        {# ══════════════════════════════════════════════════
+           TAB: DESIGN
+        ══════════════════════════════════════════════════ #}
+        <div data-tab-panel="design" style="display:flex;flex-direction:column;gap:20px;">
+            <div class="prof-section">
+                <div class="prof-section__head">
                     <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            CMS
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_cms_settings_title', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_cms_settings_intro', locale) }}</p>
+                        <div class="prof-section__title">{{ t('admin_cms_settings_theme_title', locale) }}</div>
+                        <div class="prof-section__sub">{{ t('admin_cms_settings_theme_hint', locale) }}</div>
                     </div>
+                    <span class="ui-badge ui-badge--neutral" style="font-family:monospace;">{{ activeThemeKey }}</span>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <form method="post" action="/admin/cms/settings" style="display:flex;flex-direction:column;gap:20px;">
-
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_cms_settings_theme_title', locale) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_cms_settings_theme_hint', locale) }}</p>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                <div class="form-field">
-                    <label class="form-label" for="active_theme">{{ t('admin_cms_settings_theme_active', locale) }}</label>
-                    <select id="active_theme" name="active_theme" class="form-input">
-                        {% for key in ['esports', 'minimal', 'fantasy', 'nexus-gaming', 'xenal'] %}
-                            <option value="{{ key }}" {% if current_theme == key %}selected{% endif %}>{{ key }}</option>
+                <div class="prof-section__body">
+                    {% set themeAccents = {
+                        'esports':      '#3b82f6',
+                        'minimal':      '#64748b',
+                        'fantasy':      '#8b5cf6',
+                        'nexus-gaming': '#f59e0b'
+                    } %}
+                    <div id="theme-picker" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
+                        {% for key in ['esports', 'minimal', 'fantasy', 'nexus-gaming'] %}
+                            {% set isActive = activeThemeKey == key %}
+                            {% set accent = themeAccents[key] ?? '#6366f1' %}
+                            <label class="cms-theme-label" style="cursor:pointer;display:block;user-select:none;">
+                                <input type="radio" name="active_theme" value="{{ key }}"
+                                       {{ isActive ? 'checked' : '' }}
+                                       style="position:absolute;opacity:0;pointer-events:none;"
+                                       onchange="updateThemePicker()">
+                                <div class="theme-card-inner" data-theme="{{ key }}"
+                                     style="border:2px solid {{ isActive ? 'var(--ng-primary)' : 'var(--ng-border)' }};
+                                            background:{{ isActive ? 'var(--ng-primary-soft)' : 'var(--ng-surface-soft)' }};
+                                            border-radius:var(--ng-radius);
+                                            padding:14px;
+                                            transition:border-color .15s,background .15s;">
+                                    <div style="height:48px;border-radius:6px;background:{{ accent }};
+                                                margin-bottom:12px;
+                                                display:flex;align-items:center;justify-content:center;opacity:.9;">
+                                        <svg style="width:20px;height:20px;color:#fff;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+                                        </svg>
+                                    </div>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;">
+                                        <span style="font-size:13px;font-weight:700;color:var(--ng-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ key }}</span>
+                                        <span id="theme-badge-{{ key }}" class="{{ isActive ? 'ui-badge ui-badge--success' : '' }}" style="flex-shrink:0;">{{ isActive ? 'Aktiv' : '' }}</span>
+                                    </div>
+                                </div>
+                            </label>
                         {% endfor %}
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_cms_settings_branding_title', locale) }}</h2>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                <div class="ng-layout-2col--equal">
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_cms_settings_logo_path', locale) }}</label>
-                        <input type="text" name="logo_path" value="{{ branding.logo_path }}" class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_cms_settings_primary_color', locale) }}</label>
-                        <input type="text" name="primary_color" value="{{ branding.primary_color }}" placeholder="#4f46e5" class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_cms_settings_website', locale) }}</label>
-                        <input type="text" name="social_website" value="{{ branding.socials.website|default('') }}" class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_cms_settings_discord', locale) }}</label>
-                        <input type="text" name="social_discord" value="{{ branding.socials.discord|default('') }}" class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_cms_settings_twitter', locale) }}</label>
-                        <input type="text" name="social_twitter" value="{{ branding.socials.twitter|default('') }}" class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_cms_settings_youtube', locale) }}</label>
-                        <input type="text" name="social_youtube" value="{{ branding.socials.youtube|default('') }}" class="form-input">
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_cms_settings_modules_title', locale) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_cms_settings_modules_hint', locale) }}</p>
+        {# ══════════════════════════════════════════════════
+           TAB: BRANDING
+        ══════════════════════════════════════════════════ #}
+        <div data-tab-panel="branding" style="display:none;flex-direction:column;gap:20px;">
+            <div class="prof-section">
+                <div class="prof-section__head">
+                    <div>
+                        <div class="prof-section__title">{{ t('admin_cms_settings_branding_title', locale) }}</div>
+                        <div class="prof-section__sub">Logo, Akzentfarbe &amp; Social-Links</div>
+                    </div>
+                    <span class="ui-badge ui-badge--neutral">Branding</span>
                 </div>
-            </div>
-            <div class="ng-data-card__body">
-                <div class="ng-layout-2col--equal">
-                    {% for key, enabled in module_toggles %}
-                        <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.875rem;cursor:pointer;border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;">
-                            <input type="checkbox" name="toggle_{{ key }}" value="1" {% if enabled %}checked{% endif %}>
-                            <span>{{ key|capitalize }}</span>
-                        </label>
-                    {% endfor %}
+                <div class="prof-section__body">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_cms_settings_logo_path', locale) }}</label>
+                            <input type="text" name="logo_path" value="{{ branding.logo_path }}" class="form-input" placeholder="/assets/logo.png">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_cms_settings_primary_color', locale) }}</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="color" id="primary_color_picker"
+                                       value="{{ branding.primary_color ?: '#4f46e5' }}"
+                                       style="width:40px;height:38px;padding:3px;border:1px solid var(--ng-border);border-radius:var(--ng-radius-sm);cursor:pointer;background:none;flex-shrink:0;"
+                                       oninput="document.getElementById('primary_color_text').value=this.value">
+                                <input type="text" id="primary_color_text" name="primary_color"
+                                       value="{{ branding.primary_color }}" class="form-input" placeholder="#4f46e5"
+                                       oninput="document.getElementById('primary_color_picker').value=this.value||'#4f46e5'">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px;">
+                        <div style="font-size:11px;font-weight:700;color:var(--ng-text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;">Social Links</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div class="form-field">
+                                <label class="form-label" style="display:flex;align-items:center;gap:5px;">
+                                    <svg style="width:13px;height:13px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                                    </svg>
+                                    {{ t('admin_cms_settings_website', locale) }}
+                                </label>
+                                <input type="text" name="social_website" value="{{ branding.socials.website|default('') }}" class="form-input" placeholder="https://example.com">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" style="display:flex;align-items:center;gap:5px;">
+                                    <svg style="width:13px;height:13px;flex-shrink:0;" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.384 8.384 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019z"/>
+                                    </svg>
+                                    {{ t('admin_cms_settings_discord', locale) }}
+                                </label>
+                                <input type="text" name="social_discord" value="{{ branding.socials.discord|default('') }}" class="form-input" placeholder="https://discord.gg/...">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" style="display:flex;align-items:center;gap:5px;">
+                                    <svg style="width:13px;height:13px;flex-shrink:0;" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
+                                    </svg>
+                                    {{ t('admin_cms_settings_twitter', locale) }}
+                                </label>
+                                <input type="text" name="social_twitter" value="{{ branding.socials.twitter|default('') }}" class="form-input" placeholder="https://x.com/...">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" style="display:flex;align-items:center;gap:5px;">
+                                    <svg style="width:13px;height:13px;flex-shrink:0;" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z"/>
+                                    </svg>
+                                    {{ t('admin_cms_settings_youtube', locale) }}
+                                </label>
+                                <input type="text" name="social_youtube" value="{{ branding.socials.youtube|default('') }}" class="form-input" placeholder="https://youtube.com/...">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_cms_settings_legal_title', locale) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_cms_settings_legal_hint', locale) }}</p>
+        {# ══════════════════════════════════════════════════
+           TAB: MODULE
+        ══════════════════════════════════════════════════ #}
+        <div data-tab-panel="module" style="display:none;flex-direction:column;gap:20px;">
+            <div class="prof-section">
+                <div class="prof-section__head">
+                    <div>
+                        <div class="prof-section__title">{{ t('admin_cms_settings_modules_title', locale) }}</div>
+                        <div class="prof-section__sub">{{ t('admin_cms_settings_modules_hint', locale) }}</div>
+                    </div>
+                    <span class="ui-badge ui-badge--info">{{ activeModuleCount }} aktiv</span>
                 </div>
-            </div>
-            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:1rem;">
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_settings_impressum', locale) }}</label>
-                    <textarea name="impressum_content" rows="10" class="form-input font-mono">{{ impressum_content|default('') }}</textarea>
-                </div>
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_settings_datenschutz', locale) }}</label>
-                    <textarea name="datenschutz_content" rows="10" class="form-input font-mono">{{ datenschutz_content|default('') }}</textarea>
+                <div class="prof-section__body">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;">
+                        {% for key, enabled in module_toggles %}
+                            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;
+                                          padding:12px 14px;
+                                          border:1px solid var(--ng-border);
+                                          border-radius:var(--ng-radius);
+                                          background:var(--ng-surface-soft);
+                                          cursor:pointer;user-select:none;">
+                                <span style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ key|capitalize }}</span>
+                                <span style="position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;">
+                                    <input type="checkbox" name="toggle_{{ key }}" value="1" {{ enabled ? 'checked' : '' }}
+                                           style="opacity:0;width:0;height:0;position:absolute;"
+                                           onchange="updateToggle(this)">
+                                    <span class="cms-toggle-track" style="position:absolute;inset:0;
+                                          background:{{ enabled ? 'var(--ng-primary)' : 'var(--ng-border)' }};
+                                          border-radius:99px;transition:background .2s;"></span>
+                                    <span style="position:absolute;top:3px;left:{{ enabled ? '21px' : '3px' }};
+                                          width:16px;height:16px;background:#fff;border-radius:50%;
+                                          box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s;pointer-events:none;"></span>
+                                </span>
+                            </label>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_cms_settings_maintenance_title', locale) }}</h2>
+        {# ══════════════════════════════════════════════════
+           TAB: NAVIGATION
+        ══════════════════════════════════════════════════ #}
+        <div data-tab-panel="nav" style="display:none;flex-direction:column;gap:20px;">
+            <div class="prof-section">
+                <div class="prof-section__head">
+                    <div>
+                        <div class="prof-section__title">{{ t('admin_cms_settings_nav_title', locale) }}</div>
+                        <div class="prof-section__sub">{{ t('admin_cms_settings_nav_hint', locale) }}</div>
+                    </div>
+                    <span class="ui-badge ui-badge--neutral">JSON</span>
                 </div>
-            </div>
-            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:1rem;">
-                <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.875rem;cursor:pointer;border:1px solid var(--ng-border);border-radius:0.5rem;padding:0.5rem 0.75rem;width:fit-content;">
-                    <input type="checkbox" name="maintenance_enabled" value="1" {% if maintenance.enabled %}checked{% endif %}>
-                    <span>{{ t('admin_cms_settings_maintenance_enable', locale) }}</span>
-                </label>
-                <div class="ng-layout-2col--equal">
+                <div class="prof-section__body" style="display:flex;flex-direction:column;gap:16px;">
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_cms_settings_maintenance_start', locale) }}</label>
-                        <input type="datetime-local" name="maintenance_starts_at" value="{{ maintenance.starts_at|default('') }}" class="form-input">
+                        <label class="form-label">{{ t('admin_cms_settings_header_links', locale) }}</label>
+                        <textarea name="header_links_json" rows="10" class="form-input font-mono text-xs">{{ header_links_json }}</textarea>
+                        <p class="form-hint">Format: [{"label":"Name","url":"/pfad","external":false}]</p>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">{{ t('admin_cms_settings_maintenance_end', locale) }}</label>
-                        <input type="datetime-local" name="maintenance_ends_at" value="{{ maintenance.ends_at|default('') }}" class="form-input">
+                        <label class="form-label">{{ t('admin_cms_settings_footer_links', locale) }}</label>
+                        <textarea name="footer_links_json" rows="10" class="form-input font-mono text-xs">{{ footer_links_json }}</textarea>
                     </div>
                 </div>
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_settings_maintenance_text', locale) }}</label>
-                    <textarea name="maintenance_message" rows="3" class="form-input">{{ maintenance.message|default('') }}</textarea>
-                    <p class="form-hint">{{ t('admin_cms_settings_maintenance_text_hint', locale) }}</p>
+            </div>
+        </div>
+
+        {# ══════════════════════════════════════════════════
+           TAB: RECHTLICHES
+        ══════════════════════════════════════════════════ #}
+        <div data-tab-panel="legal" style="display:none;flex-direction:column;gap:20px;">
+            <div class="prof-section">
+                <div class="prof-section__head">
+                    <div>
+                        <div class="prof-section__title">{{ t('admin_cms_settings_legal_title', locale) }}</div>
+                        <div class="prof-section__sub">{{ t('admin_cms_settings_legal_hint', locale) }}</div>
+                    </div>
+                    <span class="ui-badge ui-badge--neutral">{{ t('admin_cms_settings_legal_title', locale) }}</span>
                 </div>
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_settings_maintenance_graphic', locale) }}</label>
-                    <input type="text" name="maintenance_graphic_path" value="{{ maintenance.graphic_path|default('') }}" class="form-input">
-                </div>
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_settings_maintenance_allowlist', locale) }}</label>
-                    <textarea name="maintenance_allowlist" rows="3" class="form-input">{{ maintenance.allowlist|default('') }}</textarea>
+                <div class="prof-section__body" style="display:flex;flex-direction:column;gap:16px;">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_settings_impressum', locale) }}</label>
+                        <textarea name="impressum_content" rows="10" class="form-input font-mono">{{ impressum_content|default('') }}</textarea>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_settings_datenschutz', locale) }}</label>
+                        <textarea name="datenschutz_content" rows="10" class="form-input font-mono">{{ datenschutz_content|default('') }}</textarea>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_cms_settings_nav_title', locale) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_cms_settings_nav_hint', locale) }}</p>
+        {# ══════════════════════════════════════════════════
+           TAB: WARTUNG
+        ══════════════════════════════════════════════════ #}
+        <div data-tab-panel="maintenance" style="display:none;flex-direction:column;gap:20px;">
+            <div class="prof-section">
+                <div class="prof-section__head">
+                    <div>
+                        <div class="prof-section__title">{{ t('admin_cms_settings_maintenance_title', locale) }}</div>
+                        <div class="prof-section__sub">Steuere den Wartungsmodus deines Portals</div>
+                    </div>
+                    <span class="ui-badge {{ maintenance.enabled ? 'ui-badge--pending' : 'ui-badge--neutral' }}">
+                        {{ maintenance.enabled ? 'Aktiv' : 'Inaktiv' }}
+                    </span>
                 </div>
-            </div>
-            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:1rem;">
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_settings_header_links', locale) }}</label>
-                    <textarea name="header_links_json" rows="8" class="form-input font-mono text-xs">{{ header_links_json }}</textarea>
-                </div>
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_settings_footer_links', locale) }}</label>
-                    <textarea name="footer_links_json" rows="8" class="form-input font-mono text-xs">{{ footer_links_json }}</textarea>
+                <div class="prof-section__body" style="display:flex;flex-direction:column;gap:16px;">
+
+                    {# Maintenance toggle row #}
+                    <label style="display:flex;align-items:center;justify-content:space-between;gap:14px;
+                                  padding:14px 16px;
+                                  border:1px solid {{ maintenance.enabled ? 'rgba(245,158,11,.4)' : 'var(--ng-border)' }};
+                                  background:{{ maintenance.enabled ? 'rgba(245,158,11,.05)' : 'var(--ng-surface-soft)' }};
+                                  border-radius:var(--ng-radius);cursor:pointer;user-select:none;">
+                        <div>
+                            <div style="font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('admin_cms_settings_maintenance_enable', locale) }}</div>
+                            <div style="font-size:12px;color:var(--ng-text-muted);margin-top:2px;">Nur Admins können die Website im Wartungsmodus aufrufen.</div>
+                        </div>
+                        <span style="position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;">
+                            <input type="checkbox" name="maintenance_enabled" value="1" {{ maintenance.enabled ? 'checked' : '' }}
+                                   style="opacity:0;width:0;height:0;position:absolute;"
+                                   onchange="updateToggle(this)">
+                            <span class="cms-toggle-track" style="position:absolute;inset:0;
+                                  background:{{ maintenance.enabled ? '#f59e0b' : 'var(--ng-border)' }};
+                                  border-radius:99px;transition:background .2s;"></span>
+                            <span style="position:absolute;top:3px;left:{{ maintenance.enabled ? '21px' : '3px' }};
+                                  width:16px;height:16px;background:#fff;border-radius:50%;
+                                  box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s;pointer-events:none;"></span>
+                        </span>
+                    </label>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_cms_settings_maintenance_start', locale) }}</label>
+                            <input type="datetime-local" name="maintenance_starts_at" value="{{ maintenance.starts_at|default('') }}" class="form-input">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_cms_settings_maintenance_end', locale) }}</label>
+                            <input type="datetime-local" name="maintenance_ends_at" value="{{ maintenance.ends_at|default('') }}" class="form-input">
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_settings_maintenance_text', locale) }}</label>
+                        <textarea name="maintenance_message" rows="3" class="form-input">{{ maintenance.message|default('') }}</textarea>
+                        <p class="form-hint">{{ t('admin_cms_settings_maintenance_text_hint', locale) }}</p>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_settings_maintenance_graphic', locale) }}</label>
+                        <input type="text" name="maintenance_graphic_path" value="{{ maintenance.graphic_path|default('') }}" class="form-input">
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_cms_settings_maintenance_allowlist', locale) }}</label>
+                        <textarea name="maintenance_allowlist" rows="4" class="form-input">{{ maintenance.allowlist|default('') }}</textarea>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div>
-            <button type="submit" class="ui-button ui-button--primary">{{ t('admin_cms_settings_save', locale) }}</button>
+        {# ── Sticky save bar ── #}
+        <div style="position:sticky;bottom:0;z-index:10;
+                    background:var(--ng-surface);
+                    border-top:1px solid var(--ng-border);
+                    padding:12px 20px;
+                    display:flex;align-items:center;justify-content:space-between;gap:12px;
+                    margin-top:4px;">
+            <span style="font-size:12px;color:var(--ng-text-muted);">Nicht vergessen: Änderungen werden erst nach dem Speichern übernommen.</span>
+            <button type="submit" class="ui-button ui-button--primary">
+                <svg style="width:14px;height:14px;margin-right:6px;vertical-align:-2px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+                {{ t('admin_cms_settings_save', locale) }}
+            </button>
         </div>
 
     </form>
 
 </div>
+
+<script>
+(function () {
+    // ── Tab switching ──────────────────────────────────────────
+    var buttons = document.querySelectorAll('[data-tab-btn]');
+    var panels  = document.querySelectorAll('[data-tab-panel]');
+
+    function activateTab(tab) {
+        buttons.forEach(function (btn) {
+            btn.classList.toggle('prof-tab-btn--active', btn.dataset.tabBtn === tab);
+        });
+        panels.forEach(function (panel) {
+            var show = panel.dataset.tabPanel === tab;
+            panel.style.display = show ? 'flex' : 'none';
+        });
+        try { history.replaceState(null, '', location.pathname + '?tab=' + tab); } catch (e) {}
+    }
+
+    buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () { activateTab(btn.dataset.tabBtn); });
+    });
+
+    var validTabs = ['design', 'branding', 'module', 'nav', 'legal', 'maintenance'];
+    var urlTab = new URLSearchParams(location.search).get('tab');
+    activateTab(validTabs.indexOf(urlTab) !== -1 ? urlTab : 'design');
+
+    // ── Theme picker ───────────────────────────────────────────
+    window.updateThemePicker = function () {
+        document.querySelectorAll('#theme-picker input[type=radio]').forEach(function (radio) {
+            var card  = document.querySelector('.theme-card-inner[data-theme="' + radio.value + '"]');
+            var badge = document.getElementById('theme-badge-' + radio.value);
+            if (!card) return;
+            if (radio.checked) {
+                card.style.borderColor = 'var(--ng-primary)';
+                card.style.background  = 'var(--ng-primary-soft)';
+                if (badge) { badge.className = 'ui-badge ui-badge--success'; badge.textContent = 'Aktiv'; }
+            } else {
+                card.style.borderColor = 'var(--ng-border)';
+                card.style.background  = 'var(--ng-surface-soft)';
+                if (badge) { badge.className = ''; badge.textContent = ''; }
+            }
+        });
+    };
+
+    // ── Toggle switches ────────────────────────────────────────
+    window.updateToggle = function (checkbox) {
+        var wrapper = checkbox.parentElement;
+        var track = wrapper.querySelector('.cms-toggle-track');
+        var thumb = track ? track.nextElementSibling : null;
+        if (!track || !thumb) return;
+        if (checkbox.checked) {
+            track.style.background = 'var(--ng-primary)';
+            thumb.style.left = '21px';
+        } else {
+            track.style.background = 'var(--ng-border)';
+            thumb.style.left = '3px';
+        }
+    };
+
+    // Special amber color for maintenance toggle
+    var maintToggle = document.querySelector('[name=maintenance_enabled]');
+    if (maintToggle) {
+        maintToggle.addEventListener('change', function () {
+            var wrapper = this.parentElement;
+            var track = wrapper.querySelector('.cms-toggle-track');
+            var thumb = track ? track.nextElementSibling : null;
+            if (!track || !thumb) return;
+            if (this.checked) {
+                track.style.background = '#f59e0b';
+                thumb.style.left = '21px';
+            } else {
+                track.style.background = 'var(--ng-border)';
+                thumb.style.left = '3px';
+            }
+        });
+    }
+})();
+</script>
 {% endblock %}

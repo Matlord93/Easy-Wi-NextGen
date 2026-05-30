@@ -224,13 +224,17 @@ final class CustomerInstanceActionApiController
             ]);
         }
 
-        $message = new InstanceActionMessage(sprintf('instance.%s', $action), $customer->getId(), $instance->getId(), [
+        $jobPayload = [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
             'action' => $action,
-        ]);
+        ];
+        if (in_array($action, ['start', 'restart'], true)) {
+            $jobPayload = array_merge($this->instanceJobPayloadBuilder->buildRuntimePayload($instance), $jobPayload);
+        }
+        $message = new InstanceActionMessage(sprintf('instance.%s', $action), $customer->getId(), $instance->getId(), $jobPayload);
 
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
         $result = json_decode((string) $response->getContent(), true);

@@ -938,6 +938,13 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 
+	if err := ensureMinecraftEula(instanceDir, job.Payload); err != nil {
+		return failureResult(job.ID, fmt.Errorf("eula: %w", err))
+	}
+	if err := ensureMinecraftServerProperties(instanceDir, job.Payload); err != nil {
+		return failureResult(job.ID, fmt.Errorf("server.properties: %w", err))
+	}
+
 	if autostart {
 		if err := runCommand("systemctl", "enable", serviceName); err != nil {
 			log.Printf("instance.install: enable service %s (best-effort): %v", serviceName, err)
@@ -1468,6 +1475,13 @@ func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, e
 	instanceDir, err := resolveInstanceDir(payload)
 	if err != nil {
 		return updates, err
+	}
+
+	if err := ensureMinecraftEula(instanceDir, payload); err != nil {
+		return updates, fmt.Errorf("eula: %w", err)
+	}
+	if err := ensureMinecraftServerProperties(instanceDir, payload); err != nil {
+		return updates, fmt.Errorf("server.properties: %w", err)
 	}
 
 	if files := parseConfigOverrideFiles(payload); len(files) > 0 {

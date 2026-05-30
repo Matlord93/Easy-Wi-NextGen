@@ -1228,8 +1228,9 @@ final class GameTemplateSeedCatalog
                 null,
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
+                    ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties motd \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties enable-rcon \"true\"; set_property server.properties rcon.password \"{{RCON_PASSWORD}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; {{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui",
+                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties motd \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties enable-rcon \"true\"; set_property server.properties rcon.password \"{{RCON_PASSWORD}}\"; set_property server.properties rcon.port \"{{PORT_RCON}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; {{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui",
                 [
                     ['key' => 'JAVA_XMS', 'value' => '1G'],
                     ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -1247,7 +1248,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'server.properties',
                         'description' => 'Base server settings',
-                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{PORT_GAME}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nserver-password={{SERVER_PASSWORD}}\n",
+                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{PORT_GAME}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nrcon.port={{PORT_RCON}}\nserver-password={{SERVER_PASSWORD}}\n",
                     ],
                 ],
                 [],
@@ -1266,8 +1267,9 @@ final class GameTemplateSeedCatalog
                 null,
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
+                    ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties motd \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties enable-rcon \"true\"; set_property server.properties rcon.password \"{{RCON_PASSWORD}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; {{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui",
+                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties motd \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties enable-rcon \"true\"; set_property server.properties rcon.password \"{{RCON_PASSWORD}}\"; set_property server.properties rcon.port \"{{PORT_RCON}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; {{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui",
                 [
                     ['key' => 'JAVA_XMS', 'value' => '1G'],
                     ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -1285,7 +1287,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'server.properties',
                         'description' => 'Base server settings',
-                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{PORT_GAME}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nserver-password={{SERVER_PASSWORD}}\n",
+                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{PORT_GAME}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nrcon.port={{PORT_RCON}}\nserver-password={{SERVER_PASSWORD}}\n",
                     ],
                 ],
                 [],

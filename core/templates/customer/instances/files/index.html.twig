@@ -1,10 +1,10 @@
 {% extends 'customer/base.html.twig' %}
 
-
 {% block content %}
     {% set displayName = instance.server_name ?? instance.name %}
+    {% set locale = page_locale() %}
     <div
-        class="space-y-8"
+        class="cust-page"
         id="file-manager-app"
         data-instance-id="{{ instance.id }}"
         data-files-list-url="{{ path('customer_instance_files_api_list', {id: instance.id}) }}"
@@ -19,206 +19,255 @@
         data-files-max-upload-bytes="104857600"
     >
 
-        <div class="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <p class="font-semibold">Legacy view</p>
-            <p class="mt-1 text-xs">This compatibility file manager is deprecated. Use the dashboard Files page when possible.</p>
-            <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="mt-2 inline-flex ui-button ui-button--ghost">Open new Files page</a>
+        <div class="cust-hero">
+            <div class="cust-hero__inner">
+                <div>
+                    <div class="cust-hero__label">{{ t('customer_instance_files_instance_label', locale) }}</div>
+                    <h1 class="cust-hero__title">{{ t('customer_instance_files_title', locale) }}</h1>
+                    <p class="cust-hero__desc">{{ t('customer_instance_files_intro', locale) }}</p>
+                </div>
+            </div>
+            <div class="cust-hero__stats" style="grid-template-columns:repeat(2,1fr);max-width:360px;">
+                <div class="cust-hero__stat">
+                    <div class="cust-hero__stat-label">{{ t('customer_instance_files_instance_label', locale) }}</div>
+                    <div class="cust-hero__stat-value" style="font-size:13px;word-break:break-all;">{{ displayName }}</div>
+                    <div class="cust-hero__stat-sub">{{ instance.game_key }}</div>
+                </div>
+                <div class="cust-hero__stat">
+                    <div class="cust-hero__stat-label">Node</div>
+                    <div class="cust-hero__stat-value" style="font-size:13px;">{{ instance.node.name }}</div>
+                    <div class="cust-hero__stat-sub">#{{ instance.node.id }}</div>
+                </div>
+            </div>
         </div>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <p class="text-xs uppercase tracking-wide text-slate-600">{{ t('customer_instance_files_instance_label', page_locale()) }}</p>
-                <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_instance_files_title', page_locale()) }}</h1>
-                <p class="text-sm text-slate-700">{{ t('customer_instance_files_intro', page_locale()) }}</p>
-            </div>
-            <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
-                <p class="font-semibold text-slate-800">{{ displayName }}</p>
-                <p class="mt-1">{{ instance.game_key }} · {{ instance.node.name }} ({{ instance.node.id }})</p>
-            </div>
-        </div>
+        <div class="fm-layout">
 
-        <div class="grid gap-6 lg:grid-cols-3">
-            <div class="space-y-6 lg:col-span-1">
-                <div class="rounded-xl border border-slate-200 bg-white p-4" id="file-diagnostics-card">
-                    <h2 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_files_diagnostics_title', page_locale()) }}</h2>
-                    <p class="mt-1 text-xs text-slate-600">{{ t('customer_instance_files_diagnostics_intro', page_locale()) }}</p>
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-                            id="file-diagnostics-run"
-                        >
-                            {{ t('customer_instance_files_diagnostics_run', page_locale()) }}
-                        </button>
+            {# ── Sidebar ── #}
+            <div class="fm-sidebar">
+
+                <div class="cust-panel" id="file-diagnostics-card">
+                    <div class="cust-panel__head">
+                        <div>
+                            <h3 class="cust-panel__title">{{ t('customer_instance_files_diagnostics_title', locale) }}</h3>
+                            <p class="fm-sub">{{ t('customer_instance_files_diagnostics_intro', locale) }}</p>
+                        </div>
                     </div>
-                    <div class="mt-3 space-y-2 text-xs text-slate-600" id="file-diagnostics-results"></div>
-                    <p class="mt-3 text-xs text-slate-600" id="file-diagnostics-status"></p>
+                    <div class="cust-panel__body">
+                        <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="file-diagnostics-run">
+                            {{ t('customer_instance_files_diagnostics_run', locale) }}
+                        </button>
+                        <div class="fm-diag-results" id="file-diagnostics-results"></div>
+                        <p class="fm-hint" id="file-diagnostics-status"></p>
+                    </div>
                 </div>
 
-                <div class="rounded-xl border border-slate-200 bg-white p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="cust-panel">
+                    <div class="cust-panel__head">
                         <div>
-                            <h2 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_addons_plugins_title', page_locale()) }}</h2>
-                            <p class="mt-1 text-xs text-slate-600">{{ t('customer_instance_addons_plugins_intro', page_locale()) }}</p>
+                            <h3 class="cust-panel__title">{{ t('customer_instance_addons_plugins_title', locale) }}</h3>
+                            <p class="fm-sub">{{ t('customer_instance_addons_plugins_intro', locale) }}</p>
                         </div>
-                        <p class="text-xs text-slate-500" id="addons-feedback"></p>
+                        <span class="fm-hint" id="addons-feedback"></span>
                     </div>
-                    <div class="mt-4 space-y-3">
+                    <div class="cust-panel__body">
                         {% for plugin in availablePlugins %}
-                            <div class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                            <div class="fm-addon-row">
                                 <div>
-                                    <p class="text-sm font-semibold text-slate-900">{{ plugin.name }}</p>
-                                    <p class="text-xs text-slate-600">{{ plugin.version }}</p>
+                                    <div class="fm-item-name">{{ plugin.name }}</div>
+                                    <div class="fm-hint">{{ plugin.version }}</div>
                                     {% if plugin.description %}
-                                        <p class="mt-2 text-xs text-slate-600">{{ plugin.description }}</p>
+                                        <div class="fm-hint" style="margin-top:3px;">{{ plugin.description }}</div>
                                     {% endif %}
                                 </div>
-                                <button
-                                    type="button"
-                                    class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 addon-install-button"
-                                    data-plugin-id="{{ plugin.id }}"
-                                >
-                                    {{ t('customer_instance_addons_install', page_locale()) }}
+                                <button type="button" class="ui-button ui-button--primary ui-button--sm addon-install-button" data-plugin-id="{{ plugin.id }}">
+                                    {{ t('customer_instance_addons_install', locale) }}
                                 </button>
                             </div>
                         {% else %}
-                            <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
-                                {{ t('customer_instance_addons_no_plugins_available', page_locale()) }}
-                            </div>
+                            <div class="fm-empty">{{ t('customer_instance_addons_no_plugins_available', locale) }}</div>
                         {% endfor %}
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-slate-200 bg-white p-4">
-                    <h2 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_files_config_title', page_locale()) }}</h2>
-                    <p class="mt-1 text-xs text-slate-600">{{ t('customer_instance_files_config_intro', page_locale()) }}</p>
-                    <div class="mt-4 space-y-3">
+                <div class="cust-panel">
+                    <div class="cust-panel__head">
+                        <div>
+                            <h3 class="cust-panel__title">{{ t('customer_instance_files_config_title', locale) }}</h3>
+                            <p class="fm-sub">{{ t('customer_instance_files_config_intro', locale) }}</p>
+                        </div>
+                    </div>
+                    <div class="cust-panel__body">
                         {% for config in configFiles %}
-                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                <p class="text-xs font-semibold text-slate-800">{{ config.path }}</p>
-                                <p class="mt-1 text-xs text-slate-600">
-                                    {{ config.description ?: t('customer_instance_files_config_description_empty', page_locale()) }}
-                                </p>
-                                <button
-                                    type="button"
-                                    class="mt-3 rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 file-open-config"
-                                    data-path="{{ config.dir }}"
-                                    data-name="{{ config.name }}"
-                                >
-                                    {{ t('customer_instance_files_config_edit', page_locale()) }}
+                            <div class="fm-config-row">
+                                <div class="fm-config-path">{{ config.path }}</div>
+                                <div class="fm-hint">{{ config.description ?: t('customer_instance_files_config_description_empty', locale) }}</div>
+                                <button type="button" class="ui-button ui-button--ghost ui-button--sm file-open-config" data-path="{{ config.dir }}" data-name="{{ config.name }}">
+                                    {{ t('customer_instance_files_config_edit', locale) }}
                                 </button>
                             </div>
                         {% else %}
-                            <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-                                {{ t('customer_instance_files_config_empty', page_locale()) }}
-                            </div>
+                            <div class="fm-empty">{{ t('customer_instance_files_config_empty', locale) }}</div>
                         {% endfor %}
                     </div>
                 </div>
+
             </div>
 
-            <div class="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
-                <h2 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_files_listing_title', page_locale()) }}</h2>
-                <p class="mt-1 text-xs text-slate-600">{{ t('customer_instance_files_listing_intro', page_locale()) }}</p>
-                <form class="mt-4 space-y-4" id="file-path-form">
-                    <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_relative_path', page_locale()) }}</label>
-                    <input id="file-path-input" name="path" value="{{ path }}" readonly class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600">
-                    <p class="text-xs text-slate-600">{{ t('customer_instance_files_relative_path_hint', page_locale()) }}</p>
-                    <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_load_listing', page_locale()) }}</button>
-                </form>
+            {# ── Main panel ── #}
+            <div class="cust-panel fm-main">
+                <div class="cust-panel__head">
+                    <div>
+                        <h3 class="cust-panel__title">{{ t('customer_instance_files_listing_title', locale) }}</h3>
+                        <p class="fm-sub">{{ t('customer_instance_files_listing_intro', locale) }}</p>
+                    </div>
+                </div>
+                <div class="cust-panel__body">
 
-                <div class="mt-6 space-y-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
-                        <div>
-                            <span class="uppercase tracking-wide text-slate-600">{{ t('customer_instance_files_root', page_locale()) }}</span>
-                            <span class="ml-2 font-medium text-slate-700" id="file-root-path">—</span>
+                    <form class="fm-path-form" id="file-path-form">
+                        <label class="form-label">{{ t('customer_instance_files_relative_path', locale) }}</label>
+                        <input id="file-path-input" name="path" value="{{ path }}" readonly class="form-input" style="font-family:monospace;font-size:12px;">
+                        <div class="fm-hint">{{ t('customer_instance_files_relative_path_hint', locale) }}</div>
+                        <button type="submit" class="ui-button ui-button--primary" style="width:100%;">{{ t('customer_instance_files_load_listing', locale) }}</button>
+                    </form>
+
+                    <div class="fm-nav">
+                        <div class="fm-nav__info">
+                            <span class="fm-nav__label">{{ t('customer_instance_files_root', locale) }}</span>
+                            <span class="fm-nav__value" id="file-root-path">—</span>
                         </div>
-                        <div>
-                            <span class="uppercase tracking-wide text-slate-600">{{ t('customer_instance_files_path', page_locale()) }}</span>
-                            <span class="ml-2 font-medium text-slate-700" id="file-current-path">/</span>
+                        <div class="fm-nav__info">
+                            <span class="fm-nav__label">{{ t('customer_instance_files_path', locale) }}</span>
+                            <span class="fm-nav__value" id="file-current-path">/</span>
                         </div>
-                        <button
-                            type="button"
-                            class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-                            id="file-up-one-level"
-                        >
-                            {{ t('customer_instance_files_up_one_level', page_locale()) }}
+                        <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="file-up-one-level">
+                            {{ t('customer_instance_files_up_one_level', locale) }}
                         </button>
                     </div>
-                    <div id="file-breadcrumb" class="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs text-slate-600"></div>
+                    <div id="file-breadcrumb" class="fm-breadcrumb"></div>
 
-                    <div class="rounded-xl border border-slate-200 bg-white p-4">
-                        <div class="grid gap-4 lg:grid-cols-3">
-                            {% if app_setting('customer_file_push_enabled', true) %}
-                                <form class="space-y-2" id="file-upload-form" enctype="multipart/form-data">
-                                    <input type="hidden" name="path" value="{{ path }}">
-                                    <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_upload_label', page_locale()) }}</label>
-                                    <p class="text-[11px] text-slate-500">Max upload size: 100 MB</p>
-                                    <input type="file" name="upload" class="w-full text-xs text-slate-600">
-                                    <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_upload_action', page_locale()) }}</button>
-                                </form>
-                            {% else %}
-                                <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
-                                    {{ t('customer_instance_files_upload_disabled', page_locale()) }}
-                                </div>
-                            {% endif %}
-                            <form class="space-y-2" id="file-mkdir-form">
+                    <div class="fm-actions-grid">
+                        {% if app_setting('customer_file_push_enabled', true) %}
+                            <form class="fm-action-form" id="file-upload-form" enctype="multipart/form-data">
                                 <input type="hidden" name="path" value="{{ path }}">
-                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_new_folder', page_locale()) }}</label>
-                                <input type="text" name="name" placeholder="{{ t('customer_instance_files_folder_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-                                <button type="submit" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_files_create_folder', page_locale()) }}</button>
+                                <label class="form-label">{{ t('customer_instance_files_upload_label', locale) }}</label>
+                                <div class="fm-hint">Max upload size: 100 MB</div>
+                                <input type="file" name="upload" class="fm-file-input">
+                                <button type="submit" class="ui-button ui-button--primary ui-button--sm" style="width:100%;">{{ t('customer_instance_files_upload_action', locale) }}</button>
                             </form>
-                            <form class="space-y-2" id="file-create-form">
-                                <input type="hidden" name="path" value="{{ path }}">
-                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_new_file', page_locale()) }}</label>
-                                <input type="text" name="name" placeholder="{{ t('customer_instance_files_file_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-                                <button type="submit" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_files_create_file', page_locale()) }}</button>
-                            </form>
-                        </div>
-                        <div id="file-feedback" class="mt-4 text-xs text-slate-600"></div>
+                        {% else %}
+                            <div class="fm-disabled-notice">{{ t('customer_instance_files_upload_disabled', locale) }}</div>
+                        {% endif %}
+                        <form class="fm-action-form" id="file-mkdir-form">
+                            <input type="hidden" name="path" value="{{ path }}">
+                            <label class="form-label">{{ t('customer_instance_files_new_folder', locale) }}</label>
+                            <input type="text" name="name" placeholder="{{ t('customer_instance_files_folder_placeholder', locale) }}" class="form-input" style="font-size:12px;padding:6px 10px;">
+                            <button type="submit" class="ui-button ui-button--ghost ui-button--sm" style="width:100%;">{{ t('customer_instance_files_create_folder', locale) }}</button>
+                        </form>
+                        <form class="fm-action-form" id="file-create-form">
+                            <input type="hidden" name="path" value="{{ path }}">
+                            <label class="form-label">{{ t('customer_instance_files_new_file', locale) }}</label>
+                            <input type="text" name="name" placeholder="{{ t('customer_instance_files_file_placeholder', locale) }}" class="form-input" style="font-size:12px;padding:6px 10px;">
+                            <button type="submit" class="ui-button ui-button--ghost ui-button--sm" style="width:100%;">{{ t('customer_instance_files_create_file', locale) }}</button>
+                        </form>
                     </div>
+                    <div id="file-feedback" class="fm-feedback"></div>
 
-                    <div class="overflow-x-auto rounded-xl border border-slate-200">
-                        <table class="min-w-[720px] divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-700">
+                    <div class="fm-table-wrap">
+                        <table class="fm-table">
+                            <thead>
                                 <tr>
-                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_name', page_locale()) }}</th>
-                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_type', page_locale()) }}</th>
-                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_size', page_locale()) }}</th>
-                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_permissions', page_locale()) }}</th>
-                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_modified', page_locale()) }}</th>
-                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_actions', page_locale()) }}</th>
+                                    <th>{{ t('customer_instance_files_table_name', locale) }}</th>
+                                    <th>{{ t('customer_instance_files_table_type', locale) }}</th>
+                                    <th>{{ t('customer_instance_files_table_size', locale) }}</th>
+                                    <th>{{ t('customer_instance_files_table_permissions', locale) }}</th>
+                                    <th>{{ t('customer_instance_files_table_modified', locale) }}</th>
+                                    <th>{{ t('customer_instance_files_table_actions', locale) }}</th>
                                 </tr>
                             </thead>
-                            <tbody id="file-listing-body" class="divide-y divide-slate-100 bg-white">
-                                <tr>
-                                    <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">{{ t('customer_instance_files_loading_listing', page_locale()) }}</td>
-                                </tr>
+                            <tbody id="file-listing-body">
+                                <tr><td colspan="6" class="fm-table__placeholder">{{ t('customer_instance_files_loading_listing', locale) }}</td></tr>
                             </tbody>
                         </table>
                     </div>
 
-                    <div id="file-editor" class="rounded-xl border border-slate-200 bg-white p-4">
-                        <form class="space-y-3" id="file-editor-form">
-                            <div>
-                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_file_placeholder', page_locale()) }}</label>
-                                <input type="text" id="file-editor-name" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs" placeholder="{{ t('customer_instance_files_file_placeholder', page_locale()) }}">
-                                <input type="hidden" id="file-editor-path" value="{{ path }}">
-                            </div>
-                            <div>
-                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_config_edit', page_locale()) }}</label>
-                                <textarea id="file-editor-content" rows="10" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"></textarea>
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_save', page_locale()) }}</button>
-                                <button type="button" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600" id="file-editor-clear">{{ t('customer_instance_files_editor_empty', page_locale()) }}</button>
+                    <div class="cust-panel" id="file-editor" style="margin:0;border:1px solid var(--ng-border);">
+                        <form id="file-editor-form">
+                            <div class="cust-panel__body">
+                                <div>
+                                    <label class="form-label">{{ t('customer_instance_files_file_placeholder', locale) }}</label>
+                                    <input type="text" id="file-editor-name" class="form-input" style="font-size:12px;padding:6px 10px;margin-top:4px;" placeholder="{{ t('customer_instance_files_file_placeholder', locale) }}">
+                                    <input type="hidden" id="file-editor-path" value="{{ path }}">
+                                </div>
+                                <div>
+                                    <label class="form-label">{{ t('customer_instance_files_config_edit', locale) }}</label>
+                                    <textarea id="file-editor-content" rows="10" class="form-input fm-editor-textarea" style="margin-top:4px;"></textarea>
+                                </div>
+                                <div class="fm-editor-actions">
+                                    <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_instance_files_save', locale) }}</button>
+                                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="file-editor-clear">{{ t('customer_instance_files_editor_empty', locale) }}</button>
+                                </div>
                             </div>
                         </form>
                     </div>
+
                 </div>
             </div>
         </div>
     </div>
+
+    <style>
+    .fm-layout{display:grid;grid-template-columns:1fr;gap:16px}
+    @media(min-width:1024px){.fm-layout{grid-template-columns:280px 1fr;align-items:start}}
+    .fm-sidebar{display:flex;flex-direction:column;gap:16px}
+    .cust-panel__body{display:flex;flex-direction:column;gap:10px;padding:14px 18px}
+    .fm-sub{font-size:11px;color:var(--ng-text-muted);margin-top:2px}
+    .fm-hint{font-size:11px;color:var(--ng-text-muted)}
+    .fm-addon-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px;background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px}
+    .fm-item-name{font-size:13px;font-weight:600;color:var(--ng-text)}
+    .fm-config-row{padding:10px;background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;display:flex;flex-direction:column;gap:4px}
+    .fm-config-path{font-size:12px;font-weight:600;color:var(--ng-text);font-family:monospace}
+    .fm-empty{padding:12px;border:1px dashed var(--ng-border);border-radius:8px;font-size:12px;color:var(--ng-text-muted);text-align:center}
+    .fm-path-form{display:flex;flex-direction:column;gap:6px;padding:14px 18px;border-bottom:1px solid var(--ng-border)}
+    .fm-nav{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 14px;background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px}
+    .fm-nav__info{display:flex;align-items:center;gap:5px;flex:1;min-width:100px}
+    .fm-nav__label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted)}
+    .fm-nav__value{font-size:12px;font-weight:600;color:var(--ng-text);font-family:monospace}
+    .fm-breadcrumb{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:7px 14px;background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;font-size:12px;color:var(--ng-text-muted)}
+    .fm-breadcrumb__root,.fm-breadcrumb__item{background:none;border:none;cursor:pointer;padding:1px 3px;border-radius:4px;font-size:12px;font-weight:600}
+    .fm-breadcrumb__root{color:var(--ng-primary)}
+    .fm-breadcrumb__item{color:var(--ng-text)}
+    .fm-breadcrumb__root:hover,.fm-breadcrumb__item:hover{color:var(--ng-primary)}
+    .fm-breadcrumb__sep{color:var(--ng-text-muted)}
+    .fm-actions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px 14px;background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px}
+    .fm-action-form{display:flex;flex-direction:column;gap:5px}
+    .fm-file-input{font-size:11px;color:var(--ng-text-muted)}
+    .fm-disabled-notice{padding:10px;font-size:12px;color:var(--ng-text-muted);border:1px solid var(--ng-border);border-radius:8px}
+    .fm-feedback{font-size:12px;min-height:18px;color:var(--ng-text-muted)}
+    .fm-table-wrap{overflow-x:auto;border:1px solid var(--ng-border);border-radius:10px}
+    .fm-table{width:100%;min-width:680px;border-collapse:collapse;font-size:13px}
+    .fm-table thead th{padding:9px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);background:var(--ng-surface-soft);border-bottom:1px solid var(--ng-border)}
+    .fm-table tbody tr{border-bottom:1px solid var(--ng-border)}
+    .fm-table tbody tr:last-child{border-bottom:none}
+    .fm-table tbody tr:hover{background:var(--ng-surface-soft)}
+    .fm-table td{padding:9px 14px;color:var(--ng-text);vertical-align:middle}
+    .fm-table__placeholder{padding:24px;text-align:center;color:var(--ng-text-muted);font-size:13px}
+    .fm-badge--dir{display:inline-flex;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(99,102,241,.15);color:#818cf8}
+    .fm-badge--file{display:inline-flex;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;background:var(--ng-surface-soft);color:var(--ng-text-muted);border:1px solid var(--ng-border)}
+    .fm-btn-action{background:none;border:1px solid var(--ng-border);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:var(--ng-text-muted);cursor:pointer}
+    .fm-btn-action:hover{border-color:var(--ng-primary);color:var(--ng-primary)}
+    .fm-btn-delete{background:none;border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#f87171;cursor:pointer}
+    .fm-btn-delete:hover{border-color:#f87171}
+    .fm-btn-row{display:flex;flex-wrap:wrap;gap:5px}
+    .fm-diag-ok{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border:1px solid var(--ng-border);border-radius:8px;background:var(--ng-surface-soft);font-size:12px}
+    .fm-diag-ok__head{font-weight:600;color:var(--ng-text)}
+    .fm-diag-ok__sub{color:var(--ng-text-muted)}
+    .fm-diag-err{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border:1px solid rgba(239,68,68,.3);border-radius:8px;background:rgba(239,68,68,.07);font-size:12px;color:#f87171}
+    .fm-diag-err__head{font-weight:600}
+    .fm-diag-results{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+    .fm-editor-textarea{font-family:monospace;min-height:180px;resize:vertical;margin-top:4px}
+    .fm-editor-actions{display:flex;gap:8px;flex-wrap:wrap}
+    </style>
 {% endblock %}
 
 {% block javascripts %}
@@ -365,18 +414,16 @@
                 if (!feedbackEl) {
                     return;
                 }
-                const color = type === 'error' ? 'text-rose-600' : 'text-slate-600';
-                feedbackEl.className = `mt-4 text-xs ${color}`;
                 feedbackEl.textContent = message;
+                feedbackEl.style.color = type === 'error' ? '#f87171' : 'var(--ng-text-muted)';
             };
 
             const setDiagnosticsStatus = (message, type = 'info') => {
                 if (!diagnosticsStatus) {
                     return;
                 }
-                const color = type === 'error' ? 'text-rose-600' : 'text-slate-600';
-                diagnosticsStatus.className = `mt-3 text-xs ${color}`;
                 diagnosticsStatus.textContent = message;
+                diagnosticsStatus.style.color = type === 'error' ? '#f87171' : 'var(--ng-text-muted)';
             };
 
             const renderDiagnostics = (data) => {
@@ -390,21 +437,21 @@
                 const requestId = data.request_id || '';
                 const renderProbe = (probe, label) => {
                     if (!probe) {
-                        return `<div class="text-rose-600">${label}: ${labels.diagnosticsFailed}</div>`;
+                        return `<div class="fm-diag-err"><div class="fm-diag-err__head">${label}: ${labels.diagnosticsFailed}</div></div>`;
                     }
                     if (probe.status === 'ok') {
                         return `
-                            <div class="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                                <div class="font-semibold text-slate-700">${label}: ${labels.diagnosticsReady}</div>
-                                <div class="text-slate-600">${labels.diagnosticsEntries} ${probe.entry_count} · ${labels.diagnosticsDuration} ${probe.duration_ms}ms</div>
+                            <div class="fm-diag-ok">
+                                <div class="fm-diag-ok__head">${label}: ${labels.diagnosticsReady}</div>
+                                <div class="fm-diag-ok__sub">${labels.diagnosticsEntries} ${probe.entry_count} · ${labels.diagnosticsDuration} ${probe.duration_ms}ms</div>
                             </div>
                         `;
                     }
                     const message = probe.error_code ? `${probe.error_code}: ${probe.message}` : probe.message;
                     const suffix = requestId ? ` (${labels.requestIdLabel} ${requestId})` : '';
                     return `
-                        <div class="flex flex-col gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">
-                            <div class="font-semibold">${label}: ${labels.diagnosticsFailed}</div>
+                        <div class="fm-diag-err">
+                            <div class="fm-diag-err__head">${label}: ${labels.diagnosticsFailed}</div>
                             <div>${message}${suffix}</div>
                         </div>
                     `;
@@ -419,7 +466,6 @@
                 const payload = await response.json().catch(() => null);
                 return normalizeErrorPayload(payload, fallbackMessage, requestId);
             };
-
 
             const runDiagnostics = async () => {
                 if (!diagnosticsUrl) {
@@ -497,42 +543,42 @@
                 }
                 const parts = (path || '').split('/').filter(Boolean);
                 let cursor = '';
-                let html = `<button type="button" class="font-semibold text-indigo-600 hover:text-indigo-700" data-path="">/</button>`;
+                let html = `<button type="button" class="fm-breadcrumb__root" data-path="">/</button>`;
                 parts.forEach((part) => {
                     cursor = cursor ? `${cursor}/${part}` : part;
-                    html += `<span class="text-slate-400">/</span><button type="button" class="font-semibold text-slate-700 hover:text-indigo-600" data-path="${cursor}">${part}</button>`;
+                    html += `<span class="fm-breadcrumb__sep">/</span><button type="button" class="fm-breadcrumb__item" data-path="${cursor}">${part}</button>`;
                 });
                 breadcrumbEl.innerHTML = html;
             };
 
             const renderEntries = (entries) => {
                 if (!entries.length) {
-                    listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">${labels.empty}</td></tr>`;
+                    listingBody.innerHTML = `<tr><td colspan="6" class="fm-table__placeholder">${labels.empty}</td></tr>`;
                     return;
                 }
 
                 listingBody.innerHTML = entries.map((entry) => {
                     const nextPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
                     const typeBadge = entry.is_dir
-                        ? `<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700">${labels.typeDirectory}</span>`
-                        : `<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-600">${labels.typeFile}</span>`;
+                        ? `<span class="fm-badge--dir">${labels.typeDirectory}</span>`
+                        : `<span class="fm-badge--file">${labels.typeFile}</span>`;
                     const actionButtons = entry.is_dir
-                        ? `<button type="button" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600" data-action="open" data-path="${nextPath}">${labels.open}</button>`
+                        ? `<button type="button" class="fm-btn-action" data-action="open" data-path="${nextPath}">${labels.open}</button>`
                         : `
-                            <button type="button" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600" data-action="edit" data-name="${entry.name}">${labels.edit}</button>
-                            <button type="button" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600" data-action="download" data-name="${entry.name}">${labels.download}</button>
+                            <button type="button" class="fm-btn-action" data-action="edit" data-name="${entry.name}">${labels.edit}</button>
+                            <button type="button" class="fm-btn-action" data-action="download" data-name="${entry.name}">${labels.download}</button>
                         `;
-                    const deleteButton = `<button type="button" class="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 hover:border-rose-300" data-action="delete" data-name="${entry.name}">${labels.delete}</button>`;
+                    const deleteButton = `<button type="button" class="fm-btn-delete" data-action="delete" data-name="${entry.name}">${labels.delete}</button>`;
 
                     return `
                         <tr>
-                            <td class="px-4 py-3 font-medium text-slate-800">${entry.name}</td>
-                            <td class="px-4 py-3">${typeBadge}</td>
-                            <td class="px-4 py-3 text-slate-700">${entry.size_human}</td>
-                            <td class="px-4 py-3 text-slate-700">${entry.mode}</td>
-                            <td class="px-4 py-3 text-slate-700">${entry.modified_at}</td>
-                            <td class="px-4 py-3">
-                                <div class="flex flex-wrap gap-2">
+                            <td style="font-weight:600">${entry.name}</td>
+                            <td>${typeBadge}</td>
+                            <td>${entry.size_human}</td>
+                            <td style="font-family:monospace;font-size:11px">${entry.mode}</td>
+                            <td style="font-size:11px">${entry.modified_at}</td>
+                            <td>
+                                <div class="fm-btn-row">
                                     ${actionButtons}
                                     ${deleteButton}
                                 </div>
@@ -544,7 +590,7 @@
 
             const loadListing = async (path) => {
                 setFeedback(labels.loading);
-                listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">${labels.loading}</td></tr>`;
+                listingBody.innerHTML = `<tr><td colspan="6" class="fm-table__placeholder">${labels.loading}</td></tr>`;
                 try {
                     const requestId = buildRequestId();
                     const response = await fetchWithTimeout(`${listUrl}${buildQuery({ path })}`, {
@@ -575,7 +621,7 @@
                     const message = error.name === 'AbortError'
                         ? labels.listingFailedDefault
                         : (error.message || labels.listingFailed);
-                    listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-rose-600">${message}</td></tr>`;
+                    listingBody.innerHTML = `<tr><td colspan="6" class="fm-table__placeholder" style="color:#f87171">${message}</td></tr>`;
                     setFeedback(message, 'error');
                 } finally {
                     if (feedbackEl && feedbackEl.textContent === labels.loading) {
@@ -640,7 +686,6 @@
                 });
             }
 
-            
             upButton.addEventListener('click', () => {
                 if (!currentPath) {
                     return;
@@ -848,7 +893,7 @@
                         button.disabled = true;
                         if (addonsFeedback) {
                             addonsFeedback.textContent = labels.addonInstalling;
-                            addonsFeedback.className = 'text-xs text-slate-500';
+                            addonsFeedback.style.color = 'var(--ng-text-muted)';
                         }
                         try {
                             const response = await fetch(addonsInstallUrl, {
@@ -862,12 +907,12 @@
                             }
                             if (addonsFeedback) {
                                 addonsFeedback.textContent = labels.addonInstallSuccess;
-                                addonsFeedback.className = 'text-xs text-slate-500';
+                                addonsFeedback.style.color = '#4ade80';
                             }
                         } catch (error) {
                             if (addonsFeedback) {
                                 addonsFeedback.textContent = error.message || labels.addonInstallFailed;
-                                addonsFeedback.className = 'text-xs text-rose-600';
+                                addonsFeedback.style.color = '#f87171';
                             }
                         } finally {
                             button.disabled = false;

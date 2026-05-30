@@ -4862,8 +4862,6 @@ admin_plugins_game_key_hint: "Gilt für alle Templates mit diesem game_key"
 # Admin – Shop
 please_select: "Bitte wählen"
 # Admin – CMS
-admin_cms_xenal_recommended_order_title: "Empfohlene Modul-Reihenfolge für Xenal"
-admin_cms_xenal_legacy_blocks_note: "Bereits vorhandene Legacy-Blöcke (xn_*) werden weiterhin unterstützt, damit bestehende Inhalte nicht verloren gehen."
 # Admin – Mail System
 admin_mail_system_json_logs_button: "JSON-Logs öffnen"
 admin_mail_system_no_anomalies: "Keine auffälligen Events erkannt."
@@ -5185,20 +5183,8 @@ admin_cms_team_form_role_placeholder: "Rollenbezeichnung"
 admin_cms_team_form_bio_placeholder: "Bio"
 admin_cms_team_form_avatar_placeholder: "Avatar-Pfad"
 
-# ── CMS – Xenal – Landing ──
-admin_cms_xenal_landing_title: "Xenal Startseite"
-admin_cms_xenal_landing_intro: "Die Xenal-Startseite nutzt ausschließlich das bestehende CMS-Blocksystem. Pflege die Inhalte direkt über die normale Seitenverwaltung."
-admin_cms_xenal_open_page: "Seite & Module öffnen"
-admin_cms_xenal_all_pages: "Alle CMS-Seiten"
-admin_cms_xenal_block_hero_desc: "Hero-Bereich"
-admin_cms_xenal_block_server_desc: "Gameserver-Bereich"
-admin_cms_xenal_block_cards1_desc: "Clan-Stats"
-admin_cms_xenal_block_cards2_desc: "Teams"
-admin_cms_xenal_block_cards3_desc: "Events"
-admin_cms_xenal_block_cta_desc: "CTA-Zeile"
 # ── Common ──
 or: "oder"
-admin_cms_xenal_module: "Modul"
 
 # ── Mail-System – KPIs + Hardcoded strings ──
 admin_mail_system_kpi_nodes: "Nodes"
@@ -6141,7 +6127,6 @@ audit_event_cms_blog_updated: "Blog-Beitrag aktualisiert"
 audit_event_cms_page_created: "CMS-Seite erstellt"
 audit_event_cms_page_deleted: "CMS-Seite gelöscht"
 audit_event_cms_page_updated: "CMS-Seite aktualisiert"
-audit_event_cms_xenal_landing_block_saved: "Landing-Page-Block gespeichert"
 audit_event_consent_recorded: "Einwilligung gespeichert"
 audit_event_customer_invoice_preferences_updated: "Rechnungseinstellungen aktualisiert"
 audit_event_customer_profile_updated: "Kundenprofil aktualisiert"
