@@ -2601,7 +2601,11 @@ install_panel() {
           ok "Agent-Konfiguration auf HTTPS aktualisiert (${agent_conf})."
         fi
         if systemctl is-active --quiet easywi-agent.service 2>/dev/null; then
-          systemctl restart easywi-agent.service && ok "easywi-agent Dienst neu gestartet." || warn "Neustart von easywi-agent fehlgeschlagen – bitte manuell prüfen."
+         if systemctl restart easywi-agent.service; then
+            ok "easywi-agent Dienst neu gestartet."
+          else
+            warn "Neustart von easywi-agent fehlgeschlagen – bitte manuell prüfen."
+          fi
         fi
       fi
     fi
