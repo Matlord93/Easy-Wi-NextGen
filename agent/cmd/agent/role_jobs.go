@@ -645,7 +645,6 @@ func minecraftJavaRuntimeSpecs() []minecraftJavaRuntimeSpec {
 	// - Minecraft 1.20.5+ / 1.21.x: Java 21
 	return []minecraftJavaRuntimeSpec{
 		{version: "8", url: baseURL + "/8/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/8"},
-		{version: "16", url: baseURL + "/16/ga/linux/x64/jdk/hotspot/normal/eclipse", target: "/opt/easywi/java/16"},
 		{version: "17", url: baseURL + "/17/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/17"},
 		{version: "21", url: baseURL + "/21/ga/linux/x64/jre/hotspot/normal/eclipse", target: "/opt/easywi/java/21"},
 	}
@@ -654,7 +653,11 @@ func minecraftJavaRuntimeSpecs() []minecraftJavaRuntimeSpec {
 func installPortableJavaRuntime(spec minecraftJavaRuntimeSpec, output *strings.Builder) error {
 	if verifyJavaRuntime(spec.target) {
 		appendOutput(output, "minecraft_java_"+spec.version+"=already_installed")
-		return ensureMinecraftJavaSymlink(spec)
+		if err := ensureMinecraftJavaSymlink(spec); err != nil {
+			return err
+		}
+		appendOutput(output, "minecraft_java_"+spec.version+"_bin=/usr/local/bin/java"+spec.version)
+		return nil
 	}
 
 	baseDir := filepath.Dir(spec.target)
@@ -729,6 +732,7 @@ func installPortableJavaRuntime(spec minecraftJavaRuntimeSpec, output *strings.B
 		return err
 	}
 	appendOutput(output, "minecraft_java_"+spec.version+"=installed")
+	appendOutput(output, "minecraft_java_"+spec.version+"_bin=/usr/local/bin/java"+spec.version)
 	return nil
 }
 
@@ -794,22 +798,36 @@ func findJavaHomeRecursive(dir string) (string, error) {
 }
 
 func ensureMinecraftJavaSymlink(spec minecraftJavaRuntimeSpec) error {
-	linkPath := filepath.Join(filepath.Dir(spec.target), "java"+spec.version)
+	// 1. JAVA_HOME-style directory symlink: /opt/easywi/java/java{N} → /opt/easywi/java/{N}
+	homeLink := filepath.Join(filepath.Dir(spec.target), "java"+spec.version)
+	if err := upsertSymlink(spec.target, homeLink); err != nil {
+		return fmt.Errorf("minecraft java %s home symlink: %w", spec.version, err)
+	}
+	// 2. Command symlink in PATH: /usr/local/bin/java{N} → /opt/easywi/java/{N}/bin/java
+	binPath := filepath.Join(spec.target, "bin", "java")
+	binLink := filepath.Join("/usr/local/bin", "java"+spec.version)
+	if err := upsertSymlink(binPath, binLink); err != nil {
+		return fmt.Errorf("minecraft java %s bin symlink: %w", spec.version, err)
+	}
+	return nil
+}
+
+func upsertSymlink(target, linkPath string) error {
 	if dest, err := os.Readlink(linkPath); err == nil {
-		if dest == spec.target {
+		if dest == target {
 			return nil
 		}
 		if err := os.Remove(linkPath); err != nil {
-			return fmt.Errorf("minecraft java %s update symlink: %w", spec.version, err)
+			return fmt.Errorf("remove stale symlink %s: %w", linkPath, err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		if info, statErr := os.Lstat(linkPath); statErr == nil && info.Mode()&os.ModeSymlink == 0 {
 			return nil
 		}
-		return fmt.Errorf("minecraft java %s inspect symlink: %w", spec.version, err)
+		return fmt.Errorf("inspect %s: %w", linkPath, err)
 	}
-	if err := os.Symlink(spec.target, linkPath); err != nil && !errors.Is(err, os.ErrExist) {
-		return fmt.Errorf("minecraft java %s create symlink: %w", spec.version, err)
+	if err := os.Symlink(target, linkPath); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("create symlink %s -> %s: %w", linkPath, target, err)
 	}
 	return nil
 }

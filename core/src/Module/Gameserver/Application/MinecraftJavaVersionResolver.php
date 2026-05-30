@@ -6,17 +6,22 @@ namespace App\Module\Gameserver\Application;
 
 final class MinecraftJavaVersionResolver
 {
+    /** @var array<string, string> */
     public const JAVA_BIN_BY_VERSION = [
         '8' => 'java8',
-        '16' => 'java16',
         '17' => 'java17',
         '21' => 'java21',
     ];
 
+    public function __construct(
+        private readonly ?JavaBinaryConfig $config = null,
+    ) {
+    }
+
     public function resolve(?string $mcVersion, ?string $configuredJavaVersion = null): string
     {
         $configured = trim((string) $configuredJavaVersion);
-        if (in_array($configured, ['8', '16', '17', '21'], true)) {
+        if (in_array($configured, ['8', '17', '21'], true)) {
             return $configured;
         }
 
@@ -37,7 +42,7 @@ final class MinecraftJavaVersionResolver
             return '8';
         }
         if ($major === 1 && $minor === 17) {
-            return '16';
+            return '17';
         }
         if ($major === 1 && ($minor < 20 || ($minor === 20 && $patch <= 4))) {
             return '17';
@@ -48,6 +53,12 @@ final class MinecraftJavaVersionResolver
 
     public function javaBin(?string $mcVersion, ?string $configuredJavaVersion = null): string
     {
-        return self::JAVA_BIN_BY_VERSION[$this->resolve($mcVersion, $configuredJavaVersion)] ?? 'java21';
+        $version = $this->resolve($mcVersion, $configuredJavaVersion);
+
+        if ($this->config !== null) {
+            return $this->config->getBinForVersion($version);
+        }
+
+        return self::JAVA_BIN_BY_VERSION[$version] ?? 'java21';
     }
 }

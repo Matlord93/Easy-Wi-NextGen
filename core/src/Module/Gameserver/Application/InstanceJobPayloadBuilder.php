@@ -20,6 +20,7 @@ final class InstanceJobPayloadBuilder
         private readonly SharedStorageTemplateLocatorInterface $templateRepository,
         ?MinecraftCatalogService $minecraftCatalogService = null,
         ?MinecraftJavaVersionResolver $minecraftJavaVersionResolver = null,
+        private readonly ?JavaBinaryConfig $javaBinaryConfig = null,
     ) {
         $this->minecraftCatalogService = $minecraftCatalogService ?? new MinecraftCatalogService(new class () implements MinecraftVersionCatalogRepositoryInterface {
             public function findVersionsByChannel(string $channel, bool $activeOnly = true): array { return []; }
@@ -31,7 +32,7 @@ final class InstanceJobPayloadBuilder
             public function versionExists(string $channel, string $version, bool $activeOnly = true): bool { return false; }
             public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool { return false; }
         });
-        $this->minecraftJavaVersionResolver = $minecraftJavaVersionResolver ?? new MinecraftJavaVersionResolver();
+        $this->minecraftJavaVersionResolver = $minecraftJavaVersionResolver ?? new MinecraftJavaVersionResolver($this->javaBinaryConfig);
     }
 
     /**
@@ -133,6 +134,10 @@ final class InstanceJobPayloadBuilder
         }
 
         $javaBin = $this->resolveMinecraftJavaBin($instance);
+        if ($javaBin === null && str_contains($template->getStartParams(), '{{JAVA_BIN}}')) {
+            $mcVersion = $instance->getLockedVersion() ?? $instance->getInstalledVersion();
+            $javaBin = $this->minecraftJavaVersionResolver->javaBin($mcVersion, $instance->getInstalledJavaVersion());
+        }
         if ($javaBin !== null) {
             $payload['java_bin'] = $javaBin;
             $payload['JAVA_BIN'] = $javaBin;
@@ -295,7 +300,7 @@ final class InstanceJobPayloadBuilder
         }
 
         $javaBin = $this->resolveMinecraftJavaBin($instance);
-        if ($javaBin !== null && !isset($setupVarKeys['JAVA_BIN'])) {
+        if ($javaBin !== null && (!isset($setupVarKeys['JAVA_BIN']) || ($vars['JAVA_BIN'] ?? '') === '')) {
             $vars['JAVA_BIN'] = $javaBin;
         }
 

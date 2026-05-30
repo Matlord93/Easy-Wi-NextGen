@@ -12,6 +12,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Gameserver\Application\JavaBinaryConfig;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
@@ -85,6 +86,248 @@ final class TemplateInstallResolverTest extends TestCase
         self::assertStringContainsString('unzip -o bedrock-server.zip', $command);
     }
 
+    public function testVanillaInstallCommandContainsJavaCheck(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $repository->add(new MinecraftVersionCatalog(
+            'vanilla',
+            '1.21.4',
+            null,
+            'https://example.com/vanilla-1.21.4.jar',
+            null,
+            new \DateTimeImmutable('2024-12-01T00:00:00Z'),
+        ));
+
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'linux');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('command -v', $command);
+        // When catalog entry has no javaVersion, the preamble uses {{JAVA_BIN}} (rendered by agent)
+        self::assertStringContainsString('{{JAVA_BIN}}', $command);
+        self::assertStringContainsString('Required Java binary', $command);
+        self::assertStringContainsString('exit 1', $command);
+    }
+
+    public function testVanillaInstallCommandWithCatalogJavaVersionContainsConcreteValue(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $entry = new MinecraftVersionCatalog('vanilla', '1.21.4', null, 'https://example.com/vanilla-1.21.4.jar');
+        $entry->setJavaVersion('21');
+        $repository->add($entry);
+
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'linux');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('java21', $command);
+        self::assertStringContainsString('Required Java binary java21 is missing on this node.', $command);
+        self::assertStringContainsString('exit 1', $command);
+    }
+
+    public function testPaperInstallCommandContainsJavaCheck(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $repository->add(new MinecraftVersionCatalog(
+            'paper',
+            '1.20.4',
+            '123',
+            'https://example.com/paper-1.20.4-123.jar',
+            null,
+            new \DateTimeImmutable('2024-03-01T00:00:00Z'),
+        ));
+
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'papermc_paper'], 'linux');
+        $instance->setLockedVersion('1.20.4');
+        $instance->setLockedBuildId('123');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('command -v', $command);
+        self::assertStringContainsString('Required Java binary', $command);
+        self::assertStringContainsString('exit 1', $command);
+    }
+
+    public function testBedrockInstallCommandDoesNotContainJavaCheck(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $repository->add(new MinecraftVersionCatalog('bedrock', '1.21.90.03', null, 'https://example.com/bedrock.zip'));
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'minecraft_bedrock'], 'linux');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringNotContainsString('Required Java binary', $command);
+        self::assertStringNotContainsString('JAVA_BIN', $command);
+    }
+
+    public function testWindowsVanillaInstallCommandContainsJavaCheck(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $repository->add(new MinecraftVersionCatalog(
+            'vanilla',
+            '1.21.4',
+            null,
+            'https://example.com/vanilla-1.21.4.jar',
+        ));
+
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'windows');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        // Windows uses PowerShell Get-Command check
+        self::assertStringContainsString('Get-Command', $command);
+        self::assertStringContainsString('Required Java binary', $command);
+        self::assertStringContainsString('powershell', $command);
+    }
+
+    public function testWindowsInstallScriptContainsWingetAndAdoptium(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $entry = new MinecraftVersionCatalog('vanilla', '1.21.4', null, 'https://example.com/vanilla-1.21.4.jar');
+        $entry->setJavaVersion('21');
+        $repository->add($entry);
+
+        $config = new JavaBinaryConfig([], true);
+        $resolver = $this->buildResolver($repository, $config);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'windows');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('winget', $command);
+        self::assertStringContainsString('EclipseAdoptium.Temurin', $command);
+        self::assertStringContainsString('api.adoptium.net', $command);
+        self::assertStringContainsString('java-setup-done', $command);
+        // Should install versions 8, 17, 21 (Java 16 is no longer supported)
+        self::assertStringContainsString('Temurin.8.JRE', $command);
+        self::assertStringNotContainsString('Temurin.16.JRE', $command);
+        self::assertStringContainsString('Temurin.17.JRE', $command);
+        self::assertStringContainsString('Temurin.21.JRE', $command);
+    }
+
+    public function testCustomJavaBinaryPathAppearsInCheckPreamble(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $entry = new MinecraftVersionCatalog('vanilla', '1.21.4', null, 'https://example.com/vanilla-1.21.4.jar');
+        $entry->setJavaVersion('21');
+        $repository->add($entry);
+
+        $config = new JavaBinaryConfig(['21' => '/usr/lib/jvm/java-21-openjdk-amd64/bin/java']);
+        $resolver = $this->buildResolver($repository, $config);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'linux');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('/usr/lib/jvm/java-21-openjdk-amd64/bin/java', $command);
+        self::assertStringContainsString('Required Java binary', $command);
+    }
+
+    public function testDefaultVanillaInstallCommandHasNoPackageManagerCalls(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $entry = new MinecraftVersionCatalog('vanilla', '1.21.4', null, 'https://example.com/vanilla-1.21.4.jar');
+        $entry->setJavaVersion('21');
+        $repository->add($entry);
+
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'linux');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringNotContainsString('apt-get', $command);
+        self::assertStringNotContainsString('sudo', $command);
+        self::assertStringNotContainsString('yum', $command);
+        self::assertStringNotContainsString('dnf', $command);
+        self::assertStringNotContainsString('java-setup-done', $command);
+        self::assertStringContainsString('Required Java binary java21', $command);
+        self::assertStringContainsString('exit 1', $command);
+    }
+
+    public function testDefaultPaperInstallCommandHasNoPackageManagerCalls(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $entry = new MinecraftVersionCatalog('paper', '1.21.4', '100', 'https://example.com/paper-1.21.4-100.jar');
+        $entry->setJavaVersion('21');
+        $repository->add($entry);
+
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'papermc_paper'], 'linux');
+        $instance->setLockedVersion('1.21.4');
+        $instance->setLockedBuildId('100');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringNotContainsString('apt-get', $command);
+        self::assertStringNotContainsString('sudo', $command);
+        self::assertStringNotContainsString('yum', $command);
+        self::assertStringNotContainsString('dnf', $command);
+        self::assertStringNotContainsString('java-setup-done', $command);
+        self::assertStringContainsString('Required Java binary java21', $command);
+        self::assertStringContainsString('exit 1', $command);
+    }
+
+    public function testAutoInstallJavaInsertsAptGetCommandForAllVersions(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $entry = new MinecraftVersionCatalog('vanilla', '1.21.4', null, 'https://example.com/vanilla-1.21.4.jar');
+        $entry->setJavaVersion('21');
+        $repository->add($entry);
+
+        $config = new JavaBinaryConfig([], true);
+        $resolver = $this->buildResolver($repository, $config);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'linux');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('apt-get', $command);
+        self::assertStringContainsString('openjdk-21-jre-headless', $command);
+        self::assertStringContainsString('openjdk-17-jre-headless', $command);
+        self::assertStringContainsString('openjdk-8-jre-headless', $command);
+        // After install attempt, still checks the required binary
+        self::assertStringContainsString('Required Java binary java21', $command);
+        self::assertStringContainsString('exit 1', $command);
+    }
+
+    public function testMinecraft117UsesJava17(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $entry = new MinecraftVersionCatalog('vanilla', '1.17.1', null, 'https://example.com/vanilla-1.17.1.jar');
+        $entry->setJavaVersion('17');
+        $repository->add($entry);
+
+        $resolver = $this->buildResolver($repository);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'linux');
+        $instance->setLockedVersion('1.17.1');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('java17', $command);
+        self::assertStringNotContainsString('java16', $command);
+        self::assertStringNotContainsString('adoptium', $command);
+    }
+
+    public function testMissingJavaBinaryProducesExpectedErrorMessageWhenAutoInstallDisabled(): void
+    {
+        $repository = new InMemoryMinecraftCatalogRepository();
+        $entry = new MinecraftVersionCatalog('vanilla', '1.20.4', null, 'https://example.com/vanilla-1.20.4.jar');
+        $entry->setJavaVersion('17');
+        $repository->add($entry);
+
+        $config = new JavaBinaryConfig([], false);
+        $resolver = $this->buildResolver($repository, $config);
+        $instance = $this->buildInstance(['type' => 'minecraft_vanilla'], 'linux');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringNotContainsString('apt-get', $command);
+        self::assertStringContainsString('Required Java binary java17 is missing on this node.', $command);
+        self::assertStringContainsString('Install the required Java version', $command);
+    }
+
     public function testPrependsSteamDumpCleanupForLinuxSteamInstallCommands(): void
     {
         $resolver = $this->buildResolver(new InMemoryMinecraftCatalogRepository());
@@ -107,11 +350,11 @@ final class TemplateInstallResolverTest extends TestCase
         self::assertSame('steamcmd +app_update 740 validate +quit', $command);
     }
 
-    private function buildResolver(MinecraftVersionCatalogRepositoryInterface $repository): TemplateInstallResolver
+    private function buildResolver(MinecraftVersionCatalogRepositoryInterface $repository, ?JavaBinaryConfig $config = null): TemplateInstallResolver
     {
         $catalogService = new MinecraftCatalogService($repository);
 
-        return new TemplateInstallResolver($catalogService);
+        return new TemplateInstallResolver($catalogService, null, $config);
     }
 
     /**

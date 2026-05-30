@@ -7,6 +7,7 @@ namespace App\Module\Core\Application;
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Core\Domain\Enum\MailBackend;
 use App\Module\Gameserver\Application\ConsoleCommandSettings;
+use App\Module\Gameserver\Application\JavaBinaryConfig;
 use App\Repository\AppSettingRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -90,6 +91,11 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS = 'database_logging_error_retention_days';
     public const KEY_SCHEDULER_LAST_HEARTBEAT_AT = 'scheduler_last_heartbeat_at';
     public const KEY_SCHEDULER_LAST_HEARTBEAT_STATUS = 'scheduler_last_heartbeat_status';
+    public const KEY_MINECRAFT_JAVA_BINARY_8 = 'minecraft_java_binary_8';
+    public const KEY_MINECRAFT_JAVA_BINARY_16 = 'minecraft_java_binary_16';
+    public const KEY_MINECRAFT_JAVA_BINARY_17 = 'minecraft_java_binary_17';
+    public const KEY_MINECRAFT_JAVA_BINARY_21 = 'minecraft_java_binary_21';
+    public const KEY_MINECRAFT_AUTO_INSTALL_JAVA = 'minecraft_auto_install_java';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
 <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
@@ -214,6 +220,11 @@ TWIG;
         self::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS => 180,
         self::KEY_SCHEDULER_LAST_HEARTBEAT_AT => null,
         self::KEY_SCHEDULER_LAST_HEARTBEAT_STATUS => null,
+        self::KEY_MINECRAFT_JAVA_BINARY_8 => 'java8',
+        self::KEY_MINECRAFT_JAVA_BINARY_16 => 'java16',
+        self::KEY_MINECRAFT_JAVA_BINARY_17 => 'java17',
+        self::KEY_MINECRAFT_JAVA_BINARY_21 => 'java21',
+        self::KEY_MINECRAFT_AUTO_INSTALL_JAVA => true,
     ];
 
     private const SECRET_KEYS = [
@@ -1008,6 +1019,23 @@ TWIG;
         $this->logger->warning('settings.decrypt_failed.secret_reset', [
             'keys' => array_keys($keysToReset),
         ]);
+    }
+
+    public function getMinecraftJavaBinaryConfig(): JavaBinaryConfig
+    {
+        $settings = $this->getSettings();
+
+        $overrides = [];
+        foreach (['8' => self::KEY_MINECRAFT_JAVA_BINARY_8, '16' => self::KEY_MINECRAFT_JAVA_BINARY_16, '17' => self::KEY_MINECRAFT_JAVA_BINARY_17, '21' => self::KEY_MINECRAFT_JAVA_BINARY_21] as $version => $key) {
+            $value = $settings[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                $overrides[$version] = $value;
+            }
+        }
+
+        $autoInstall = (bool) ($settings[self::KEY_MINECRAFT_AUTO_INSTALL_JAVA] ?? false);
+
+        return new JavaBinaryConfig($overrides, $autoInstall);
     }
 
     private function encryptSetting(string $key, mixed $value): mixed

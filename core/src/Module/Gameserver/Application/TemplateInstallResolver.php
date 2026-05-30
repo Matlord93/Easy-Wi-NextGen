@@ -13,6 +13,7 @@ class TemplateInstallResolver
     public function __construct(
         private readonly MinecraftCatalogService $catalogService,
         private readonly ?TranslatorInterface $translator = null,
+        private readonly ?JavaBinaryConfig $javaBinaryConfig = null,
     ) {
     }
 
@@ -83,9 +84,19 @@ class TemplateInstallResolver
                 : $this->buildLinuxBedrockCommand($entry->getDownloadUrl());
         }
 
-        return $os === 'windows'
+        $downloadCmd = $os === 'windows'
             ? $this->buildWindowsDownloadCommand($entry->getDownloadUrl())
             : $this->buildLinuxDownloadCommand($entry->getDownloadUrl());
+
+        if ($os === 'windows') {
+            $javaCheckPreamble = $this->buildWindowsJavaCheckPreamble($entry->getJavaVersion());
+            $downloadCmd = $javaCheckPreamble . $downloadCmd;
+        } else {
+            $javaCheckPreamble = $this->buildLinuxJavaCheckPreamble($entry->getJavaVersion());
+            $downloadCmd = $javaCheckPreamble . $downloadCmd;
+        }
+
+        return $downloadCmd;
     }
 
     private function resolveOs(Agent $node): string
@@ -240,5 +251,140 @@ class TemplateInstallResolver
         return $this->translator?->trans($key, [], 'portal') ?? $key;
     }
 
+    private function buildLinuxJavaCheckPreamble(?string $catalogJavaVersion = null): string
+    {
+        $config = $this->javaBinaryConfig ?? JavaBinaryConfig::defaults();
 
+        $javaBin = ($catalogJavaVersion !== null && isset(MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION[$catalogJavaVersion]))
+            ? $config->getBinForVersion($catalogJavaVersion)
+            : '{{JAVA_BIN}}';
+
+        $preamble = '';
+
+        if ($config->autoInstallJava) {
+            $preamble = $this->buildLinuxInstallAllJavaScript();
+        }
+
+        $escapedBin = escapeshellarg($javaBin);
+        $preamble .= sprintf(
+            'if ! command -v %1$s >/dev/null 2>&1 && [ ! -x %1$s ]; then'
+            . ' echo "Required Java binary %2$s is missing on this node.'
+            . ' Install the required Java version or ensure %2$s is in PATH." >&2; exit 1; fi; ',
+            $escapedBin,
+            $javaBin,
+        );
+
+        return $preamble;
+    }
+
+    private function buildLinuxInstallAllJavaScript(): string
+    {
+        // Installs Java 8, 17, 21 from standard apt/dnf/yum repos.
+        // Runs only once per node (sentinel). Tries sudo -n when not running as root.
+        return <<<'BASH'
+_ewi_sentinel=/usr/local/share/easywi/.java-setup-done
+if [ ! -f "$_ewi_sentinel" ]; then
+  _ewi_sudo=""
+  [ "$(id -u)" != "0" ] && command -v sudo >/dev/null 2>&1 && _ewi_sudo="sudo -n"
+  if command -v apt-get >/dev/null 2>&1; then
+    DEBIAN_FRONTEND=noninteractive $_ewi_sudo apt-get update -qq 2>&1 | tail -2
+    DEBIAN_FRONTEND=noninteractive $_ewi_sudo apt-get install -y -qq openjdk-21-jre-headless openjdk-17-jre-headless 2>&1 | tail -3
+    DEBIAN_FRONTEND=noninteractive $_ewi_sudo apt-get install -y -qq openjdk-8-jre-headless 2>&1 | tail -1 || true
+  elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
+    _ewi_pkg="$(command -v dnf >/dev/null 2>&1 && echo dnf || echo yum)"
+    $_ewi_sudo $_ewi_pkg install -y java-21-openjdk-headless java-17-openjdk-headless 2>&1 | tail -3
+    $_ewi_sudo $_ewi_pkg install -y java-1.8.0-openjdk-headless 2>&1 | tail -1 || true
+  fi
+  for _ewi_jv in 8 17 21; do
+    command -v "java${_ewi_jv}" >/dev/null 2>&1 && continue
+    _ewi_f="$(find /usr/lib/jvm /usr/local/lib/jvm -maxdepth 7 -name java \
+      \( -path "*java-${_ewi_jv}-*" -o -path "*java-${_ewi_jv}/*" \
+         -o -path "*jdk-${_ewi_jv}*" -o -path "*1.${_ewi_jv}.0*" \) \
+      -type f 2>/dev/null | head -1)"
+    [ -n "$_ewi_f" ] && { $_ewi_sudo ln -sf "$_ewi_f" "/usr/local/bin/java${_ewi_jv}" 2>/dev/null || true; }
+  done
+  $_ewi_sudo mkdir -p /usr/local/share/easywi 2>/dev/null \
+    && $_ewi_sudo touch "$_ewi_sentinel" 2>/dev/null || true
+fi
+
+BASH;
+    }
+
+    private function buildWindowsJavaCheckPreamble(?string $catalogJavaVersion = null): string
+    {
+        $config = $this->javaBinaryConfig ?? JavaBinaryConfig::defaults();
+
+        $javaBin = ($catalogJavaVersion !== null && isset(MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION[$catalogJavaVersion]))
+            ? $config->getBinForVersion($catalogJavaVersion)
+            : '{{JAVA_BIN}}';
+
+        $preamble = '';
+
+        if ($config->autoInstallJava) {
+            $preamble = $this->buildWindowsInstallAllJavaScript();
+        }
+
+        $escapedBin = str_replace("'", "''", $javaBin);
+        $preamble .= sprintf(
+            'if (-not (Get-Command %1$s -ErrorAction SilentlyContinue) -and (-not (Test-Path %1$s))) {'
+            . ' Write-Error "Required Java binary %2$s is missing on this node.'
+            . ' Install the required Java version or ensure %2$s is in PATH."; exit 1 }; ',
+            "'$escapedBin'",
+            $javaBin,
+        );
+
+        return $preamble;
+    }
+
+    private function buildWindowsInstallAllJavaScript(): string
+    {
+        // Installs all 4 Java versions on Windows using winget (Win 10 1709+ / Server 2019+).
+        // Falls back to direct MSI/zip download via Adoptium API.
+        // Sentinel prevents re-running on every install.
+        return <<<'PS1'
+$_ewi_sentinel = "$env:ProgramData\easywi\.java-setup-done"
+if (-not (Test-Path $_ewi_sentinel)) {
+  $ErrorActionPreference = 'Continue'
+  $javaVersions = @(
+    @{ version = '8';  adoptiumId = '8';  wingetId = 'EclipseAdoptium.Temurin.8.JRE'  },
+    @{ version = '17'; adoptiumId = '17'; wingetId = 'EclipseAdoptium.Temurin.17.JRE' },
+    @{ version = '21'; adoptiumId = '21'; wingetId = 'EclipseAdoptium.Temurin.21.JRE' }
+  )
+  foreach ($jv in $javaVersions) {
+    $binName = "java$($jv.version)"
+    if (Get-Command $binName -ErrorAction SilentlyContinue) { continue }
+    $installed = $false
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+      winget install --id $jv.wingetId --silent --accept-package-agreements --accept-source-agreements 2>&1 | Select-Object -Last 3
+      $installed = $?
+    }
+    if (-not $installed) {
+      try {
+        $api = "https://api.adoptium.net/v3/assets/latest/$($jv.adoptiumId)/hotspot?os=windows&architecture=x64&image_type=jre"
+        $info = Invoke-RestMethod $api -ErrorAction Stop | Select-Object -First 1
+        $url  = $info.binary.installer.link
+        $ext  = if ($url -match '\.zip$') { 'zip' } else { 'msi' }
+        $tmp  = "$env:TEMP\temurin-$($jv.version).$ext"
+        Invoke-WebRequest $url -OutFile $tmp -UseBasicParsing
+        if ($ext -eq 'msi') {
+          Start-Process msiexec -ArgumentList "/i `"$tmp`" /quiet ADDLOCAL=FeatureMain" -Wait -NoNewWindow
+        } else {
+          Expand-Archive $tmp -DestinationPath "$env:ProgramFiles\Java" -Force
+        }
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+      } catch { Write-Warning "Could not install Java $($jv.version): $_" }
+    }
+    $jvmPath = (Get-ChildItem "$env:ProgramFiles\Java","$env:ProgramFiles\Eclipse Adoptium","$env:ProgramFiles\Microsoft","C:\Program Files\Eclipse Adoptium" -Filter java.exe -Recurse -ErrorAction SilentlyContinue |
+      Where-Object { $_.FullName -match "jdk-$($jv.adoptiumId)\.|jre-$($jv.adoptiumId)\.|$($jv.adoptiumId)\." } |
+      Select-Object -First 1)?.FullName
+    if ($jvmPath) {
+      $link = "$env:SystemRoot\System32\java$($jv.version).cmd"
+      Set-Content $link "@echo off`r`n`"$jvmPath`" %*" -Encoding ASCII
+    }
+  }
+  $null = New-Item -ItemType Directory -Force (Split-Path $_ewi_sentinel)
+  $null = New-Item -ItemType File -Force $_ewi_sentinel
+}
+PS1;
+    }
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -66,13 +67,12 @@ func TestGameRolePackagesDoNotInstallTemurinJDK(t *testing.T) {
 
 func TestMinecraftJavaRuntimeSpecs(t *testing.T) {
 	specs := minecraftJavaRuntimeSpecs()
-	if len(specs) != 4 {
-		t.Fatalf("expected 4 minecraft java runtime specs, got %d", len(specs))
+	if len(specs) != 3 {
+		t.Fatalf("expected 3 minecraft java runtime specs, got %d", len(specs))
 	}
 
 	expectedTargets := map[string]string{
 		"8":  "/opt/easywi/java/8",
-		"16": "/opt/easywi/java/16",
 		"17": "/opt/easywi/java/17",
 		"21": "/opt/easywi/java/21",
 	}
@@ -86,6 +86,32 @@ func TestMinecraftJavaRuntimeSpecs(t *testing.T) {
 		}
 		if !strings.Contains(spec.url, "/latest/"+spec.version+"/ga/linux/x64/") {
 			t.Fatalf("expected java %s URL to use Adoptium linux x64 API, got %q", spec.version, spec.url)
+		}
+	}
+}
+
+func TestMinecraftJavaSymlinkPaths(t *testing.T) {
+	specs := minecraftJavaRuntimeSpecs()
+
+	for _, spec := range specs {
+		// home symlink: /opt/easywi/java/java{N} → /opt/easywi/java/{N}
+		expectedHomeLink := "/opt/easywi/java/java" + spec.version
+		actualHomeLink := filepath.Join(filepath.Dir(spec.target), "java"+spec.version)
+		if actualHomeLink != expectedHomeLink {
+			t.Errorf("java %s: expected home link %q, got %q", spec.version, expectedHomeLink, actualHomeLink)
+		}
+
+		// command symlink in PATH: /usr/local/bin/java{N} → /opt/easywi/java/{N}/bin/java
+		// Supported versions: 8, 17, 21 (Java 16 is no longer available)
+		expectedBinLink := "/usr/local/bin/java" + spec.version
+		expectedBinTarget := "/opt/easywi/java/" + spec.version + "/bin/java"
+		actualBinLink := filepath.Join("/usr/local/bin", "java"+spec.version)
+		actualBinTarget := filepath.Join(spec.target, "bin", "java")
+		if actualBinLink != expectedBinLink {
+			t.Errorf("java %s: expected bin link %q, got %q", spec.version, expectedBinLink, actualBinLink)
+		}
+		if actualBinTarget != expectedBinTarget {
+			t.Errorf("java %s: expected bin target %q, got %q", spec.version, expectedBinTarget, actualBinTarget)
 		}
 	}
 }
