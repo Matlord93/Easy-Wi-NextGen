@@ -124,12 +124,22 @@ final class GameTemplateSeedCatalogTest extends TestCase
         self::assertStringContainsString('set_property server.properties server-name', $params);
     }
 
-    public function testBedrockConfigFilesServerPropertiesUsesPortGameForPortV6(): void
+    public function testBedrockConfigFilesServerPropertiesUsesPortGameV6ForPortV6(): void
     {
         $configFiles = (array) ($this->templates['minecraft_bedrock']['config_files'] ?? []);
         $serverProps = $this->findConfigFile($configFiles, 'server.properties');
         self::assertNotNull($serverProps, 'server.properties config file not found for Bedrock');
-        self::assertStringContainsString('server-portv6={{PORT_GAME}}', (string) ($serverProps['contents'] ?? ''));
+        $contents = (string) ($serverProps['contents'] ?? '');
+        self::assertStringContainsString('server-portv6={{PORT_GAMEV6}}', $contents);
+        self::assertStringNotContainsString('server-portv6={{PORT_GAME}}', $contents);
+    }
+
+    public function testBedrockRequiredPortsIncludeGameV6(): void
+    {
+        $ports = (array) ($this->templates['minecraft_bedrock']['required_ports'] ?? []);
+        $names = array_column($ports, 'name');
+        self::assertContains('game', $names, 'Bedrock required_ports should include game (IPv4)');
+        self::assertContains('gamev6', $names, 'Bedrock required_ports should include gamev6 (IPv6)');
     }
 
     public function testBedrockConfigFilesServerPropertiesContainsServerPassword(): void

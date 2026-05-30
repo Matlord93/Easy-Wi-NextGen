@@ -64,6 +64,32 @@ class TemplateInstallResolver
         return $this->prependSteamDumpCleanup($command, $instance);
     }
 
+    public function resolveJavaBin(Instance $instance): ?string
+    {
+        $resolver = $instance->getTemplate()->getInstallResolver();
+        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        $channel = match ($type) {
+            'minecraft_vanilla' => 'vanilla',
+            'papermc_paper'     => 'paper',
+            default             => null,
+        };
+        if ($channel === null) {
+            return null;
+        }
+
+        $entry = $this->catalogService->resolveEntry(
+            $channel,
+            $instance->getLockedVersion(),
+            $instance->getLockedBuildId(),
+        );
+        $mcVersion   = $entry?->getMcVersion() ?? $instance->getLockedVersion() ?? $instance->getInstalledVersion();
+        $javaVersion = $entry?->getJavaVersion() ?? $instance->getInstalledJavaVersion();
+
+        $resolver = new MinecraftJavaVersionResolver($this->javaBinaryConfig);
+
+        return $resolver->javaBin($mcVersion, $javaVersion);
+    }
+
     private function resolveMinecraftCommand(Instance $instance, string $channel): string
     {
         $entry = $this->catalogService->resolveEntry(

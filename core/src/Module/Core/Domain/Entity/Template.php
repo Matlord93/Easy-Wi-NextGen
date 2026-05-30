@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: TemplateRepository::class)]
 #[ORM\Table(name: 'game_templates')]
+#[ORM\UniqueConstraint(name: 'uq_game_templates_game_key', columns: ['game_key'])]
 class Template
 {
     #[ORM\Id]

@@ -318,6 +318,10 @@ final class InstanceInstallService
             $vars['SERVER_MEMORY'] = (string) $instance->getRamLimit();
         }
 
+        if (!isset($vars['JAVA_BIN']) && str_contains($instance->getTemplate()->getStartParams(), '{{JAVA_BIN}}')) {
+            $vars['JAVA_BIN'] = $this->templateInstallResolver->resolveJavaBin($instance) ?? 'java21';
+        }
+
         foreach (['SERVER_PASSWORD', 'RCON_PASSWORD', 'ADMIN_PASSWORD', 'SERVER_ADMIN_PASSWORD'] as $passwordKey) {
             if (!isset($setupVarKeys[$passwordKey]) && isset($vars[$passwordKey]) && strtolower($vars[$passwordKey]) === 'change-me') {
                 unset($vars[$passwordKey]);

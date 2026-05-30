@@ -1305,9 +1305,10 @@ final class GameTemplateSeedCatalog
                 null,
                 null,
                 [
-                    ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
+                    ['name' => 'game',   'label' => 'Game (IPv4)', 'protocol' => 'udp'],
+                    ['name' => 'gamev6', 'label' => 'Game (IPv6)', 'protocol' => 'udp'],
                 ],
-                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties server-name \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties server-portv6 \"{{PORT_GAME}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; set_property server.properties online-mode \"true\"; {{INSTANCE_DIR}}/bedrock_server",
+                "set_property() { local f=\"\$1\" k=\"\$2\" v=\"\$3\"; touch \"\$f\"; { grep -v \"^\${k}=\" \"\$f\" 2>/dev/null || true; printf '%s=%s\\n' \"\$k\" \"\$v\"; } > \"\${f}.tmp\" && mv \"\${f}.tmp\" \"\$f\"; }; set_property server.properties server-name \"{{SERVER_NAME}}\"; set_property server.properties server-port \"{{PORT_GAME}}\"; set_property server.properties server-portv6 \"{{PORT_GAMEV6}}\"; set_property server.properties max-players \"{{MAX_PLAYERS}}\"; set_property server.properties server-password \"{{SERVER_PASSWORD}}\"; set_property server.properties online-mode \"true\"; {{INSTANCE_DIR}}/bedrock_server",
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Bedrock'],
                     ['key' => 'MAX_PLAYERS', 'value' => '10'],
@@ -1317,7 +1318,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'server.properties',
                         'description' => 'Base server settings',
-                        'contents' => "server-name={{SERVER_NAME}}\nserver-port={{PORT_GAME}}\nserver-portv6={{PORT_GAME}}\nmax-players={{MAX_PLAYERS}}\nserver-password={{SERVER_PASSWORD}}\nonline-mode=true\n",
+                        'contents' => "server-name={{SERVER_NAME}}\nserver-port={{PORT_GAME}}\nserver-portv6={{PORT_GAMEV6}}\nmax-players={{MAX_PLAYERS}}\nserver-password={{SERVER_PASSWORD}}\nonline-mode=true\n",
                     ],
                     [
                         'path' => 'allowlist.json',
