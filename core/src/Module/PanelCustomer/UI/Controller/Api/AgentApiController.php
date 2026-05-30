@@ -2221,6 +2221,22 @@ final class AgentApiController
             ]);
         }
 
+        if ($newStatus !== null && in_array($job->getType(), ['instance.start', 'instance.restart', 'sniper.update'], true)) {
+            $cache = $instance->getQueryStatusCache();
+            if ($newStatus === \App\Module\Core\Domain\Enum\InstanceStatus::Running) {
+                $cache['status'] = 'running';
+                unset($cache['queued_at']);
+                $instance->setQueryStatusCache($cache);
+                $instance->setQueryCheckedAt(null);
+            } elseif ($newStatus === \App\Module\Core\Domain\Enum\InstanceStatus::Stopped) {
+                $cache['status'] = 'offline';
+                unset($cache['queued_at']);
+                $instance->setQueryStatusCache($cache);
+                $instance->setQueryCheckedAt($completedAt);
+            }
+            $this->entityManager->persist($instance);
+        }
+
         if ($resultStatus !== JobResultStatus::Succeeded) {
             return;
         }

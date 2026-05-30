@@ -203,11 +203,11 @@
                 <div class="mt-3 space-y-2.5">
                     <div class="flex items-center justify-between gap-2 text-sm">
                         <span class="text-slate-400">{{ t('customer_instance_host', page_locale()) }}</span>
-                        <div class="flex items-center gap-1.5">
+                        <div class="flex items-center gap-3">
                             <span class="font-medium text-slate-200">{{ instance.connection.host ?? '—' }}</span>
                             {% if instance.connection.host %}
                                 <button type="button"
-                                    class="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:text-slate-200"
+                                    class="rounded border border-slate-600 px-2 py-0.5 text-[10px] font-semibold text-slate-400 hover:text-slate-200"
                                     data-copy-value="{{ instance.connection.host }}">
                                     {{ t('customer_copy', page_locale()) }}
                                 </button>
@@ -216,11 +216,11 @@
                     </div>
                     <div class="flex items-center justify-between gap-2 text-sm">
                         <span class="text-slate-400">{{ t('customer_instance_address', page_locale()) }}</span>
-                        <div class="flex items-center gap-1.5">
+                        <div class="flex items-center gap-3">
                             <span class="font-medium text-slate-200">{{ instance.connection.address ?? '—' }}</span>
                             {% if instance.connection.address %}
                                 <button type="button"
-                                    class="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:text-slate-200"
+                                    class="rounded border border-slate-600 px-2 py-0.5 text-[10px] font-semibold text-slate-400 hover:text-slate-200"
                                     data-copy-value="{{ instance.connection.address }}">
                                     {{ t('customer_copy', page_locale()) }}
                                 </button>
@@ -284,23 +284,24 @@
             <div class="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
                 <p class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{{ t('customer_instance_slots_configured', page_locale()) }}</p>
                 <div class="mt-3">
-                    <div class="flex items-baseline gap-1.5">
-                        <p class="text-2xl font-bold text-slate-100">{{ configuredSlots is not null ? configuredSlots : '—' }}</p>
-                        <p class="text-sm text-slate-400">/ {{ instance.max_slots > 0 ? instance.max_slots : '—' }}</p>
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl font-bold text-slate-100">{{ configuredSlots is not null ? configuredSlots : '—' }}</span>
+                        <span class="text-slate-500">/</span>
+                        <span class="text-2xl font-bold text-slate-400">{{ instance.max_slots > 0 ? instance.max_slots : '—' }}</span>
                     </div>
                     <p class="mt-1 text-xs text-slate-500">{{ t('customer_instance_slots_configured_hint', page_locale()) }}</p>
 
-                    <div class="mt-3 text-xs {{ query.available and (query.players is not null or query.max_players is not null) ? '' : 'hidden' }}" data-query-players-available>
-                        <span class="text-slate-400">{{ t('customer_instance_players_online', page_locale()) }}:</span>
-                        <span class="ml-1 font-semibold text-slate-200" data-query-players>
+                    <div class="mt-3 flex items-center justify-between text-xs {{ query.available and (query.players is not null or query.max_players is not null) ? '' : 'hidden' }}" data-query-players-available>
+                        <span class="text-slate-400">{{ t('customer_instance_players_online', page_locale()) }}</span>
+                        <span class="font-semibold text-slate-200" data-query-players>
                             {% if playersKnown %}{{ playersOnline }} / {{ playersMax }}{% else %}{{ t('customer_instance_players_unknown', page_locale()) }}{% endif %}
                         </span>
                     </div>
-                    <p class="mt-1 text-xs text-slate-500 {{ query.available and (query.players is not null or query.max_players is not null) ? '' : 'hidden' }}"
+                    <p class="mt-1 text-xs text-slate-600 {{ query.available and (query.players is not null or query.max_players is not null) ? '' : 'hidden' }}"
                        data-query-checked data-query-checked-label="{{ t('customer_instance_players_checked', page_locale()) }}">
                         {{ t('customer_instance_players_checked', page_locale()) }}: {{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}
                     </p>
-                    <p class="mt-2 text-xs text-slate-500 {{ query.available and (query.players is not null or query.max_players is not null) ? 'hidden' : '' }}"
+                    <p class="mt-2 text-xs text-slate-600 {{ query.available and (query.players is not null or query.max_players is not null) ? 'hidden' : '' }}"
                        data-query-players-unavailable>
                         {{ t('customer_instance_players_unavailable', page_locale()) }}
                     </p>
@@ -381,11 +382,6 @@
                        data-query-checked data-query-checked-label="{{ t('customer_instance_players_checked', page_locale()) }}">
                         {{ t('customer_instance_players_checked', page_locale()) }}: {{ instance.query_checked_at ? instance.query_checked_at|date('Y-m-d H:i') : '—' }}
                     </p>
-                    {% if not playersKnown %}
-                        <p class="mt-1 text-[11px] text-amber-500">
-                            {{ instance.query_reason ?: t('customer_instance_query_status_unknown', page_locale()) }}
-                        </p>
-                    {% endif %}
                 </div>
             </div>
 

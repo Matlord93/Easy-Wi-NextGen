@@ -1238,7 +1238,7 @@ final class AdminInstanceController
             $credential = $sftpCredentials[$instance->getId()] ?? null;
             $installStatus = $this->instanceInstallService->getInstallStatus($instance);
             $portBlock = $portBlockIndex[$instance->getId()] ?? null;
-            $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, false);
+            $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, true);
             $runtimeState = $this->resolveRuntimeState($instance, $querySnapshot);
             $instanceMetric = $this->instanceMetricSampleRepository->findLatestForInstance($instance);
             $metricsRuntimeStatus = $this->inferRuntimeStatusFromMetrics($instanceMetric);

@@ -523,18 +523,30 @@
         }
     });
     passwordModalCopyEl?.addEventListener('click', async () => {
-        if (!passwordModalValueEl?.value) {
+        const val = passwordModalValueEl?.value;
+        if (!val) {
             return;
         }
+        let copied = false;
         try {
-            await navigator.clipboard.writeText(passwordModalValueEl.value);
-            errors.clearInline(passwordModalErrorEl);
+            await navigator.clipboard.writeText(val);
+            copied = true;
+        } catch (_) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = val;
+                ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                copied = document.execCommand('copy');
+                document.body.removeChild(ta);
+            } catch (_2) {
+                copied = false;
+            }
+        }
+        if (copied) {
             errors.showToast({ message: tr('passwordCopied'), error_code: 'OK' }, 3000);
-        } catch (error) {
-            errors.showAll(passwordModalErrorEl, {
-                message: tr('passwordCopyFailed'),
-                error_code: 'CLIPBOARD_UNAVAILABLE',
-            });
         }
     });
 

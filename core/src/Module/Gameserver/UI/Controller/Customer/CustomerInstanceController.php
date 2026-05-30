@@ -957,6 +957,7 @@ final class CustomerInstanceController
             'id' => $instance->getId(),
             'template' => [
                 'name' => $instance->getTemplate()->getGameKey(),
+                'display_name' => $instance->getTemplate()->getDisplayName(),
                 'game_key' => $instance->getTemplate()->getGameKey(),
                 'install_resolver' => $instance->getTemplate()->getInstallResolver(),
             ],

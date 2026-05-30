@@ -1871,33 +1871,32 @@ html:not(.dark) .customer-dashboard--revamp .dashboard-usage-item li strong { co
     flex-wrap: wrap;
     gap: 0.25rem;
     border-bottom: 1px solid var(--ng-border);
-    padding: 0 20px;
+    padding: 10px 16px;
+    background: var(--ng-surface);
 }
 .cust-tabs__item {
     position: relative;
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.375rem 0.75rem;
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--ng-text-muted);
     text-decoration: none;
     border: 1px solid transparent;
-    border-bottom: none;
-    border-radius: 0.375rem 0.375rem 0 0;
-    transition: color 0.15s, background 0.15s;
+    border-radius: 0.375rem;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .cust-tabs__item:hover {
     color: var(--ng-text);
-    background: rgba(255,255,255,0.04);
+    background: var(--ng-surface-soft, rgba(255,255,255,0.05));
+    border-color: var(--ng-border);
 }
 .cust-tabs__item--active {
     color: var(--ng-primary, #6366f1);
-    border-color: var(--ng-border);
-    background: var(--ng-surface-soft, rgba(10,13,20,0.70));
-    margin-bottom: -1px;
-    z-index: 1;
+    background: var(--ng-primary-soft, rgba(100,115,255,0.12));
+    border-color: var(--ng-primary-soft, rgba(100,115,255,0.25));
 }
 .cust-tabs__icon {
     width: 0.875rem;
