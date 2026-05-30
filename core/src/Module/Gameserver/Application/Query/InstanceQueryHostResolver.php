@@ -48,6 +48,9 @@ final class InstanceQueryHostResolver
 
         foreach (['primary_ip', 'node_ip', 'ip', 'public_ip', 'external_ip', 'query_ip', 'advertise_ip', 'advertised_ip', 'host', 'hostname', 'fqdn', 'domain', 'dns_name'] as $metadataKey) {
             $candidate = trim((string) ($metadata[$metadataKey] ?? ''));
+            if ($networkMode === 'isolated' && $this->isIpv6Candidate($candidate)) {
+                continue;
+            }
             $resolved = $this->resolveHost($candidate);
             if ($resolved !== null) {
                 return [
@@ -60,14 +63,16 @@ final class InstanceQueryHostResolver
         }
 
         $heartbeatIp = trim((string) $node->getLastHeartbeatIp());
-        $resolvedHeartbeat = $this->resolveHost($heartbeatIp);
-        if ($resolvedHeartbeat !== null) {
-            return [
-                'host' => $resolvedHeartbeat,
-                'source' => 'node_ip',
-                'network_mode' => $networkMode,
-                'missing_fields' => [],
-            ];
+        if (!($networkMode === 'isolated' && $this->isIpv6Candidate($heartbeatIp))) {
+            $resolvedHeartbeat = $this->resolveHost($heartbeatIp);
+            if ($resolvedHeartbeat !== null) {
+                return [
+                    'host' => $resolvedHeartbeat,
+                    'source' => 'node_ip',
+                    'network_mode' => $networkMode,
+                    'missing_fields' => [],
+                ];
+            }
         }
 
         $serviceBaseUrl = trim((string) $node->getServiceBaseUrl());
@@ -147,6 +152,12 @@ final class InstanceQueryHostResolver
             : in_array(strtolower(trim((string) $shareHostNetwork)), ['1', 'true', 'yes'], true);
 
         return $shareHost ? 'host' : 'isolated';
+    }
+
+    private function isIpv6Candidate(string $candidate): bool
+    {
+        $bare = preg_replace('/^\[(.+)\]$/', '$1', $candidate) ?? $candidate;
+        return filter_var($bare, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6) !== false;
     }
 
     private function isLoopbackHost(string $host): bool
