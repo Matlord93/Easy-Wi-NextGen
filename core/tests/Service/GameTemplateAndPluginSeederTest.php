@@ -15,12 +15,19 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 final class GameTemplateAndPluginSeederTest extends KernelTestCase
 {
     private EntityManagerInterface $entityManager;
+    private static bool $schemaReady = false;
 
     protected function setUp(): void
     {
         self::bootKernel();
         $this->entityManager = self::getContainer()->get(EntityManagerInterface::class);
-        $this->rebuildSchema();
+
+        if (!self::$schemaReady) {
+            $this->rebuildSchema();
+            self::$schemaReady = true;
+        } else {
+            $this->clearAllEntityData();
+        }
     }
 
     public function testGameTemplatesTableContainsRequiredGameKeySchema(): void
@@ -112,6 +119,19 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
     private function seeder(): GameTemplateSeeder
     {
         return self::getContainer()->get(GameTemplateSeeder::class);
+    }
+
+    private function clearAllEntityData(): void
+    {
+        $connection = $this->entityManager->getConnection();
+        $metadata = $this->entityManager->getMetadataFactory()->getAllMetadata();
+
+        $connection->executeStatement('PRAGMA foreign_keys = OFF');
+        foreach ($metadata as $meta) {
+            $connection->executeStatement('DELETE FROM ' . $meta->getTableName());
+        }
+        $connection->executeStatement('PRAGMA foreign_keys = ON');
+        $this->entityManager->clear();
     }
 
     private function rebuildSchema(): void
