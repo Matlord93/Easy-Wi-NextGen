@@ -110,6 +110,10 @@ final class PublicTwoFactorController
                 'context' => 'public_2fa_check',
             ]);
 
+            if ($attempts >= self::MAX_ATTEMPTS) {
+                return new Response('Too many attempts. Please try again later.', Response::HTTP_TOO_MANY_REQUESTS);
+            }
+
             return new RedirectResponse('/2fa');
         }
 
