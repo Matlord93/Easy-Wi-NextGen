@@ -36,6 +36,12 @@ final class Version20250329120000 extends AbstractMigration
             $this->addSql('ALTER TABLE game_templates MODIFY requirements JSON NOT NULL');
         }
 
+        // Guard: on dry-run (empty DB) or unexpected state game_templates may not exist yet.
+        // The ALTER TABLE addSql() calls above are already collected; skip the live data backfill.
+        if (!$schema->hasTable('game_templates')) {
+            return;
+        }
+
         $templates = $this->connection->fetchAllAssociative('SELECT id, game_key, steam_app_id, required_ports, env_vars FROM game_templates');
 
         foreach ($templates as $template) {

@@ -18,9 +18,19 @@ final class Version20250308090000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE port_pools ADD tag VARCHAR(120) NOT NULL');
-        $this->addSql('ALTER TABLE port_pools ADD enabled TINYINT(1) NOT NULL DEFAULT 1');
-        $this->addSql('UPDATE port_pools SET tag = name WHERE tag = \'\' OR tag IS NULL');
+        // port_pools is created in Version20250311123000 (after this migration's timestamp).
+        // For fresh databases, the columns are baked into the CREATE TABLE there.
+        // For existing databases where port_pools already exists without these columns, add them here.
+        if ($schema->hasTable('port_pools')) {
+            $ppTable = $schema->getTable('port_pools');
+            if (!$ppTable->hasColumn('tag')) {
+                $this->addSql('ALTER TABLE port_pools ADD tag VARCHAR(120) NOT NULL DEFAULT \'\'');
+                $this->addSql('UPDATE port_pools SET tag = name WHERE tag = \'\' OR tag IS NULL');
+            }
+            if (!$ppTable->hasColumn('enabled')) {
+                $this->addSql('ALTER TABLE port_pools ADD enabled TINYINT(1) NOT NULL DEFAULT 1');
+            }
+        }
 
         $this->addSql('ALTER TABLE instances ADD max_slots INT NOT NULL DEFAULT 16');
         $this->addSql('ALTER TABLE instances ADD current_slots INT NOT NULL DEFAULT 16');
@@ -43,7 +53,14 @@ final class Version20250308090000 extends AbstractMigration
         $this->addSql('ALTER TABLE instances DROP max_slots');
         $this->addSql('ALTER TABLE instances DROP current_slots');
         $this->addSql('ALTER TABLE instances DROP lock_slots');
-        $this->addSql('ALTER TABLE port_pools DROP tag');
-        $this->addSql('ALTER TABLE port_pools DROP enabled');
+        if ($schema->hasTable('port_pools')) {
+            $ppTable = $schema->getTable('port_pools');
+            if ($ppTable->hasColumn('tag')) {
+                $this->addSql('ALTER TABLE port_pools DROP tag');
+            }
+            if ($ppTable->hasColumn('enabled')) {
+                $this->addSql('ALTER TABLE port_pools DROP enabled');
+            }
+        }
     }
 }
