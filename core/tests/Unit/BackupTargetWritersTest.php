@@ -23,7 +23,12 @@ final class BackupTargetWritersTest extends TestCase
         $requests = [];
         $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$requests): MockResponse {
             $body = $options['body'] ?? null;
-            $requests[] = [$method, $url, is_resource($body) ? stream_get_contents($body) : null, $options['headers']['authorization'][0] ?? null];
+            $requests[] = [
+                $method,
+                $url,
+                is_resource($body) ? stream_get_contents($body) : null,
+                self::headerValue($options, 'authorization'),
+            ];
 
             return new MockResponse('', ['http_code' => $method === 'PUT' ? 201 : 201]);
         });
@@ -128,5 +133,40 @@ final class BackupTargetWritersTest extends TestCase
         $traversalDestination = $writer->write(new BackupStorageTarget('local', 'Local', ['base_path' => $targetDir]), '../evil.tar.gz', $source);
         self::assertSame($targetDir.'/evil.tar.gz', $traversalDestination);
         self::assertFileDoesNotExist(dirname($targetDir).'/evil.tar.gz');
+    }
+
+    private static function headerValue(array $options, string $name): ?string
+    {
+        $headers = $options['headers'] ?? [];
+        if (!is_array($headers)) {
+            return null;
+        }
+
+        $lowerName = strtolower($name);
+
+        foreach ($headers as $headerName => $value) {
+            if (is_int($headerName) && is_string($value)) {
+                [$lineName, $lineValue] = array_pad(explode(':', $value, 2), 2, null);
+                if ($lineValue !== null && strtolower($lineName) === $lowerName) {
+                    return trim($lineValue);
+                }
+
+                continue;
+            }
+
+            if (!is_string($headerName) || strtolower($headerName) !== $lowerName) {
+                continue;
+            }
+
+            if (is_array($value)) {
+                $first = reset($value);
+
+                return is_string($first) ? $first : null;
+            }
+
+            return is_string($value) ? $value : null;
+        }
+
+        return null;
     }
 }
