@@ -70,7 +70,7 @@ final class AgentJobsMigrationCollationTest extends TestCase
     {
         $migration = self::migrationSql();
 
-        self::assertStringContainsString("tableExists('agents')", $migration);
-        self::assertMatchesRegularExpression("/tableExists\('agents'\)[^}]+return;/s", $migration);
+        self::assertStringContainsString("hasTable('agents')", $migration);
+        self::assertMatchesRegularExpression("/hasTable\('agents'\)[^}]+return;/s", $migration);
     }
 }
