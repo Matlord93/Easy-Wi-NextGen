@@ -27,9 +27,7 @@ final class Version20260503195500 extends AbstractMigration
             return;
         }
 
-        $platform = $this->connection->getDatabasePlatform()->getName();
-
-        if ($platform === 'sqlite') {
+        if ($this->connection->getDatabasePlatform() instanceof SQLitePlatform) {
             $this->addSql('ALTER TABLE team_members ADD COLUMN team_name VARCHAR(140) DEFAULT NULL');
             return;
         }
@@ -48,8 +46,7 @@ final class Version20260503195500 extends AbstractMigration
             return;
         }
 
-        $platform = $this->connection->getDatabasePlatform()->getName();
-        if ($platform === 'sqlite') {
+        if ($this->connection->getDatabasePlatform() instanceof SQLitePlatform) {
             return;
         }
 

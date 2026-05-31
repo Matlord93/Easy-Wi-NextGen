@@ -17,8 +17,7 @@ final class Version20260503210000 extends AbstractMigration
         if (!$schema->hasTable('team_groups')) { return; }
         $table = $schema->getTable('team_groups');
         if ($table->hasColumn('game')) { return; }
-        $platform = $this->connection->getDatabasePlatform()->getName();
-        if ($platform === 'sqlite') {
+        if ($this->connection->getDatabasePlatform() instanceof SQLitePlatform) {
             $this->addSql("ALTER TABLE team_groups ADD COLUMN game VARCHAR(140) NOT NULL DEFAULT 'Unknown'");
             return;
         }

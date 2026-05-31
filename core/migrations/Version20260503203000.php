@@ -15,8 +15,7 @@ final class Version20260503203000 extends AbstractMigration
     public function up(Schema $schema): void
     {
         if ($schema->hasTable('team_groups')) { return; }
-        $platform = $this->connection->getDatabasePlatform()->getName();
-        if ($platform === 'sqlite') {
+        if ($this->connection->getDatabasePlatform() instanceof SQLitePlatform) {
             $this->addSql("CREATE TABLE team_groups (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, site_id INTEGER NOT NULL, name VARCHAR(140) NOT NULL, game VARCHAR(140) NOT NULL DEFAULT 'Unknown', slug VARCHAR(180) NOT NULL, image_path VARCHAR(255) DEFAULT NULL, sort_order INTEGER NOT NULL DEFAULT 0, CONSTRAINT FK_TEAM_GROUPS_SITE FOREIGN KEY (site_id) REFERENCES sites (id) ON DELETE CASCADE)");
             $this->addSql('CREATE INDEX idx_team_groups_site_sort ON team_groups (site_id, sort_order)');
             return;
