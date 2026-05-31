@@ -14,8 +14,11 @@
             {% for template in templates %}
                 <tr>
                     <td>
+                        {% set displayName = template.displayName ?? template.display_name ?? template.game_key %}
+                        {% set steamAppId = template.steamAppId ?? template.steam_app_id ?? null %}
+                        {% set sync = template.shared_paths_sync ?? null %}
                         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
-                            <div style="font-weight:600;">{{ template.displayName }}</div>
+                            <div style="font-weight:600;">{{ displayName }}</div>
                             {% set supportedOs = template.supported_os ?? template.supportedOs ?? [] %}
                             {% if supportedOs is not empty %}
                                 {% set hasLinux = 'linux' in supportedOs %}
@@ -36,9 +39,9 @@
                         <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
                             {{ t('admin_templates_game_key_label', page_locale()) }}: {{ template.game_key }}
                         </div>
-                        {% if template.steamAppId %}
+                        {% if steamAppId %}
                             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
-                                {{ t('admin_templates_steam_app_id_label', page_locale()) }}: {{ template.steamAppId }}
+                                {{ t('admin_templates_steam_app_id_label', page_locale()) }}: {{ steamAppId }}
                             </div>
                         {% endif %}
                         {% if template.sniper_profile %}
@@ -52,7 +55,6 @@
                         <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
                             {{ t('updated', page_locale()) }} {{ template.updated_at|date('Y-m-d H:i') }}
                         </div>
-                    {% set sync = template.shared_paths_sync ?? null %}
                         {% if sync and sync.seed is not empty %}
                             <div style="margin-top:6px;">
                                 {% if sync.outdated %}<span class="ui-badge ui-badge--warning">shared_paths veraltet</span>{% else %}<span class="ui-badge ui-badge--success">shared_paths aktuell</span>{% endif %}
@@ -92,7 +94,7 @@
                             class="ui-button ui-button--ghost ui-button--sm"
                             href="/admin/templates/{{ template.id }}/edit"
                         >{{ t('edit', page_locale()) }}</a>
-                        {% if template.shared_paths_sync.seed is not empty %}
+                        {% if sync and sync.seed is not empty %}
                         <button class="ui-button ui-button--ghost ui-button--sm"
                             hx-post="/admin/templates/{{ template.id }}/sync-shared-paths"
                             hx-swap="none">{{ t('admin_templates_sync_shared_paths_from_seed', page_locale()) }}</button>

@@ -127,11 +127,6 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
             $options['body'] = $body;
         }
 
-        $authBasic = $this->authBasic($target);
-        if ($authBasic !== null) {
-            $options['auth_basic'] = $authBasic;
-        }
-
         return $options;
     }
 
@@ -142,21 +137,17 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
         $secrets = $target->secrets();
         if (is_string($secrets['token'] ?? null) && $secrets['token'] !== '') {
             $headers['Authorization'] = 'Bearer '.$secrets['token'];
+
+            return $headers;
+        }
+
+        $password = $secrets['password'] ?? null;
+        $username = $this->username($target);
+        if ($username !== '' && is_string($password) && $password !== '') {
+            $headers['Authorization'] = 'Basic '.base64_encode($username.':'.$password);
         }
 
         return $headers;
-    }
-
-    /** @return array{string, string}|null */
-    private function authBasic(BackupStorageTarget $target): ?array
-    {
-        $password = $target->secrets()['password'] ?? null;
-        $username = $this->username($target);
-        if ($username !== '' && is_string($password) && $password !== '') {
-            return [$username, $password];
-        }
-
-        return null;
     }
 
     private function username(BackupStorageTarget $target): string

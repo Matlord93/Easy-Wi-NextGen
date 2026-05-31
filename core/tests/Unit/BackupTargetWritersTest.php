@@ -7,6 +7,7 @@ namespace App\Tests\Unit;
 use App\Module\Core\Application\Backup\BackupStorageTarget;
 use App\Module\Core\Application\Backup\Target\LocalBackupTargetWriter;
 use App\Module\Core\Application\Backup\Target\WebDavBackupTargetWriter;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -22,7 +23,7 @@ final class BackupTargetWritersTest extends TestCase
         $requests = [];
         $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$requests): MockResponse {
             $body = $options['body'] ?? null;
-            $requests[] = [$method, $url, is_resource($body) ? stream_get_contents($body) : null, $options['auth_basic'] ?? null];
+            $requests[] = [$method, $url, is_resource($body) ? stream_get_contents($body) : null, $options['headers']['authorization'][0] ?? null];
 
             return new MockResponse('', ['http_code' => $method === 'PUT' ? 201 : 201]);
         });
@@ -43,7 +44,7 @@ final class BackupTargetWritersTest extends TestCase
         self::assertSame('https://example.com/base/foo/bar', $requests[1][1]);
         self::assertSame('PUT', $requests[2][0]);
         self::assertSame('archive-body', $requests[2][2]);
-        self::assertSame(['user', 'pass'], $requests[2][3]);
+        self::assertSame('Basic '.base64_encode('user:pass'), $requests[2][3]);
     }
 
     public function testWebdavWriterTreatsOnlySuccessfulPutStatusesAsSuccess(): void
@@ -64,7 +65,7 @@ final class BackupTargetWritersTest extends TestCase
         }
     }
 
-    /** @dataProvider failingWebdavStatuses */
+    #[DataProvider('failingWebdavStatuses')]
     public function testWebdavWriterReportsAuthAndServerFailures(int $statusCode): void
     {
         $source = tempnam(sys_get_temp_dir(), 'backup-src-');
