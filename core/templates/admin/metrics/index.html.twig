@@ -126,7 +126,7 @@
         {# ── KPI sparkline cards ── #}
         <div class="ng-card">
             <div class="overflow-x-auto">
-                <div class="grid min-w-[1500px] grid-cols-5 gap-4 p-4">
+                <div class="grid grid-cols-4 gap-4 p-4">
                     <div class="ng-data-card">
                         <div class="ng-data-card__body">
                             <p class="form-label">{{ t('admin_metrics_cpu_usage', locale) }}</p>
@@ -185,113 +185,9 @@
                             </svg>
                         </div>
                     </div>
-                    <div class="ng-data-card">
-                        <div class="ng-data-card__body">
-                            <p class="form-label">{{ t('admin_metrics_temperature', locale) }}</p>
-                            <p class="mt-2 text-2xl font-semibold" style="color: var(--ng-text)">{{ latestTemperature is not null ? latestTemperature|number_format(1, '.', '') ~ ' °C' : '—' }}</p>
-                            <p class="text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ temperatureAggregate.avg is not null ? temperatureAggregate.avg|number_format(1, '.', '') ~ ' °C' : '—' }} · {{ temperatureAggregate.max is not null ? temperatureAggregate.max|number_format(1, '.', '') ~ ' °C' : '—' }}</p>
-                            <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">
-                                {% if temperaturePoints %}
-                                    <polyline fill="none" stroke="#ef4444" stroke-width="2" points="{{ temperaturePoints }}" />
-                                {% else %}
-                                    <text x="10" y="30" fill="#94a3b8">{{ t('admin_metrics_no_data', locale) }}</text>
-                                {% endif %}
-                            </svg>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
-
-        {# ── Full charts ── #}
-        {% if cpuChartLine or memChartLine or netRecvChartLine %}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_metrics_charts_title', locale) }}</h2>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                <svg class="hidden">
-                    <defs>
-                        <linearGradient id="mg-cpu" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#6366f1" stop-opacity="0.25"/>
-                            <stop offset="100%" stop-color="#6366f1" stop-opacity="0.02"/>
-                        </linearGradient>
-                        <linearGradient id="mg-mem" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
-                            <stop offset="100%" stop-color="#10b981" stop-opacity="0.02"/>
-                        </linearGradient>
-                        <linearGradient id="mg-recv" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.2"/>
-                            <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.02"/>
-                        </linearGradient>
-                        <linearGradient id="mg-sent" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.2"/>
-                            <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/>
-                        </linearGradient>
-                    </defs>
-                </svg>
-
-                {% if cpuChartLine %}
-                <div class="mb-6">
-                    <div class="flex items-center gap-3 mb-2">
-                        <span class="inline-block h-2 w-2 rounded-full bg-indigo-500"></span>
-                        <p class="form-label">{{ t('admin_metrics_cpu_usage', locale) }}</p>
-                        <span class="ml-auto text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ aggregate.cpu_avg is not null ? aggregate.cpu_avg|number_format(1, '.', '') ~ '%' : '—' }} · {{ aggregate.cpu_max is not null ? aggregate.cpu_max|number_format(1, '.', '') ~ '%' : '—' }}</span>
-                    </div>
-                    <svg viewBox="0 0 1200 120" style="height:10rem;width:100%;border-radius:8px;background:var(--ng-surface-soft);" preserveAspectRatio="none">
-                        <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
-                        <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
-                        <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
-                        {% if cpuChartArea %}<polygon points="{{ cpuChartArea }}" fill="url(#mg-cpu)"/>{% endif %}
-                        <polyline fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ cpuChartLine }}"/>
-                    </svg>
-                </div>
-                {% endif %}
-
-                {% if memChartLine %}
-                <div class="mb-6">
-                    <div class="flex items-center gap-3 mb-2">
-                        <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
-                        <p class="form-label">{{ t('admin_metrics_memory_usage', locale) }}</p>
-                        <span class="ml-auto text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_average', locale) }} {{ aggregate.memory_avg is not null ? aggregate.memory_avg|number_format(1, '.', '') ~ '%' : '—' }} · {{ aggregate.memory_max is not null ? aggregate.memory_max|number_format(1, '.', '') ~ '%' : '—' }}</span>
-                    </div>
-                    <svg viewBox="0 0 1200 120" style="height:10rem;width:100%;border-radius:8px;background:var(--ng-surface-soft);" preserveAspectRatio="none">
-                        <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
-                        <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
-                        <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
-                        {% if memChartArea %}<polygon points="{{ memChartArea }}" fill="url(#mg-mem)"/>{% endif %}
-                        <polyline fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ memChartLine }}"/>
-                    </svg>
-                </div>
-                {% endif %}
-
-                {% if netRecvChartLine or netSentChartLine %}
-                <div>
-                    <div class="flex items-center gap-4 mb-2">
-                        <span class="inline-block h-2 w-2 rounded-full bg-cyan-500"></span>
-                        <p class="form-label">{{ t('admin_metrics_network_traffic', locale) }}</p>
-                        <span class="flex items-center gap-2 text-xs" style="color: var(--ng-text-muted)">
-                            <span class="inline-block h-1.5 w-4 rounded bg-cyan-400"></span>{{ t('admin_metrics_download', locale) }}
-                            <span class="inline-block h-1.5 w-4 rounded bg-violet-400"></span>{{ t('admin_metrics_upload', locale) }}
-                        </span>
-                        <span class="ml-auto text-xs" style="color: var(--ng-text-muted)">{{ t('admin_metrics_bandwidth_unit', locale) }}</span>
-                    </div>
-                    <svg viewBox="0 0 1200 120" style="height:10rem;width:100%;border-radius:8px;background:var(--ng-surface-soft);" preserveAspectRatio="none">
-                        <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
-                        <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
-                        <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
-                        {% if netRecvChartArea %}<polygon points="{{ netRecvChartArea }}" fill="url(#mg-recv)"/>{% endif %}
-                        {% if netSentChartArea %}<polygon points="{{ netSentChartArea }}" fill="url(#mg-sent)"/>{% endif %}
-                        {% if netRecvChartLine %}<polyline fill="none" stroke="#06b6d4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ netRecvChartLine }}"/>{% endif %}
-                        {% if netSentChartLine %}<polyline fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ netSentChartLine }}"/>{% endif %}
-                    </svg>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
 
         {# ── Recent Samples Table ── #}
         <div class="ng-data-card">

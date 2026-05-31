@@ -1,10 +1,10 @@
 {% set statusStyles = {
-    'registered': 'badge badge--primary',
-    'active': 'badge badge--success',
-    'offline': 'badge badge--danger',
-    'decommissioned': 'badge badge--neutral',
-    'provisioning': 'badge badge--primary',
-    'maintenance': 'badge badge--neutral'
+    'registered': 'ui-badge ui-badge--primary',
+    'active': 'ui-badge ui-badge--success',
+    'offline': 'ui-badge ui-badge--danger',
+    'decommissioned': 'ui-badge ui-badge--neutral',
+    'provisioning': 'ui-badge ui-badge--primary',
+    'maintenance': 'ui-badge ui-badge--neutral'
 } %}
 
 {% set roleStyles = {
@@ -66,7 +66,7 @@
             <th>{{ t('admin_nodes_table_last_seen', page_locale()) }}</th>
             <th>{{ t('admin_nodes_table_role', page_locale()) }}</th>
             <th>Info</th>
-            <th class="nodes-actions-col">Aktionen</th>
+            <th class="nodes-actions-col">{{ t('admin_nodes_table_actions', page_locale()) }}</th>
         </tr>
         </thead>
         <tbody>
@@ -94,7 +94,7 @@
                     <span class="{{ style }}">{{ node.status|title }}</span>
                     {% if node.ddos %}
                         <div class="nodes-node__meta mt-1">
-                            <span class="badge {{ node.ddos.attackActive ? 'badge--danger' : 'badge--success' }}">
+                            <span class="ui-badge {{ node.ddos.attackActive ? 'ui-badge--danger' : 'ui-badge--success' }}">
                                 {{ node.ddos.attackActive ? t('admin_nodes_ddos_attack_active', page_locale()) : t('admin_nodes_ddos_idle', page_locale()) }}
                             </span>
                         </div>
@@ -177,17 +177,17 @@
                 </td>
                 <td class="nodes-actions-col">
                     <div class="nodes-row-actions">
-                        <a class="btn btn--tertiary" href="/admin/nodes?node={{ node.id }}">Details</a>
-                        <a class="btn btn--tertiary" href="/admin/nodes/{{ node.id }}/roles">Konfigurieren</a>
+                        <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/nodes?node={{ node.id }}">{{ t('details', page_locale()) }}</a>
+                        <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/nodes/{{ node.id }}/roles">{{ t('admin_nodes_manage_roles', page_locale()) }}</a>
                         <button
-                            class="btn btn--tertiary"
+                            class="ui-button ui-button--ghost ui-button--sm"
                             hx-post="/admin/nodes/{{ node.id }}/reboot"
                             hx-target="#nodes-table-wrap"
                             hx-swap="innerHTML"
                             hx-confirm="{{ t('admin_nodes_reboot_confirm', page_locale()) }}"
                             type="button"
-                        >Neustarten</button>
-                        <a class="btn btn--tertiary" href="/admin/jobs">Logs</a>
+                        >{{ t('admin_nodes_reboot', page_locale()) }}</button>
+                        <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/jobs">{{ t('admin_nodes_logs_view_all', page_locale()) }}</a>
                     </div>
                 </td>
             </tr>
