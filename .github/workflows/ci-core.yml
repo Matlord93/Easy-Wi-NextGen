@@ -122,6 +122,9 @@ jobs:
       - name: Run Doctrine Migrations
         run: php bin/console doctrine:migrations:migrate --env=test --no-interaction
 
+      - name: Show schema diff (diagnostic)
+        run: php bin/console doctrine:schema:update --dump-sql --complete --env=test 2>&1 || true
+
       - name: Validate Doctrine schema
         run: php bin/console doctrine:schema:validate --env=test --no-interaction
 
