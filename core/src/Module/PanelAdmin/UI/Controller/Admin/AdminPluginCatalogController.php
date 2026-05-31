@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\GamePluginSeedCatalog;
+use App\Module\Core\Application\GamePluginSeeder;
+use App\Module\Core\Application\GameTemplateSeeder;
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\GamePluginRepository;
@@ -24,6 +27,8 @@ final class AdminPluginCatalogController
         private readonly TemplateRepository $templateRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly GameTemplateSeeder $templateSeeder,
+        private readonly GamePluginSeeder $pluginSeeder,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {
@@ -315,44 +320,18 @@ final class AdminPluginCatalogController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $seedEntries = $this->buildRecommendedSeedEntries();
-        $imported = 0;
-        $updated = 0;
-
-        foreach ($seedEntries as $entry) {
-            $template = $this->resolveTemplateForGameKey($entry['game_key']);
-            if ($template === null) {
-                continue;
-            }
-
-            $existing = $this->pluginRepository->findDuplicateForGameKey($entry['game_key'], $entry['name'], $entry['version']);
-            if ($existing === null) {
-                $plugin = new GamePlugin(
-                    template: $template,
-                    name: $entry['name'],
-                    version: $entry['version'],
-                    checksum: $entry['checksum'],
-                    downloadUrl: $entry['download_url'],
-                    description: $entry['description'],
-                );
-                $this->entityManager->persist($plugin);
-                $imported++;
-            } else {
-                $existing->setTemplate($template);
-                $existing->setChecksum($entry['checksum']);
-                $existing->setDownloadUrl($entry['download_url']);
-                $existing->setDescription($entry['description']);
-                $updated++;
-            }
-        }
-
-        $this->entityManager->flush();
+        $templatesCreated = $this->templateSeeder->seedTemplatesOnly($this->entityManager);
+        $pluginResult = $this->pluginSeeder->seed($this->entityManager, true);
 
         $this->auditLogger->log($actor, 'plugin.seeded', [
-            'imported' => $imported,
-            'updated' => $updated,
-            'entries' => count($seedEntries),
+            'imported' => $pluginResult['plugins'],
+            'updated' => $pluginResult['updated'],
+            'entries' => $pluginResult['entries'],
+            'templates_created' => $templatesCreated,
+            'skipped_missing_template' => $pluginResult['skipped_missing_template'],
+            'missing_game_keys' => $pluginResult['missing_game_keys'],
         ]);
+        $this->entityManager->flush();
 
         $response = new Response('', Response::HTTP_NO_CONTENT);
         $response->headers->set('HX-Trigger', 'plugins-changed');
@@ -746,73 +725,18 @@ final class AdminPluginCatalogController
      */
     private function buildRecommendedSeedEntries(): array
     {
-        return [
-            [
-                'game_key' => 'cs2',
-                'name' => 'Metamod:Source',
-                'version' => '2.0-stable',
-                'checksum' => '',
-                'download_url' => 'github://alliedmodders/metamod-source/releases/latest?asset=mmsource-*-linux.tar.gz',
-                'description' => 'Core mod loader for CS2/Source2. Nach Installation muss game/csgo/gameinfo.gi den Eintrag "Game csgo/addons/metamod" enthalten (zwischen Game_LowViolence csgo_lv und Game csgo).',
-            ],
-            [
-                'game_key' => 'cs2',
-                'name' => 'CounterStrikeSharp',
-                'version' => 'latest',
-                'checksum' => '',
-                'download_url' => 'https://github.com/roflmuffin/CounterStrikeSharp/releases/latest/download/counterstrikesharp-with-runtime-build.zip',
-                'description' => 'CS2 plugin framework for C# plugins.',
-            ],
-            [
-                'game_key' => 'rust',
-                'name' => 'uMod/Oxide for Rust',
-                'version' => 'latest',
-                'checksum' => '',
-                'download_url' => 'https://github.com/OxideMod/Oxide.Rust/releases/latest/download/Oxide.Rust-linux.zip',
-                'description' => 'Most used Rust plugin framework (uMod/Oxide).',
-            ],
-            [
-                'game_key' => 'rust',
-                'name' => 'Carbon for Rust',
-                'version' => 'latest',
-                'checksum' => '',
-                'download_url' => 'https://github.com/CarbonCommunity/Carbon/releases/latest/download/Carbon.Linux.Release.tar.gz',
-                'description' => 'Alternative Rust mod framework with Oxide compatibility layer.',
-            ],
-            [
-                'game_key' => 'minecraft',
-                'name' => 'LuckPerms',
-                'version' => 'latest',
-                'checksum' => '',
-                'download_url' => 'https://download.luckperms.net/1565/bukkit/loader/LuckPerms-Bukkit-5.4.121.jar',
-                'description' => 'Popular permissions plugin for Spigot/Paper based servers.',
-            ],
-            [
-                'game_key' => 'minecraft',
-                'name' => 'EssentialsX',
-                'version' => 'latest',
-                'checksum' => '',
-                'download_url' => 'https://github.com/EssentialsX/Essentials/releases/latest/download/EssentialsX-2.21.0.jar',
-                'description' => 'Popular essentials command/admin plugin for Bukkit/Paper.',
-            ],
-            [
-                'game_key' => 'tf2',
-                'name' => 'SourceMod',
-                'version' => 'latest',
-                'checksum' => '',
-                'download_url' => 'github://alliedmodders/sourcemod/releases/latest?asset=sourcemod-*-linux.tar.gz',
-                'description' => 'TF2 plugin framework (requires Metamod).',
-            ],
-            [
-                'game_key' => 'gmod',
-                'name' => 'ULX Admin Mod',
-                'version' => 'latest',
-                'checksum' => '',
-                'download_url' => 'https://github.com/TeamUlysses/ulx/archive/refs/heads/master.zip',
-                'description' => 'Popular admin mod for Garry\'s Mod (paired with ULib).',
-            ],
-        ];
+        return array_map(static function (array $entry): array {
+            return [
+                'game_key' => (string) ($entry['template_game_key'] ?? ''),
+                'name' => (string) ($entry['name'] ?? ''),
+                'version' => (string) ($entry['version'] ?? ''),
+                'checksum' => (string) ($entry['checksum'] ?? ''),
+                'download_url' => (string) ($entry['download_url'] ?? ''),
+                'description' => (string) ($entry['description'] ?? ''),
+            ];
+        }, (new GamePluginSeedCatalog())->listPlugins());
     }
+
 
     private function isAdmin(Request $request): bool
     {

@@ -66,7 +66,7 @@ final class AdminPluginCatalogControllerChecksumTest extends TestCase
             $entriesByName[$entry['name']] = $entry;
         }
 
-        foreach (['Metamod:Source', 'CounterStrikeSharp', 'uMod/Oxide for Rust', 'Carbon for Rust', 'LuckPerms', 'EssentialsX', 'SourceMod'] as $pluginName) {
+        foreach (['MetaMod:Source', 'CounterStrikeSharp', 'uMod (Oxide)', 'LuckPerms', 'EssentialsX', 'SourceMod'] as $pluginName) {
             self::assertArrayHasKey($pluginName, $entriesByName);
             self::assertSame('', $entriesByName[$pluginName]['checksum']);
         }

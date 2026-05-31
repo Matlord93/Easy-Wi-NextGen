@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Template;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -15,6 +14,7 @@ final class GameTemplateSeeder
     public function __construct(
         private readonly ManagerRegistry $registry,
         private readonly GameTemplateSeedCatalog $catalog,
+        private readonly GamePluginSeeder $pluginSeeder,
     ) {
     }
 
@@ -24,9 +24,19 @@ final class GameTemplateSeeder
     public function seed(?EntityManagerInterface $entityManager = null): array
     {
         $entityManager = $entityManager ?? $this->registry->getManager();
-        $templateRepository = $entityManager->getRepository(Template::class);
-        $pluginRepository = $entityManager->getRepository(GamePlugin::class);
+        $templatesCreated = $this->seedTemplatesOnly($entityManager);
+        $pluginResult = $this->pluginSeeder->seed($entityManager);
 
+        return [
+            'templates' => $templatesCreated,
+            'plugins' => $pluginResult['plugins'],
+        ];
+    }
+
+    public function seedTemplatesOnly(?EntityManagerInterface $entityManager = null): int
+    {
+        $entityManager = $entityManager ?? $this->registry->getManager();
+        $templateRepository = $entityManager->getRepository(Template::class);
         $templatesCreated = 0;
         foreach ($this->catalog->listTemplates() as $templateData) {
             $gameKey = (string) ($templateData['game_key'] ?? '');
@@ -101,55 +111,7 @@ final class GameTemplateSeeder
             }
         }
 
-        $pluginsCreated = 0;
-        foreach ($this->catalog->listPlugins() as $pluginData) {
-            $templateGameKey = (string) ($pluginData['template_game_key'] ?? '');
-            $pluginName = (string) ($pluginData['name'] ?? '');
-            if ($templateGameKey === '' || $pluginName === '') {
-                continue;
-            }
-
-            $template = $templateRepository->findOneBy(['gameKey' => $templateGameKey]);
-            if (!$template instanceof Template) {
-                continue;
-            }
-
-            $existingPlugin = $pluginRepository->findOneBy([
-                'template' => $template,
-                'name' => $pluginName,
-            ]);
-            if ($existingPlugin !== null) {
-                continue;
-            }
-
-            $plugin = new GamePlugin(
-                $template,
-                $pluginName,
-                (string) ($pluginData['version'] ?? ''),
-                (string) ($pluginData['checksum'] ?? ''),
-                (string) ($pluginData['download_url'] ?? ''),
-                $pluginData['description'] ?? null,
-                (string) ($pluginData['install_mode'] ?? 'extract'),
-                isset($pluginData['extract_subdir']) ? (string) $pluginData['extract_subdir'] : null,
-            );
-
-            $entityManager->persist($plugin);
-            $pluginsCreated++;
-        }
-
-        if ($pluginsCreated > 0) {
-            try {
-                $entityManager->flush();
-            } catch (UniqueConstraintViolationException) {
-                $entityManager->clear();
-                $pluginsCreated = 0;
-            }
-        }
-
-        return [
-            'templates' => $templatesCreated,
-            'plugins' => $pluginsCreated,
-        ];
+        return $templatesCreated;
     }
 
     /**

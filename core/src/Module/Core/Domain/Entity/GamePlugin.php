@@ -8,8 +8,8 @@ use App\Repository\GamePluginRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: GamePluginRepository::class)]
-#[ORM\Table(name: 'game_template_plugins')]
-#[ORM\Index(name: 'idx_game_template_plugins_template', columns: ['template_id'])]
+#[ORM\Table(name: 'game_plugins')]
+#[ORM\Index(name: 'idx_game_plugins_template', columns: ['template_id'])]
 class GamePlugin
 {
     #[ORM\Id]

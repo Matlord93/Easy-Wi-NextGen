@@ -48,6 +48,7 @@ abstract class AbstractWebTestCase extends WebTestCase
             'instances',
             'port_blocks',
             'agents',
+            'game_plugins',
             'game_templates',
             'user_sessions',
             'users',
