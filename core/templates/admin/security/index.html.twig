@@ -151,22 +151,28 @@
     ══════════════════════════════════════ #}
     <div id="ddos" style="display:flex;flex-direction:column;gap:16px;">
 
-        <div class="ng-data-card">
+        <div class="ng-data-card" data-ddos-live data-endpoint="/admin/security/ddos/live-status">
             <div class="ng-data-card__header" style="border-left:3px solid #ef4444;padding-left:18px;margin-left:-1px;">
                 <div style="display:flex;align-items:center;gap:14px;">
                     <div style="width:40px;height:40px;border-radius:10px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">⚡</div>
                     <div>
                         <h2 class="ng-data-card__title">{{ t('admin_security_ddos_status_title', locale) }}</h2>
-                        <p class="ng-data-card__sub">{{ t('admin_security_ddos_status_intro', locale) }}</p>
+                        <p class="ng-data-card__sub" data-ddos-live-sub>{{ t('admin_security_ddos_status_intro', locale) }}</p>
                     </div>
                 </div>
-                {% if attackCount > 0 %}
-                    <span class="ui-badge ui-badge--danger" style="animation:pulse 2s infinite;">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale) }}</span>
-                {% else %}
-                    <span class="ui-badge ui-badge--success">{{ t('admin_security_ddos_all_clear', locale) }}</span>
-                {% endif %}
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span data-ddos-live-badge>
+                        {% if attackCount > 0 %}
+                            <span class="ui-badge ui-badge--danger" style="animation:pulse 2s infinite;">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale) }}</span>
+                        {% else %}
+                            <span class="ui-badge ui-badge--success">{{ t('admin_security_ddos_all_clear', locale) }}</span>
+                        {% endif %}
+                    </span>
+                    <button type="button" data-ddos-live-refresh class="ui-button ui-button--ghost ui-button--sm">↺ {{ t('refresh', locale) }}</button>
+                </div>
             </div>
             <div class="ng-data-card__body">
+                <div data-ddos-live-grid>
                 {% if ddosStatusPanels is empty %}
                     <div class="cust-table__empty">{{ t('admin_security_no_nodes', locale) }}</div>
                 {% else %}
@@ -247,6 +253,7 @@
                         {% endfor %}
                     </div>
                 {% endif %}
+                </div>
             </div>
         </div>
 
@@ -824,4 +831,130 @@
     </div>
 
 </div>
+
+<script>
+(() => {
+    const card = document.querySelector('[data-ddos-live]');
+    if (!card) return;
+
+    const endpoint = card.dataset.endpoint;
+    const gridEl = card.querySelector('[data-ddos-live-grid]');
+    const badgeEl = card.querySelector('[data-ddos-live-badge]');
+    const subEl = card.querySelector('[data-ddos-live-sub]');
+    const refreshBtn = card.querySelector('[data-ddos-live-refresh]');
+
+    const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    function renderPortStats(stats) {
+        if (!stats || stats.length === 0) return '';
+        const rows = stats.map(s => {
+            const attack = s.attack_active;
+            const bdr = attack ? 'rgba(239,68,68,.4)' : 'var(--ng-border)';
+            const bg = attack ? 'rgba(239,68,68,.08)' : 'var(--ng-surface-soft)';
+            const col = attack ? '#fca5a5' : 'var(--ng-text)';
+            const warn = attack ? ' · ⚠' : '';
+            return `<div style="display:flex;align-items:center;justify-content:space-between;border-radius:6px;border:1px solid ${bdr};background:${bg};padding:5px 10px;font-size:11px;color:${col};">
+                        <span>Port ${escHtml(s.port)}</span><span>${escHtml(s.syn_recv)} SYN${warn}</span>
+                    </div>`;
+        }).join('');
+        return `<div style="margin-top:12px;">
+            <p style="margin:0 0 6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">Port-Telemetrie</p>
+            <div style="display:flex;flex-direction:column;gap:4px;">${rows}</div>
+        </div>`;
+    }
+
+    function renderPanel(p) {
+        const attack = p.attackActive;
+        const borderColor = attack ? 'rgba(239,68,68,.4)' : 'var(--ng-border)';
+        const bgColor = attack ? 'rgba(239,68,68,.04)' : 'var(--ng-surface)';
+        const badge = attack
+            ? `<span class="ui-badge ui-badge--danger">Angriff aktiv</span>`
+            : `<span class="ui-badge ui-badge--success">Leerlauf</span>`;
+        const ports = (p.ports ?? []).length
+            ? p.ports.map(x => `<span class="ui-badge ui-badge--info">${escHtml(x)}</span>`).join('')
+            : `<span class="ui-badge ui-badge--neutral">Keine Ports gemeldet</span>`;
+        const protos = (p.protocols ?? []).length
+            ? p.protocols.map(x => `<span class="ui-badge ui-badge--info">${escHtml(x.toUpperCase())}</span>`).join('')
+            : `<span class="ui-badge ui-badge--neutral">Keine Protokolle gemeldet</span>`;
+
+        return `<div class="ng-card" style="padding:18px;display:flex;flex-direction:column;gap:0;border-color:${borderColor};background:${bgColor};">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                <div>
+                    <p style="margin:0;font-size:14px;font-weight:600;color:var(--ng-text);">${escHtml(p.name)}</p>
+                    <p style="margin:3px 0 0;font-size:11px;color:var(--ng-text-muted);">ID: ${escHtml(String(p.id).slice(0,8))}…</p>
+                </div>
+                ${badge}
+            </div>
+            <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+                <div style="text-align:center;border:1px solid var(--ng-border);border-radius:8px;padding:10px 4px;background:var(--ng-surface-soft);">
+                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">Pakete/s</div>
+                    <div style="font-size:17px;font-weight:700;color:var(--ng-text);margin-top:4px;">${escHtml(p.pps ?? '—')}</div>
+                </div>
+                <div style="text-align:center;border:1px solid var(--ng-border);border-radius:8px;padding:10px 4px;background:var(--ng-surface-soft);">
+                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">Verbindungen</div>
+                    <div style="font-size:17px;font-weight:700;color:var(--ng-text);margin-top:4px;">${escHtml(p.connCount ?? '—')}</div>
+                </div>
+                <div style="text-align:center;border:1px solid var(--ng-border);border-radius:8px;padding:10px 4px;background:var(--ng-surface-soft);">
+                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">Modus</div>
+                    <div style="font-size:13px;font-weight:700;color:var(--ng-text);margin-top:4px;">${escHtml(p.mode ?? '—')}</div>
+                </div>
+            </div>
+            ${renderPortStats(p.portStats)}
+            <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+                <div>
+                    <p style="margin:0 0 5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">Geschützte Ports</p>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;">${ports}</div>
+                </div>
+                <div>
+                    <p style="margin:0 0 5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">Protokolle</p>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;">${protos}</div>
+                </div>
+            </div>
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--ng-border);font-size:11px;color:var(--ng-text-muted);">
+                <div style="display:flex;justify-content:space-between;"><span>Richtlinie</span><span style="color:var(--ng-text);font-weight:500;">${escHtml(p.policyMode ?? '—')}</span></div>
+                <div style="display:flex;justify-content:space-between;margin-top:3px;"><span>Gemeldet</span><span style="color:var(--ng-text);">${escHtml(p.reportedAt ?? '—')}</span></div>
+            </div>
+        </div>`;
+    }
+
+    function applyData(data) {
+        const panels = data.panels ?? [];
+        const attackCount = panels.filter(p => p.attackActive).length;
+
+        if (badgeEl) {
+            badgeEl.innerHTML = attackCount > 0
+                ? `<span class="ui-badge ui-badge--danger" style="animation:pulse 2s infinite;">${attackCount} Angriffe aktiv</span>`
+                : `<span class="ui-badge ui-badge--success">Kein Angriff</span>`;
+        }
+
+        if (subEl) {
+            subEl.textContent = `Echtzeit-Telemetrie aus DDoS-Statusprüfungen pro Node. Letzte Aktualisierung: ${data.fetchedAt ?? '—'}`;
+        }
+
+        if (gridEl) {
+            if (panels.length === 0) {
+                gridEl.innerHTML = '<div class="cust-table__empty">Keine Nodes gefunden.</div>';
+            } else {
+                gridEl.innerHTML = `<div style="display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));">${panels.map(renderPanel).join('')}</div>`;
+            }
+        }
+    }
+
+    let loading = false;
+    function load() {
+        if (loading) return;
+        loading = true;
+        if (refreshBtn) refreshBtn.disabled = true;
+        fetch(endpoint, {headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}})
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(applyData)
+            .catch(() => { /* keep existing display on error */ })
+            .finally(() => { loading = false; if (refreshBtn) refreshBtn.disabled = false; });
+    }
+
+    if (refreshBtn) refreshBtn.addEventListener('click', load);
+
+    setInterval(load, 30000);
+})();
+</script>
 {% endblock %}

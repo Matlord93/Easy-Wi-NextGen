@@ -13,6 +13,11 @@ final class UpdateResult
         public readonly ?string $logPath,
         public readonly ?string $installedVersion,
         public readonly ?string $latestVersion,
+        // When pending=true the step is not finished yet; the tick processor
+        // retries the same step on the next browser poll instead of advancing.
+        public readonly bool $pending = false,
+        // ID of the agent job that must complete before the update is done.
+        public readonly ?string $reloadJobId = null,
     ) {
     }
 }

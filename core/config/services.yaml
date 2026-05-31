@@ -42,6 +42,7 @@ parameters:
   app.core_update_runner_command_default: '/usr/local/bin/easywi-core-runner'
   app.core_update_runner_command: '%env(default:app.core_update_runner_command_default:APP_CORE_UPDATE_RUNNER)%'
   app.core_update_package_url: '%env(default::APP_CORE_UPDATE_PACKAGE_URL)%'
+  app.core_update_reload_agent_id: '%env(default::APP_CORE_UPDATE_RELOAD_AGENT_ID)%'
   app.php_cli_binary_default: ''
   app.recovery_allowed_ips_default: '127.0.0.1,::1'
   app.recovery_allowed_ips: '%env(csv:default:app.recovery_allowed_ips_default:APP_RECOVERY_ALLOWED_IPS)%'
@@ -237,6 +238,10 @@ services:
       $panelUpdateNewsPublisher: '@App\Module\Core\Application\PanelUpdateNewsPublisher'
       $coreReleaseChecker: '@App\Module\Core\Application\CoreReleaseChecker'
       $githubToken: '%app.core_update_token%'
+      $agentJobDispatcher: '@App\Module\AgentOrchestrator\Application\AgentJobDispatcher'
+      $agentRepository: '@App\Repository\AgentRepository'
+      $reloadAgentId: '%app.core_update_reload_agent_id%'
+      $agentJobRepository: '@App\Repository\AgentJobRepository'
 
   App\Module\Core\Application\UpdateJobServiceInterface: '@App\Module\Core\Application\UpdateJobService'
 

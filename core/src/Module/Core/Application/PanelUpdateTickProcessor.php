@@ -88,7 +88,7 @@ final class PanelUpdateTickProcessor
                 $this->appendLog($job, 'Hinweis: Dieser HTTP-Tick führt einen bestehenden synchronen Service-Schritt aus. Der Job-Status wurde vor dem Start gespeichert; ein feinerer Step-Runner bleibt die nächste Ausbaustufe.');
             }
 
-            $result = $this->runStep($step);
+            $result = $this->runStep($step, $payload);
             $job = $this->jobService->getJob($jobId) ?? $job;
             $job['lastStep'] = $step;
             $job['currentStep'] = $step;
@@ -97,9 +97,27 @@ final class PanelUpdateTickProcessor
                 $job['logPath'] = $result->logPath;
             }
 
+            // Persist reload job ID so the await step can poll it across ticks.
+            if ($result->reloadJobId !== null) {
+                $payload['reload_job_id'] = $result->reloadJobId;
+                $job['payload'] = $payload;
+            }
+
             if (!$result->success) {
                 $job = $this->failJob($job, $result->error ?? 'update_failed', $result->message);
                 $this->appendLog($job, 'Update fehlgeschlagen: ' . ($job['error'] ?? $result->message));
+                $this->writeJob($jobPath, $job);
+
+                return ['job' => $job, 'locked' => false, 'notFound' => false];
+            }
+
+            // Step not done yet (e.g. awaiting agent reload) — retry same step next tick.
+            if ($result->pending) {
+                $job['status'] = 'running';
+                $job['nextStep'] = $step;
+                $job['exitCode'] = null;
+                $job['finishedAt'] = null;
+                $this->appendLog($job, 'Schritt ' . $step . ' noch ausstehend – nächster Tick.');
                 $this->writeJob($jobPath, $job);
 
                 return ['job' => $job, 'locked' => false, 'notFound' => false];
@@ -128,9 +146,9 @@ final class PanelUpdateTickProcessor
     private function stepsForType(string $type): array
     {
         return match ($type) {
-            'update' => ['apply_update'],
+            'update' => ['apply_update', 'await_agent_reload'],
             'migrate' => ['apply_migrations'],
-            'both' => ['apply_update', 'apply_migrations'],
+            'both' => ['apply_update', 'apply_migrations', 'await_agent_reload'],
             default => [],
         };
     }
@@ -162,11 +180,15 @@ final class PanelUpdateTickProcessor
         return $steps[$index + 1] ?? null;
     }
 
-    private function runStep(string $step): UpdateResult
+    /** @param array<string, mixed> $jobPayload */
+    private function runStep(string $step, array $jobPayload = []): UpdateResult
     {
         return match ($step) {
             'apply_update' => $this->updateService->applyUpdate(),
             'apply_migrations' => $this->updateService->applyMigrations(),
+            'await_agent_reload' => $this->updateService->awaitAgentReload(
+                is_string($jobPayload['reload_job_id'] ?? null) ? (string) $jobPayload['reload_job_id'] : ''
+            ),
             default => new UpdateResult(false, 'Unbekannter Update-Schritt.', 'unknown_step: ' . $step, null, null, null),
         };
     }

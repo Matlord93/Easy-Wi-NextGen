@@ -19,6 +19,7 @@ use App\Repository\JobRepository;
 use App\Repository\SecurityEventRepository;
 use App\Repository\SecurityPolicyRevisionRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -66,6 +67,53 @@ final class AdminSecurityController
         $admin = $this->requireAdmin($request);
 
         return $this->renderPage($admin, $request);
+    }
+
+    #[Route(path: '/ddos/live-status', name: 'admin_security_ddos_live_status', methods: ['GET'])]
+    public function ddosLiveStatus(Request $request): JsonResponse
+    {
+        $this->requireAdmin($request);
+
+        $agents = $this->agentRepository->findAll();
+        $ddosPolicies = $this->ddosPolicyRepository->findByNodes($agents);
+        $ddosStatuses = $this->ddosStatusRepository->findByNodes($agents);
+
+        $ddosPolicyByNode = [];
+        foreach ($ddosPolicies as $policy) {
+            $ddosPolicyByNode[$policy->getNode()->getId()] = $policy;
+        }
+        $ddosStatusByNode = [];
+        foreach ($ddosStatuses as $statusItem) {
+            $ddosStatusByNode[$statusItem->getNode()->getId()] = $statusItem;
+        }
+
+        $panels = array_map(function ($agent) use ($ddosStatusByNode, $ddosPolicyByNode): array {
+            $statusItem = $ddosStatusByNode[$agent->getId()] ?? null;
+            $policyItem = $ddosPolicyByNode[$agent->getId()] ?? null;
+            $ports = $statusItem?->getPorts() ?? [];
+            sort($ports);
+            $protocols = $statusItem?->getProtocols() ?? [];
+            sort($protocols);
+
+            return [
+                'id' => $agent->getId(),
+                'name' => $agent->getName() ?? 'Unnamed node',
+                'attackActive' => $statusItem?->isAttackActive() ?? false,
+                'pps' => $statusItem?->getPacketsPerSecond(),
+                'connCount' => $statusItem?->getConnectionCount(),
+                'ports' => $ports,
+                'protocols' => $protocols,
+                'portStats' => $statusItem?->getPortStats() ?? [],
+                'mode' => $statusItem?->getMode(),
+                'reportedAt' => $statusItem?->getReportedAt()?->format('d.m.Y H:i'),
+                'policyMode' => $policyItem?->getMode(),
+            ];
+        }, $agents);
+
+        return new JsonResponse([
+            'panels' => array_values($panels),
+            'fetchedAt' => (new \DateTimeImmutable())->format('H:i:s'),
+        ]);
     }
 
     #[Route(path: '/ddos', name: 'admin_security_ddos', methods: ['POST'])]

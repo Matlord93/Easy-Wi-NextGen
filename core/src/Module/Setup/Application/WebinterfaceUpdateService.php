@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\Application;
 
+use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\CoreReleaseChecker;
 use App\Module\Core\Application\PanelUpdateNewsPublisher;
 use App\Module\Core\Update\UpdateManifest;
 use App\Module\Core\Update\UpdateResult;
 use App\Module\Core\Update\UpdateStatus;
+use App\Repository\AgentJobRepository;
+use App\Repository\AgentRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Process\Process;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -19,6 +23,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private const DEFAULT_EXCLUDES = [
         '.env',
+        '.env.local',
+        '.env.*.local',
         'config/local*',
         'var/',
         'srv/',
@@ -54,8 +60,14 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly ?CoreReleaseChecker $coreReleaseChecker = null,
         private readonly ?string $githubToken = null,
         private readonly ?LoggerInterface $logger = null,
+        private readonly ?AgentJobDispatcher $agentJobDispatcher = null,
+        private readonly ?AgentRepository $agentRepository = null,
+        private readonly ?string $reloadAgentId = null,
+        private readonly ?AgentJobRepository $agentJobRepository = null,
     ) {
     }
+
+    private ?string $lastDispatchedReloadJobId = null;
 
     public function getKeepReleasesCount(): int
     {
@@ -235,10 +247,50 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 $logPath,
                 $manifest->latest,
                 $manifest->latest,
+                false,
+                $this->lastDispatchedReloadJobId,
             );
         } finally {
             $this->releaseLock($lockHandle);
         }
+    }
+
+    public function awaitAgentReload(string $agentJobId): UpdateResult
+    {
+        $logPath = $this->resolveLogPath($this->installDir);
+
+        if ($agentJobId === '' || $this->agentJobRepository === null) {
+            return new UpdateResult(true, 'Web-Stack-Reload nicht konfiguriert – Update abgeschlossen.', null, $logPath, $this->getInstalledVersion(), null);
+        }
+
+        $agentJob = $this->agentJobRepository->find($agentJobId);
+        if ($agentJob === null) {
+            $this->log($logPath, 'Reload-Job ' . $agentJobId . ' nicht gefunden – wird als abgeschlossen gewertet.');
+            return new UpdateResult(true, 'Update abgeschlossen (Reload-Job nicht auffindbar).', null, $logPath, $this->getInstalledVersion(), null);
+        }
+
+        $status = $agentJob->getStatus();
+
+        // Give up waiting after 5 minutes to avoid blocking the update indefinitely.
+        $ageSeconds = (new \DateTimeImmutable())->getTimestamp() - $agentJob->getCreatedAt()->getTimestamp();
+        if ($ageSeconds >= 300 && ($status === AgentJobStatus::Queued || $status === AgentJobStatus::Running)) {
+            $this->log($logPath, 'Timeout: Agent-Reload-Job läuft seit ' . $ageSeconds . 's – PHP-FPM/nginx bitte manuell prüfen.');
+            return new UpdateResult(true, 'Update abgeschlossen. Agent-Reload hat Timeout überschritten – PHP-FPM/nginx manuell prüfen.', null, $logPath, $this->getInstalledVersion(), null);
+        }
+
+        if ($status === AgentJobStatus::Queued || $status === AgentJobStatus::Running) {
+            $this->log($logPath, 'Warte auf Agent-Reload (Job ' . $agentJobId . ', Status: ' . $status->value . ')…');
+            return new UpdateResult(true, 'Warte auf Agent-Reload…', null, $logPath, $this->getInstalledVersion(), null, pending: true);
+        }
+
+        if ($status === AgentJobStatus::Success) {
+            $this->log($logPath, 'PHP-FPM und nginx erfolgreich neu geladen. Update vollständig abgeschlossen.');
+            return new UpdateResult(true, 'Update und Web-Stack-Reload abgeschlossen.', null, $logPath, $this->getInstalledVersion(), null);
+        }
+
+        // Failed
+        $this->log($logPath, 'Agent-Reload fehlgeschlagen (Status: ' . $status->value . ') – PHP-FPM/nginx bitte manuell prüfen.');
+        return new UpdateResult(true, 'Update abgeschlossen. Agent-Reload fehlgeschlagen – PHP-FPM/nginx manuell prüfen.', null, $logPath, $this->getInstalledVersion(), null);
     }
 
     public function applyMigrations(): UpdateResult
@@ -314,7 +366,10 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
             $schema = $this->runCommand($this->buildConsoleCommand('doctrine:schema:validate', ['--no-interaction']), $appRoot);
             $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema);
-            if ($schema['exitCode'] !== 0) {
+            // Exit code 2 means DB not in sync with ORM mapping (mapping files are valid but schema
+            // differs); treat as a warning — the same behaviour as runPostDeploy().
+            // Exit code 1 / 3 means broken mapping files, which is a hard failure.
+            if ($schema['exitCode'] !== 0 && $schema['exitCode'] !== 2) {
                 return new UpdateResult(
                     false,
                     'Schema-Validierung fehlgeschlagen.',
@@ -1406,6 +1461,15 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $currentDir = $this->resolveCurrentDir();
         if ($currentDir !== null) {
             $this->copyExcludedPaths($currentDir, $releaseDir, $excludes);
+            // Also copy excluded runtime files that live under the app-root subdir (e.g. core/)
+            // because fnmatch('.env', 'core/.env.local') returns false — path separators are
+            // not matched by the glob wildcard in PHP's fnmatch, so patterns like '.env.local'
+            // must be matched relative to the app root directly.
+            $currentAppRoot = $this->resolveAppRoot($currentDir);
+            $releaseAppRoot = $this->resolveAppRoot($releaseDir);
+            if ($currentAppRoot !== $currentDir) {
+                $this->copyExcludedPaths($currentAppRoot, $releaseAppRoot, $excludes);
+            }
         }
 
         $this->writeVersionFile($releaseDir, $version);
@@ -1421,6 +1485,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         symlink($releaseDir, $this->currentSymlink);
         $this->log($logPath, 'Symlink auf neue Version gesetzt: ' . $releaseDir);
+        $this->dispatchWebStackReload($logPath);
         $this->cleanupOldReleases($releaseDir, $logPath);
 
         return true;
@@ -1592,7 +1657,33 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             return false;
         }
 
+        $this->dispatchWebStackReload($logPath);
+
         return true;
+    }
+
+    private function dispatchWebStackReload(string $logPath): void
+    {
+        $this->lastDispatchedReloadJobId = null;
+
+        if ($this->agentJobDispatcher === null || $this->agentRepository === null || ($this->reloadAgentId ?? '') === '') {
+            $this->log($logPath, 'Hinweis: APP_CORE_UPDATE_RELOAD_AGENT_ID nicht konfiguriert – PHP-FPM/nginx-Reload wird vom Agenten nicht automatisch ausgeführt.');
+            return;
+        }
+
+        $agent = $this->agentRepository->findOneBy(['id' => $this->reloadAgentId]);
+        if ($agent === null) {
+            $this->log($logPath, 'Hinweis: Agent-Node ' . $this->reloadAgentId . ' nicht gefunden – kein Reload-Job versendet.');
+            return;
+        }
+
+        try {
+            $job = $this->agentJobDispatcher->dispatch($agent, 'web.stack_reload', []);
+            $this->lastDispatchedReloadJobId = $job->getId();
+            $this->log($logPath, 'web.stack_reload-Job ' . $this->lastDispatchedReloadJobId . ' an Agent ' . $this->reloadAgentId . ' übermittelt.');
+        } catch (\Throwable $e) {
+            $this->log($logPath, 'Fehler beim Versenden des web.stack_reload-Jobs: ' . $e->getMessage());
+        }
     }
 
     private function isInitialInstall(): bool

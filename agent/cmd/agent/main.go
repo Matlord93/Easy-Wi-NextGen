@@ -658,6 +658,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleGameEnsureBase(job)
 	case "web.ensure_base":
 		return handleWebEnsureBase(job)
+	case "web.stack_reload":
+		return handleWebStackReload(job)
 	case "mail.ensure_base":
 		return handleMailEnsureBase(job)
 	case "dns.ensure_base":

@@ -1534,6 +1534,7 @@ final class GameTemplateSeedCatalog
                 'steam',
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
+                    ['name' => 'beacon', 'label' => 'Beacon (Invite)', 'protocol' => 'udp'],
                 ],
                 "cd {{INSTANCE_DIR}} && xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' env WINE_NO_STRICT_PROT=1 taskset -c 0-11 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe -nullrhi -log",
                 [
@@ -1549,7 +1550,8 @@ final class GameTemplateSeedCatalog
   \"IsPasswordProtected\": false,
   \"Password\": \"\",
   \"UseDirectConnection\": true,
-  \"DirectConnectionServerPort\": {{PORT_GAME}}
+  \"DirectConnectionServerPort\": {{PORT_GAME}},
+  \"BeaconPort\": {{PORT_BEACON}}
 }
 ",
                     ],
@@ -1569,6 +1571,7 @@ final class GameTemplateSeedCatalog
                 'steam',
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
+                    ['name' => 'beacon', 'label' => 'Beacon (Invite)', 'protocol' => 'udp'],
                 ],
                 '{{INSTANCE_DIR}}/R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe',
                 [
@@ -1584,7 +1587,8 @@ final class GameTemplateSeedCatalog
   \"IsPasswordProtected\": false,
   \"Password\": \"\",
   \"UseDirectConnection\": true,
-  \"DirectConnectionServerPort\": {{PORT_GAME}}
+  \"DirectConnectionServerPort\": {{PORT_GAME}},
+  \"BeaconPort\": {{PORT_BEACON}}
 }
 ",
                     ],
