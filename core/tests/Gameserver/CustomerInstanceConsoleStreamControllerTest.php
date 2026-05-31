@@ -102,8 +102,17 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 
         $response = $controller->stream($request, 1);
         self::assertStringStartsWith('text/event-stream', (string) $response->headers->get('Content-Type'));
+
+        ob_start();
+        ob_start();
         $response->sendContent();
+        ob_end_clean();
+        $content = (string) ob_get_clean();
+
         self::assertSame(41, $eventBus->lastReplaySeq);
+        self::assertStringContainsString('id: 42', $content);
+        self::assertStringContainsString('event: chunk', $content);
+        self::assertStringContainsString('chunk_base64', $content);
     }
 
 
