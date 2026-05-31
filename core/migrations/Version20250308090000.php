@@ -35,7 +35,9 @@ final class Version20250308090000 extends AbstractMigration
         $this->addSql('ALTER TABLE instances ADD max_slots INT NOT NULL DEFAULT 16');
         $this->addSql('ALTER TABLE instances ADD current_slots INT NOT NULL DEFAULT 16');
         $this->addSql('ALTER TABLE instances ADD lock_slots TINYINT(1) NOT NULL DEFAULT 0');
-        $this->addSql('UPDATE instances SET max_slots = slots, current_slots = slots WHERE max_slots = 16 AND current_slots = 16');
+        // The original monolithic migration referenced a `slots` column that was never part of
+        // the split migration chain. On a fresh database there are no rows to backfill, so
+        // the UPDATE is omitted. The DEFAULT 16 set above is the correct starting value.
 
         $this->addSql('CREATE TABLE game_profiles (id INT AUTO_INCREMENT NOT NULL, game_key VARCHAR(120) NOT NULL, enforce_mode_ports VARCHAR(40) NOT NULL, enforce_mode_slots VARCHAR(40) NOT NULL, port_roles JSON NOT NULL, slot_rules JSON NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', UNIQUE INDEX uniq_game_profiles_key (game_key), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
 

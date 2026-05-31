@@ -15,8 +15,8 @@
                 <tr>
                     <td>
                         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
-                            <div style="font-weight:600;">{{ template.display_name }}</div>
-                            {% set supportedOs = template.supported_os ?? [] %}
+                            <div style="font-weight:600;">{{ template.displayName }}</div>
+                            {% set supportedOs = template.supportedOs ?? [] %}
                             {% if supportedOs is not empty %}
                                 {% set hasLinux = 'linux' in supportedOs %}
                                 {% set hasWindows = 'windows' in supportedOs %}
@@ -34,11 +34,11 @@
                             {% endif %}
                         </div>
                         <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
-                            {{ t('admin_templates_game_key_label', page_locale()) }}: {{ template.game_key }}
+                            {{ t('admin_templates_game_key_label', page_locale()) }}: {{ template.gameKey }}
                         </div>
-                        {% if template.steam_app_id %}
+                        {% if template.steamAppId %}
                             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
-                                {{ t('admin_templates_steam_app_id_label', page_locale()) }}: {{ template.steam_app_id }}
+                                {{ t('admin_templates_steam_app_id_label', page_locale()) }}: {{ template.steamAppId }}
                             </div>
                         {% endif %}
                         {% if template.sniper_profile %}

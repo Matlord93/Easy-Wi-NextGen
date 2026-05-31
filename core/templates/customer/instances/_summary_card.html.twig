@@ -58,7 +58,7 @@
     {# ─── Header ─── #}
     <div class="flex items-start justify-between gap-3">
         <div class="flex min-w-0 items-center gap-2.5">
-            {% include 'components/_game_icon.html.twig' with { gameKey: instance.template.game_key, class: 'h-9 w-9 shrink-0 text-indigo-400' } %}
+            {% include 'components/_game_icon.html.twig' with { gameKey: instance.template.gameKey, class: 'h-9 w-9 shrink-0 text-indigo-400' } %}
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-1.5">
                     <h2 class="text-sm font-semibold text-slate-100 truncate">{{ displayName }}</h2>
@@ -67,7 +67,7 @@
                         {{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}
                     </span>
                 </div>
-                <p class="mt-0.5 text-[11px] text-slate-500">#{{ instance.id }} · {{ instance.template.game_key }}</p>
+                <p class="mt-0.5 text-[11px] text-slate-500">#{{ instance.id }} · {{ instance.template.gameKey }}</p>
                 <p class="mt-1 max-w-full break-all font-mono text-[11px] text-slate-400" title="{{ installPath ?: '—' }}">
                     <span class="font-sans uppercase tracking-wide text-slate-500">{{ t('customer_instance_install_path', page_locale()) }}:</span>
                     {{ installPath ?: '—' }}

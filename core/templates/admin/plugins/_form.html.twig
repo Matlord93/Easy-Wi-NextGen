@@ -20,7 +20,7 @@
         <select name="game_key" class="form-input">
             <option value="">{{ t('admin_plugins_game_select_placeholder', page_locale()) }}</option>
             {% for template in templates %}
-                <option value="{{ template.game_key }}" {% if form.game_key == template.game_key %}selected{% endif %}>{{ template.label }}</option>
+                <option value="{{ template.gameKey }}" {% if form.game_key == template.gameKey %}selected{% endif %}>{{ template.label }}</option>
             {% endfor %}
         </select>
     </div>

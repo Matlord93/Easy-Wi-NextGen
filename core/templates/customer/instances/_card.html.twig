@@ -78,7 +78,7 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
-                    {% include 'components/_game_icon.html.twig' with { gameKey: instance.template.game_key, class: 'h-10 w-10 shrink-0 text-indigo-400' } %}
+                    {% include 'components/_game_icon.html.twig' with { gameKey: instance.template.gameKey, class: 'h-10 w-10 shrink-0 text-indigo-400' } %}
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
                             <h2 class="text-lg font-bold text-slate-100">{{ displayName }}</h2>
@@ -95,7 +95,7 @@
                         </div>
                         <p class="mt-1 text-xs text-slate-500">
                             {{ t('customer_instance_id_label', page_locale()) }} #{{ instance.id }}
-                            · {{ instance.template.game_key }}
+                            · {{ instance.template.gameKey }}
                             · {{ t('customer_instance_node_label', page_locale()) }}: {{ instance.node.name }}
                         </p>
                         <p class="mt-1 max-w-full break-all font-mono text-xs text-slate-400" title="{{ installPath ?: '—' }}">
