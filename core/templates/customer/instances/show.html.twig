@@ -6,9 +6,9 @@
     <div class="cust-hero">
         <div class="cust-hero__inner">
             <div>
-                <div class="cust-hero__label">{{ instance.template.gameKey }}</div>
+                <div class="cust-hero__label">{{ instance.template.game_key }}</div>
                 <h1 class="cust-hero__title">
-                    {{ instance.template.displayName }}
+                    {{ instance.template.display_name ?? instance.template.name }}
                     <span style="color:var(--ng-text-muted);font-weight:400"> · #{{ instance.id }}</span>
                 </h1>
                 <p class="cust-hero__desc">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
@@ -18,7 +18,7 @@
             <div class="cust-hero__stat">
                 <div class="cust-hero__stat-label">{{ t('customer_instance_detail_kicker', page_locale()) }}</div>
                 <div class="cust-hero__stat-value" style="font-size:13px;word-break:break-all;line-height:1.3;">{{ instance.server_name ?? instance.template.name }}</div>
-                <div class="cust-hero__stat-sub">{{ instance.template.gameKey }}</div>
+                <div class="cust-hero__stat-sub">{{ instance.template.game_key }}</div>
             </div>
             <div class="cust-hero__stat">
                 <div class="cust-hero__stat-label">Node</div>

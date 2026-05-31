@@ -34,7 +34,12 @@ final class Version20260506133000 extends AbstractMigration
         if (!$table->hasColumn('provisioned')) {
             $this->addSql('ALTER TABLE instance_sftp_credentials ADD provisioned TINYINT(1) NOT NULL DEFAULT 0');
         }
-        $this->addSql("UPDATE instance_sftp_credentials SET provisioned = CASE WHEN backend <> 'NONE' AND last_error_code IS NULL THEN 1 ELSE 0 END, status = CASE WHEN backend <> 'NONE' AND last_error_code IS NULL THEN 'provisioned' WHEN last_error_code IS NOT NULL THEN 'failed' ELSE 'pending' END");
+        // backend and last_error_code are only added in Version20261101090000 (later migration).
+        // On a fresh database these columns do not exist yet; the DEFAULT values for provisioned (0)
+        // and status ('pending') are already correct for new rows, so the backfill is skipped.
+        if ($table->hasColumn('backend') && $table->hasColumn('last_error_code')) {
+            $this->addSql("UPDATE instance_sftp_credentials SET provisioned = CASE WHEN backend <> 'NONE' AND last_error_code IS NULL THEN 1 ELSE 0 END, status = CASE WHEN backend <> 'NONE' AND last_error_code IS NULL THEN 'provisioned' WHEN last_error_code IS NOT NULL THEN 'failed' ELSE 'pending' END");
+        }
     }
 
     public function down(Schema $schema): void

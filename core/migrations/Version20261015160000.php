@@ -18,6 +18,14 @@ final class Version20261015160000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        // This migration contains PostgreSQL-only DDL (SERIAL, TIMESTAMP WITHOUT TIME ZONE,
+        // JSONB, NOT DEFERRABLE, UPDATE...FROM). Skip entirely on MySQL/MariaDB;
+        // the MySQL mail infrastructure is managed by the Version20261015090000 family.
+        if ($this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform) {
+            $this->write('Skipping PostgreSQL-only mail control-plane migration on MySQL/MariaDB.');
+            return;
+        }
+
         if (!$schema->hasTable('mail_users')) {
             $this->addSql('CREATE TABLE mail_users (id SERIAL NOT NULL, mailbox_id INT NOT NULL, customer_id INT NOT NULL, domain_id INT NOT NULL, local_part VARCHAR(190) NOT NULL, address VARCHAR(255) NOT NULL, password_hash VARCHAR(255) NOT NULL, quota_mb INT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT TRUE, last_auth_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL, last_auth_ip VARCHAR(45) DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY(id))');
             $this->addSql('CREATE UNIQUE INDEX uniq_mail_users_address ON mail_users (address)');
