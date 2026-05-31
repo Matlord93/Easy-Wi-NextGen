@@ -13,6 +13,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\UserRepository;
 use App\Security\LoginFinalizer;
 use App\Security\PostLoginRedirectResolver;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -35,6 +36,7 @@ final class PublicTwoFactorController
         private readonly LoginFinalizer $loginFinalizer,
         private readonly PostLoginRedirectResolver $redirectResolver,
         private readonly AuditLogger $auditLogger,
+        private readonly EntityManagerInterface $entityManager,
         private readonly SiteResolver $siteResolver,
         private readonly ThemeResolver $themeResolver,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
@@ -109,6 +111,7 @@ final class PublicTwoFactorController
                 'reason' => 'invalid_totp',
                 'context' => 'public_2fa_check',
             ]);
+            $this->entityManager->flush();
 
             if ($attempts >= self::MAX_ATTEMPTS) {
                 return new Response('Too many attempts. Please try again later.', Response::HTTP_TOO_MANY_REQUESTS);

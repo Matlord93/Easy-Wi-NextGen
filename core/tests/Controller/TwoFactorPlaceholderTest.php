@@ -60,8 +60,8 @@ final class TwoFactorPlaceholderTest extends WebTestCase
     public function testTwoFactorInvalidCodeEventuallyLocksOut(): void
     {
         self::ensureKernelShutdown();
-        $client = static::createClient();
         $user = $this->seedSiteAndUser('2fa-lock@example.test', true);
+        $client = static::createClient();
 
         $client->request('POST', '/login', ['email' => $user->getEmail(), 'password' => 'P@ssw0rd!']);
         self::assertResponseRedirects('/2fa');
