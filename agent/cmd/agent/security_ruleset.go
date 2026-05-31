@@ -371,7 +371,7 @@ func normalizeIPorCIDR(raw string) string {
 }
 
 func ensureNoSelfLockout(ruleset securityRuleSet) error {
-	protectedPorts := map[int]struct{}{22: {}, 8080: {}, 8443: {}, 9443: {}}
+	protectedPorts := map[int]struct{}{22: {}, 2222: {}, 8080: {}, 8443: {}, 9443: {}}
 	for _, rule := range ruleset.Rules {
 		if !rule.Enabled || rule.Type != "firewall" {
 			continue

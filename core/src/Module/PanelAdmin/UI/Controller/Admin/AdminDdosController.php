@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
 use App\Repository\DdosPolicyRepository;
 use App\Repository\DdosStatusRepository;
+use App\Repository\FirewallStateRepository;
 use App\Repository\SecurityPolicyRevisionRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -23,13 +24,14 @@ use Twig\Environment;
 final class AdminDdosController
 {
     private const MODE_OPTIONS = ['rate-limit', 'syn-cookie', 'conn-limit', 'off'];
-    private const PORT_OPTIONS = [22, 53, 80, 443, 27015, 27016, 25565];
+    private const PORT_OPTIONS = [22, 53, 80, 443, 2222, 27015, 27016, 25565];
     private const PROTOCOL_OPTIONS = ['tcp', 'udp'];
 
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly DdosPolicyRepository $ddosPolicyRepository,
         private readonly DdosStatusRepository $ddosStatusRepository,
+        private readonly FirewallStateRepository $firewallStateRepository,
         private readonly SecurityPolicyRevisionRepository $policyRevisionRepository,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
@@ -53,13 +55,10 @@ final class AdminDdosController
         $nodeIds = $this->normalizeNodeIds($request->request->all('nodes'));
         $selectedPorts = $this->parsePortsFromSelection($request->request->all('ports'));
         $customPorts = $this->parsePortsFromInput((string) $request->request->get('custom_ports', ''));
-        $ports = $this->normalizePorts(array_merge($selectedPorts, $customPorts));
+        $basePorts = $this->normalizePorts(array_merge($selectedPorts, $customPorts));
         $protocols = $this->normalizeProtocols($request->request->all('protocols'));
         $mode = trim((string) $request->request->get('mode', 'rate-limit'));
 
-        if ($ports === [] && !in_array($mode, ['off', 'syn-cookie'], true)) {
-            $ports = self::PORT_OPTIONS;
-        }
         if ($protocols === [] && !in_array($mode, ['off', 'syn-cookie'], true)) {
             $protocols = self::PROTOCOL_OPTIONS;
         }
@@ -89,6 +88,16 @@ final class AdminDdosController
         }
 
         foreach ($nodes as $node) {
+            // Auto-include system base ports + ports currently open in the panel for this node
+            $firewallState = $this->firewallStateRepository->findOneBy(['node' => $node]);
+            $openPorts = $firewallState?->getPorts() ?? [];
+
+            if (!in_array($mode, ['off', 'syn-cookie'], true)) {
+                $ports = $this->normalizePorts(array_merge($basePorts, $openPorts, self::PORT_OPTIONS));
+            } else {
+                $ports = $basePorts;
+            }
+
             $revision = $this->buildPolicyRevision($node, $mode, $ports, $protocols, $admin);
             $this->entityManager->flush();
 

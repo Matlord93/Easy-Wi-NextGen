@@ -30,7 +30,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminSecurityController
 {
     private const DDOS_MODE_OPTIONS = ['rate-limit', 'syn-cookie', 'conn-limit', 'off'];
-    private const DDOS_PORT_OPTIONS = [22, 53, 80, 443, 27015, 27016, 25565];
+    private const DDOS_PORT_OPTIONS = [22, 53, 80, 443, 2222, 27015, 27016, 25565];
     private const DDOS_PROTOCOL_OPTIONS = ['tcp', 'udp'];
 
     private const FAIL2BAN_KNOWN_JAILS = [
@@ -103,13 +103,10 @@ final class AdminSecurityController
         $nodeIds = $this->normalizeNodeIds($request->request->all('nodes'));
         $selectedPorts = $this->parsePortsFromSelection($request->request->all('ports'));
         $customPorts = $this->parsePortsFromInput((string) $request->request->get('custom_ports', ''));
-        $ports = $this->normalizePorts(array_merge($selectedPorts, $customPorts));
+        $basePorts = $this->normalizePorts(array_merge($selectedPorts, $customPorts));
         $protocols = $this->normalizeProtocols($request->request->all('protocols'));
         $mode = trim((string) $request->request->get('mode', 'rate-limit'));
 
-        if ($ports === [] && !in_array($mode, ['off', 'syn-cookie'], true)) {
-            $ports = self::DDOS_PORT_OPTIONS;
-        }
         if ($protocols === [] && !in_array($mode, ['off', 'syn-cookie'], true)) {
             $protocols = self::DDOS_PROTOCOL_OPTIONS;
         }
@@ -132,6 +129,16 @@ final class AdminSecurityController
         }
 
         foreach ($nodes as $node) {
+            // Auto-include system base ports + ports currently open in the panel for this node
+            $firewallState = $this->firewallStateRepository->findOneBy(['node' => $node]);
+            $openPorts = $firewallState?->getPorts() ?? [];
+
+            if (!in_array($mode, ['off', 'syn-cookie'], true)) {
+                $ports = $this->normalizePorts(array_merge($basePorts, $openPorts, self::DDOS_PORT_OPTIONS));
+            } else {
+                $ports = $basePorts;
+            }
+
             $version = $this->policyRevisionRepository->nextVersion($node, 'ddos');
             $revision = new SecurityPolicyRevision($node, 'ddos', $version, [
                 'mode' => $mode,
