@@ -16,6 +16,7 @@ use Doctrine\ORM\Mapping as ORM;
 class GdprExport
 {
     private const DOWNLOAD_TOKEN_TTL = '+30 minutes';
+    private const DOWNLOAD_TOKEN_HASH_ALGORITHM = 'sha256';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -125,7 +126,7 @@ class GdprExport
         $now ??= new \DateTimeImmutable();
         $token = bin2hex(random_bytes(24));
 
-        $this->downloadTokenHash = password_hash($token, PASSWORD_DEFAULT);
+        $this->downloadTokenHash = hash(self::DOWNLOAD_TOKEN_HASH_ALGORITHM, $token);
         $this->downloadTokenExpiresAt = $now->modify(self::DOWNLOAD_TOKEN_TTL);
 
         return $token;
@@ -143,7 +144,7 @@ class GdprExport
             return false;
         }
 
-        if (!password_verify($token, $this->downloadTokenHash)) {
+        if (!hash_equals($this->downloadTokenHash, hash(self::DOWNLOAD_TOKEN_HASH_ALGORITHM, $token))) {
             return false;
         }
 
