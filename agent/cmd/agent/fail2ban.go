@@ -60,6 +60,10 @@ func handleFail2banPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 		}, nil
 	}
 
+	validJails, skippedJails := filterValidFail2banJails(policy.Jails)
+	policy.Jails = validJails
+	config = buildFail2banConfig(policy)
+
 	configPath := "/etc/fail2ban/jail.d/easywi.conf"
 	previousConfig, previousExists := readFail2banConfig(configPath)
 
@@ -78,6 +82,9 @@ func handleFail2banPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 
 	output["applied_at"] = time.Now().UTC().Format(time.RFC3339)
 	output["message"] = "fail2ban policy applied"
+	if len(skippedJails) > 0 {
+		output["skipped_jails"] = strings.Join(skippedJails, ",")
+	}
 
 	return jobs.Result{
 		JobID:     job.ID,
@@ -98,6 +105,19 @@ func handleFail2banStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 
 	jails, err := listFail2banJails()
 	if err != nil {
+		if isFail2banNotRunning(err) {
+			payload, _ := json.Marshal([]struct{}{})
+			return jobs.Result{
+				JobID:  job.ID,
+				Status: "success",
+				Output: map[string]string{
+					"running":     "false",
+					"jails":       string(payload),
+					"reported_at": time.Now().UTC().Format(time.RFC3339),
+				},
+				Completed: time.Now().UTC(),
+			}, nil
+		}
 		return failureResult(job.ID, err)
 	}
 
@@ -119,6 +139,7 @@ func handleFail2banStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 	payload, _ := json.Marshal(statuses)
 
 	output := map[string]string{
+		"running":     "true",
 		"jails":       string(payload),
 		"reported_at": time.Now().UTC().Format(time.RFC3339),
 	}
@@ -227,6 +248,41 @@ func reloadFail2ban() error {
 	}
 
 	return fmt.Errorf("fail2ban reload failed")
+}
+
+// filterValidFail2banJails returns jails that have a filter file present under
+// /etc/fail2ban/filter.d/, skipping any that would cause fail2ban to abort.
+func filterValidFail2banJails(jails []string) (valid, skipped []string) {
+	filterDirs := []string{"/etc/fail2ban/filter.d"}
+	for _, jail := range jails {
+		jail = strings.TrimSpace(jail)
+		if jail == "" {
+			continue
+		}
+		found := false
+		for _, dir := range filterDirs {
+			for _, ext := range []string{".conf", ".local"} {
+				if _, err := os.Stat(filepath.Join(dir, jail+ext)); err == nil {
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+		if found {
+			valid = append(valid, jail)
+		} else {
+			skipped = append(skipped, jail)
+		}
+	}
+	return
+}
+
+func isFail2banNotRunning(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "fail2ban.sock") || strings.Contains(msg, "Is fail2ban running")
 }
 
 func listFail2banJails() ([]string, error) {

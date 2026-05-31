@@ -19,16 +19,17 @@ final class GameTemplateSeeder
     }
 
     /**
-     * @return array{templates: int, plugins: int, plugins_updated: int, skipped_missing_template: int, missing_game_keys: array<int, string>}
+     * @return array{templates: int, templates_updated: int, plugins: int, plugins_updated: int, skipped_missing_template: int, missing_game_keys: array<int, string>}
      */
-    public function seed(?EntityManagerInterface $entityManager = null): array
+    public function seed(?EntityManagerInterface $entityManager = null, bool $updateExisting = false): array
     {
         $entityManager = $entityManager ?? $this->registry->getManager();
-        $templatesCreated = $this->seedTemplatesOnly($entityManager);
-        $pluginResult = $this->pluginSeeder->seed($entityManager);
+        $templateStats = $this->seedTemplatesOnly($entityManager);
+        $pluginResult = $this->pluginSeeder->seed($entityManager, $updateExisting);
 
         return [
-            'templates' => $templatesCreated,
+            'templates' => $templateStats['created'],
+            'templates_updated' => $templateStats['updated'],
             'plugins' => $pluginResult['plugins'],
             'plugins_updated' => $pluginResult['updated'],
             'skipped_missing_template' => $pluginResult['skipped_missing_template'],
@@ -36,11 +37,15 @@ final class GameTemplateSeeder
         ];
     }
 
-    public function seedTemplatesOnly(?EntityManagerInterface $entityManager = null): int
+    /**
+     * @return array{created: int, updated: int}
+     */
+    public function seedTemplatesOnly(?EntityManagerInterface $entityManager = null): array
     {
         $entityManager = $entityManager ?? $this->registry->getManager();
         $templateRepository = $entityManager->getRepository(Template::class);
         $templatesCreated = 0;
+        $templatesUpdated = 0;
         foreach ($this->catalog->listTemplates() as $templateData) {
             $gameKey = (string) ($templateData['game_key'] ?? '');
             if ($gameKey === '') {
@@ -92,6 +97,7 @@ final class GameTemplateSeeder
                     $portProfile,
                     $requirements,
                 );
+                $templatesUpdated++;
                 continue;
             }
 
@@ -130,7 +136,7 @@ final class GameTemplateSeeder
             $templatesCreated = 0;
         }
 
-        return $templatesCreated;
+        return ['created' => $templatesCreated, 'updated' => $templatesUpdated];
     }
 
     /**

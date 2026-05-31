@@ -6,7 +6,6 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\GamePluginSeedCatalog;
-use App\Module\Core\Application\GamePluginSeeder;
 use App\Module\Core\Application\GameTemplateSeeder;
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\User;
@@ -28,7 +27,6 @@ final class AdminPluginCatalogController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly GameTemplateSeeder $templateSeeder,
-        private readonly GamePluginSeeder $pluginSeeder,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {
@@ -322,26 +320,26 @@ final class AdminPluginCatalogController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $templatesCreated = $this->templateSeeder->seedTemplatesOnly($this->entityManager);
-        $pluginResult = $this->pluginSeeder->seed($this->entityManager, true);
+        $result = $this->templateSeeder->seed($this->entityManager, true);
 
         $this->auditLogger->log($actor, 'plugin.seeded', [
-            'imported' => $pluginResult['plugins'],
-            'updated' => $pluginResult['updated'],
-            'entries' => $pluginResult['entries'],
-            'templates_created' => $templatesCreated,
-            'skipped_missing_template' => $pluginResult['skipped_missing_template'],
-            'missing_game_keys' => $pluginResult['missing_game_keys'],
+            'templates_created' => $result['templates'],
+            'templates_updated' => $result['templates_updated'],
+            'imported' => $result['plugins'],
+            'updated' => $result['plugins_updated'],
+            'skipped_missing_template' => $result['skipped_missing_template'],
+            'missing_game_keys' => $result['missing_game_keys'],
         ]);
         $this->entityManager->flush();
 
         $response = new Response($this->twig->render('admin/plugins/_seed_result.html.twig', [
             'result' => [
-                'templates_created' => $templatesCreated,
-                'imported' => $pluginResult['plugins'],
-                'updated' => $pluginResult['updated'],
-                'skipped_missing_template' => $pluginResult['skipped_missing_template'],
-                'missing_game_keys' => $pluginResult['missing_game_keys'],
+                'templates_created' => $result['templates'],
+                'templates_updated' => $result['templates_updated'],
+                'imported' => $result['plugins'],
+                'updated' => $result['plugins_updated'],
+                'skipped_missing_template' => $result['skipped_missing_template'],
+                'missing_game_keys' => $result['missing_game_keys'],
             ],
         ]));
         $response->headers->set('HX-Trigger', 'plugins-changed');

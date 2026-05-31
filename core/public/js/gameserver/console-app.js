@@ -407,7 +407,6 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': root.dataset.csrfToken || '' },
                 body: JSON.stringify({ command, idempotency_key: apiClient.buildRequestId(), csrf_token: root.dataset.csrfToken || '' }),
             });
-            appendLine(`> ${command}`, 'meta');
             commandEl.value = '';
             if (fallbackActive) {
                 void loadLogs().catch(() => {});

@@ -49,7 +49,8 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
     {
         $result = $this->seeder()->seedTemplatesOnly($this->entityManager);
 
-        self::assertGreaterThan(0, $result);
+        self::assertGreaterThan(0, $result['created']);
+        self::assertSame(0, $result['updated']);
         $cs2 = $this->entityManager->getRepository(Template::class)->findOneBy(['gameKey' => 'cs2']);
         $minecraft = $this->entityManager->getRepository(Template::class)->findOneBy(['gameKey' => 'minecraft_paper_all']);
 
@@ -70,7 +71,8 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
         $result = $this->seeder()->seedTemplatesOnly($this->entityManager);
         $this->entityManager->refresh($template);
 
-        self::assertSame(0, $result);
+        self::assertSame(0, $result['created']);
+        self::assertGreaterThan(0, $result['updated']);
         self::assertSame('Counter-Strike 2 Dedicated Server', $template->getDisplayName());
     }
 
@@ -94,6 +96,7 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
 
         self::assertSame(0, $secondResult['templates']);
         self::assertSame(0, $secondResult['plugins']);
+        self::assertGreaterThan(0, $secondResult['templates_updated']);
         self::assertSame($firstCount, $secondCount);
     }
 
