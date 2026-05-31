@@ -161,7 +161,7 @@ perform_update() {
   log "Deploying core update to $CORE_DIR."
   rsync -a --delete "${rsync_excludes[@]}" "$root_dir/" "$CORE_DIR/"
   log "Running composer install."
-  (cd "$CORE_DIR" && composer install --no-dev --no-interaction --optimize-autoloader)
+  (cd "$CORE_DIR" && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --optimize-autoloader --no-scripts)
   log "Clearing cache."
   (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
   log "Warming cache."

@@ -55,6 +55,11 @@ final class AdminSinusbotInstanceController
             throw new NotFoundHttpException($this->translator->trans('sinusbot_node_not_found'));
         }
 
+        if ($node->getInstanceMode() === 'solo') {
+            $request->getSession()->getFlashBag()->add('error', $this->translator->trans('admin_sinusbot_solo_no_instances'));
+            return $this->redirectToNode($nodeId);
+        }
+
         $customer = $this->userRepository->find($customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
             throw new NotFoundHttpException($this->translator->trans('error_customer_not_found'));

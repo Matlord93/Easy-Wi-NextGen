@@ -214,7 +214,10 @@ func (s *Server) handleDelete(w http.ResponseWriter, instanceID string) {
 	}
 	_ = systemctlAction(instanceServiceName(instanceID), "stop")
 	_ = systemctlAction(instanceServiceName(instanceID), "disable")
-	_ = os.Remove(instanceServicePath(instanceID))
+	unitPath := instanceServicePath(instanceID)
+	if unitPath != "" {
+		_ = os.Remove(unitPath)
+	}
 	_ = systemctlAction("", "daemon-reload")
 
 	if err := os.RemoveAll(instanceDir(s.cfg.InstanceRoot, instanceID)); err != nil {
@@ -302,15 +305,33 @@ func (s *Server) handleInfo(w http.ResponseWriter, instanceID string) {
 }
 
 func (s *Server) createInstance(instanceRoot, installDir, webBindIP string, webPortBase int, req createInstanceRequest) (instanceMeta, error) {
-	if err := os.MkdirAll(instanceRoot, 0o755); err != nil {
-		return instanceMeta{}, err
+	if !filepath.IsAbs(instanceRoot) {
+		return instanceMeta{}, fmt.Errorf("instanceRoot must be an absolute path, got %q", instanceRoot)
 	}
-	instanceID := randomID()
+	if !filepath.IsAbs(installDir) {
+		return instanceMeta{}, fmt.Errorf("installDir must be an absolute path, got %q", installDir)
+	}
+
+	binaryPath := filepath.Join(installDir, "sinusbot")
+	if _, err := os.Stat(binaryPath); err != nil {
+		return instanceMeta{}, fmt.Errorf("sinusbot binary not found at %s: %w", binaryPath, err)
+	}
+
 	username := req.Username
 	if username == "" {
 		username = fmt.Sprintf("customer-%d", req.CustomerID)
 	}
+	if err := validateName(username); err != nil {
+		return instanceMeta{}, fmt.Errorf("invalid username: %w", err)
+	}
+
+	if err := os.MkdirAll(instanceRoot, 0o755); err != nil {
+		return instanceMeta{}, fmt.Errorf("create instanceRoot %s: %w", instanceRoot, err)
+	}
+
+	instanceID := randomID()
 	password := randomPassword()
+
 	port, err := nextAvailablePort(instanceRoot, webPortBase)
 	if err != nil {
 		return instanceMeta{}, err
@@ -318,25 +339,32 @@ func (s *Server) createInstance(instanceRoot, installDir, webBindIP string, webP
 
 	instancePath := instanceDir(instanceRoot, instanceID)
 	if err := os.MkdirAll(instancePath, 0o755); err != nil {
-		return instanceMeta{}, err
+		return instanceMeta{}, fmt.Errorf("create instance dir %s: %w", instancePath, err)
 	}
 
 	dataPath := filepath.Join(instancePath, "data")
 	logPath := filepath.Join(instancePath, "logs")
 	if err := os.MkdirAll(dataPath, 0o755); err != nil {
-		return instanceMeta{}, err
+		return instanceMeta{}, fmt.Errorf("create data dir: %w", err)
 	}
 	if err := os.MkdirAll(logPath, 0o755); err != nil {
-		return instanceMeta{}, err
+		return instanceMeta{}, fmt.Errorf("create log dir: %w", err)
 	}
 
 	configPath := filepath.Join(instancePath, "config.ini")
-	configContent := fmt.Sprintf("ListenPort = %d\nListenHost = \"%s\"\nDataDir = \"%s\"\nLogFile = \"%s\"\n", port, webBindIP, dataPath, filepath.Join(logPath, "sinusbot.log"))
+	configContent := fmt.Sprintf(
+		"ListenPort = %d\nListenHost = \"%s\"\nDataDir = \"%s\"\nLogFile = \"%s\"\n",
+		port, webBindIP, dataPath, filepath.Join(logPath, "sinusbot.log"),
+	)
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		return instanceMeta{}, err
+		return instanceMeta{}, fmt.Errorf("write config.ini: %w", err)
 	}
-	if err := chownRecursiveToUser(instancePath, s.cfg.ServiceUser); err != nil {
-		return instanceMeta{}, err
+
+	// chown is best-effort: the service user might not exist yet during setup.
+	if s.cfg.ServiceUser != "" {
+		if err := chownRecursiveToUser(instancePath, s.cfg.ServiceUser); err != nil {
+			log.Printf("sinusbotsvc: chown %s to %q: %v (continuing without chown)", instancePath, s.cfg.ServiceUser, err)
+		}
 	}
 
 	unitContent := systemdUnitTemplate(
@@ -344,22 +372,31 @@ func (s *Server) createInstance(instanceRoot, installDir, webBindIP string, webP
 		s.cfg.ServiceUser,
 		installDir,
 		instancePath,
-		fmt.Sprintf("%s --config=%s", filepath.Join(installDir, "sinusbot"), configPath),
+		fmt.Sprintf("%s --config=%s", binaryPath, configPath),
 		"",
 		0,
 		0,
 	)
-	if err := os.WriteFile(instanceServicePath(instanceID), []byte(unitContent), 0o644); err != nil {
-		return instanceMeta{}, err
+	unitPath := instanceServicePath(instanceID)
+	if err := os.WriteFile(unitPath, []byte(unitContent), 0o644); err != nil {
+		return instanceMeta{}, fmt.Errorf("write systemd unit %s: %w", unitPath, err)
 	}
+
+	// systemd operations during creation are best-effort: we record the status
+	// accurately so the panel can show "stopped" and the admin can start manually.
+	instanceStatus := "running"
 	if err := systemctlAction("", "daemon-reload"); err != nil {
-		return instanceMeta{}, err
+		log.Printf("sinusbotsvc: daemon-reload: %v", err)
+		instanceStatus = "stopped"
 	}
-	if err := systemctlAction(instanceServiceName(instanceID), "enable"); err != nil {
-		return instanceMeta{}, err
-	}
-	if err := systemctlAction(instanceServiceName(instanceID), "start"); err != nil {
-		return instanceMeta{}, err
+	if instanceStatus == "running" {
+		if err := systemctlAction(instanceServiceName(instanceID), "enable"); err != nil {
+			log.Printf("sinusbotsvc: enable %s: %v", instanceID, err)
+		}
+		if err := systemctlAction(instanceServiceName(instanceID), "start"); err != nil {
+			log.Printf("sinusbotsvc: start %s: %v (instance created with status stopped)", instanceID, err)
+			instanceStatus = "stopped"
+		}
 	}
 
 	manageURL := ""
@@ -374,14 +411,14 @@ func (s *Server) createInstance(instanceRoot, installDir, webBindIP string, webP
 		Username:   username,
 		Password:   password,
 		Quota:      req.Quota,
-		Status:     "running",
+		Status:     instanceStatus,
 		ManageURL:  manageURL,
 		WebPort:    port,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
 	if err := s.saveInstance(meta); err != nil {
-		return instanceMeta{}, err
+		return instanceMeta{}, fmt.Errorf("save instance metadata: %w", err)
 	}
 	return meta, nil
 }
@@ -418,35 +455,48 @@ func instanceServiceName(instanceID string) string {
 }
 
 func instanceServicePath(instanceID string) string {
-	return filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", instanceServiceName(instanceID)))
+	return filepath.Join(unitDir, fmt.Sprintf("%s.service", instanceServiceName(instanceID)))
 }
 
 func nextAvailablePort(instanceRoot string, base int) (int, error) {
-	entries, err := os.ReadDir(instanceRoot)
-	if err != nil {
-		return base, nil
-	}
 	used := map[int]struct{}{}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		metaPath := filepath.Join(instanceRoot, entry.Name(), "meta.json")
-		data, err := os.ReadFile(metaPath)
-		if err != nil {
-			continue
-		}
-		var meta instanceMeta
-		if err := json.Unmarshal(data, &meta); err == nil {
-			used[meta.WebPort] = struct{}{}
+	entries, err := os.ReadDir(instanceRoot)
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			metaPath := filepath.Join(instanceRoot, entry.Name(), "meta.json")
+			data, err := os.ReadFile(metaPath)
+			if err != nil {
+				continue
+			}
+			var meta instanceMeta
+			if err := json.Unmarshal(data, &meta); err == nil {
+				used[meta.WebPort] = struct{}{}
+			}
 		}
 	}
 	for port := base; port < base+2000; port++ {
-		if _, exists := used[port]; !exists {
+		if _, exists := used[port]; !exists && isPortFree(port) {
 			return port, nil
 		}
 	}
-	return 0, fmt.Errorf("no free port available")
+	return 0, fmt.Errorf("no free port available in range %d-%d", base, base+2000)
+}
+
+// validateName ensures a name contains only safe characters to prevent path traversal.
+func validateName(name string) error {
+	if name == "" {
+		return errors.New("name must not be empty")
+	}
+	for _, c := range name {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '_' || c == '-') {
+			return fmt.Errorf("invalid character %q: only [a-zA-Z0-9_-] allowed", c)
+		}
+	}
+	return nil
 }
 
 func randomID() string {

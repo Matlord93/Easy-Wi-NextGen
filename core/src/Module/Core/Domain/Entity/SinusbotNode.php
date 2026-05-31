@@ -43,6 +43,9 @@ class SinusbotNode
     #[ORM\Column(length: 255)]
     private string $instanceRoot;
 
+    #[ORM\Column(length: 16)]
+    private string $instanceMode = 'multi';
+
     #[ORM\Column(length: 64)]
     private string $webBindIp = '0.0.0.0';
 
@@ -191,6 +194,17 @@ class SinusbotNode
     public function setInstanceRoot(string $instanceRoot): void
     {
         $this->instanceRoot = $instanceRoot;
+        $this->touch();
+    }
+
+    public function getInstanceMode(): string
+    {
+        return $this->instanceMode;
+    }
+
+    public function setInstanceMode(string $instanceMode): void
+    {
+        $this->instanceMode = $instanceMode;
         $this->touch();
     }
 

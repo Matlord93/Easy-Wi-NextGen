@@ -41,6 +41,11 @@ final class SinusbotNodeType extends AbstractType
                 'required' => false,
                 'empty_data' => '',
             ])
+            ->add('instanceMode', ChoiceType::class, [
+                'choices' => ['Solo-Betrieb' => 'solo', 'Multi-Instanz-Betrieb' => 'multi'],
+                'expanded' => false,
+                'multiple' => false,
+            ])
             ->add('webBindIp', TextType::class)
             ->add('webPortBase', IntegerType::class);
     }

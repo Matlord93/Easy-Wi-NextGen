@@ -39,6 +39,12 @@ type Config struct {
 	FileMaxUploadMB   int64
 	MaxJournalStreams int
 	StreamTTL         time.Duration
+
+	// Sinusbot multi-instance settings
+	SinusbotInstallDir   string
+	SinusbotInstanceRoot string
+	SinusbotServiceUser  string
+	SinusbotWebPortBase  int
 }
 
 // DefaultPath returns the default configuration path for the host OS.
@@ -200,6 +206,18 @@ func Load(path string) (cfg Config, err error) {
 				return Config{}, fmt.Errorf("parse file_max_upload_mb: %w", parseErr)
 			}
 			cfg.FileMaxUploadMB = parsed
+		case "sinusbot_install_dir":
+			cfg.SinusbotInstallDir = value
+		case "sinusbot_instance_root":
+			cfg.SinusbotInstanceRoot = value
+		case "sinusbot_service_user":
+			cfg.SinusbotServiceUser = value
+		case "sinusbot_web_port_base":
+			parsed, parseErr := strconv.Atoi(value)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse sinusbot_web_port_base: %w", parseErr)
+			}
+			cfg.SinusbotWebPortBase = parsed
 		}
 	}
 

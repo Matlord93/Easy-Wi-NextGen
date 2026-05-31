@@ -1,95 +1,120 @@
 {% extends 'admin/base.html.twig' %}
-
 {% set pageTitle = t('admin_sinusbot_nodes_page_title', page_locale()) %}
 {% set pageSubtitle = t('admin_sinusbot_nodes_page_desc', page_locale()) %}
 {% set activeNav = 'sinusbot-nodes' %}
 
 {% block content %}
 {% set locale = page_locale() %}
+{% set onlineCount  = nodes|filter(n => n.running)|length %}
+{% set offlineCount = nodes|filter(n => not n.running)|length %}
+{% set multiCount   = nodes|filter(n => n.instanceMode == 'multi')|length %}
+
 <div style="display:flex;flex-direction:column;gap:20px;">
 
+    {# ── Hero ── #}
     <section class="ng-card" style="overflow:hidden;">
         <div class="tkt-hero">
             <div class="tkt-hero__inner">
-                <div>
-                    <div class="tkt-hero__pill"><span class="tkt-hero__pill-dot"></span> SinusBot</div>
-                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_sinusbot_nodes_page_title', locale) }}</h1>
-                    <p class="tkt-hero__sub">{{ t('admin_sinusbot_nodes_page_desc', locale) }}</p>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px;">
-                    <div class="tkt-kpi">
-                        <div class="tkt-kpi__label">{{ t('total', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ nodes|length }}</div>
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div>
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot" style="background:#f97316;"></span>
+                            SinusBot
+                        </div>
+                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_sinusbot_nodes_page_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_sinusbot_nodes_page_desc', locale) }}</p>
                     </div>
-                    <div class="tkt-kpi tkt-kpi--open">
-                        <div class="tkt-kpi__label">Running</div>
-                        <div class="tkt-kpi__value">{{ nodes|filter(n => n.running)|length }}</div>
-                    </div>
-                    <div class="tkt-kpi tkt-kpi--pending">
-                        <div class="tkt-kpi__label">Stopped</div>
-                        <div class="tkt-kpi__value">{{ nodes|filter(n => not n.running)|length }}</div>
+                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('total', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ nodes|length }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--open">
+                            <div class="tkt-kpi__label">{{ t('admin_sinusbot_kpi_online', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ onlineCount }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--pending">
+                            <div class="tkt-kpi__label">{{ t('admin_sinusbot_kpi_offline', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ offlineCount }}</div>
+                        </div>
+                        <div class="tkt-kpi tkt-kpi--resolved">
+                            <div class="tkt-kpi__label">{{ t('admin_sinusbot_kpi_multi', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ multiCount }}</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-            <a class="ui-button ui-button--primary ui-button--sm" href="/admin/sinusbot/nodes/new">{{ t('admin_sinusbot_nodes_add', locale) }}</a>
+        <div style="padding:14px 20px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);display:flex;align-items:center;justify-content:space-between;">
+            <p style="margin:0;font-size:13px;color:var(--ng-text-muted);">{{ nodes|length }} {{ t('admin_sinusbot_nodes_page_title', locale)|lower }}</p>
+            <a class="ui-button ui-button--primary ui-button--sm" href="/admin/sinusbot/nodes/new">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;vertical-align:-2px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                {{ t('admin_sinusbot_nodes_add', locale) }}
+            </a>
         </div>
     </section>
 
+    {# Flash messages #}
     {% for message in app.flashes('success') %}
         <div class="ng-alert ng-alert--success">{{ t(message, locale) }}</div>
     {% endfor %}
+    {% for message in app.flashes('error') %}
+        <div class="ng-alert ng-alert--danger">{{ t(message, locale) }}</div>
+    {% endfor %}
 
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_sinusbot_nodes_page_title', locale) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_sinusbot_nodes_page_desc', locale) }}</p>
+    {# ── Node cards ── #}
+    {% if nodes is empty %}
+        <div class="ng-data-card">
+            <div class="ng-data-card__body" style="padding:60px 20px;text-align:center;">
+                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" style="display:block;margin:0 auto 16px;opacity:.25;color:var(--ng-text-muted);"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <p style="margin:0 0 16px;font-size:14px;font-weight:600;color:var(--ng-text);">{{ t('admin_sinusbot_nodes_none', locale) }}</p>
+                <a class="ui-button ui-button--primary" href="/admin/sinusbot/nodes/new">{{ t('admin_sinusbot_nodes_add', locale) }}</a>
             </div>
         </div>
-        <div class="ng-data-card__body ng-data-card__body--flush">
-            <div class="cust-ws-table-wrap">
-                <table class="cust-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>{{ t('admin_sinusbot_nodes_status', locale) }}</th>
-                            <th>Version</th>
-                            <th>{{ t('admin_sinusbot_nodes_actions', locale) }}</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for node in nodes %}
-                            <tr>
-                                <td>
-                                    <div>{{ node.name }}</div>
-                                </td>
-                                <td>
-                                    {% set sinusStatusLabel = node.installStatus %}
-                                    {% if node.installStatus == 'installed' %}
-                                        {% set sinusStatusLabel = node.running ? 'running' : 'stopped' %}
-                                    {% endif %}
-                                    {% set statusBadge = sinusStatusLabel == 'running' ? 'success' : (sinusStatusLabel == 'stopped' ? 'warning' : 'neutral') %}
-                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ t('admin_node_status_' ~ sinusStatusLabel, locale) }}</span>
-                                </td>
-                                <td>{{ node.installedVersion ?? '–' }}</td>
-                                <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
-                                <td style="text-align:right;">
-                                    <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/sinusbot/nodes/{{ node.id }}">{{ t('admin_sinusbot_nodes_details', locale) }}</a>
-                                </td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="5" class="cust-table__empty">{{ t('admin_sinusbot_nodes_none', locale) }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    {% else %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;">
+            {% for node in nodes %}
+                {% set isOnline = node.running %}
+                {% set isMulti = node.instanceMode == 'multi' %}
+                {% set sinusStatusLabel = node.installStatus %}
+                {% if node.installStatus == 'installed' %}
+                    {% set sinusStatusLabel = isOnline ? 'running' : 'stopped' %}
+                {% endif %}
+                {% set statusColor = sinusStatusLabel == 'running' ? '#22c55e' : (sinusStatusLabel == 'stopped' ? '#f59e0b' : '#94a3b8') %}
+                <div class="ng-card" style="overflow:hidden;display:flex;flex-direction:column;">
+                    <div style="height:3px;background:{{ statusColor }};"></div>
+                    <div style="padding:16px 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex:1;">
+                        <div style="min-width:0;flex:1;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+                                <span class="ui-badge ui-badge--{{ isMulti ? 'primary' : 'neutral' }}">{{ isMulti ? t('admin_sinusbot_mode_multi_label', locale) : t('admin_sinusbot_mode_solo_label', locale) }}</span>
+                                <span class="ui-badge ui-badge--{{ sinusStatusLabel == 'running' ? 'success' : (sinusStatusLabel == 'stopped' ? 'warning' : 'neutral') }}">{{ t('admin_node_status_' ~ sinusStatusLabel, locale) }}</span>
+                            </div>
+                            <h2 style="margin:0 0 4px;font-size:15px;font-weight:700;color:var(--ng-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ node.name }}</h2>
+                            {% if node.customer %}
+                                <p style="margin:0 0 12px;font-size:12px;color:var(--ng-text-muted);">{{ node.customer.email }}</p>
+                            {% else %}
+                                <p style="margin:0 0 12px;font-size:12px;color:var(--ng-text-muted);font-style:italic;">–</p>
+                            {% endif %}
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:6px;padding:8px 10px;">
+                                    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px;">Version</div>
+                                    <div style="font-size:12px;font-weight:600;color:var(--ng-text);font-family:monospace;">{{ node.installedVersion ?? '–' }}</div>
+                                </div>
+                                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:6px;padding:8px 10px;">
+                                    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:2px;">{{ t('admin_sinusbot_mode_label', locale) }}</div>
+                                    <div style="font-size:12px;font-weight:600;color:var(--ng-text);">{{ isMulti ? t('admin_sinusbot_mode_multi_label', locale) : t('admin_sinusbot_mode_solo_label', locale) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding:12px 20px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);display:flex;align-items:center;justify-content:space-between;">
+                        <span style="font-size:11px;color:var(--ng-text-muted);">{{ node.updatedAt|date('d.m.Y H:i') }}</span>
+                        <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/sinusbot/nodes/{{ node.id }}">{{ t('admin_sinusbot_nodes_details', locale) }}</a>
+                    </div>
+                </div>
+            {% endfor %}
         </div>
-    </div>
+    {% endif %}
 
 </div>
 {% endblock %}

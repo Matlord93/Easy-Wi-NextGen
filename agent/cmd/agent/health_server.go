@@ -63,8 +63,12 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 
 	gameServer := gamesvcembed.NewServer(gamesvcembed.Config{})
 	sinusbotServer := sinusbotsvcembed.NewServer(sinusbotsvcembed.Config{
-		AgentID: cfg.AgentID,
-		Secret:  cfg.Secret,
+		AgentID:      cfg.AgentID,
+		Secret:       cfg.Secret,
+		InstallDir:   cfg.SinusbotInstallDir,
+		InstanceRoot: cfg.SinusbotInstanceRoot,
+		ServiceUser:  cfg.SinusbotServiceUser,
+		WebPortBase:  cfg.SinusbotWebPortBase,
 	})
 
 	mux := http.NewServeMux()

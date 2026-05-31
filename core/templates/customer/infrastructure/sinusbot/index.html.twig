@@ -1,85 +1,153 @@
 {% extends 'customer/base.html.twig' %}
-
 {% set activeNav = 'sinusbot' %}
 {% set locale = page_locale() %}
 
 {% block content %}
-<div class="cust-page">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
-    <div class="cust-hero">
-        <div class="cust-hero__inner">
-            <div>
-                <div class="cust-hero__label">{{ t('customer_nav_group_infrastructure', locale) }}</div>
-                <h1 class="cust-hero__title">{{ t('customer_sinusbot_page_title', locale) }}</h1>
-                <p class="cust-hero__desc">{{ t('customer_sinusbot_page_desc', locale) }}</p>
+    {# ── Hero / KPI ── #}
+    <div class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot"></span>
+                        {{ t('customer_nav_group_infrastructure', locale) }}
+                    </div>
+                    <h1 class="tkt-hero__title">{{ t('customer_sinusbot_page_title', locale) }}</h1>
+                    <p class="tkt-hero__sub">{{ t('customer_sinusbot_page_desc', locale) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('total', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ instances|length }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--open">
+                        <div class="tkt-kpi__label">{{ t('customer_sinusbot_status_online', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ instances|filter(i => i.status == 'running')|length }}</div>
+                    </div>
+                    <div class="tkt-kpi tkt-kpi--pending">
+                        <div class="tkt-kpi__label">{{ t('customer_sinusbot_status_offline', locale) }}</div>
+                        <div class="tkt-kpi__value">{{ instances|filter(i => i.status != 'running')|length }}</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="cust-panel">
-        <div class="cust-panel__body--flush">
-            {% if instances is not empty %}
-                {% for instance in instances %}
-                    {% set instancePassword = passwords[instance.id] ?? null %}
-                    {% set instanceCsrf = csrf[instance.id] ?? {} %}
-                    <div style="padding:18px;border-bottom:1px solid var(--ng-border);">
-                        <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;">
-                            <div>
-                                <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('customer_sinusbot_instance_name', locale) }} {{ instance.instanceId }}</h3>
-                                <p style="margin:4px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_sinusbot_instance_status', locale) }}: <strong style="color:var(--ng-text);">{{ instance.status }}</strong></p>
-                                <p style="margin:4px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_sinusbot_bots_label', locale) }}: <strong style="color:var(--ng-text);">{{ bots_used[instance.id] ?? 0 }}/{{ instance.botQuota }}</strong></p>
-                            </div>
-                            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                                <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/start">
-                                    <input type="hidden" name="_token" value="{{ instanceCsrf.start ?? '' }}">
-                                    <button class="ui-button ui-button--primary ui-button--sm" type="submit">{{ t('customer_sinusbot_instance_start', locale) }}</button>
-                                </form>
-                                <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/stop">
-                                    <input type="hidden" name="_token" value="{{ instanceCsrf.stop ?? '' }}">
-                                    <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_sinusbot_instance_stop', locale) }}</button>
-                                </form>
-                            </div>
-                        </div>
+    {# ── Instance cards ── #}
+    {% for instance in instances %}
+        {% set instancePassword = passwords[instance.id] ?? null %}
+        {% set instanceCsrf = csrf[instance.id] ?? {} %}
+        {% set statusBadge = instance.status == 'running' ? 'success' : (instance.status == 'stopped' ? 'danger' : 'warning') %}
+        {% set statusLabel = instance.status == 'running' ? t('customer_sinusbot_status_online', locale) : (instance.status == 'stopped' ? t('customer_sinusbot_status_offline', locale) : t('customer_sinusbot_status_unknown', locale)) %}
+        {% set botsUsed = bots_used[instance.id] ?? 0 %}
 
-                        <div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-                            <div style="border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:12px;">
-                                <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('customer_sinusbot_manage_url', locale) }}</p>
-                                {% if instance.manageUrl %}
-                                    <a href="{{ instance.manageUrl }}" target="_blank" rel="noopener noreferrer"
-                                       style="font-size:12px;color:var(--ng-primary);word-break:break-all;">{{ instance.manageUrl }}</a>
-                                    <p style="margin:6px 0 0;font-size:11px;color:#f59e0b;">{{ t('customer_sinusbot_bot_limit_warning', locale) }}</p>
-                                {% else %}
-                                    <span style="font-size:12px;color:var(--ng-text-muted);">—</span>
+        <div class="ng-card" style="overflow:hidden;">
+
+            {# Card header #}
+            <div class="tkt-hero" style="padding:0;">
+                <div class="tkt-hero__inner">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                <span class="ui-badge ui-badge--{{ statusBadge }}">{{ statusLabel }}</span>
+                                {% if botsUsed >= instance.botQuota %}
+                                    <span class="ui-badge ui-badge--warning">{{ t('customer_sinusbot_quota_full', locale) }}</span>
                                 {% endif %}
                             </div>
-                            <div style="border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);padding:12px;">
-                                <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('customer_sinusbot_login_label', locale) }}</p>
-                                <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('customer_sinusbot_username', locale) }}: <strong style="color:var(--ng-text);">{{ instance.sinusbotUsername }}</strong></div>
-                                {% if instancePassword %}
-                                    <div style="margin-top:4px;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_ts3_server_password', locale) }}: <code style="color:var(--ng-text);background:var(--ng-surface);padding:1px 5px;border-radius:4px;">{{ instancePassword }}</code></div>
-                                {% else %}
-                                    <div style="margin-top:4px;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_ts3_server_password', locale) }}: ••••••••</div>
-                                    <form style="margin-top:8px;" method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/reveal-credentials">
-                                        <input type="hidden" name="_token" value="{{ instanceCsrf.reveal ?? '' }}">
-                                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_sinusbot_show_password', locale) }}</button>
-                                    </form>
-                                {% endif %}
-                                <form style="margin-top:8px;" method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/reset-password">
-                                    <input type="hidden" name="_token" value="{{ instanceCsrf.reset ?? '' }}">
-                                    <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_sinusbot_reset_password', locale) }}</button>
-                                </form>
-                            </div>
+                            <h2 class="tkt-hero__title" style="font-size:16px;">{{ t('customer_sinusbot_instance_name', locale) }}</h2>
+                            <p class="tkt-hero__sub" style="font-family:monospace;font-size:12px;">{{ instance.instanceId }}</p>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                            <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/start">
+                                <input type="hidden" name="_token" value="{{ instanceCsrf.start ?? '' }}">
+                                <button class="tkt-sidebar-btn tkt-sidebar-btn--success" type="submit">{{ t('customer_sinusbot_instance_start', locale) }}</button>
+                            </form>
+                            <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/stop">
+                                <input type="hidden" name="_token" value="{{ instanceCsrf.stop ?? '' }}">
+                                <button class="tkt-sidebar-btn" type="submit">{{ t('customer_sinusbot_instance_stop', locale) }}</button>
+                            </form>
                         </div>
                     </div>
-                {% endfor %}
-            {% else %}
-                <div class="cust-empty" style="padding:48px;">
-                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>
-                    {{ t('customer_sinusbot_instance_none', locale) }}
                 </div>
-            {% endif %}
+            </div>
+
+            {# Info grid #}
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+
+                <div style="background:var(--ng-surface);border:1px solid var(--ng-border);border-radius:var(--ng-radius-sm);padding:14px;">
+                    <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('customer_sinusbot_manage_url', locale) }}</p>
+                    {% if instance.manageUrl %}
+                        <a href="{{ instance.manageUrl }}" target="_blank" rel="noopener noreferrer"
+                           style="font-size:13px;color:var(--ng-primary);word-break:break-all;font-weight:500;">{{ instance.manageUrl }}</a>
+                        <p style="margin:6px 0 0;font-size:11px;color:#f59e0b;">{{ t('customer_sinusbot_bot_limit_warning', locale) }}</p>
+                    {% else %}
+                        <span style="font-size:13px;color:var(--ng-text-muted);">—</span>
+                    {% endif %}
+                </div>
+
+                <div style="background:var(--ng-surface);border:1px solid var(--ng-border);border-radius:var(--ng-radius-sm);padding:14px;">
+                    <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('customer_sinusbot_login_label', locale) }}</p>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <div style="font-size:13px;color:var(--ng-text-muted);">
+                            {{ t('customer_sinusbot_username', locale) }}: <strong style="color:var(--ng-text);">{{ instance.sinusbotUsername }}</strong>
+                        </div>
+                        {% if instancePassword %}
+                            <div style="font-size:13px;color:var(--ng-text-muted);">
+                                {{ t('customer_ts3_server_password', locale) }}:
+                                <code style="color:var(--ng-text);background:var(--ng-surface-soft);padding:2px 6px;border-radius:4px;border:1px solid var(--ng-border);">{{ instancePassword }}</code>
+                            </div>
+                        {% else %}
+                            <div style="font-size:13px;color:var(--ng-text-muted);">
+                                {{ t('customer_ts3_server_password', locale) }}:
+                                <code style="color:var(--ng-text-muted);background:var(--ng-surface-soft);padding:2px 6px;border-radius:4px;border:1px solid var(--ng-border);letter-spacing:3px;">••••••••</code>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div style="background:var(--ng-surface);border:1px solid var(--ng-border);border-radius:var(--ng-radius-sm);padding:14px;">
+                    <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('customer_sinusbot_bots_label', locale) }}</p>
+                    <div style="display:flex;align-items:baseline;gap:4px;">
+                        <span style="font-size:24px;font-weight:700;color:{{ botsUsed >= instance.botQuota ? '#f59e0b' : 'var(--ng-text)' }};">{{ botsUsed }}</span>
+                        <span style="font-size:14px;color:var(--ng-text-muted);">/ {{ instance.botQuota }}</span>
+                    </div>
+                    <div style="margin-top:6px;height:4px;background:var(--ng-border);border-radius:2px;overflow:hidden;">
+                        {% set usedPct = instance.botQuota > 0 ? (botsUsed / instance.botQuota * 100)|round : 0 %}
+                        <div style="height:100%;width:{{ [usedPct, 100]|min }}%;background:{{ usedPct >= 100 ? '#f59e0b' : 'var(--ng-primary)' }};border-radius:2px;transition:width .3s;"></div>
+                    </div>
+                </div>
+
+            </div>
+
+            {# Actions #}
+            <div style="display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-top:1px solid var(--ng-border);">
+                {% if not instancePassword %}
+                    <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/reveal-credentials">
+                        <input type="hidden" name="_token" value="{{ instanceCsrf.reveal ?? '' }}">
+                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_sinusbot_show_password', locale) }}</button>
+                    </form>
+                {% endif %}
+                <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/reset-password">
+                    <input type="hidden" name="_token" value="{{ instanceCsrf.reset ?? '' }}">
+                    <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_sinusbot_reset_password', locale) }}</button>
+                </form>
+            </div>
+
         </div>
-    </div>
+    {% else %}
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="text-align:center;padding:60px 20px;">
+                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" style="margin:0 auto 16px;display:block;color:var(--ng-text-muted);opacity:.3;">
+                    <path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z" fill="currentColor"/>
+                    <path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z" fill="currentColor"/>
+                </svg>
+                <p style="margin:0;font-size:14px;font-weight:600;color:var(--ng-text);">{{ t('customer_sinusbot_instance_none', locale) }}</p>
+                <p style="margin:6px 0 0;font-size:13px;color:var(--ng-text-muted);">{{ t('customer_sinusbot_page_desc', locale) }}</p>
+            </div>
+        </div>
+    {% endfor %}
 
 </div>
 {% endblock %}

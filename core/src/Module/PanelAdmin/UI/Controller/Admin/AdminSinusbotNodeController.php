@@ -110,6 +110,23 @@ final class AdminSinusbotNodeController
                 }
             }
 
+            if ($dto->instanceMode === 'multi') {
+                if (trim($dto->instanceRoot) === '') {
+                    $form->addError(new FormError($this->translator->trans('admin_sinusbot_multi_requires_instance_root')));
+                    return new Response($this->twig->render('admin/sinusbot/nodes/new.html.twig', [
+                        'activeNav' => 'sinusbot',
+                        'form' => $form->createView(),
+                    ]), Response::HTTP_BAD_REQUEST);
+                }
+                if ($dto->webPortBase <= 0) {
+                    $form->addError(new FormError($this->translator->trans('admin_sinusbot_multi_requires_web_port_base')));
+                    return new Response($this->twig->render('admin/sinusbot/nodes/new.html.twig', [
+                        'activeNav' => 'sinusbot',
+                        'form' => $form->createView(),
+                    ]), Response::HTTP_BAD_REQUEST);
+                }
+            }
+
             $node = new SinusbotNode(
                 $dto->name,
                 $agent,
@@ -122,6 +139,7 @@ final class AdminSinusbotNodeController
             $node->setWebBindIp($dto->webBindIp);
             $node->setWebPortBase($dto->webPortBase);
             $node->setCustomer($customer);
+            $node->setInstanceMode($dto->instanceMode);
 
             $this->entityManager->persist($node);
             $this->entityManager->flush();
@@ -398,8 +416,8 @@ final class AdminSinusbotNodeController
         if (trim($dto->installPath) === '') {
             $dto->installPath = '/opt/sinusbot';
         }
-        if (trim($dto->instanceRoot) === '') {
-            $dto->instanceRoot = '/opt/sinusbot/instances';
+        if ($dto->instanceMode === 'multi' && trim($dto->instanceRoot) === '') {
+            $dto->instanceRoot = '/var/lib/sinusbot-instances';
         }
 
         if (!$this->isValidInstallPath($dto->installPath)) {

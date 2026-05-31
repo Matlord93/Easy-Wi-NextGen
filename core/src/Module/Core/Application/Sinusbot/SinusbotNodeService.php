@@ -37,6 +37,7 @@ final class SinusbotNodeService
 
         $payload = [
             'node_id' => $node->getId(),
+            'instance_mode' => $node->getInstanceMode(),
             'download_url' => $node->getDownloadUrl(),
             'download_filename' => $this->resolveDownloadFilename($node->getDownloadUrl()),
             'install_dir' => $node->getInstallPath(),

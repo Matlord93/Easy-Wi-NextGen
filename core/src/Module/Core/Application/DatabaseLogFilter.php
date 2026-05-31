@@ -6,11 +6,21 @@ namespace App\Module\Core\Application;
 
 final class DatabaseLogFilter
 {
+    /**
+     * These are ALWAYS dropped (success only) regardless of the routine-log setting.
+     * Errors and warnings from these actions are still stored.
+     *
+     * @var array<string, true>
+     */
+    private const NEVER_STORE_ACTIONS = [
+        'instance.query.check'               => true,
+        'instance.query.checked'             => true,
+        'audit_event_instance_query_checked' => true,
+    ];
+
     /** @var array<string, true> */
     private const HIGH_FREQUENCY_ROUTINE_ACTIONS = [
         'scheduler.heartbeat' => true,
-        'audit_event_instance_query_checked' => true,
-        'instance.query.checked' => true,
         'agent.heartbeat' => true,
         'agent.metrics_ingested' => true,
         'agent.metrics_batch_ingested' => true,
@@ -57,6 +67,10 @@ final class DatabaseLogFilter
 
         if ($this->isErrorPayload($payload)) {
             return true;
+        }
+
+        if (isset(self::NEVER_STORE_ACTIONS[$action])) {
+            return false;
         }
 
         if ($this->isProtectedAction($action)) {

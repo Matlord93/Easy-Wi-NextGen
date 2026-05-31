@@ -3,13 +3,21 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
+
+// systemctlBin is the systemctl binary path. Override in tests.
+var systemctlBin = "systemctl"
+
+// unitDir is the directory where systemd unit files are written. Override in tests.
+var unitDir = "/etc/systemd/system"
 
 func runCommand(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
@@ -33,14 +41,14 @@ func systemctlAction(serviceName, action string) error {
 		}
 		args = append(args, serviceName)
 	}
-	return runCommand("systemctl", args...)
+	return runCommand(systemctlBin, args...)
 }
 
 func serviceStatus(serviceName string) string {
 	if !strings.HasSuffix(serviceName, ".service") {
 		serviceName = serviceName + ".service"
 	}
-	cmd := exec.Command("systemctl", "is-active", serviceName)
+	cmd := exec.Command(systemctlBin, "is-active", serviceName)
 	output, err := cmd.Output()
 	if err != nil {
 		return "error"
@@ -137,4 +145,14 @@ func chownRecursiveToUser(path, username string) error {
 		}
 		return nil
 	})
+}
+
+// isPortFree returns true when nothing is listening on the given TCP port.
+func isPortFree(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 200*time.Millisecond)
+	if err != nil {
+		return true
+	}
+	_ = conn.Close()
+	return false
 }

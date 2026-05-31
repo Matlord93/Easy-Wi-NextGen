@@ -5,8 +5,9 @@
 {% block content %}
 {% set locale = page_locale() %}
 
-    {# ── Hero ── #}
-    <section class="ng-card" style="overflow:hidden;margin-bottom:20px;">
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+    <section class="ng-card" style="overflow:hidden;">
         <div class="tkt-hero">
             <div class="tkt-hero__inner">
                 <div>
@@ -24,32 +25,90 @@
         </div>
     </section>
 
+    {% for message in app.flashes('error') %}
+        <div class="ng-alert ng-alert--danger">{{ t(message, locale) }}</div>
+    {% endfor %}
+
+    {{ form_start(form, {'attr': {'id': 'ts3-node-form'}}) }}
+
     <div class="ng-data-card">
         <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_ts3_node_new_title', locale) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_ts3_node_agent_hint', locale) }}</p>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:rgba(56,189,248,.12);flex-shrink:0;">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+                </span>
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_ts3_node_basic_config_title', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_ts3_node_basic_config_desc', locale) }}</p>
+                </div>
             </div>
         </div>
         <div class="ng-data-card__body">
-            {{ form_start(form) }}
-                {{ form_errors(form) }}
-                <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div style="grid-column:span 1;">
                     {{ form_row(form.name, { label: t('admin_ts3_node_form_name', locale) }) }}
+                </div>
+                <div style="grid-column:span 1;">
                     {{ form_row(form.agentNodeId, { label: t('admin_ts3_node_form_agent_node', locale) }) }}
+                </div>
+                <div style="grid-column:span 2;">
                     {{ form_row(form.downloadUrl, { label: t('admin_ts3_node_form_download_url', locale) }) }}
-                    <p style="margin:-8px 0 0;color:var(--ng-text-muted);font-size:13px;">{{ t('admin_ts3_node_download_hint', locale) }}</p>
+                    <p style="margin:-8px 0 0;padding:8px 12px;border-radius:0 0 6px 6px;background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.15);border-top:none;color:var(--ng-text-muted);font-size:12px;display:flex;align-items:center;gap:6px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        {{ t('admin_ts3_node_download_hint', locale) }}
+                    </p>
+                </div>
+                <div style="grid-column:span 1;">
                     {{ form_row(form.installPath, { label: t('admin_ts3_node_form_install_path', locale) }) }}
+                </div>
+                <div style="grid-column:span 1;">
                     {{ form_row(form.instanceName, { label: t('admin_ts3_node_form_instance_name', locale) }) }}
+                </div>
+                <div style="grid-column:span 2;">
                     {{ form_row(form.serviceName, { label: t('admin_ts3_node_form_service_name', locale) }) }}
-                    {{ form_row(form.queryBindIp, { label: t('admin_ts3_node_form_query_bind_ip', locale) }) }}
-                    {{ form_row(form.queryPort, { label: t('admin_ts3_node_form_query_port', locale) }) }}
-                    {{ form_row(form.filetransferPort, { label: t('admin_ts3_node_form_filetransfer_port', locale) }) }}
                 </div>
-                <div style="display:flex;justify-content:flex-end;margin-top:20px;">
-                    <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts3_node_save', locale) }}</button>
-                </div>
-            {{ form_end(form) }}
+            </div>
         </div>
     </div>
+
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:rgba(56,189,248,.12);flex-shrink:0;">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </span>
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_ts3_node_network_title', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_ts3_node_network_desc', locale) }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="ng-data-card__body">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                <div style="grid-column:span 1;">
+                    {{ form_row(form.queryBindIp, { label: t('admin_ts3_node_form_query_bind_ip', locale) }) }}
+                </div>
+                <div style="grid-column:span 1;">
+                    {{ form_row(form.queryPort, { label: t('admin_ts3_node_form_query_port', locale) }) }}
+                </div>
+                <div style="grid-column:span 1;">
+                    {{ form_row(form.filetransferPort, { label: t('admin_ts3_node_form_filetransfer_port', locale) }) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:none;">
+        {{ form_widget(form.agentBaseUrl) }}
+        {{ form_widget(form.agentApiToken) }}
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:12px;padding-bottom:4px;">
+        <a class="ui-button ui-button--ghost" href="/admin/ts3/nodes">{{ t('admin_ts3_node_back', locale) }}</a>
+        <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts3_node_save', locale) }}</button>
+    </div>
+
+    {{ form_end(form, {'render_rest': false}) }}
+
+</div>
 {% endblock %}

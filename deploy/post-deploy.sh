@@ -51,6 +51,9 @@ echo "$LOG_PREFIX Clearing cache."
 echo "$LOG_PREFIX Running migrations."
 (cd "$CORE_DIR" && php bin/console doctrine:migrations:migrate --no-interaction)
 
+echo "$LOG_PREFIX Importing Minecraft versions catalog."
+(cd "$CORE_DIR" && php bin/console app:minecraft:versions:import --deactivate-missing)
+
 echo "$LOG_PREFIX Warming cache."
 (cd "$CORE_DIR" && php bin/console cache:warmup --env=prod)
 
