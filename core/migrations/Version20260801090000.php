@@ -26,9 +26,9 @@ final class Version20260801090000 extends AbstractMigration
         if ($schema->hasTable('databases')) {
             $table = $schema->getTable('databases');
             if (!$table->hasColumn('database_node_id')) {
-                $this->addSql('ALTER TABLE databases ADD database_node_id INT DEFAULT NULL');
-                $this->addSql('ALTER TABLE databases ADD CONSTRAINT FK_7E6F5E6EA8AB0C83 FOREIGN KEY (database_node_id) REFERENCES database_nodes (id) ON DELETE SET NULL');
-                $this->addSql('CREATE INDEX IDX_7E6F5E6EA8AB0C83 ON databases (database_node_id)');
+                $this->addSql('ALTER TABLE `databases` ADD database_node_id INT DEFAULT NULL');
+                $this->addSql('ALTER TABLE `databases` ADD CONSTRAINT FK_7E6F5E6EA8AB0C83 FOREIGN KEY (database_node_id) REFERENCES database_nodes (id) ON DELETE SET NULL');
+                $this->addSql('CREATE INDEX IDX_7E6F5E6EA8AB0C83 ON `databases` (database_node_id)');
             }
         }
     }
@@ -38,9 +38,9 @@ final class Version20260801090000 extends AbstractMigration
         if ($schema->hasTable('databases')) {
             $table = $schema->getTable('databases');
             if ($table->hasColumn('database_node_id')) {
-                $this->addSql('ALTER TABLE databases DROP FOREIGN KEY FK_7E6F5E6EA8AB0C83');
-                $this->addSql('DROP INDEX IDX_7E6F5E6EA8AB0C83 ON databases');
-                $this->addSql('ALTER TABLE databases DROP database_node_id');
+                $this->addSql('ALTER TABLE `databases` DROP FOREIGN KEY FK_7E6F5E6EA8AB0C83');
+                $this->addSql('DROP INDEX IDX_7E6F5E6EA8AB0C83 ON `databases`');
+                $this->addSql('ALTER TABLE `databases` DROP database_node_id');
             }
         }
 

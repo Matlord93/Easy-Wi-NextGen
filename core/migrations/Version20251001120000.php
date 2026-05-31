@@ -147,7 +147,11 @@ final class Version20251001120000 extends AbstractMigration
 
     private function hasColumn(string $table, string $column): bool
     {
-        $columns = $this->connection->createSchemaManager()->listTableColumns($table);
+        try {
+            $columns = $this->connection->createSchemaManager()->listTableColumns($table);
+        } catch (\Throwable) {
+            return false;
+        }
 
         return array_key_exists($column, $columns);
     }
