@@ -154,17 +154,21 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
         $path = $this->normalizePath($request->getPathInfo());
 
-        $hadSessionCookie = $request->cookies->has(SessionAuthenticator::ADMIN_SESSION_COOKIE)
-            || $request->cookies->has(SessionAuthenticator::CUSTOMER_SESSION_COOKIE);
-
-        if ($hadSessionCookie) {
-            return new RedirectResponse('/session-expired');
+        if (str_starts_with($path, '/admin/')) {
+            return new Response($this->translator->trans('error_security_unauthorized'), Response::HTTP_UNAUTHORIZED);
         }
 
         if ($this->isLoginRedirectPath($path)) {
             $request->getSession()->set(PostLoginRedirectResolver::SESSION_TARGET_KEY, $path);
 
             return new RedirectResponse('/login?target=' . rawurlencode($path));
+        }
+
+        $hadSessionCookie = $request->cookies->has(SessionAuthenticator::ADMIN_SESSION_COOKIE)
+            || $request->cookies->has(SessionAuthenticator::CUSTOMER_SESSION_COOKIE);
+
+        if ($hadSessionCookie) {
+            return new RedirectResponse('/session-expired');
         }
 
         return new RedirectResponse('/login');

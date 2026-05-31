@@ -12,6 +12,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerSinusbotController;
 use App\Repository\SinusbotInstanceRepository;
+use App\Repository\SinusbotNodeRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -44,6 +45,7 @@ final class CustomerSinusbotSecurityTest extends TestCase
 
         $controller = new CustomerSinusbotController(
             $instanceRepo,
+            $this->createMock(SinusbotNodeRepository::class),
             $provisioner,
             $this->createMock(SecretsCrypto::class),
             $csrfManager,
