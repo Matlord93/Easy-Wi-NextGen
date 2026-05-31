@@ -491,8 +491,8 @@ func validateName(name string) error {
 		return errors.New("name must not be empty")
 	}
 	for _, c := range name {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-			(c >= '0' && c <= '9') || c == '_' || c == '-') {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') &&
+			(c < '0' || c > '9') && c != '_' && c != '-' {
 			return fmt.Errorf("invalid character %q: only [a-zA-Z0-9_-] allowed", c)
 		}
 	}

@@ -115,7 +115,7 @@
                     </div>
                     <div style="margin-top:6px;height:4px;background:var(--ng-border);border-radius:2px;overflow:hidden;">
                         {% set usedPct = instance.botQuota > 0 ? (botsUsed / instance.botQuota * 100)|round : 0 %}
-                        <div style="height:100%;width:{{ [usedPct, 100]|min }}%;background:{{ usedPct >= 100 ? '#f59e0b' : 'var(--ng-primary)' }};border-radius:2px;transition:width .3s;"></div>
+                        <div style="height:100%;width:{{ min(usedPct, 100) }}%;background:{{ usedPct >= 100 ? '#f59e0b' : 'var(--ng-primary)' }};border-radius:2px;transition:width .3s;"></div>
                     </div>
                 </div>
 
