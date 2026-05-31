@@ -146,9 +146,9 @@ final class PanelUpdateTickProcessor
     private function stepsForType(string $type): array
     {
         return match ($type) {
-            'update' => ['apply_update', 'await_agent_reload'],
+            'update' => ['apply_update'],
             'migrate' => ['apply_migrations'],
-            'both' => ['apply_update', 'apply_migrations', 'await_agent_reload'],
+            'both' => ['apply_update', 'apply_migrations'],
             default => [],
         };
     }
