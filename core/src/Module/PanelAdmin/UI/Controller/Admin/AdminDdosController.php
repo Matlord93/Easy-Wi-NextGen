@@ -40,9 +40,9 @@ final class AdminDdosController
     #[Route(path: '', name: 'admin_ddos', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $admin = $this->requireAdmin($request);
+        $this->requireAdmin($request);
 
-        return $this->renderPage($admin, $request);
+        return new RedirectResponse('/admin/security#ddos');
     }
 
     #[Route(path: '/apply', name: 'admin_ddos_apply', methods: ['POST'])]
@@ -124,7 +124,7 @@ final class AdminDdosController
 
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/ddos?applied=1');
+        return new RedirectResponse('/admin/security?ddos_applied=1');
     }
 
     private function renderPage(

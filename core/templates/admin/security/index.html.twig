@@ -1,418 +1,824 @@
 {% extends 'admin/base.html.twig' %}
-
-{% set pageTitle = t('admin_security_title', page_locale()) %}
-{% set pageSubtitle = t('admin_security_intro', page_locale()) %}
+{% set locale = page_locale() %}
+{% set pageTitle = t('admin_security_title', locale) %}
+{% set pageSubtitle = t('admin_security_intro', locale) %}
 {% set activeNav = 'security' %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
 
+{% set totalNodes = firewallNodes|length %}
+{% set totalEvents = securityEventSummary.allowed + securityEventSummary.blocked %}
+{% set attackCount = 0 %}
+{% for p in ddosStatusPanels %}{% if p.attackActive %}{% set attackCount = attackCount + 1 %}{% endif %}{% endfor %}
+
+{% set jailLabels = {
+    'sshd': 'SSH (sshd)',
+    'dropbear': 'Dropbear SSH',
+    'recidive': 'Recidive (Wiederholer)',
+    'nginx-http-auth': 'Nginx HTTP Auth',
+    'nginx-limit-req': 'Nginx Rate Limit',
+    'nginx-botsearch': 'Nginx Bot Search',
+    'nginx-noscript': 'Nginx No-Script',
+    'apache-auth': 'Apache Auth',
+    'apache-badbots': 'Apache Bad Bots',
+    'apache-overflows': 'Apache Overflows',
+    'apache-noscript': 'Apache No-Script',
+    'postfix': 'Postfix SMTP',
+    'postfix-sasl': 'Postfix SASL',
+    'dovecot': 'Dovecot IMAP/POP3',
+    'sendmail-auth': 'Sendmail Auth',
+    'courier-smtp': 'Courier SMTP',
+    'wordpress': 'WordPress',
+    'php-url-fopen': 'PHP URL Fopen',
+    'mysqld-auth': 'MySQL Auth',
+    'phpmyadmin-syslog': 'phpMyAdmin',
+} %}
+{% set jailGroupLabels = {
+    'ssh': t('admin_security_fail2ban_group_ssh', locale),
+    'web': t('admin_security_fail2ban_group_web', locale),
+    'mail': t('admin_security_fail2ban_group_mail', locale),
+    'apps': t('admin_security_fail2ban_group_apps', locale),
+} %}
+
+<div style="display:flex;flex-direction:column;gap:24px;">
+
+    {# ── Flash messages ── #}
     {% if errors is not empty %}
         <div class="ng-alert ng-alert--danger">
-            <ul class="list-disc space-y-1 pl-4">
-                {% for error in errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
+            <ul style="margin:0;padding-left:18px;">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
         </div>
     {% endif %}
-
+    {% if ddosApplied %}
+        <div class="ng-alert ng-alert--success">{{ t('admin_security_ddos_applied', locale) }}</div>
+    {% endif %}
     {% if ddosUpdated %}
-        <div class="ng-alert ng-alert--success">{{ t('admin_security_ddos_updated', page_locale()) }}</div>
+        <div class="ng-alert ng-alert--success">{{ t('admin_security_ddos_updated', locale) }}</div>
     {% endif %}
     {% if fail2banUpdated %}
-        <div class="ng-alert ng-alert--success">{{ t('admin_security_fail2ban_updated', page_locale()) }}</div>
+        <div class="ng-alert ng-alert--success">{{ t('admin_security_fail2ban_updated', locale) }}</div>
     {% endif %}
     {% if previewEnabled %}
-        <div class="ng-alert ng-alert--warning">{{ t('admin_security_preview_notice', page_locale()) }}</div>
+        <div class="ng-alert ng-alert--warning">{{ t('admin_security_preview_notice', locale) }}</div>
+    {% endif %}
+    {% if rulesetUpdated == 'applied' %}
+        <div class="ng-alert ng-alert--success">{{ t('admin_security_unified_applied', locale) }}</div>
+    {% elseif rulesetUpdated == 'rollback' %}
+        <div class="ng-alert ng-alert--warning">{{ t('admin_security_unified_rollback', locale) }}</div>
     {% endif %}
 
-    {# Hero #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
+    {# ══════════════════════════════════════
+       HERO
+    ══════════════════════════════════════ #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero" style="background:linear-gradient(135deg,rgba(99,102,241,.1) 0%,rgba(239,68,68,.07) 60%,transparent 100%);">
             <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;flex-direction:column;gap:18px;">
                     <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot" style="background:#ef4444;"></span>
-                            {{ t('admin_security_hero_label', page_locale()) }}
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                            <div class="tkt-hero__pill" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.1);">
+                                <span class="tkt-hero__pill-dot" style="background:#ef4444;animation:pulse 2s infinite;"></span>
+                                <span style="color:#fca5a5;">{{ t('admin_security_hero_label', locale) }}</span>
+                            </div>
+                            {% if attackCount > 0 %}
+                                <span class="ui-badge ui-badge--danger">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale) }}</span>
+                            {% else %}
+                                <span class="ui-badge ui-badge--success">{{ t('admin_security_ddos_all_clear', locale) }}</span>
+                            {% endif %}
                         </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_security_hero_title', page_locale()) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_security_hero_intro', page_locale()) }}</p>
+                        <h1 class="tkt-hero__title">{{ t('admin_security_hero_title', locale) }}</h1>
+                        <p class="tkt-hero__sub">{{ t('admin_security_hero_intro', locale) }}</p>
                     </div>
-                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi tkt-kpi--open">
-                            <div class="tkt-kpi__label">{{ t('admin_security_firewall_title', page_locale()) }}</div>
-                            <div class="tkt-kpi__value">{{ firewallNodes|length }}</div>
+
+                    {# KPI row #}
+                    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;">
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_security_kpi_nodes', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ totalNodes }}</div>
                         </div>
                         <div class="tkt-kpi tkt-kpi--pending">
-                            <div class="tkt-kpi__label">{{ t('admin_security_event_count', page_locale()) }}</div>
-                            <div class="tkt-kpi__value">{{ securityEventSummary.allowed + securityEventSummary.blocked }}</div>
+                            <div class="tkt-kpi__label">{{ t('admin_security_event_count', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ totalEvents }}</div>
                         </div>
                         <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
-                            <div class="tkt-kpi__label">{{ t('admin_security_blocked', page_locale()) }}</div>
+                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.75);">{{ t('admin_security_blocked', locale) }}</div>
                             <div class="tkt-kpi__value" style="color:#fca5a5;">{{ securityEventSummary.blocked }}</div>
                         </div>
-                        <div class="tkt-kpi tkt-kpi--resolved">
-                            <div class="tkt-kpi__label">{{ t('admin_security_allowed', page_locale()) }}</div>
-                            <div class="tkt-kpi__value">{{ securityEventSummary.allowed }}</div>
+                        <div class="tkt-kpi {{ attackCount > 0 ? '' : 'tkt-kpi--resolved' }}" style="{{ attackCount > 0 ? 'border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);' : '' }}">
+                            <div class="tkt-kpi__label" style="{{ attackCount > 0 ? 'color:rgba(252,165,165,.75);' : '' }}">{{ t('admin_security_kpi_attacks', locale) }}</div>
+                            <div class="tkt-kpi__value" style="{{ attackCount > 0 ? 'color:#fca5a5;' : '' }}">{{ attackCount }}</div>
+                        </div>
+                        <div class="tkt-kpi">
+                            <div class="tkt-kpi__label">{{ t('admin_security_kpi_providers', locale) }}</div>
+                            <div class="tkt-kpi__value">{{ credentials|length }}</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    {# ── Row 1: DDoS Provider + Firewall ── #}
-    <div class="grid gap-6 lg:grid-cols-2">
+        {# Quick navigation #}
+        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+            <a href="#ddos" class="tkt-qa">
+                <div class="tkt-qa__icon" style="background:rgba(239,68,68,.15);color:#fca5a5;font-size:17px;">⚡</div>
+                <div class="tkt-qa__title">{{ t('admin_security_nav_ddos', locale) }}</div>
+                <div class="tkt-qa__sub">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale)|lower }}</div>
+            </a>
+            <a href="#firewall" class="tkt-qa">
+                <div class="tkt-qa__icon" style="background:rgba(96,165,250,.15);color:#60a5fa;font-size:17px;">🔥</div>
+                <div class="tkt-qa__title">{{ t('admin_security_nav_firewall', locale) }}</div>
+                <div class="tkt-qa__sub">{{ totalNodes }} {{ t('admin_security_kpi_nodes', locale)|lower }}</div>
+            </a>
+            <a href="#fail2ban" class="tkt-qa">
+                <div class="tkt-qa__icon" style="background:rgba(251,191,36,.15);color:#fbbf24;font-size:17px;">🛡</div>
+                <div class="tkt-qa__title">{{ t('admin_security_nav_fail2ban', locale) }}</div>
+                <div class="tkt-qa__sub">{{ t('admin_security_nav_fail2ban_sub', locale) }}</div>
+            </a>
+            <a href="#events" class="tkt-qa">
+                <div class="tkt-qa__icon" style="background:rgba(167,139,250,.15);color:#a78bfa;font-size:17px;">📋</div>
+                <div class="tkt-qa__title">{{ t('admin_security_nav_events', locale) }}</div>
+                <div class="tkt-qa__sub">{{ totalEvents }} {{ t('admin_security_nav_events_sub', locale) }}</div>
+            </a>
+            <a href="#providers" class="tkt-qa">
+                <div class="tkt-qa__icon" style="background:rgba(52,211,153,.15);color:#34d399;font-size:17px;">🔑</div>
+                <div class="tkt-qa__title">{{ t('admin_security_nav_providers', locale) }}</div>
+                <div class="tkt-qa__sub">{{ credentials|length }} {{ t('admin_security_kpi_providers', locale)|lower }}</div>
+            </a>
+        </div>
+    </section>
 
-        {# DDoS Provider #}
+    {# ══════════════════════════════════════
+       DDOS LIVE STATUS
+    ══════════════════════════════════════ #}
+    <div id="ddos" style="display:flex;flex-direction:column;gap:16px;">
+
         <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title" id="ddos-provider">{{ t('admin_security_ddos_provider_title', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_security_ddos_provider_intro', page_locale()) }}</p>
+            <div class="ng-data-card__header" style="border-left:3px solid #ef4444;padding-left:18px;margin-left:-1px;">
+                <div style="display:flex;align-items:center;gap:14px;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">⚡</div>
+                    <div>
+                        <h2 class="ng-data-card__title">{{ t('admin_security_ddos_status_title', locale) }}</h2>
+                        <p class="ng-data-card__sub">{{ t('admin_security_ddos_status_intro', locale) }}</p>
+                    </div>
                 </div>
+                {% if attackCount > 0 %}
+                    <span class="ui-badge ui-badge--danger" style="animation:pulse 2s infinite;">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale) }}</span>
+                {% else %}
+                    <span class="ui-badge ui-badge--success">{{ t('admin_security_ddos_all_clear', locale) }}</span>
+                {% endif %}
             </div>
             <div class="ng-data-card__body">
-                <form method="post" action="/admin/security/ddos" class="flex flex-col gap-4">
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_security_provider_label', page_locale()) }}</label>
-                        <input
-                            name="provider"
-                            placeholder="{{ t('admin_security_provider_placeholder', page_locale()) }}"
-                            class="form-input"
-                        >
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_security_api_key_label', page_locale()) }}</label>
-                        <input
-                            type="password"
-                            name="api_key"
-                            placeholder="{{ t('admin_security_api_key_placeholder', page_locale()) }}"
-                            class="form-input"
-                        >
-                    </div>
-                    <div>
-                        <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_security_save_credentials', page_locale()) }}</button>
-                    </div>
-                </form>
-
-                <div class="mt-6">
-                    <p class="form-label mb-2">{{ t('admin_security_configured_providers', page_locale()) }}</p>
-                    {% if credentials is empty %}
-                        <p class="text-sm" style="color:var(--ng-text-muted)">{{ t('admin_security_no_providers', page_locale()) }}</p>
-                    {% else %}
-                        <ul class="flex flex-col gap-2">
-                            {% for credential in credentials %}
-                                <li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm" style="border:1px solid var(--ng-border)">
-                                    <span class="font-medium" style="color:var(--ng-text)">{{ credential.provider|title }}</span>
-                                    <span class="text-xs" style="color:var(--ng-text-muted)">{{ t('admin_security_updated_at', page_locale())|replace({'%time%': credential.updatedAt|date('Y-m-d H:i')}) }}</span>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        {# Firewall #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title" id="firewall">{{ t('admin_security_firewall_title', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_security_firewall_intro', page_locale()) }}</p>
-                </div>
-            </div>
-            <div class="ng-data-card__body--flush">
-                {% if firewallNodes is empty %}
-                    <div class="px-5 py-5 text-sm" style="color:var(--ng-text-muted)">{{ t('admin_security_no_nodes', page_locale()) }}</div>
+                {% if ddosStatusPanels is empty %}
+                    <div class="cust-table__empty">{{ t('admin_security_no_nodes', locale) }}</div>
                 {% else %}
-                    <div class="divide-y" style="border-color:var(--ng-border)">
-                        {% for node in firewallNodes %}
-                            <div class="px-5 py-5">
-                                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div style="display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));">
+                        {% for panel in ddosStatusPanels %}
+                            <div class="ng-card" style="padding:18px;display:flex;flex-direction:column;gap:0;border-color:{{ panel.attackActive ? 'rgba(239,68,68,.4)' : 'var(--ng-border)' }};background:{{ panel.attackActive ? 'rgba(239,68,68,.04)' : 'var(--ng-surface)' }};">
+
+                                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
                                     <div>
-                                        <p class="text-sm font-semibold" style="color:var(--ng-text)">{{ node.name }}</p>
-                                        <p class="text-xs" style="color:var(--ng-text-muted)">{{ t('admin_security_node_last_update', page_locale())|replace({'%id%': node.id, '%time%': node.updatedAt|date('Y-m-d H:i')}) }}</p>
+                                        <p style="margin:0;font-size:14px;font-weight:600;color:var(--ng-text);">{{ panel.name }}</p>
+                                        <p style="margin:3px 0 0;font-size:11px;color:var(--ng-text-muted);">ID: {{ panel.id|slice(0,8) }}…</p>
                                     </div>
-                                    {% if node.status == 'online' %}
-                                        <span class="ui-badge ui-badge--success">{{ node.status|title }}</span>
-                                    {% elseif node.status == 'degraded' %}
-                                        <span class="ui-badge ui-badge--warning">{{ node.status|title }}</span>
+                                    {% if panel.attackActive %}
+                                        <span class="ui-badge ui-badge--danger">{{ t('admin_nodes_ddos_attack_active', locale) }}</span>
                                     {% else %}
-                                        <span class="ui-badge ui-badge--danger">{{ node.status|title }}</span>
+                                        <span class="ui-badge ui-badge--success">{{ t('admin_nodes_ddos_idle', locale) }}</span>
                                     {% endif %}
                                 </div>
 
-                                <div class="mt-4 flex flex-wrap gap-2">
-                                    {% if node.rules is empty %}
-                                        {% if node.ports is empty %}
-                                            <span class="ui-badge ui-badge--neutral">{{ t('admin_security_no_firewall_rules', page_locale()) }}</span>
+                                <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+                                    <div style="text-align:center;border:1px solid var(--ng-border);border-radius:8px;padding:10px 4px;background:var(--ng-surface-soft);">
+                                        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_packets_per_second', locale) }}</div>
+                                        <div style="font-size:17px;font-weight:700;color:var(--ng-text);margin-top:4px;">{{ panel.pps ?? '—' }}</div>
+                                    </div>
+                                    <div style="text-align:center;border:1px solid var(--ng-border);border-radius:8px;padding:10px 4px;background:var(--ng-surface-soft);">
+                                        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_connections', locale) }}</div>
+                                        <div style="font-size:17px;font-weight:700;color:var(--ng-text);margin-top:4px;">{{ panel.connCount ?? '—' }}</div>
+                                    </div>
+                                    <div style="text-align:center;border:1px solid var(--ng-border);border-radius:8px;padding:10px 4px;background:var(--ng-surface-soft);">
+                                        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_mode', locale) }}</div>
+                                        <div style="font-size:13px;font-weight:700;color:var(--ng-text);margin-top:4px;">{{ panel.mode ?? '—' }}</div>
+                                    </div>
+                                </div>
+
+                                {% if panel.portStats is not empty %}
+                                    <div style="margin-top:12px;">
+                                        <p style="margin:0 0 6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_port_telemetry', locale) }}</p>
+                                        <div style="display:flex;flex-direction:column;gap:4px;">
+                                            {% for stat in panel.portStats %}
+                                                <div style="display:flex;align-items:center;justify-content:space-between;border-radius:6px;border:1px solid {{ stat.attack_active ? 'rgba(239,68,68,.4)' : 'var(--ng-border)' }};background:{{ stat.attack_active ? 'rgba(239,68,68,.08)' : 'var(--ng-surface-soft)' }};padding:5px 10px;font-size:11px;color:{{ stat.attack_active ? '#fca5a5' : 'var(--ng-text)' }};">
+                                                    <span>Port {{ stat.port }}</span>
+                                                    <span>{{ stat.syn_recv }} SYN{{ stat.attack_active ? ' · ⚠' : '' }}</span>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+
+                                <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+                                    <div>
+                                        <p style="margin:0 0 5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_protected_ports', locale) }}</p>
+                                        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                            {% if panel.ports is empty %}
+                                                <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_ports_reported', locale) }}</span>
+                                            {% else %}
+                                                {% for port in panel.ports %}<span class="ui-badge ui-badge--info">{{ port }}</span>{% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p style="margin:0 0 5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">{{ t('admin_ddos_protocols', locale) }}</p>
+                                        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                            {% if panel.protocols is empty %}
+                                                <span class="ui-badge ui-badge--neutral">{{ t('admin_ddos_no_protocols_reported', locale) }}</span>
+                                            {% else %}
+                                                {% for proto in panel.protocols %}<span class="ui-badge ui-badge--info">{{ proto|upper }}</span>{% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--ng-border);font-size:11px;color:var(--ng-text-muted);">
+                                    <div style="display:flex;justify-content:space-between;"><span>{{ t('admin_ddos_policy', locale) }}</span><span style="color:var(--ng-text);font-weight:500;">{{ panel.policyMode ?? '—' }}</span></div>
+                                    <div style="display:flex;justify-content:space-between;margin-top:3px;"><span>{{ t('admin_ddos_reported', locale) }}</span><span style="color:var(--ng-text);">{{ panel.reportedAt ? panel.reportedAt|date('d.m.Y H:i') : '—' }}</span></div>
+                                </div>
+
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# DDoS apply policy #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header" style="border-left:3px solid #ef4444;padding-left:18px;margin-left:-1px;">
+                <div style="display:flex;align-items:center;gap:14px;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🛡</div>
+                    <div>
+                        <h2 class="ng-data-card__title">{{ t('admin_security_ddos_apply_title', locale) }}</h2>
+                        <p class="ng-data-card__sub">{{ t('admin_security_ddos_apply_intro', locale) }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="ng-data-card__body">
+                <form method="post" action="/admin/security/ddos/apply" style="display:flex;flex-direction:column;gap:22px;">
+
+                    <div>
+                        <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('admin_ddos_target_nodes', locale) }}</p>
+                        {% if ddosNodes is empty %}
+                            <p style="font-size:13px;color:var(--ng-text-muted);">{{ t('admin_security_no_nodes', locale) }}</p>
+                        {% else %}
+                            <div style="display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));">
+                                {% for node in ddosNodes %}
+                                    <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--ng-border);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--ng-text);cursor:pointer;background:var(--ng-surface);transition:border-color .15s;">
+                                        <input type="checkbox" name="nodes[]" value="{{ node.id }}">
+                                        <span>{{ node.name ?? t('admin_ddos_unnamed_node', locale) }}</span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="ng-layout-2col">
+                        <div style="display:flex;flex-direction:column;gap:14px;">
+                            <div class="form-field">
+                                <label class="form-label">{{ t('admin_ddos_protected_ports', locale) }}</label>
+                                <select name="ports[]" multiple size="7" class="form-input">
+                                    {% for port in ddosPortOptions %}
+                                        <option value="{{ port }}" selected>{{ port }}</option>
+                                    {% endfor %}
+                                </select>
+                                <p class="form-hint">{{ t('admin_ddos_ports_hint', locale) }}</p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label">{{ t('admin_ddos_custom_ports_label', locale) }}</label>
+                                <input name="custom_ports" placeholder="{{ t('admin_ddos_custom_ports_placeholder', locale) }}" class="form-input">
+                            </div>
+                        </div>
+
+                        <div style="display:flex;flex-direction:column;gap:20px;">
+                            <div>
+                                <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('admin_ddos_protocols', locale) }}</p>
+                                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                                    {% for proto in ddosProtocolOptions %}
+                                        <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--ng-border);border-radius:8px;padding:8px 14px;font-size:13px;color:var(--ng-text);cursor:pointer;background:var(--ng-surface);">
+                                            <input type="checkbox" name="protocols[]" value="{{ proto }}" checked>
+                                            <span>{{ proto|upper }}</span>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label">{{ t('admin_ddos_mode', locale) }}</label>
+                                <select name="mode" class="form-input">
+                                    {% for mode in ddosModeOptions %}
+                                        <option value="{{ mode }}" {{ mode == 'rate-limit' ? 'selected' : '' }}>{{ mode|title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_ddos_apply_policy', locale) }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {# ══════════════════════════════════════
+       FIREWALL
+    ══════════════════════════════════════ #}
+    <div id="firewall" class="ng-data-card">
+        <div class="ng-data-card__header" style="border-left:3px solid #60a5fa;padding-left:18px;margin-left:-1px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div style="width:40px;height:40px;border-radius:10px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🔥</div>
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_security_firewall_title', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_security_firewall_intro', locale) }}</p>
+                </div>
+            </div>
+            <span class="ui-badge ui-badge--info">{{ totalNodes }} {{ t('admin_security_kpi_nodes', locale)|lower }}</span>
+        </div>
+        <div class="ng-data-card__body--flush">
+            {% if firewallNodes is empty %}
+                <div class="cust-table__empty">{{ t('admin_security_no_nodes', locale) }}</div>
+            {% else %}
+                <div style="display:flex;flex-direction:column;">
+                    {% for node in firewallNodes %}
+                        <details style="border-top:1px solid var(--ng-border);" {{ firewallUpdated == node.id ? 'open' : '' }}>
+                            <summary style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;cursor:pointer;user-select:none;list-style:none;transition:background .15s;" onmouseover="this.style.background='var(--ng-surface-soft)'" onmouseout="this.style.background=''">
+                                <div style="display:flex;align-items:center;gap:14px;">
+                                    <div style="width:34px;height:34px;border-radius:8px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">🖥</div>
+                                    <div>
+                                        <p style="margin:0;font-size:14px;font-weight:600;color:var(--ng-text);">{{ node.name }}</p>
+                                        <p style="margin:3px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ node.updatedAt|date('d.m.Y H:i') }} · {{ node.rules|length }} {{ t('admin_security_fw_rules_count', locale) }}</p>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    {% if firewallUpdated == node.id %}
+                                        <span class="ui-badge ui-badge--success">{{ t('admin_security_saved', locale) }}</span>
+                                    {% endif %}
+                                    {% if node.status == 'online' %}
+                                        <span class="ui-badge ui-badge--success">Online</span>
+                                    {% elseif node.status == 'degraded' %}
+                                        <span class="ui-badge ui-badge--warning">Degraded</span>
+                                    {% else %}
+                                        <span class="ui-badge ui-badge--danger">Offline</span>
+                                    {% endif %}
+                                    <svg style="width:14px;height:14px;color:var(--ng-text-muted);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                </div>
+                            </summary>
+
+                            <div style="padding:0 20px 22px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                                <div style="padding-top:16px;">
+                                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+                                        {% if node.rules is empty %}
+                                            {% if node.ports is empty %}
+                                                <span class="ui-badge ui-badge--neutral">{{ t('admin_security_no_firewall_rules', locale) }}</span>
+                                            {% else %}
+                                                {% for port in node.ports %}<span class="ui-badge ui-badge--neutral">{{ port }}</span>{% endfor %}
+                                            {% endif %}
                                         {% else %}
-                                            {% for port in node.ports %}
-                                                <span class="ui-badge ui-badge--neutral">{{ port }}</span>
+                                            {% for rule in node.rules %}
+                                                <span class="ui-badge {{ rule.status == 'open' ? 'ui-badge--success' : 'ui-badge--danger' }}">
+                                                    {{ rule.port }}/{{ rule.protocol|upper }} · {{ rule.status|title }}
+                                                </span>
                                             {% endfor %}
                                         {% endif %}
-                                    {% else %}
-                                        {% for rule in node.rules %}
-                                            <span class="ui-badge {{ rule.status == 'open' ? 'ui-badge--success' : 'ui-badge--danger' }}">
-                                                {{ rule.port }}/{{ rule.protocol|upper }} · {{ rule.status|title }}
-                                            </span>
-                                        {% endfor %}
-                                    {% endif %}
-                                </div>
+                                    </div>
 
-                                {% if node.job %}
-                                    <div class="mt-4 rounded-lg px-3 py-2 text-xs" style="border:1px solid var(--ng-border);background:var(--ng-surface-soft);color:var(--ng-text-muted)">
-                                        <div class="flex flex-wrap items-center justify-between gap-2">
-                                            <span class="font-semibold" style="color:var(--ng-text)">{{ t('admin_security_last_firewall_job', page_locale()) }}</span>
-                                            <span style="color:var(--ng-text-muted)">{{ node.job.type }} · {{ node.job.status|title }}</span>
-                                        </div>
-                                        {% if node.job.resultStatus %}
-                                            <div class="mt-2" style="color:var(--ng-text-muted)">
-                                                {{ t('admin_security_job_result', page_locale()) }} <span class="font-semibold">{{ node.job.resultStatus|title }}</span>
-                                                {% if node.job.resultMessage %} · {{ node.job.resultMessage }}{% endif %}
+                                    {% if node.job %}
+                                        <div style="border:1px solid var(--ng-border);border-radius:8px;padding:12px 16px;background:var(--ng-surface);font-size:12px;color:var(--ng-text-muted);margin-bottom:16px;">
+                                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                                <span style="font-weight:600;color:var(--ng-text);">{{ t('admin_security_last_firewall_job', locale) }}</span>
+                                                <span>{{ node.job.type }} · <strong>{{ node.job.status|title }}</strong></span>
                                             </div>
-                                        {% endif %}
-                                    </div>
-                                {% endif %}
-
-                                <form method="post" action="/admin/security/firewall/{{ node.id }}" class="mt-4 flex flex-col gap-3">
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_security_desired_ports', page_locale()) }}</label>
-                                        <input
-                                            name="ports"
-                                            value="{{ node.ports|join(', ') }}"
-                                            placeholder="{{ t('admin_security_ports_placeholder', page_locale()) }}"
-                                            class="form-input"
-                                        >
-                                    </div>
-                                    <label class="inline-flex items-center gap-2 text-xs font-semibold uppercase" style="color:var(--ng-text)">
-                                        <input type="checkbox" name="dry_run" value="1" class="rounded" style="border-color:var(--ng-border)">
-                                        {{ t('admin_security_preview_mode', page_locale()) }}
-                                    </label>
-                                    <div class="flex items-center gap-3">
-                                        <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_security_update_firewall', page_locale()) }}</button>
-                                        {% if firewallUpdated == node.id %}
-                                            <span class="ui-badge ui-badge--success">{{ t('admin_security_saved', page_locale()) }}</span>
-                                        {% endif %}
-                                    </div>
-                                </form>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-    </div>
-
-    {# ── Row 2: Fail2Ban + Security Events ── #}
-    <div class="grid gap-6 lg:grid-cols-2">
-
-        {# Fail2Ban #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title" id="fail2ban">{{ t('admin_security_fail2ban_title', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_security_fail2ban_intro', page_locale()) }}</p>
-                </div>
-            </div>
-            <div class="ng-data-card__body--flush">
-                {% if fail2banNodes is empty %}
-                    <div class="px-5 py-5 text-sm" style="color:var(--ng-text-muted)">{{ t('admin_security_no_nodes', page_locale()) }}</div>
-                {% else %}
-                    <div class="divide-y" style="border-color:var(--ng-border)">
-                        {% for node in fail2banNodes %}
-                            {% set payload = node.policy ? node.policy.payload : {} %}
-                            <div class="px-5 py-5">
-                                <div class="flex flex-wrap items-center justify-between gap-3">
-                                    <div>
-                                        <p class="text-sm font-semibold" style="color:var(--ng-text)">{{ node.name }}</p>
-                                        <p class="text-xs" style="color:var(--ng-text-muted)">{{ t('admin_security_node_last_update', page_locale())|replace({'%id%': node.id, '%time%': node.updatedAt|date('Y-m-d H:i')}) }}</p>
-                                    </div>
-                                    {% if node.status == 'online' %}
-                                        <span class="ui-badge ui-badge--success">{{ node.status|title }}</span>
-                                    {% elseif node.status == 'degraded' %}
-                                        <span class="ui-badge ui-badge--warning">{{ node.status|title }}</span>
-                                    {% else %}
-                                        <span class="ui-badge ui-badge--danger">{{ node.status|title }}</span>
+                                            {% if node.job.resultStatus %}
+                                                <div style="margin-top:5px;">{{ t('admin_security_job_result', locale) }} {{ node.job.resultStatus|title }}{% if node.job.resultMessage %} · {{ node.job.resultMessage }}{% endif %}</div>
+                                            {% endif %}
+                                        </div>
                                     {% endif %}
+
+                                    {% if node.policy %}
+                                        <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:14px;padding:8px 12px;background:var(--ng-surface);border:1px solid var(--ng-border);border-radius:6px;">
+                                            {{ t('admin_security_policy_version', locale)|replace({'%version%': node.policy.version}) }}
+                                            · {{ t('admin_security_policy_status', locale)|replace({'%status%': node.policy.status|title}) }}
+                                            {% if node.policy.appliedAt %} · {{ t('admin_security_policy_applied_at', locale)|replace({'%time%': node.policy.appliedAt|date('d.m.Y H:i')}) }}{% endif %}
+                                        </div>
+                                    {% endif %}
+
+                                    <form method="post" action="/admin/security/firewall/{{ node.id }}" style="display:flex;flex-direction:column;gap:12px;">
+                                        <div class="form-field">
+                                            <label class="form-label">{{ t('admin_security_desired_ports', locale) }}</label>
+                                            <input name="ports" value="{{ node.ports|join(', ') }}" placeholder="{{ t('admin_security_ports_placeholder', locale) }}" class="form-input">
+                                        </div>
+                                        <div style="display:flex;align-items:center;gap:16px;">
+                                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ng-text);cursor:pointer;">
+                                                <input type="checkbox" name="dry_run" value="1">
+                                                {{ t('admin_security_preview_mode', locale) }}
+                                            </label>
+                                            <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_security_update_firewall', locale) }}</button>
+                                        </div>
+                                    </form>
                                 </div>
-
-                                {% if node.policy %}
-                                    <div class="mt-2 text-xs" style="color:var(--ng-text-muted)">
-                                        {{ t('admin_security_policy_version', page_locale())|replace({'%version%': node.policy.version}) }}
-                                        · {{ t('admin_security_policy_status', page_locale())|replace({'%status%': node.policy.status|title}) }}
-                                        {% if node.policy.appliedAt %}
-                                            · {{ t('admin_security_policy_applied_at', page_locale())|replace({'%time%': node.policy.appliedAt|date('Y-m-d H:i')}) }}
-                                        {% endif %}
-                                    </div>
-                                {% endif %}
-
-                                <form method="post" action="/admin/security/fail2ban/{{ node.id }}" class="mt-4 flex flex-col gap-3">
-                                    <label class="inline-flex items-center gap-2 text-xs font-semibold uppercase" style="color:var(--ng-text)">
-                                        <input type="checkbox" name="enabled" value="1" class="rounded" style="border-color:var(--ng-border)" {% if payload.enabled is not defined or payload.enabled %}checked{% endif %}>
-                                        {{ t('admin_security_fail2ban_enabled', page_locale()) }}
-                                    </label>
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div class="form-field">
-                                            <label class="form-label">{{ t('admin_security_fail2ban_bantime', page_locale()) }}</label>
-                                            <input name="bantime" value="{{ payload.bantime|default('10m') }}" class="form-input">
-                                        </div>
-                                        <div class="form-field">
-                                            <label class="form-label">{{ t('admin_security_fail2ban_findtime', page_locale()) }}</label>
-                                            <input name="findtime" value="{{ payload.findtime|default('10m') }}" class="form-input">
-                                        </div>
-                                        <div class="form-field">
-                                            <label class="form-label">{{ t('admin_security_fail2ban_maxretry', page_locale()) }}</label>
-                                            <input name="maxretry" value="{{ payload.maxretry|default(5) }}" class="form-input">
-                                        </div>
-                                        <div class="form-field">
-                                            <label class="form-label">{{ t('admin_security_fail2ban_jails', page_locale()) }}</label>
-                                            <input name="jails" value="{{ payload.jails is defined ? payload.jails|join(', ') : 'sshd' }}" class="form-input">
-                                        </div>
-                                    </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_security_fail2ban_ignore_ips', page_locale()) }}</label>
-                                        <input name="ignore_ips" value="{{ payload.ignore_ips is defined ? payload.ignore_ips|join(', ') : '127.0.0.1/8' }}" class="form-input">
-                                    </div>
-                                    <div class="form-field">
-                                        <label class="form-label">{{ t('admin_security_fail2ban_advanced', page_locale()) }}</label>
-                                        <textarea name="advanced_config" rows="4" class="form-input">{{ payload.advanced_config|default('') }}</textarea>
-                                    </div>
-                                    <label class="inline-flex items-center gap-2 text-xs font-semibold uppercase" style="color:var(--ng-text)">
-                                        <input type="checkbox" name="dry_run" value="1" class="rounded" style="border-color:var(--ng-border)">
-                                        {{ t('admin_security_preview_mode', page_locale()) }}
-                                    </label>
-                                    <div class="flex flex-wrap items-center gap-3">
-                                        <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_security_update_fail2ban', page_locale()) }}</button>
-                                        {% if fail2banUpdated == node.id %}
-                                            <span class="ui-badge ui-badge--success">{{ t('admin_security_saved', page_locale()) }}</span>
-                                        {% endif %}
-                                    </div>
-                                </form>
-
-                                <form method="post" action="/admin/security/fail2ban/{{ node.id }}/status" class="mt-3">
-                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_security_fail2ban_check_status', page_locale()) }}</button>
-                                </form>
                             </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
+                        </details>
+                    {% endfor %}
+                </div>
+            {% endif %}
         </div>
-
-        {# Security Events #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title" id="security-events">{{ t('admin_security_transparency_title', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_security_transparency_intro', page_locale()) }}</p>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-                    <div style="border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);text-align:center;">
-                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:6px;">{{ t('admin_security_allowed', page_locale()) }}</div>
-                        <div style="font-size:28px;font-weight:700;color:var(--ng-success);">{{ securityEventSummary.allowed }}</div>
-                    </div>
-                    <div style="border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);text-align:center;">
-                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:6px;">{{ t('admin_security_blocked', page_locale()) }}</div>
-                        <div style="font-size:28px;font-weight:700;color:var(--ng-danger);">{{ securityEventSummary.blocked }}</div>
-                    </div>
-                </div>
-
-                <form method="get" action="/admin/security" class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-                    <input type="datetime-local" name="event_from" value="{{ securityEventFilters.from ? securityEventFilters.from|date('Y-m-d\\TH:i') : '' }}" class="form-input">
-                    <input type="datetime-local" name="event_to" value="{{ securityEventFilters.to ? securityEventFilters.to|date('Y-m-d\\TH:i') : '' }}" class="form-input">
-                    <input name="event_ip" value="{{ securityEventFilters.ip|default('') }}" placeholder="{{ t('admin_security_event_ip', page_locale()) }}" class="form-input">
-                    <input name="event_rule" value="{{ securityEventFilters.rule|default('') }}" placeholder="{{ t('admin_security_event_rule', page_locale()) }}" class="form-input">
-                    <input name="event_source" value="{{ securityEventFilters.source|default('') }}" placeholder="{{ t('admin_security_event_source', page_locale()) }}" class="form-input">
-                    <div>
-                        <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_security_event_filter', page_locale()) }}</button>
-                    </div>
-                </form>
-
-                <div class="cust-ws-table-wrap mt-4">
-                    <table class="cust-table">
-                        <thead>
-                            <tr>
-                                <th>{{ t('admin_security_event_time', page_locale()) }}</th>
-                                <th>{{ t('admin_security_event_source', page_locale()) }}</th>
-                                <th>{{ t('admin_security_event_direction', page_locale()) }}</th>
-                                <th>{{ t('admin_security_event_rule', page_locale()) }}</th>
-                                <th>{{ t('admin_security_event_ip', page_locale()) }}</th>
-                                <th>{{ t('admin_security_event_reason', page_locale()) }}</th>
-                                <th>{{ t('admin_security_event_count', page_locale()) }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for event in securityEvents %}
-                                <tr>
-                                    <td>{{ event.occurredAt|date('Y-m-d H:i') }}</td>
-                                    <td>{{ event.source }}</td>
-                                    <td>{{ event.direction|title }}</td>
-                                    <td>{{ event.rule ?? '-' }}</td>
-                                    <td>{{ event.ip ?? '-' }}</td>
-                                    <td>{{ event.reason ?? '-' }}</td>
-                                    <td>{{ event.count ?? 1 }}</td>
-                                </tr>
-                            {% else %}
-                                <tr>
-                                    <td colspan="7" class="cust-table__empty">{{ t('admin_security_event_no_results', page_locale()) }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
     </div>
 
-    {# ── Unified Ruleset ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title" id="unified-ruleset">{{ t('admin_security_unified_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_security_unified_intro', page_locale()) }}</p>
+    {# ══════════════════════════════════════
+       FAIL2BAN
+    ══════════════════════════════════════ #}
+    <div id="fail2ban" class="ng-data-card">
+        <div class="ng-data-card__header" style="border-left:3px solid #fbbf24;padding-left:18px;margin-left:-1px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div style="width:40px;height:40px;border-radius:10px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🛡</div>
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_security_fail2ban_title', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_security_fail2ban_intro', locale) }}</p>
+                </div>
             </div>
+        </div>
+        <div class="ng-data-card__body--flush">
+            {% if fail2banNodes is empty %}
+                <div class="cust-table__empty">{{ t('admin_security_no_nodes', locale) }}</div>
+            {% else %}
+                <div style="display:flex;flex-direction:column;">
+                    {% for node in fail2banNodes %}
+                        {% set payload = node.policy ? node.policy.payload : {} %}
+                        {% set activeJails = payload.jails is defined ? payload.jails : ['sshd'] %}
+                        <details style="border-top:1px solid var(--ng-border);" {{ fail2banUpdated == node.id ? 'open' : '' }}>
+                            <summary style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;cursor:pointer;user-select:none;list-style:none;transition:background .15s;" onmouseover="this.style.background='var(--ng-surface-soft)'" onmouseout="this.style.background=''">
+                                <div style="display:flex;align-items:center;gap:14px;">
+                                    <div style="width:34px;height:34px;border-radius:8px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">🖥</div>
+                                    <div>
+                                        <p style="margin:0;font-size:14px;font-weight:600;color:var(--ng-text);">{{ node.name }}</p>
+                                        <p style="margin:3px 0 0;font-size:11px;color:var(--ng-text-muted);">
+                                            {{ node.updatedAt|date('d.m.Y H:i') }}
+                                            {% if node.policy %} · v{{ node.policy.version }} · {{ node.policy.status|title }}{% endif %}
+                                            · {{ activeJails|length }} {{ t('admin_security_fail2ban_jails_active', locale) }}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    {% if fail2banUpdated == node.id %}
+                                        <span class="ui-badge ui-badge--success">{{ t('admin_security_saved', locale) }}</span>
+                                    {% endif %}
+                                    {% if node.status == 'online' %}
+                                        <span class="ui-badge ui-badge--success">Online</span>
+                                    {% elseif node.status == 'degraded' %}
+                                        <span class="ui-badge ui-badge--warning">Degraded</span>
+                                    {% else %}
+                                        <span class="ui-badge ui-badge--danger">Offline</span>
+                                    {% endif %}
+                                    <svg style="width:14px;height:14px;color:var(--ng-text-muted);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                </div>
+                            </summary>
+
+                            <div style="padding:0 20px 22px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                                <div style="padding-top:16px;">
+                                    <form method="post" action="/admin/security/fail2ban/{{ node.id }}" style="display:flex;flex-direction:column;gap:20px;">
+
+                                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ng-text);cursor:pointer;">
+                                            <input type="checkbox" name="enabled" value="1" {{ (payload.enabled is not defined or payload.enabled) ? 'checked' : '' }}>
+                                            {{ t('admin_security_fail2ban_enabled', locale) }}
+                                        </label>
+
+                                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                                            <div class="form-field">
+                                                <label class="form-label">{{ t('admin_security_fail2ban_bantime', locale) }}</label>
+                                                <input name="bantime" value="{{ payload.bantime|default('10m') }}" placeholder="10m" class="form-input">
+                                                <p class="form-hint">{{ t('admin_security_fail2ban_bantime_hint', locale) }}</p>
+                                            </div>
+                                            <div class="form-field">
+                                                <label class="form-label">{{ t('admin_security_fail2ban_findtime', locale) }}</label>
+                                                <input name="findtime" value="{{ payload.findtime|default('10m') }}" placeholder="10m" class="form-input">
+                                                <p class="form-hint">{{ t('admin_security_fail2ban_findtime_hint', locale) }}</p>
+                                            </div>
+                                            <div class="form-field">
+                                                <label class="form-label">{{ t('admin_security_fail2ban_maxretry', locale) }}</label>
+                                                <input name="maxretry" type="number" min="1" max="100" value="{{ payload.maxretry|default(5) }}" class="form-input">
+                                                <p class="form-hint">{{ t('admin_security_fail2ban_maxretry_hint', locale) }}</p>
+                                            </div>
+                                        </div>
+
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                            <div class="form-field">
+                                                <label class="form-label">{{ t('admin_security_fail2ban_action_type', locale) }}</label>
+                                                <select name="action_type" class="form-input">
+                                                    {% set currentAction = payload.action_type|default('iptables-multiport') %}
+                                                    {% for action in fail2banActionOptions %}
+                                                        <option value="{{ action }}" {{ action == currentAction ? 'selected' : '' }}>{{ action }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <p class="form-hint">{{ t('admin_security_fail2ban_action_hint', locale) }}</p>
+                                            </div>
+                                            <div class="form-field">
+                                                <label class="form-label">{{ t('admin_security_fail2ban_backend', locale) }}</label>
+                                                <select name="backend" class="form-input">
+                                                    {% set currentBackend = payload.backend|default('auto') %}
+                                                    {% for bk in fail2banBackendOptions %}
+                                                        <option value="{{ bk }}" {{ bk == currentBackend ? 'selected' : '' }}>{{ bk|title }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <p class="form-hint">{{ t('admin_security_fail2ban_backend_hint', locale) }}</p>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:var(--ng-text);">{{ t('admin_security_fail2ban_jails_title', locale) }}</p>
+                                            <div style="display:flex;flex-direction:column;gap:16px;">
+                                                {% for groupKey, groupJails in fail2banKnownJails %}
+                                                    <div>
+                                                        <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ jailGroupLabels[groupKey] ?? groupKey }}</p>
+                                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                                            {% for jail in groupJails %}
+                                                                <label style="display:flex;align-items:center;gap:6px;border:1px solid {{ jail in activeJails ? 'rgba(96,165,250,.4)' : 'var(--ng-border)' }};border-radius:6px;padding:6px 12px;font-size:12px;color:var(--ng-text);cursor:pointer;background:{{ jail in activeJails ? 'rgba(96,165,250,.08)' : 'var(--ng-surface)' }};transition:background .12s,border-color .12s;">
+                                                                    <input type="checkbox" name="jails[]" value="{{ jail }}" {{ jail in activeJails ? 'checked' : '' }}
+                                                                        onchange="this.closest('label').style.background=this.checked?'rgba(96,165,250,.08)':'var(--ng-surface)';this.closest('label').style.borderColor=this.checked?'rgba(96,165,250,.4)':'var(--ng-border)';">
+                                                                    <span>{{ jailLabels[jail] ?? jail }}</span>
+                                                                </label>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+                                                {% endfor %}
+
+                                                <div class="form-field">
+                                                    <label class="form-label">{{ t('admin_security_fail2ban_custom_jails', locale) }}</label>
+                                                    {% set knownJailsFlat = [] %}
+                                                    {% for g in fail2banKnownJails %}{% for j in g %}{% set knownJailsFlat = knownJailsFlat|merge([j]) %}{% endfor %}{% endfor %}
+                                                    {% set customJailsActive = activeJails|filter(j => j not in knownJailsFlat) %}
+                                                    <input name="jails_custom" value="{{ customJailsActive|join(', ') }}" placeholder="my-custom-jail, another-jail" class="form-input">
+                                                    <p class="form-hint">{{ t('admin_security_fail2ban_custom_jails_hint', locale) }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-field">
+                                            <label class="form-label">{{ t('admin_security_fail2ban_ignore_ips', locale) }}</label>
+                                            <input name="ignore_ips" value="{{ payload.ignore_ips is defined ? payload.ignore_ips|join(', ') : '127.0.0.1/8' }}" placeholder="127.0.0.1/8, 10.0.0.0/8" class="form-input">
+                                            <p class="form-hint">{{ t('admin_security_fail2ban_ignore_ips_hint', locale) }}</p>
+                                        </div>
+
+                                        <div class="form-field">
+                                            <label class="form-label">{{ t('admin_security_fail2ban_advanced', locale) }}</label>
+                                            <textarea name="advanced_config" rows="4" class="form-input" placeholder="[DEFAULT]&#10;# extra fail2ban.conf overrides">{{ payload.advanced_config|default('') }}</textarea>
+                                            <p class="form-hint">{{ t('admin_security_fail2ban_advanced_hint', locale) }}</p>
+                                        </div>
+
+                                        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ng-text);cursor:pointer;">
+                                                <input type="checkbox" name="dry_run" value="1">
+                                                {{ t('admin_security_preview_mode', locale) }}
+                                            </label>
+                                            <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_security_update_fail2ban', locale) }}</button>
+                                        </div>
+                                    </form>
+
+                                    <form method="post" action="/admin/security/fail2ban/{{ node.id }}/status" style="margin-top:12px;">
+                                        <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_security_fail2ban_check_status', locale) }}</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </details>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ══════════════════════════════════════
+       SECURITY EVENTS
+    ══════════════════════════════════════ #}
+    <div id="events" class="ng-data-card">
+        <div class="ng-data-card__header" style="border-left:3px solid #a78bfa;padding-left:18px;margin-left:-1px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div style="width:40px;height:40px;border-radius:10px;background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">📋</div>
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_security_transparency_title', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_security_transparency_intro', locale) }}</p>
+                </div>
+            </div>
+            <span class="ui-badge ui-badge--neutral">{{ totalEvents }} {{ t('admin_security_nav_events_sub', locale) }}</span>
         </div>
         <div class="ng-data-card__body">
-            {% if rulesetUpdated == 'applied' %}
-                <div class="ng-alert ng-alert--success mb-4">{{ t('admin_security_unified_applied', page_locale()) }}</div>
-            {% elseif rulesetUpdated == 'rollback' %}
-                <div class="ng-alert ng-alert--warning mb-4">{{ t('admin_security_unified_rollback', page_locale()) }}</div>
-            {% endif %}
 
-            <form method="post" action="/admin/security/ruleset/apply" class="flex flex-col gap-4">
-                <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
-                    <select name="target_scope" class="form-input">
-                        <option value="global">Global</option>
-                        <option value="node">Node</option>
-                    </select>
-                    <select name="target_node_id" class="form-input">
-                        <option value="">{{ t('admin_security_select_node', page_locale()) }}</option>
-                        {% for node in fail2banNodes %}
-                            <option value="{{ node.id }}">{{ node.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <div>
-                        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_security_unified_apply', page_locale()) }}</button>
-                    </div>
+            {# Stats #}
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px;">
+                <div style="border:1px solid var(--ng-border);border-radius:10px;padding:16px;background:var(--ng-surface-soft);text-align:center;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:8px;">{{ t('admin_security_allowed', locale) }}</div>
+                    <div style="font-size:30px;font-weight:700;color:var(--ng-success);">{{ securityEventSummary.allowed }}</div>
                 </div>
-                <textarea name="rules_json" rows="6" class="form-input font-mono text-xs" placeholder='[{"id":"allow-ssh","type":"firewall","action":"allow","protocol":"tcp","port":22,"priority":10,"enabled":true,"reason":"admin-access","target":{"scope":"global"}}]'></textarea>
+                <div style="border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:16px;background:rgba(239,68,68,.05);text-align:center;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(252,165,165,.7);margin-bottom:8px;">{{ t('admin_security_blocked', locale) }}</div>
+                    <div style="font-size:30px;font-weight:700;color:#fca5a5;">{{ securityEventSummary.blocked }}</div>
+                </div>
+                <div style="border:1px solid var(--ng-border);border-radius:10px;padding:16px;background:var(--ng-surface-soft);text-align:center;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:8px;">{{ t('admin_security_event_count', locale) }}</div>
+                    <div style="font-size:30px;font-weight:700;color:var(--ng-text);">{{ totalEvents }}</div>
+                </div>
+            </div>
+
+            {# Filter form #}
+            <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:10px;padding:16px;margin-bottom:18px;">
+                <p style="margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ng-text-muted);">Filter</p>
+                <form method="get" action="/admin/security" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end;">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_security_event_filter_from', locale) }}</label>
+                        <input type="datetime-local" name="event_from" value="{{ securityEventFilters.from ? securityEventFilters.from|date('Y-m-d\\TH:i') : '' }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_security_event_filter_to', locale) }}</label>
+                        <input type="datetime-local" name="event_to" value="{{ securityEventFilters.to ? securityEventFilters.to|date('Y-m-d\\TH:i') : '' }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_security_event_ip', locale) }}</label>
+                        <input name="event_ip" value="{{ securityEventFilters.ip|default('') }}" placeholder="192.168.1.1" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_security_event_rule', locale) }}</label>
+                        <input name="event_rule" value="{{ securityEventFilters.rule|default('') }}" placeholder="{{ t('admin_security_event_rule', locale) }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_security_event_source', locale) }}</label>
+                        <input name="event_source" value="{{ securityEventFilters.source|default('') }}" placeholder="{{ t('admin_security_event_source', locale) }}" class="form-input">
+                    </div>
+                    <div style="display:flex;gap:8px;align-self:flex-end;">
+                        <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_security_event_filter', locale) }}</button>
+                        <a href="/admin/security#events" class="ui-button ui-button--ghost ui-button--sm">{{ t('ticket_ui_reset', locale) }}</a>
+                    </div>
+                </form>
+            </div>
+
+            {# Events table #}
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t('admin_security_event_time', locale) }}</th>
+                            <th>{{ t('admin_security_event_source', locale) }}</th>
+                            <th>{{ t('admin_security_event_direction', locale) }}</th>
+                            <th>{{ t('admin_security_event_rule', locale) }}</th>
+                            <th>{{ t('admin_security_event_ip', locale) }}</th>
+                            <th>{{ t('admin_security_event_reason', locale) }}</th>
+                            <th>{{ t('admin_security_event_count', locale) }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in securityEvents %}
+                            <tr>
+                                <td style="white-space:nowrap;">{{ event.occurredAt|date('d.m.Y H:i') }}</td>
+                                <td>{{ event.source }}</td>
+                                <td>
+                                    {% if event.direction == 'blocked' %}
+                                        <span class="ui-badge ui-badge--danger">{{ event.direction|title }}</span>
+                                    {% elseif event.direction == 'allowed' %}
+                                        <span class="ui-badge ui-badge--success">{{ event.direction|title }}</span>
+                                    {% else %}
+                                        <span class="ui-badge ui-badge--neutral">{{ event.direction|title }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><code style="font-size:11px;">{{ event.rule ?? '—' }}</code></td>
+                                <td><code style="font-size:11px;">{{ event.ip ?? '—' }}</code></td>
+                                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ event.reason ?? '—' }}</td>
+                                <td style="text-align:right;font-weight:600;">{{ event.count ?? 1 }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="7" class="cust-table__empty">{{ t('admin_security_event_no_results', locale) }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# ══════════════════════════════════════
+       UNIFIED RULESET
+    ══════════════════════════════════════ #}
+    <details id="ruleset" class="ng-card" style="overflow:hidden;">
+        <summary style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;cursor:pointer;user-select:none;list-style:none;transition:background .15s;" onmouseover="this.style.background='var(--ng-surface-soft)'" onmouseout="this.style.background=''">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div style="width:38px;height:38px;border-radius:9px;background:rgba(148,163,184,.1);border:1px solid var(--ng-border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">⚙️</div>
+                <div>
+                    <span style="font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('admin_security_unified_title', locale) }}</span>
+                    <p style="margin:3px 0 0;font-size:12px;font-weight:400;color:var(--ng-text-muted);">{{ t('admin_security_unified_intro', locale) }}</p>
+                </div>
+            </div>
+            <svg style="width:16px;height:16px;color:var(--ng-text-muted);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <div style="border-top:1px solid var(--ng-border);padding:22px;display:flex;flex-direction:column;gap:22px;background:var(--ng-surface-soft);">
+
+            <form method="post" action="/admin/security/ruleset/apply" style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_security_ruleset_scope', locale) }}</label>
+                        <select name="target_scope" class="form-input">
+                            <option value="global">{{ t('admin_security_ruleset_global', locale) }}</option>
+                            <option value="node">{{ t('admin_security_ruleset_node', locale) }}</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_security_select_node', locale) }}</label>
+                        <select name="target_node_id" class="form-input">
+                            <option value="">— {{ t('admin_security_select_node', locale) }} —</option>
+                            {% for node in fail2banNodes %}
+                                <option value="{{ node.id }}">{{ node.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="ui-button ui-button--primary">{{ t('admin_security_unified_apply', locale) }}</button>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('admin_security_ruleset_json_label', locale) }}</label>
+                    <textarea name="rules_json" rows="7" class="form-input" style="font-family:monospace;font-size:12px;" placeholder='[{"id":"allow-ssh","type":"firewall","action":"allow","protocol":"tcp","port":22,"priority":10,"enabled":true,"reason":"admin SSH","target":{"scope":"global"}}]'></textarea>
+                    <p class="form-hint">{{ t('admin_security_ruleset_json_hint', locale) }}</p>
+                </div>
             </form>
 
-            <div class="mt-4 grid gap-2 md:grid-cols-2">
-                {% for node in fail2banNodes %}
-                    <form method="post" action="/admin/security/ruleset/{{ node.id }}/rollback" style="display:flex;align-items:center;justify-content:space-between;border-radius:8px;padding:8px 12px;font-size:12px;border:1px solid var(--ng-border);">
-                        <span style="color:var(--ng-text)">{{ node.name }} · {{ node.unifiedPolicy ? ('v' ~ node.unifiedPolicy.version ~ ' ' ~ node.unifiedPolicy.status) : '-' }}</span>
-                        <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_security_rollback', page_locale()) }}</button>
+            {% if fail2banNodes is not empty %}
+                <div>
+                    <p style="margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('admin_security_ruleset_rollback_title', locale) }}</p>
+                    <div style="display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));">
+                        {% for node in fail2banNodes %}
+                            <form method="post" action="/admin/security/ruleset/{{ node.id }}/rollback" style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--ng-border);border-radius:8px;padding:12px 16px;font-size:12px;background:var(--ng-surface);">
+                                <div>
+                                    <span style="font-weight:600;color:var(--ng-text);">{{ node.name }}</span>
+                                    <span style="color:var(--ng-text-muted);margin-left:8px;">{{ node.unifiedPolicy ? ('v' ~ node.unifiedPolicy.version ~ ' · ' ~ node.unifiedPolicy.status|title) : t('admin_security_no_unified_policy', locale) }}</span>
+                                </div>
+                                <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_security_rollback', locale) }}</button>
+                            </form>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </details>
+
+    {# ══════════════════════════════════════
+       DDOS PROVIDER CREDENTIALS
+    ══════════════════════════════════════ #}
+    <div id="providers" class="ng-data-card">
+        <div class="ng-data-card__header" style="border-left:3px solid #34d399;padding-left:18px;margin-left:-1px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div style="width:40px;height:40px;border-radius:10px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🔑</div>
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_security_ddos_provider_title', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_security_ddos_provider_intro', locale) }}</p>
+                </div>
+            </div>
+            <span class="ui-badge ui-badge--{{ credentials|length > 0 ? 'success' : 'neutral' }}">{{ credentials|length }} {{ t('admin_security_kpi_providers', locale)|lower }}</span>
+        </div>
+        <div class="ng-data-card__body">
+            <div class="ng-layout-2col" style="align-items:flex-start;">
+
+                {# Add credentials form #}
+                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:10px;padding:18px;">
+                    <p style="margin:0 0 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('admin_security_save_credentials', locale) }}</p>
+                    <form method="post" action="/admin/security/ddos" style="display:flex;flex-direction:column;gap:14px;">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_security_provider_label', locale) }}</label>
+                            <input name="provider" placeholder="{{ t('admin_security_provider_placeholder', locale) }}" class="form-input">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_security_api_key_label', locale) }}</label>
+                            <input type="password" name="api_key" placeholder="{{ t('admin_security_api_key_placeholder', locale) }}" class="form-input">
+                        </div>
+                        <div>
+                            <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_security_save_credentials', locale) }}</button>
+                        </div>
                     </form>
-                {% endfor %}
+                </div>
+
+                {# Configured providers list #}
+                <div>
+                    <p style="margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);">{{ t('admin_security_configured_providers', locale) }}</p>
+                    {% if credentials is empty %}
+                        <div style="border:1px dashed var(--ng-border);border-radius:10px;padding:28px;text-align:center;background:var(--ng-surface-soft);">
+                            <p style="margin:0;font-size:13px;color:var(--ng-text-muted);">{{ t('admin_security_no_providers', locale) }}</p>
+                        </div>
+                    {% else %}
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            {% for credential in credentials %}
+                                <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--ng-border);border-radius:10px;padding:12px 16px;background:var(--ng-surface-soft);">
+                                    <div style="display:flex;align-items:center;gap:12px;">
+                                        <div style="width:32px;height:32px;border-radius:8px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.2);display:flex;align-items:center;justify-content:center;font-size:13px;">🔑</div>
+                                        <div>
+                                            <span style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ credential.provider|title }}</span>
+                                            <p style="margin:2px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_security_updated_at', locale)|replace({'%time%': credential.updatedAt|date('d.m.Y H:i')}) }}</p>
+                                        </div>
+                                    </div>
+                                    <span class="ui-badge ui-badge--success">● Aktiv</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>

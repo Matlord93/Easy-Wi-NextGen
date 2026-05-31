@@ -20,6 +20,8 @@ type fail2banPolicy struct {
 	MaxRetry       int
 	IgnoreIPs      []string
 	Jails          []string
+	ActionType     string
+	Backend        string
 	AdvancedConfig string
 	DryRun         bool
 }
@@ -37,14 +39,16 @@ func handleFail2banPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 	config := buildFail2banConfig(policy)
 
 	output := map[string]string{
-		"enabled":    strconv.FormatBool(policy.Enabled),
-		"bantime":    policy.BanTime,
-		"findtime":   policy.FindTime,
-		"maxretry":   strconv.Itoa(policy.MaxRetry),
-		"ignore_ips": strings.Join(policy.IgnoreIPs, ","),
-		"jails":      strings.Join(policy.Jails, ","),
-		"dry_run":    strconv.FormatBool(policy.DryRun),
-		"config":     config,
+		"enabled":     strconv.FormatBool(policy.Enabled),
+		"bantime":     policy.BanTime,
+		"findtime":    policy.FindTime,
+		"maxretry":    strconv.Itoa(policy.MaxRetry),
+		"ignore_ips":  strings.Join(policy.IgnoreIPs, ","),
+		"jails":       strings.Join(policy.Jails, ","),
+		"action_type": policy.ActionType,
+		"backend":     policy.Backend,
+		"dry_run":     strconv.FormatBool(policy.DryRun),
+		"config":      config,
 	}
 
 	if policy.DryRun {
@@ -140,12 +144,22 @@ func fail2banPolicyFromPayload(payload map[string]any) fail2banPolicy {
 		MaxRetry:       parseInt(raw["maxretry"], 5),
 		IgnoreIPs:      parseStringList(raw["ignore_ips"], "127.0.0.1/8"),
 		Jails:          parseStringList(raw["jails"], "sshd"),
+		ActionType:     parseString(raw["action_type"], "iptables-multiport"),
+		Backend:        parseString(raw["backend"], "auto"),
 		AdvancedConfig: parseString(raw["advanced_config"], ""),
 		DryRun:         parseBool(raw["dry_run"], false),
 	}
 
 	if len(policy.Jails) == 0 {
 		policy.Jails = []string{"sshd"}
+	}
+
+	if policy.ActionType == "" {
+		policy.ActionType = "iptables-multiport"
+	}
+
+	if policy.Backend == "" {
+		policy.Backend = "auto"
 	}
 
 	return policy
@@ -160,6 +174,12 @@ func buildFail2banConfig(policy fail2banPolicy) string {
 	_, _ = fmt.Fprintf(&builder, "maxretry = %d\n", policy.MaxRetry)
 	if len(policy.IgnoreIPs) > 0 {
 		_, _ = fmt.Fprintf(&builder, "ignoreip = %s\n", strings.Join(policy.IgnoreIPs, " "))
+	}
+	if policy.ActionType != "" {
+		_, _ = fmt.Fprintf(&builder, "banaction = %s\n", policy.ActionType)
+	}
+	if policy.Backend != "" && policy.Backend != "auto" {
+		_, _ = fmt.Fprintf(&builder, "backend = %s\n", policy.Backend)
 	}
 
 	for _, jail := range policy.Jails {

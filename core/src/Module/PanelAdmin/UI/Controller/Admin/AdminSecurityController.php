@@ -6,11 +6,14 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\Ddos\DdosCredentialManager;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\SecurityEvent;
 use App\Module\Core\Domain\Entity\SecurityPolicyRevision;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
+use App\Repository\DdosPolicyRepository;
 use App\Repository\DdosProviderCredentialRepository;
+use App\Repository\DdosStatusRepository;
 use App\Repository\FirewallStateRepository;
 use App\Repository\JobRepository;
 use App\Repository\SecurityEventRepository;
@@ -26,10 +29,26 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 #[Route(path: '/admin/security')]
 final class AdminSecurityController
 {
+    private const DDOS_MODE_OPTIONS = ['rate-limit', 'syn-cookie', 'conn-limit', 'off'];
+    private const DDOS_PORT_OPTIONS = [22, 53, 80, 443, 27015, 27016, 25565];
+    private const DDOS_PROTOCOL_OPTIONS = ['tcp', 'udp'];
+
+    private const FAIL2BAN_KNOWN_JAILS = [
+        'ssh' => ['sshd', 'dropbear', 'recidive'],
+        'web' => ['nginx-http-auth', 'nginx-limit-req', 'nginx-botsearch', 'nginx-noscript', 'apache-auth', 'apache-badbots', 'apache-overflows', 'apache-noscript'],
+        'mail' => ['postfix', 'postfix-sasl', 'dovecot', 'sendmail-auth', 'courier-smtp'],
+        'apps' => ['wordpress', 'php-url-fopen', 'mysqld-auth', 'phpmyadmin-syslog'],
+    ];
+
+    private const FAIL2BAN_ACTION_OPTIONS = ['iptables-multiport', 'iptables-allports', 'nftables-multiport', 'nftables-allports'];
+    private const FAIL2BAN_BACKEND_OPTIONS = ['auto', 'systemd', 'polling', 'pyinotify'];
+
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly FirewallStateRepository $firewallStateRepository,
         private readonly JobRepository $jobRepository,
+        private readonly DdosPolicyRepository $ddosPolicyRepository,
+        private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly DdosProviderCredentialRepository $credentialRepository,
         private readonly SecurityPolicyRevisionRepository $policyRevisionRepository,
         private readonly SecurityEventRepository $securityEventRepository,
@@ -74,6 +93,86 @@ final class AdminSecurityController
         $this->entityManager->flush();
 
         return new RedirectResponse('/admin/security?ddos=updated');
+    }
+
+    #[Route(path: '/ddos/apply', name: 'admin_security_ddos_apply', methods: ['POST'])]
+    public function applyDdosPolicy(Request $request): Response
+    {
+        $admin = $this->requireAdmin($request);
+
+        $nodeIds = $this->normalizeNodeIds($request->request->all('nodes'));
+        $selectedPorts = $this->parsePortsFromSelection($request->request->all('ports'));
+        $customPorts = $this->parsePortsFromInput((string) $request->request->get('custom_ports', ''));
+        $ports = $this->normalizePorts(array_merge($selectedPorts, $customPorts));
+        $protocols = $this->normalizeProtocols($request->request->all('protocols'));
+        $mode = trim((string) $request->request->get('mode', 'rate-limit'));
+
+        if ($ports === [] && !in_array($mode, ['off', 'syn-cookie'], true)) {
+            $ports = self::DDOS_PORT_OPTIONS;
+        }
+        if ($protocols === [] && !in_array($mode, ['off', 'syn-cookie'], true)) {
+            $protocols = self::DDOS_PROTOCOL_OPTIONS;
+        }
+
+        $errors = [];
+        if ($nodeIds === []) {
+            $errors[] = 'Select at least one node.';
+        }
+        if (!in_array($mode, self::DDOS_MODE_OPTIONS, true)) {
+            $errors[] = 'Invalid DDoS policy mode.';
+        }
+
+        $nodes = $this->agentRepository->findBy(['id' => $nodeIds]);
+        if ($nodes === []) {
+            $errors[] = 'Selected nodes could not be found.';
+        }
+
+        if ($errors !== []) {
+            return $this->renderPage($admin, $request, $errors, Response::HTTP_BAD_REQUEST);
+        }
+
+        foreach ($nodes as $node) {
+            $version = $this->policyRevisionRepository->nextVersion($node, 'ddos');
+            $revision = new SecurityPolicyRevision($node, 'ddos', $version, [
+                'mode' => $mode,
+                'ports' => $ports,
+                'protocols' => $protocols,
+            ], 'queued', $admin);
+            $this->entityManager->persist($revision);
+            $this->entityManager->flush();
+
+            $jobPayload = [
+                'agent_id' => $node->getId(),
+                'ports' => $ports,
+                'protocols' => $protocols,
+                'mode' => $mode,
+                'policy_revision_id' => $revision->getId(),
+                'requested_by' => [
+                    'user_id' => $admin->getId(),
+                    'email' => $admin->getEmail(),
+                ],
+                'requested_at' => (new \DateTimeImmutable())->format(DATE_RFC3339),
+            ];
+
+            $job = new Job('ddos.policy.apply', $jobPayload);
+            $this->entityManager->persist($job);
+            $statusJob = new Job('ddos.status.check', ['agent_id' => $node->getId()]);
+            $this->entityManager->persist($statusJob);
+            $this->entityManager->flush();
+
+            $this->auditLogger->log($admin, 'ddos.policy.apply_queued', [
+                'job_id' => $job->getId(),
+                'status_job_id' => $statusJob->getId(),
+                'mode' => $mode,
+                'ports' => $ports,
+                'protocols' => $protocols,
+                'policy_revision_id' => $revision->getId(),
+            ]);
+        }
+
+        $this->entityManager->flush();
+
+        return new RedirectResponse('/admin/security?ddos_applied=1');
     }
 
     #[Route(path: '/firewall/{id}', name: 'admin_security_firewall', methods: ['POST'])]
@@ -126,7 +225,7 @@ final class AdminSecurityController
 
         if ($toOpen !== [] && !$dryRun) {
             if (!$hasPending) {
-                $job = new \App\Module\Core\Domain\Entity\Job('firewall.open_ports', [
+                $job = new Job('firewall.open_ports', [
                     'agent_id' => $agent->getId(),
                     'ports' => implode(',', array_map('strval', $toOpen)),
                     'policy_revision_id' => $revision->getId(),
@@ -143,7 +242,7 @@ final class AdminSecurityController
 
         if ($toClose !== [] && !$dryRun) {
             if (!$hasPending) {
-                $job = new \App\Module\Core\Domain\Entity\Job('firewall.close_ports', [
+                $job = new Job('firewall.close_ports', [
                     'agent_id' => $agent->getId(),
                     'ports' => implode(',', array_map('strval', $toClose)),
                     'policy_revision_id' => $revision->getId(),
@@ -184,7 +283,7 @@ final class AdminSecurityController
         $revision = $this->buildPolicyRevision($agent, 'fail2ban', $payload, $admin);
 
         if (!$dryRun) {
-            $job = new \App\Module\Core\Domain\Entity\Job('fail2ban.policy.apply', [
+            $job = new Job('fail2ban.policy.apply', [
                 'agent_id' => $agent->getId(),
                 'policy_revision_id' => $revision->getId(),
                 'policy' => $payload,
@@ -224,7 +323,7 @@ final class AdminSecurityController
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
-        $job = new \App\Module\Core\Domain\Entity\Job('fail2ban.status.check', [
+        $job = new Job('fail2ban.status.check', [
             'agent_id' => $agent->getId(),
         ]);
         $this->entityManager->persist($job);
@@ -275,7 +374,7 @@ final class AdminSecurityController
             $rulesHash = hash('sha256', json_encode($canonicalRules) ?: '[]');
             $revision = $this->buildPolicyRevision($targetNode, 'unified_ruleset', ['rules' => $canonicalRules, 'hash' => $rulesHash], $admin);
             $this->cleanupLegacyDistributedSecurity($targetNode);
-            $job = new \App\Module\Core\Domain\Entity\Job('security.ruleset.apply', [
+            $job = new Job('security.ruleset.apply', [
                 'agent_id' => $targetNode->getId(),
                 'target' => $targetScope,
                 'policy_revision_id' => $revision->getId(),
@@ -304,7 +403,7 @@ final class AdminSecurityController
         }
 
         $revision = $this->buildPolicyRevision($agent, 'unified_ruleset', ['rollback' => true], $admin);
-        $job = new \App\Module\Core\Domain\Entity\Job('security.ruleset.rollback', [
+        $job = new Job('security.ruleset.rollback', [
             'agent_id' => $agent->getId(),
             'policy_revision_id' => $revision->getId(),
         ]);
@@ -321,6 +420,7 @@ final class AdminSecurityController
         $firewallRevisions = $this->indexPolicyRevisions($agents, 'firewall');
         $fail2banRevisions = $this->indexPolicyRevisions($agents, 'fail2ban');
         $unifiedRevisions = $this->indexPolicyRevisions($agents, 'unified_ruleset');
+
         $firewallNodes = array_map(function ($agent) use ($firewallJobs, $firewallRevisions): array {
             $state = $this->firewallStateRepository->findOneBy(['node' => $agent]);
             $ports = $state?->getPorts() ?? [];
@@ -328,7 +428,6 @@ final class AdminSecurityController
             sort($ports);
             $rules = $this->normalizeRules($rules);
             $job = $firewallJobs[$agent->getId()] ?? null;
-
             $revision = $firewallRevisions[$agent->getId()] ?? null;
 
             return [
@@ -383,6 +482,52 @@ final class AdminSecurityController
             ];
         }, $agents);
 
+        // DDoS status data
+        $ddosPolicies = $this->ddosPolicyRepository->findByNodes($agents);
+        $ddosStatuses = $this->ddosStatusRepository->findByNodes($agents);
+        $ddosPolicyByNode = [];
+        foreach ($ddosPolicies as $policy) {
+            $ddosPolicyByNode[$policy->getNode()->getId()] = $policy;
+        }
+        $ddosStatusByNode = [];
+        foreach ($ddosStatuses as $statusItem) {
+            $ddosStatusByNode[$statusItem->getNode()->getId()] = $statusItem;
+        }
+
+        $ddosStatusPanels = array_map(function ($agent) use ($ddosStatusByNode, $ddosPolicyByNode): array {
+            $statusItem = $ddosStatusByNode[$agent->getId()] ?? null;
+            $policyItem = $ddosPolicyByNode[$agent->getId()] ?? null;
+            $ports = $statusItem?->getPorts() ?? [];
+            sort($ports);
+            $protocols = $statusItem?->getProtocols() ?? [];
+            sort($protocols);
+            $portStats = $statusItem?->getPortStats() ?? [];
+            $policyPorts = $policyItem?->getPorts() ?? [];
+            sort($policyPorts);
+            $policyProtocols = $policyItem?->getProtocols() ?? [];
+            sort($policyProtocols);
+
+            return [
+                'id' => $agent->getId(),
+                'name' => $agent->getName() ?? 'Unnamed node',
+                'attackActive' => $statusItem?->isAttackActive() ?? false,
+                'pps' => $statusItem?->getPacketsPerSecond(),
+                'connCount' => $statusItem?->getConnectionCount(),
+                'ports' => $ports,
+                'protocols' => $protocols,
+                'portStats' => $portStats,
+                'mode' => $statusItem?->getMode(),
+                'reportedAt' => $statusItem?->getReportedAt(),
+                'updatedAt' => $statusItem?->getUpdatedAt(),
+                'policyEnabled' => $policyItem?->isEnabled(),
+                'policyMode' => $policyItem?->getMode(),
+                'policyPorts' => $policyPorts,
+                'policyProtocols' => $policyProtocols,
+                'policyAppliedAt' => $policyItem?->getAppliedAt(),
+                'policyUpdatedAt' => $policyItem?->getUpdatedAt(),
+            ];
+        }, $agents);
+
         $credentials = $this->credentialRepository->findBy(['customer' => $admin], ['updatedAt' => 'DESC']);
 
         $eventFilters = $this->parseEventFilters($request);
@@ -400,8 +545,17 @@ final class AdminSecurityController
             'errors' => $errors,
             'firewallNodes' => $firewallNodes,
             'fail2banNodes' => $fail2banNodes,
+            'ddosStatusPanels' => $ddosStatusPanels,
+            'ddosNodes' => $agents,
+            'ddosModeOptions' => self::DDOS_MODE_OPTIONS,
+            'ddosPortOptions' => self::DDOS_PORT_OPTIONS,
+            'ddosProtocolOptions' => self::DDOS_PROTOCOL_OPTIONS,
+            'fail2banKnownJails' => self::FAIL2BAN_KNOWN_JAILS,
+            'fail2banActionOptions' => self::FAIL2BAN_ACTION_OPTIONS,
+            'fail2banBackendOptions' => self::FAIL2BAN_BACKEND_OPTIONS,
             'credentials' => $credentials,
             'ddosUpdated' => $request->query->get('ddos') === 'updated',
+            'ddosApplied' => $request->query->get('ddos_applied') === '1',
             'firewallUpdated' => $request->query->get('firewall'),
             'fail2banUpdated' => $request->query->get('fail2ban'),
             'previewEnabled' => $request->query->get('preview') === '1',
@@ -466,7 +620,6 @@ final class AdminSecurityController
         usort($sanitized, static fn (array $left, array $right): int => [$left['priority'], $left['id']] <=> [$right['priority'], $right['id']]);
         return $sanitized;
     }
-
 
     /**
      * @param array<int, array<string, mixed>> $rules
@@ -563,9 +716,29 @@ final class AdminSecurityController
         $findtime = trim((string) $request->request->get('findtime', '10m'));
         $maxretry = trim((string) $request->request->get('maxretry', '5'));
         $ignoreIps = $this->parseCsvList((string) $request->request->get('ignore_ips', '127.0.0.1/8'));
-        $jails = $this->parseCsvList((string) $request->request->get('jails', 'sshd'));
         $advancedConfig = trim((string) $request->request->get('advanced_config', ''));
         $dryRun = $request->request->get('dry_run') === '1';
+
+        $actionType = trim((string) $request->request->get('action_type', 'iptables-multiport'));
+        if (!in_array($actionType, self::FAIL2BAN_ACTION_OPTIONS, true)) {
+            $actionType = 'iptables-multiport';
+        }
+
+        $backend = trim((string) $request->request->get('backend', 'auto'));
+        if (!in_array($backend, self::FAIL2BAN_BACKEND_OPTIONS, true)) {
+            $backend = 'auto';
+        }
+
+        // Jails: from checkboxes (jails[]) merged with custom text input (jails_custom)
+        $jailsFromCheckboxes = $request->request->all('jails');
+        $jailsFromCustom = $this->parseCsvList((string) $request->request->get('jails_custom', ''));
+        $jails = array_values(array_unique(array_merge(
+            array_filter(array_map('trim', (array) $jailsFromCheckboxes)),
+            $jailsFromCustom
+        )));
+        if ($jails === []) {
+            $jails = ['sshd'];
+        }
 
         return [
             'enabled' => $enabled,
@@ -574,6 +747,8 @@ final class AdminSecurityController
             'maxretry' => is_numeric($maxretry) ? (int) $maxretry : 5,
             'ignore_ips' => $ignoreIps,
             'jails' => $jails,
+            'action_type' => $actionType,
+            'backend' => $backend,
             'advanced_config' => $advancedConfig,
             'dry_run' => $dryRun,
         ];
@@ -791,5 +966,93 @@ final class AdminSecurityController
         }
 
         return $actor;
+    }
+
+    private function normalizeNodeIds(array $nodes): array
+    {
+        $normalized = [];
+        foreach ($nodes as $nodeId) {
+            if (!is_string($nodeId)) {
+                continue;
+            }
+            $nodeId = trim($nodeId);
+            if ($nodeId === '') {
+                continue;
+            }
+            $normalized[] = $nodeId;
+        }
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * @param array<int, mixed> $ports
+     * @return int[]
+     */
+    private function parsePortsFromSelection(array $ports): array
+    {
+        $parsed = [];
+        foreach ($ports as $port) {
+            if (!is_numeric($port)) {
+                continue;
+            }
+            $parsed[] = (int) $port;
+        }
+        return $this->normalizePorts($parsed);
+    }
+
+    private function parsePortsFromInput(string $raw): array
+    {
+        $ports = [];
+        foreach (explode(',', $raw) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '' || !ctype_digit($entry)) {
+                continue;
+            }
+            $ports[] = (int) $entry;
+        }
+        return $this->normalizePorts($ports);
+    }
+
+    /**
+     * @param int[] $ports
+     * @return int[]
+     */
+    private function normalizePorts(array $ports): array
+    {
+        $normalized = [];
+        foreach ($ports as $port) {
+            if (!is_int($port)) {
+                continue;
+            }
+            if ($port <= 0 || $port > 65535) {
+                continue;
+            }
+            $normalized[] = $port;
+        }
+        $normalized = array_values(array_unique($normalized));
+        sort($normalized);
+        return $normalized;
+    }
+
+    /**
+     * @param array<int, mixed> $protocols
+     * @return string[]
+     */
+    private function normalizeProtocols(array $protocols): array
+    {
+        $normalized = [];
+        foreach ($protocols as $protocol) {
+            if (!is_string($protocol)) {
+                continue;
+            }
+            $value = strtolower(trim($protocol));
+            if (!in_array($value, self::DDOS_PROTOCOL_OPTIONS, true)) {
+                continue;
+            }
+            $normalized[] = $value;
+        }
+        $normalized = array_values(array_unique($normalized));
+        sort($normalized);
+        return $normalized;
     }
 }
