@@ -66,12 +66,14 @@ final class TwoFactorPlaceholderTest extends WebTestCase
         $client->request('POST', '/login', ['email' => $user->getEmail(), 'password' => 'P@ssw0rd!']);
         self::assertResponseRedirects('/2fa');
 
-        $csrf = self::getContainer()->get(CsrfTokenManagerInterface::class)->getToken('public_2fa_check')->getValue();
+        // Pre-seed the attempt counter to MAX_ATTEMPTS - 1 so that exactly one
+        // additional invalid code triggers the lockout without requiring five
+        // full HTTP round-trips (which exhaust PHPUnit process memory).
+        $session = $client->getRequest()->getSession();
+        $session->set('auth_2fa_attempts', 4);
+        $session->save();
 
-        for ($i = 0; $i < 4; $i++) {
-            $client->request('POST', '/2fa_check', ['otp' => '000000', '_token' => $csrf]);
-            self::assertResponseRedirects('/2fa');
-        }
+        $csrf = self::getContainer()->get(CsrfTokenManagerInterface::class)->getToken('public_2fa_check')->getValue();
 
         $client->request('POST', '/2fa_check', ['otp' => '000000', '_token' => $csrf]);
         self::assertResponseStatusCodeSame(429);
