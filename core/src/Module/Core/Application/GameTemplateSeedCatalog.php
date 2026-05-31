@@ -1639,6 +1639,158 @@ final class GameTemplateSeedCatalog
     }
 
     /**
+     * @param array<int, array<string, mixed>> $requiredPorts
+     * @param array<int, array<string, mixed>> $envVars
+     * @param array<int, array<string, mixed>> $configFiles
+     * @param array<int, string> $pluginPaths
+     * @param array<string, mixed> $fastdlSettings
+     * @param array<int, string> $allowedSwitchFlags
+     * @param array<string, mixed> $installResolver
+     * @param array<int, string>|null $supportedOs
+     * @return array<string, mixed>
+     */
+    private function template(
+        string $gameKey,
+        string $displayName,
+        ?string $description,
+        ?int $steamAppId,
+        ?string $sniperProfile,
+        array $requiredPorts,
+        string $startParams,
+        array $envVars,
+        array $configFiles,
+        array $pluginPaths,
+        array $fastdlSettings,
+        string $installCommand,
+        string $updateCommand,
+        array $allowedSwitchFlags,
+        array $installResolver = [],
+        ?array $supportedOs = null,
+    ): array {
+        return [
+            'game_key' => $gameKey,
+            'display_name' => $displayName,
+            'description' => $description,
+            'steam_app_id' => $steamAppId,
+            'sniper_profile' => $sniperProfile,
+            'required_ports' => $requiredPorts,
+            'start_params' => $startParams,
+            'env_vars' => $envVars,
+            'config_files' => $configFiles,
+            'plugin_paths' => $pluginPaths,
+            'fastdl_settings' => $fastdlSettings,
+            'install_command' => $installCommand,
+            'update_command' => $updateCommand,
+            'install_resolver' => $installResolver,
+            'allowed_switch_flags' => $allowedSwitchFlags,
+            'supported_os' => $supportedOs,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function defaultFastdlSettings(): array
+    {
+        return [
+            'enabled' => false,
+            'base_url' => '',
+            'root_path' => '',
+        ];
+    }
+
+    /**
+     * @return array<string, list<array{source:string,target:string,mode:string,readonly:bool}>|list<array<string, mixed>>>
+     */
+    private function sharedPathCatalog(): array
+    {
+        $sym = static fn (string $path): array => [
+            'source' => $path,
+            'target' => $path,
+            'mode' => 'symlink',
+            'readonly' => true,
+        ];
+
+        $binPlatform = [$sym('bin'), $sym('platform')];
+        $cs2BinPlatform = [
+            ['source' => 'game/bin', 'target' => 'bin', 'mode' => 'bind', 'readonly' => true],
+            ['source' => 'game/platform', 'target' => 'platform', 'mode' => 'bind', 'readonly' => true],
+            ['source' => 'game/core', 'target' => 'core', 'mode' => 'bind', 'readonly' => true],
+            ['source' => 'game/csgo', 'target' => 'csgo', 'mode' => 'overlay', 'readonly' => true, 'exclude' => ['cfg', 'gameinfo.gi', 'gameinfo_branchspecific.gi']],
+            ['source' => 'game/csgo_community_addons', 'target' => 'csgo_community_addons', 'mode' => 'bind', 'readonly' => true],
+            ['source' => 'game/csgo_core', 'target' => 'csgo_core', 'mode' => 'bind', 'readonly' => true],
+            ['source' => 'game/csgo_imported', 'target' => 'csgo_imported', 'mode' => 'bind', 'readonly' => true],
+            ['source' => 'game/csgo_lv', 'target' => 'csgo_lv', 'mode' => 'bind', 'readonly' => true],
+            ['source' => 'game/thirdpartylegalnotices.txt', 'target' => 'thirdpartylegalnotices.txt', 'mode' => 'bind', 'readonly' => true],
+        ];
+        $engineBinaries = [$sym('Engine/Binaries')];
+        $rustManaged = [$sym('RustDedicated_Data/Managed')];
+
+        return [
+            // CS2 / Source 2
+            'cs2' => $cs2BinPlatform,
+            'cs2_windows' => $cs2BinPlatform,
+
+            // Source 1 engine family
+            'csgo_legacy' => $binPlatform,
+            'csgo_legacy_windows' => $binPlatform,
+            'css' => $binPlatform,
+            'css_windows' => $binPlatform,
+            'tf2' => $binPlatform,
+            'tf2_windows' => $binPlatform,
+            'hl2dm' => $binPlatform,
+            'hl2dm_windows' => $binPlatform,
+            'l4d' => $binPlatform,
+            'l4d_windows' => $binPlatform,
+            'l4d2' => $binPlatform,
+            'l4d2_windows' => $binPlatform,
+            'dods' => $binPlatform,
+            'dods_windows' => $binPlatform,
+            'garrys_mod' => $binPlatform,
+
+            // Rust (.NET managed assemblies)
+            'rust' => $rustManaged,
+            'rust_windows' => $rustManaged,
+
+            // Unreal Engine games (engine binaries)
+            'ark' => $engineBinaries,
+            'ark_windows' => $engineBinaries,
+            'satisfactory' => $engineBinaries,
+            'satisfactory_windows' => $engineBinaries,
+            'palworld' => $engineBinaries,
+            'palworld_windows' => $engineBinaries,
+            'conan_exiles' => $engineBinaries,
+            'conan_exiles_windows' => $engineBinaries,
+            'squad' => [$sym('SquadGame/Content/Paks')],
+            'squad_windows' => [$sym('SquadGame/Content/Paks')],
+
+            // Unity games (managed assemblies)
+            'valheim' => [$sym('valheim_server_Data/Managed')],
+            'valheim_windows' => [$sym('valheim_server_Data/Managed')],
+            'v_rising' => [$sym('VRisingServer_Data/Managed')],
+            'v_rising_windows' => [$sym('VRisingServer_Data/Managed')],
+
+            // Minecraft
+            'minecraft_vanilla_all' => [$sym('libraries')],
+            'minecraft_paper_all' => [$sym('libraries')],
+            'minecraft_bedrock' => [$sym('behavior_packs'), $sym('resource_packs')],
+
+            // Other
+            'arma3' => [$sym('dta'), $sym('addons')],
+            'arma3_windows' => [$sym('dta'), $sym('addons')],
+            'factorio' => [$sym('data')],
+            'terraria' => [$sym('Content')],
+            'project_zomboid' => [$sym('java')],
+            'project_zomboid_windows' => [$sym('java')],
+            'windrose' => [$sym('R5/Content/Paks')],
+            'windrose_windows' => [$sym('R5/Content/Paks')],
+            'hytale' => [$sym('hytale-downloader')],
+
+            // FiveM, 7 Days to Die, DayZ, Enshrouded: no safe static shared paths
+        ];
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function listPlugins(): array
