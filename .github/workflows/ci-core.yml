@@ -72,9 +72,62 @@ jobs:
         run: |
           if composer run -q | grep -q "test"; then composer run test; else echo "No test script"; fi
 
+  doctrine-schema:
+    name: Core - Doctrine schema sync
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    defaults:
+      run:
+        working-directory: core
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: easywi_test
+          MARIADB_USER: app
+          MARIADB_PASSWORD: app
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: "mysql://app:app@127.0.0.1:3306/easywi_test"
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
+
+      - name: Verify PHP 8.5 environment
+        uses: ./.github/actions/verify-php
+        with:
+          required-extensions: mbstring,intl,pdo,pdo_mysql,openssl
+
+      - name: Cache Composer
+        uses: actions/cache@v5
+        with:
+          path: ~/.composer/cache/files
+          key: ${{ runner.os }}-composer-${{ hashFiles('core/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Composer install
+        run: composer install --no-interaction --no-progress --no-scripts
+
+      - name: Run Doctrine Migrations
+        run: php bin/console doctrine:migrations:migrate --env=test --no-interaction
+
+      - name: Validate Doctrine schema
+        run: php bin/console doctrine:schema:validate --env=test --no-interaction
+
   release:
     name: Core - release bundle
-    needs: test
+    needs: [test, doctrine-schema]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     permissions:

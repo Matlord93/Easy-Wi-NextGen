@@ -64,6 +64,12 @@ jobs:
           (cd . && zip -qr "dist/release/easywi-webinterface-${VERSION}.zip" core \
             -x 'core/.env.local' 'core/.env.local.php' 'core/var/*' 'core/storage/*' 'core/uploads/*' 'core/srv/*' 'core/node_modules/*' 'core/vendor/*')
 
+          # Add Minecraft version JSON files under easywi/ so they ship with the release
+          mkdir -p dist/staging/easywi
+          cp minecraft/bedrock-server.json minecraft/minecraft-server.json minecraft/paper-versions.json dist/staging/easywi/
+          (cd dist/staging && zip -qr "../release/easywi-webinterface-${VERSION}.zip" easywi/)
+          rm -rf dist/staging
+
           python - <<'PYTAR'
           import tarfile
           import sys
@@ -75,6 +81,10 @@ jobs:
           PYTAR
           unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" core/.env >/dev/null \
             || { echo 'core/.env missing from easywi-webinterface zip' >&2; exit 1; }
+          for f in easywi/bedrock-server.json easywi/minecraft-server.json easywi/paper-versions.json; do
+            unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" "$f" >/dev/null \
+              || { echo "$f missing from easywi-webinterface zip" >&2; exit 1; }
+          done
 
           if [[ -f agent/go.mod ]]; then
             (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
