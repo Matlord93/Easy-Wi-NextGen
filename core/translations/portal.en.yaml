@@ -6859,3 +6859,11 @@ customer_sinusbot_status_unknown: "Unknown"
 # TS3 Node – section labels
 
 # TS6 Node – section labels
+
+# Session expired page
+session_expired_title: "Session Expired"
+session_expired_heading: "You have been logged out"
+session_expired_reason: "For your security, your session has expired due to inactivity or a security event. Please log in again to continue."
+session_expired_what_happened_title: "What happened?"
+session_expired_what_happened_body: "Your session was automatically terminated to protect your account. This can happen after a period of inactivity or when your account credentials are updated."
+session_expired_login_button: "Back to Login"

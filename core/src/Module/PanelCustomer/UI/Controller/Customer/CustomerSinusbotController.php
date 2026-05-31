@@ -7,9 +7,11 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
+use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\SinusbotInstanceRepository;
+use App\Repository\SinusbotNodeRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -32,6 +34,7 @@ final class CustomerSinusbotController
 {
     public function __construct(
         private readonly SinusbotInstanceRepository $instanceRepository,
+        private readonly SinusbotNodeRepository $nodeRepository,
         private readonly SinusbotInstanceProvisioner $provisioner,
         private readonly SecretsCrypto $crypto,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
@@ -46,8 +49,13 @@ final class CustomerSinusbotController
     {
         $customer = $this->requireCustomer($request);
         $instances = $this->loadInstances($customer);
+        $soloNodes = $this->nodeRepository->findSoloByCustomer($customer);
+        $soloNodeUrls = [];
+        foreach ($soloNodes as $node) {
+            $soloNodeUrls[$node->getId() ?? 0] = $this->buildNodeManageUrl($node);
+        }
 
-        return $this->renderInstances($instances);
+        return $this->renderInstances($instances, [], $soloNodes, $soloNodeUrls);
     }
 
     #[Route(path: '/instances/{id}/start', name: 'customer_sinusbot_instances_start', methods: ['POST'])]
@@ -109,8 +117,13 @@ final class CustomerSinusbotController
         if ($instance->getId() !== null) {
             $passwords[$instance->getId()] = $password;
         }
+        $soloNodes = $customer !== null ? $this->nodeRepository->findSoloByCustomer($customer) : [];
+        $soloNodeUrls = [];
+        foreach ($soloNodes as $node) {
+            $soloNodeUrls[$node->getId() ?? 0] = $this->buildNodeManageUrl($node);
+        }
 
-        return $this->renderInstances($instances, $passwords);
+        return $this->renderInstances($instances, $passwords, $soloNodes, $soloNodeUrls);
     }
 
     private function requireCustomer(Request $request): User
@@ -135,8 +148,10 @@ final class CustomerSinusbotController
     /**
      * @param SinusbotInstance[] $instances
      * @param array<int, string|null> $passwords
+     * @param SinusbotNode[] $soloNodes
+     * @param array<int, string|null> $soloNodeUrls
      */
-    private function renderInstances(array $instances, array $passwords = []): Response
+    private function renderInstances(array $instances, array $passwords = [], array $soloNodes = [], array $soloNodeUrls = []): Response
     {
         $botsUsed = [];
         $csrf = [];
@@ -155,6 +170,8 @@ final class CustomerSinusbotController
             'bots_used' => $botsUsed,
             'passwords' => $passwords,
             'csrf' => $csrf,
+            'solo_nodes' => $soloNodes,
+            'solo_node_urls' => $soloNodeUrls,
         ]));
     }
 
@@ -196,5 +213,30 @@ final class CustomerSinusbotController
         if (!$this->csrfTokenManager->isTokenValid($token)) {
             throw new UnauthorizedHttpException('csrf', $this->translator->trans('error_invalid_csrf'));
         }
+    }
+
+    private function buildNodeManageUrl(SinusbotNode $node): ?string
+    {
+        $host = trim($node->getWebBindIp());
+        $scheme = 'http';
+
+        if ($host === '' || $host === '0.0.0.0' || $host === '::') {
+            $host = trim((string) $node->getAgent()->getLastHeartbeatIp());
+        }
+
+        $agentBaseUrl = $node->getAgent()->getServiceBaseUrl();
+        if (($host === '' || $host === '0.0.0.0' || $host === '::') && $agentBaseUrl !== '') {
+            $parts = parse_url($agentBaseUrl);
+            if (is_array($parts)) {
+                $host = $parts['host'] ?? $host;
+                $scheme = $parts['scheme'] ?? $scheme;
+            }
+        }
+
+        if ($host === '' || $host === '0.0.0.0' || $host === '::') {
+            return null;
+        }
+
+        return sprintf('%s://%s:%d', $scheme, $host, $node->getWebPortBase());
     }
 }

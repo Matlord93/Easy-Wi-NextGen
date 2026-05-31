@@ -1,0 +1,45 @@
+{% extends 'public/base.html.twig' %}
+
+{% block content %}
+<div class="flex min-h-[60vh] items-center justify-center px-4">
+    <div class="w-full max-w-md">
+        <div class="overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-900 shadow-xl shadow-amber-900/10">
+            <div class="border-b border-slate-700/80 bg-gradient-to-r from-amber-600/15 via-amber-500/5 to-transparent px-6 py-5">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full border border-amber-400/40 bg-amber-500/10">
+                        <svg class="h-5 w-5 text-amber-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">{{ t('session_expired_title', page_locale()) }}</p>
+                        <h1 class="mt-0.5 text-xl font-semibold text-slate-100">{{ t('session_expired_heading', page_locale()) }}</h1>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-6 space-y-5">
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    {{ t('session_expired_reason', page_locale()) }}
+                </p>
+
+                <div class="rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-4">
+                    <p class="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
+                        {{ t('session_expired_what_happened_title', page_locale()) }}
+                    </p>
+                    <p class="mt-2 text-sm text-slate-400 leading-relaxed">
+                        {{ t('session_expired_what_happened_body', page_locale()) }}
+                    </p>
+                </div>
+
+                <a href="/login" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                    </svg>
+                    {{ t('session_expired_login_button', page_locale()) }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

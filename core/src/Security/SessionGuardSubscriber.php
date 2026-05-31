@@ -99,6 +99,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             || str_starts_with($path, '/install')
             || $path === '/logout'
             || $path === '/login'
+            || $path === '/session-expired'
             || $path === '/2fa'
             || $path === '/2fa_check'
             || $path === '/2fa/qr'
@@ -152,13 +153,21 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         }
 
         $path = $this->normalizePath($request->getPathInfo());
+
+        $hadSessionCookie = $request->cookies->has(SessionAuthenticator::ADMIN_SESSION_COOKIE)
+            || $request->cookies->has(SessionAuthenticator::CUSTOMER_SESSION_COOKIE);
+
+        if ($hadSessionCookie) {
+            return new RedirectResponse('/session-expired');
+        }
+
         if ($this->isLoginRedirectPath($path)) {
             $request->getSession()->set(PostLoginRedirectResolver::SESSION_TARGET_KEY, $path);
 
             return new RedirectResponse('/login?target=' . rawurlencode($path));
         }
 
-        return new Response($this->translator->trans('error_security_unauthorized'), Response::HTTP_UNAUTHORIZED);
+        return new RedirectResponse('/login');
     }
 
 

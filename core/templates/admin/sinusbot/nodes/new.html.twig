@@ -32,53 +32,6 @@
 
     {{ form_start(form, {'attr': {'id': 'sinusbot-node-form'}}) }}
 
-    {# ── Mode selection ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:rgba(249,115,22,.12);flex-shrink:0;">
-                    <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4l3 3"/></svg>
-                </span>
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_sinusbot_node_mode_title', locale) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_sinusbot_node_mode_desc', locale) }}</p>
-                </div>
-            </div>
-        </div>
-        <div class="ng-data-card__body">
-            <div id="mode-selector" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-                <label id="mode-solo-card" class="sinusbot-mode-card" style="cursor:pointer;border:2px solid var(--ng-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;background:var(--ng-surface);transition:border-color .15s,box-shadow .15s;">
-                    <input type="radio" name="sinusbot_node[instanceMode]" value="solo" style="display:none;">
-                    <div style="display:flex;align-items:center;gap:14px;">
-                        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#818cf8);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(99,102,241,.3);">
-                            <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke="#fff" stroke-width="2"/><path d="M4 20c0-4 3.582-7 8-7s8 3 8 7" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
-                        </div>
-                        <div>
-                            <div style="font-weight:700;font-size:15px;color:var(--ng-text);">{{ t('admin_sinusbot_solo_title', locale) }}</div>
-                            <div style="font-size:12px;color:var(--ng-text-muted);margin-top:2px;">{{ t('admin_sinusbot_solo_subtitle', locale) }}</div>
-                        </div>
-                    </div>
-                    <p style="font-size:13px;color:var(--ng-text-muted);margin:0;line-height:1.6;padding-top:4px;border-top:1px solid var(--ng-border);">{{ t('admin_sinusbot_solo_desc', locale) }}</p>
-                </label>
-
-                <label id="mode-multi-card" class="sinusbot-mode-card" style="cursor:pointer;border:2px solid var(--ng-primary,#6366f1);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;background:var(--ng-surface);transition:border-color .15s,box-shadow .15s;box-shadow:0 0 0 3px rgba(99,102,241,.12);">
-                    <input type="radio" name="sinusbot_node[instanceMode]" value="multi" checked style="display:none;">
-                    <div style="display:flex;align-items:center;gap:14px;">
-                        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#10b981,#34d399);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(16,185,129,.3);">
-                            <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><circle cx="7" cy="9" r="3" stroke="#fff" stroke-width="2"/><circle cx="17" cy="9" r="3" stroke="#fff" stroke-width="2"/><path d="M1 19c0-3 2.686-5 6-5M17 14c3.314 0 6 2 6 5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M9 19c0-3.314 1.343-5 3-5s3 1.686 3 5" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
-                        </div>
-                        <div>
-                            <div style="font-weight:700;font-size:15px;color:var(--ng-text);">{{ t('admin_sinusbot_multi_title', locale) }}</div>
-                            <div style="font-size:12px;color:var(--ng-text-muted);margin-top:2px;">{{ t('admin_sinusbot_multi_subtitle', locale) }}</div>
-                        </div>
-                    </div>
-                    <p style="font-size:13px;color:var(--ng-text-muted);margin:0;line-height:1.6;padding-top:4px;border-top:1px solid var(--ng-border);">{{ t('admin_sinusbot_multi_desc', locale) }}</p>
-                </label>
-            </div>
-            <div style="display:none;">{{ form_widget(form.instanceMode) }}</div>
-        </div>
-    </div>
-
     {# ── Basic configuration ── #}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
@@ -93,6 +46,7 @@
             </div>
         </div>
         <div class="ng-data-card__body">
+            <div style="display:none;">{{ form_widget(form.instanceMode) }}</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                 <div>
                     {{ form_row(form.name, { label: t('admin_sinusbot_node_form_name', locale) }) }}
@@ -125,12 +79,10 @@
             </div>
         </div>
         <div class="ng-data-card__body">
+            <div style="display:none;">{{ form_widget(form.instanceRoot) }}</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-                <div>
+                <div style="grid-column:span 2;">
                     {{ form_row(form.installPath, { label: t('admin_sinusbot_install_path_label', locale) }) }}
-                </div>
-                <div id="instance-root-row">
-                    {{ form_row(form.instanceRoot, { label: t('admin_sinusbot_instance_root_form_label', locale) }) }}
                 </div>
                 <div>
                     {{ form_row(form.webBindIp, { label: t('admin_sinusbot_web_bind_label', locale) }) }}
@@ -152,37 +104,10 @@
 
 </div>
 
-<style>
-.sinusbot-mode-card:hover {
-    border-color: var(--ng-primary, #6366f1) !important;
-    box-shadow: 0 0 0 3px rgba(99,102,241,.08) !important;
-}
-</style>
-
 <script>
 (function () {
-    const soloCard  = document.getElementById('mode-solo-card');
-    const multiCard = document.getElementById('mode-multi-card');
-    const soloRadio  = soloCard.querySelector('input[type=radio]');
-    const multiRadio = multiCard.querySelector('input[type=radio]');
-    const instanceRootRow = document.getElementById('instance-root-row');
-
-    function updateMode(mode) {
-        const isMulti = mode === 'multi';
-        soloCard.style.borderColor  = isMulti ? 'var(--ng-border)' : 'var(--ng-primary,#6366f1)';
-        soloCard.style.boxShadow    = isMulti ? 'none' : '0 0 0 3px rgba(99,102,241,.12)';
-        multiCard.style.borderColor = isMulti ? 'var(--ng-primary,#6366f1)' : 'var(--ng-border)';
-        multiCard.style.boxShadow   = isMulti ? '0 0 0 3px rgba(99,102,241,.12)' : 'none';
-        instanceRootRow.style.display = isMulti ? '' : 'none';
-        soloRadio.checked  = !isMulti;
-        multiRadio.checked = isMulti;
-        const sel = document.querySelector('select[name="sinusbot_node[instanceMode]"]');
-        if (sel) sel.value = mode;
-    }
-
-    updateMode('multi');
-    soloCard.addEventListener('click', () => updateMode('solo'));
-    multiCard.addEventListener('click', () => updateMode('multi'));
+    const sel = document.querySelector('select[name="sinusbot_node[instanceMode]"]');
+    if (sel) sel.value = 'solo';
 })();
 </script>
 

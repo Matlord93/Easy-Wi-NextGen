@@ -11,6 +11,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\MailboxRepository;
 use App\Repository\ShopRentalRepository;
 use App\Repository\SinusbotInstanceRepository;
+use App\Repository\SinusbotNodeRepository;
 use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\Ts6VirtualServerRepository;
 use App\Repository\VoiceInstanceRepository;
@@ -28,6 +29,7 @@ final class CustomerModuleTwigExtension extends AbstractExtension
         private readonly Ts6VirtualServerRepository $ts6VirtualServerRepository,
         private readonly VoiceInstanceRepository $voiceInstanceRepository,
         private readonly SinusbotInstanceRepository $sinusbotInstanceRepository,
+        private readonly SinusbotNodeRepository $sinusbotNodeRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DatabaseRepository $databaseRepository,
         private readonly DomainRepository $domainRepository,
@@ -62,7 +64,8 @@ final class CustomerModuleTwigExtension extends AbstractExtension
             'voice' => $this->voiceInstanceRepository->count(['customer' => $actor]) > 0
                 || $this->ts3VirtualServerRepository->count(['customerId' => $customerId, 'archivedAt' => null]) > 0
                 || $this->ts6VirtualServerRepository->count(['customerId' => $customerId, 'archivedAt' => null]) > 0,
-            'sinusbot' => $this->sinusbotInstanceRepository->count(['customer' => $actor, 'archivedAt' => null]) > 0,
+            'sinusbot' => $this->sinusbotInstanceRepository->count(['customer' => $actor, 'archivedAt' => null]) > 0
+                || $this->sinusbotNodeRepository->count(['customer' => $actor, 'instanceMode' => 'solo']) > 0,
             'web' => $this->webspaceRepository->count(['customer' => $actor]) > 0,
             'database' => $this->databaseRepository->count(['customer' => $actor]) > 0,
             'domain' => $this->domainRepository->count(['customer' => $actor]) > 0,

@@ -6859,3 +6859,11 @@ customer_sinusbot_status_unknown: "Unbekannt"
 # TS3 Node – Abschnittsbeschriftungen
 
 # TS6 Node – Abschnittsbeschriftungen
+
+# Sitzung abgelaufen Seite
+session_expired_title: "Sitzung abgelaufen"
+session_expired_heading: "Du wurdest abgemeldet"
+session_expired_reason: "Aus Sicherheitsgründen wurde deine Sitzung aufgrund von Inaktivität oder einem Sicherheitsereignis beendet. Bitte melde dich erneut an, um fortzufahren."
+session_expired_what_happened_title: "Was ist passiert?"
+session_expired_what_happened_body: "Deine Sitzung wurde zum Schutz deines Kontos automatisch beendet. Das kann nach einer Phase der Inaktivität oder bei einer Aktualisierung deiner Zugangsdaten passieren."
+session_expired_login_button: "Zurück zur Anmeldung"

@@ -5,7 +5,7 @@
 {% block content %}
 {% set locale = page_locale() %}
 
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div style="display:flex;flex-direction:column;gap:32px;">
 
     <section class="ng-card" style="overflow:hidden;">
         <div class="tkt-hero">
@@ -28,6 +28,12 @@
     {% for message in app.flashes('error') %}
         <div class="ng-alert ng-alert--danger">{{ t(message, locale) }}</div>
     {% endfor %}
+
+    {% if form.vars.errors|length > 0 %}
+        {% for error in form.vars.errors %}
+            <div class="ng-alert ng-alert--danger">{{ error.message }}</div>
+        {% endfor %}
+    {% endif %}
 
     {{ form_start(form, {'attr': {'id': 'ts6-node-form'}}) }}
 
@@ -101,9 +107,15 @@
         </div>
     </div>
 
-    <div style="display:flex;justify-content:flex-end;gap:12px;padding-bottom:4px;">
+    <div style="display:flex;justify-content:flex-end;gap:12px;padding:12px 0 8px;">
         <a class="ui-button ui-button--ghost" href="/admin/ts6/nodes">{{ t('admin_ts6_node_show_back', locale) }}</a>
         <button class="ui-button ui-button--primary" type="submit">{{ t('admin_ts6_node_save', locale) }}</button>
+    </div>
+
+    <div style="display:none;">
+        {{ form_widget(form.agentBaseUrl) }}
+        {{ form_widget(form.agentApiToken) }}
+        {{ form_widget(form._token) }}
     </div>
 
     {{ form_end(form, {'render_rest': false}) }}
