@@ -56,7 +56,8 @@ final class CentralSchedulerContractTest extends TestCase
         self::assertStringContainsString('app:run-schedules', $command);
         self::assertStringContainsString('CentralSchedulerRunner', $command);
         self::assertStringContainsString('$this->centralSchedulerRunner->runDue($now)', $command);
-        self::assertStringContainsString('one productive scheduler entry point', $docs);
+        self::assertStringContainsString('panel-managed internal scheduler', $docs);
+        self::assertStringContainsString('no manual backup cron entry is required', $docs);
         self::assertStringContainsString('Do not add', $docs);
     }
 
@@ -90,6 +91,7 @@ final class CentralSchedulerContractTest extends TestCase
         self::assertStringContainsString("configProvider->exists()", $subscriber);
         self::assertStringContainsString('LOCK_EX | LOCK_NB', $subscriber);
         self::assertStringContainsString('scheduler.request_trigger_failed', $subscriber);
+        self::assertStringContainsString('TRIGGER_INTERVAL_SECONDS = 60', $subscriber);
     }
 
     public function testAppRunSchedulesProcessesGameserverBackupAndRestartHandlers(): void
@@ -118,6 +120,7 @@ final class CentralSchedulerContractTest extends TestCase
 
         self::assertStringContainsString('debug/development helpers only', $docs);
         self::assertStringContainsString('must not be required as separate production cronjobs', $docs);
+        self::assertStringContainsString('panel-managed central scheduler', $docs);
     }
 
     public function testAdminUiListsBackupAndInstanceSchedulesAndRunNow(): void

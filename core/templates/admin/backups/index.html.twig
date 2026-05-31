@@ -15,7 +15,7 @@
 {% set failedCount = 0 %}
 {% set pendingCount = 0 %}
 {% for backup in backups %}
-    {% if backup.status == 'success' %}
+    {% if backup.status in ['success', 'succeeded'] %}
         {% set successCount = successCount + 1 %}
     {% elseif backup.status == 'failed' %}
         {% set failedCount = failedCount + 1 %}
@@ -97,9 +97,9 @@
                                 <td>{{ backup.id }}</td>
                                 <td>{{ backup.instance_id }}</td>
                                 <td>{{ backup.customer_id }}</td>
-                                <td>{{ backup.target ?: 'default' }}</td>
+                                <td>{{ backup.target ?: 'default' }}<br><small>{{ backup.target_type|default('local') }} · {{ backup.target_path ?: backup.archive_path ?: '—' }}</small></td>
                                 <td>
-                                    {% if backup.status == 'success' %}
+                                    {% if backup.status in ['success', 'succeeded'] %}
                                         <span class="ui-badge ui-badge--success">{{ t('admin_backups_status_success', locale) }}</span>
                                     {% elseif backup.status == 'failed' %}
                                         <span class="ui-badge ui-badge--danger">{{ t('admin_backups_status_failed', locale) }}</span>
@@ -107,7 +107,7 @@
                                         <span class="ui-badge ui-badge--warning">{{ t('admin_backups_status_running', locale) }}</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ backup.size_bytes ?: '—' }}</td>
+                                <td>{{ backup.size_bytes ?: '—' }}<br><small>{{ backup.checksum ?: '—' }}</small></td>
                                 <td>{{ backup.created_at|date('Y-m-d H:i') }}</td>
                                 <td>{{ backup.error ?: '—' }}</td>
                             </tr>

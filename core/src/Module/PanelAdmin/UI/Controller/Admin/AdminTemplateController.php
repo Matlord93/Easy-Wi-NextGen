@@ -413,6 +413,7 @@ final class AdminTemplateController
             $this->auditLogger->log($actor, 'template.created', [
                 'template_id' => $template->getId(),
                 'game_key' => $template->getGameKey(),
+                'gameKey' => $template->getGameKey(),
                 'display_name' => $template->getDisplayName(),
                 'required_ports' => $template->getRequiredPorts(),
                 'start_params' => $template->getStartParams(),
@@ -476,6 +477,7 @@ final class AdminTemplateController
             return [
                 'id' => $template->getId(),
                 'game_key' => $template->getGameKey(),
+                'gameKey' => $template->getGameKey(),
                 'display_name' => $template->getDisplayName(),
                 'description' => $template->getDescription(),
                 'start_params' => $template->getStartParams(),
@@ -491,6 +493,7 @@ final class AdminTemplateController
                 'update_command' => $template->getUpdateCommand(),
                 'allowed_switch_flags' => $template->getAllowedSwitchFlags(),
                 'supported_os' => $template->getSupportedOs(),
+                'supportedOs' => $template->getSupportedOs(),
                 'updated_at' => $template->getUpdatedAt(),
                 'shared_paths_sync' => $this->seedSyncService->compareSharedPaths($template),
             ];
@@ -1063,6 +1066,7 @@ final class AdminTemplateController
         $preview = [
             'identity' => [
                 'game_key' => $template->getGameKey(),
+                'gameKey' => $template->getGameKey(),
                 'display_name' => $template->getDisplayName(),
                 'steam_app_id' => $template->getSteamAppId(),
                 'sniper_profile' => $template->getSniperProfile(),

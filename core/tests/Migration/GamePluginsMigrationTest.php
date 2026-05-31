@@ -38,6 +38,13 @@ final class GamePluginsMigrationTest extends TestCase
         self::assertStringContainsString('current_plugin.template_id = legacy.template_id', $migration);
         self::assertStringContainsString('LOWER(current_plugin.name) = LOWER(legacy.name)', $migration);
         self::assertStringContainsString('current_plugin.version = legacy.version', $migration);
+        self::assertStringContainsString('GROUP BY legacy.template_id, LOWER(legacy.name), legacy.version', $migration);
+    }
+
+    public function testPluginMigrationsCreateUniqueCatalogIndex(): void
+    {
+        self::assertStringContainsString('uq_game_plugins_template_name_version', self::initialMigrationSql());
+        self::assertStringContainsString('uq_game_plugins_template_name_version', self::legacyMigrationSql());
     }
 
     public function testLegacyMigrationKeepsLegacyTable(): void

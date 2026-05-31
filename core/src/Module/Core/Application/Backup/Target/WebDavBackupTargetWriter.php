@@ -21,66 +21,111 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
 
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
+        if (!is_file($sourceFile) || !is_readable($sourceFile)) {
+            throw new \InvalidArgumentException('Backup source file is not readable.');
+        }
+
+        $baseUrl = $this->baseUrl($target);
+        UrlSafetyGuard::assertSafeHttpsEndpoint($baseUrl);
+
+        $remotePath = $this->remotePath($target);
+        $finalUrl = $this->buildUrl($baseUrl, $remotePath, $archiveName);
+        $this->ensureCollections($target, $baseUrl, $remotePath);
+
+        $handle = fopen($sourceFile, 'rb');
+        if (!is_resource($handle)) {
+            throw new \RuntimeException('Failed to open backup archive for WebDAV upload.');
+        }
+
+        try {
+            $response = $this->httpClient->request('PUT', $finalUrl, $this->requestOptions($target, $handle));
+            $statusCode = $response->getStatusCode();
+        } finally {
+            fclose($handle);
+        }
+
+        if (!in_array($statusCode, [200, 201, 204], true)) {
+            throw new \RuntimeException($this->statusMessage('WebDAV upload failed', $statusCode));
+        }
+
+        return $finalUrl;
+    }
+
+    private function baseUrl(BackupStorageTarget $target): string
+    {
         $baseUrl = rtrim((string) ($target->config()['url'] ?? ''), '/');
         if ($baseUrl === '') {
             throw new \InvalidArgumentException('WebDAV target requires url config.');
         }
 
-        UrlSafetyGuard::assertSafeHttpsEndpoint($baseUrl);
-
-        $rootPath = trim((string) ($target->config()['root_path'] ?? ''), '/');
-        $tmpName = sprintf('.upload-%s-%s.tmp', bin2hex(random_bytes(4)), $archiveName);
-
-        $tempUrl = $this->buildUrl($baseUrl, $rootPath, $tmpName);
-        $finalUrl = $this->buildUrl($baseUrl, $rootPath, $archiveName);
-        $options = $this->requestOptions($target, $sourceFile);
-
-        $response = $this->httpClient->request('PUT', $tempUrl, $options);
-        if ($response->getStatusCode() >= 300) {
-            throw new \RuntimeException('WebDAV temp upload failed with status '.$response->getStatusCode());
+        if ($target->type() === 'nextcloud' && !str_contains($baseUrl, '/remote.php/dav/files/')) {
+            $username = $this->username($target);
+            if ($username === '') {
+                throw new \InvalidArgumentException('Nextcloud target requires username.');
+            }
+            $baseUrl .= '/remote.php/dav/files/'.rawurlencode($username);
         }
 
-        $move = $this->httpClient->request('MOVE', $tempUrl, [
-            'headers' => $this->authHeaders($target) + [
-                'Destination' => $finalUrl,
-                'Overwrite' => 'T',
-            ],
-            'auth_basic' => $this->authBasic($target),
-            'verify_peer' => (bool) ($target->config()['verify_tls'] ?? true),
-            'verify_host' => (bool) ($target->config()['verify_tls'] ?? true),
-        ]);
-
-        if ($move->getStatusCode() >= 300) {
-            $this->tryDelete($tempUrl, $target);
-            throw new \RuntimeException('WebDAV atomic move failed with status '.$move->getStatusCode());
-        }
-
-        $this->verifyUpload($finalUrl, $target, $sourceFile);
-
-        return $finalUrl;
+        return $baseUrl;
     }
 
-    private function buildUrl(string $baseUrl, string $rootPath, string $fileName): string
+    private function remotePath(BackupStorageTarget $target): string
     {
-        $segments = [$baseUrl];
-        if ($rootPath !== '') {
-            $segments[] = trim($rootPath, '/');
+        $path = (string) ($target->config()['remote_path'] ?? $target->config()['root_path'] ?? '');
+        $segments = [];
+        foreach (explode('/', trim($path, '/')) as $segment) {
+            $segment = trim($segment);
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                continue;
+            }
+            $segments[] = $segment;
         }
-        $segments[] = ltrim($fileName, '/');
 
         return implode('/', $segments);
     }
 
-    /** @return array<string, mixed> */
-    private function requestOptions(BackupStorageTarget $target, string $sourceFile): array
+    private function buildUrl(string $baseUrl, string $remotePath, string $fileName): string
+    {
+        $segments = [rtrim($baseUrl, '/')];
+        foreach (explode('/', trim($remotePath, '/')) as $segment) {
+            if ($segment !== '') {
+                $segments[] = rawurlencode($segment);
+            }
+        }
+        $segments[] = rawurlencode(basename($fileName));
+
+        return implode('/', $segments);
+    }
+
+    private function ensureCollections(BackupStorageTarget $target, string $baseUrl, string $remotePath): void
+    {
+        $current = '';
+        foreach (explode('/', trim($remotePath, '/')) as $segment) {
+            if ($segment === '') {
+                continue;
+            }
+            $current .= '/'.rawurlencode($segment);
+            $response = $this->httpClient->request('MKCOL', rtrim($baseUrl, '/').$current, $this->requestOptions($target));
+            $statusCode = $response->getStatusCode();
+            if (!in_array($statusCode, [200, 201, 204, 405], true)) {
+                throw new \RuntimeException($this->statusMessage('WebDAV collection creation failed', $statusCode));
+            }
+        }
+    }
+
+    /** @param resource|null $body */
+    private function requestOptions(BackupStorageTarget $target, mixed $body = null): array
     {
         $verifyTls = (bool) ($target->config()['verify_tls'] ?? true);
         $options = [
             'headers' => $this->authHeaders($target),
-            'body' => fopen($sourceFile, 'rb'),
             'verify_peer' => $verifyTls,
             'verify_host' => $verifyTls,
         ];
+
+        if ($body !== null) {
+            $options['body'] = $body;
+        }
 
         $authBasic = $this->authBasic($target);
         if ($authBasic !== null) {
@@ -105,50 +150,37 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
     /** @return array{string, string}|null */
     private function authBasic(BackupStorageTarget $target): ?array
     {
-        $secrets = $target->secrets();
-        if (is_string($secrets['username'] ?? null) && is_string($secrets['password'] ?? null)) {
-            return [(string) $secrets['username'], (string) $secrets['password']];
+        $password = $target->secrets()['password'] ?? null;
+        $username = $this->username($target);
+        if ($username !== '' && is_string($password) && $password !== '') {
+            return [$username, $password];
         }
 
         return null;
     }
 
-    private function verifyUpload(string $url, BackupStorageTarget $target, string $sourceFile): void
+    private function username(BackupStorageTarget $target): string
     {
-        $verifyTls = (bool) ($target->config()['verify_tls'] ?? true);
-        $response = $this->httpClient->request('HEAD', $url, [
-            'headers' => $this->authHeaders($target),
-            'auth_basic' => $this->authBasic($target),
-            'verify_peer' => $verifyTls,
-            'verify_host' => $verifyTls,
-        ]);
-
-        if ($response->getStatusCode() >= 300) {
-            throw new \RuntimeException('WebDAV verify failed with status '.$response->getStatusCode());
-        }
-
-        $headers = array_change_key_case($response->getHeaders(false), CASE_LOWER);
-        $expectedSize = filesize($sourceFile);
-        if (is_int($expectedSize) && isset($headers['content-length'][0])) {
-            $remoteSize = (int) $headers['content-length'][0];
-            if ($remoteSize !== $expectedSize) {
-                throw new \RuntimeException(sprintf('WebDAV verify failed: expected size %d, got %d.', $expectedSize, $remoteSize));
+        $secrets = $target->secrets();
+        foreach ([$secrets['username'] ?? null, $target->config()['username'] ?? null] as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return trim($candidate);
             }
         }
 
-        if (isset($headers['etag'][0]) && trim((string) $headers['etag'][0]) === '') {
-            throw new \RuntimeException('WebDAV verify failed: empty ETag header.');
-        }
+        return '';
     }
 
-    private function tryDelete(string $url, BackupStorageTarget $target): void
+    private function statusMessage(string $prefix, int $statusCode): string
     {
-        $verifyTls = (bool) ($target->config()['verify_tls'] ?? true);
-        $this->httpClient->request('DELETE', $url, [
-            'headers' => $this->authHeaders($target),
-            'auth_basic' => $this->authBasic($target),
-            'verify_peer' => $verifyTls,
-            'verify_host' => $verifyTls,
-        ]);
+        $reason = match ($statusCode) {
+            401 => 'authentication failed',
+            403 => 'access denied',
+            404 => 'path not found',
+            409 => 'parent collection missing or conflict',
+            default => $statusCode >= 500 ? 'remote server error' : 'unexpected response',
+        };
+
+        return sprintf('%s with status %d (%s).', $prefix, $statusCode, $reason);
     }
 }

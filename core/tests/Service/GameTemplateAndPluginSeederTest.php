@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
+use App\Module\Core\Application\GamePluginSeeder;
 use App\Module\Core\Application\GameTemplateSeeder;
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Template;
@@ -20,6 +21,15 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
         self::bootKernel();
         $this->entityManager = self::getContainer()->get(EntityManagerInterface::class);
         $this->rebuildSchema();
+    }
+
+    public function testGameTemplatesTableContainsRequiredGameKeySchema(): void
+    {
+        $schemaManager = $this->entityManager->getConnection()->createSchemaManager();
+        $columns = array_change_key_case($schemaManager->listTableColumns('game_templates'), CASE_LOWER);
+
+        self::assertArrayHasKey('game_key', $columns);
+        self::assertTrue($columns['game_key']->getNotnull());
     }
 
     public function testPluginTableExistsWithCurrentColumns(): void
@@ -40,8 +50,28 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
         $result = $this->seeder()->seedTemplatesOnly($this->entityManager);
 
         self::assertGreaterThan(0, $result);
-        self::assertInstanceOf(Template::class, $this->entityManager->getRepository(Template::class)->findOneBy(['gameKey' => 'cs2']));
-        self::assertInstanceOf(Template::class, $this->entityManager->getRepository(Template::class)->findOneBy(['gameKey' => 'minecraft_paper_all']));
+        $cs2 = $this->entityManager->getRepository(Template::class)->findOneBy(['gameKey' => 'cs2']);
+        $minecraft = $this->entityManager->getRepository(Template::class)->findOneBy(['gameKey' => 'minecraft_paper_all']);
+
+        self::assertInstanceOf(Template::class, $cs2);
+        self::assertInstanceOf(Template::class, $minecraft);
+        self::assertSame('cs2', $cs2->getGameKey());
+        self::assertSame('minecraft_paper_all', $minecraft->getGameKey());
+    }
+
+    public function testTemplateSeederUpdatesExistingTemplatesByGameKey(): void
+    {
+        $this->seeder()->seedTemplatesOnly($this->entityManager);
+        $template = $this->entityManager->getRepository(Template::class)->findOneBy(['gameKey' => 'cs2']);
+        self::assertInstanceOf(Template::class, $template);
+        $template->setDisplayName('Broken name');
+        $this->entityManager->flush();
+
+        $result = $this->seeder()->seedTemplatesOnly($this->entityManager);
+        $this->entityManager->refresh($template);
+
+        self::assertSame(0, $result);
+        self::assertSame('Counter-Strike 2 Dedicated Server', $template->getDisplayName());
     }
 
     public function testSeederCreatesStandardPluginsWhenTemplatesExist(): void
@@ -65,6 +95,15 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
         self::assertSame(0, $secondResult['templates']);
         self::assertSame(0, $secondResult['plugins']);
         self::assertSame($firstCount, $secondCount);
+    }
+
+    public function testPluginSeederReportsMissingTemplateKeys(): void
+    {
+        $result = self::getContainer()->get(GamePluginSeeder::class)->seed($this->entityManager);
+
+        self::assertSame(0, $result['plugins']);
+        self::assertGreaterThan(0, $result['skipped_missing_template']);
+        self::assertContains('cs2', $result['missing_game_keys']);
     }
 
     private function seeder(): GameTemplateSeeder

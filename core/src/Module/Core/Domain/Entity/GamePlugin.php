@@ -10,6 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: GamePluginRepository::class)]
 #[ORM\Table(name: 'game_plugins')]
 #[ORM\Index(name: 'idx_game_plugins_template', columns: ['template_id'])]
+#[ORM\UniqueConstraint(name: 'uq_game_plugins_template_name_version', columns: ['template_id', 'name', 'version'])]
 class GamePlugin
 {
     #[ORM\Id]

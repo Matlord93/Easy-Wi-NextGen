@@ -1852,6 +1852,9 @@ final class CustomerInstanceActionApiController
 
     private function normalizeBackup(\App\Module\Core\Domain\Entity\Backup $backup): array
     {
+        $target = $backup->getDefinition()->getBackupTarget();
+        $targetConfig = $target?->getConfig() ?? [];
+
         return [
             'id' => $backup->getId(),
             'definition_id' => $backup->getDefinition()->getId(),
@@ -1862,6 +1865,9 @@ final class CustomerInstanceActionApiController
             'size_bytes' => $backup->getSizeBytes(),
             'checksum_sha256' => $backup->getChecksumSha256(),
             'archive_path' => $backup->getArchivePath(),
+            'target_type' => $target?->getType()->value ?? 'local',
+            'target_label' => $target?->getLabel(),
+            'target_path' => (string) ($targetConfig['remote_path'] ?? $targetConfig['root_path'] ?? $targetConfig['base_path'] ?? $targetConfig['path'] ?? ''),
             'error_code' => $backup->getErrorCode(),
             'error_message' => $backup->getErrorMessage(),
         ];

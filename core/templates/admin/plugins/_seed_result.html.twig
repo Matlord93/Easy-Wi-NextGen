@@ -1,0 +1,17 @@
+<div id="plugins-seed-result" class="ng-card" style="padding:12px;border-color:var(--color-success,#16a34a);">
+    <div style="font-weight:600;margin-bottom:4px;">{{ t('admin_plugins_seed_result_title', page_locale()) }}</div>
+    <div style="font-size:13px;color:var(--text-muted);">
+        {{ t('admin_plugins_seed_result_summary', page_locale())
+            |replace({
+                '%imported%': result.imported,
+                '%updated%': result.updated,
+                '%skipped%': result.skipped_missing_template,
+                '%templates%': result.templates_created
+            }) }}
+    </div>
+    {% if result.missing_game_keys is not empty %}
+        <div style="font-size:12px;color:var(--color-warning,#d97706);margin-top:6px;">
+            {{ t('admin_plugins_seed_missing_keys', page_locale()) }}: {{ result.missing_game_keys|join(', ') }}
+        </div>
+    {% endif %}
+</div>

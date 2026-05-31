@@ -437,7 +437,35 @@ func webdavRemoteFolder(payload map[string]any) string {
 	if p == "" {
 		p = payloadNestedValue(payload, "backup_target_config", "root_path")
 	}
-	return "/" + strings.TrimLeft(p, "/")
+	return "/" + strings.Trim(strings.TrimSpace(p), "/")
+}
+
+func webdavEscapedPath(path string) string {
+	segments := make([]string, 0)
+	for _, segment := range strings.Split(strings.Trim(path, "/"), "/") {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		segments = append(segments, url.PathEscape(segment))
+	}
+	if len(segments) == 0 {
+		return ""
+	}
+	return "/" + strings.Join(segments, "/")
+}
+
+func webdavBaseAndFolder(payload map[string]any) (string, string) {
+	baseURL := strings.TrimRight(payloadNestedValue(payload, "backup_target_config", "url"), "/")
+	remoteFolder := webdavRemoteFolder(payload)
+	if strings.EqualFold(strings.TrimSpace(payloadValue(payload, "backup_target_type")), "nextcloud") {
+		username := webdavUsername(payload)
+		if username != "" && !strings.Contains(baseURL, "/remote.php/dav/files/") {
+			baseURL = baseURL + "/remote.php/dav/files/" + url.PathEscape(username)
+		}
+	}
+
+	return baseURL, remoteFolder
 }
 
 func webdavUsername(payload map[string]any) string {
@@ -466,15 +494,14 @@ func hasWebdavCredentials(payload map[string]any) bool {
 }
 
 func uploadBackupToWebdav(payload map[string]any, localPath string) (string, error) {
-	baseURL := strings.TrimRight(payloadNestedValue(payload, "backup_target_config", "url"), "/")
-	remoteFolder := webdavRemoteFolder(payload)
+	baseURL, remoteFolder := webdavBaseAndFolder(payload)
 	verifyTLS := strings.ToLower(payloadNestedValue(payload, "backup_target_config", "verify_tls")) != "false"
 	if baseURL == "" || !hasWebdavCredentials(payload) {
 		return "", fmt.Errorf("webdav target credentials/config missing")
 	}
 
 	filename := filepath.Base(localPath)
-	u, err := url.Parse(baseURL + remoteFolder + "/" + filename)
+	u, err := url.Parse(baseURL + webdavEscapedPath(remoteFolder) + "/" + url.PathEscape(filename))
 	if err != nil {
 		return "", err
 	}

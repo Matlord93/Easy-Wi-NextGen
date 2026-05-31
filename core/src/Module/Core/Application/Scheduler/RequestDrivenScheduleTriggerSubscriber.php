@@ -13,6 +13,8 @@ use Symfony\Component\Process\Process;
 
 final class RequestDrivenScheduleTriggerSubscriber implements EventSubscriberInterface
 {
+    private const int TRIGGER_INTERVAL_SECONDS = 60;
+
     public function __construct(
         private readonly string $projectDir,
         private readonly string $kernelEnvironment,
@@ -49,14 +51,14 @@ final class RequestDrivenScheduleTriggerSubscriber implements EventSubscriberInt
 
         $marker = $cacheDir . '/.run_schedules_last_trigger';
         $last = is_file($marker) ? (int) @file_get_contents($marker) : 0;
-        if ($last > 0 && (time() - $last) < 300) {
+        if ($last > 0 && (time() - $last) < self::TRIGGER_INTERVAL_SECONDS) {
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
             return;
         }
 
         $schedulerLockPath = sprintf('%s/easywi-run-schedules.lock', sys_get_temp_dir());
-        if (is_file($schedulerLockPath) && time() - (int) @filemtime($schedulerLockPath) < 300) {
+        if (is_file($schedulerLockPath) && time() - (int) @filemtime($schedulerLockPath) < self::TRIGGER_INTERVAL_SECONDS) {
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
             return;

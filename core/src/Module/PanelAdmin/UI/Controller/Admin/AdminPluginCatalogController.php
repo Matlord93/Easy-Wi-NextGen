@@ -46,6 +46,7 @@ final class AdminPluginCatalogController
         return new Response($this->twig->render('admin/plugins/index.html.twig', [
             'plugins' => $this->normalizePlugins($plugins),
             'summary' => $this->buildSummary($plugins),
+            'empty_message' => $this->buildEmptyMessage(),
             'activeNav' => 'plugins',
         ]));
     }
@@ -90,6 +91,7 @@ final class AdminPluginCatalogController
 
         return new Response($this->twig->render('admin/plugins/_table.html.twig', [
             'plugins' => $this->normalizePlugins($plugins),
+            'empty_message' => $this->buildEmptyMessage(),
         ]));
     }
 
@@ -333,7 +335,15 @@ final class AdminPluginCatalogController
         ]);
         $this->entityManager->flush();
 
-        $response = new Response('', Response::HTTP_NO_CONTENT);
+        $response = new Response($this->twig->render('admin/plugins/_seed_result.html.twig', [
+            'result' => [
+                'templates_created' => $templatesCreated,
+                'imported' => $pluginResult['plugins'],
+                'updated' => $pluginResult['updated'],
+                'skipped_missing_template' => $pluginResult['skipped_missing_template'],
+                'missing_game_keys' => $pluginResult['missing_game_keys'],
+            ],
+        ]));
         $response->headers->set('HX-Trigger', 'plugins-changed');
 
         return $response;
@@ -624,6 +634,15 @@ final class AdminPluginCatalogController
     private function formatImportError(int $index, string $message): string
     {
         return sprintf('Entry %d: %s', $index + 1, $message);
+    }
+
+    private function buildEmptyMessage(): string
+    {
+        if ($this->templateRepository->count([]) === 0) {
+            return $this->translator->trans('admin_plugins_empty_missing_templates');
+        }
+
+        return $this->translator->trans('admin_plugins_empty');
     }
 
     /**

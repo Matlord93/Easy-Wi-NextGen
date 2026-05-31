@@ -6910,3 +6910,11 @@ session_expired_reason: "For your security, your session has expired due to inac
 session_expired_what_happened_title: "What happened?"
 session_expired_what_happened_body: "Your session was automatically terminated to protect your account. This can happen after a period of inactivity or when your account credentials are updated."
 session_expired_login_button: "Back to Login"
+
+admin_plugins_empty_missing_templates: "No plugins available. Please create standard templates first or check template keys."
+
+admin_plugins_seed_result_title: "Standard plugins processed"
+
+admin_plugins_seed_result_summary: "Imported: %imported%, updated: %updated%, skipped because templates were missing: %skipped%, templates created: %templates%."
+
+admin_plugins_seed_missing_keys: "Missing template keys"

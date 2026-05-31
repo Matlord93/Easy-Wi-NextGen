@@ -42,7 +42,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="6" class="cust-table__empty">{{ t('admin_plugins_empty', page_locale()) }}</td>
+                    <td colspan="6" class="cust-table__empty">{{ empty_message|default(t('admin_plugins_empty', page_locale())) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

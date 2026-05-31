@@ -18,8 +18,8 @@ final class BackupTargetValidator
 
     private function validateLocal(BackupStorageTarget $target): void
     {
-        $path = trim((string) ($target->config()['path'] ?? ''));
-        if ($path === '' || str_contains($path, '..')) {
+        $path = trim((string) ($target->config()['base_path'] ?? $target->config()['path'] ?? ''));
+        if ($path === '' || !str_starts_with($path, '/') || str_contains(str_replace('\\', '/', $path), '/../')) {
             throw new \InvalidArgumentException('Invalid local backup path.');
         }
     }

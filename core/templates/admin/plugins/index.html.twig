@@ -13,8 +13,8 @@
     <button
         class="ui-button ui-button--ghost ui-button--sm"
         hx-post="/admin/plugins/seed"
-        hx-target="#plugins-table"
-        hx-swap="none"
+        hx-target="#plugins-seed-result"
+        hx-swap="outerHTML"
     >{{ t('admin_plugins_add_standard_button', page_locale()) }}</button>
     <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/plugins/import">{{ t('admin_plugins_import_button', page_locale()) }}</a>
     <a class="ui-button ui-button--primary ui-button--sm" href="/admin/plugins/new">{{ t('admin_plugins_create_button', page_locale()) }}</a>
@@ -50,6 +50,8 @@
         </div>
     </section>
 
+    <div id="plugins-seed-result"></div>
+
     {# data card with table #}
     <div class="ng-data-card">
         <div class="ng-data-card__header">
@@ -67,8 +69,8 @@
                 <button
                     class="ui-button ui-button--ghost ui-button--sm"
                     hx-post="/admin/plugins/seed"
-                    hx-target="#plugins-table"
-                    hx-swap="none"
+                    hx-target="#plugins-seed-result"
+                    hx-swap="outerHTML"
                 >{{ t('admin_plugins_add_standard_button', page_locale()) }}</button>
                 <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/plugins/import">{{ t('admin_plugins_import_button', page_locale()) }}</a>
                 <a class="ui-button ui-button--primary ui-button--sm" href="/admin/plugins/new">
@@ -78,7 +80,7 @@
             </div>
         </div>
         <div class="ng-data-card__body--flush">
-            {% include 'admin/plugins/_table.html.twig' with { plugins: plugins } %}
+            {% include 'admin/plugins/_table.html.twig' with { plugins: plugins, empty_message: empty_message } %}
         </div>
     </div>
 

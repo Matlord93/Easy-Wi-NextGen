@@ -6910,3 +6910,11 @@ session_expired_reason: "Aus Sicherheitsgründen wurde deine Sitzung aufgrund vo
 session_expired_what_happened_title: "Was ist passiert?"
 session_expired_what_happened_body: "Deine Sitzung wurde zum Schutz deines Kontos automatisch beendet. Das kann nach einer Phase der Inaktivität oder bei einer Aktualisierung deiner Zugangsdaten passieren."
 session_expired_login_button: "Zurück zur Anmeldung"
+
+admin_plugins_empty_missing_templates: "Keine Plugins vorhanden. Bitte zuerst Standard-Templates anlegen oder Template-Keys prüfen."
+
+admin_plugins_seed_result_title: "Standard-Plugins verarbeitet"
+
+admin_plugins_seed_result_summary: "Importiert: %imported%, aktualisiert: %updated%, wegen fehlender Templates übersprungen: %skipped%, Templates angelegt: %templates%."
+
+admin_plugins_seed_missing_keys: "Fehlende Template-Keys"

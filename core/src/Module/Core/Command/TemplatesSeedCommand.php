@@ -32,10 +32,16 @@ final class TemplatesSeedCommand extends Command
         $result = $this->seeder->seed();
 
         $io->success(sprintf(
-            'Seeded %d game template(s) and %d plugin(s).',
+            'Seeded %d game template(s), imported %d plugin(s), updated %d plugin(s), skipped %d plugin(s) because template keys were missing.',
             $result['templates'],
             $result['plugins'],
+            $result['plugins_updated'],
+            $result['skipped_missing_template'],
         ));
+
+        if ($result['missing_game_keys'] !== []) {
+            $io->warning(sprintf('Missing game_key(s): %s', implode(', ', $result['missing_game_keys'])));
+        }
 
         $cmsResult = $this->cmsSeeder->seed();
 

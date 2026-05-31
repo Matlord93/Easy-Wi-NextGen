@@ -83,12 +83,16 @@
         const created = escHtml(backup.created_at || '—');
         const size = escHtml(formatSize(backup.size_bytes));
         const status = escHtml(backup.status || 'unknown');
+        const targetType = escHtml(backup.target_type || 'local');
+        const targetPath = escHtml(backup.target_path || backup.archive_path || '—');
+        const checksum = escHtml(backup.checksum_sha256 || '—');
+        const error = escHtml(backup.error_message || backup.error_code || '');
 
         return `<tr>
             <td>${backupId}</td>
-            <td>${status}</td>
+            <td><strong>${status}</strong><br><small>${targetType}: ${targetPath}${error ? `<br>${error}` : ''}</small></td>
             <td>${created}</td>
-            <td>${size}</td>
+            <td>${size}<br><small>SHA-256: ${checksum}</small></td>
             <td>
                 <div class="flex gap-2">
                     <button class="ui-button ui-button--ghost" data-action="restore" data-backup-id="${backupId}">${tr('restore')}</button>

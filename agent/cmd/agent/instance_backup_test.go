@@ -294,3 +294,50 @@ func TestUploadBackupToWebdavCreatesRemoteCollectionsBeforePut(t *testing.T) {
 		t.Fatalf("remoteURL=%q, want uploaded URL", remoteURL)
 	}
 }
+
+func TestUploadBackupToNextcloudBuildsDavPathAndEscapesSegments(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "instance 42.tar.gz")
+	if err := os.WriteFile(localPath, []byte("backup"), 0o600); err != nil {
+		t.Fatalf("write local backup: %v", err)
+	}
+
+	var uploadedPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "MKCOL":
+			w.WriteHeader(http.StatusCreated)
+		case http.MethodPut:
+			uploadedPath = r.URL.EscapedPath()
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			w.WriteHeader(http.StatusCreated)
+		default:
+			t.Fatalf("method=%s, want MKCOL or PUT", r.Method)
+		}
+	}))
+	defer server.Close()
+
+	remoteURL, err := uploadBackupToWebdav(map[string]any{
+		"backup_target_type": "nextcloud",
+		"backup_target_config": map[string]any{
+			"url":         server.URL,
+			"remote_path": "/Easy WI/Server Backups",
+			"username":    "john doe@example.test",
+		},
+		"backup_target_secret": map[string]any{
+			"password": "app-password",
+		},
+	}, localPath)
+	if err != nil {
+		t.Fatalf("uploadBackupToWebdav returned error: %v", err)
+	}
+
+	wantPath := "/remote.php/dav/files/john%20doe@example.test/Easy%20WI/Server%20Backups/instance%2042.tar.gz"
+	if uploadedPath != wantPath {
+		t.Fatalf("uploadedPath=%q, want %q", uploadedPath, wantPath)
+	}
+	if !strings.HasSuffix(remoteURL, wantPath) {
+		t.Fatalf("remoteURL=%q, want suffix %q", remoteURL, wantPath)
+	}
+}

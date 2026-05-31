@@ -19,7 +19,7 @@ final class GameTemplateSeeder
     }
 
     /**
-     * @return array{templates: int, plugins: int}
+     * @return array{templates: int, plugins: int, plugins_updated: int, skipped_missing_template: int, missing_game_keys: array<int, string>}
      */
     public function seed(?EntityManagerInterface $entityManager = null): array
     {
@@ -30,6 +30,9 @@ final class GameTemplateSeeder
         return [
             'templates' => $templatesCreated,
             'plugins' => $pluginResult['plugins'],
+            'plugins_updated' => $pluginResult['updated'],
+            'skipped_missing_template' => $pluginResult['skipped_missing_template'],
+            'missing_game_keys' => $pluginResult['missing_game_keys'],
         ];
     }
 
@@ -44,9 +47,7 @@ final class GameTemplateSeeder
                 continue;
             }
 
-            if ($templateRepository->findOneBy(['gameKey' => $gameKey]) !== null) {
-                continue;
-            }
+            $existingTemplate = $templateRepository->findOneBy(['gameKey' => $gameKey]);
 
             $requiredPorts = $templateData['required_ports'] ?? [];
             $envVars = $templateData['env_vars'] ?? [];
@@ -72,6 +73,26 @@ final class GameTemplateSeeder
             $sharedPaths = $templateData['shared_paths'] ?? [];
             if (is_array($sharedPaths) && $sharedPaths !== []) {
                 $requirements['shared_paths'] = $sharedPaths;
+            }
+
+            if ($existingTemplate instanceof Template) {
+                $this->updateTemplateFromSeed(
+                    $existingTemplate,
+                    $templateData,
+                    $requiredPorts,
+                    $envVars,
+                    $configFiles,
+                    $pluginPaths,
+                    $fastdlSettings,
+                    $installResolver,
+                    $allowedSwitchFlags,
+                    $requirementVars,
+                    $requirementSecrets,
+                    $supportedOs,
+                    $portProfile,
+                    $requirements,
+                );
+                continue;
             }
 
             $template = new Template(
@@ -101,17 +122,69 @@ final class GameTemplateSeeder
             $templatesCreated++;
         }
 
-        if ($templatesCreated > 0) {
-            try {
-                $entityManager->flush();
-            } catch (UniqueConstraintViolationException) {
-                // A concurrent installer request already seeded the templates; discard our pending inserts.
-                $entityManager->clear();
-                $templatesCreated = 0;
-            }
+        try {
+            $entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            // A concurrent installer request already seeded the templates; discard our pending inserts.
+            $entityManager->clear();
+            $templatesCreated = 0;
         }
 
         return $templatesCreated;
+    }
+
+    /**
+     * @param array<string, mixed> $templateData
+     * @param array<int, array<string, mixed>> $requiredPorts
+     * @param array<int, array<string, mixed>> $envVars
+     * @param array<int, array<string, mixed>> $configFiles
+     * @param array<int, string> $pluginPaths
+     * @param array<string, mixed> $fastdlSettings
+     * @param array<string, mixed> $installResolver
+     * @param array<int, string> $allowedSwitchFlags
+     * @param array<int, array<string, mixed>> $requirementVars
+     * @param array<int, array<string, mixed>> $requirementSecrets
+     * @param array<int, string> $supportedOs
+     * @param array<int, array<string, mixed>> $portProfile
+     * @param array<string, mixed> $requirements
+     */
+    private function updateTemplateFromSeed(
+        Template $template,
+        array $templateData,
+        array $requiredPorts,
+        array $envVars,
+        array $configFiles,
+        array $pluginPaths,
+        array $fastdlSettings,
+        array $installResolver,
+        array $allowedSwitchFlags,
+        array $requirementVars,
+        array $requirementSecrets,
+        array $supportedOs,
+        array $portProfile,
+        array $requirements,
+    ): void {
+        $steamAppId = $templateData['steam_app_id'] ?? null;
+
+        $template->setDisplayName((string) ($templateData['display_name'] ?? $template->getGameKey()));
+        $template->setDescription($templateData['description'] ?? null);
+        $template->setSteamAppId(is_int($steamAppId) ? $steamAppId : null);
+        $template->setSniperProfile($templateData['sniper_profile'] ?? null);
+        $template->setRequiredPorts($requiredPorts);
+        $template->setStartParams((string) ($templateData['start_params'] ?? ''));
+        $template->setEnvVars($envVars);
+        $template->setConfigFiles($configFiles);
+        $template->setPluginPaths($pluginPaths);
+        $template->setFastdlSettings($fastdlSettings);
+        $template->setInstallCommand((string) ($templateData['install_command'] ?? ''));
+        $template->setUpdateCommand((string) ($templateData['update_command'] ?? ''));
+        $template->setInstallResolver($installResolver);
+        $template->setAllowedSwitchFlags($allowedSwitchFlags);
+        $template->setRequirementVars($requirementVars);
+        $template->setRequirementSecrets($requirementSecrets);
+        $template->setSupportedOs($supportedOs);
+        $template->setPortProfile($portProfile);
+        $template->setRequirements($requirements);
     }
 
     /**

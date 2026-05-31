@@ -3007,6 +3007,16 @@ final class AgentApiController
                 $backup->setError($errorCode, $errorMessage);
             }
 
+            $schedule = $backup->getDefinition()->getSchedule();
+            if ($schedule !== null) {
+                if ($resultStatus === JobResultStatus::Succeeded) {
+                    $schedule->markRun($completedAt, 'succeeded');
+                } else {
+                    $schedule->markRun($completedAt, 'failed', $backup->getErrorCode());
+                }
+                $this->entityManager->persist($schedule);
+            }
+
             $this->entityManager->persist($backup);
 
             $this->auditLogger->log(null, 'instance.backup.completed', [
