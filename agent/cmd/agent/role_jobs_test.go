@@ -38,6 +38,7 @@ func TestWindowsRoleInstallPlanGameIncludesSSHService(t *testing.T) {
 	plan := windowsRoleInstallPlan("game")
 	if plan == nil {
 		t.Fatal("expected windows game plan")
+		return
 	}
 	if !containsString(plan.services, "sshd") {
 		t.Fatalf("expected windows game plan to start sshd, got %v", plan.services)

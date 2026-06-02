@@ -10,9 +10,14 @@ use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\PanelCustomer\UI\Controller\Public\PublicTwoFactorController;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\Session\Session;
+use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
@@ -60,23 +65,36 @@ final class TwoFactorPlaceholderTest extends WebTestCase
     public function testTwoFactorInvalidCodeEventuallyLocksOut(): void
     {
         self::ensureKernelShutdown();
-        $client = static::createClient();
         $user = $this->seedSiteAndUser('2fa-lock@example.test', true);
+        self::assertNotNull($user->getId());
 
-        $client->request('POST', '/login', ['email' => $user->getEmail(), 'password' => 'P@ssw0rd!']);
-        self::assertResponseRedirects('/2fa');
-
+        $session = new Session(new MockArraySessionStorage());
+        $session->set('auth_pending_user_id', $user->getId());
+        $session->set('auth_pending_since', time());
         // Pre-seed the attempt counter to MAX_ATTEMPTS - 1 so that exactly one
-        // additional invalid code triggers the lockout without requiring five
-        // full HTTP round-trips (which exhaust PHPUnit process memory).
-        $session = $client->getRequest()->getSession();
+        // additional invalid code triggers the lockout without multiple full
+        // BrowserKit round-trips in the long-running PHPUnit process.
         $session->set('auth_2fa_attempts', 4);
-        $session->save();
 
-        $csrf = self::getContainer()->get(CsrfTokenManagerInterface::class)->getToken('public_2fa_check')->getValue();
+        $request = Request::create('/2fa_check', 'POST', ['otp' => '000000']);
+        $request->setSession($session);
 
-        $client->request('POST', '/2fa_check', ['otp' => '000000', '_token' => $csrf]);
-        self::assertResponseStatusCodeSame(429);
+        /** @var RequestStack $requestStack */
+        $requestStack = self::getContainer()->get('request_stack');
+        $requestStack->push($request);
+
+        try {
+            $csrf = self::getContainer()->get(CsrfTokenManagerInterface::class)->getToken('public_2fa_check')->getValue();
+            $request->request->set('_token', $csrf);
+
+            $response = self::getContainer()->get(PublicTwoFactorController::class)->check($request);
+        } finally {
+            $requestStack->pop();
+        }
+
+        self::assertSame(429, $response->getStatusCode());
+        self::assertSame(0, $session->get('auth_2fa_attempts'));
+        self::assertGreaterThan(time(), $session->get('auth_2fa_locked_until'));
     }
 
     private function seedSiteAndUser(string $email, bool $enableTwoFactor): User

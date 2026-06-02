@@ -325,7 +325,11 @@ func TestListPermissionDeniedReturnsClearError(t *testing.T) {
 	if err := os.Chmod(privateDir, 0o000); err != nil {
 		t.Fatalf("chmod: %v", err)
 	}
-	defer os.Chmod(privateDir, 0o700)
+	defer func() {
+		if err := os.Chmod(privateDir, 0o700); err != nil {
+			t.Logf("restore private directory permissions: %v", err)
+		}
+	}()
 
 	srv := newContentTestServer(t, base)
 	req := httptest.NewRequest(http.MethodGet, "/files?path=private", nil)

@@ -3873,8 +3873,10 @@ prepare_apt_robust() {
 apt_package_available() { apt-cache show "$1" >/dev/null 2>&1; }
 
 resolve_project_php_version() {
-  local repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" composer_php=""
+  local repo_root composer_php=""
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   if [[ -r "${repo_root}/core/composer.json" ]]; then
+    # shellcheck disable=SC2016 # PHP code intentionally uses $argv, not shell variables.
     composer_php="$(php -r '$j=json_decode(file_get_contents($argv[1]), true); echo $j["require"]["php"] ?? "";' "${repo_root}/core/composer.json" 2>/dev/null || true)"
   fi
   if [[ "${composer_php}" =~ \>=([0-9]+\.[0-9]+) ]]; then
@@ -3885,12 +3887,17 @@ resolve_project_php_version() {
 }
 
 resolve_apt_php_packages() {
-  local php_version="$1" webserver="${2:-nginx}" prefix="php${php_version}" packages=()
+  local php_version="$1" webserver="${2:-nginx}" prefix packages=()
+  prefix="php${php_version}"
   if ! apt_package_available "${prefix}-cli"; then
     prefix="php"
   fi
   packages=("${prefix}-cli" "${prefix}-common" "${prefix}-mysql" "${prefix}-pgsql" "${prefix}-sqlite3" "${prefix}-curl" "${prefix}-mbstring" "${prefix}-intl" "${prefix}-xml" "${prefix}-zip" "${prefix}-gd" "${prefix}-bcmath" "${prefix}-opcache" "${prefix}-readline")
-  [[ "${webserver}" == "apache" ]] && packages+=("libapache2-mod-php${php_version}") || packages+=("${prefix}-fpm")
+  if [[ "${webserver}" == "apache" ]]; then
+    packages+=("libapache2-mod-php${php_version}")
+  else
+    packages+=("${prefix}-fpm")
+  fi
   local optional pkg
   for optional in "${prefix}-json" "${prefix}-posix" "${prefix}-pcntl" "${prefix}-fileinfo" "${prefix}-dom" "${prefix}-simplexml" "${prefix}-tokenizer" "${prefix}-ctype" "${prefix}-iconv"; do
     apt_package_available "${optional}" && packages+=("${optional}") || true
@@ -3910,9 +3917,9 @@ install_required_packages_robust() {
 }
 
 check_php_modules() {
-  local missing=() module
+  local missing=() module modules
   require_command php || return 1
-  local modules="$(php -m 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  modules="$(php -m 2>/dev/null | tr '[:upper:]' '[:lower:]')"
   for module in "${EASYWI_CRITICAL_PHP_MODULES[@]}"; do
     if printf '%s\n' "${modules}" | grep -Fxq "${module}"; then
       record_pass "PHP-Modul vorhanden: ${module}"
@@ -3963,7 +3970,7 @@ LOCALE
 
 configure_php() {
   step "Konfiguriere PHP CLI/FPM/Apache sinnvoll."
-  local ini key value disabled dangerous fn
+  local ini key value disabled dangerous pair
   shopt -s nullglob
   for ini in /etc/php/*/cli/php.ini /etc/php/*/fpm/php.ini /etc/php/*/apache2/php.ini; do
     backup_file_once "${ini}"
@@ -4006,7 +4013,9 @@ proxy_send_timeout 3600s;
 proxy_buffering off;
 add_header X-Accel-Buffering no always;
 NGINX
-    nginx -t && systemctl reload nginx.service || record_warn "Nginx-Konfiguration konnte nicht neu geladen werden."
+    if ! nginx -t || ! systemctl reload nginx.service; then
+      record_warn "Nginx-Konfiguration konnte nicht neu geladen werden."
+    fi
   fi
   if [[ -d /etc/apache2 ]]; then
     a2enmod rewrite headers proxy proxy_http proxy_wstunnel ssl >/dev/null 2>&1 || record_warn "Apache-Module konnten nicht vollständig aktiviert werden."
@@ -4022,7 +4031,9 @@ ProxyTimeout 3600
 </Directory>
 APACHE
     a2enconf easywi-installer-limits >/dev/null 2>&1 || true
-    apache2ctl configtest && systemctl reload apache2.service || record_warn "Apache-Konfiguration konnte nicht neu geladen werden."
+    if ! apache2ctl configtest || ! systemctl reload apache2.service; then
+      record_warn "Apache-Konfiguration konnte nicht neu geladen werden."
+    fi
   fi
 }
 
@@ -4041,19 +4052,29 @@ check_data_area() {
     if [[ ! -e "${path}" ]]; then record_warn "Datenpfad existiert nicht: ${path}"; continue; fi
     namei -l "${path}" >>"${LOG_FILE}" 2>&1 || record_warn "namei konnte ${path} nicht prüfen."
     getfacl -p "${path}" >>"${LOG_FILE}" 2>&1 || true
-    sudo -u "${webuser}" find "${path}" -maxdepth 2 -printf '%p\n' >/tmp/easywi-webuser-listing.$$ 2>>"${LOG_FILE}" || record_warn "${webuser} kann ${path} nicht vollständig listen."
-    sudo -u "${agentuser}" find "${path}" -maxdepth 2 -printf '%p\n' >/tmp/easywi-agentuser-listing.$$ 2>>"${LOG_FILE}" || record_warn "${agentuser} kann ${path} nicht vollständig listen."
+    if ! sudo -u "${webuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>>"${LOG_FILE}" | cat >/tmp/easywi-webuser-listing.$$; then
+      record_warn "${webuser} kann ${path} nicht vollständig listen."
+    fi
+    if ! sudo -u "${agentuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>>"${LOG_FILE}" | cat >/tmp/easywi-agentuser-listing.$$; then
+      record_warn "${agentuser} kann ${path} nicht vollständig listen."
+    fi
     if ! find "${path}" -print 2>>"${LOG_FILE}" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>>"${LOG_FILE}"; then
       record_warn "Ungültige UTF-8-Dateinamen unter ${path}; siehe ${LOG_FILE}. Reparatur z.B. mit convmv nach manueller Prüfung."
       find "${path}" -print 2>/dev/null | LC_ALL=C awk '{print}' | iconv -f UTF-8 -t UTF-8 >/dev/null 2>>"${LOG_FILE}" || true
     fi
     count="$(find "${path}" -xdev -printf . 2>/dev/null | wc -c | tr -d ' ')"
-    [[ "${count}" =~ ^[0-9]+$ && "${count}" -gt 10000 ]] && record_warn "Sehr großes Listing unter ${path}: ${count} Einträge; Pagination/Limit empfohlen."
+    if [[ "${count}" =~ ^[0-9]+$ && "${count}" -gt 10000 ]]; then
+      record_warn "Sehr großes Listing unter ${path}: ${count} Einträge; Pagination/Limit empfohlen."
+    fi
     if [[ -w "${path}" ]]; then
       testdir="${path}/.easywi-installer-test"
       mkdir -p "${testdir}" && touch "${testdir}/äöü-test.txt" "${testdir}/leer zeichen test.txt"
-      php -r '$p=$argv[1]; $a=scandir($p); foreach($a as $n){ if(!mb_check_encoding($n,"UTF-8")){fwrite(STDERR,"invalid utf8: $n\n"); exit(2);} } json_encode($a, JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);' "${testdir}" \
-        && record_pass "JSON/UTF-8-Testdateien OK in ${testdir}" || record_warn "PHP-JSON/UTF-8-Test fehlgeschlagen in ${testdir}."
+      # shellcheck disable=SC2016 # PHP code intentionally uses $argv and PHP variables.
+      if php -r '$p=$argv[1]; $a=scandir($p); foreach($a as $n){ if(!mb_check_encoding($n,"UTF-8")){fwrite(STDERR,"invalid utf8: $n\n"); exit(2);} } json_encode($a, JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);' "${testdir}"; then
+        record_pass "JSON/UTF-8-Testdateien OK in ${testdir}"
+      else
+        record_warn "PHP-JSON/UTF-8-Test fehlgeschlagen in ${testdir}."
+      fi
       rm -rf "${testdir}"
     fi
   done
@@ -4061,7 +4082,11 @@ check_data_area() {
 
 check_services() {
   step "Prüfe Agent/Worker/systemd/Netzwerk."
-  getent hosts localhost >>"${LOG_FILE}" 2>&1 && record_pass "localhost-Auflösung vorhanden." || record_warn "localhost-Auflösung fehlt/fehlerhaft."
+  if getent hosts localhost >>"${LOG_FILE}" 2>&1; then
+    record_pass "localhost-Auflösung vorhanden."
+  else
+    record_warn "localhost-Auflösung fehlt/fehlerhaft."
+  fi
   ss -tulpn >>"${LOG_FILE}" 2>&1 || true
   local svc
   for svc in easywi-agent easywi-messenger easywi-scheduler.timer easywi-console-relay nginx apache2; do
@@ -4080,7 +4105,11 @@ check_services() {
 
 check_security_modules() {
   step "Prüfe AppArmor/SELinux."
-  command -v aa-status >/dev/null 2>&1 && aa-status >>"${LOG_FILE}" 2>&1 || record_warn "aa-status nicht verfügbar oder AppArmor nicht installiert."
+  if command -v aa-status >/dev/null 2>&1; then
+    aa-status >>"${LOG_FILE}" 2>&1 || record_warn "aa-status meldete Fehler."
+  else
+    record_warn "aa-status nicht verfügbar oder AppArmor nicht installiert."
+  fi
   command -v getenforce >/dev/null 2>&1 && getenforce >>"${LOG_FILE}" 2>&1 || true
   dmesg 2>/dev/null | grep -i denied >>"${LOG_FILE}" 2>&1 || true
   journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor >>"${LOG_FILE}" 2>&1 || true
@@ -4104,11 +4133,13 @@ run_diagnostics() {
     echo "## Firewall"; ufw status verbose 2>&1 || true; update-alternatives --display iptables 2>&1 || true; nft list ruleset 2>&1 || true
     echo "## AppArmor/SELinux"; aa-status 2>&1 || true; getenforce 2>&1 || true; dmesg 2>/dev/null | grep -i denied || true; journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor || true
     echo "## Data areas"
-    local path webuser agentuser; webuser="$(detect_web_user)"; agentuser="$(detect_agent_user)"
+    local path webuser agentuser
+    webuser="$(detect_web_user)"; agentuser="$(detect_agent_user)"
     for path in $(data_area_paths); do
       echo "### ${path}"; namei -l "${path}" 2>&1 || true; getfacl -p "${path}" 2>&1 || true
       sudo -u "${webuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>&1 | head -200 || true
       sudo -u "${agentuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>&1 | head -200 || true
+      # shellcheck disable=SC2016 # PHP code intentionally uses $argv and PHP variables.
       php -r '$p=$argv[1]; if(!is_dir($p)){exit(0);} $a=@scandir($p) ?: []; foreach($a as $n){ echo (mb_check_encoding($n,"UTF-8") ? "OK " : "BAD ").$n.PHP_EOL; } echo json_encode($a, JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE).PHP_EOL;' "${path}" 2>&1 || true
     done
   } >>"${DIAG_LOG_FILE}"
@@ -4119,7 +4150,11 @@ run_check_mode() {
   check_supported_debian_ubuntu || true
   for cmd in apt-get dpkg curl wget gpg lsb_release systemctl find file iconv php; do require_command "${cmd}" || true; done
   check_php_modules || true
-  locale | grep -qi 'utf-8' && record_pass "Aktuelle Locale ist UTF-8." || record_warn "Aktuelle Locale ist nicht UTF-8; --fix setzt C.UTF-8."
+  if locale | grep -qi 'utf-8'; then
+    record_pass "Aktuelle Locale ist UTF-8."
+  else
+    record_warn "Aktuelle Locale ist nicht UTF-8; --fix setzt C.UTF-8."
+  fi
   check_data_area || true
   check_services || true
   check_security_modules || true

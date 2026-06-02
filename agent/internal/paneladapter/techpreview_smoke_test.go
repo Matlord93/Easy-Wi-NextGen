@@ -36,6 +36,7 @@ func TestTechPreviewExecuteUnsupportedActionReturnsStandardizedError(t *testing.
 	_, err := adapter.ExecuteAction(context.Background(), "site.provision", nil, Context{Panel: "tech-preview", Version: "0.x"})
 	if err == nil {
 		t.Fatal("expected error")
+		return
 	}
 	if err.Code != ErrActionUnsupported {
 		t.Fatalf("unexpected error code: %s", err.Code)
