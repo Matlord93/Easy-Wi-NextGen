@@ -20,11 +20,22 @@ def require(pattern, msg, flags=0):
 
 require(r"ubuntu:resolute\) printf '8\.5'", 'Ubuntu 26.04/resolute must map to PHP 8.5')
 require(r"ubuntu:26\.04\) printf '8\.5'", 'Ubuntu 26.04 VERSION_ID must map to PHP 8.5')
+require(r'MIN_PANEL_PHP_VERSION="8\.4"', 'panel PHP minimum version must be hard-coded to 8.4')
+require(r'php_version_too_old_message', 'old PHP failure message helper missing')
+require(r'PHP %s ist zu alt\. EasyWI Panel benötigt mindestens PHP %s\.', 'explicit PHP too-old message missing')
 require(r"ubuntu:noble\)\s+printf '8\.3'", 'Ubuntu 24.04/noble native PHP mapping missing')
 require(r'php_version_ge "\$\{native\}" "\$\{composer_min\}"', 'composer >= minimum must accept newer native PHP versions')
 require(r'Nutze Ubuntu-PHP-Pakete \(PHP \$\{php_version\}\); Ondrej/PHP-PPA wird übersprungen\.', 'native Ubuntu PHP log missing')
 require(r'critical=\(cli common mysql pgsql sqlite3 curl mbstring intl xml zip gd bcmath readline\)', 'critical PHP package list must not force OPcache as an apt package')
 require(r'php\$\{php_version\}-\$\{module\}', 'versioned PHP packages must be preferred')
+require(r'fatal "Kritische versionierte PHP-\$\{php_version\}-Pakete nicht verfügbar:', 'missing versioned PHP packages must be fatal')
+require(r'Generische PHP-Pakete werden nicht verwendet', 'generic PHP package fallback must be rejected for panel PHP')
+require(r'for candidate in "\$\{ver\}" 8\.5 8\.4;', 'apt PHP resolver must not fall back to PHP 8.2')
+require(r'update-alternatives --set "\$\{name\}" "\$\{target_path\}"', 'all available PHP alternatives must be set to target binaries')
+require(r'systemctl enable --now "\$\{svc\}"', 'target PHP-FPM service must be enabled and started')
+require(r'disable_legacy_panel_fpm_services "\$\{php_version\}"', 'legacy PHP-FPM services below 8.4 must be disabled')
+require(r'/run/php/php\$\{php_version\}-fpm\.sock', 'webserver socket must point to target PHP-FPM socket')
+require(r'run_composer check-platform-reqs --working-dir "\$\{working_dir\}"', 'composer platform requirements must be checked non-interactively')
 
 if 'apt_add_package_if_exists "php${php_version}-opcache"' in script:
     raise SystemExit('OPcache must not be added to the mandatory apt PHP package list')

@@ -9,6 +9,7 @@ VERSION="2.0.0"
 INSTALLER_NAME="[easywi-installer]"
 STEP_COUNTER=0
 DEFAULT_PHP_VERSION="8.4"
+MIN_PANEL_PHP_VERSION="8.4"
 APT_UPDATED=0
 EASYWI_GITHUB_REPO="Matlord93/Easy-Wi-NextGen"
 EASYWI_GITHUB_RELEASE_BASE="https://github.com/${EASYWI_GITHUB_REPO}/releases"
@@ -468,13 +469,14 @@ resolve_php_version() {
 
   if [[ "${manager}" == "apt" ]]; then
     apt_update_once
-    for candidate in "${ver}" 8.5 8.4 8.3 8.2 8.1; do
-      if apt-cache show "php${candidate}" >/dev/null 2>&1; then
+    for candidate in "${ver}" 8.5 8.4; do
+      php_version_ge "${candidate}" "${MIN_PANEL_PHP_VERSION}" || continue
+      if apt-cache show "php${candidate}-cli" >/dev/null 2>&1; then
         [[ "${candidate}" != "${ver}" ]] && warn "PHP ${ver} nicht verfügbar – nutze ${candidate}."
         echo "${candidate}"; return
       fi
     done
-    fatal "Keine unterstützte PHP-Version in den Paketquellen gefunden."
+    fatal "Keine unterstützte PHP-Version >=${MIN_PANEL_PHP_VERSION} in den Paketquellen gefunden."
   fi
 
   # Non-apt: accept as-is (repo was set up above)
@@ -515,22 +517,12 @@ resolve_php_packages() {
 
   case "${manager}" in
     apt)
-      apt_require_package "php${php_version}"
-      apt_require_package "php${php_version}-fpm"
-      apt_require_package "php${php_version}-cli"
-
-      apt_add_package_if_exists "php${php_version}-mbstring"
-      apt_add_package_if_exists "php${php_version}-xml"
-      apt_add_package_if_exists "php${php_version}-curl"
-      apt_add_package_if_exists "php${php_version}-zip"
-      apt_add_package_if_exists "php${php_version}-gd"
-      apt_add_package_if_exists "php${php_version}-intl"
-      apt_add_package_if_exists "php${php_version}-bcmath"
+      ensure_panel_php_version_supported "${php_version}"
+      local module
+      for module in cli common fpm mysql pgsql sqlite3 curl mbstring intl xml zip gd bcmath readline; do
+        apt_require_package "php${php_version}-${module}"
+      done
       apt_add_package_if_exists "php${php_version}-redis"
-      case "${db_system}" in
-        mariadb|mysql) apt_add_package_if_exists "php${php_version}-mysql" ;;
-        postgresql)    apt_add_package_if_exists "php${php_version}-pgsql" ;;
-      esac
       PHP_FPM_SERVICE="php${php_version}-fpm"
       PHP_FPM_SOCKET="/run/php/php${php_version}-fpm.sock"
       ;;
@@ -2599,10 +2591,12 @@ install_panel() {
   log "Erkanntes OS-Family: ${family} | Paketmanager: ${manager}"
 
   php_version="$(normalize_php_version_for_os "${php_version}" "${manager}" "${family}")"
+  ensure_panel_php_version_supported "${php_version}"
 
   step "Richte PHP-Repositories ein."
   setup_php_repo "${manager}" "${family}" "${php_version}"
   php_version="$(resolve_php_version "${php_version}" "${manager}" "${family}")"
+  ensure_panel_php_version_supported "${php_version}"
 
   resolve_php_packages   "${manager}" "${php_version}" "${db_system}"
   resolve_db_packages    "${manager}" "${db_system}"
@@ -2612,6 +2606,10 @@ install_panel() {
   base_pkgs+=("$(nginx_packages "${manager}")")
 
   install_packages "${manager}" "${base_pkgs[@]}" "${PHP_BASE_PKGS[@]}" "${DB_PKGS[@]}" "${REDIS_SERVER_PKGS[@]}"
+  if [[ "${manager}" == "apt" ]]; then
+    set_php_alternatives_for_target "${php_version}"
+    ensure_target_fpm_service "${php_version}"
+  fi
 
   # Find PHP binary
   local php_bin="php${php_version}"
@@ -3987,12 +3985,44 @@ native_php_version_for_os() {
   return 1
 }
 
+normalize_php_minor_version() {
+  local version="$1"
+  if [[ "${version}" =~ ^([0-9]+\.[0-9]+) ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    printf '%s' "${version}"
+  fi
+}
+
+php_version_too_old_message() {
+  local version="$1"
+  printf 'PHP %s ist zu alt. EasyWI Panel benötigt mindestens PHP %s.' "${version}" "${MIN_PANEL_PHP_VERSION}"
+}
+
+ensure_panel_php_version_supported() {
+  local version
+  version="$(normalize_php_minor_version "${1:-}")"
+  [[ -n "${version}" ]] || fatal "PHP-Zielversion konnte nicht ermittelt werden. EasyWI Panel benötigt mindestens PHP ${MIN_PANEL_PHP_VERSION}."
+  if ! php_version_ge "${version}" "${MIN_PANEL_PHP_VERSION}"; then
+    fatal "$(php_version_too_old_message "${version}")"
+  fi
+}
+
 resolve_project_php_version() {
   local repo_root composer_php="" composer_min="" native="" resolved="${DEFAULT_PHP_VERSION}"
   repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   if [[ -r "${repo_root}/core/composer.json" && -z "${EASYWI_TEST_COMPOSER_PHP_REQUIRE:-}" ]]; then
-    # shellcheck disable=SC2016 # PHP code intentionally uses $argv, not shell variables.
-    composer_php="$(php -r '$j=json_decode(file_get_contents($argv[1]), true); echo $j["require"]["php"] ?? "";' "${repo_root}/core/composer.json" 2>/dev/null || true)"
+    composer_php="$(awk '
+      /"require"[[:space:]]*:/ { in_require=1 }
+      in_require && /"php"[[:space:]]*:/ {
+        line=$0
+        sub(/.*"php"[[:space:]]*:[[:space:]]*"/, "", line)
+        sub(/".*/, "", line)
+        print line
+        exit
+      }
+      in_require && /^[[:space:]]*}/ { in_require=0 }
+    ' "${repo_root}/core/composer.json" 2>/dev/null || true)"
   else
     composer_php="${EASYWI_TEST_COMPOSER_PHP_REQUIRE:-}"
   fi
@@ -4006,6 +4036,7 @@ resolve_project_php_version() {
       resolved="${native}"
     fi
   fi
+  ensure_panel_php_version_supported "${resolved}"
   printf '%s' "${resolved}"
 }
 
@@ -4022,55 +4053,39 @@ php_package_for_module() {
 
 resolve_apt_php_packages() {
   local php_version="$1" webserver="${2:-nginx}" critical=() optional=() installable=() missing_critical=() missing_optional=()
-  local pkg fallback module versioned_available=true web_pkg generic_web_pkg
+  local pkg module web_pkg
 
+  ensure_panel_php_version_supported "${php_version}"
   critical=(cli common mysql pgsql sqlite3 curl mbstring intl xml zip gd bcmath readline)
   optional=(redis)
 
   if [[ "${webserver}" == "apache" ]]; then
     web_pkg="libapache2-mod-php${php_version}"
-    generic_web_pkg="libapache2-mod-php"
   else
     web_pkg="php${php_version}-fpm"
-    generic_web_pkg="php-fpm"
-  fi
-
-  if ! apt_package_available "php${php_version}-cli"; then
-    versioned_available=false
-    record_warn "Versionierte PHP-${php_version}-Pakete sind nicht verfügbar; verwende generische php-*-Metapakete, soweit vorhanden."
   fi
 
   for module in "${critical[@]}"; do
     pkg="php${php_version}-${module}"
-    fallback="php-${module}"
-    if [[ "${module}" == "common" ]]; then fallback="php-common"; fi
-    if [[ "${module}" == "cli" ]]; then fallback="php-cli"; fi
-    if [[ "${versioned_available}" == true ]] && apt_package_available "${pkg}"; then
+    if apt_package_available "${pkg}"; then
       installable+=("${pkg}")
-    elif apt_package_available "${fallback}"; then
-      installable+=("${fallback}")
     else
-      missing_critical+=("${pkg} (Fallback ${fallback})")
+      missing_critical+=("${pkg}")
     fi
   done
 
   if apt_package_available "${web_pkg}"; then
     installable+=("${web_pkg}")
-  elif apt_package_available "${generic_web_pkg}"; then
-    installable+=("${generic_web_pkg}")
   else
-    missing_critical+=("${web_pkg} (Fallback ${generic_web_pkg})")
+    missing_critical+=("${web_pkg}")
   fi
 
   for module in "${optional[@]}"; do
     pkg="php${php_version}-${module}"
-    fallback="php-${module}"
-    if [[ "${versioned_available}" == true ]] && apt_package_available "${pkg}"; then
+    if apt_package_available "${pkg}"; then
       installable+=("${pkg}")
-    elif apt_package_available "${fallback}"; then
-      installable+=("${fallback}")
     else
-      missing_optional+=("${pkg} (Fallback ${fallback})")
+      missing_optional+=("${pkg}")
     fi
   done
 
@@ -4081,7 +4096,7 @@ resolve_apt_php_packages() {
     record_warn "Optionale PHP-Pakete nicht verfügbar: ${missing_optional[*]}"
   fi
   if ((${#missing_critical[@]})); then
-    record_fail "Kritische PHP-Pakete nicht verfügbar: ${missing_critical[*]}"
+    fatal "Kritische versionierte PHP-${php_version}-Pakete nicht verfügbar: ${missing_critical[*]}. Generische PHP-Pakete werden nicht verwendet, damit das Panel nicht auf PHP <${MIN_PANEL_PHP_VERSION} zurückfällt."
   fi
 
   printf '%s\n' "${installable[@]}" | awk 'NF && !seen[$0]++'
@@ -4159,32 +4174,129 @@ verify_opcache() {
   fi
 }
 
+log_php_state() {
+  local phase="$1" php_path=""
+  log "PHP-Diagnose (${phase}): php -v"
+  php -v >>"${LOG_FILE}" 2>&1 || true
+  php_path="$(command -v php 2>/dev/null || true)"
+  log "PHP-Diagnose (${phase}): readlink -f ${php_path:-php nicht gefunden}"
+  if [[ -n "${php_path}" ]]; then readlink -f "${php_path}" >>"${LOG_FILE}" 2>&1 || true; fi
+  log "PHP-Diagnose (${phase}): update-alternatives --display php"
+  update-alternatives --display php >>"${LOG_FILE}" 2>&1 || true
+  log "PHP-Diagnose (${phase}): aktive php*-fpm Services"
+  systemctl list-units --type=service --state=active 'php*-fpm.service' --no-pager >>"${LOG_FILE}" 2>&1 || true
+}
+
+active_php_cli_minor_version() {
+  php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true
+}
+
+ensure_active_php_cli_supported() {
+  local cli_version
+  cli_version="$(active_php_cli_minor_version)"
+  [[ -n "${cli_version}" ]] || fatal "Aktive PHP-CLI-Version konnte nicht geprüft werden."
+  if ! php_version_ge "${cli_version}" "${MIN_PANEL_PHP_VERSION}"; then
+    fatal "$(php_version_too_old_message "${cli_version}")"
+  fi
+}
+
+set_php_alternatives_for_target() {
+  local php_version="$1" name target_path
+  ensure_panel_php_version_supported "${php_version}"
+  [[ -x "/usr/bin/php${php_version}" ]] || fatal "/usr/bin/php${php_version} fehlt nach der Installation; PHP-${php_version}-CLI kann nicht aktiviert werden."
+  if command -v update-alternatives >/dev/null 2>&1; then
+    for name in php phar phar.phar phpize php-config; do
+      target_path="/usr/bin/${name}${php_version}"
+      [[ "${name}" == "php" ]] && target_path="/usr/bin/php${php_version}"
+      if [[ -x "${target_path}" ]]; then
+        update-alternatives --set "${name}" "${target_path}" >/dev/null 2>&1 \
+          || record_warn "update-alternatives konnte ${name} nicht auf ${target_path} setzen."
+      fi
+    done
+    update-alternatives --display php >>"${LOG_FILE}" 2>&1 || true
+  fi
+  local active_version
+  active_version="$(php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
+  log "Aktive PHP-CLI-Version nach update-alternatives: ${active_version:-unbekannt}"
+  ensure_active_php_cli_supported
+  if [[ "$(normalize_php_minor_version "${active_version}")" != "${php_version}" ]]; then
+    fatal "Aktive PHP-CLI-Version ist ${active_version:-unbekannt}, erwartet PHP ${php_version}."
+  fi
+  record_pass "update-alternatives nutzt /usr/bin/php${php_version}."
+}
+
+disable_legacy_panel_fpm_services() {
+  local target_version="$1" svc version
+  for version in 8.3 8.2 8.1 8.0 7.4; do
+    [[ "${version}" == "${target_version}" ]] && continue
+    svc="php${version}-fpm.service"
+    if systemctl list-unit-files "${svc}" >/dev/null 2>&1; then
+      systemctl disable --now "${svc}" >/dev/null 2>&1 || record_warn "${svc} konnte nicht deaktiviert werden."
+    fi
+  done
+}
+
+ensure_target_fpm_service() {
+  local php_version="$1" svc="php${php_version}-fpm.service"
+  ensure_panel_php_version_supported "${php_version}"
+  if ! systemctl list-unit-files "${svc}" >/dev/null 2>&1; then
+    fatal "${svc} fehlt; PHP-FPM der Zielversion ist nicht installiert."
+  fi
+  systemctl enable --now "${svc}" >/dev/null 2>&1 || fatal "${svc} konnte nicht aktiviert/gestartet werden."
+  disable_legacy_panel_fpm_services "${php_version}"
+  record_pass "PHP-FPM-Service aktiv: ${svc}"
+}
+
+composer_platform_check_status() {
+  local working_dir="${1:-}" tmp_log status=0
+  if ! command -v composer >/dev/null 2>&1; then
+    record_warn "Composer ist nicht installiert; composer check-platform-reqs übersprungen."
+    return 0
+  fi
+  tmp_log="$(mktemp -t easywi-composer-platform.XXXXXX.log)"
+  trap - ERR
+  set +e
+  if [[ -n "${working_dir}" && -f "${working_dir}/composer.json" ]]; then
+    run_composer check-platform-reqs --working-dir "${working_dir}" >"${tmp_log}" 2>&1
+    status=$?
+  else
+    run_composer diagnose >"${tmp_log}" 2>&1
+    status=$?
+  fi
+  set -e
+  trap 'easywi_err_trap "${LINENO}" "${BASH_COMMAND}"' ERR
+  if [[ -s "${tmp_log}" ]]; then
+    {
+      printf '%s %s Composer platform/diagnose output (Exit-Code %s):\n' "$(date -Is 2>/dev/null || date)" "${INSTALLER_NAME}" "${status}"
+      cat "${tmp_log}"
+    } >>"${LOG_FILE}" 2>/dev/null || true
+  fi
+  rm -f "${tmp_log}"
+  if [[ "${status}" -eq 0 ]]; then
+    record_pass "Composer-Plattformanforderungen geprüft."
+  else
+    ensure_active_php_cli_supported
+    record_fail "Composer-Plattformanforderungen fehlgeschlagen; Details siehe ${LOG_FILE}."
+    return 1
+  fi
+}
+
 verify_php_runtime_versions() {
   local php_version="$1" cli_version="" fpm_bin
+  ensure_panel_php_version_supported "${php_version}"
   fpm_bin="php-fpm${php_version}"
-  cli_version="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
-  php -v >>"${LOG_FILE}" 2>&1 || true
+  log_php_state "Prüfung"
+  set_php_alternatives_for_target "${php_version}"
+  cli_version="$(active_php_cli_minor_version)"
+  if [[ "${cli_version}" != "${php_version}" ]]; then
+    fatal "Aktive PHP-CLI-Version ist ${cli_version:-unbekannt}, erwartet PHP ${php_version}."
+  fi
   if command -v "${fpm_bin}" >/dev/null 2>&1; then
     "${fpm_bin}" -v >>"${LOG_FILE}" 2>&1 || true
   else
     record_warn "${fpm_bin} nicht im PATH gefunden; PHP-FPM-Version kann nicht direkt geprüft werden."
   fi
-  if command -v update-alternatives >/dev/null 2>&1; then
-    update-alternatives --display php >>"${LOG_FILE}" 2>&1 || true
-  fi
-  if [[ -n "${cli_version}" && "${cli_version}" != "${php_version}" ]]; then
-    if command -v update-alternatives >/dev/null 2>&1 && [[ -x "/usr/bin/php${php_version}" ]]; then
-      if update-alternatives --set php "/usr/bin/php${php_version}" >/dev/null 2>&1; then
-        record_pass "CLI-PHP-Alternative auf ${php_version} gesetzt."
-      else
-        record_warn "CLI-PHP zeigt auf ${cli_version}; update-alternatives konnte nicht automatisch auf ${php_version} setzen."
-      fi
-    else
-      record_warn "CLI-PHP zeigt auf ${cli_version}, Zielversion ist ${php_version}."
-    fi
-  else
-    record_pass "CLI-PHP nutzt Zielversion ${php_version}."
-  fi
+  record_pass "CLI-PHP nutzt Zielversion ${php_version}."
 }
 
 check_php_modules() {
@@ -4273,11 +4385,8 @@ configure_php() {
     record_warn "Keine PHP-INI-Dateien für PHP ${php_version} gefunden."
   fi
 
-  if systemctl list-unit-files "php${php_version}-fpm.service" >/dev/null 2>&1; then
-    systemctl restart "php${php_version}-fpm.service" >/dev/null 2>&1 || record_warn "php${php_version}-fpm.service konnte nicht neu gestartet werden."
-  else
-    systemctl restart 'php*-fpm.service' >/dev/null 2>&1 || true
-  fi
+  ensure_target_fpm_service "${php_version}"
+  systemctl restart "php${php_version}-fpm.service" >/dev/null 2>&1 || record_warn "php${php_version}-fpm.service konnte nicht neu gestartet werden."
   if [[ "$(detect_webserver_profile)" != "nginx" ]]; then
     systemctl reload apache2.service >/dev/null 2>&1 || systemctl restart apache2.service >/dev/null 2>&1 || true
   fi
@@ -4287,8 +4396,39 @@ configure_php() {
   check_php_modules || true
 }
 
+replace_php_fpm_socket_references() {
+  local php_version="$1" target_socket="/run/php/php${php_version}-fpm.sock" file
+  ensure_panel_php_version_supported "${php_version}"
+  if [[ -d /etc/nginx ]]; then
+    while IFS= read -r -d '' file; do
+      backup_file_once "${file}"
+      sed -i -E "s#/run/php/php[0-9]+\.[0-9]+-fpm\.sock#${target_socket}#g; s#/run/php-fpm/(www|php-fpm)\.sock#${target_socket}#g" "${file}"
+    done < <(find /etc/nginx -type f \( -name '*.conf' -o -name 'default' -o -name '*.vhost' \) -print0 2>/dev/null)
+  fi
+  if [[ -d /etc/apache2 ]]; then
+    while IFS= read -r -d '' file; do
+      backup_file_once "${file}"
+      sed -i -E "s#/run/php/php[0-9]+\.[0-9]+-fpm\.sock#${target_socket}#g; s#/run/php-fpm/(www|php-fpm)\.sock#${target_socket}#g" "${file}"
+    done < <(find /etc/apache2 -type f \( -name '*.conf' -o -name '*.vhost' \) -print0 2>/dev/null)
+  fi
+  record_pass "Webserver-FPM-Socket zeigt auf ${target_socket}."
+}
+
+current_webserver_fpm_sockets() {
+  { find /etc/nginx /etc/apache2 -type f \( -name '*.conf' -o -name 'default' -o -name '*.vhost' \) -print0 2>/dev/null \
+      | xargs -0 grep -Eho '/run/(php/php[0-9]+\.[0-9]+-fpm|php-fpm/(www|php-fpm))\.sock' 2>/dev/null || true; } \
+    | awk 'NF && !seen[$0]++'
+}
+
+active_fpm_php_versions() {
+  systemctl list-units --type=service --state=active 'php*-fpm.service' --no-legend --no-pager 2>/dev/null \
+    | awk '{print $1}' | sed -n -E 's/^php([0-9]+\.[0-9]+)-fpm\.service$/\1/p' | awk 'NF && !seen[$0]++'
+}
+
 configure_webserver() {
+  local php_version="${EASYWI_RESOLVED_PHP_VERSION:-$(resolve_project_php_version)}"
   step "Konfiguriere Webserver-Limits/Streaming-Drop-ins."
+  replace_php_fpm_socket_references "${php_version}"
   if [[ -d /etc/nginx ]]; then
     local nginx_conf="/etc/nginx/conf.d/easywi-installer-limits.conf"
     [[ -f "${nginx_conf}" ]] && backup_file_once "${nginx_conf}"
@@ -4386,9 +4526,9 @@ user_find_listing() {
   if [[ "${user}" == "root" ]]; then
     (cd / && find "${path}" -maxdepth 2 -printf '%p\n')
   elif command -v runuser >/dev/null 2>&1; then
-    runuser -u "${user}" -- sh -c "cd / && find \"\$1\" -maxdepth 2 -printf \"%p\\n\"" sh "${path}"
+    runuser -u "${user}" -- sh -c 'cd / && find "$1" -maxdepth 2 -printf "%p\n"' sh "${path}"
   else
-    sudo -u "${user}" sh -c "cd / && find \"\$1\" -maxdepth 2 -printf \"%p\\n\"" sh "${path}"
+    sudo -u "${user}" sh -c 'cd / && find "$1" -maxdepth 2 -printf "%p\n"' sh "${path}"
   fi
 }
 
@@ -4654,12 +4794,31 @@ run_diagnostics() {
   record_pass "Diagnosebericht erstellt: ${DIAG_LOG_FILE}"
 }
 
+report_php_panel_diagnostics() {
+  local target_version="$1" cli_version="" fpm_versions="" sockets="" ok_state="FAIL"
+  cli_version="$(active_php_cli_minor_version)"
+  fpm_versions="$(active_fpm_php_versions | paste -sd, - 2>/dev/null || true)"
+  sockets="$(current_webserver_fpm_sockets | paste -sd, - 2>/dev/null || true)"
+  [[ -z "${fpm_versions}" ]] && fpm_versions="unbekannt/kein aktiver php*-fpm Service"
+  [[ -z "${sockets}" ]] && sockets="unbekannt/kein FPM-Socket in Webserver-Konfiguration gefunden"
+  if [[ -n "${cli_version}" ]] && php_version_ge "${cli_version}" "${MIN_PANEL_PHP_VERSION}"; then ok_state="PASS"; fi
+  log "Ziel-PHP-Version: ${target_version}"
+  log "Aktive CLI-PHP-Version: ${cli_version:-unbekannt}"
+  log "Aktive FPM-PHP-Version: ${fpm_versions}"
+  log "Nginx/Apache FPM-Socket: ${sockets}"
+  log "Aktive PHP-Version >=${MIN_PANEL_PHP_VERSION}: ${ok_state}"
+  if [[ -n "${cli_version}" ]] && ! php_version_ge "${cli_version}" "${MIN_PANEL_PHP_VERSION}"; then
+    record_fail "$(php_version_too_old_message "${cli_version}") Reparatur: versionierte Pakete php${target_version}-cli php${target_version}-fpm installieren und update-alternatives --set php /usr/bin/php${target_version} ausführen."
+  fi
+}
+
 run_check_mode() {
   check_supported_debian_ubuntu || true
   local php_version
   php_version="$(resolve_project_php_version)"
   EASYWI_RESOLVED_PHP_VERSION="${php_version}"
   log "Erwartete Ziel-PHP-Version aus /etc/os-release/composer.json: ${php_version}"
+  report_php_panel_diagnostics "${php_version}"
   if [[ "$(get_os_field ID | tr '[:upper:]' '[:lower:]')" == "ubuntu" ]] && [[ "$(native_php_version_for_os 2>/dev/null || true)" == "${php_version}" ]]; then
     log "Nutze Ubuntu-PHP-Pakete (PHP ${php_version}); Ondrej/PHP-PPA wird übersprungen."
   fi
@@ -4681,13 +4840,17 @@ run_check_mode() {
 
 run_fix_mode() {
   check_supported_debian_ubuntu
+  log_php_state "vor --fix"
   prepare_apt_robust
   EASYWI_RESOLVED_PHP_VERSION="$(resolve_project_php_version)"
+  ensure_panel_php_version_supported "${EASYWI_RESOLVED_PHP_VERSION}"
   setup_php_repo apt debian "${EASYWI_RESOLVED_PHP_VERSION}"
   install_required_packages_robust
   configure_locale
   configure_php
+  composer_platform_check_status "$(cd "$(dirname "${BASH_SOURCE[0]}")/../core" 2>/dev/null && pwd)" || true
   configure_webserver
+  log_php_state "nach --fix"
   fix_localhost_hosts_entries || true
   check_data_area || true
   check_services || true
