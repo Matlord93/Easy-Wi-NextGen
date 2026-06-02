@@ -35,30 +35,55 @@ step()  { STEP_COUNTER=$((STEP_COUNTER + 1)); log "── Schritt ${STEP_COUNTER
 ok()    { INSTALLER_PASSES+=("$*"); log "   ✓ $*"; }
 warn()  { INSTALLER_WARNINGS+=("$*"); log "   ⚠ $*"; }
 fatal() { INSTALLER_FAILURES+=("$*"); log "FEHLER: $*"; exit 1; }
-trap 'fatal "Unerwarteter Fehler in Zeile ${LINENO}: ${BASH_COMMAND}"' ERR
+
+easywi_err_trap() {
+  local status="$?" line="${1:-?}" command="${2:-?}"
+  if [[ -n "${EASYWI_LAST_RUN_LOG:-}" && -s "${EASYWI_LAST_RUN_LOG}" ]]; then
+    log "Letzte 80 Zeilen der Befehlsausgabe vor dem unerwarteten Fehler:"
+    tail -n 80 "${EASYWI_LAST_RUN_LOG}" | sed "s/^/${INSTALLER_NAME}   | /" >&2 || true
+  fi
+  fatal "Unerwarteter Fehler in Zeile ${line}: ${command} (Exit-Code ${status})"
+}
+trap 'easywi_err_trap "${LINENO}" "${BASH_COMMAND}"' ERR
 
 run_or_fatal() {
   local description="$1"; shift
-  local log_file
-  log_file="$(mktemp -t easywi-installer.XXXXXX.log)"
+  local command_text="$*" tmp_log
+  tmp_log="$(mktemp -t easywi-installer.XXXXXX.log)"
 
+  EASYWI_LAST_RUN_LOG="${tmp_log}"
+  trap - ERR
   set +e
-  "$@" >"${log_file}" 2>&1
+  "$@" >"${tmp_log}" 2>&1
   local status=$?
   set -e
+  trap 'easywi_err_trap "${LINENO}" "${BASH_COMMAND}"' ERR
+  EASYWI_LAST_RUN_LOG=""
+
+  if [[ -n "${LOG_FILE:-}" && -s "${tmp_log}" ]]; then
+    mkdir -p "$(dirname "${LOG_FILE}")" 2>/dev/null || true
+    {
+      printf '%s %s Befehl: %s\n' "$(date -Is 2>/dev/null || date)" "${INSTALLER_NAME}" "${command_text}"
+      cat "${tmp_log}"
+    } >>"${LOG_FILE}" 2>/dev/null || true
+  fi
+
   if [[ "${status}" -eq 0 ]]; then
-    rm -f "${log_file}"
+    rm -f "${tmp_log}"
     return 0
   fi
 
   log "FEHLER: ${description} (Exit-Code ${status})."
-  if [[ -s "${log_file}" ]]; then
-    log "Letzte Ausgabe von '${*}':"
-    tail -n 40 "${log_file}" | sed "s/^/${INSTALLER_NAME}   | /" >&2
+  if [[ -s "${tmp_log}" ]]; then
+    log "Letzte 80 Zeilen der Befehlsausgabe ('${command_text}'):"
+    tail -n 80 "${tmp_log}" | sed "s/^/${INSTALLER_NAME}   | /" >&2
+  elif [[ -s "${LOG_FILE:-}" ]]; then
+    log "Befehl erzeugte keine eigene Ausgabe. Letzte 80 Zeilen aus ${LOG_FILE}:"
+    tail -n 80 "${LOG_FILE}" | sed "s/^/${INSTALLER_NAME}   | /" >&2
   else
-    log "Der fehlgeschlagene Befehl hat keine Ausgabe erzeugt: ${*}"
+    log "Der fehlgeschlagene Befehl hat keine Ausgabe erzeugt: ${command_text}"
   fi
-  rm -f "${log_file}"
+  rm -f "${tmp_log}"
   exit "${status}"
 }
 
@@ -132,9 +157,9 @@ agent_interval_traffic_hint() {
 # ---------------------------------------------------------------------------
 
 get_os_field() {
-  local key="$1"
-  [[ -r /etc/os-release ]] \
-    && awk -F= -v k="${key}" '$1==k{gsub(/"/,"",$2);print $2}' /etc/os-release | head -n1
+  local key="$1" os_release_file="${EASYWI_OS_RELEASE_FILE:-/etc/os-release}"
+  [[ -r "${os_release_file}" ]] \
+    && awk -F= -v k="${key}" '$1==k{gsub(/"/,"",$2);print $2}' "${os_release_file}" | head -n1
 }
 
 detect_os_family() {
@@ -340,7 +365,9 @@ setup_php_repo() {
       distro="$(get_os_field ID)"
       codename="$(get_os_field VERSION_CODENAME)"
 
-      if [[ "${distro}" == "ubuntu" && "${codename}" == "resolute" ]]; then
+      local native_php_version
+      native_php_version="$(native_php_version_for_os 2>/dev/null || true)"
+      if [[ "${distro}" == "ubuntu" && -n "${native_php_version}" && "${native_php_version}" == "${php_version}" ]]; then
         step "Nutze Ubuntu-PHP-Pakete (PHP ${php_version}); Ondrej/PHP-PPA wird übersprungen."
         backup_conflicting_ondrej_php_sources
         apt_update_once
@@ -455,7 +482,9 @@ resolve_php_version() {
 }
 
 apt_package_exists() {
-  local pkg="$1"
+  local pkg="$1" candidate=""
+  candidate="$(apt-cache policy "${pkg}" 2>/dev/null | awk -F': ' '/Candidate:/{print $2; exit}')"
+  [[ -n "${candidate}" && "${candidate}" != "(none)" ]] && return 0
   apt-cache show "${pkg}" >/dev/null 2>&1
 }
 
@@ -497,7 +526,6 @@ resolve_php_packages() {
       apt_add_package_if_exists "php${php_version}-gd"
       apt_add_package_if_exists "php${php_version}-intl"
       apt_add_package_if_exists "php${php_version}-bcmath"
-      apt_add_package_if_exists "php${php_version}-opcache"
       apt_add_package_if_exists "php${php_version}-redis"
       case "${db_system}" in
         mariadb|mysql) apt_add_package_if_exists "php${php_version}-mysql" ;;
@@ -779,11 +807,47 @@ ensure_git_safe_dir() {
 # Composer
 # ---------------------------------------------------------------------------
 
+run_composer() {
+  COMPOSER_ALLOW_SUPERUSER=1 \
+  COMPOSER_NO_INTERACTION=1 \
+  composer --no-interaction "$@" </dev/null
+}
+
+composer_diagnose_status() {
+  local tmp_log status
+  tmp_log="$(mktemp -t easywi-composer-diagnose.XXXXXX.log)"
+  if ! command -v composer >/dev/null 2>&1; then
+    echo "Composer diagnose: WARN/FAILED, composer not installed."
+    record_warn "Composer ist nicht installiert; composer diagnose übersprungen."
+    rm -f "${tmp_log}"
+    return 0
+  fi
+  trap - ERR
+  set +e
+  run_composer diagnose >"${tmp_log}" 2>&1
+  status=$?
+  set -e
+  trap 'easywi_err_trap "${LINENO}" "${BASH_COMMAND}"' ERR
+  if [[ -s "${tmp_log}" ]]; then
+    {
+      printf '%s %s Composer diagnose output (Exit-Code %s):\n' "$(date -Is 2>/dev/null || date)" "${INSTALLER_NAME}" "${status}"
+      cat "${tmp_log}"
+    } >>"${LOG_FILE}" 2>/dev/null || true
+  fi
+  if [[ "${status}" -eq 0 ]]; then
+    echo "Composer diagnose: OK"
+  else
+    echo "Composer diagnose: WARN/FAILED, siehe Log"
+    record_warn "composer diagnose meldete Fehler; Details siehe ${LOG_FILE}."
+  fi
+  rm -f "${tmp_log}"
+}
+
 install_composer() {
   local php_bin="$1"
   if command -v composer >/dev/null 2>&1; then
     ok "Composer bereits installiert – aktualisiere."
-    composer self-update --quiet 2>/dev/null || true
+    run_composer self-update --quiet 2>/dev/null || true
     return
   fi
   step "Installiere Composer."
@@ -2606,8 +2670,8 @@ install_panel() {
   [[ -n "${github_token}" ]] && printf 'APP_GITHUB_TOKEN="%s"\n' "${github_token}" >> "${core_dir}/.env.local"
 
   step "Installiere Composer-Abhängigkeiten."
-  COMPOSER_ALLOW_SUPERUSER=1 composer install \
-    --no-dev --no-interaction --no-scripts --optimize-autoloader \
+  run_composer install \
+    --no-dev --no-scripts --optimize-autoloader --no-progress --prefer-dist \
     --working-dir "${core_dir}" --quiet
 
   # nginx/PHP-FPM must be able to read public/ and write runtime state.
@@ -3759,7 +3823,7 @@ EASYWI_BASE_PACKAGES=(
   build-essential make gcc g++ libc6 libstdc++6 lib32gcc-s1 lib32stdc++6 lib32z1 zlib1g zlib1g-dev
   libssl-dev openssl libcurl4 libcurl4-openssl-dev
 )
-EASYWI_CRITICAL_PHP_MODULES=(curl mbstring intl xml zip gd bcmath opcache fileinfo iconv json pdo pdo_mysql)
+EASYWI_CRITICAL_PHP_MODULES=(curl mbstring intl xml zip gd bcmath opcache fileinfo iconv json pdo pdo_mysql posix dom simplexml tokenizer ctype)
 EASYWI_PHP_SETTINGS=(
   'memory_limit=512M'
   'max_execution_time=120'
@@ -3874,52 +3938,250 @@ prepare_apt_robust() {
   install_packages apt ca-certificates curl wget gnupg lsb-release software-properties-common
 }
 
-apt_package_available() { apt-cache show "$1" >/dev/null 2>&1; }
+apt_package_available() {
+  local pkg="$1" candidate=""
+  if ! command -v apt-cache >/dev/null 2>&1; then
+    return 1
+  fi
+  candidate="$(apt-cache policy "${pkg}" 2>/dev/null | awk -F': ' '/Candidate:/{print $2; exit}')"
+  [[ -n "${candidate}" && "${candidate}" != "(none)" ]] && return 0
+  apt-cache show "${pkg}" >/dev/null 2>&1
+}
+
+php_version_ge() {
+  local left="$1" right="$2"
+  awk -v l="${left}" -v r="${right}" 'BEGIN {
+    split(l, a, "."); split(r, b, ".");
+    for (i = 1; i <= 3; i++) {
+      ai = a[i] + 0; bi = b[i] + 0;
+      if (ai > bi) exit 0;
+      if (ai < bi) exit 1;
+    }
+    exit 0;
+  }'
+}
+
+native_php_version_for_os() {
+  local id codename version
+  id="$(get_os_field ID | tr '[:upper:]' '[:lower:]')"
+  codename="$(get_os_field VERSION_CODENAME | tr '[:upper:]' '[:lower:]')"
+  version="$(get_os_field VERSION_ID)"
+  case "${id}:${codename}" in
+    ubuntu:resolute) printf '8.5'; return ;;
+    ubuntu:noble)    printf '8.3'; return ;;
+    ubuntu:jammy)    printf '8.1'; return ;;
+    ubuntu:focal)    printf '7.4'; return ;;
+    debian:trixie)   printf '8.4'; return ;;
+    debian:bookworm) printf '8.2'; return ;;
+    debian:bullseye) printf '7.4'; return ;;
+  esac
+  case "${id}:${version}" in
+    ubuntu:26.04) printf '8.5'; return ;;
+    ubuntu:24.04) printf '8.3'; return ;;
+    ubuntu:22.04) printf '8.1'; return ;;
+    ubuntu:20.04) printf '7.4'; return ;;
+    debian:13)    printf '8.4'; return ;;
+    debian:12)    printf '8.2'; return ;;
+    debian:11)    printf '7.4'; return ;;
+  esac
+  return 1
+}
 
 resolve_project_php_version() {
-  local repo_root composer_php=""
+  local repo_root composer_php="" composer_min="" native="" resolved="${DEFAULT_PHP_VERSION}"
   repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-  if [[ -r "${repo_root}/core/composer.json" ]]; then
+  if [[ -r "${repo_root}/core/composer.json" && -z "${EASYWI_TEST_COMPOSER_PHP_REQUIRE:-}" ]]; then
     # shellcheck disable=SC2016 # PHP code intentionally uses $argv, not shell variables.
     composer_php="$(php -r '$j=json_decode(file_get_contents($argv[1]), true); echo $j["require"]["php"] ?? "";' "${repo_root}/core/composer.json" 2>/dev/null || true)"
+  else
+    composer_php="${EASYWI_TEST_COMPOSER_PHP_REQUIRE:-}"
   fi
   if [[ "${composer_php}" =~ \>=([0-9]+\.[0-9]+) ]]; then
-    printf '%s' "${BASH_REMATCH[1]}"
-  else
-    printf '%s' "${DEFAULT_PHP_VERSION}"
+    composer_min="${BASH_REMATCH[1]}"
+    resolved="${composer_min}"
   fi
+  native="$(native_php_version_for_os 2>/dev/null || true)"
+  if [[ -n "${native}" ]]; then
+    if [[ -z "${composer_min}" ]] || php_version_ge "${native}" "${composer_min}"; then
+      resolved="${native}"
+    fi
+  fi
+  printf '%s' "${resolved}"
+}
+
+php_package_for_module() {
+  local php_version="$1" module="$2"
+  case "${module}" in
+    curl|mbstring|intl|xml|zip|gd|bcmath|readline|mysql|pgsql|sqlite3) printf 'php%s-%s' "${php_version}" "${module}" ;;
+    pdo_mysql) printf 'php%s-mysql' "${php_version}" ;;
+    pdo_pgsql) printf 'php%s-pgsql' "${php_version}" ;;
+    pdo_sqlite) printf 'php%s-sqlite3' "${php_version}" ;;
+    *) return 1 ;;
+  esac
 }
 
 resolve_apt_php_packages() {
-  local php_version="$1" webserver="${2:-nginx}" prefix packages=()
-  prefix="php${php_version}"
-  if ! apt_package_available "${prefix}-cli"; then
-    prefix="php"
-  fi
-  packages=("${prefix}-cli" "${prefix}-common" "${prefix}-mysql" "${prefix}-pgsql" "${prefix}-sqlite3" "${prefix}-curl" "${prefix}-mbstring" "${prefix}-intl" "${prefix}-xml" "${prefix}-zip" "${prefix}-gd" "${prefix}-bcmath" "${prefix}-opcache" "${prefix}-readline")
+  local php_version="$1" webserver="${2:-nginx}" critical=() optional=() installable=() missing_critical=() missing_optional=()
+  local pkg fallback module required versioned_available=true web_pkg generic_web_pkg
+
+  critical=(cli common mysql pgsql sqlite3 curl mbstring intl xml zip gd bcmath readline)
+  optional=(redis)
+
   if [[ "${webserver}" == "apache" ]]; then
-    packages+=("libapache2-mod-php${php_version}")
+    web_pkg="libapache2-mod-php${php_version}"
+    generic_web_pkg="libapache2-mod-php"
   else
-    packages+=("${prefix}-fpm")
+    web_pkg="php${php_version}-fpm"
+    generic_web_pkg="php-fpm"
   fi
-  local optional pkg
-  for optional in "${prefix}-json" "${prefix}-posix" "${prefix}-pcntl" "${prefix}-fileinfo" "${prefix}-dom" "${prefix}-simplexml" "${prefix}-tokenizer" "${prefix}-ctype" "${prefix}-iconv"; do
-    if apt_package_available "${optional}"; then
-      packages+=("${optional}")
+
+  if ! apt_package_available "php${php_version}-cli"; then
+    versioned_available=false
+    record_warn "Versionierte PHP-${php_version}-Pakete sind nicht verfügbar; verwende generische php-*-Metapakete, soweit vorhanden."
+  fi
+
+  for module in "${critical[@]}"; do
+    pkg="php${php_version}-${module}"
+    fallback="php-${module}"
+    if [[ "${module}" == "common" ]]; then fallback="php-common"; fi
+    if [[ "${module}" == "cli" ]]; then fallback="php-cli"; fi
+    if [[ "${versioned_available}" == true ]] && apt_package_available "${pkg}"; then
+      installable+=("${pkg}")
+    elif apt_package_available "${fallback}"; then
+      installable+=("${fallback}")
+    else
+      missing_critical+=("${pkg} (Fallback ${fallback})")
     fi
   done
-  for pkg in "${packages[@]}"; do printf '%s\n' "${pkg}"; done | awk 'NF && !seen[$0]++'
+
+  if apt_package_available "${web_pkg}"; then
+    installable+=("${web_pkg}")
+  elif apt_package_available "${generic_web_pkg}"; then
+    installable+=("${generic_web_pkg}")
+  else
+    missing_critical+=("${web_pkg} (Fallback ${generic_web_pkg})")
+  fi
+
+  for module in "${optional[@]}"; do
+    pkg="php${php_version}-${module}"
+    fallback="php-${module}"
+    if [[ "${versioned_available}" == true ]] && apt_package_available "${pkg}"; then
+      installable+=("${pkg}")
+    elif apt_package_available "${fallback}"; then
+      installable+=("${fallback}")
+    else
+      missing_optional+=("${pkg} (Fallback ${fallback})")
+    fi
+  done
+
+  log "PHP-Pakete installierbar: ${installable[*]:-(keine)}"
+  log "PHP-Pakete optional nicht verfügbar: ${missing_optional[*]:-(keine)}"
+  log "PHP-Pakete kritisch nicht verfügbar: ${missing_critical[*]:-(keine)}"
+  if ((${#missing_optional[@]})); then
+    record_warn "Optionale PHP-Pakete nicht verfügbar: ${missing_optional[*]}"
+  fi
+  if ((${#missing_critical[@]})); then
+    record_fail "Kritische PHP-Pakete nicht verfügbar: ${missing_critical[*]}"
+  fi
+
+  printf '%s\n' "${installable[@]}" | awk 'NF && !seen[$0]++'
 }
 
 install_required_packages_robust() {
   local php_version webserver php_packages=()
   php_version="$(resolve_project_php_version)"
+  EASYWI_RESOLVED_PHP_VERSION="${php_version}"
   if systemctl list-unit-files apache2.service >/dev/null 2>&1 || [[ -d /etc/apache2 && ! -d /etc/nginx ]]; then webserver="apache"; else webserver="nginx"; fi
   mapfile -t php_packages < <(resolve_apt_php_packages "${php_version}" "${webserver}")
-  log "Projekt-PHP-Version: ${php_version} (composer >=8.4; Fallback ${DEFAULT_PHP_VERSION}); Webserver-Profil: ${webserver}"
+  log "Projekt-/Ziel-PHP-Version: ${php_version} (composer-Mindestversion akzeptiert neuere native OS-PHP-Versionen; Fallback ${DEFAULT_PHP_VERSION}); Webserver-Profil: ${webserver}"
   log "Basispakete: ${EASYWI_BASE_PACKAGES[*]}"
-  log "PHP-Pakete: ${php_packages[*]}"
+  log "PHP-Pakete final: ${php_packages[*]}"
   install_packages apt "${EASYWI_BASE_PACKAGES[@]}" "${php_packages[@]}"
+  verify_php_runtime_versions "${php_version}"
+  verify_opcache "${php_version}"
+}
+
+
+php_module_present_in_list() {
+  local module="$1" modules="$2" normalized
+  normalized="$(printf '%s\n' "${modules}" | tr '[:upper:]' '[:lower:]')"
+  case "${module,,}" in
+    opcache)   printf '%s\n' "${normalized}" | grep -Eq '^(opcache|zend opcache)$' ;;
+    simplexml) printf '%s\n' "${normalized}" | grep -Eq '^(simplexml)$' ;;
+    *)         printf '%s\n' "${normalized}" | grep -Fxq "${module,,}" ;;
+  esac
+}
+
+opcache_extension_loaded() {
+  php -r 'exit(extension_loaded("Zend OPcache") || extension_loaded("opcache") ? 0 : 1);' >/dev/null 2>&1 \
+    || php -m 2>/dev/null | grep -Ei '^(Zend )?OPcache$' >/dev/null
+}
+
+apt_package_has_candidate() {
+  local pkg="$1" candidate=""
+  if ! command -v apt-cache >/dev/null 2>&1; then
+    return 1
+  fi
+  candidate="$(apt-cache policy "${pkg}" 2>/dev/null | awk -F': ' '/Candidate:/{print $2; exit}')"
+  [[ -n "${candidate}" && "${candidate}" != "(none)" ]]
+}
+
+install_opcache_package_if_available() {
+  local php_version="$1" pkg
+  for pkg in "php${php_version}-opcache" php-opcache; do
+    if apt_package_has_candidate "${pkg}"; then
+      record_warn "OPcache fehlt; installiere verfügbares Paket ${pkg}."
+      install_packages apt "${pkg}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+verify_opcache() {
+  local php_version="${1:-$(resolve_project_php_version)}"
+
+  if opcache_extension_loaded; then
+    record_pass "OPcache ist als PHP-Feature/Modul geladen."
+  else
+    if install_opcache_package_if_available "${php_version}" && opcache_extension_loaded; then
+      record_pass "OPcache ist nach Installation des separaten OPcache-Pakets geladen."
+    else
+      record_fail "OPcache fehlt, aber kein separates OPcache-Paket ist für PHP ${php_version} verfügbar."
+      return 0
+    fi
+  fi
+
+  if php -i 2>/dev/null | grep -iq 'opcache.enable'; then
+    record_pass "OPcache-Konfiguration ist in php -i sichtbar."
+  else
+    record_warn "opcache.enable ist in php -i nicht sichtbar."
+  fi
+}
+
+verify_php_runtime_versions() {
+  local php_version="$1" cli_version="" fpm_bin="php-fpm${php_version}"
+  cli_version="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
+  php -v >>"${LOG_FILE}" 2>&1 || true
+  if command -v "${fpm_bin}" >/dev/null 2>&1; then
+    "${fpm_bin}" -v >>"${LOG_FILE}" 2>&1 || true
+  else
+    record_warn "${fpm_bin} nicht im PATH gefunden; PHP-FPM-Version kann nicht direkt geprüft werden."
+  fi
+  if command -v update-alternatives >/dev/null 2>&1; then
+    update-alternatives --display php >>"${LOG_FILE}" 2>&1 || true
+  fi
+  if [[ -n "${cli_version}" && "${cli_version}" != "${php_version}" ]]; then
+    if command -v update-alternatives >/dev/null 2>&1 && [[ -x "/usr/bin/php${php_version}" ]]; then
+      update-alternatives --set php "/usr/bin/php${php_version}" >/dev/null 2>&1 \
+        && record_pass "CLI-PHP-Alternative auf ${php_version} gesetzt." \
+        || record_warn "CLI-PHP zeigt auf ${cli_version}; update-alternatives konnte nicht automatisch auf ${php_version} setzen."
+    else
+      record_warn "CLI-PHP zeigt auf ${cli_version}, Zielversion ist ${php_version}."
+    fi
+  else
+    record_pass "CLI-PHP nutzt Zielversion ${php_version}."
+  fi
 }
 
 check_php_modules() {
@@ -3927,7 +4189,7 @@ check_php_modules() {
   require_command php || return 1
   modules="$(php -m 2>/dev/null | tr '[:upper:]' '[:lower:]')"
   for module in "${EASYWI_CRITICAL_PHP_MODULES[@]}"; do
-    if printf '%s\n' "${modules}" | grep -Fxq "${module}"; then
+    if php_module_present_in_list "${module}" "${modules}"; then
       record_pass "PHP-Modul vorhanden: ${module}"
     else
       missing+=("${module}")
@@ -3975,10 +4237,21 @@ LOCALE
 }
 
 configure_php() {
-  step "Konfiguriere PHP CLI/FPM/Apache sinnvoll."
-  local ini key value disabled dangerous pair
+  local php_version="${EASYWI_RESOLVED_PHP_VERSION:-$(resolve_project_php_version)}"
+  step "Konfiguriere PHP ${php_version} CLI/FPM/Apache sinnvoll."
+  local ini key value disabled dangerous pair ini_candidates=() configured_count=0
+
   shopt -s nullglob
-  for ini in /etc/php/*/cli/php.ini /etc/php/*/fpm/php.ini /etc/php/*/apache2/php.ini; do
+  for ini in /etc/php/${php_version}/cli/php.ini /etc/php/${php_version}/fpm/php.ini /etc/php/${php_version}/apache2/php.ini; do
+    [[ -f "${ini}" ]] && ini_candidates+=("${ini}")
+  done
+  if ((${#ini_candidates[@]} == 0)); then
+    ini_candidates=(/etc/php/*/cli/php.ini /etc/php/*/fpm/php.ini /etc/php/*/apache2/php.ini)
+    record_warn "Keine versionierten PHP-${php_version}-INI-Dateien gefunden; nutze vorhandene /etc/php/*/ Profile."
+  fi
+  for ini in "${ini_candidates[@]}"; do
+    [[ -f "${ini}" ]] || continue
+    configured_count=$((configured_count + 1))
     backup_file_once "${ini}"
     for pair in "${EASYWI_PHP_SETTINGS[@]}"; do
       key="${pair%%=*}"; value="${pair#*=}"
@@ -3993,10 +4266,22 @@ configure_php() {
     done
   done
   shopt -u nullglob
-  systemctl restart 'php*-fpm.service' >/dev/null 2>&1 || true
-  systemctl restart apache2.service >/dev/null 2>&1 || true
+  if ((configured_count == 0)); then
+    record_warn "Keine PHP-INI-Dateien für PHP ${php_version} gefunden."
+  fi
+
+  if systemctl list-unit-files "php${php_version}-fpm.service" >/dev/null 2>&1; then
+    systemctl restart "php${php_version}-fpm.service" >/dev/null 2>&1 || record_warn "php${php_version}-fpm.service konnte nicht neu gestartet werden."
+  else
+    systemctl restart 'php*-fpm.service' >/dev/null 2>&1 || true
+  fi
+  if [[ "$(detect_webserver_profile)" != "nginx" ]]; then
+    systemctl reload apache2.service >/dev/null 2>&1 || systemctl restart apache2.service >/dev/null 2>&1 || true
+  fi
   php -i | awk -F'=> ' '/memory_limit|post_max_size|upload_max_filesize|default_charset|date.timezone|expose_php|realpath_cache|opcache.enable|open_basedir|disable_functions/{print}' >>"${LOG_FILE}" 2>/dev/null || true
-  check_php_modules
+  verify_php_runtime_versions "${php_version}"
+  verify_opcache "${php_version}"
+  check_php_modules || true
 }
 
 configure_webserver() {
@@ -4046,8 +4331,116 @@ APACHE
 detect_web_user() { id -u www-data >/dev/null 2>&1 && echo www-data || echo root; }
 detect_agent_user() { id -u easywi-agent >/dev/null 2>&1 && echo easywi-agent || echo root; }
 
+detect_webserver_profile() {
+  if systemctl is-active --quiet nginx 2>/dev/null || [[ -d /etc/nginx ]]; then
+    echo nginx
+  elif systemctl is-active --quiet apache2 2>/dev/null || [[ -d /etc/apache2 ]]; then
+    echo apache
+  else
+    echo nginx
+  fi
+}
+
+diagnose_webserver_versions_and_status() {
+  local profile
+  profile="$(detect_webserver_profile)"
+  if command -v nginx >/dev/null 2>&1; then
+    nginx -v 2>&1 || true
+  else
+    echo "Nginx: not installed/not available."
+  fi
+  if [[ "${profile}" == "nginx" ]]; then
+    echo "Apache: skipped because nginx profile active."
+    systemctl status 'php*-fpm.service' nginx --no-pager -l 2>&1 || true
+  else
+    if command -v apache2 >/dev/null 2>&1; then
+      apache2 -v 2>&1 || true
+    else
+      echo "Apache: not installed/not available."
+    fi
+    systemctl status 'php*-fpm.service' apache2 --no-pager -l 2>&1 || true
+  fi
+}
+
 data_area_paths() {
-  printf '%s\n' "${EASYWI_DATA_PATH:-}" "${EASYWI_INSTANCE_BASE_DIR:-/home/easywi/instances}" "${EASYWI_SFTP_BASE_DIR:-/srv/easywi/sftp}" "/var/www/easywi/core/var" | awk 'NF && !seen[$0]++'
+  printf '%s\n' "${EASYWI_DATA_PATH:-}" "${EASYWI_INSTANCE_BASE_DIR:-/home/easywi/instances}" "${EASYWI_SFTP_BASE_DIR:-/srv/easywi/sftp}" | awk 'NF && !seen[$0]++'
+}
+
+symfony_runtime_path() {
+  printf '%s\n' "${EASYWI_SYMFONY_VAR_PATH:-/var/www/easywi/core/var}"
+}
+
+user_find_listing() {
+  local user="$1" path="${2:-}"
+  if [[ -z "${path}" ]]; then
+    record_warn "Dateilisting-Test für ${user} übersprungen: Pfad ist leer."
+    return 0
+  fi
+  if [[ ! -d "${path}" ]]; then
+    record_warn "Dateilisting-Test für ${user} übersprungen: Pfad ist kein Verzeichnis: ${path}"
+    return 0
+  fi
+  if [[ "${user}" == "root" ]]; then
+    (cd / && find "${path}" -maxdepth 2 -printf '%p\n')
+  elif command -v runuser >/dev/null 2>&1; then
+    runuser -u "${user}" -- sh -c 'cd / && find "$1" -maxdepth 2 -printf "%p\n"' sh "${path}"
+  else
+    sudo -u "${user}" sh -c 'cd / && find "$1" -maxdepth 2 -printf "%p\n"' sh "${path}"
+  fi
+}
+
+check_symfony_runtime_area() {
+  local path count
+  path="$(symfony_runtime_path)"
+  [[ -e "${path}" ]] || return 0
+  namei -l "${path}" >>"${LOG_FILE}" 2>&1 || record_warn "namei konnte Symfony-runtime ${path} nicht prüfen."
+  count="$(find "${path}" -xdev -printf . 2>/dev/null | wc -c | tr -d ' ')"
+  if [[ "${count}" =~ ^[0-9]+$ && "${count}" -gt 10000 ]]; then
+    record_warn "Symfony cache/log/runtime unter ${path} enthält sehr viele Einträge (${count}); Cache/Logs prüfen oder bereinigen."
+  else
+    record_pass "Symfony cache/log/runtime-Pfad geprüft: ${path}"
+  fi
+}
+
+localhost_hosts_entry_configured() {
+  local address="$1"
+  awk -v address="${address}" '$1 == address { for (i=2; i<=NF; i++) if ($i == "localhost") found=1 } END { exit found ? 0 : 1 }' /etc/hosts 2>/dev/null
+}
+
+check_localhost_hosts_entries() {
+  local ok=1
+  if localhost_hosts_entry_configured "127.0.0.1"; then
+    record_pass "IPv4-localhost in /etc/hosts vorhanden."
+  else
+    record_warn "IPv4-localhost fehlt in /etc/hosts (erwartet: 127.0.0.1 localhost)."
+    ok=0
+  fi
+  if localhost_hosts_entry_configured "::1"; then
+    record_pass "IPv6-localhost in /etc/hosts vorhanden."
+  else
+    record_warn "IPv6-localhost fehlt in /etc/hosts (erwartet: ::1 localhost)."
+    ok=0
+  fi
+  getent ahosts localhost >>"${LOG_FILE}" 2>&1 || record_warn "getent ahosts localhost liefert keine ergänzende localhost-Auflösung."
+  if ((ok == 1)); then
+    record_pass "/etc/hosts enthält IPv4- und IPv6-localhost."
+  fi
+}
+
+fix_localhost_hosts_entries() {
+  local changed=0
+  if ! localhost_hosts_entry_configured "127.0.0.1"; then
+    ((changed == 0)) && backup_file_once /etc/hosts
+    printf '\n127.0.0.1 localhost\n' >>/etc/hosts
+    changed=1
+    record_pass "IPv4-localhost sicher in /etc/hosts ergänzt."
+  fi
+  if ! localhost_hosts_entry_configured "::1"; then
+    ((changed == 0)) && backup_file_once /etc/hosts
+    printf '\n::1 localhost ip6-localhost ip6-loopback\n' >>/etc/hosts
+    changed=1
+    record_pass "IPv6-localhost sicher in /etc/hosts ergänzt."
+  fi
 }
 
 check_data_area() {
@@ -4058,10 +4451,10 @@ check_data_area() {
     if [[ ! -e "${path}" ]]; then record_warn "Datenpfad existiert nicht: ${path}"; continue; fi
     namei -l "${path}" >>"${LOG_FILE}" 2>&1 || record_warn "namei konnte ${path} nicht prüfen."
     getfacl -p "${path}" >>"${LOG_FILE}" 2>&1 || true
-    if ! sudo -u "${webuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>>"${LOG_FILE}" | cat >/tmp/easywi-webuser-listing.$$; then
+    if ! user_find_listing "${webuser}" "${path}" 2>>"${LOG_FILE}" | cat >/tmp/easywi-webuser-listing.$$; then
       record_warn "${webuser} kann ${path} nicht vollständig listen."
     fi
-    if ! sudo -u "${agentuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>>"${LOG_FILE}" | cat >/tmp/easywi-agentuser-listing.$$; then
+    if ! user_find_listing "${agentuser}" "${path}" 2>>"${LOG_FILE}" | cat >/tmp/easywi-agentuser-listing.$$; then
       record_warn "${agentuser} kann ${path} nicht vollständig listen."
     fi
     if ! find "${path}" -print 2>>"${LOG_FILE}" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>>"${LOG_FILE}"; then
@@ -4084,15 +4477,110 @@ check_data_area() {
       rm -rf "${testdir}"
     fi
   done
+  check_symfony_runtime_area
 }
+
+agent_conf_value() {
+  local key="$1"
+  awk -F= -v key="${key}" 'tolower($1)==key {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}' /etc/easywi/agent.conf 2>/dev/null || true
+}
+
+extract_port_from_listen() {
+  local listen="$1"
+  [[ -n "${listen}" ]] || return 1
+  printf '%s\n' "${listen##*:}" | awk '/^[0-9]+$/ {print; exit}'
+}
+
+detect_agent_health_port() {
+  local listen port
+  if [[ -n "${EASYWI_AGENT_HEALTH_PORT:-}" ]]; then
+    printf '%s\n' "${EASYWI_AGENT_HEALTH_PORT}"
+    return 0
+  fi
+  listen="$(agent_conf_value health_listen)"
+  port="$(extract_port_from_listen "${listen}" || true)"
+  if [[ -z "${port}" ]]; then
+    listen="$(agent_conf_value service_listen)"
+    port="$(extract_port_from_listen "${listen}" || true)"
+  fi
+  if [[ -n "${port}" ]]; then
+    printf '%s\n' "${port}"
+    return 0
+  fi
+  command -v ss >/dev/null 2>&1 || return 0
+  ss -tulpn 2>/dev/null | awk '/easywi-agent/ { n=split($5,a,":"); if (a[n] ~ /^[0-9]+$/) { print a[n]; exit } }' || true
+}
+
+agent_process_or_port_active() {
+  local port="$1"
+  systemctl is-active --quiet easywi-agent 2>/dev/null && return 0
+  pgrep -x easywi-agent >/dev/null 2>&1 && return 0
+  command -v ss >/dev/null 2>&1 || return 1
+  ss -tulpn 2>/dev/null | awk -v p=":${port}" '$5 ~ p"$" && /easywi-agent/ {found=1} END {exit found ? 0 : 1}'
+}
+
+agent_health_json_value() {
+  local key="$1" file="$2"
+  php -r '$d=json_decode(file_get_contents($argv[2]), true); if (is_array($d) && array_key_exists($argv[1], $d)) { $v=$d[$argv[1]]; if (is_bool($v)) { echo $v ? "true" : "false"; } elseif (is_scalar($v)) { echo $v; } }' "${key}" "${file}" 2>/dev/null || true
+}
+
+check_agent_health() {
+  local port http_url https_url response_file status root file_api curl_log
+  port="$(detect_agent_health_port | head -n1)"
+  if [[ -z "${port}" ]]; then
+    record_warn "Agent-Healthcheck-Port konnte nicht erkannt werden (agent.conf/ss ohne easywi-agent-Listener)."
+    return 0
+  fi
+  record_pass "Agent-Port erkannt: ${port}."
+  http_url="http://127.0.0.1:${port}/health"
+  https_url="https://127.0.0.1:${port}/health"
+  response_file="$(mktemp)"
+  curl_log="$(mktemp)"
+  if curl -4 -fsS --max-time 5 "${http_url}" -o "${response_file}" 2>"${curl_log}"; then
+    status="$(agent_health_json_value status "${response_file}")"
+    if [[ "${status}" == "ok" ]]; then
+      root="$(agent_health_json_value root "${response_file}")"
+      file_api="$(agent_health_json_value file_api "${response_file}")"
+      cat "${response_file}" >>"${LOG_FILE}" 2>/dev/null || true
+      printf '\n' >>"${LOG_FILE}"
+      record_pass "Agent-Healthcheck OK: ${http_url}"
+      record_pass "Agent root: ${root:-unknown}, file_api=${file_api:-unknown}"
+      rm -f "${response_file}" "${curl_log}"
+      return 0
+    fi
+    cat "${response_file}" >>"${LOG_FILE}" 2>/dev/null || true
+    printf '\n' >>"${LOG_FILE}"
+    record_warn "Agent-Healthcheck auf ${http_url} antwortete, aber JSON status ist nicht ok (${status:-unbekannt})."
+  else
+    cat "${curl_log}" >>"${LOG_FILE}" 2>/dev/null || true
+  fi
+  if curl -4 -k -fsS --max-time 5 "${https_url}" -o "${response_file}" 2>"${curl_log}"; then
+    status="$(agent_health_json_value status "${response_file}")"
+    if [[ "${status}" == "ok" ]]; then
+      root="$(agent_health_json_value root "${response_file}")"
+      file_api="$(agent_health_json_value file_api "${response_file}")"
+      cat "${response_file}" >>"${LOG_FILE}" 2>/dev/null || true
+      printf '\n' >>"${LOG_FILE}"
+      record_pass "Agent-Healthcheck OK: ${https_url}"
+      record_pass "Agent root: ${root:-unknown}, file_api=${file_api:-unknown}"
+      rm -f "${response_file}" "${curl_log}"
+      return 0
+    fi
+  elif grep -qi 'wrong version number' "${curl_log}" 2>/dev/null; then
+    record_warn "Optionaler HTTPS-Agent-Healthcheck auf ${https_url} spricht kein TLS (wrong version number); HTTP-Port erwartet."
+  fi
+  if agent_process_or_port_active "${port}"; then
+    record_warn "Agent läuft und Port ${port} lauscht, aber /health antwortet nicht erfolgreich."
+  else
+    record_warn "Agent-Healthcheck auf 127.0.0.1:${port}/health nicht erfolgreich und kein aktiver Agent-Listener erkannt."
+  fi
+  rm -f "${response_file}" "${curl_log}"
+}
+
 
 check_services() {
   step "Prüfe Agent/Worker/systemd/Netzwerk."
-  if getent hosts localhost >>"${LOG_FILE}" 2>&1; then
-    record_pass "localhost-Auflösung vorhanden."
-  else
-    record_warn "localhost-Auflösung fehlt/fehlerhaft."
-  fi
+  check_localhost_hosts_entries
   ss -tulpn >>"${LOG_FILE}" 2>&1 || true
   local svc
   for svc in easywi-agent easywi-messenger easywi-scheduler.timer easywi-console-relay nginx apache2; do
@@ -4100,9 +4588,7 @@ check_services() {
       systemctl status "${svc}" --no-pager -l >>"${LOG_FILE}" 2>&1 || record_warn "Service nicht aktiv/fehlerhaft: ${svc}"
     fi
   done
-  local port="${EASYWI_AGENT_HEALTH_PORT:-7443}"
-  curl -4 -fsS --max-time 5 "http://127.0.0.1:${port}/health" >>"${LOG_FILE}" 2>&1 || record_warn "Agent-Healthcheck über IPv4 http://127.0.0.1:${port}/health nicht erfolgreich (Port ggf. abweichend/TLS)."
-  curl -6 -fsS --max-time 5 "http://localhost:${port}/health" >>"${LOG_FILE}" 2>&1 || record_warn "Optionaler IPv6-localhost-Agent-Healthcheck nicht erfolgreich."
+  check_agent_health
   if command -v update-alternatives >/dev/null 2>&1; then update-alternatives --display iptables >>"${LOG_FILE}" 2>&1 || true; fi
   if command -v ufw >/dev/null 2>&1; then
     ufw status verbose >>"${LOG_FILE}" 2>&1 || true
@@ -4122,6 +4608,8 @@ check_security_modules() {
   fi
   if command -v getenforce >/dev/null 2>&1; then
     getenforce >>"${LOG_FILE}" 2>&1 || true
+  else
+    echo "SELinux: not installed/not available." >>"${LOG_FILE}"
   fi
   dmesg 2>/dev/null | grep -i denied >>"${LOG_FILE}" 2>&1 || true
   journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor >>"${LOG_FILE}" 2>&1 || true
@@ -4137,29 +4625,40 @@ run_diagnostics() {
     echo "## Provider hints"; systemd-detect-virt 2>/dev/null || true; dmidecode -s system-manufacturer 2>/dev/null || true; dmidecode -s system-product-name 2>/dev/null || true
     echo "## Locale"; locale 2>&1 || true; locale -a 2>&1 || true
     echo "## PHP"; php -v 2>&1 || true; php -m 2>&1 || true; php -i 2>&1 | awk -F'=> ' '/memory_limit|post_max_size|upload_max_filesize|default_charset|date.timezone|disable_functions|open_basedir|realpath_cache|opcache.enable/{print}' || true
-    echo "## Composer"; composer diagnose 2>&1 || true
-    echo "## Webserver"; nginx -v 2>&1 || true; apache2 -v 2>&1 || true; systemctl status 'php*-fpm.service' nginx apache2 --no-pager -l 2>&1 || true
+    echo "## Composer"; composer_diagnose_status
+    echo "## Webserver"; diagnose_webserver_versions_and_status
     echo "## EasyWI services"; systemctl status easywi-agent easywi-messenger easywi-scheduler.timer easywi-console-relay --no-pager -l 2>&1 || true; journalctl -u easywi-agent -u easywi-messenger -n 100 --no-pager 2>&1 || true
-    echo "## Network"; getent hosts localhost 2>&1 || true; ss -tulpn 2>&1 || true; ip addr 2>&1 || true; ip route 2>&1 || true
+    echo "## Agent health"; local agent_port; agent_port="$(detect_agent_health_port | head -n1)"; if [[ -n "${agent_port}" ]]; then echo "Agent-Port: ${agent_port}"; curl -4 -fsS --max-time 5 "http://127.0.0.1:${agent_port}/health" 2>&1 || true; else echo "Agent-Port: not detected"; fi
+    echo "## Network"; getent ahosts localhost 2>&1 || true; ss -tulpn 2>&1 || true; ip addr 2>&1 || true; ip route 2>&1 || true
     echo "## Filesystems"; df -T 2>&1 || true; mount 2>&1 || true
     echo "## Firewall"; ufw status verbose 2>&1 || true; update-alternatives --display iptables 2>&1 || true; nft list ruleset 2>&1 || true
-    echo "## AppArmor/SELinux"; aa-status 2>&1 || true; getenforce 2>&1 || true; dmesg 2>/dev/null | grep -i denied || true; journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor || true
+    echo "## AppArmor/SELinux"; aa-status 2>&1 || true; if command -v getenforce >/dev/null 2>&1; then getenforce 2>&1 || true; else echo "SELinux: not installed/not available."; fi; dmesg 2>/dev/null | grep -i denied || true; journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor || true
     echo "## Data areas"
     local path webuser agentuser
     webuser="$(detect_web_user)"; agentuser="$(detect_agent_user)"
     for path in $(data_area_paths); do
       echo "### ${path}"; namei -l "${path}" 2>&1 || true; getfacl -p "${path}" 2>&1 || true
-      sudo -u "${webuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>&1 | head -200 || true
-      sudo -u "${agentuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>&1 | head -200 || true
+      user_find_listing "${webuser}" "${path}" 2>&1 | head -200 || true
+      user_find_listing "${agentuser}" "${path}" 2>&1 | head -200 || true
       # shellcheck disable=SC2016 # PHP code intentionally uses $argv and PHP variables.
       php -r '$p=$argv[1]; if(!is_dir($p)){exit(0);} $a=@scandir($p) ?: []; foreach($a as $n){ echo (mb_check_encoding($n,"UTF-8") ? "OK " : "BAD ").$n.PHP_EOL; } echo json_encode($a, JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE).PHP_EOL;' "${path}" 2>&1 || true
     done
+    echo "## Symfony runtime"
+    path="$(symfony_runtime_path)"
+    echo "### ${path}"; namei -l "${path}" 2>&1 || true; find "${path}" -maxdepth 2 -printf '%p\n' 2>&1 | head -200 || true
   } >>"${DIAG_LOG_FILE}"
   record_pass "Diagnosebericht erstellt: ${DIAG_LOG_FILE}"
 }
 
 run_check_mode() {
   check_supported_debian_ubuntu || true
+  local php_version
+  php_version="$(resolve_project_php_version)"
+  EASYWI_RESOLVED_PHP_VERSION="${php_version}"
+  log "Erwartete Ziel-PHP-Version aus /etc/os-release/composer.json: ${php_version}"
+  if [[ "$(get_os_field ID | tr '[:upper:]' '[:lower:]')" == "ubuntu" ]] && [[ "$(native_php_version_for_os 2>/dev/null || true)" == "${php_version}" ]]; then
+    log "Nutze Ubuntu-PHP-Pakete (PHP ${php_version}); Ondrej/PHP-PPA wird übersprungen."
+  fi
   for cmd in apt-get dpkg curl wget gpg lsb_release systemctl find file iconv php; do require_command "${cmd}" || true; done
   check_php_modules || true
   if locale | grep -qi 'utf-8'; then
@@ -4179,11 +4678,13 @@ run_check_mode() {
 run_fix_mode() {
   check_supported_debian_ubuntu
   prepare_apt_robust
-  setup_php_repo apt debian "$(resolve_project_php_version)"
+  EASYWI_RESOLVED_PHP_VERSION="$(resolve_project_php_version)"
+  setup_php_repo apt debian "${EASYWI_RESOLVED_PHP_VERSION}"
   install_required_packages_robust
   configure_locale
   configure_php
   configure_webserver
+  fix_localhost_hosts_entries || true
   check_data_area || true
   check_services || true
   check_security_modules || true
