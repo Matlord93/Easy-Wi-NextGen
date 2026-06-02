@@ -4022,7 +4022,7 @@ php_package_for_module() {
 
 resolve_apt_php_packages() {
   local php_version="$1" webserver="${2:-nginx}" critical=() optional=() installable=() missing_critical=() missing_optional=()
-  local pkg fallback module required versioned_available=true web_pkg generic_web_pkg
+  local pkg fallback module versioned_available=true web_pkg generic_web_pkg
 
   critical=(cli common mysql pgsql sqlite3 curl mbstring intl xml zip gd bcmath readline)
   optional=(redis)
@@ -4160,7 +4160,8 @@ verify_opcache() {
 }
 
 verify_php_runtime_versions() {
-  local php_version="$1" cli_version="" fpm_bin="php-fpm${php_version}"
+  local php_version="$1" cli_version="" fpm_bin
+  fpm_bin="php-fpm${php_version}"
   cli_version="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
   php -v >>"${LOG_FILE}" 2>&1 || true
   if command -v "${fpm_bin}" >/dev/null 2>&1; then
@@ -4173,9 +4174,11 @@ verify_php_runtime_versions() {
   fi
   if [[ -n "${cli_version}" && "${cli_version}" != "${php_version}" ]]; then
     if command -v update-alternatives >/dev/null 2>&1 && [[ -x "/usr/bin/php${php_version}" ]]; then
-      update-alternatives --set php "/usr/bin/php${php_version}" >/dev/null 2>&1 \
-        && record_pass "CLI-PHP-Alternative auf ${php_version} gesetzt." \
-        || record_warn "CLI-PHP zeigt auf ${cli_version}; update-alternatives konnte nicht automatisch auf ${php_version} setzen."
+      if update-alternatives --set php "/usr/bin/php${php_version}" >/dev/null 2>&1; then
+        record_pass "CLI-PHP-Alternative auf ${php_version} gesetzt."
+      else
+        record_warn "CLI-PHP zeigt auf ${cli_version}; update-alternatives konnte nicht automatisch auf ${php_version} setzen."
+      fi
     else
       record_warn "CLI-PHP zeigt auf ${cli_version}, Zielversion ist ${php_version}."
     fi
@@ -4383,9 +4386,9 @@ user_find_listing() {
   if [[ "${user}" == "root" ]]; then
     (cd / && find "${path}" -maxdepth 2 -printf '%p\n')
   elif command -v runuser >/dev/null 2>&1; then
-    runuser -u "${user}" -- sh -c 'cd / && find "$1" -maxdepth 2 -printf "%p\n"' sh "${path}"
+    runuser -u "${user}" -- sh -c "cd / && find \"\$1\" -maxdepth 2 -printf \"%p\\n\"" sh "${path}"
   else
-    sudo -u "${user}" sh -c 'cd / && find "$1" -maxdepth 2 -printf "%p\n"' sh "${path}"
+    sudo -u "${user}" sh -c "cd / && find \"\$1\" -maxdepth 2 -printf \"%p\\n\"" sh "${path}"
   fi
 }
 
@@ -4521,6 +4524,7 @@ agent_process_or_port_active() {
 
 agent_health_json_value() {
   local key="$1" file="$2"
+  # shellcheck disable=SC2016 # PHP code intentionally uses $argv and PHP variables.
   php -r '$d=json_decode(file_get_contents($argv[2]), true); if (is_array($d) && array_key_exists($argv[1], $d)) { $v=$d[$argv[1]]; if (is_bool($v)) { echo $v ? "true" : "false"; } elseif (is_scalar($v)) { echo $v; } }' "${key}" "${file}" 2>/dev/null || true
 }
 

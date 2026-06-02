@@ -9,6 +9,7 @@ use App\Module\Core\Application\GameTemplateSeeder;
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Template;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Tools\SchemaTool;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
@@ -124,10 +125,10 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
     private function clearAllEntityData(): void
     {
         $connection = $this->entityManager->getConnection();
-        $metadata = $this->entityManager->getMetadataFactory()->getAllMetadata();
+        $metadata = $this->seederMetadata();
 
         $connection->executeStatement('PRAGMA foreign_keys = OFF');
-        foreach ($metadata as $meta) {
+        foreach (array_reverse($metadata) as $meta) {
             $connection->executeStatement('DELETE FROM ' . $meta->getTableName());
         }
         $connection->executeStatement('PRAGMA foreign_keys = ON');
@@ -137,13 +138,23 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
     private function rebuildSchema(): void
     {
         $tool = new SchemaTool($this->entityManager);
-        $metadata = $this->entityManager->getMetadataFactory()->getAllMetadata();
-        if ($metadata === []) {
-            return;
-        }
+        $metadata = $this->seederMetadata();
 
         $tool->dropSchema($metadata);
         $tool->createSchema($metadata);
         $this->entityManager->clear();
+    }
+
+    /**
+     * @return list<ClassMetadata<object>>
+     */
+    private function seederMetadata(): array
+    {
+        $metadataFactory = $this->entityManager->getMetadataFactory();
+
+        return [
+            $metadataFactory->getMetadataFor(Template::class),
+            $metadataFactory->getMetadataFor(GamePlugin::class),
+        ];
     }
 }
