@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -14,14 +15,23 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type fileEntry struct {
-	Name       string `json:"name"`
-	Size       int64  `json:"size"`
-	Mode       string `json:"mode"`
-	ModifiedAt string `json:"modified_at"`
-	IsDir      bool   `json:"is_dir"`
+	Name              string `json:"name"`
+	Size              int64  `json:"size"`
+	Mode              string `json:"mode"`
+	ModifiedAt        string `json:"modified_at"`
+	IsDir             bool   `json:"is_dir"`
+	IsSymlink         bool   `json:"is_symlink"`
+	LinkTarget        string `json:"link_target,omitempty"`
+	LinkBroken        bool   `json:"link_broken,omitempty"`
+	NameValidUTF8     bool   `json:"name_valid_utf8"`
+	MetadataAvailable bool   `json:"metadata_available"`
+	ActionsSupported  bool   `json:"actions_supported"`
+	ErrorCode         string `json:"error_code,omitempty"`
+	ErrorMessage      string `json:"error_message,omitempty"`
 }
 
 type healthResponse struct {
@@ -38,6 +48,11 @@ type healthResponse struct {
 const headerServerRoot = "X-Server-Root"
 
 const maxEditableFileBytes int64 = 1_048_576
+
+const (
+	defaultListLimit = 1000
+	maxListLimit     = 5000
+)
 
 const (
 	errorInvalidServerRoot    = "INVALID_SERVER_ROOT"
@@ -369,7 +384,9 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, instanceID s
 		}
 
 		relativePath := sanitizeRelativePath(r.URL.Query().Get("path"))
-		cacheKey := fmt.Sprintf("%s|%s", rootPath, relativePath)
+		offset := parseListBoundedInt(r.URL.Query().Get("offset"), 0, 0)
+		limit := parseListBoundedInt(r.URL.Query().Get("limit"), defaultListLimit, maxListLimit)
+		cacheKey := fmt.Sprintf("%s|%s|offset=%d|limit=%d", rootPath, relativePath, offset, limit)
 		if cached, ok := s.cache.Get(cacheKey); ok {
 			respondJSON(w, http.StatusOK, cached)
 			return nil
@@ -387,20 +404,12 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, instanceID s
 			return nil
 		}
 
+		warnings := make([]listWarning, 0)
 		fileEntries := make([]fileEntry, 0, len(entries))
 		for _, entry := range entries {
-			info, err := entry.Info()
-			if err != nil {
-				respondError(r, w, statusFromError(err), codeFromError(err), "stat failed")
-				return nil
-			}
-			fileEntries = append(fileEntries, fileEntry{
-				Name:       entry.Name(),
-				Size:       info.Size(),
-				Mode:       fmt.Sprintf("%04o", info.Mode().Perm()),
-				ModifiedAt: info.ModTime().UTC().Format("2006-01-02 15:04:05"),
-				IsDir:      entry.IsDir(),
-			})
+			fileEntry, entryWarnings := buildListEntry(target, relativePath, entry)
+			warnings = append(warnings, entryWarnings...)
+			fileEntries = append(fileEntries, fileEntry)
 		}
 
 		sort.Slice(fileEntries, func(i, j int) bool {
@@ -410,18 +419,132 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, instanceID s
 			return strings.ToLower(fileEntries[i].Name) < strings.ToLower(fileEntries[j].Name)
 		})
 
-		response := listResponse{
-			RootPath: rootPath,
-			Path:     relativePath,
-			Entries:  fileEntries,
+		total := len(fileEntries)
+		if offset > total {
+			offset = total
 		}
-		s.cache.Set(cacheKey, response)
+		end := offset + limit
+		if end > total {
+			end = total
+		}
+		pagedEntries := fileEntries[offset:end]
+		truncated := offset > 0 || end < total
+		if truncated {
+			warnings = append(warnings, listWarning{
+				Code:    "LIST_TRUNCATED",
+				Message: fmt.Sprintf("directory listing limited to %d of %d entries; use limit and offset query parameters", len(pagedEntries), total),
+			})
+		}
+
+		response := listResponse{
+			RootPath:  rootPath,
+			Path:      relativePath,
+			Entries:   pagedEntries,
+			Warnings:  warnings,
+			Total:     total,
+			Offset:    offset,
+			Limit:     limit,
+			Truncated: truncated,
+		}
+		if !truncated && len(warnings) == 0 {
+			s.cache.Set(cacheKey, response)
+		}
 		respondJSON(w, http.StatusOK, response)
 		return nil
 	})
 	if err != nil {
 		respondError(r, w, http.StatusInternalServerError, errorInternal, "list failed")
 	}
+}
+
+func buildListEntry(target string, relativePath string, entry os.DirEntry) (fileEntry, []listWarning) {
+	name := entry.Name()
+	nameValidUTF8 := utf8.ValidString(name)
+	displayName := strings.ToValidUTF8(name, "�")
+	relativeEntryPath := filepath.Join(relativePath, displayName)
+	warnings := make([]listWarning, 0)
+
+	item := fileEntry{
+		Name:              displayName,
+		Mode:              "????",
+		ModifiedAt:        "",
+		IsDir:             entry.IsDir(),
+		IsSymlink:         entry.Type()&os.ModeSymlink != 0,
+		NameValidUTF8:     nameValidUTF8,
+		MetadataAvailable: false,
+		ActionsSupported:  nameValidUTF8,
+	}
+
+	if !nameValidUTF8 {
+		item.ErrorCode = "INVALID_UTF8_FILENAME"
+		item.ErrorMessage = "file name is not valid UTF-8; actions are disabled for this entry"
+		item.ActionsSupported = false
+		warnings = append(warnings, listWarning{
+			Code:    "INVALID_UTF8_FILENAME",
+			Path:    relativeEntryPath,
+			Message: "file name is not valid UTF-8; it is displayed with replacement characters and actions are disabled",
+		})
+		log.Printf("fileapi: invalid utf-8 filename path=%q", filepath.Join(target, name))
+	}
+
+	fullPath := filepath.Join(target, name)
+	if item.IsSymlink {
+		if linkTarget, err := os.Readlink(fullPath); err == nil {
+			item.LinkTarget = linkTarget
+		} else {
+			warnings = append(warnings, listWarning{
+				Code:    "READLINK_FAILED",
+				Path:    relativeEntryPath,
+				Message: fmt.Sprintf("readlink failed: %v", err),
+			})
+			log.Printf("fileapi: readlink failed path=%q error=%v", fullPath, err)
+		}
+		if _, err := os.Stat(fullPath); err != nil {
+			item.LinkBroken = true
+			warnings = append(warnings, listWarning{
+				Code:    "BROKEN_SYMLINK",
+				Path:    relativeEntryPath,
+				Message: "symbolic link target is not reachable",
+			})
+			log.Printf("fileapi: broken symlink path=%q error=%v", fullPath, err)
+		}
+	}
+
+	info, err := entry.Info()
+	if err != nil {
+		item.ErrorCode = "STAT_FAILED"
+		item.ErrorMessage = "metadata could not be read"
+		item.ActionsSupported = false
+		warnings = append(warnings, listWarning{
+			Code:    "STAT_FAILED",
+			Path:    relativeEntryPath,
+			Message: fmt.Sprintf("stat failed: %v", err),
+		})
+		log.Printf("fileapi: stat failed path=%q error=%v", fullPath, err)
+		return item, warnings
+	}
+
+	item.Size = info.Size()
+	item.Mode = fmt.Sprintf("%04o", info.Mode().Perm())
+	item.ModifiedAt = info.ModTime().UTC().Format("2006-01-02 15:04:05")
+	item.IsDir = info.IsDir()
+	item.MetadataAvailable = true
+
+	return item, warnings
+}
+
+func parseListBoundedInt(raw string, defaultValue int, maxValue int) int {
+	if strings.TrimSpace(raw) == "" {
+		return defaultValue
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		return defaultValue
+	}
+	if maxValue > 0 && value > maxValue {
+		return maxValue
+	}
+	return value
 }
 
 func (s *Server) handleRead(w http.ResponseWriter, r *http.Request, instanceID string, download bool) {

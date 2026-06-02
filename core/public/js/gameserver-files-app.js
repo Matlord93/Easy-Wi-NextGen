@@ -35,6 +35,11 @@
         fileSaved: 'File saved successfully.',
         root: 'root',
         noFiles: 'No files found.',
+        listingWarning: 'Some entries need attention: %warnings%',
+        paginationInfo: 'Showing %from%-%to% of %total% entries',
+        previous: 'Previous',
+        next: 'Next',
+        unavailableAction: 'Unavailable',
         directory: 'Directory',
         file: 'File',
         open: 'Open',
@@ -94,6 +99,12 @@
             isOpen: false,
             isSaving: false,
         },
+        listing: {
+            offset: 0,
+            limit: 1000,
+            total: 0,
+            truncated: false,
+        },
     };
 
     const listEl = document.getElementById('gf-list');
@@ -133,6 +144,11 @@
         return {
             files: body?.files || body?.entries || [],
             cwd: body?.cwd || body?.path || '',
+            warnings: Array.isArray(body?.warnings) ? body.warnings : [],
+            total: Number(body?.total || 0),
+            offset: Number(body?.offset || 0),
+            limit: Number(body?.limit || state.listing.limit || 1000),
+            truncated: Boolean(body?.truncated),
         };
     };
 
@@ -236,34 +252,59 @@
         breadcrumbsEl.innerHTML = links.join(' ');
     };
 
-    const renderList = (files) => {
-        if (!Array.isArray(files) || files.length === 0) {
-            listEl.innerHTML = `<tr><td colspan="5" class="dashboard-table__empty">${tr('noFiles')}</td></tr>`;
-            return;
+    const renderList = (files, meta = {}, warnings = []) => {
+        const rows = [];
+        if (Array.isArray(warnings) && warnings.length > 0) {
+            const warningText = warnings.map((warning) => `${warning.code || 'WARNING'}${warning.path ? `: ${warning.path}` : ''}`).join(', ');
+            rows.push(`<tr><td colspan="5" class="dashboard-table__empty text-amber-700">${escHtml(tr('listingWarning', { warnings: warningText }))}</td></tr>`);
         }
 
-        listEl.innerHTML = files.map((entry) => {
-            const safeName = escHtml(entry.name);
-            const type = entry.is_dir ? tr('directory') : tr('file');
-            const openButton = entry.is_dir
-                ? `<button class="ui-button ui-button--ghost" data-action="open" data-name="${safeName}">${tr('open')}</button>`
-                : `<button class="ui-button ui-button--ghost" data-action="download" data-name="${safeName}">${tr('download')}</button>`;
-            const editButton = isEditableFile(entry)
-                ? `<button class="ui-button ui-button--ghost" data-action="edit" data-name="${safeName}">${tr('edit')}</button>`
-                : '';
-            return `<tr>
-                <td>${safeName}</td>
-                <td>${type}</td>
-                <td>${escHtml(entry.size_human || '0 B')}</td>
-                <td>${escHtml(entry.modified_at || '')}</td>
-                <td>
-                    ${openButton}
-                    ${editButton}
-                    <button class="ui-button ui-button--ghost" data-action="rename" data-name="${safeName}">${tr('rename')}</button>
-                    <button class="ui-button ui-button--danger" data-action="delete" data-name="${safeName}">${tr('delete')}</button>
-                </td>
-            </tr>`;
-        }).join('');
+        if (!Array.isArray(files) || files.length === 0) {
+            rows.push(`<tr><td colspan="5" class="dashboard-table__empty">${tr('noFiles')}</td></tr>`);
+        } else {
+            rows.push(...files.map((entry) => {
+                const safeName = escHtml(entry.name);
+                const type = entry.is_dir ? tr('directory') : (entry.is_symlink ? `${tr('file')} ↪` : tr('file'));
+                const actionsSupported = entry.actions_supported !== false && entry.name_valid_utf8 !== false && entry.metadata_available !== false && entry.link_broken !== true;
+                const openButton = !actionsSupported
+                    ? `<button class="ui-button ui-button--ghost" disabled>${tr('unavailableAction')}</button>`
+                    : (entry.is_dir
+                        ? `<button class="ui-button ui-button--ghost" data-action="open" data-name="${safeName}">${tr('open')}</button>`
+                        : `<button class="ui-button ui-button--ghost" data-action="download" data-name="${safeName}">${tr('download')}</button>`);
+                const editButton = actionsSupported && isEditableFile(entry)
+                    ? `<button class="ui-button ui-button--ghost" data-action="edit" data-name="${safeName}">${tr('edit')}</button>`
+                    : '';
+                const renameButton = actionsSupported ? `<button class="ui-button ui-button--ghost" data-action="rename" data-name="${safeName}">${tr('rename')}</button>` : '';
+                const deleteButton = actionsSupported ? `<button class="ui-button ui-button--danger" data-action="delete" data-name="${safeName}">${tr('delete')}</button>` : '';
+                return `<tr>
+                    <td>${safeName}${entry.error_code ? ` <span class="text-amber-700">(${escHtml(entry.error_code)})</span>` : ''}</td>
+                    <td>${type}</td>
+                    <td>${escHtml(entry.size_human || '0 B')}</td>
+                    <td>${escHtml(entry.modified_at || '')}</td>
+                    <td>
+                        ${openButton}
+                        ${editButton}
+                        ${renameButton}
+                        ${deleteButton}
+                    </td>
+                </tr>`;
+            }));
+        }
+
+        const total = Number(meta.total || 0);
+        const offset = Number(meta.offset || 0);
+        const limit = Number(meta.limit || state.listing.limit || 1000);
+        if (total > limit || offset > 0 || meta.truncated) {
+            const from = total === 0 ? 0 : offset + 1;
+            const to = Math.min(offset + files.length, total);
+            rows.push(`<tr><td colspan="5" class="dashboard-table__empty">
+                <span>${escHtml(tr('paginationInfo', { from, to, total }))}</span>
+                <button class="ui-button ui-button--ghost ui-button--sm" data-action="page-prev" ${offset <= 0 ? 'disabled' : ''}>${tr('previous')}</button>
+                <button class="ui-button ui-button--ghost ui-button--sm" data-action="page-next" ${offset + limit >= total ? 'disabled' : ''}>${tr('next')}</button>
+            </td></tr>`);
+        }
+
+        listEl.innerHTML = rows.join('');
     };
 
 
@@ -352,21 +393,28 @@
         }
     };
 
-    const loadList = async (path) => {
+    const loadList = async (path, offset = 0) => {
         try {
-            const payload = await apiClient.request(`${listUrl}?path=${encodeURIComponent(path || '')}`);
+            const url = `${listUrl}?path=${encodeURIComponent(path || '')}&limit=${encodeURIComponent(state.listing.limit)}&offset=${encodeURIComponent(offset)}`;
+            const payload = await apiClient.request(url);
             errors.clearInline(inlineErrorEl);
             const normalized = normalizeListing(payload);
             state.cwd = normalized.cwd;
+            state.listing = {
+                offset: normalized.offset,
+                limit: normalized.limit,
+                total: normalized.total,
+                truncated: normalized.truncated,
+            };
             cwdEl.textContent = `${tr('cwd')}: ${state.cwd || '/'}`;
             renderBreadcrumbs(state.cwd);
-            renderList(normalized.files);
+            renderList(normalized.files, state.listing, normalized.warnings);
         } catch (error) {
             errors.showAll(inlineErrorEl, error);
         }
     };
 
-    document.getElementById('gf-refresh')?.addEventListener('click', () => loadList(state.cwd));
+    document.getElementById('gf-refresh')?.addEventListener('click', () => loadList(state.cwd, state.listing.offset));
     document.getElementById('gf-up')?.addEventListener('click', () => {
         const parts = (state.cwd || '').split('/').filter(Boolean);
         parts.pop();
@@ -401,7 +449,17 @@
 
         if (action === 'open') {
             const next = state.cwd ? `${state.cwd}/${name}` : name;
-            await loadList(next);
+            await loadList(next, 0);
+            return;
+        }
+
+        if (action === 'page-prev') {
+            await loadList(state.cwd, Math.max(0, state.listing.offset - state.listing.limit));
+            return;
+        }
+
+        if (action === 'page-next') {
+            await loadList(state.cwd, state.listing.offset + state.listing.limit);
             return;
         }
 
@@ -451,7 +509,7 @@
         if (!button) {
             return;
         }
-        await loadList(button.dataset.path || '');
+        await loadList(button.dataset.path || '', 0);
     });
 
     uploadEl?.addEventListener('change', async () => {

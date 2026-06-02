@@ -17,10 +17,21 @@ type cacheEntry struct {
 	value listResponse
 }
 
+type listWarning struct {
+	Code    string `json:"code"`
+	Path    string `json:"path,omitempty"`
+	Message string `json:"message"`
+}
+
 type listResponse struct {
-	RootPath string      `json:"root_path"`
-	Path     string      `json:"path"`
-	Entries  []fileEntry `json:"entries"`
+	RootPath  string        `json:"root_path"`
+	Path      string        `json:"path"`
+	Entries   []fileEntry   `json:"entries"`
+	Warnings  []listWarning `json:"warnings,omitempty"`
+	Total     int           `json:"total"`
+	Offset    int           `json:"offset"`
+	Limit     int           `json:"limit"`
+	Truncated bool          `json:"truncated"`
 }
 
 func newListingCache(max int) *listingCache {

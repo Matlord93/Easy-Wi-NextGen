@@ -19,7 +19,7 @@ class ResponseEnvelopeFactory
         int $statusCode = JsonResponse::HTTP_ACCEPTED,
         array $extra = [],
     ): JsonResponse {
-        return new JsonResponse(array_merge([
+        return $this->jsonResponse(array_merge([
             'job_id' => $jobId,
             'status' => 'queued',
             'message' => $message,
@@ -49,7 +49,19 @@ class ResponseEnvelopeFactory
             $payload['retry_after'] = $retryAfter;
         }
 
-        return new JsonResponse($payload, $statusCode);
+        return $this->jsonResponse($payload, $statusCode);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function jsonResponse(array $payload, int $statusCode): JsonResponse
+    {
+        $response = new JsonResponse(null, $statusCode);
+        $response->setEncodingOptions(JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $response->setData($payload);
+
+        return $response;
     }
 
     private function resolveRequestId(Request $request): string

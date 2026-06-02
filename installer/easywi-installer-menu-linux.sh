@@ -3,7 +3,7 @@
 # Supports: Debian, Ubuntu, RHEL, CentOS, Rocky, AlmaLinux, Fedora,
 #           openSUSE, SLES, Arch Linux, Manjaro, Alpine Linux
 # Modes: Panel (Core), Agent, Panel+Agent, Agent-Update
-set -euo pipefail
+set -Eeuo pipefail
 
 VERSION="2.0.0"
 INSTALLER_NAME="[easywi-installer]"
@@ -12,16 +12,30 @@ DEFAULT_PHP_VERSION="8.4"
 APT_UPDATED=0
 EASYWI_GITHUB_REPO="Matlord93/Easy-Wi-NextGen"
 EASYWI_GITHUB_RELEASE_BASE="https://github.com/${EASYWI_GITHUB_REPO}/releases"
+LOG_FILE="${EASYWI_INSTALLER_LOG_FILE:-/var/log/easywi-installer.log}"
+DIAG_LOG_FILE="${EASYWI_INSTALLER_DIAG_LOG_FILE:-/var/log/easywi-installer-diagnostics.log}"
+INSTALLER_WARNINGS=()
+INSTALLER_FAILURES=()
+INSTALLER_PASSES=()
+INSTALLER_MODE="menu"
 
 # ---------------------------------------------------------------------------
 # Logging helpers
 # ---------------------------------------------------------------------------
 
-log()   { printf '%s %s\n'  "${INSTALLER_NAME}" "$*" >&2; }
+log() {
+  local line="${INSTALLER_NAME} $*"
+  printf '%s\n' "${line}" >&2
+  if [[ -n "${LOG_FILE:-}" ]]; then
+    mkdir -p "$(dirname "${LOG_FILE}")" 2>/dev/null || true
+    printf '%s %s\n' "$(date -Is 2>/dev/null || date)" "${line}" >>"${LOG_FILE}" 2>/dev/null || true
+  fi
+}
 step()  { STEP_COUNTER=$((STEP_COUNTER + 1)); log "── Schritt ${STEP_COUNTER}: $*"; }
-ok()    { log "   ✓ $*"; }
-warn()  { log "   ⚠ $*"; }
-fatal() { log "FEHLER: $*"; exit 1; }
+ok()    { INSTALLER_PASSES+=("$*"); log "   ✓ $*"; }
+warn()  { INSTALLER_WARNINGS+=("$*"); log "   ⚠ $*"; }
+fatal() { INSTALLER_FAILURES+=("$*"); log "FEHLER: $*"; exit 1; }
+trap 'fatal "Unerwarteter Fehler in Zeile ${LINENO}: ${BASH_COMMAND}"' ERR
 
 run_or_fatal() {
   local description="$1"; shift
@@ -1318,7 +1332,6 @@ $ensureColumn($pdo, $columnExists, 'agents', 'disk_hard_block_percent', 'INT NOT
 $ensureColumn($pdo, $columnExists, 'agents', 'node_disk_protection_threshold_percent', 'INT NOT NULL DEFAULT 5');
 $ensureColumn($pdo, $columnExists, 'agents', 'node_disk_protection_override_until', 'DATETIME DEFAULT NULL');
 $ensureColumn($pdo, $columnExists, 'agents', 'job_concurrency', 'INT NOT NULL DEFAULT 50');
-$pdo->exec('ALTER TABLE agents ALTER job_concurrency SET DEFAULT 50');
 
 $ensureColumn($pdo, $columnExists, 'agent_bootstrap_tokens', 'invalidated_at', 'DATETIME DEFAULT NULL');
 $ensureColumn($pdo, $columnExists, 'agent_bootstrap_tokens', 'last_used_at', 'DATETIME DEFAULT NULL');
@@ -1376,6 +1389,9 @@ Restart=always
 RestartSec=5
 User=${system_user}
 Group=${web_group}
+Environment=LANG=C.UTF-8
+Environment=LC_ALL=C.UTF-8
+LimitNOFILE=1048576
 
 [Install]
 WantedBy=multi-user.target
@@ -1401,6 +1417,9 @@ WorkingDirectory=${core_dir}
 ExecStart=${php_bin} ${console} app:run-schedules --env=prod --no-interaction
 User=${system_user}
 Group=${web_group}
+Environment=LANG=C.UTF-8
+Environment=LC_ALL=C.UTF-8
+LimitNOFILE=1048576
 UNIT
 
     cat > /etc/systemd/system/easywi-scheduler.timer <<UNIT
@@ -1454,6 +1473,9 @@ Restart=always
 RestartSec=2
 User=${system_user}
 Group=${web_group}
+Environment=LANG=C.UTF-8
+Environment=LC_ALL=C.UTF-8
+LimitNOFILE=1048576
 
 [Install]
 WantedBy=multi-user.target
@@ -1624,9 +1646,12 @@ Environment=EASYWI_SFTP_BASE_DIR=${sftp_base_dir}
 Environment=EASYWI_AGENT_JOB_POLL_INTERVAL_SECONDS=${poll_interval_seconds}
 Environment=EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS=${heartbeat_interval_seconds}
 Environment=EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS=${request_timeout_seconds}
+Environment=LANG=C.UTF-8
+Environment=LC_ALL=C.UTF-8
 ExecStart=/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf
-Restart=on-failure
+Restart=always
 RestartSec=5
+LimitNOFILE=1048576
 RuntimeDirectory=easywi-agent
 RuntimeDirectoryMode=0755
 
@@ -3717,6 +3742,419 @@ INFO
   ok "Panel-SSL wurde nachträglich eingerichtet. DEFAULT_URI=https://${web_hostname}"
 }
 
+
+# ---------------------------------------------------------------------------
+# Debian/Ubuntu robust preflight, fix and diagnostics modes
+# ---------------------------------------------------------------------------
+
+EASYWI_BASE_PACKAGES=(
+  bash curl wget ca-certificates gnupg apt-transport-https lsb-release software-properties-common
+  unzip zip tar gzip bzip2 xz-utils git jq nano vim sudo cron logrotate locales acl rsync
+  openssh-client openssh-server net-tools iproute2 iputils-ping dnsutils netcat-openbsd lsof
+  procps psmisc htop screen tmux socat findutils coreutils util-linux file libmagic1
+  build-essential make gcc g++ libc6 libstdc++6 lib32gcc-s1 lib32stdc++6 lib32z1 zlib1g zlib1g-dev
+  libssl-dev openssl libcurl4 libcurl4-openssl-dev
+)
+EASYWI_CRITICAL_PHP_MODULES=(curl mbstring intl xml zip gd bcmath opcache fileinfo iconv json pdo pdo_mysql)
+EASYWI_PHP_SETTINGS=(
+  'memory_limit=512M'
+  'max_execution_time=120'
+  'max_input_time=120'
+  'post_max_size=128M'
+  'upload_max_filesize=128M'
+  'default_charset="UTF-8"'
+  'date.timezone=Europe/Berlin'
+  'expose_php=Off'
+  'opcache.enable=1'
+  'opcache.enable_cli=1'
+  'realpath_cache_size=4096K'
+  'realpath_cache_ttl=600'
+)
+
+record_pass() { ok "$*"; }
+record_warn() { warn "$*"; }
+record_fail() { INSTALLER_FAILURES+=("$*"); log "   ✗ $*"; }
+
+print_summary() {
+  printf '\n%s Zusammenfassung\n' "${INSTALLER_NAME}" >&2
+  printf '%s PASS: %d | WARNINGS: %d | FAILURES: %d\n' "${INSTALLER_NAME}" "${#INSTALLER_PASSES[@]}" "${#INSTALLER_WARNINGS[@]}" "${#INSTALLER_FAILURES[@]}" >&2
+  local item
+  if ((${#INSTALLER_WARNINGS[@]})); then
+    printf '%s Warnungen:\n' "${INSTALLER_NAME}" >&2
+    for item in "${INSTALLER_WARNINGS[@]}"; do printf '%s   - %s\n' "${INSTALLER_NAME}" "${item}" >&2; done
+  fi
+  if ((${#INSTALLER_FAILURES[@]})); then
+    printf '%s Fehler:\n' "${INSTALLER_NAME}" >&2
+    for item in "${INSTALLER_FAILURES[@]}"; do printf '%s   - %s\n' "${INSTALLER_NAME}" "${item}" >&2; done
+    printf '%s Nächste Schritte: /var/log/easywi-installer.log und ggf. %s prüfen.\n' "${INSTALLER_NAME}" "${DIAG_LOG_FILE}" >&2
+    return 1
+  fi
+  printf '%s Ergebnis: PASS. Log: %s\n' "${INSTALLER_NAME}" "${LOG_FILE}" >&2
+}
+
+parse_cli_args() {
+  while (($#)); do
+    case "$1" in
+      --check|--diagnose|--fix) INSTALLER_MODE="${1#--}" ;;
+      --help|-h)
+        cat <<HELP
+EasyWI Linux Installer ${VERSION}
+Usage: $0 [--check|--diagnose|--fix]
+  --check     Prüft Debian/Ubuntu-Voraussetzungen ohne Änderungen.
+  --diagnose  Schreibt Diagnosebericht nach ${DIAG_LOG_FILE} ohne Änderungen.
+  --fix       Repariert APT, installiert Pakete, setzt Locale/PHP/Webserver-Drop-ins und prüft Dienste.
+Ohne Option startet das interaktive Installationsmenü.
+HELP
+        exit 0 ;;
+      *) fatal "Unbekannte Option: $1" ;;
+    esac
+    shift
+  done
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || { record_fail "Befehl fehlt: $1"; return 1; }
+  record_pass "Befehl vorhanden: $1"
+}
+
+check_supported_debian_ubuntu() {
+  [[ -r /etc/os-release ]] || { record_fail "/etc/os-release fehlt."; return 1; }
+  local id version codename pretty arch init
+  id="$(get_os_field ID | tr '[:upper:]' '[:lower:]')"
+  version="$(get_os_field VERSION_ID)"
+  codename="$(get_os_field VERSION_CODENAME)"
+  pretty="$(get_os_field PRETTY_NAME)"
+  arch="$(uname -m)"
+  init="$(ps -p 1 -o comm= 2>/dev/null || true)"
+  log "OS erkannt: ${pretty:-${id} ${version}} (codename=${codename:-unknown}, arch=${arch}, init=${init:-unknown})"
+  case "${id}" in
+    debian|ubuntu) record_pass "Unterstütztes System: ${pretty:-${id}}" ;;
+    *) record_fail "Nicht unterstütztes System '${id}'. Dieser robuste Modus unterstützt Debian und Ubuntu."; return 1 ;;
+  esac
+  case "${arch}" in
+    x86_64|amd64) record_pass "Architektur unterstützt: ${arch}" ;;
+    aarch64|arm64) record_warn "ARM64 erkannt (${arch}). Nur fortsetzen, wenn passende EasyWI-Agent-Assets verfügbar sind." ;;
+    *) record_fail "Nicht unterstützte Architektur: ${arch}"; return 1 ;;
+  esac
+  if [[ "${init}" != "systemd" ]] || ! command -v systemctl >/dev/null 2>&1; then
+    record_fail "systemd fehlt oder läuft nicht als PID 1 (PID1=${init:-unknown})."
+    return 1
+  fi
+  record_pass "systemd ist aktiv."
+}
+
+apt_retry_update() {
+  local attempts="${1:-3}" n=1
+  while (( n <= attempts )); do
+    wait_for_apt_locks
+    if env DEBIAN_FRONTEND=noninteractive apt-get update; then
+      APT_UPDATED=1
+      record_pass "apt-get update erfolgreich (Versuch ${n}/${attempts})."
+      return 0
+    fi
+    record_warn "apt-get update fehlgeschlagen (Versuch ${n}/${attempts}); warte $((n*5)) Sekunden."
+    sleep $((n*5))
+    n=$((n+1))
+  done
+  record_fail "apt-get update nach ${attempts} Versuchen fehlgeschlagen."
+  return 1
+}
+
+prepare_apt_robust() {
+  step "Bereite APT robust vor."
+  wait_for_apt_locks
+  env DEBIAN_FRONTEND=noninteractive dpkg --configure -a || record_warn "dpkg --configure -a meldete Fehler."
+  wait_for_apt_locks
+  env DEBIAN_FRONTEND=noninteractive apt-get -f install -y || record_warn "apt-get -f install meldete Fehler."
+  apt_retry_update 3 || return 1
+  install_packages apt ca-certificates curl wget gnupg lsb-release software-properties-common
+}
+
+apt_package_available() { apt-cache show "$1" >/dev/null 2>&1; }
+
+resolve_project_php_version() {
+  local repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" composer_php=""
+  if [[ -r "${repo_root}/core/composer.json" ]]; then
+    composer_php="$(php -r '$j=json_decode(file_get_contents($argv[1]), true); echo $j["require"]["php"] ?? "";' "${repo_root}/core/composer.json" 2>/dev/null || true)"
+  fi
+  if [[ "${composer_php}" =~ \>=([0-9]+\.[0-9]+) ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    printf '%s' "${DEFAULT_PHP_VERSION}"
+  fi
+}
+
+resolve_apt_php_packages() {
+  local php_version="$1" webserver="${2:-nginx}" prefix="php${php_version}" packages=()
+  if ! apt_package_available "${prefix}-cli"; then
+    prefix="php"
+  fi
+  packages=("${prefix}-cli" "${prefix}-common" "${prefix}-mysql" "${prefix}-pgsql" "${prefix}-sqlite3" "${prefix}-curl" "${prefix}-mbstring" "${prefix}-intl" "${prefix}-xml" "${prefix}-zip" "${prefix}-gd" "${prefix}-bcmath" "${prefix}-opcache" "${prefix}-readline")
+  [[ "${webserver}" == "apache" ]] && packages+=("libapache2-mod-php${php_version}") || packages+=("${prefix}-fpm")
+  local optional pkg
+  for optional in "${prefix}-json" "${prefix}-posix" "${prefix}-pcntl" "${prefix}-fileinfo" "${prefix}-dom" "${prefix}-simplexml" "${prefix}-tokenizer" "${prefix}-ctype" "${prefix}-iconv"; do
+    apt_package_available "${optional}" && packages+=("${optional}") || true
+  done
+  for pkg in "${packages[@]}"; do printf '%s\n' "${pkg}"; done | awk 'NF && !seen[$0]++'
+}
+
+install_required_packages_robust() {
+  local php_version webserver php_packages=()
+  php_version="$(resolve_project_php_version)"
+  if systemctl list-unit-files apache2.service >/dev/null 2>&1 || [[ -d /etc/apache2 && ! -d /etc/nginx ]]; then webserver="apache"; else webserver="nginx"; fi
+  mapfile -t php_packages < <(resolve_apt_php_packages "${php_version}" "${webserver}")
+  log "Projekt-PHP-Version: ${php_version} (composer >=8.4; Fallback ${DEFAULT_PHP_VERSION}); Webserver-Profil: ${webserver}"
+  log "Basispakete: ${EASYWI_BASE_PACKAGES[*]}"
+  log "PHP-Pakete: ${php_packages[*]}"
+  install_packages apt "${EASYWI_BASE_PACKAGES[@]}" "${php_packages[@]}"
+}
+
+check_php_modules() {
+  local missing=() module
+  require_command php || return 1
+  local modules="$(php -m 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  for module in "${EASYWI_CRITICAL_PHP_MODULES[@]}"; do
+    if printf '%s\n' "${modules}" | grep -Fxq "${module}"; then
+      record_pass "PHP-Modul vorhanden: ${module}"
+    else
+      missing+=("${module}")
+    fi
+  done
+  if ((${#missing[@]})); then
+    record_fail "Kritische PHP-Module fehlen: ${missing[*]}"
+    return 1
+  fi
+  php -i | awk -F'=> ' '/memory_limit|post_max_size|upload_max_filesize|default_charset|date.timezone|disable_functions|open_basedir|realpath_cache_size|realpath_cache_ttl|opcache.enable/{print}' >>"${LOG_FILE}" 2>/dev/null || true
+}
+
+backup_file_once() {
+  local file="$1"
+  [[ -f "${file}" ]] || return 0
+  cp -a "${file}" "${file}.bak.$(date +%Y%m%d%H%M%S)"
+}
+
+set_ini_value() {
+  local file="$1" key="$2" value="$3"
+  [[ -f "${file}" ]] || return 0
+  if grep -Eq "^[;[:space:]]*${key}[[:space:]]*=" "${file}"; then
+    sed -i -E "s#^[;[:space:]]*${key}[[:space:]]*=.*#${key} = ${value}#" "${file}"
+  else
+    printf '\n%s = %s\n' "${key}" "${value}" >>"${file}"
+  fi
+}
+
+configure_locale() {
+  step "Konfiguriere UTF-8-Locale."
+  install_packages apt locales
+  backup_file_once /etc/locale.gen
+  sed -i -E 's/^# ?(en_US.UTF-8 UTF-8)/\1/; s/^# ?(de_DE.UTF-8 UTF-8)/\1/' /etc/locale.gen
+  locale-gen en_US.UTF-8 de_DE.UTF-8 C.UTF-8 >/dev/null 2>&1 || locale-gen >/dev/null 2>&1 || record_warn "locale-gen meldete Fehler."
+  backup_file_once /etc/default/locale
+  cat >/etc/default/locale <<'LOCALE'
+LANG=C.UTF-8
+LC_ALL=C.UTF-8
+LANGUAGE=en_US:en
+LOCALE
+  update-locale LANG=C.UTF-8 LC_ALL=C.UTF-8 >/dev/null 2>&1 || true
+  locale >>"${LOG_FILE}" 2>&1 || true
+  locale -a >>"${LOG_FILE}" 2>&1 || true
+  if locale | grep -E '^(LANG|LC_ALL)=' | grep -qi 'utf-8'; then record_pass "UTF-8-Locale aktiv/konfiguriert."; else record_warn "Aktuelle Shell-Locale ist nicht UTF-8; neue Sessions nutzen /etc/default/locale."; fi
+}
+
+configure_php() {
+  step "Konfiguriere PHP CLI/FPM/Apache sinnvoll."
+  local ini key value disabled dangerous fn
+  shopt -s nullglob
+  for ini in /etc/php/*/cli/php.ini /etc/php/*/fpm/php.ini /etc/php/*/apache2/php.ini; do
+    backup_file_once "${ini}"
+    for pair in "${EASYWI_PHP_SETTINGS[@]}"; do
+      key="${pair%%=*}"; value="${pair#*=}"
+      set_ini_value "${ini}" "${key}" "${value}"
+    done
+    if grep -Eq '^[[:space:]]*open_basedir[[:space:]]*=' "${ini}"; then
+      record_warn "open_basedir ist in ${ini} gesetzt; Filemanager/Worker können dadurch blockiert werden."
+    fi
+    disabled="$(awk -F= '/^[[:space:]]*disable_functions[[:space:]]*=/{print $2}' "${ini}" | tail -n1 | tr -d ' ')"
+    for dangerous in proc_open shell_exec exec passthru system posix_kill pcntl_fork pcntl_signal pcntl_waitpid; do
+      [[ ",${disabled}," == *",${dangerous},"* ]] && record_warn "${dangerous} ist in disable_functions (${ini}) deaktiviert; Agent/Worker-Funktionen können ausfallen."
+    done
+  done
+  shopt -u nullglob
+  systemctl restart 'php*-fpm.service' >/dev/null 2>&1 || true
+  systemctl restart apache2.service >/dev/null 2>&1 || true
+  php -i | awk -F'=> ' '/memory_limit|post_max_size|upload_max_filesize|default_charset|date.timezone|expose_php|realpath_cache|opcache.enable|open_basedir|disable_functions/{print}' >>"${LOG_FILE}" 2>/dev/null || true
+  check_php_modules
+}
+
+configure_webserver() {
+  step "Konfiguriere Webserver-Limits/Streaming-Drop-ins."
+  if [[ -d /etc/nginx ]]; then
+    local nginx_conf="/etc/nginx/conf.d/easywi-installer-limits.conf"
+    [[ -f "${nginx_conf}" ]] && backup_file_once "${nginx_conf}"
+    cat >"${nginx_conf}" <<'NGINX'
+# Managed by easywi-installer. Global safety defaults for uploads, PHP-FPM, WebSocket and SSE/streaming.
+client_max_body_size 128m;
+fastcgi_read_timeout 120s;
+fastcgi_send_timeout 120s;
+fastcgi_connect_timeout 60s;
+fastcgi_buffering off;
+proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
+proxy_buffering off;
+add_header X-Accel-Buffering no always;
+NGINX
+    nginx -t && systemctl reload nginx.service || record_warn "Nginx-Konfiguration konnte nicht neu geladen werden."
+  fi
+  if [[ -d /etc/apache2 ]]; then
+    a2enmod rewrite headers proxy proxy_http proxy_wstunnel ssl >/dev/null 2>&1 || record_warn "Apache-Module konnten nicht vollständig aktiviert werden."
+    local apache_conf="/etc/apache2/conf-available/easywi-installer-limits.conf"
+    [[ -f "${apache_conf}" ]] && backup_file_once "${apache_conf}"
+    cat >"${apache_conf}" <<'APACHE'
+# Managed by easywi-installer.
+Timeout 120
+ProxyTimeout 3600
+<Directory /var/www/easywi/core/public>
+    AllowOverride All
+    Require all granted
+</Directory>
+APACHE
+    a2enconf easywi-installer-limits >/dev/null 2>&1 || true
+    apache2ctl configtest && systemctl reload apache2.service || record_warn "Apache-Konfiguration konnte nicht neu geladen werden."
+  fi
+}
+
+detect_web_user() { id -u www-data >/dev/null 2>&1 && echo www-data || echo root; }
+detect_agent_user() { id -u easywi-agent >/dev/null 2>&1 && echo easywi-agent || echo root; }
+
+data_area_paths() {
+  printf '%s\n' "${EASYWI_DATA_PATH:-}" "${EASYWI_INSTANCE_BASE_DIR:-/home/easywi/instances}" "${EASYWI_SFTP_BASE_DIR:-/srv/easywi/sftp}" "/var/www/easywi/core/var" | awk 'NF && !seen[$0]++'
+}
+
+check_data_area() {
+  step "Prüfe Datenbereich/Filemanager-Voraussetzungen."
+  local path webuser agentuser count testdir
+  webuser="$(detect_web_user)"; agentuser="$(detect_agent_user)"
+  for path in $(data_area_paths); do
+    if [[ ! -e "${path}" ]]; then record_warn "Datenpfad existiert nicht: ${path}"; continue; fi
+    namei -l "${path}" >>"${LOG_FILE}" 2>&1 || record_warn "namei konnte ${path} nicht prüfen."
+    getfacl -p "${path}" >>"${LOG_FILE}" 2>&1 || true
+    sudo -u "${webuser}" find "${path}" -maxdepth 2 -printf '%p\n' >/tmp/easywi-webuser-listing.$$ 2>>"${LOG_FILE}" || record_warn "${webuser} kann ${path} nicht vollständig listen."
+    sudo -u "${agentuser}" find "${path}" -maxdepth 2 -printf '%p\n' >/tmp/easywi-agentuser-listing.$$ 2>>"${LOG_FILE}" || record_warn "${agentuser} kann ${path} nicht vollständig listen."
+    if ! find "${path}" -print 2>>"${LOG_FILE}" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>>"${LOG_FILE}"; then
+      record_warn "Ungültige UTF-8-Dateinamen unter ${path}; siehe ${LOG_FILE}. Reparatur z.B. mit convmv nach manueller Prüfung."
+      find "${path}" -print 2>/dev/null | LC_ALL=C awk '{print}' | iconv -f UTF-8 -t UTF-8 >/dev/null 2>>"${LOG_FILE}" || true
+    fi
+    count="$(find "${path}" -xdev -printf . 2>/dev/null | wc -c | tr -d ' ')"
+    [[ "${count}" =~ ^[0-9]+$ && "${count}" -gt 10000 ]] && record_warn "Sehr großes Listing unter ${path}: ${count} Einträge; Pagination/Limit empfohlen."
+    if [[ -w "${path}" ]]; then
+      testdir="${path}/.easywi-installer-test"
+      mkdir -p "${testdir}" && touch "${testdir}/äöü-test.txt" "${testdir}/leer zeichen test.txt"
+      php -r '$p=$argv[1]; $a=scandir($p); foreach($a as $n){ if(!mb_check_encoding($n,"UTF-8")){fwrite(STDERR,"invalid utf8: $n\n"); exit(2);} } json_encode($a, JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);' "${testdir}" \
+        && record_pass "JSON/UTF-8-Testdateien OK in ${testdir}" || record_warn "PHP-JSON/UTF-8-Test fehlgeschlagen in ${testdir}."
+      rm -rf "${testdir}"
+    fi
+  done
+}
+
+check_services() {
+  step "Prüfe Agent/Worker/systemd/Netzwerk."
+  getent hosts localhost >>"${LOG_FILE}" 2>&1 && record_pass "localhost-Auflösung vorhanden." || record_warn "localhost-Auflösung fehlt/fehlerhaft."
+  ss -tulpn >>"${LOG_FILE}" 2>&1 || true
+  local svc
+  for svc in easywi-agent easywi-messenger easywi-scheduler.timer easywi-console-relay nginx apache2; do
+    if systemctl list-unit-files "${svc}" >/dev/null 2>&1 || systemctl list-unit-files "${svc}.service" >/dev/null 2>&1; then
+      systemctl status "${svc}" --no-pager -l >>"${LOG_FILE}" 2>&1 || record_warn "Service nicht aktiv/fehlerhaft: ${svc}"
+    fi
+  done
+  local port="${EASYWI_AGENT_HEALTH_PORT:-7443}"
+  curl -4 -fsS --max-time 5 "http://127.0.0.1:${port}/health" >>"${LOG_FILE}" 2>&1 || record_warn "Agent-Healthcheck über IPv4 http://127.0.0.1:${port}/health nicht erfolgreich (Port ggf. abweichend/TLS)."
+  curl -6 -fsS --max-time 5 "http://localhost:${port}/health" >>"${LOG_FILE}" 2>&1 || record_warn "Optionaler IPv6-localhost-Agent-Healthcheck nicht erfolgreich."
+  if command -v update-alternatives >/dev/null 2>&1; then update-alternatives --display iptables >>"${LOG_FILE}" 2>&1 || true; fi
+  command -v ufw >/dev/null 2>&1 && ufw status verbose >>"${LOG_FILE}" 2>&1 || true
+  command -v nft >/dev/null 2>&1 && nft list ruleset >>"${LOG_FILE}" 2>&1 || true
+  record_warn "Externe Provider-/Hardware-Firewalls können lokal nicht automatisch geprüft werden; benötigte Ports für Panel/Agent/Gameserver beim Provider freigeben."
+}
+
+check_security_modules() {
+  step "Prüfe AppArmor/SELinux."
+  command -v aa-status >/dev/null 2>&1 && aa-status >>"${LOG_FILE}" 2>&1 || record_warn "aa-status nicht verfügbar oder AppArmor nicht installiert."
+  command -v getenforce >/dev/null 2>&1 && getenforce >>"${LOG_FILE}" 2>&1 || true
+  dmesg 2>/dev/null | grep -i denied >>"${LOG_FILE}" 2>&1 || true
+  journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor >>"${LOG_FILE}" 2>&1 || true
+}
+
+run_diagnostics() {
+  step "Erstelle Diagnosebericht: ${DIAG_LOG_FILE}"
+  mkdir -p "$(dirname "${DIAG_LOG_FILE}")"
+  : >"${DIAG_LOG_FILE}"
+  {
+    echo "# EasyWI Installer Diagnostics $(date -Is)"
+    echo "## OS"; cat /etc/os-release 2>/dev/null || true; uname -a; echo "arch=$(uname -m)"; systemctl --version 2>/dev/null || true
+    echo "## Provider hints"; systemd-detect-virt 2>/dev/null || true; dmidecode -s system-manufacturer 2>/dev/null || true; dmidecode -s system-product-name 2>/dev/null || true
+    echo "## Locale"; locale 2>&1 || true; locale -a 2>&1 || true
+    echo "## PHP"; php -v 2>&1 || true; php -m 2>&1 || true; php -i 2>&1 | awk -F'=> ' '/memory_limit|post_max_size|upload_max_filesize|default_charset|date.timezone|disable_functions|open_basedir|realpath_cache|opcache.enable/{print}' || true
+    echo "## Composer"; composer diagnose 2>&1 || true
+    echo "## Webserver"; nginx -v 2>&1 || true; apache2 -v 2>&1 || true; systemctl status 'php*-fpm.service' nginx apache2 --no-pager -l 2>&1 || true
+    echo "## EasyWI services"; systemctl status easywi-agent easywi-messenger easywi-scheduler.timer easywi-console-relay --no-pager -l 2>&1 || true; journalctl -u easywi-agent -u easywi-messenger -n 100 --no-pager 2>&1 || true
+    echo "## Network"; getent hosts localhost 2>&1 || true; ss -tulpn 2>&1 || true; ip addr 2>&1 || true; ip route 2>&1 || true
+    echo "## Filesystems"; df -T 2>&1 || true; mount 2>&1 || true
+    echo "## Firewall"; ufw status verbose 2>&1 || true; update-alternatives --display iptables 2>&1 || true; nft list ruleset 2>&1 || true
+    echo "## AppArmor/SELinux"; aa-status 2>&1 || true; getenforce 2>&1 || true; dmesg 2>/dev/null | grep -i denied || true; journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor || true
+    echo "## Data areas"
+    local path webuser agentuser; webuser="$(detect_web_user)"; agentuser="$(detect_agent_user)"
+    for path in $(data_area_paths); do
+      echo "### ${path}"; namei -l "${path}" 2>&1 || true; getfacl -p "${path}" 2>&1 || true
+      sudo -u "${webuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>&1 | head -200 || true
+      sudo -u "${agentuser}" find "${path}" -maxdepth 2 -printf '%p\n' 2>&1 | head -200 || true
+      php -r '$p=$argv[1]; if(!is_dir($p)){exit(0);} $a=@scandir($p) ?: []; foreach($a as $n){ echo (mb_check_encoding($n,"UTF-8") ? "OK " : "BAD ").$n.PHP_EOL; } echo json_encode($a, JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE).PHP_EOL;' "${path}" 2>&1 || true
+    done
+  } >>"${DIAG_LOG_FILE}"
+  record_pass "Diagnosebericht erstellt: ${DIAG_LOG_FILE}"
+}
+
+run_check_mode() {
+  check_supported_debian_ubuntu || true
+  for cmd in apt-get dpkg curl wget gpg lsb_release systemctl find file iconv php; do require_command "${cmd}" || true; done
+  check_php_modules || true
+  locale | grep -qi 'utf-8' && record_pass "Aktuelle Locale ist UTF-8." || record_warn "Aktuelle Locale ist nicht UTF-8; --fix setzt C.UTF-8."
+  check_data_area || true
+  check_services || true
+  check_security_modules || true
+  set +e
+  trap - ERR
+  print_summary
+  exit $?
+}
+
+run_fix_mode() {
+  check_supported_debian_ubuntu
+  prepare_apt_robust
+  setup_php_repo apt debian "$(resolve_project_php_version)"
+  install_required_packages_robust
+  configure_locale
+  configure_php
+  configure_webserver
+  check_data_area || true
+  check_services || true
+  check_security_modules || true
+  run_diagnostics || true
+  set +e
+  trap - ERR
+  print_summary
+  exit $?
+}
+
+run_cli_mode() {
+  case "${INSTALLER_MODE}" in
+    check) run_check_mode ;;
+    diagnose) check_supported_debian_ubuntu || true; run_diagnostics; set +e; trap - ERR; print_summary; exit $? ;;
+    fix) run_fix_mode ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # Main menu
 # ---------------------------------------------------------------------------
@@ -3764,6 +4202,11 @@ MENU
 # Entrypoint
 # ---------------------------------------------------------------------------
 
+parse_cli_args "$@"
 require_root
+if [[ "${INSTALLER_MODE}" != "menu" ]]; then
+  run_cli_mode
+  exit $?
+fi
 print_banner
 main_menu

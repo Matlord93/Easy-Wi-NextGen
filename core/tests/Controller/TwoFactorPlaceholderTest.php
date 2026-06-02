@@ -65,7 +65,6 @@ final class TwoFactorPlaceholderTest extends WebTestCase
 
         $client->request('POST', '/login', ['email' => $user->getEmail(), 'password' => 'P@ssw0rd!']);
         self::assertResponseRedirects('/2fa');
-        
 
         // Pre-seed the attempt counter to MAX_ATTEMPTS - 1 so that exactly one
         // additional invalid code triggers the lockout without requiring five

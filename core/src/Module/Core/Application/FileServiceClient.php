@@ -38,21 +38,30 @@ final class FileServiceClient
     }
 
     /**
-     * @return array{root_path: string, path: string, entries: array<int, array{name: string, size: int, mode: string, modified_at: string, is_dir: bool}>}
+     * @return array{root_path: string, path: string, entries: array<int, array<string, mixed>>, warnings: array<int, array<string, mixed>>, total: int, offset: int, limit: int, truncated: bool}
      */
-    public function list(Instance $instance, string $path): array
+    public function list(Instance $instance, string $path, int $limit = 1000, int $offset = 0): array
     {
         $normalizedPath = $this->normalizeRelativePath($path);
         $endpoint = $this->buildEndpoint($instance, '/files');
+        $limit = max(1, min(5000, $limit));
+        $offset = max(0, $offset);
 
         $payload = $this->requestJson($instance, 'GET', $endpoint, [
             'path' => $normalizedPath,
+            'limit' => $limit,
+            'offset' => $offset,
         ]);
 
         return [
             'root_path' => (string) ($payload['root_path'] ?? ''),
             'path' => (string) ($payload['path'] ?? ''),
             'entries' => is_array($payload['entries'] ?? null) ? $payload['entries'] : [],
+            'warnings' => is_array($payload['warnings'] ?? null) ? $payload['warnings'] : [],
+            'total' => (int) ($payload['total'] ?? count(is_array($payload['entries'] ?? null) ? $payload['entries'] : [])),
+            'offset' => (int) ($payload['offset'] ?? $offset),
+            'limit' => (int) ($payload['limit'] ?? $limit),
+            'truncated' => (bool) ($payload['truncated'] ?? false),
         ];
     }
 

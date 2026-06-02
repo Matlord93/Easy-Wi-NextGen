@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 VERSION="${1:-latest}"
 INSTALL_DIR="${EASYWI_AGENT_INSTALL_DIR:-/usr/local/bin}"
@@ -144,9 +144,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+WorkingDirectory=/var/lib/easywi-agent
 ExecStart=${binaryPath} --config ${CONFIG_PATH}
 Restart=always
-RestartSec=3
+RestartSec=5
+Environment=LANG=C.UTF-8
+Environment=LC_ALL=C.UTF-8
+LimitNOFILE=1048576
+RuntimeDirectory=easywi-agent
+RuntimeDirectoryMode=0755
 
 [Install]
 WantedBy=multi-user.target
@@ -175,7 +181,7 @@ main() {
   local archSuffix
   archSuffix="$(resolve_arch_suffix)"
 
-  mkdir -p "$INSTALL_DIR" "$(dirname "$CONFIG_PATH")"
+  mkdir -p "$INSTALL_DIR" "$(dirname "$CONFIG_PATH")" /var/lib/easywi-agent
   local tempDir
   tempDir="$(mktemp -d)"
   trap 'rm -rf "$tempDir"' EXIT

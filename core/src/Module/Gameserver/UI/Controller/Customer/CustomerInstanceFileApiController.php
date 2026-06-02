@@ -35,6 +35,8 @@ final class CustomerInstanceFileApiController
 {
     private const int EDITOR_MAX_BYTES = 1_048_576;
     private const int UPLOAD_MAX_BYTES = 104_857_600;
+    private const int LIST_DEFAULT_LIMIT = 1000;
+    private const int LIST_MAX_LIMIT = 5000;
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly JobRepository $jobRepository,
@@ -49,6 +51,8 @@ final class CustomerInstanceFileApiController
         private readonly RateLimiterFactory $commandsLimiter,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly TranslatorInterface $translator,
+        #[Autowire(param: 'kernel.debug')]
+        private readonly bool $kernelDebug = false,
     ) {
     }
 
@@ -64,14 +68,16 @@ final class CustomerInstanceFileApiController
             $customer = $this->requireCustomer($request);
             $instance = $this->findCustomerInstance($request, $customer, $id);
             $path = trim((string) $request->query->get('path', ''));
+            $limit = $this->parseListLimit($request);
+            $offset = $this->parseListOffset($request);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
             return $this->handleHttpError($request, $exception);
         }
 
         try {
-            $listing = $this->fileService->list($instance, $path);
+            $listing = $this->fileService->list($instance, $path, $limit, $offset);
         } catch (\RuntimeException $exception) {
-            return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt);
+            return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt, $this->canExposeTechnicalDetails($customer));
         }
 
         $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
@@ -85,14 +91,32 @@ final class CustomerInstanceFileApiController
             'duration_ms' => $durationMs,
         ]);
 
-        $files = array_map(fn (array $entry) => $this->normalizeEntry($entry), $listing['entries']);
+        $exposeTechnicalDetails = $this->canExposeTechnicalDetails($customer);
+        $warnings = $this->normalizeListingWarnings($listing['warnings'] ?? [], $exposeTechnicalDetails);
+        if ($warnings !== []) {
+            $this->logger->warning('instance.files.list_warnings', [
+                'request_id' => $this->getRequestId($request),
+                'user_id' => $customer->getId(),
+                'instance_id' => $instance->getId(),
+                'path' => $path,
+                'warning_count' => count($warnings),
+                'warnings' => $warnings,
+            ]);
+        }
 
-        return new JsonResponse([
-            'root_path' => $listing['root_path'],
+        $files = array_map(fn (array $entry) => $this->normalizeEntry($entry, $exposeTechnicalDetails), $listing['entries']);
+
+        return $this->jsonResponse($request, [
+            'root_path' => $exposeTechnicalDetails ? $listing['root_path'] : '',
             'path' => $listing['path'],
             'cwd' => $listing['path'],
             'entries' => $files,
             'files' => $files,
+            'warnings' => $warnings,
+            'total' => (int) ($listing['total'] ?? count($files)),
+            'offset' => (int) ($listing['offset'] ?? 0),
+            'limit' => (int) ($listing['limit'] ?? self::LIST_DEFAULT_LIMIT),
+            'truncated' => (bool) ($listing['truncated'] ?? false),
             'request_id' => $this->getRequestId($request),
         ]);
     }
@@ -104,11 +128,12 @@ final class CustomerInstanceFileApiController
             $this->assertDataManagerEnabled($request);
             $customer = $this->requireCustomer($request);
             $instance = $this->findCustomerInstance($request, $customer, $id);
-            $listing = $this->fileService->list($instance, '');
+            $listing = $this->fileService->list($instance, '', 1, 0);
 
-            return new JsonResponse([
+            return $this->jsonResponse($request, [
                 'ok' => true,
                 'cwd' => $listing['path'] ?? '',
+                'warnings' => $this->normalizeListingWarnings($listing['warnings'] ?? [], $this->canExposeTechnicalDetails($customer)),
                 'request_id' => $this->getRequestId($request),
             ]);
         } catch (\RuntimeException $exception) {
@@ -140,12 +165,14 @@ final class CustomerInstanceFileApiController
             return $this->handleHttpError($request, $exception);
         }
 
+        $exposeTechnicalDetails = $this->canExposeTechnicalDetails($customer);
         $agent = $this->runDiagnosticsProbe(
             'agent',
-            fn () => $this->fileService->list($instance, $path),
+            fn () => $this->fileService->list($instance, $path, self::LIST_DEFAULT_LIMIT, 0),
+            $exposeTechnicalDetails,
         );
 
-        return new JsonResponse([
+        return $this->jsonResponse($request, [
             'agent' => $agent,
             'request_id' => $this->getRequestId($request),
         ]);
@@ -238,7 +265,7 @@ final class CustomerInstanceFileApiController
             return $this->handleActionError($request, 'content', $customer->getId(), $instance->getId(), $path, $exception);
         }
 
-        return new JsonResponse([
+        return $this->jsonResponse($request, [
             'path' => $payload['path'],
             'content' => $payload['content'],
             'encoding' => $payload['encoding'],
@@ -284,7 +311,7 @@ final class CustomerInstanceFileApiController
             'path' => $path,
         ]);
 
-        return new JsonResponse([
+        return $this->jsonResponse($request, [
             'path' => $saved['path'],
             'size' => $saved['size'],
             'saved' => $saved['saved'],
@@ -363,7 +390,7 @@ final class CustomerInstanceFileApiController
             'name' => $upload->getClientOriginalName(),
         ]);
 
-        return new JsonResponse(['status' => 'ok'], JsonResponse::HTTP_CREATED);
+        return $this->jsonResponse($request, ['status' => 'ok'], JsonResponse::HTTP_CREATED);
     }
 
     #[Route(path: '/api/instances/{id}/files/save', name: 'customer_instance_files_api_save', methods: ['POST'])]
@@ -422,7 +449,7 @@ final class CustomerInstanceFileApiController
             'name' => $name,
         ]);
 
-        return new JsonResponse(['status' => 'ok']);
+        return $this->jsonResponse($request, ['status' => 'ok']);
     }
 
     #[Route(path: '/api/instances/{id}/files/mkdir', name: 'customer_instance_files_api_mkdir', methods: ['POST'])]
@@ -462,7 +489,7 @@ final class CustomerInstanceFileApiController
             'name' => $name,
         ]);
 
-        return new JsonResponse(['status' => 'ok']);
+        return $this->jsonResponse($request, ['status' => 'ok']);
     }
 
     #[Route(path: '/api/instances/{id}/files/rename', name: 'customer_instance_files_api_rename', methods: ['POST'])]
@@ -508,7 +535,7 @@ final class CustomerInstanceFileApiController
             'new_name' => $newName,
         ]);
 
-        return new JsonResponse(['status' => 'ok']);
+        return $this->jsonResponse($request, ['status' => 'ok']);
     }
 
     #[Route(path: '/api/instances/{id}/files/delete', name: 'customer_instance_files_api_delete', methods: ['POST'])]
@@ -548,7 +575,7 @@ final class CustomerInstanceFileApiController
             'name' => $name,
         ]);
 
-        return new JsonResponse(['status' => 'ok']);
+        return $this->jsonResponse($request, ['status' => 'ok']);
     }
 
     #[Route(path: '/api/instances/{id}/files/chmod', name: 'customer_instance_files_api_chmod', methods: ['POST'])]
@@ -593,7 +620,7 @@ final class CustomerInstanceFileApiController
             'mode' => $mode,
         ]);
 
-        return new JsonResponse(['status' => 'ok']);
+        return $this->jsonResponse($request, ['status' => 'ok']);
     }
 
     #[Route(path: '/api/instances/{id}/files/extract', name: 'customer_instance_files_api_extract', methods: ['POST'])]
@@ -644,7 +671,7 @@ final class CustomerInstanceFileApiController
             'destination' => $destination,
         ]);
 
-        return new JsonResponse(['status' => 'ok']);
+        return $this->jsonResponse($request, ['status' => 'ok']);
     }
 
     private function requireCustomer(Request $request): User
@@ -749,6 +776,7 @@ final class CustomerInstanceFileApiController
         string $source,
         \RuntimeException $exception,
         float $startedAt,
+        bool $exposeTechnicalDetails = false,
     ): JsonResponse {
         $requestId = $this->getRequestId($request);
         $statusCode = JsonResponse::HTTP_BAD_GATEWAY;
@@ -774,14 +802,14 @@ final class CustomerInstanceFileApiController
             'error' => $exception->getMessage(),
         ]);
 
-        return $this->errorResponse($request, $errorCode, $exception->getMessage(), $statusCode, $details);
+        return $this->errorResponse($request, $errorCode, $exception->getMessage(), $statusCode, $this->filterErrorDetails($details, $exposeTechnicalDetails));
     }
 
     /**
      * @param callable(): array{root_path: string, path: string, entries: array<int, array{name: string, size: int, mode: string, modified_at: string, is_dir: bool}>} $probe
      * @return array<string, mixed>
      */
-    private function runDiagnosticsProbe(string $source, callable $probe): array
+    private function runDiagnosticsProbe(string $source, callable $probe, bool $exposeTechnicalDetails): array
     {
         $startedAt = microtime(true);
         try {
@@ -789,19 +817,22 @@ final class CustomerInstanceFileApiController
             return [
                 'source' => $source,
                 'status' => 'ok',
-                'root_path' => $listing['root_path'] ?? '',
+                'root_path' => $exposeTechnicalDetails ? ($listing['root_path'] ?? '') : '',
                 'path' => $listing['path'] ?? '',
                 'entry_count' => count($listing['entries'] ?? []),
+                'warnings' => $this->normalizeListingWarnings($listing['warnings'] ?? [], $exposeTechnicalDetails),
+                'total' => (int) ($listing['total'] ?? count($listing['entries'] ?? [])),
+                'truncated' => (bool) ($listing['truncated'] ?? false),
                 'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ];
         } catch (FileServiceException $exception) {
-            return $this->diagnosticsErrorResult($source, $exception, $startedAt);
+            return $this->diagnosticsErrorResult($source, $exception, $startedAt, $exposeTechnicalDetails);
         } catch (\RuntimeException $exception) {
-            return $this->diagnosticsErrorResult($source, $exception, $startedAt);
+            return $this->diagnosticsErrorResult($source, $exception, $startedAt, $exposeTechnicalDetails);
         }
     }
 
-    private function diagnosticsErrorResult(string $source, \RuntimeException $exception, float $startedAt): array
+    private function diagnosticsErrorResult(string $source, \RuntimeException $exception, float $startedAt, bool $exposeTechnicalDetails): array
     {
         $statusCode = JsonResponse::HTTP_BAD_GATEWAY;
         $errorCode = 'agent_error';
@@ -819,7 +850,7 @@ final class CustomerInstanceFileApiController
             'error_code' => $errorCode,
             'message' => $exception->getMessage(),
             'status_code' => $statusCode,
-            'details' => $details,
+            'details' => $this->filterErrorDetails($details, $exposeTechnicalDetails),
             'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ];
     }
@@ -986,18 +1017,136 @@ final class CustomerInstanceFileApiController
     /**
      * @param array{name: string, size: int, mode: string, modified_at: string, is_dir: bool} $entry
      */
-    private function normalizeEntry(array $entry): array
+    private function normalizeEntry(array $entry, bool $exposeTechnicalDetails = false): array
     {
-        $size = (int) $entry['size'];
+        $name = (string) ($entry['name'] ?? '');
+        if (!$this->isUtf8($name)) {
+            $this->logger->warning('instance.files.invalid_utf8_response_name', [
+                'entry_error_code' => $entry['error_code'] ?? null,
+            ]);
+            $name = mb_convert_encoding($name, 'UTF-8', 'UTF-8');
+        }
 
-        return [
-            'name' => $entry['name'],
+        $size = (int) ($entry['size'] ?? 0);
+        $normalized = [
+            'name' => $name,
             'size' => $size,
             'size_human' => $this->formatBytes($size),
-            'mode' => $entry['mode'],
-            'modified_at' => $entry['modified_at'],
-            'is_dir' => (bool) $entry['is_dir'],
+            'mode' => (string) ($entry['mode'] ?? '????'),
+            'modified_at' => (string) ($entry['modified_at'] ?? ''),
+            'is_dir' => (bool) ($entry['is_dir'] ?? false),
+            'is_symlink' => (bool) ($entry['is_symlink'] ?? false),
+            'link_broken' => (bool) ($entry['link_broken'] ?? false),
+            'name_valid_utf8' => (bool) ($entry['name_valid_utf8'] ?? true),
+            'metadata_available' => (bool) ($entry['metadata_available'] ?? true),
+            'actions_supported' => (bool) ($entry['actions_supported'] ?? true),
+            'error_code' => isset($entry['error_code']) ? (string) $entry['error_code'] : null,
         ];
+
+        if ($exposeTechnicalDetails) {
+            $normalized['error_message'] = isset($entry['error_message']) ? (string) $entry['error_message'] : null;
+            $normalized['link_target'] = isset($entry['link_target']) ? (string) $entry['link_target'] : null;
+        }
+
+        return $normalized;
+    }
+
+
+    private function parseListLimit(Request $request): int
+    {
+        $raw = $request->query->get('limit', self::LIST_DEFAULT_LIMIT);
+        $limit = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['default' => self::LIST_DEFAULT_LIMIT]]);
+
+        return max(1, min(self::LIST_MAX_LIMIT, (int) $limit));
+    }
+
+    private function parseListOffset(Request $request): int
+    {
+        $raw = $request->query->get('offset', 0);
+        $offset = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['default' => 0]]);
+
+        return max(0, (int) $offset);
+    }
+
+    /**
+     * @param array<int, mixed> $warnings
+     * @return array<int, array{code:string,message:string,path?:string}>
+     */
+    private function normalizeListingWarnings(array $warnings, bool $exposeTechnicalDetails): array
+    {
+        $normalized = [];
+        foreach ($warnings as $warning) {
+            if (!is_array($warning)) {
+                continue;
+            }
+            $item = [
+                'code' => (string) ($warning['code'] ?? 'LISTING_WARNING'),
+                'message' => (string) ($warning['message'] ?? 'A file entry could not be processed completely.'),
+            ];
+            if (isset($warning['path']) && is_string($warning['path']) && $warning['path'] !== '') {
+                $item['path'] = $exposeTechnicalDetails ? $warning['path'] : basename(str_replace('\\', '/', $warning['path']));
+            }
+            $normalized[] = $item;
+        }
+
+        return $normalized;
+    }
+
+    private function canExposeTechnicalDetails(User $user): bool
+    {
+        return $this->kernelDebug || $user->isAdmin();
+    }
+
+    /**
+     * @param array<string, mixed> $details
+     * @return array<string, mixed>
+     */
+    private function filterErrorDetails(array $details, bool $exposeTechnicalDetails): array
+    {
+        if ($exposeTechnicalDetails) {
+            return $details;
+        }
+
+        $safe = [];
+        foreach (['status_code', 'error_code'] as $key) {
+            if (array_key_exists($key, $details)) {
+                $safe[$key] = $details[$key];
+            }
+        }
+
+        return $safe;
+    }
+
+    private function isUtf8(string $value): bool
+    {
+        return mb_check_encoding($value, 'UTF-8');
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function jsonResponse(Request $request, array $payload, int $statusCode = JsonResponse::HTTP_OK): JsonResponse
+    {
+        try {
+            json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $response = new JsonResponse(null, $statusCode);
+            $response->setEncodingOptions(JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $response->setData($payload);
+
+            return $response;
+        } catch (\JsonException $exception) {
+            $this->logger->error('instance.files.json_encode_failed', [
+                'request_id' => $this->getRequestId($request),
+                'error' => $exception->getMessage(),
+            ]);
+
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                'File listing response could not be encoded safely.',
+                'files_json_encode_failed',
+                JsonResponse::HTTP_INTERNAL_SERVER_ERROR,
+            );
+        }
     }
 
     private function assertDataManagerEnabled(Request $request): void
