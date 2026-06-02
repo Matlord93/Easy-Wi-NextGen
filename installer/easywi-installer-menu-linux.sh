@@ -3493,7 +3493,9 @@ apply_once() {
     fi
 
     max_freq="$(policy_max_freq "$policy")"
-    [ -n "$max_freq" ] && write_value "$policy/scaling_min_freq" "$max_freq" || true
+    if [ -n "$max_freq" ]; then
+      write_value "$policy/scaling_min_freq" "$max_freq" || true
+    fi
 
     if [ -r "$policy/energy_performance_available_preferences" ] \
       && grep -qw performance "$policy/energy_performance_available_preferences"; then
@@ -3515,7 +3517,9 @@ apply_once() {
     /usr/bin/cpupower idle-set -D 0 >/dev/null 2>&1 || true
   fi
 
-  command -v x86_energy_perf_policy >/dev/null 2>&1 && x86_energy_perf_policy performance >/dev/null 2>&1 || true
+  if command -v x86_energy_perf_policy >/dev/null 2>&1; then
+    x86_energy_perf_policy performance >/dev/null 2>&1 || true
+  fi
 }
 
 verify_performance() {
@@ -3900,7 +3904,9 @@ resolve_apt_php_packages() {
   fi
   local optional pkg
   for optional in "${prefix}-json" "${prefix}-posix" "${prefix}-pcntl" "${prefix}-fileinfo" "${prefix}-dom" "${prefix}-simplexml" "${prefix}-tokenizer" "${prefix}-ctype" "${prefix}-iconv"; do
-    apt_package_available "${optional}" && packages+=("${optional}") || true
+    if apt_package_available "${optional}"; then
+      packages+=("${optional}")
+    fi
   done
   for pkg in "${packages[@]}"; do printf '%s\n' "${pkg}"; done | awk 'NF && !seen[$0]++'
 }
@@ -4098,8 +4104,12 @@ check_services() {
   curl -4 -fsS --max-time 5 "http://127.0.0.1:${port}/health" >>"${LOG_FILE}" 2>&1 || record_warn "Agent-Healthcheck über IPv4 http://127.0.0.1:${port}/health nicht erfolgreich (Port ggf. abweichend/TLS)."
   curl -6 -fsS --max-time 5 "http://localhost:${port}/health" >>"${LOG_FILE}" 2>&1 || record_warn "Optionaler IPv6-localhost-Agent-Healthcheck nicht erfolgreich."
   if command -v update-alternatives >/dev/null 2>&1; then update-alternatives --display iptables >>"${LOG_FILE}" 2>&1 || true; fi
-  command -v ufw >/dev/null 2>&1 && ufw status verbose >>"${LOG_FILE}" 2>&1 || true
-  command -v nft >/dev/null 2>&1 && nft list ruleset >>"${LOG_FILE}" 2>&1 || true
+  if command -v ufw >/dev/null 2>&1; then
+    ufw status verbose >>"${LOG_FILE}" 2>&1 || true
+  fi
+  if command -v nft >/dev/null 2>&1; then
+    nft list ruleset >>"${LOG_FILE}" 2>&1 || true
+  fi
   record_warn "Externe Provider-/Hardware-Firewalls können lokal nicht automatisch geprüft werden; benötigte Ports für Panel/Agent/Gameserver beim Provider freigeben."
 }
 
@@ -4110,7 +4120,9 @@ check_security_modules() {
   else
     record_warn "aa-status nicht verfügbar oder AppArmor nicht installiert."
   fi
-  command -v getenforce >/dev/null 2>&1 && getenforce >>"${LOG_FILE}" 2>&1 || true
+  if command -v getenforce >/dev/null 2>&1; then
+    getenforce >>"${LOG_FILE}" 2>&1 || true
+  fi
   dmesg 2>/dev/null | grep -i denied >>"${LOG_FILE}" 2>&1 || true
   journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor >>"${LOG_FILE}" 2>&1 || true
 }
