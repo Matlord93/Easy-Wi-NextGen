@@ -4237,7 +4237,8 @@ disable_legacy_panel_fpm_services() {
 }
 
 ensure_target_fpm_service() {
-  local php_version="$1" svc="php${php_version}-fpm.service"
+  local php_version="$1"
+  local svc="php${php_version}-fpm.service"
   ensure_panel_php_version_supported "${php_version}"
   if ! systemctl list-unit-files "${svc}" >/dev/null 2>&1; then
     fatal "${svc} fehlt; PHP-FPM der Zielversion ist nicht installiert."
@@ -4397,7 +4398,8 @@ configure_php() {
 }
 
 replace_php_fpm_socket_references() {
-  local php_version="$1" target_socket="/run/php/php${php_version}-fpm.sock" file
+  local php_version="$1"
+  local target_socket="/run/php/php${php_version}-fpm.sock" file
   ensure_panel_php_version_supported "${php_version}"
   if [[ -d /etc/nginx ]]; then
     while IFS= read -r -d '' file; do
@@ -4526,8 +4528,10 @@ user_find_listing() {
   if [[ "${user}" == "root" ]]; then
     (cd / && find "${path}" -maxdepth 2 -printf '%p\n')
   elif command -v runuser >/dev/null 2>&1; then
+    # shellcheck disable=SC2016
     runuser -u "${user}" -- sh -c 'cd / && find "$1" -maxdepth 2 -printf "%p\n"' sh "${path}"
   else
+    # shellcheck disable=SC2016
     sudo -u "${user}" sh -c 'cd / && find "$1" -maxdepth 2 -printf "%p\n"' sh "${path}"
   fi
 }
