@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Infrastructure\Runtime\MemoryLimit;
 use App\Kernel;
 use App\Module\Setup\Application\InstallEnvBootstrap;
 
+require_once dirname(__DIR__) . '/src/Infrastructure/Runtime/MemoryLimit.php';
 require_once dirname(__DIR__) . '/src/Module/Setup/Application/KeyMaterialGenerator.php';
 require_once dirname(__DIR__) . '/src/Module/Setup/Application/EnvFileWriter.php';
 require_once dirname(__DIR__) . '/src/Module/Setup/Application/InstallEnvBootstrap.php';
+
+MemoryLimit::ensureMinimum();
 
 $updateMaintenanceFile = dirname(__DIR__) . '/var/update-maintenance.flag';
 if (is_file($updateMaintenanceFile)) {

@@ -3,6 +3,7 @@
 
 declare(strict_types=1);
 
+use App\Infrastructure\Runtime\MemoryLimit;
 use App\Kernel;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -25,6 +26,8 @@ if (!is_file($autoloadPath)) {
 }
 
 require $autoloadPath;
+
+MemoryLimit::ensureMinimum();
 
 if (is_file(dirname(__DIR__).'/.env')) {
     (new Dotenv())->bootEnv(dirname(__DIR__).'/.env');
