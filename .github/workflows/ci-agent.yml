@@ -47,7 +47,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25.10"
+          go-version: "1.25.11"
           cache: 'false'
 
       - name: Configure isolated Go build cache
@@ -81,7 +81,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25.10"
+          go-version: "1.25.11"
           cache: 'false'
 
       - name: Configure isolated Go build cache
