@@ -7,7 +7,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/go-sql-driver/mysql v1.10.0
-	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pkg/sftp v1.13.10
 	github.com/shirou/gopsutil/v4 v4.26.5
 	golang.org/x/crypto v0.52.0

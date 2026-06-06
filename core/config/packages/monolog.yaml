@@ -2,6 +2,11 @@ monolog:
   channels: ['files', 'update', 'setup']
   handlers:
     main:
+      type: fingers_crossed
+      action_level: error
+      handler: main_group
+      excluded_http_codes: [404, 405]
+    main_group:
       type: whatfailuregroup
       members: ['main_stream']
     main_stream:
