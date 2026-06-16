@@ -68,10 +68,18 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 	if strings.TrimSpace(info.VersionCodename) == "" {
 		return fmt.Errorf("windrose wine dependencies unsupported release for %s: VERSION_CODENAME is empty", info.ID)
 	}
+	i386Required := windroseWineRequiresI386(info)
+	appendOutput(output, fmt.Sprintf("windrose_wine_i386_required=%t", i386Required))
 
-	archChanged, err := ensureI386Architecture(output)
-	if err != nil {
-		return err
+	archChanged := false
+	if i386Required {
+		var err error
+		archChanged, err = ensureI386Architecture(output)
+		if err != nil {
+			return err
+		}
+	} else {
+		appendOutput(output, "windrose_i386_architecture=skipped_wow64")
 	}
 	keyChanged, err := ensureWineHQKey(output)
 	if err != nil {
@@ -85,8 +93,9 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 	}
 
 	missingMain := missingDebPackages(windroseMainPackages())
-	missingLibGD := missingDebPackages([]string{"libgd3:amd64", "libgd3:i386"})
-	wineInstalled := isDebPackageInstalled("winehq-stable") || isDebPackageInstalled("winehq-staging")
+	libGDPackages := windroseLibGDPackages(i386Required)
+	missingLibGD := missingDebPackages(libGDPackages)
+	wineInstalled := (isDebPackageInstalled("winehq-stable") || isDebPackageInstalled("winehq-staging")) && isWindroseWineRuntimeFunctional(output)
 	if archChanged || keyChanged || sourceChanged || len(missingMain) > 0 || len(missingLibGD) > 0 || !wineInstalled {
 		if _, err := runWindroseCommand("apt-get", []string{"update"}, debianNonInteractiveEnv(), output); err != nil {
 			return err
@@ -107,17 +116,18 @@ func ensureWindroseWineDependencies(output *strings.Builder) error {
 	}
 
 	if !wineInstalled {
-		if err := ensureWindroseWineHQ(output); err != nil {
+		if err := ensureWindroseWineHQ(output, i386Required); err != nil {
 			return err
 		}
 	}
-	libGDPackages := []string{"libgd3:amd64", "libgd3:i386"}
 	if len(missingLibGD) > 0 || archChanged || sourceChanged {
 		pkgsToInstall := libGDPackages
 		// Pin both architectures to the same version to avoid Multi-Arch: same
 		// conflicts when the amd64 package is newer than the i386 candidate.
-		if v := debPackageCandidateVersion("libgd3:i386"); v != "" {
-			pkgsToInstall = []string{"libgd3:amd64=" + v, "libgd3:i386=" + v}
+		if i386Required {
+			if v := debPackageCandidateVersion("libgd3:i386"); v != "" {
+				pkgsToInstall = []string{"libgd3:amd64=" + v, "libgd3:i386=" + v}
+			}
 		}
 		args := append([]string{"install", "-y", "--allow-downgrades"}, pkgsToInstall...)
 		if _, err := runWindroseCommand("apt-get", args, debianNonInteractiveEnv(), output); err != nil {
@@ -146,9 +156,14 @@ func windroseMainPackages() []string {
 // falling back to winehq-staging when stable has unresolvable dependencies
 // (a known issue on newer Debian releases such as trixie).
 // When both fail outright the i386 dummy fallback is attempted.
-func ensureWindroseWineHQ(output *strings.Builder) error {
+func ensureWindroseWineHQ(output *strings.Builder, i386Required bool) error {
+	wineFunctional := isWindroseWineRuntimeFunctional(output)
 	for _, pkg := range []string{"winehq-stable", "winehq-staging"} {
 		if isDebPackageInstalled(pkg) {
+			if !wineFunctional {
+				appendOutput(output, "windrose_wine="+pkg+":installed_but_unusable")
+				continue
+			}
 			appendOutput(output, "windrose_wine="+pkg+":already_installed")
 			return nil
 		}
@@ -160,10 +175,47 @@ func ensureWindroseWineHQ(output *strings.Builder) error {
 		appendOutput(output, "windrose_wine="+pkg+":installed")
 		return nil
 	}
+	if !i386Required {
+		return fmt.Errorf("failed to install WineHQ WoW64 packages: tried winehq-stable and winehq-staging; check WineHQ repository availability")
+	}
 	// Both direct installs failed (most likely wine-staging-i386 is absent from the
 	// WineHQ trixie repo). Create a dummy i386 package that satisfies the dependency
 	// and retry with winehq-staging.
 	return ensureWindroseWineWithI386Dummy(output)
+}
+
+func windroseWineRequiresI386(info osReleaseInfo) bool {
+	codename := strings.ToLower(strings.TrimSpace(info.VersionCodename))
+	switch strings.ToLower(strings.TrimSpace(info.ID)) {
+	case "ubuntu":
+		return codename != "questing" && codename != "resolute"
+	case "debian":
+		return codename != "forky"
+	default:
+		return true
+	}
+}
+
+func windroseLibGDPackages(i386Required bool) []string {
+	if !i386Required {
+		return []string{"libgd3:amd64"}
+	}
+	return []string{"libgd3:amd64", "libgd3:i386"}
+}
+
+func isWindroseWineRuntimeFunctional(output *strings.Builder) bool {
+	winePath, err := windroseDepsRunner.LookPath("wine")
+	if err != nil || strings.TrimSpace(winePath) == "" {
+		appendOutput(output, "windrose_wine_runtime=missing")
+		return false
+	}
+	version, err := windroseDepsRunner.Run(winePath, []string{"--version"}, nil)
+	if err != nil || strings.TrimSpace(version) == "" {
+		appendOutput(output, fmt.Sprintf("windrose_wine_runtime=unusable err=%v output=%q", err, strings.TrimSpace(version)))
+		return false
+	}
+	appendOutput(output, "windrose_wine_runtime=ok version="+strings.TrimSpace(version))
+	return true
 }
 
 // windroseBuildDummyDebFn is injectable for tests.
@@ -284,11 +336,11 @@ func parseOSRelease(content string) osReleaseInfo {
 		case "ID":
 			info.ID = strings.ToLower(value)
 		case "VERSION_CODENAME":
-			info.VersionCodename = strings.ToLower(value)
-		case "UBUNTU_CODENAME":
 			if info.VersionCodename == "" {
 				info.VersionCodename = strings.ToLower(value)
 			}
+		case "UBUNTU_CODENAME":
+			info.VersionCodename = strings.ToLower(value)
 		case "ID_LIKE":
 			info.IDLike = strings.ToLower(value)
 		}

@@ -51,7 +51,7 @@ func runWindrosePreflight(instanceDir string, payload map[string]any, renderedSt
 		return fmt.Errorf("WINDROSE_PREFLIGHT_FAILED missing tools=%s; activate/install node role 'game' to install Wine/Windrose runtime dependencies", strings.Join(missing, ","))
 	}
 	if out, err := windrosePreflightCommand("wine", "--version"); err != nil || strings.TrimSpace(string(out)) == "" {
-		return fmt.Errorf("WINDROSE_PREFLIGHT_FAILED wine --version failed: %v; activate/install node role 'game' to install Wine/Windrose runtime dependencies", err)
+		return fmt.Errorf("WINDROSE_PREFLIGHT_FAILED wine --version failed: %v output=%q; repair/reinstall node role 'game' to restore Wine/Windrose runtime dependencies", err, strings.TrimSpace(string(out)))
 	} else {
 		log.Printf("windrose_preflight_wine_version=%s", strings.TrimSpace(string(out)))
 	}

@@ -19,12 +19,16 @@ type fakeWindroseRunner struct {
 	outputs   map[string]string
 	commands  []string
 	// failPkgs lists package names whose apt-get install should fail.
-	failPkgs map[string]bool
+	failPkgs     map[string]bool
+	failCommands map[string]bool
 }
 
 func (f *fakeWindroseRunner) Run(name string, args []string, env []string) (string, error) {
 	cmd := name + " " + strings.Join(args, " ")
 	f.commands = append(f.commands, cmd)
+	if f.failCommands[cmd] {
+		return f.outputs[cmd], errors.New("command failed")
+	}
 	switch name {
 	case "dpkg":
 		if len(args) == 1 && args[0] == "--print-foreign-architectures" {
@@ -70,6 +74,9 @@ func (f *fakeWindroseRunner) Run(name string, args []string, env []string) (stri
 		}
 		return "ok", nil
 	case "/usr/bin/wine":
+		if out, ok := f.outputs[cmd]; ok {
+			return out, nil
+		}
 		return "wine-9.0", nil
 	}
 	return "", nil
@@ -181,6 +188,32 @@ func TestParseOSReleaseUbuntuNoble(t *testing.T) {
 	}
 }
 
+func TestParseOSReleasePrefersUbuntuCodename(t *testing.T) {
+	info := parseOSRelease("ID=ubuntu\nVERSION_CODENAME=jammy\nUBUNTU_CODENAME=questing\n")
+	if info.VersionCodename != "questing" {
+		t.Fatalf("expected UBUNTU_CODENAME to win, got %+v", info)
+	}
+}
+
+func TestWindroseWineRequiresI386MatchesWineHQWoW64Distros(t *testing.T) {
+	cases := []struct {
+		info osReleaseInfo
+		want bool
+	}{
+		{osReleaseInfo{ID: "ubuntu", VersionCodename: "noble"}, true},
+		{osReleaseInfo{ID: "ubuntu", VersionCodename: "plucky"}, true},
+		{osReleaseInfo{ID: "ubuntu", VersionCodename: "questing"}, false},
+		{osReleaseInfo{ID: "ubuntu", VersionCodename: "resolute"}, false},
+		{osReleaseInfo{ID: "debian", VersionCodename: "trixie"}, true},
+		{osReleaseInfo{ID: "debian", VersionCodename: "forky"}, false},
+	}
+	for _, tc := range cases {
+		if got := windroseWineRequiresI386(tc.info); got != tc.want {
+			t.Fatalf("windroseWineRequiresI386(%+v)=%t, want %t", tc.info, got, tc.want)
+		}
+	}
+}
+
 func TestWindroseConstantsUseOfficialWineHQURLs(t *testing.T) {
 	oldSourceDir := wineHQSourceDir
 	wineHQSourceDir = "/etc/apt/sources.list.d"
@@ -227,6 +260,42 @@ func TestWindroseUbuntuNobleInstallsRequiredPackagesAndAddsI386(t *testing.T) {
 	}
 	if len(requests) != 2 || requests[0] != "/wine-builds/winehq.key" || requests[1] != "/wine-builds/ubuntu/dists/noble/winehq-noble.sources" {
 		t.Fatalf("unexpected downloads: %v", requests)
+	}
+}
+
+func TestWindroseUbuntuQuestingSkipsI386ForWoW64Packages(t *testing.T) {
+	requests := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
+		_, _ = w.Write([]byte("managed"))
+	}))
+	defer server.Close()
+	runner := &fakeWindroseRunner{installed: map[string]bool{}, available: map[string]bool{}, outputs: map[string]string{}, paths: map[string]string{"wine": "/usr/bin/wine", "xvfb-run": "/usr/bin/xvfb-run", "taskset": "/usr/bin/taskset", "screen": "/usr/bin/screen"}}
+	_, _ = setupWindroseDepsTest(t, runner, "ID=ubuntu\nVERSION_CODENAME=jammy\nUBUNTU_CODENAME=questing\n", server)
+	oldWineSource := wineHQUbuntuSource
+	wineHQUbuntuSource = func(codename string) (string, string) {
+		return server.URL + "/wine-builds/ubuntu/dists/" + codename + "/winehq-" + codename + ".sources", filepath.Join(wineHQSourceDir, "winehq-"+codename+".sources")
+	}
+	t.Cleanup(func() { wineHQUbuntuSource = oldWineSource })
+
+	var output strings.Builder
+	if err := ensureWindroseWineDependencies(&output); err != nil {
+		t.Fatalf("ensure failed: %v\n%s", err, output.String())
+	}
+	joined := strings.Join(runner.commands, "\n")
+	for _, unwanted := range []string{"dpkg --add-architecture i386", "libgd3:i386", "wine-staging-i386"} {
+		if strings.Contains(joined, unwanted) {
+			t.Fatalf("did not expect %q for questing WoW64 packages, got:\n%s", unwanted, joined)
+		}
+	}
+	if !strings.Contains(joined, "apt-get install -y --allow-downgrades libgd3:amd64") {
+		t.Fatalf("expected only amd64 libgd package install, got:\n%s", joined)
+	}
+	if len(requests) != 2 || requests[0] != "/wine-builds/winehq.key" || requests[1] != "/wine-builds/ubuntu/dists/questing/winehq-questing.sources" {
+		t.Fatalf("unexpected requests: %v", requests)
+	}
+	if !strings.Contains(output.String(), "windrose_wine_i386_required=false") {
+		t.Fatalf("expected i386_required=false output, got:\n%s", output.String())
 	}
 }
 
@@ -352,6 +421,50 @@ func TestWindroseWineHQUsesI386DummyWhenBothVariantsFail(t *testing.T) {
 	}
 	if !strings.Contains(out, "windrose_wine=winehq-staging:installed_with_i386_dummy") {
 		t.Fatalf("expected installed_with_i386_dummy note, got:\n%s", out)
+	}
+}
+
+func TestWindroseInstalledButUnusableTriggersI386DummyRepair(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("managed"))
+	}))
+	defer server.Close()
+	runner := &fakeWindroseRunner{
+		installed: map[string]bool{"winehq-staging": true},
+		available: map[string]bool{"wine-staging-amd64": true},
+		outputs: map[string]string{
+			"apt-cache show wine-staging-amd64": "Package: wine-staging-amd64\nVersion: 11.9~trixie-1\n",
+			"/usr/bin/wine --version":           "",
+		},
+		paths:        map[string]string{"wine": "/usr/bin/wine"},
+		failPkgs:     map[string]bool{"winehq-stable": true},
+		failCommands: map[string]bool{"/usr/bin/wine --version": true},
+	}
+	setupWindroseDepsTest(t, runner, "ID=debian\nVERSION_CODENAME=trixie\n", server)
+	oldWineSource := wineHQDebianSource
+	wineHQDebianSource = func(codename string) (string, string) {
+		return server.URL + "/wine-builds/debian/dists/trixie/winehq-trixie.sources", filepath.Join(wineHQSourceDir, "winehq-trixie.sources")
+	}
+	t.Cleanup(func() { wineHQDebianSource = oldWineSource })
+	oldBuild := windroseBuildDummyDebFn
+	windroseBuildDummyDebFn = func(pkgName, version string) (string, func(), error) {
+		return "/tmp/wine-staging-i386_" + version + "_i386.deb", func() {}, nil
+	}
+	t.Cleanup(func() { windroseBuildDummyDebFn = oldBuild })
+
+	var output strings.Builder
+	if err := ensureWindroseWineDependencies(&output); err != nil {
+		t.Fatalf("ensure failed: %v\n%s", err, output.String())
+	}
+	out := output.String()
+	if !strings.Contains(out, "windrose_wine_runtime=unusable") {
+		t.Fatalf("expected unusable wine runtime note, got:\n%s", out)
+	}
+	if !strings.Contains(out, "windrose_wine=winehq-staging:installed_but_unusable") {
+		t.Fatalf("expected installed_but_unusable note, got:\n%s", out)
+	}
+	if !strings.Contains(out, "windrose_wine=winehq-staging:installed_with_i386_dummy") {
+		t.Fatalf("expected dummy repair note, got:\n%s", out)
 	}
 }
 
