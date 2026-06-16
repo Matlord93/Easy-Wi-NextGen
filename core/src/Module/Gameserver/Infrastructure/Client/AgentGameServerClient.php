@@ -232,7 +232,11 @@ class AgentGameServerClient
         if ($method === 'GET' && $payload !== []) {
             $requestUri .= '?' . http_build_query($payload, '', '&', \PHP_QUERY_RFC3986);
         }
-        $headers = $this->buildAuthHeaders($instance, $method, $requestUri);
+        $body = '';
+        if ($method !== 'GET') {
+            $body = $this->encodeJsonBody($payload);
+        }
+        $headers = $this->buildAuthHeaders($instance, $method, $requestUri, $body);
         $headers['Accept'] = 'application/json';
 
         $options = [
@@ -240,7 +244,9 @@ class AgentGameServerClient
             'timeout' => $this->timeoutSeconds,
         ];
         if ($method !== 'GET') {
-            $options['json'] = $payload;
+            $headers['Content-Type'] = 'application/json';
+            $options['headers'] = $headers;
+            $options['body'] = $body;
         } elseif ($payload !== []) {
             $options['query'] = $payload;
         }
@@ -265,12 +271,21 @@ class AgentGameServerClient
         return $decoded;
     }
 
+    /** @param array<string,mixed> $payload */
+    private function encodeJsonBody(array $payload): string
+    {
+        $body = json_encode($payload, \JSON_THROW_ON_ERROR);
+        \assert(is_string($body));
+
+        return $body;
+    }
+
     /**
      * @return array<string, string>
      */
-    private function buildAuthHeaders(Instance $instance, string $method, string $requestUri): array
+    private function buildAuthHeaders(Instance $instance, string $method, string $requestUri, string $body = ''): array
     {
-        $headers = ($this->hmacHeaderFactory ?? new AgentHmacHeaderFactory($this->encryptionService))->create($instance, $method, $requestUri);
+        $headers = ($this->hmacHeaderFactory ?? new AgentHmacHeaderFactory($this->encryptionService))->create($instance, $method, $requestUri, $body);
 
         $metadata = $instance->getNode()->getMetadata();
         $metadata = is_array($metadata) ? $metadata : [];

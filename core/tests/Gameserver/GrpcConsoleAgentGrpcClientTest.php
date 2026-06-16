@@ -17,6 +17,7 @@ use App\Module\Gameserver\Application\Console\NodeEndpointMissingException;
 use App\Module\Gameserver\Infrastructure\Grpc\GrpcConsoleAgentGrpcClient;
 use App\Repository\InstanceRepository;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -73,7 +74,7 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     {
         $captured = [];
         $http = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
-            $captured = ['method' => $method, 'url' => $url, 'headers' => $this->normalizeHeaders($options['headers'] ?? [])];
+            $captured = ['method' => $method, 'url' => $url, 'headers' => $this->normalizeHeaders($options['headers'] ?? []), 'body' => (string) ($options['body'] ?? '')];
 
             return new MockResponse('{"ok":true,"data":{"cursor":"","lines":[]}}', ['http_code' => 200]);
         });
@@ -90,16 +91,44 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
         self::assertSame('7', $captured['headers']['X-Customer-ID'] ?? null);
         self::assertArrayHasKey('X-Timestamp', $captured['headers']);
         self::assertArrayHasKey('X-Signature', $captured['headers']);
+        self::assertSame(hash('sha256', ''), $captured['headers']['X-Content-SHA256'] ?? null);
         self::assertArrayNotHasKey('Authorization', $captured['headers']);
-        $expectedPayload = AgentHmacHeaderFactory::signaturePayload('agent-1', '7', 'GET', '/v1/instances/42/console/logs?cursor=abc', $captured['headers']['X-Timestamp']);
+        $expectedPayload = AgentHmacHeaderFactory::signaturePayload('agent-1', '7', 'GET', '/v1/instances/42/console/logs?cursor=abc', $captured['headers']['X-Timestamp'], hash('sha256', ''));
         self::assertSame(hash_hmac('sha256', $expectedPayload, 'shared-secret'), $captured['headers']['X-Signature']);
+    }
+
+    public function testAttachStreamContinuesAfterIdleTimeout(): void
+    {
+        $requests = 0;
+        $http = new MockHttpClient(function () use (&$requests): MockResponse {
+            $requests++;
+            if ($requests === 1) {
+                throw new TransportException('Idle timeout reached while waiting for console logs.');
+            }
+
+            return new MockResponse('{"ok":true,"data":{"cursor":"c1","lines":[{"id":5,"text":"ready","ts":"2026-06-16T18:34:05+00:00","level":"info"}]}}', ['http_code' => 200]);
+        });
+        $instance = $this->createInstance(42, 7, 'agent-1');
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(42)->willReturn($instance);
+        $client = new GrpcConsoleAgentGrpcClient($repo, $http, $this->createHmacHeaderFactory('shared-secret'), new AgentEndpointResolver());
+
+        $events = [];
+        foreach ($client->attachStream(42) as $event) {
+            $events[] = $event;
+            break;
+        }
+
+        self::assertSame(2, $requests);
+        self::assertSame('ready', $events[0]['chunk']);
+        self::assertSame(5, $events[0]['seq']);
     }
 
     public function testConsoleCommandSendsHmacHeaders(): void
     {
         $captured = [];
         $http = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
-            $captured = ['method' => $method, 'url' => $url, 'headers' => $this->normalizeHeaders($options['headers'] ?? [])];
+            $captured = ['method' => $method, 'url' => $url, 'headers' => $this->normalizeHeaders($options['headers'] ?? []), 'body' => (string) ($options['body'] ?? '')];
 
             return new MockResponse('{"applied":true,"duplicate":false,"seq":12}', ['http_code' => 200]);
         });
@@ -112,7 +141,9 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
 
         self::assertSame('POST', $captured['method']);
         self::assertSame('https://node.example.test:9443/v1/instances/42/console/command', $captured['url']);
-        $expectedPayload = AgentHmacHeaderFactory::signaturePayload('agent-1', '7', 'POST', '/v1/instances/42/console/command', $captured['headers']['X-Timestamp']);
+        self::assertSame(hash('sha256', $captured['body']), $captured['headers']['X-Content-SHA256'] ?? null);
+        self::assertStringContainsString('"command":"status"', $captured['body']);
+        $expectedPayload = AgentHmacHeaderFactory::signaturePayload('agent-1', '7', 'POST', '/v1/instances/42/console/command', $captured['headers']['X-Timestamp'], hash('sha256', $captured['body']));
         self::assertSame(hash_hmac('sha256', $expectedPayload, 'shared-secret'), $captured['headers']['X-Signature']);
     }
 
@@ -145,7 +176,11 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     private function canonicalHeaderName(string $header): string
     {
         return implode('-', array_map(static function (string $part): string {
-            return strtolower($part) === 'id' ? 'ID' : ucfirst(strtolower($part));
+            return match (strtolower($part)) {
+                'id' => 'ID',
+                'sha256' => 'SHA256',
+                default => ucfirst(strtolower($part)),
+            };
         }, explode('-', $header)));
     }
 

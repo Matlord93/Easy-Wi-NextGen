@@ -15,6 +15,7 @@ use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
 use App\Module\Gameserver\Application\Console\NodeEndpointMissingException;
 use App\Module\Gameserver\Infrastructure\Client\AgentHmacHeaderFactory;
 use App\Repository\InstanceRepository;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterface
@@ -34,15 +35,19 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         $endpoint = $this->resolveEndpoint($node);
         $requestUri = '/v1/instances/' . $request->instanceId . '/console/command';
 
+        $body = $this->encodeJsonBody([
+            'instance_id' => $request->instanceId,
+            'command' => $request->command,
+            'idempotency_key' => $request->idempotencyKey,
+            'issued_at_unix_ms' => $request->issuedAtUnixMs,
+            'actor_id' => $request->actorId,
+        ]);
+        $headers = $this->buildHeaders($instance, 'POST', $requestUri, $body);
+        $headers['Content-Type'] = 'application/json';
+
         $response = $this->httpClient->request('POST', rtrim($endpoint, '/') . $requestUri, [
-            'headers' => $this->buildHeaders($instance, 'POST', $requestUri),
-            'json' => [
-                'instance_id' => $request->instanceId,
-                'command' => $request->command,
-                'idempotency_key' => $request->idempotencyKey,
-                'issued_at_unix_ms' => $request->issuedAtUnixMs,
-                'actor_id' => $request->actorId,
-            ],
+            'headers' => $headers,
+            'body' => $body,
             'timeout' => 10,
         ]);
 
@@ -79,16 +84,26 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         while (true) {
             $query = $cursor !== '' ? ['cursor' => $cursor] : [];
             $requestUri = $this->withQueryString($baseRequestUri, $query);
-            $response = $this->httpClient->request('GET', rtrim($endpoint, '/') . $requestUri, [
-                'headers' => $this->buildHeaders($instance, 'GET', $requestUri),
-                'timeout' => 10,
-            ]);
+            try {
+                $response = $this->httpClient->request('GET', rtrim($endpoint, '/') . $requestUri, [
+                    'headers' => $this->buildHeaders($instance, 'GET', $requestUri),
+                    'timeout' => 10,
+                ]);
 
-            if ($response->getStatusCode() >= 400) {
-                throw new \RuntimeException('Agent console logs returned HTTP ' . $response->getStatusCode());
+                if ($response->getStatusCode() >= 400) {
+                    throw new \RuntimeException('Agent console logs returned HTTP ' . $response->getStatusCode());
+                }
+
+                $payload = $response->toArray(false);
+            } catch (TransportExceptionInterface $exception) {
+                if (!$this->isIdleTimeout($exception)) {
+                    throw $exception;
+                }
+
+                $emptyStreak++;
+                usleep(min(2_000_000, 100_000 + ($emptyStreak * 100_000)));
+                continue;
             }
-
-            $payload = $response->toArray(false);
             $data = $payload['data'] ?? [];
             $newCursor = (string) ($data['cursor'] ?? '');
             $lines = (array) ($data['lines'] ?? []);
@@ -131,6 +146,15 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         );
 
         return $response->toArray(false);
+    }
+
+    private function isIdleTimeout(TransportExceptionInterface $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'idle timeout')
+            || str_contains($message, 'timed out')
+            || str_contains($message, 'timeout');
     }
 
     /**
@@ -180,6 +204,15 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         }
     }
 
+    /** @param array<string,mixed> $payload */
+    private function encodeJsonBody(array $payload): string
+    {
+        $body = json_encode($payload, \JSON_THROW_ON_ERROR);
+        \assert(is_string($body));
+
+        return $body;
+    }
+
     /** @param array<string,string> $query */
     private function withQueryString(string $path, array $query): string
     {
@@ -191,9 +224,9 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
     }
 
     /** @return array<string,string> */
-    private function buildHeaders(Instance $instance, string $method, string $requestUri): array
+    private function buildHeaders(Instance $instance, string $method, string $requestUri, string $body = ''): array
     {
-        $headers = $this->hmacHeaderFactory->create($instance, $method, $requestUri);
+        $headers = $this->hmacHeaderFactory->create($instance, $method, $requestUri, $body);
         $headers['Accept'] = 'application/json';
 
         return $headers;
