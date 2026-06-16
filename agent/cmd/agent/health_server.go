@@ -458,16 +458,36 @@ func withBearerAuth(secret string, h http.HandlerFunc) http.HandlerFunc {
 }
 
 // withInstanceSubRouteAuth allows unauthenticated GET requests to the bare instance status
-// endpoint (/v1/instances/{id}) while requiring a valid HMAC signature for all sub-routes
-// (/configs/, /access/, /console/, /backups/) that mutate state or expose sensitive data.
+// endpoint (/v1/instances/{id}) while requiring authentication for all sensitive sub-routes.
+//
+// Console sub-routes (/console/) accept a Bearer token equal to cfg.Secret because the
+// console uses long-lived streaming connections where HMAC timestamps expire and the
+// cursor query parameter changes every request (which would invalidate HMAC signatures).
+//
+// Admin mutation sub-routes (/configs/, /access/, /backups/) require a full HMAC-SHA256
+// signed request (same protocol as the file API).
 func withInstanceSubRouteAuth(cfg fileapi.Config, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		needsAuth := strings.Contains(path, "/configs/") ||
+
+		if strings.Contains(path, "/console/") {
+			auth := strings.TrimSpace(r.Header.Get("Authorization"))
+			token := strings.TrimPrefix(auth, "Bearer ")
+			// Accept Bearer token equal to the agent secret.
+			// Also fall back to HMAC for clients (e.g. AgentGameServerClient) that sign requests.
+			bearerOK := token != auth && subtle.ConstantTimeCompare([]byte(token), []byte(cfg.Secret)) == 1
+			_, hmacErr := fileapi.VerifyRequestSignature(r, cfg)
+			if !bearerOK && hmacErr != nil {
+				writeJSONError(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid or missing authentication")
+				return
+			}
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		if strings.Contains(path, "/configs/") ||
 			strings.Contains(path, "/access/") ||
-			strings.Contains(path, "/console/") ||
-			strings.Contains(path, "/backups/")
-		if needsAuth {
+			strings.Contains(path, "/backups/") {
 			if _, err := fileapi.VerifyRequestSignature(r, cfg); err != nil {
 				writeJSONError(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid or missing request signature")
 				return
