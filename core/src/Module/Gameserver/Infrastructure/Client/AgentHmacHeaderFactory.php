@@ -13,13 +13,14 @@ final class AgentHmacHeaderFactory
     public const HEADER_CUSTOMER_ID = 'X-Customer-ID';
     public const HEADER_TIMESTAMP = 'X-Timestamp';
     public const HEADER_SIGNATURE = 'X-Signature';
+    public const HEADER_CONTENT_SHA256 = 'X-Content-SHA256';
 
     public function __construct(private readonly EncryptionService $encryptionService)
     {
     }
 
     /** @return array<string,string> */
-    public function create(Instance $instance, string $method, string $requestUri): array
+    public function create(Instance $instance, string $method, string $requestUri, string $body = ''): array
     {
         $agent = $instance->getNode();
         $agentId = $agent->getId();
@@ -29,7 +30,8 @@ final class AgentHmacHeaderFactory
         }
 
         $timestamp = (new \DateTimeImmutable())->format(\DateTimeImmutable::RFC3339);
-        $payload = self::signaturePayload($agentId, $customerId, $method, $requestUri, $timestamp);
+        $bodyHash = hash('sha256', $body);
+        $payload = self::signaturePayload($agentId, $customerId, $method, $requestUri, $timestamp, $bodyHash);
         $signature = hash_hmac('sha256', $payload, $this->encryptionService->decrypt($agent->getSecretPayload()));
 
         return [
@@ -37,11 +39,12 @@ final class AgentHmacHeaderFactory
             self::HEADER_CUSTOMER_ID => $customerId,
             self::HEADER_TIMESTAMP => $timestamp,
             self::HEADER_SIGNATURE => $signature,
+            self::HEADER_CONTENT_SHA256 => $bodyHash,
         ];
     }
 
-    public static function signaturePayload(string $agentId, string $customerId, string $method, string $requestUri, string $timestamp): string
+    public static function signaturePayload(string $agentId, string $customerId, string $method, string $requestUri, string $timestamp, string $bodyHash): string
     {
-        return sprintf("%s\n%s\n%s\n%s\n%s", $agentId, $customerId, strtoupper($method), $requestUri, $timestamp);
+        return sprintf("%s\n%s\n%s\n%s\n%s\n%s", $agentId, $customerId, strtoupper($method), $requestUri, $timestamp, strtolower($bodyHash));
     }
 }

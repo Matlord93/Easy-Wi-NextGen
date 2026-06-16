@@ -140,7 +140,14 @@ final class GameTemplateAndPluginSeederTest extends KernelTestCase
         $tool = new SchemaTool($this->entityManager);
         $metadata = $this->seederMetadata();
 
-        $tool->dropSchema($metadata);
+        $connection = $this->entityManager->getConnection();
+
+        $connection->executeStatement('PRAGMA foreign_keys = OFF');
+        foreach (['game_plugins', 'game_templates'] as $tableName) {
+            $connection->executeStatement(sprintf('DROP TABLE IF EXISTS %s', $tableName));
+        }
+        $connection->executeStatement('PRAGMA foreign_keys = ON');
+
         $tool->createSchema($metadata);
         $this->entityManager->clear();
     }
