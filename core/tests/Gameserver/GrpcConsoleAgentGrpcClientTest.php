@@ -144,7 +144,9 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
 
     private function canonicalHeaderName(string $header): string
     {
-        return implode('-', array_map(static fn (string $part): string => ucfirst(strtolower($part)), explode('-', $header)));
+        return implode('-', array_map(static function (string $part): string {
+            return strtolower($part) === 'id' ? 'ID' : ucfirst(strtolower($part));
+        }, explode('-', $header)));
     }
 
     private function resolveEndpoint(GrpcConsoleAgentGrpcClient $client, Agent $agent): string
