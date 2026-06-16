@@ -81,7 +81,9 @@ func requestBodySHA256(r *http.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	r.Body.Close()
+	if err := r.Body.Close(); err != nil {
+		return "", err
+	}
 	r.Body = io.NopCloser(bytes.NewReader(body))
 	sum := sha256.Sum256(body)
 	return hex.EncodeToString(sum[:]), nil

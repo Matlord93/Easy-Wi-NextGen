@@ -176,7 +176,11 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     private function canonicalHeaderName(string $header): string
     {
         return implode('-', array_map(static function (string $part): string {
-            return strtolower($part) === 'id' ? 'ID' : ucfirst(strtolower($part));
+            return match (strtolower($part)) {
+                'id' => 'ID',
+                'sha256' => 'SHA256',
+                default => ucfirst(strtolower($part)),
+            };
         }, explode('-', $header)));
     }
 

@@ -296,7 +296,7 @@ func readAndRestoreTestBody(req *http.Request) []byte {
 		return nil
 	}
 	body, _ := io.ReadAll(req.Body)
-	req.Body.Close()
+	_ = req.Body.Close()
 	req.Body = io.NopCloser(bytes.NewReader(body))
 	return body
 }
