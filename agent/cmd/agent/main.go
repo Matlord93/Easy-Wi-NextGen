@@ -252,7 +252,7 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 							logger.Error(jobCtx, "agent.start_job_failed", "START_JOB_FAILED", fmt.Sprintf("start job failed: %v", err), map[string]any{"job_id": job.ID})
 							return
 						}
-						result, afterSubmit := handleJob(job, logSender)
+						result, afterSubmit := handleJob(job, withConsoleLogMirroring(job, logSender))
 						if err := client.SubmitJobResult(jobCtx, result); err != nil {
 							logger.Error(jobCtx, "agent.submit_job_result_failed", "SUBMIT_JOB_RESULT_FAILED", fmt.Sprintf("submit job result failed: %v", err), map[string]any{"job_id": job.ID})
 							return

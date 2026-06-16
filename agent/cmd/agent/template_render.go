@@ -129,6 +129,11 @@ func validateBinaryExists(instanceDir, startCommand string) error {
 	if strings.HasPrefix(binaryToken, "-") || strings.HasPrefix(binaryToken, "+") {
 		return nil
 	}
+	// Shell builtins such as cd are handled by the generated shell script and
+	// must never be resolved as instance-relative binaries like /home/gs36/cd.
+	if isShellBuiltinToken(binaryToken) {
+		return nil
+	}
 	if !strings.Contains(binaryToken, "/") && !filepath.IsAbs(binaryToken) {
 		if _, err := exec.LookPath(binaryToken); err == nil {
 			return nil
@@ -149,15 +154,69 @@ func extractFirstCommandToken(command string) string {
 		return ""
 	}
 	fields := strings.Fields(command)
-	if len(fields) == 0 {
-		return ""
+	for i := 0; i < len(fields); i++ {
+		token := normalizeCommandToken(fields[i])
+		if token == "" || token == ";" || token == "&&" || token == "||" {
+			continue
+		}
+		// Shell function declarations (e.g. "set_property() {") are not binaries.
+		if strings.Contains(token, "(") {
+			return ""
+		}
+		if isShellAssignmentToken(token) {
+			continue
+		}
+		if isShellBuiltinToken(token) {
+			if commandTokenConsumesNextArgument(token) && i+1 < len(fields) {
+				i++
+			}
+			continue
+		}
+		return token
 	}
-	token := strings.Trim(fields[0], "\"'")
-	// Shell function declarations (e.g. "set_property() {") are not binaries.
-	if strings.Contains(token, "(") {
-		return ""
+	return ""
+}
+
+func normalizeCommandToken(token string) string {
+	token = strings.TrimSpace(token)
+	token = strings.Trim(token, "\"'")
+	token = strings.TrimRight(token, ";")
+	return strings.TrimSpace(token)
+}
+
+func isShellAssignmentToken(token string) bool {
+	if strings.HasPrefix(token, "=") || !strings.Contains(token, "=") {
+		return false
 	}
-	return token
+	name, _, _ := strings.Cut(token, "=")
+	if name == "" {
+		return false
+	}
+	for i, r := range name {
+		if r == '_' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || i > 0 && r >= '0' && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isShellBuiltinToken(token string) bool {
+	switch token {
+	case "cd", "export", "set", "unset", "ulimit", "umask", "shift", "alias", "unalias", "source", ".", "true", "false", "local", "readonly", "command", "exec":
+		return true
+	default:
+		return false
+	}
+}
+
+func commandTokenConsumesNextArgument(token string) bool {
+	switch token {
+	case "cd", "source", ".", "umask", "ulimit":
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveBinaryPath(instanceDir, token string) string {

@@ -1587,10 +1587,9 @@ func stripWineBootstrap(command string) string {
 			}
 			if end := strings.Index(strings.ToLower(candidate[idx:]), "fi; fi;"); end >= 0 {
 				endPos := idx + end + len("fi; fi;")
-				candidate = candidate[:prefixStart] + candidate[endPos:]
+				stripped = candidate[:prefixStart] + candidate[endPos:]
 			}
 		}
-		stripped = candidate
 	}
 	if strings.HasSuffix(stripped, "\"") && strings.Count(trimmed, "\"")%2 == 1 {
 		stripped = strings.TrimSuffix(stripped, "\"")

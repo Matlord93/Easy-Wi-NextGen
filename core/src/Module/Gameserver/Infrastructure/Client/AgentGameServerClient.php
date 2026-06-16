@@ -13,15 +13,11 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 
 class AgentGameServerClient
 {
-    private const HEADER_AGENT_ID = 'x-agent-id';
-    private const HEADER_CUSTOMER_ID = 'x-customer-id';
-    private const HEADER_TIMESTAMP = 'x-agent-timestamp';
-    private const HEADER_SIGNATURE = 'x-agent-signature';
-
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly EncryptionService $encryptionService,
         private readonly int $timeoutSeconds = 10,
+        private readonly ?AgentHmacHeaderFactory $hmacHeaderFactory = null,
     ) {
     }
 
@@ -232,7 +228,11 @@ class AgentGameServerClient
      */
     private function requestJson(Instance $instance, string $method, string $endpoint, array $payload): array
     {
-        $headers = $this->buildAuthHeaders($instance, $method, $endpoint);
+        $requestUri = $endpoint;
+        if ($method === 'GET' && $payload !== []) {
+            $requestUri .= '?' . http_build_query($payload, '', '&', \PHP_QUERY_RFC3986);
+        }
+        $headers = $this->buildAuthHeaders($instance, $method, $requestUri);
         $headers['Accept'] = 'application/json';
 
         $options = [
@@ -268,32 +268,11 @@ class AgentGameServerClient
     /**
      * @return array<string, string>
      */
-    private function buildAuthHeaders(Instance $instance, string $method, string $endpoint): array
+    private function buildAuthHeaders(Instance $instance, string $method, string $requestUri): array
     {
-        $agent = $instance->getNode();
-        $agentId = $agent->getId();
-        $customerId = (string) $instance->getCustomer()->getId();
-        $secret = $this->encryptionService->decrypt($agent->getSecretPayload());
-        $timestamp = (new \DateTimeImmutable())->format(\DateTimeImmutable::RFC3339);
+        $headers = ($this->hmacHeaderFactory ?? new AgentHmacHeaderFactory($this->encryptionService))->create($instance, $method, $requestUri);
 
-        $payload = sprintf(
-            "%s\n%s\n%s\n%s\n%s",
-            $agentId,
-            $customerId,
-            strtoupper($method),
-            $endpoint,
-            $timestamp,
-        );
-        $signature = hash_hmac('sha256', $payload, $secret);
-
-        $headers = [
-            self::HEADER_AGENT_ID => $agentId,
-            self::HEADER_CUSTOMER_ID => $customerId,
-            self::HEADER_TIMESTAMP => $timestamp,
-            self::HEADER_SIGNATURE => $signature,
-        ];
-
-        $metadata = $agent->getMetadata();
+        $metadata = $instance->getNode()->getMetadata();
         $metadata = is_array($metadata) ? $metadata : [];
         $bearerToken = trim((string) ($metadata['gamesvc_bearer_token'] ?? ''));
         if ($bearerToken !== '') {

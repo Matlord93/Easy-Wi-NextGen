@@ -75,11 +75,20 @@ final class ConsoleRelayCommand extends Command
                 $attempt = 0;
                 $this->touchHeartbeat();
             } catch (NodeEndpointMissingException $e) {
-                $this->logger->warning('console relay node endpoint missing', ['instance_id' => $instanceId]);
+                $correlationId = bin2hex(random_bytes(6));
+                $this->logger->warning('console relay node endpoint missing', [
+                    'instance_id' => $instanceId,
+                    'attempt' => $attempt,
+                    'error' => $e->getMessage(),
+                    'exception' => $e::class,
+                    'code' => $e->getCode(),
+                    'correlation_id' => $correlationId,
+                ]);
                 $this->eventBus->publishConsoleEvent($instanceId, [
                     'type' => 'status',
                     'status' => 'node_endpoint_missing',
                     'instance_id' => $instanceId,
+                    'correlation_id' => $correlationId,
                     'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
                 ]);
                 $this->touchHeartbeat();
@@ -88,7 +97,15 @@ final class ConsoleRelayCommand extends Command
             } catch (\Throwable $e) {
                 $attempt++;
                 $sleepMs = min(30_000, 1000 * (2 ** min($attempt, 5)) + random_int(0, 300));
-                $this->logger->warning('console relay reconnect', ['instance_id' => $instanceId, 'attempt' => $attempt, 'correlation_id' => bin2hex(random_bytes(6))]);
+                $correlationId = bin2hex(random_bytes(6));
+                $this->logger->warning('console relay reconnect', [
+                    'instance_id' => $instanceId,
+                    'attempt' => $attempt,
+                    'error' => $e->getMessage(),
+                    'exception' => $e::class,
+                    'code' => $e->getCode(),
+                    'correlation_id' => $correlationId,
+                ]);
                 $this->touchHeartbeat();
                 usleep($sleepMs * 1000);
                 $this->touchHeartbeat();
