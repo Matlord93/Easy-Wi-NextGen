@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net"
 	"os"
 	"regexp"
@@ -297,7 +298,8 @@ func registerTLSConfig(req databaseRequest) (string, func(), error) {
 	conf := &tls.Config{MinVersion: tls.VersionTLS12}
 	switch req.TLSMode {
 	case "required":
-		conf.InsecureSkipVerify = true
+		// Encrypt transport without certificate verification (MySQL "ssl-mode=REQUIRED" semantics).
+		conf.InsecureSkipVerify = true //nolint:gosec
 	case "verify_ca", "verify_full":
 		pool := x509.NewCertPool()
 		if strings.TrimSpace(req.CACert) == "" || !pool.AppendCertsFromPEM([]byte(req.CACert)) {
@@ -305,7 +307,12 @@ func registerTLSConfig(req databaseRequest) (string, func(), error) {
 		}
 		conf.RootCAs = pool
 		if req.TLSMode == "verify_ca" {
-			conf.InsecureSkipVerify = true
+			// Validate cert chain against CA but skip hostname check (MySQL verify_ca semantics).
+			conf.InsecureSkipVerify = true //nolint:gosec
+			caPool := pool
+			conf.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+				return verifyCertChainWithCA(rawCerts, caPool)
+			}
 		}
 		if req.TLSMode == "verify_full" {
 			conf.ServerName = req.Host
@@ -389,11 +396,39 @@ func generateStrongPassword(length int) string {
 		length = 16
 	}
 	out := make([]byte, length)
+	charsLen := big.NewInt(int64(len(chars)))
 	for i := range out {
-		out[i] = chars[rand.Intn(len(chars))]
+		n, err := rand.Int(rand.Reader, charsLen)
+		if err != nil {
+			panic("crypto/rand unavailable: " + err.Error())
+		}
+		out[i] = chars[n.Int64()]
 	}
 	return string(out)
 }
+func verifyCertChainWithCA(rawCerts [][]byte, caPool *x509.CertPool) error {
+	if len(rawCerts) == 0 {
+		return fmt.Errorf("no peer certificate presented")
+	}
+	certs := make([]*x509.Certificate, len(rawCerts))
+	for i, raw := range rawCerts {
+		c, err := x509.ParseCertificate(raw)
+		if err != nil {
+			return fmt.Errorf("parse peer certificate: %w", err)
+		}
+		certs[i] = c
+	}
+	intermediates := x509.NewCertPool()
+	for _, c := range certs[1:] {
+		intermediates.AddCert(c)
+	}
+	_, err := certs[0].Verify(x509.VerifyOptions{
+		Roots:         caPool,
+		Intermediates: intermediates,
+	})
+	return err
+}
+
 func dbFailure(jobID, errorCode, message string) jobs.Result {
 	return jobs.Result{JobID: jobID, Status: "failed", Output: map[string]string{"error_code": errorCode, "error_message": message}, Completed: time.Now().UTC()}
 }

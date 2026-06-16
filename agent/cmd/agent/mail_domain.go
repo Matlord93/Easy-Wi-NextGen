@@ -14,7 +14,26 @@ import (
 const (
 	mailDomainDirMode  = 0o750
 	mailDomainFileMode = 0o640
+	dkimKeysBaseDir    = "/etc/opendkim/keys/"
 )
+
+var mailDomainNameRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$`)
+var dkimSelectorRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,63}$`)
+
+func validateMailDomainName(domain string) error {
+	if domain == "" || !mailDomainNameRegex.MatchString(domain) {
+		return fmt.Errorf("invalid domain name: %q", domain)
+	}
+	return nil
+}
+
+func validateDkimDir(dir string) error {
+	cleaned := filepath.Clean(dir)
+	if !strings.HasPrefix(cleaned, dkimKeysBaseDir) {
+		return fmt.Errorf("dkim_dir must be under %s", dkimKeysBaseDir)
+	}
+	return nil
+}
 
 func handleMailDomainCreate(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
@@ -48,6 +67,15 @@ func handleMailDomainCreate(job jobs.Job) (jobs.Result, func() error) {
 			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
 			Completed: time.Now().UTC(),
 		}, nil
+	}
+	if err := validateMailDomainName(domainName); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := validateDkimDir(dkimDir); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if !dkimSelectorRegex.MatchString(dkimSelector) {
+		return failureResult(job.ID, fmt.Errorf("invalid dkim_selector: %q", dkimSelector))
 	}
 
 	if err := ensureDirWithMode(filepath.Dir(configPath), mailDomainDirMode); err != nil {
@@ -153,6 +181,15 @@ func handleMailDkimRotate(job jobs.Job) (jobs.Result, func() error) {
 			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
 			Completed: time.Now().UTC(),
 		}, nil
+	}
+	if err := validateMailDomainName(domainName); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := validateDkimDir(dkimDir); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if !dkimSelectorRegex.MatchString(dkimSelector) {
+		return failureResult(job.ID, fmt.Errorf("invalid dkim_selector: %q", dkimSelector))
 	}
 
 	if err := ensureDirWithMode(dkimDir, mailDomainDirMode); err != nil {

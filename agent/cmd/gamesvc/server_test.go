@@ -25,14 +25,16 @@ func TestGamesvcErrorEnvelope4xx(t *testing.T) {
 }
 
 func TestGamesvcErrorEnvelope5xx(t *testing.T) {
+	const testToken = "test-secret"
 	tmp := t.TempDir()
-	srv := newGameServer(gamesvcConfig{BaseDir: tmp, TemplateDir: filepath.Join(tmp, "tpl")})
+	srv := newGameServer(gamesvcConfig{BaseDir: tmp, TemplateDir: filepath.Join(tmp, "tpl"), BearerToken: testToken})
 	h := srv.routes()
 
 	body := `{"instance_id":"inst-1","files":[{"template":"missing.tpl","target":"out.cfg"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/instance/render-config", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-ID", "req-5xx")
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 

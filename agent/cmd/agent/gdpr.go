@@ -9,8 +9,8 @@ import (
 func handleGdprAnonymizeUser(job jobs.Job) (jobs.Result, func() error) {
 	return jobs.Result{
 		JobID:     job.ID,
-		Status:    "success",
-		Output:    map[string]string{"status": "queued"},
+		Status:    "failed",
+		Output:    map[string]string{"error": "gdpr.anonymize_user is not implemented on this agent; handle deletion in the control plane"},
 		Completed: time.Now().UTC(),
 	}, nil
 }

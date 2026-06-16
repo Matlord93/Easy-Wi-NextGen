@@ -18,6 +18,12 @@ const (
 	headerSignature  = "X-Signature"
 )
 
+// VerifyRequestSignature validates the HMAC-SHA256 request signature used by the agent protocol.
+// Returns the customer ID on success, or a non-nil error if the signature is absent, expired, or invalid.
+func VerifyRequestSignature(r *http.Request, cfg Config) (string, error) {
+	return verifyRequestSignature(r, cfg)
+}
+
 func verifyRequestSignature(r *http.Request, cfg Config) (string, error) {
 	agentID := strings.TrimSpace(r.Header.Get(headerAgentID))
 	if agentID == "" || agentID != cfg.AgentID {

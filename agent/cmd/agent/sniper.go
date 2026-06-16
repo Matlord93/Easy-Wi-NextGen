@@ -1005,7 +1005,11 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		return failureResult(job.ID, scriptErr)
 	}
 	if validationRequired && !scriptExists && strings.EqualFold(filepath.Base(expectedStartExecutablePath), "start.sh") && strings.TrimSpace(renderedStartParams) != "" {
-		generated := []byte("#!/bin/bash\ncd " + instanceDir + "\nexec " + renderedStartParams + "\n")
+		if strings.ContainsAny(renderedStartParams, "\n\r") {
+			markSharedFailure(fmt.Errorf("start params must not contain newlines"))
+			return failureResult(job.ID, fmt.Errorf("start params must not contain newlines"))
+		}
+		generated := []byte("#!/bin/bash\ncd " + shellEscape(instanceDir) + "\nexec " + renderedStartParams + "\n")
 		if err := os.WriteFile(expectedStartExecutablePath, generated, instanceFileMode); err != nil {
 			markSharedFailure(err)
 			return failureResult(job.ID, err)
@@ -1607,13 +1611,14 @@ func stripWineBootstrap(command string) string {
 }
 
 func buildSniperInstallShellCommand(commandWorkDir, installCommand, installSnippet, postInstallSnippet string) string {
+	escapedDir := shellEscape(commandWorkDir)
 	return fmt.Sprintf(
 		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
 			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
 			"%[3]s"+
 			"cd %[1]s && %[2]s; "+
 			"%[4]s",
-		commandWorkDir, installCommand, installSnippet, postInstallSnippet,
+		escapedDir, installCommand, installSnippet, postInstallSnippet,
 	)
 }
 
