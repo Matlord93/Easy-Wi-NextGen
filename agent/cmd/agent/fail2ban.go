@@ -53,7 +53,6 @@ func handleFail2banPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 		"config":      config,
 	}
 
-
 	if policy.DryRun {
 		return jobs.Result{
 			JobID:     job.ID,

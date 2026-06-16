@@ -31,7 +31,12 @@ func TestHandleWebspaceDomainApplyRollsBackOnConfigtestFailure(t *testing.T) {
 	oldPath := os.Getenv("PATH")
 	t.Setenv("PATH", binDir+":"+oldPath)
 
-	vhost := filepath.Join(t.TempDir(), "example.conf")
+	vhostDir := t.TempDir()
+	origVhostBaseDir := nginxVhostBaseDir
+	nginxVhostBaseDir = vhostDir + "/"
+	t.Cleanup(func() { nginxVhostBaseDir = origVhostBaseDir })
+
+	vhost := filepath.Join(vhostDir, "example.conf")
 	if err := os.WriteFile(vhost, []byte("before"), 0o644); err != nil {
 		t.Fatalf("seed vhost: %v", err)
 	}

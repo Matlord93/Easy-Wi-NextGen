@@ -25,14 +25,16 @@ func TestEmbeddedGamesvcErrorEnvelope4xx(t *testing.T) {
 }
 
 func TestEmbeddedGamesvcErrorEnvelope5xx(t *testing.T) {
+	const testToken = "test-secret"
 	tmp := t.TempDir()
-	srv := NewServer(Config{BaseDir: tmp, TemplateDir: filepath.Join(tmp, "tpl")})
+	srv := NewServer(Config{BaseDir: tmp, TemplateDir: filepath.Join(tmp, "tpl"), BearerToken: testToken})
 	h := srv.Handler()
 
 	body := `{"instance_id":"inst-1","files":[{"template":"missing.tpl","target":"out.cfg"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/instance/render-config", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-ID", "req-embed-5xx")
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 

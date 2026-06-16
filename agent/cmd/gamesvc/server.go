@@ -1,9 +1,9 @@
 package main
 
 import (
+	"crypto/subtle"
 	"easywi/agent/internal/apienvelope"
 	"easywi/agent/internal/trace"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"

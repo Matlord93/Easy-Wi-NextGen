@@ -115,7 +115,7 @@ func handleWebspaceFileRead(job jobs.Job) (jobs.Result, func() error) {
 	rel := cleanRelativePath(filepath.Join(relativePath, filename))
 	info, err := r.Stat(rel)
 	if err != nil {
-		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat: %w", err)), nil
+		return webspaceFileFailure(job.ID, rootStatErrCode(err), fmt.Errorf("stat: %w", err)), nil
 	}
 	if info.IsDir() {
 		return webspaceFileFailure(job.ID, "path_invalid", fmt.Errorf("path is a directory")), nil
@@ -416,6 +416,16 @@ func lockWebspaceFiles(payload map[string]any, root string) (func(), error) {
 		return nil, fmt.Errorf("webspace file operation already running")
 	}
 	return func() { lock.Unlock() }, nil
+}
+
+// rootStatErrCode maps errors from os.Root operations to the appropriate error code.
+// os.Root returns "path escapes from parent" for symlink traversal attempts; these
+// are reported as path_invalid rather than fs_stat_failed.
+func rootStatErrCode(err error) string {
+	if err != nil && strings.Contains(err.Error(), "path escapes") {
+		return "path_invalid"
+	}
+	return "fs_stat_failed"
 }
 
 func webspaceFileFailure(jobID, code string, err error) jobs.Result {

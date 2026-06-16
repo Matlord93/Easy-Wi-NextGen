@@ -28,7 +28,7 @@ func TestDomainSSLRenewAndRevokeFlow(t *testing.T) {
 	if renew.Status != "success" {
 		t.Fatalf("renew failed: %#v", renew.Output)
 	}
-	revoke, _ := handleDomainSSLRevoke(jobs.Job{ID: "2", Payload: map[string]any{"cert_path": "/tmp/cert.pem", "domain": "example.com"}})
+	revoke, _ := handleDomainSSLRevoke(jobs.Job{ID: "2", Payload: map[string]any{"cert_path": "/etc/letsencrypt/live/example.com/cert.pem", "domain": "example.com"}})
 	if revoke.Status != "success" {
 		t.Fatalf("revoke failed: %#v", revoke.Output)
 	}

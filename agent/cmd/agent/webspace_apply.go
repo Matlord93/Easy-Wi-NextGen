@@ -18,7 +18,7 @@ var (
 	webspaceApplyLocks sync.Map
 )
 
-const nginxVhostBaseDir = "/etc/easywi/web/nginx/vhosts/"
+var nginxVhostBaseDir = "/etc/easywi/web/nginx/vhosts/"
 
 func validateNginxVhostPath(path string) error {
 	if path == "" {
