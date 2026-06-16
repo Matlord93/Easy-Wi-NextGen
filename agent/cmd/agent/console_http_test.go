@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -277,13 +278,27 @@ func TestConsoleCommandSubrouteAcceptsHMAC(t *testing.T) {
 
 func signConsoleTestRequest(req *http.Request, agentID, customerID, secret string) {
 	ts := time.Now().UTC().Format(time.RFC3339)
-	payload := fmt.Sprintf("%s\n%s\n%s\n%s\n%s", agentID, customerID, req.Method, req.URL.RequestURI(), ts)
+	body := readAndRestoreTestBody(req)
+	bodySum := sha256.Sum256(body)
+	bodyHash := hex.EncodeToString(bodySum[:])
+	payload := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s", agentID, customerID, req.Method, req.URL.RequestURI(), ts, bodyHash)
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(payload))
 	req.Header.Set("X-Agent-ID", agentID)
 	req.Header.Set("X-Customer-ID", customerID)
 	req.Header.Set("X-Timestamp", ts)
+	req.Header.Set("X-Content-SHA256", bodyHash)
 	req.Header.Set("X-Signature", hex.EncodeToString(mac.Sum(nil)))
+}
+
+func readAndRestoreTestBody(req *http.Request) []byte {
+	if req.Body == nil {
+		return nil
+	}
+	body, _ := io.ReadAll(req.Body)
+	req.Body.Close()
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	return body
 }
 
 func TestInstallJobLogsAreMirroredToConsoleSession(t *testing.T) {
