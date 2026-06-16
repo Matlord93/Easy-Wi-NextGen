@@ -73,7 +73,7 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     {
         $captured = [];
         $http = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
-            $captured = ['method' => $method, 'url' => $url, 'headers' => $options['headers'] ?? []];
+            $captured = ['method' => $method, 'url' => $url, 'headers' => $this->normalizeHeaders($options['headers'] ?? [])];
 
             return new MockResponse('{"ok":true,"data":{"cursor":"","lines":[]}}', ['http_code' => 200]);
         });
@@ -99,7 +99,7 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     {
         $captured = [];
         $http = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
-            $captured = ['method' => $method, 'url' => $url, 'headers' => $options['headers'] ?? []];
+            $captured = ['method' => $method, 'url' => $url, 'headers' => $this->normalizeHeaders($options['headers'] ?? [])];
 
             return new MockResponse('{"applied":true,"duplicate":false,"seq":12}', ['http_code' => 200]);
         });
@@ -114,6 +114,37 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
         self::assertSame('https://node.example.test:9443/v1/instances/42/console/command', $captured['url']);
         $expectedPayload = AgentHmacHeaderFactory::signaturePayload('agent-1', '7', 'POST', '/v1/instances/42/console/command', $captured['headers']['X-Timestamp']);
         self::assertSame(hash_hmac('sha256', $expectedPayload, 'shared-secret'), $captured['headers']['X-Signature']);
+    }
+
+    /**
+     * @param array<int|string, string|string[]> $headers
+     *
+     * @return array<string,string>
+     */
+    private function normalizeHeaders(array $headers): array
+    {
+        $normalized = [];
+
+        foreach ($headers as $name => $value) {
+            $values = is_array($value) ? $value : [$value];
+            foreach ($values as $headerValue) {
+                $headerName = (string) $name;
+                $headerLine = (string) $headerValue;
+
+                if ((is_int($name) || str_contains($headerLine, ':')) && str_contains($headerLine, ':')) {
+                    [$headerName, $headerLine] = explode(':', $headerLine, 2);
+                }
+
+                $normalized[$this->canonicalHeaderName($headerName)] = trim($headerLine);
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function canonicalHeaderName(string $header): string
+    {
+        return implode('-', array_map(static fn (string $part): string => ucfirst(strtolower($part)), explode('-', $header)));
     }
 
     private function resolveEndpoint(GrpcConsoleAgentGrpcClient $client, Agent $agent): string
