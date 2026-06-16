@@ -55,7 +55,7 @@ func handleWebspaceFilesList(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	rel := cleanRelativePath(relativePath)
 	f, err := r.Open(rel)
@@ -110,7 +110,7 @@ func handleWebspaceFileRead(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	rel := cleanRelativePath(filepath.Join(relativePath, filename))
 	info, err := r.Stat(rel)
@@ -169,7 +169,7 @@ func handleWebspaceFileWrite(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	rel := cleanRelativePath(filepath.Join(relativePath, filename))
 

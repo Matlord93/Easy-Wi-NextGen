@@ -468,7 +468,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	startCommand := fmt.Sprintf("/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1 serveradmin_password=${TS3_ADMIN_PASSWORD}")
+	startCommand := "/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1 serveradmin_password=${TS3_ADMIN_PASSWORD}"
 	unitContent := systemdUnitTemplateWithEnvFile(serviceName, serviceUser, installDir, installDir, startCommand, "", envFilePath, 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
