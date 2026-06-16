@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Routing;
 
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Routing\RouterInterface;
 
 final class ApiVersioningGuardTest extends KernelTestCase
 {
+    #[RunInSeparateProcess]
     public function testLegacyApiRoutesAreAllowlisted(): void
     {
         self::bootKernel();
