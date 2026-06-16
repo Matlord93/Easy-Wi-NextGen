@@ -22,6 +22,12 @@ func handleAdminSshKeyStore(job jobs.Job) orchestratorResult {
 			errorText: "missing authorized_keys_path or public_key",
 		}
 	}
+	if !isAllowedAuthorizedKeysPath(authorizedKeysPath) {
+		return orchestratorResult{
+			status:    "failed",
+			errorText: "authorized_keys_path must be under /home/ or /root/.ssh/",
+		}
+	}
 
 	entry := withAdminComment(publicKey, userID, adminEmail)
 	normalizedKey := normalizeAuthorizedKey(publicKey)
@@ -124,4 +130,9 @@ func keyAlreadyPresent(existing, normalizedKey string) bool {
 
 func resolveOwner(path string) (int, int, bool) {
 	return resolveOwnerFromPath(path)
+}
+
+func isAllowedAuthorizedKeysPath(path string) bool {
+	cleaned := filepath.Clean(path)
+	return strings.HasPrefix(cleaned, "/home/") || strings.HasPrefix(cleaned, "/root/.ssh/")
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -50,14 +51,21 @@ func handleWebspaceFilesList(job jobs.Job) (jobs.Result, func() error) {
 	}
 	defer release()
 
-	target, err := sanitizeWebspacePath(root, relativePath)
+	r, err := openWebspaceRoot(root)
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
+	defer r.Close()
 
-	entries, err := os.ReadDir(target)
+	rel := cleanRelativePath(relativePath)
+	f, err := r.Open(rel)
 	if err != nil {
-		return webspaceFileFailure(job.ID, "fs_read_failed", fmt.Errorf("read dir %s: %w", target, err)), nil
+		return webspaceFileFailure(job.ID, "fs_read_failed", fmt.Errorf("open dir: %w", err)), nil
+	}
+	entries, err := f.ReadDir(-1)
+	_ = f.Close()
+	if err != nil {
+		return webspaceFileFailure(job.ID, "fs_read_failed", fmt.Errorf("read dir: %w", err)), nil
 	}
 	if len(entries) > policy.maxEntries {
 		return webspaceFileFailure(job.ID, "size_limit_exceeded", fmt.Errorf("directory entry limit exceeded")), nil
@@ -98,13 +106,16 @@ func handleWebspaceFileRead(job jobs.Job) (jobs.Result, func() error) {
 		return webspaceFileFailure(job.ID, "invalid_payload", fmt.Errorf("missing required values: name")), nil
 	}
 
-	target, err := sanitizeWebspacePath(root, filepath.Join(relativePath, filename))
+	r, err := openWebspaceRoot(root)
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	info, err := os.Stat(target)
+	defer r.Close()
+
+	rel := cleanRelativePath(filepath.Join(relativePath, filename))
+	info, err := r.Stat(rel)
 	if err != nil {
-		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat %s: %w", target, err)), nil
+		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat: %w", err)), nil
 	}
 	if info.IsDir() {
 		return webspaceFileFailure(job.ID, "path_invalid", fmt.Errorf("path is a directory")), nil
@@ -113,10 +124,19 @@ func handleWebspaceFileRead(job jobs.Job) (jobs.Result, func() error) {
 		return webspaceFileFailure(job.ID, "size_limit_exceeded", fmt.Errorf("file exceeds max_bytes")), nil
 	}
 
-	content, err := os.ReadFile(target)
+	f, err := r.Open(rel)
 	if err != nil {
-		return webspaceFileFailure(job.ID, "fs_read_failed", fmt.Errorf("read file %s: %w", target, err)), nil
+		return webspaceFileFailure(job.ID, "fs_read_failed", fmt.Errorf("open file: %w", err)), nil
 	}
+	content, readErr := io.ReadAll(io.LimitReader(f, int64(policy.maxBytes)+1))
+	_ = f.Close()
+	if readErr != nil {
+		return webspaceFileFailure(job.ID, "fs_read_failed", fmt.Errorf("read file: %w", readErr)), nil
+	}
+	if len(content) > policy.maxBytes {
+		return webspaceFileFailure(job.ID, "size_limit_exceeded", fmt.Errorf("file exceeds max_bytes")), nil
+	}
+
 	if err := ensureWebspaceFileTimeout(startedAt, policy.timeout); err != nil {
 		return webspaceFileFailure(job.ID, "operation_timeout", err), nil
 	}
@@ -145,22 +165,38 @@ func handleWebspaceFileWrite(job jobs.Job) (jobs.Result, func() error) {
 		return webspaceFileFailure(job.ID, "size_limit_exceeded", fmt.Errorf("content exceeds max_bytes")), nil
 	}
 
-	target, err := sanitizeWebspacePath(root, filepath.Join(relativePath, filename))
+	r, err := openWebspaceRoot(root)
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	if _, err := os.Stat(filepath.Dir(target)); err != nil {
+	defer r.Close()
+
+	rel := cleanRelativePath(filepath.Join(relativePath, filename))
+
+	parentRel := filepath.Dir(rel)
+	if parentRel == "" {
+		parentRel = "."
+	}
+	if _, err := r.Stat(parentRel); err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", fmt.Errorf("parent directory missing: %w", err)), nil
 	}
-	if err := os.WriteFile(target, content, webspaceFilesFileMode); err != nil {
-		return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("write file %s: %w", target, err)), nil
+
+	f, err := r.OpenFile(rel, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, webspaceFilesFileMode)
+	if err != nil {
+		return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("open file for write: %w", err)), nil
 	}
+	_, writeErr := f.Write(content)
+	_ = f.Close()
+	if writeErr != nil {
+		return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("write file: %w", writeErr)), nil
+	}
+
 	if err := ensureWebspaceFileTimeout(startedAt, policy.timeout); err != nil {
 		return webspaceFileFailure(job.ID, "operation_timeout", err), nil
 	}
-	info, err := os.Stat(target)
+	info, err := r.Stat(rel)
 	if err != nil {
-		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat %s: %w", target, err)), nil
+		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat after write: %w", err)), nil
 	}
 
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"root_path": root, "path": relativePath, "name": filename, "size": strconv.FormatInt(info.Size(), 10), "modified_at": info.ModTime().UTC().Format(webspaceFilesTimeFormat), "mode": info.Mode().String()}, Completed: time.Now().UTC()}, nil
@@ -181,20 +217,27 @@ func handleWebspaceFileDelete(job jobs.Job) (jobs.Result, func() error) {
 		return webspaceFileFailure(job.ID, "path_invalid", fmt.Errorf("refusing to delete root")), nil
 	}
 
-	target, err := sanitizeWebspacePath(root, targetRelative)
+	r, err := openWebspaceRoot(root)
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	info, err := os.Stat(target)
+	defer r.Close()
+
+	rel := cleanRelativePath(targetRelative)
+	if rel == "." {
+		return webspaceFileFailure(job.ID, "path_invalid", fmt.Errorf("refusing to delete root")), nil
+	}
+
+	info, err := r.Stat(rel)
 	if err != nil {
-		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat %s: %w", target, err)), nil
+		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat: %w", err)), nil
 	}
 	if info.IsDir() {
-		if err := os.RemoveAll(target); err != nil {
-			return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("remove dir %s: %w", target, err)), nil
+		if err := rootRemoveAll(r, rel); err != nil {
+			return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("remove dir: %w", err)), nil
 		}
-	} else if err := os.Remove(target); err != nil {
-		return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("remove file %s: %w", target, err)), nil
+	} else if err := r.Remove(rel); err != nil {
+		return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("remove file: %w", err)), nil
 	}
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"root_path": root, "path": relativePath, "name": filename}, Completed: time.Now().UTC()}, nil
 }
@@ -210,19 +253,96 @@ func handleWebspaceFileMkdir(job jobs.Job) (jobs.Result, func() error) {
 		return webspaceFileFailure(job.ID, "invalid_payload", fmt.Errorf("missing required values: name")), nil
 	}
 
-	target, err := sanitizeWebspacePath(root, filepath.Join(relativePath, dirName))
+	r, err := openWebspaceRoot(root)
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	if err := os.MkdirAll(target, 0o750); err != nil {
-		return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("create directory %s: %w", target, err)), nil
+	defer r.Close()
+
+	rel := cleanRelativePath(filepath.Join(relativePath, dirName))
+	if err := rootMkdirAll(r, rel, 0o750); err != nil {
+		return webspaceFileFailure(job.ID, "fs_write_failed", fmt.Errorf("create directory: %w", err)), nil
 	}
-	info, err := os.Stat(target)
+	info, err := r.Stat(rel)
 	if err != nil {
-		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat %s: %w", target, err)), nil
+		return webspaceFileFailure(job.ID, "fs_stat_failed", fmt.Errorf("stat after mkdir: %w", err)), nil
 	}
 
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"root_path": root, "path": relativePath, "name": dirName, "modified_at": info.ModTime().UTC().Format(webspaceFilesTimeFormat), "mode": info.Mode().String()}, Completed: time.Now().UTC()}, nil
+}
+
+// openWebspaceRoot opens a root directory with TOCTOU-safe semantics via os.OpenRoot.
+// All subsequent file operations through the returned *os.Root use openat(O_NOFOLLOW)
+// internally, preventing symlink-based path escapes.
+func openWebspaceRoot(root string) (*os.Root, error) {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("open root %s: %w", root, err)
+	}
+	return r, nil
+}
+
+// cleanRelativePath normalises an untrusted relative path for use with os.Root.
+// It strips leading slashes and collapses . and .. components. The result is
+// always relative (never starts with /) and never empty ("." is returned for the root).
+func cleanRelativePath(p string) string {
+	clean := filepath.Clean("/" + p)
+	rel := strings.TrimPrefix(clean, "/")
+	if rel == "" {
+		return "."
+	}
+	return rel
+}
+
+// rootMkdirAll creates the named directory and all missing parents using r.Mkdir,
+// mirroring os.MkdirAll semantics but confined within the os.Root.
+func rootMkdirAll(r *os.Root, name string, perm os.FileMode) error {
+	parts := strings.Split(filepath.Clean(name), string(filepath.Separator))
+	current := ""
+	for _, part := range parts {
+		if part == "" || part == "." {
+			continue
+		}
+		if current == "" {
+			current = part
+		} else {
+			current = filepath.Join(current, part)
+		}
+		if err := r.Mkdir(current, perm); err != nil && !os.IsExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// rootRemoveAll removes name and all children using only os.Root operations,
+// mirroring os.RemoveAll semantics but confined within the os.Root.
+func rootRemoveAll(r *os.Root, name string) error {
+	info, err := r.Stat(name)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return r.Remove(name)
+	}
+	f, err := r.Open(name)
+	if err != nil {
+		return err
+	}
+	children, err := f.ReadDir(-1)
+	_ = f.Close()
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		if err := rootRemoveAll(r, filepath.Join(name, child.Name())); err != nil {
+			return err
+		}
+	}
+	return r.Remove(name)
 }
 
 func prepareWebspaceFileOperation(job jobs.Job, readOnly bool) (string, string, webspaceFilePolicy, func(), jobs.Result, bool) {
@@ -298,29 +418,6 @@ func lockWebspaceFiles(payload map[string]any, root string) (func(), error) {
 	return func() { lock.Unlock() }, nil
 }
 
-func sanitizeWebspacePath(root, relativePath string) (string, error) {
-	cleanRelative := filepath.Clean("/" + relativePath)
-	cleanRelative = strings.TrimPrefix(cleanRelative, "/")
-	evaluatedRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return "", fmt.Errorf("resolve root: %w", err)
-	}
-	joined := filepath.Join(evaluatedRoot, cleanRelative)
-	normalized := filepath.Clean(joined)
-	parent := filepath.Dir(normalized)
-	if parentEval, err := filepath.EvalSymlinks(parent); err == nil {
-		normalized = filepath.Join(parentEval, filepath.Base(normalized))
-	}
-	relativeToRoot, err := filepath.Rel(evaluatedRoot, normalized)
-	if err != nil {
-		return "", fmt.Errorf("resolve relative path: %w", err)
-	}
-	if strings.HasPrefix(relativeToRoot, ".."+string(filepath.Separator)) || relativeToRoot == ".." {
-		return "", fmt.Errorf("path escapes root")
-	}
-	return normalized, nil
-}
-
 func webspaceFileFailure(jobID, code string, err error) jobs.Result {
 	return webspaceFileFailureNow(jobID, code, sanitizeOutput(err.Error()))
 }
@@ -332,7 +429,8 @@ func webspaceFileFailureNow(jobID, code, message string) jobs.Result {
 func encodeWebspaceEntries(entries []webspaceFileEntry) string {
 	encoded := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		encoded = append(encoded, fmt.Sprintf("%s|%d|%s|%s|%t", entry.name, entry.size, entry.mode.String(), entry.modifiedAt.UTC().Format(webspaceFilesTimeFormat), entry.isDir))
+		safeName := strings.ReplaceAll(strings.ReplaceAll(entry.name, "\\", "\\\\"), "|", "\\|")
+		encoded = append(encoded, fmt.Sprintf("%s|%d|%s|%s|%t", safeName, entry.size, entry.mode.String(), entry.modifiedAt.UTC().Format(webspaceFilesTimeFormat), entry.isDir))
 	}
 	return strings.Join(encoded, "\n")
 }

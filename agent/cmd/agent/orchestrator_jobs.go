@@ -203,6 +203,13 @@ func handleTs3InstanceAction(job jobs.Job) orchestratorResult {
 	}
 }
 
+var allowedServiceActions = map[string]bool{
+	"start": true, "stop": true, "restart": true,
+	"reload": true, "enable": true, "disable": true,
+}
+
+var serviceNameRegex = regexp.MustCompile(`^[a-zA-Z0-9._@-]{1,128}$`)
+
 func handleServiceAction(job jobs.Job) orchestratorResult {
 	serviceName := payloadValue(job.Payload, "service_name")
 	action := strings.ToLower(payloadValue(job.Payload, "action"))
@@ -211,6 +218,12 @@ func handleServiceAction(job jobs.Job) orchestratorResult {
 			status:    "failed",
 			errorText: "missing service_name or action",
 		}
+	}
+	if !allowedServiceActions[action] {
+		return orchestratorResult{status: "failed", errorText: "invalid action: must be start, stop, restart, reload, enable, or disable"}
+	}
+	if !serviceNameRegex.MatchString(serviceName) {
+		return orchestratorResult{status: "failed", errorText: "invalid service_name: contains disallowed characters"}
 	}
 
 	if runtime.GOOS == "windows" {
@@ -296,6 +309,23 @@ func resolveTeamspeakVersionForStatus(job jobs.Job) string {
 	return ""
 }
 
+// validateDownloadURL checks that a download URL is safe to use in shell-interpolated contexts
+// such as PowerShell -Command strings. It rejects URLs with schemes other than http/https and
+// any characters that could break out of a double-quoted PowerShell argument.
+func validateDownloadURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid download_url: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("download_url must use http or https scheme")
+	}
+	if strings.ContainsAny(rawURL, "\"\n\r`$;|&") {
+		return fmt.Errorf("download_url contains disallowed characters")
+	}
+	return nil
+}
+
 func extractVersionFromDownloadURL(downloadURL string) string {
 	if downloadURL == "" {
 		return ""
@@ -357,6 +387,9 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
+	}
+	if err := validateDownloadURL(downloadURL); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
 	if err := ensureInstanceDir(installDir); err != nil {
@@ -427,9 +460,16 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
+	envFilePath := filepath.Join("/etc/easywi/systemd", fmt.Sprintf("%s.env", serviceName))
+	if err := os.MkdirAll(filepath.Dir(envFilePath), 0o700); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := writeFileWithMode(envFilePath, fmt.Sprintf("TS3_ADMIN_PASSWORD=%s\n", adminPassword), 0o600); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	startCommand := fmt.Sprintf("/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1 serveradmin_password=%s", quotePOSIXShellArg(adminPassword))
-	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, startCommand, "", 0, 0)
+	startCommand := fmt.Sprintf("/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1 serveradmin_password=${TS3_ADMIN_PASSWORD}")
+	unitContent := systemdUnitTemplateWithEnvFile(serviceName, serviceUser, installDir, installDir, startCommand, "", envFilePath, 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -473,6 +513,9 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
+	}
+	if err := validateDownloadURL(downloadURL); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
 	if err := ensureInstanceDir(installDir); err != nil {
@@ -602,6 +645,9 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
+	}
+	if err := validateDownloadURL(downloadURL); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if serviceUser == "" {
 		serviceUser = "sinusbot"
@@ -998,8 +1044,7 @@ func installSinusbotTs3Client(installDir, downloadURL, serviceUser string) (stri
 		return "", err
 	}
 
-	command := fmt.Sprintf("%q --accept --target %q --quiet </dev/null >/dev/null 2>&1", archivePath, ts3ClientDir)
-	if err := runCommand("bash", "-c", command); err != nil {
+	if err := runCommand(archivePath, "--accept", "--target", ts3ClientDir, "--quiet"); err != nil {
 		if err := runCommand(archivePath, "--quiet", "--target", ts3ClientDir); err != nil {
 			if err := runCommand(archivePath, "--accept", "--target", ts3ClientDir); err != nil {
 				if err := runCommand("bash", archivePath, "--target", ts3ClientDir); err != nil {
@@ -1515,6 +1560,10 @@ func writeFile(path string, content string) error {
 	return os.WriteFile(path, []byte(content), instanceFileMode)
 }
 
+func writeFileWithMode(path, content string, mode os.FileMode) error {
+	return os.WriteFile(path, []byte(content), mode)
+}
+
 func handleTs6InstanceCreate(job jobs.Job) orchestratorResult {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
@@ -1671,7 +1720,7 @@ func handleTs6InstanceUpdate(job jobs.Job) orchestratorResult {
 			if err != nil {
 				return orchestratorResult{status: "failed", errorText: err.Error()}
 			}
-			cmd := fmt.Sprintf("cd %s && %s", instanceDir, rendered)
+			cmd := fmt.Sprintf("cd %s && %s", shellEscape(instanceDir), rendered)
 			if err := runCommandAsUser("ts6", cmd); err != nil {
 				return orchestratorResult{status: "failed", errorText: fmt.Sprintf("update command failed: %v", err)}
 			}

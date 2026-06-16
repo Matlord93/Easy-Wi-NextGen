@@ -8,10 +8,13 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+var systemdFieldSafeRegex = regexp.MustCompile(`^[^\n\r%]+$`)
 
 // systemctlBin is the systemctl binary path. Override in tests.
 var systemctlBin = "systemctl"
@@ -67,7 +70,22 @@ func serviceStatus(serviceName string) string {
 	}
 }
 
+func validateSystemdField(name, value string) error {
+	if !systemdFieldSafeRegex.MatchString(value) {
+		return fmt.Errorf("systemd unit field %q contains disallowed characters (newlines or %%)", name)
+	}
+	return nil
+}
+
 func systemdUnitTemplate(serviceName, user, workingDir, readWritePath, startCommand, startParams string, cpuLimit, ramLimit int) string {
+	for _, f := range []struct{ name, val string }{
+		{"service_name", serviceName}, {"user", user},
+		{"working_dir", workingDir}, {"read_write_path", readWritePath},
+	} {
+		if err := validateSystemdField(f.name, f.val); err != nil {
+			return fmt.Sprintf("# invalid unit: %v\n", err)
+		}
+	}
 	command := strings.TrimSpace(startCommand)
 	if startParams != "" && !strings.Contains(startCommand, startParams) {
 		command = strings.TrimSpace(command + " " + startParams)

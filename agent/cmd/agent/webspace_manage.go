@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -14,6 +16,64 @@ import (
 
 	"easywi/agent/internal/jobs"
 )
+
+const webspaceRootPrefix = "/var/www/"
+
+var cronUsernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,32}$`)
+var allowedGitSchemes = map[string]bool{"https": true, "http": true, "git": true}
+var cronTaskLineRegex = regexp.MustCompile(`^(@(reboot|hourly|daily|weekly|monthly|annually|yearly)|(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+))\s+\S`)
+
+func validateWebspaceRoot(path string) error {
+	if path == "" {
+		return fmt.Errorf("web_root cannot be empty")
+	}
+	cleaned := filepath.Clean(path)
+	if !strings.HasPrefix(cleaned, webspaceRootPrefix) {
+		return fmt.Errorf("web_root must be under %s", webspaceRootPrefix)
+	}
+	return nil
+}
+
+func validateBackupPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("backup_path cannot be empty")
+	}
+	cleaned := filepath.Clean(path)
+	if !strings.HasPrefix(cleaned, webspaceBackupDir+"/") && cleaned != webspaceBackupDir {
+		return fmt.Errorf("backup_path must be under %s", webspaceBackupDir)
+	}
+	return nil
+}
+
+func validateCronTasks(tasks string) error {
+	for _, line := range strings.Split(tasks, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if !cronTaskLineRegex.MatchString(line) {
+			return fmt.Errorf("invalid cron task line: %q", line)
+		}
+	}
+	return nil
+}
+
+func validateGitRepoURL(rawURL string) error {
+	if rawURL == "" {
+		return fmt.Errorf("repo_url cannot be empty")
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid repo_url: %w", err)
+	}
+	if !allowedGitSchemes[strings.ToLower(parsed.Scheme)] {
+		return fmt.Errorf("repo_url scheme %q is not allowed; use https, http, or git", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("repo_url must include a host")
+	}
+	return nil
+}
 
 const webspaceBackupDir = "/var/lib/easywi/web/backups"
 
@@ -109,6 +169,9 @@ func handleWebspaceBackup(job jobs.Job) (jobs.Result, func() error) {
 	if webRoot == "" {
 		return failureResult(job.ID, fmt.Errorf("missing web_root"))
 	}
+	if err := validateWebspaceRoot(webRoot); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	if label == "" {
 		label = time.Now().UTC().Format("20060102-150405")
@@ -143,6 +206,12 @@ func handleWebspaceRestore(job jobs.Job) (jobs.Result, func() error) {
 
 	if webRoot == "" || backupPath == "" {
 		return failureResult(job.ID, fmt.Errorf("missing web_root or backup_path"))
+	}
+	if err := validateWebspaceRoot(webRoot); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := validateBackupPath(backupPath); err != nil {
+		return failureResult(job.ID, err)
 	}
 
 	if err := runCommand("tar", "-xzf", backupPath, "-C", filepath.Dir(webRoot)); err != nil {
@@ -201,6 +270,14 @@ func handleWebspaceCronUpdate(job jobs.Job) (jobs.Result, func() error) {
 	if username == "" {
 		return failureResult(job.ID, fmt.Errorf("missing owner_user"))
 	}
+	if !cronUsernameRegex.MatchString(username) {
+		return failureResult(job.ID, fmt.Errorf("owner_user contains invalid characters"))
+	}
+	if strings.TrimSpace(cronTasks) != "" {
+		if err := validateCronTasks(cronTasks); err != nil {
+			return failureResult(job.ID, err)
+		}
+	}
 
 	cronPath := filepath.Join("/etc/cron.d", fmt.Sprintf("easywi-webspace-%s", username))
 	content := "SHELL=/bin/sh\nPATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\n\n"
@@ -229,6 +306,9 @@ func handleWebspaceGitDeploy(job jobs.Job) (jobs.Result, func() error) {
 
 	if repoURL == "" || docroot == "" {
 		return failureResult(job.ID, fmt.Errorf("missing repo_url or docroot"))
+	}
+	if err := validateGitRepoURL(repoURL); err != nil {
+		return failureResult(job.ID, err)
 	}
 	if branch == "" {
 		branch = "main"

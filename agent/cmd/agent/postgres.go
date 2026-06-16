@@ -5,11 +5,33 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"easywi/agent/internal/jobs"
 )
+
+var pgHBAPathPrefixes = []string{
+	"/etc/postgresql/",
+	"/var/lib/pgsql/",
+	"/var/lib/postgresql/",
+}
+
+var pgAllowedAuthMethods = map[string]bool{
+	"scram-sha-256": true,
+	"md5":           true,
+	"password":      true,
+	"trust":         false,
+	"reject":        false,
+	"peer":          true,
+	"ident":         true,
+	"cert":          true,
+	"gss":           true,
+	"sspi":          true,
+}
+
+var pgHBAPathRegex = regexp.MustCompile(`^[a-zA-Z0-9/_.-]+$`)
 
 const (
 	pgHBAFileMode = 0o640
@@ -114,6 +136,13 @@ func handlePostgresGrantApply(job jobs.Job) (jobs.Result, func() error) {
 	if authMethod == "" {
 		authMethod = "scram-sha-256"
 	}
+	if _, allowed := pgAllowedAuthMethods[authMethod]; !allowed {
+		return failureResult(job.ID, fmt.Errorf("unsupported auth_method %q; allowed: scram-sha-256, md5, password, peer, ident, cert, gss, sspi", authMethod))
+	}
+
+	if err := validatePgHBAPath(pgHBAPath); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	pgHBAEntry := fmt.Sprintf("host %s %s %s %s", database, username, normalizedSubnet, authMethod)
 	if err := ensurePgHBAEntry(pgHBAPath, pgHBAEntry); err != nil {
@@ -163,6 +192,19 @@ func normalizeSubnet(subnet string) (string, error) {
 		return fmt.Sprintf("%s/32", ip.String()), nil
 	}
 	return fmt.Sprintf("%s/128", ip.String()), nil
+}
+
+func validatePgHBAPath(path string) error {
+	cleaned := filepath.Clean(path)
+	if !pgHBAPathRegex.MatchString(cleaned) {
+		return fmt.Errorf("pg_hba_path contains invalid characters")
+	}
+	for _, prefix := range pgHBAPathPrefixes {
+		if strings.HasPrefix(cleaned, prefix) {
+			return nil
+		}
+	}
+	return fmt.Errorf("pg_hba_path must be under a known PostgreSQL config directory (/etc/postgresql/, /var/lib/pgsql/, /var/lib/postgresql/)")
 }
 
 func ensurePgHBAEntry(path, entry string) error {

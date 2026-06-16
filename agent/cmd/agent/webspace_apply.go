@@ -18,6 +18,19 @@ var (
 	webspaceApplyLocks sync.Map
 )
 
+const nginxVhostBaseDir = "/etc/easywi/web/nginx/vhosts/"
+
+func validateNginxVhostPath(path string) error {
+	if path == "" {
+		return nil
+	}
+	cleaned := filepath.Clean(path)
+	if !strings.HasPrefix(cleaned, nginxVhostBaseDir) {
+		return fmt.Errorf("nginx_vhost_path must be under %s", nginxVhostBaseDir)
+	}
+	return nil
+}
+
 func handleWebspaceApply(job jobs.Job) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
 		return handleWebspaceApplyWindows(job)
@@ -194,6 +207,9 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	if action == "remove" {
 		vhost := strings.TrimSpace(payloadValue(job.Payload, "nginx_vhost_path", "vhost_path"))
 		if vhost != "" {
+			if err := validateNginxVhostPath(vhost); err != nil {
+				return webspaceApplyFailure(job.ID, "invalid_vhost_path", err.Error()), nil
+			}
 			if _, isProtected := protectedVhosts[vhost]; isProtected {
 				return webspaceApplyFailure(job.ID, "panel_vhost_protected", "refusing to remove panel vhost: "+vhost), nil
 			}
@@ -242,7 +258,10 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 
 		vhost := strings.TrimSpace(payloadValue(job.Payload, "nginx_vhost_path", "vhost_path"))
 		if vhost == "" {
-			vhost = filepath.Join("/etc/easywi/web/nginx/vhosts", domainName+".conf")
+			vhost = filepath.Join(nginxVhostBaseDir, domainName+".conf")
+		}
+		if err := validateNginxVhostPath(vhost); err != nil {
+			return webspaceApplyFailure(job.ID, "invalid_vhost_path", err.Error()), nil
 		}
 		if _, isProtected := protectedVhosts[vhost]; isProtected {
 			return webspaceApplyFailure(job.ID, "panel_vhost_protected", "refusing to overwrite panel vhost: "+vhost), nil

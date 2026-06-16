@@ -3,6 +3,7 @@ package gamesvcembed
 import (
 	"easywi/agent/internal/apienvelope"
 	"easywi/agent/internal/trace"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -22,6 +23,19 @@ type Server struct {
 	config    Config
 	processes map[string]*exec.Cmd
 	mu        sync.Mutex
+}
+
+func (s *Server) validateBearerToken(r *http.Request) bool {
+	expected := strings.TrimSpace(s.config.BearerToken)
+	if expected == "" {
+		return false
+	}
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return false
+	}
+	received := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	return subtle.ConstantTimeCompare([]byte(received), []byte(expected)) == 1
 }
 
 func (s *Server) Handler() http.Handler {
@@ -64,6 +78,10 @@ type portCheckResult struct {
 func (s *Server) handleCheckFree(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
+		return
+	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
 		return
 	}
 	var req checkFreeRequest
@@ -130,6 +148,10 @@ func (s *Server) handleRenderConfig(w http.ResponseWriter, r *http.Request) {
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
+		return
+	}
 	var req renderConfigRequest
 	if err := readJSON(r.Body, &req); err != nil {
 		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
@@ -140,12 +162,15 @@ func (s *Server) handleRenderConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	baseTemplateDir := s.config.TemplateDir
-	if req.TemplateDir != "" {
-		baseTemplateDir = req.TemplateDir
-	}
 	baseOutputDir := filepath.Join(s.config.BaseDir, req.InstanceID)
 	if req.OutputDir != "" {
-		baseOutputDir = req.OutputDir
+		cleanOut := filepath.Clean(req.OutputDir)
+		cleanBase := filepath.Clean(s.config.BaseDir)
+		if !strings.HasPrefix(cleanOut, cleanBase+string(os.PathSeparator)) {
+			apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, "output_dir must be under the configured base directory", nil)
+			return
+		}
+		baseOutputDir = cleanOut
 	}
 
 	for _, file := range req.Files {
@@ -221,6 +246,10 @@ func (s *Server) handleStartInstance(w http.ResponseWriter, r *http.Request) {
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
+		return
+	}
 	var req startInstanceRequest
 	if err := readJSON(r.Body, &req); err != nil {
 		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
@@ -294,6 +323,10 @@ func (s *Server) handleStopInstance(w http.ResponseWriter, r *http.Request) {
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
+		return
+	}
 	var req stopInstanceRequest
 	if err := readJSON(r.Body, &req); err != nil {
 		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
@@ -324,6 +357,10 @@ func (s *Server) handleStopInstance(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleInstanceStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
+		return
+	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
 		return
 	}
 	var req instanceStatusRequest

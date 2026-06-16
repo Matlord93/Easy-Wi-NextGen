@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -428,12 +429,14 @@ func normalizeAbsolutePath(path string) (string, error) {
 	return cleaned, nil
 }
 
+var sftpUsernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,32}$`)
+
 func validateSftpUsername(username string) error {
 	if strings.TrimSpace(username) == "" {
 		return fmt.Errorf("username cannot be empty")
 	}
-	if strings.ContainsAny(username, " \t\n") {
-		return fmt.Errorf("username contains invalid whitespace")
+	if !sftpUsernameRegex.MatchString(username) {
+		return fmt.Errorf("username must contain only letters, digits, hyphens, or underscores (max 32 chars)")
 	}
 	return nil
 }

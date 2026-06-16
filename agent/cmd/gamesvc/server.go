@@ -3,6 +3,7 @@ package main
 import (
 	"easywi/agent/internal/apienvelope"
 	"easywi/agent/internal/trace"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -106,6 +107,15 @@ func (s *gameServer) handleCreateServer(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if err := validateGameServerPath(req.MasterDir, "master_dir"); err != nil {
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, err.Error(), nil)
+		return
+	}
+	if err := validateGameServerPath(req.TargetDir, "target_dir"); err != nil {
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, err.Error(), nil)
+		return
+	}
+
 	actions, err := applyGameTemplateProfile(req.MasterDir, req.TargetDir, profile)
 	if err != nil {
 		apienvelope.WriteError(w, r, http.StatusInternalServerError, apienvelope.ErrorInternal, err.Error(), map[string]any{"actions": actions})
@@ -125,7 +135,7 @@ func (s *gameServer) validateBearerToken(r *http.Request) bool {
 		return false
 	}
 	received := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
-	return received == expected
+	return subtle.ConstantTimeCompare([]byte(received), []byte(expected)) == 1
 }
 
 func applyGameTemplateProfile(masterDir, targetDir string, profile gameTemplateProfile) ([]string, error) {
@@ -196,6 +206,10 @@ func (s *gameServer) handleCheckFree(w http.ResponseWriter, r *http.Request) {
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
+		return
+	}
 	var req checkFreeRequest
 	if err := readJSON(r.Body, &req); err != nil {
 		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
@@ -260,6 +274,10 @@ func (s *gameServer) handleRenderConfig(w http.ResponseWriter, r *http.Request) 
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
+		return
+	}
 	var req renderConfigRequest
 	if err := readJSON(r.Body, &req); err != nil {
 		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
@@ -270,11 +288,12 @@ func (s *gameServer) handleRenderConfig(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	baseTemplateDir := s.config.TemplateDir
-	if req.TemplateDir != "" {
-		baseTemplateDir = req.TemplateDir
-	}
 	baseOutputDir := filepath.Join(s.config.BaseDir, req.InstanceID)
 	if req.OutputDir != "" {
+		if err := validateGameServerPath(req.OutputDir, "output_dir"); err != nil {
+			apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, err.Error(), nil)
+			return
+		}
 		baseOutputDir = req.OutputDir
 	}
 
@@ -346,6 +365,10 @@ type startInstanceRequest struct {
 func (s *gameServer) handleStartInstance(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
+		return
+	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
 		return
 	}
 	var req startInstanceRequest
@@ -421,6 +444,10 @@ func (s *gameServer) handleStopInstance(w http.ResponseWriter, r *http.Request) 
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
+		return
+	}
 	var req stopInstanceRequest
 	if err := readJSON(r.Body, &req); err != nil {
 		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
@@ -451,6 +478,10 @@ func (s *gameServer) handleStopInstance(w http.ResponseWriter, r *http.Request) 
 func (s *gameServer) handleInstanceStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
+		return
+	}
+	if !s.validateBearerToken(r) {
+		apienvelope.WriteError(w, r, http.StatusUnauthorized, apienvelope.ErrorValidationFailed, "invalid bearer token", nil)
 		return
 	}
 	var req instanceStatusRequest
@@ -505,6 +536,25 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func fmtPort(port int) string {
 	return strconv.Itoa(port)
+}
+
+var allowedGameBaseDirs = []string{
+	"/opt/easywi/instances/",
+	"/opt/easywi/masters/",
+	"/home/",
+}
+
+func validateGameServerPath(path, field string) error {
+	if path == "" {
+		return errors.New(field + " is required")
+	}
+	cleaned := filepath.Clean(path)
+	for _, base := range allowedGameBaseDirs {
+		if strings.HasPrefix(cleaned, base) {
+			return nil
+		}
+	}
+	return errors.New(field + " must be under an allowed game server directory")
 }
 
 func init() {

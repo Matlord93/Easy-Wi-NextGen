@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
 	"easywi/agent/internal/jobs"
 )
+
+var sftpGroupNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
 const coreSshPolicyConfigPath = "/etc/ssh/sshd_config.d/70-easywi-core.conf"
 
@@ -40,6 +43,9 @@ func handleCoreSshPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 
 	if accessMode != "ssh_key_only" && accessMode != "ssh_key_password" {
 		return failureResult(job.ID, fmt.Errorf("invalid access_mode"))
+	}
+	if !sftpGroupNameRegex.MatchString(sftpGroup) {
+		return failureResult(job.ID, fmt.Errorf("sftp_group contains invalid characters"))
 	}
 
 	if accessMode == "ssh_key_only" && !hasAnyAuthorizedKeys(authorizedKeysPath) && !hasAnyAuthorizedKeys("/root/.ssh/authorized_keys") {
