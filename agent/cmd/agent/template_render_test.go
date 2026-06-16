@@ -25,6 +25,27 @@ func TestExtractFirstCommandTokenReturnsNormalBinary(t *testing.T) {
 	}
 }
 
+func TestExtractFirstCommandTokenSkipsCdPreamble(t *testing.T) {
+	token := extractFirstCommandToken(`cd /home/gs36; export WINEPREFIX="/home/gs36/.wine" WINEARCH=win64; wine R5/Binaries/Win64/server.exe -log`)
+	if token != "wine" {
+		t.Fatalf("expected wine after cd/export preamble, got %q", token)
+	}
+}
+
+func TestExtractFirstCommandTokenSkipsOnlyCdPreamble(t *testing.T) {
+	token := extractFirstCommandToken(`cd /home/gs36`)
+	if token != "" {
+		t.Fatalf("expected empty token for cd-only command, got %q", token)
+	}
+}
+
+func TestValidateBinaryExistsDoesNotResolveCdAsInstanceBinary(t *testing.T) {
+	instanceDir := t.TempDir()
+	if err := validateBinaryExists(instanceDir, `cd /home/gs36`); err != nil {
+		t.Fatalf("cd is a shell builtin and must not be resolved below the instance dir: %v", err)
+	}
+}
+
 func TestWriteStartScriptWritesCommandDirectly(t *testing.T) {
 	instanceDir := t.TempDir()
 

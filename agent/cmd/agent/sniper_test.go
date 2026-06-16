@@ -185,6 +185,19 @@ func TestStripWineBootstrapRemovesDanglingQuoteAfterBootstrapRemoval(t *testing.
 	}
 }
 
+func TestStripWineBootstrapPreservesEscapedQuotesWithoutBootstrap(t *testing.T) {
+	command := `bash -lc "set -e; steamcmd +force_install_dir /home/gs36 +login anonymous +app_update 4129620 validate +quit; cd /home/gs36; export WINEPREFIX=\"/home/gs36/.wine\" WINEARCH=win64; if [ ! -d \"$WINEPREFIX\" ]; then wineboot --init >/dev/null 2>&1 || true; fi"`
+
+	stripped := stripWineBootstrap(command)
+
+	if stripped != command {
+		t.Fatalf("expected command without privileged bootstrap to be preserved, got %q", stripped)
+	}
+	if !strings.Contains(stripped, `WINEPREFIX=\"/home/gs36/.wine\"`) {
+		t.Fatalf("expected escaped WINEPREFIX quotes to be preserved, got %q", stripped)
+	}
+}
+
 func TestBuildSniperInstallShellCommandUsesSharedWorkDirWhenEnabled(t *testing.T) {
 	instanceDir := "/home/gs21"
 	sharedDir := "/srv/gs/Shared/cs2/server"

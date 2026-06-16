@@ -157,6 +157,18 @@ final class GameTemplateSeedCatalogTest extends TestCase
         self::assertContains('MAX_PLAYERS', $keys, 'Bedrock env_vars should include MAX_PLAYERS');
     }
 
+    public function testWindroseLinuxInstallCommandKeepsEscapedBashQuotes(): void
+    {
+        $command = (string) ($this->templates['windrose']['install_command'] ?? '');
+
+        self::assertStringStartsWith('bash -lc "set -e;', $command);
+        self::assertStringEndsWith('fi"', $command);
+        self::assertStringContainsString('WINEARCH=win64', $command);
+        self::assertStringContainsString('WINEPREFIX=\"{{INSTANCE_DIR}}/.wine\"', $command);
+        self::assertStringContainsString('--server-args=\"-screen 0 1024x768x24\"', $command);
+        self::assertStringNotContainsString("bash -lc 'set -e;", $command);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

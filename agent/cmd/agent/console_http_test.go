@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +13,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"easywi/agent/internal/fileapi"
+	"easywi/agent/internal/jobs"
 )
 
 type nopReadCloser struct{ io.Reader }
@@ -225,5 +231,76 @@ func TestConsoleLogsSupportsLastOffsetQuery(t *testing.T) {
 	meta, _ := data["meta"].(map[string]any)
 	if _, ok := meta["dropped_lines"]; !ok {
 		t.Fatalf("expected dropped_lines metric in meta")
+	}
+}
+
+func TestConsoleHTTPSubroutesRequireAndAcceptHMAC(t *testing.T) {
+	cfg := fileapi.Config{AgentID: "agent-1", Secret: "shared-secret", MaxSkew: 5 * time.Minute}
+	handler := withInstanceSubRouteAuth(cfg, http.HandlerFunc(handleInstanceQueryHTTP))
+
+	unsigned := httptest.NewRequest(http.MethodGet, "/v1/instances/8/console/logs", nil)
+	unsignedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(unsignedRecorder, unsigned)
+	if unsignedRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unsigned request to return 401, got %d", unsignedRecorder.Code)
+	}
+
+	origLookup := lookupCommand
+	defer func() { lookupCommand = origLookup }()
+	lookupCommand = func(file string) (string, error) { return "", fmt.Errorf("missing") }
+
+	signed := httptest.NewRequest(http.MethodGet, "/v1/instances/8/console/logs?cursor=abc", nil)
+	signConsoleTestRequest(signed, "agent-1", "7", "shared-secret")
+	signedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(signedRecorder, signed)
+	if signedRecorder.Code != http.StatusOK {
+		t.Fatalf("expected signed request to return 200, got %d body=%s", signedRecorder.Code, signedRecorder.Body.String())
+	}
+}
+
+func TestConsoleCommandSubrouteAcceptsHMAC(t *testing.T) {
+	origWrite := writeConsoleCommand
+	defer func() { writeConsoleCommand = origWrite }()
+	writeConsoleCommand = func(socketPath, command string) error { return nil }
+
+	cfg := fileapi.Config{AgentID: "agent-1", Secret: "shared-secret", MaxSkew: 5 * time.Minute}
+	handler := withInstanceSubRouteAuth(cfg, http.HandlerFunc(handleInstanceQueryHTTP))
+	req := httptest.NewRequest(http.MethodPost, "/v1/instances/7/console/command", strings.NewReader(`{"command":"status"}`))
+	req.Header.Set("Content-Type", "application/json")
+	signConsoleTestRequest(req, "agent-1", "7", "shared-secret")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK && w.Code != http.StatusConflict {
+		t.Fatalf("expected authenticated command request to reach handler, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func signConsoleTestRequest(req *http.Request, agentID, customerID, secret string) {
+	ts := time.Now().UTC().Format(time.RFC3339)
+	payload := fmt.Sprintf("%s\n%s\n%s\n%s\n%s", agentID, customerID, req.Method, req.URL.RequestURI(), ts)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	req.Header.Set("X-Agent-ID", agentID)
+	req.Header.Set("X-Customer-ID", customerID)
+	req.Header.Set("X-Timestamp", ts)
+	req.Header.Set("X-Signature", hex.EncodeToString(mac.Sum(nil)))
+}
+
+func TestInstallJobLogsAreMirroredToConsoleSession(t *testing.T) {
+	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	t.Cleanup(func() { globalConsoleSessions.stopAll() })
+
+	sender := withConsoleLogMirroring(jobs.Job{ID: "job-1", Type: "instance.reinstall", Payload: map[string]any{"instance_id": "12"}}, nil)
+	sender.Send("job-1", []string{"install line", "ERROR install failed"}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/12/console/logs", nil)
+	w := httptest.NewRecorder()
+	_ = handleInstanceConsoleHTTP(w, req, "12")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "install line") || !strings.Contains(body, "ERROR install failed") {
+		t.Fatalf("expected install logs in console response, got %s", body)
 	}
 }

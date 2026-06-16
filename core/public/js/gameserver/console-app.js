@@ -35,6 +35,10 @@
         serverOffline: 'Server is offline.',
         sending: 'Sending…',
         commandRequired: 'Command is required.',
+        commandSent: 'Command sent.',
+        installMode: 'Installation log mode active.',
+        installSuccess: 'Installation completed successfully.',
+        installFailed: 'Installation failed.',
         pause: 'Pause',
         resume: 'Resume',
         autoscrollOn: 'Auto-scroll: On',
@@ -83,6 +87,7 @@
     let relayDisconnectNoticeShown = false;
     let lastHealthyEventAt = 0;
     let lastSeqSeen = -1;
+    let lastInstallStatusNotice = null;
     const seenChunkFingerprints = new Set();
 
     const MAX_STREAM_FAILURES = 5;
@@ -216,6 +221,20 @@
         const payload = await apiClient.request(`${root.dataset.urlLogs}${query}`);
         const data = payload.data || {};
         const entries = Array.isArray(data.lines) ? data.lines : [];
+        if (data.job_type && String(data.job_type).match(/install|reinstall/i) && healthEl) {
+            healthEl.textContent = tr('installMode');
+        }
+        if (data.status && data.job_type && String(data.job_type).match(/install|reinstall/i)) {
+            const status = String(data.status).toLowerCase();
+            const noticeKey = `${data.job_id || data.job_type}:${status}`;
+            if (noticeKey !== lastInstallStatusNotice && (status === 'success' || status === 'completed')) {
+                lastInstallStatusNotice = noticeKey;
+                appendLine(tr('installSuccess'), 'meta');
+            } else if (noticeKey !== lastInstallStatusNotice && (status === 'failed' || status === 'error')) {
+                lastInstallStatusNotice = noticeKey;
+                appendLine(tr('installFailed'), 'meta');
+            }
+        }
         entries.forEach((entry) => {
             const message = String(entry.message || '').trim();
             if (!message) {
@@ -408,6 +427,7 @@
                 body: JSON.stringify({ command, idempotency_key: apiClient.buildRequestId(), csrf_token: root.dataset.csrfToken || '' }),
             });
             commandEl.value = '';
+            appendLine(tr('commandSent'), 'meta');
             if (fallbackActive) {
                 void loadLogs().catch(() => {});
             }

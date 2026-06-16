@@ -6,22 +6,23 @@ namespace App\Tests\Translation;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Yaml\Yaml;
 
 final class PortalTranslationConsistencyTest extends TestCase
 {
     #[DataProvider('domainProvider')]
     public function testDomainCatalogContainsSameKeysInGermanAndEnglish(string $domain): void
     {
-        $de = $this->flatten(Yaml::parseFile(__DIR__ . '/../../translations/' . $domain . '.de.yaml'));
-        $en = $this->flatten(Yaml::parseFile(__DIR__ . '/../../translations/' . $domain . '.en.yaml'));
+        $deKeys = $this->catalogKeys(__DIR__ . '/../../translations/' . $domain . '.de.yaml');
+        $enKeys = $this->catalogKeys(__DIR__ . '/../../translations/' . $domain . '.en.yaml');
 
-        $deKeys = array_keys($de);
-        $enKeys = array_keys($en);
         sort($deKeys);
         sort($enKeys);
 
-        self::assertSame($deKeys, $enKeys, sprintf('%s.de.yaml and %s.en.yaml must have identical key sets.', $domain, $domain));
+        $missingInGerman = array_values(array_diff($enKeys, $deKeys));
+        $missingInEnglish = array_values(array_diff($deKeys, $enKeys));
+
+        self::assertSame([], $missingInGerman, sprintf('%s.de.yaml is missing keys that exist in %s.en.yaml.', $domain, $domain));
+        self::assertSame([], $missingInEnglish, sprintf('%s.en.yaml is missing keys that exist in %s.de.yaml.', $domain, $domain));
     }
 
     /** @return iterable<string, array{string}> */
@@ -34,21 +35,42 @@ final class PortalTranslationConsistencyTest extends TestCase
         yield 'mail' => ['mail'];
     }
 
-    /** @return array<string, mixed> */
-    private function flatten(array $catalog, string $prefix = ''): array
+    /** @return list<string> */
+    private function catalogKeys(string $file): array
     {
-        $result = [];
+        $keys = [];
+        $pathByIndent = [];
+        $lines = file($file, FILE_IGNORE_NEW_LINES);
 
-        foreach ($catalog as $key => $value) {
-            $fullKey = $prefix === '' ? (string) $key : $prefix . '.' . $key;
-            if (is_array($value)) {
-                $result += $this->flatten($value, $fullKey);
+        self::assertNotFalse($lines, sprintf('Unable to read translation catalog "%s".', $file));
+
+        foreach ($lines as $line) {
+            if (trim($line) === '' || str_starts_with(ltrim($line), '#')) {
                 continue;
             }
 
-            $result[$fullKey] = $value;
+            if (!preg_match('/^(\s*)([\'\"]?[^\'\"#:\n]+[\'\"]?)\s*:/', $line, $matches)) {
+                continue;
+            }
+
+            $indent = strlen($matches[1]);
+            $key = trim($matches[2], ' \t\'\"');
+
+            foreach (array_keys($pathByIndent) as $knownIndent) {
+                if ($knownIndent >= $indent) {
+                    unset($pathByIndent[$knownIndent]);
+                }
+            }
+
+            $parentPath = $pathByIndent === [] ? [] : $pathByIndent[max(array_keys($pathByIndent))];
+            $fullPath = [...$parentPath, $key];
+            $pathByIndent[$indent] = $fullPath;
+
+            if (!str_ends_with(rtrim($line), ':')) {
+                $keys[] = implode('.', $fullPath);
+            }
         }
 
-        return $result;
+        return $keys;
     }
 }

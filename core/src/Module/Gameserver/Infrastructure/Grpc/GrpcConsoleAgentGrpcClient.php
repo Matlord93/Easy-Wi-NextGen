@@ -6,13 +6,14 @@ namespace App\Module\Gameserver\Infrastructure\Grpc;
 
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\AgentEndpointResolver;
-use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;
 use App\Module\Gameserver\Application\Console\ConsoleCommandResult;
 use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
 use App\Module\Gameserver\Application\Console\NodeEndpointMissingException;
+use App\Module\Gameserver\Infrastructure\Client\AgentHmacHeaderFactory;
 use App\Repository\InstanceRepository;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -21,18 +22,20 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly HttpClientInterface $httpClient,
-        private readonly SecretsCrypto $secretsCrypto,
+        private readonly AgentHmacHeaderFactory $hmacHeaderFactory,
         private readonly AgentEndpointResolver $endpointResolver,
     ) {
     }
 
     public function sendCommand(ConsoleCommandRequest $request): ConsoleCommandResult
     {
-        $node = $this->resolveNode($request->instanceId);
+        $instance = $this->resolveInstance($request->instanceId);
+        $node = $instance->getNode();
         $endpoint = $this->resolveEndpoint($node);
+        $requestUri = '/v1/instances/' . $request->instanceId . '/console/command';
 
-        $response = $this->httpClient->request('POST', rtrim($endpoint, '/') . '/v1/instances/' . $request->instanceId . '/console/command', [
-            'headers' => $this->buildHeaders($node),
+        $response = $this->httpClient->request('POST', rtrim($endpoint, '/') . $requestUri, [
+            'headers' => $this->buildHeaders($instance, 'POST', $requestUri),
             'json' => [
                 'instance_id' => $request->instanceId,
                 'command' => $request->command,
@@ -66,18 +69,18 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
 
     public function attachStream(int $instanceId): iterable
     {
-        $node = $this->resolveNode($instanceId);
+        $instance = $this->resolveInstance($instanceId);
+        $node = $instance->getNode();
         $endpoint = $this->resolveEndpoint($node);
-        $headers = $this->buildHeaders($node);
-        $url = rtrim($endpoint, '/') . '/v1/instances/' . $instanceId . '/console/logs';
-
+        $baseRequestUri = '/v1/instances/' . $instanceId . '/console/logs';
         $cursor = '';
         $emptyStreak = 0;
 
         while (true) {
-            $response = $this->httpClient->request('GET', $url, [
-                'headers' => $headers,
-                'query' => $cursor !== '' ? ['cursor' => $cursor] : [],
+            $query = $cursor !== '' ? ['cursor' => $cursor] : [];
+            $requestUri = $this->withQueryString($baseRequestUri, $query);
+            $response = $this->httpClient->request('GET', rtrim($endpoint, '/') . $requestUri, [
+                'headers' => $this->buildHeaders($instance, 'GET', $requestUri),
                 'timeout' => 10,
             ]);
 
@@ -116,13 +119,15 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
     /** @return array<string,mixed> */
     public function getConsoleHealth(int $instanceId): array
     {
-        $node = $this->resolveNode($instanceId);
+        $instance = $this->resolveInstance($instanceId);
+        $node = $instance->getNode();
         $endpoint = $this->resolveEndpoint($node);
+        $requestUri = '/v1/instances/' . $instanceId . '/console/health';
 
         $response = $this->httpClient->request(
             'GET',
-            rtrim($endpoint, '/') . '/v1/instances/' . $instanceId . '/console/health',
-            ['headers' => $this->buildHeaders($node), 'timeout' => 8],
+            rtrim($endpoint, '/') . $requestUri,
+            ['headers' => $this->buildHeaders($instance, 'GET', $requestUri), 'timeout' => 8],
         );
 
         return $response->toArray(false);
@@ -133,28 +138,31 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
      */
     public function getConsoleLogs(int $instanceId, string $cursor = ''): array
     {
-        $node = $this->resolveNode($instanceId);
+        $instance = $this->resolveInstance($instanceId);
+        $node = $instance->getNode();
         $endpoint = $this->resolveEndpoint($node);
 
         $query = $cursor !== '' ? ['cursor' => $cursor] : [];
+        $baseRequestUri = '/v1/instances/' . $instanceId . '/console/logs';
+        $requestUri = $this->withQueryString($baseRequestUri, $query);
 
         $response = $this->httpClient->request(
             'GET',
-            rtrim($endpoint, '/') . '/v1/instances/' . $instanceId . '/console/logs',
-            ['headers' => $this->buildHeaders($node), 'query' => $query, 'timeout' => 8],
+            rtrim($endpoint, '/') . $requestUri,
+            ['headers' => $this->buildHeaders($instance, 'GET', $requestUri), 'timeout' => 8],
         );
 
         return $response->toArray(false);
     }
 
-    private function resolveNode(int $instanceId): Agent
+    private function resolveInstance(int $instanceId): Instance
     {
         $instance = $this->instanceRepository->find($instanceId);
-        if ($instance === null) {
+        if (!$instance instanceof Instance) {
             throw new \RuntimeException('Instance not found for console stream.');
         }
 
-        return $instance->getNode();
+        return $instance;
     }
 
     private function resolveEndpoint(Agent $node): string
@@ -172,24 +180,21 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         }
     }
 
-    /** @return array<string,string> */
-    private function buildHeaders(Agent $node): array
+    /** @param array<string,string> $query */
+    private function withQueryString(string $path, array $query): string
     {
-        $headers = [
-            'Accept' => 'application/json',
-            'X-Agent-ID' => $node->getId(),
-        ];
-
-        $token = '';
-        try {
-            $token = trim($node->getServiceApiToken($this->secretsCrypto));
-        } catch (\Throwable) {
-            $token = '';
+        if ($query === []) {
+            return $path;
         }
 
-        if ($token !== '') {
-            $headers['Authorization'] = 'Bearer ' . $token;
-        }
+        return $path . '?' . http_build_query($query, '', '&', \PHP_QUERY_RFC3986);
+    }
+
+    /** @return array<string,string> */
+    private function buildHeaders(Instance $instance, string $method, string $requestUri): array
+    {
+        $headers = $this->hmacHeaderFactory->create($instance, $method, $requestUri);
+        $headers['Accept'] = 'application/json';
 
         return $headers;
     }
