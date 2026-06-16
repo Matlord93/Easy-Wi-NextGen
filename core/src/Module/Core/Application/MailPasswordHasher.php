@@ -6,6 +6,8 @@ namespace App\Module\Core\Application;
 
 final class MailPasswordHasher
 {
+    private const BCRYPT_COST = 10;
+
     public function __construct(private readonly string $algorithm = 'argon2id')
     {
     }
@@ -33,7 +35,7 @@ final class MailPasswordHasher
 
     private function hashBcrypt(string $plainPassword): string
     {
-        $hash = password_hash($plainPassword, PASSWORD_BCRYPT);
+        $hash = password_hash($plainPassword, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
         if (!is_string($hash) || $hash === '') {
             throw new \RuntimeException('Failed to hash mailbox password with bcrypt.');
         }
