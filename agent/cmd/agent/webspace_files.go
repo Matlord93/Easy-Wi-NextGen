@@ -221,7 +221,7 @@ func handleWebspaceFileDelete(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	rel := cleanRelativePath(targetRelative)
 	if rel == "." {
@@ -257,7 +257,7 @@ func handleWebspaceFileMkdir(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return webspaceFileFailure(job.ID, "path_invalid", err), nil
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	rel := cleanRelativePath(filepath.Join(relativePath, dirName))
 	if err := rootMkdirAll(r, rel, 0o750); err != nil {
