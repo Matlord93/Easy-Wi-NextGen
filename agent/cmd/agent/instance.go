@@ -1071,6 +1071,14 @@ func allocateCustomerPorts(customerID string) ([]int, error) {
 	return ports, nil
 }
 
+func systemdUnitTemplateWithEnvFile(serviceName, user, workingDir, readWritePath, startCommand, startParams, envFilePath string, cpuLimit, ramLimit int) string {
+	base := systemdUnitTemplate(serviceName, user, workingDir, readWritePath, startCommand, startParams, cpuLimit, ramLimit)
+	if envFilePath == "" {
+		return base
+	}
+	return strings.Replace(base, "[Service]\n", fmt.Sprintf("[Service]\nEnvironmentFile=%s\n", envFilePath), 1)
+}
+
 func systemdUnitTemplate(serviceName, user, workingDir, readWritePath, startCommand, startParams string, cpuLimit, ramLimit int) string {
 	command := strings.TrimSpace(startCommand)
 	if startParams != "" && !strings.Contains(startCommand, startParams) {

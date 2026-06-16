@@ -27,7 +27,11 @@ func TestWebspaceLifecycleSmokeApplyFlow(t *testing.T) {
 	if err := os.MkdirAll(docroot, 0o755); err != nil {
 		t.Fatalf("mkdir docroot: %v", err)
 	}
-	vhostPath := filepath.Join(t.TempDir(), "demo.conf")
+	vhostDir := t.TempDir()
+	origVhostBaseDir := nginxVhostBaseDir
+	nginxVhostBaseDir = vhostDir + "/"
+	t.Cleanup(func() { nginxVhostBaseDir = origVhostBaseDir })
+	vhostPath := filepath.Join(vhostDir, "demo.conf")
 
 	domainResult, _ := handleWebspaceDomainApply(jobs.Job{ID: "a", Payload: map[string]any{
 		"webspace_id":      "42",

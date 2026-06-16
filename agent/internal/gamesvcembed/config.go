@@ -5,6 +5,7 @@ import "os/exec"
 type Config struct {
 	TemplateDir string
 	BaseDir     string
+	BearerToken string
 }
 
 func (c Config) withDefaults() Config {

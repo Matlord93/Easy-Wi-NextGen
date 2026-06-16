@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -13,17 +14,18 @@ import (
 	"easywi/agent/internal/jobs"
 )
 
+var fail2banJailNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
 type fail2banPolicy struct {
-	Enabled        bool
-	BanTime        string
-	FindTime       string
-	MaxRetry       int
-	IgnoreIPs      []string
-	Jails          []string
-	ActionType     string
-	Backend        string
-	AdvancedConfig string
-	DryRun         bool
+	Enabled    bool
+	BanTime    string
+	FindTime   string
+	MaxRetry   int
+	IgnoreIPs  []string
+	Jails      []string
+	ActionType string
+	Backend    string
+	DryRun     bool
 }
 
 func handleFail2banPolicyApply(job jobs.Job) (jobs.Result, func() error) {
@@ -159,16 +161,15 @@ func fail2banPolicyFromPayload(payload map[string]any) fail2banPolicy {
 	}
 
 	policy := fail2banPolicy{
-		Enabled:        parseBool(raw["enabled"], true),
-		BanTime:        parseString(raw["bantime"], "10m"),
-		FindTime:       parseString(raw["findtime"], "10m"),
-		MaxRetry:       parseInt(raw["maxretry"], 5),
-		IgnoreIPs:      parseStringList(raw["ignore_ips"], "127.0.0.1/8"),
-		Jails:          parseStringList(raw["jails"], "sshd"),
-		ActionType:     parseString(raw["action_type"], "iptables-multiport"),
-		Backend:        parseString(raw["backend"], "auto"),
-		AdvancedConfig: parseString(raw["advanced_config"], ""),
-		DryRun:         parseBool(raw["dry_run"], false),
+		Enabled:    parseBool(raw["enabled"], true),
+		BanTime:    parseString(raw["bantime"], "10m"),
+		FindTime:   parseString(raw["findtime"], "10m"),
+		MaxRetry:   parseInt(raw["maxretry"], 5),
+		IgnoreIPs:  parseStringList(raw["ignore_ips"], "127.0.0.1/8"),
+		Jails:      parseStringList(raw["jails"], "sshd"),
+		ActionType: parseString(raw["action_type"], "iptables-multiport"),
+		Backend:    parseString(raw["backend"], "auto"),
+		DryRun:     parseBool(raw["dry_run"], false),
 	}
 
 	if len(policy.Jails) == 0 {
@@ -208,14 +209,11 @@ func buildFail2banConfig(policy fail2banPolicy) string {
 		if jail == "" {
 			continue
 		}
+		if !fail2banJailNameRegex.MatchString(jail) {
+			continue
+		}
 		_, _ = fmt.Fprintf(&builder, "\n[%s]\n", jail)
 		_, _ = fmt.Fprintf(&builder, "enabled = %v\n", policy.Enabled)
-	}
-
-	if policy.AdvancedConfig != "" {
-		builder.WriteString("\n# Advanced overrides\n")
-		builder.WriteString(policy.AdvancedConfig)
-		builder.WriteString("\n")
 	}
 
 	return builder.String()

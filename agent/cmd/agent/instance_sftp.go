@@ -141,10 +141,12 @@ func handleInstanceSftpCredentialsResetWindows(job jobs.Job) (jobs.Result, func(
 
 func generateSftpPassword() string {
 	b := make([]byte, 18)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d%s", time.Now().Unix(), "Ab!")
+	for range 5 {
+		if _, err := rand.Read(b); err == nil {
+			return hex.EncodeToString(b)
+		}
 	}
-	return hex.EncodeToString(b)
+	panic("crypto/rand unavailable after 5 retries; cannot generate secure SFTP password")
 }
 
 func ensureSftpChroot(path string) error {

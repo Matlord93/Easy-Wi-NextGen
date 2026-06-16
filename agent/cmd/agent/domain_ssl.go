@@ -83,6 +83,11 @@ func issueOrReuseCertificate(domain, aliases, email, payloadWebRoot string) (cer
 		return certificateResult{}, &stepFailure{Step: "certbot_check", Message: err.Error(), Details: map[string]string{"hint": "install certbot (apt-get install -y certbot)"}}
 	}
 	domains := sslDomains(domain, aliases)
+	for _, d := range domains {
+		if err := validateDomainName(d); err != nil {
+			return certificateResult{}, &stepFailure{Step: "validation", Message: fmt.Sprintf("invalid domain name: %s", d)}
+		}
+	}
 	primaryDomain := domains[0]
 	certDir := filepath.Join("/etc/letsencrypt/live", primaryDomain)
 	certPath := filepath.Join(certDir, "cert.pem")
@@ -139,6 +144,9 @@ func handleDomainSSLRevoke(job jobs.Job) (jobs.Result, func() error) { /* unchan
 	}
 	if certPath == "" {
 		return failureResult(job.ID, fmt.Errorf("cert_path or domain is required"))
+	}
+	if !strings.HasPrefix(filepath.Clean(certPath), "/etc/letsencrypt/") {
+		return failureResult(job.ID, fmt.Errorf("cert_path must be under /etc/letsencrypt/"))
 	}
 	if err := runCommand("certbot", "revoke", "--non-interactive", "--cert-path", certPath); err != nil {
 		return failureResult(job.ID, err)

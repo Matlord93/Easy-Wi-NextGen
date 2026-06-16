@@ -501,18 +501,22 @@ func validateName(name string) error {
 
 func randomID() string {
 	buf := make([]byte, 8)
-	if _, err := rand.Read(buf); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
+	for range 5 {
+		if _, err := rand.Read(buf); err == nil {
+			return hex.EncodeToString(buf)
+		}
 	}
-	return hex.EncodeToString(buf)
+	panic("crypto/rand unavailable after 5 retries; cannot generate secure ID")
 }
 
 func randomPassword() string {
 	buf := make([]byte, 12)
-	if _, err := rand.Read(buf); err != nil {
-		return fmt.Sprintf("pw-%d", time.Now().UnixNano())
+	for range 5 {
+		if _, err := rand.Read(buf); err == nil {
+			return hex.EncodeToString(buf)
+		}
 	}
-	return hex.EncodeToString(buf)
+	panic("crypto/rand unavailable after 5 retries; cannot generate secure password")
 }
 
 func fallbackString(value, fallback string) string {

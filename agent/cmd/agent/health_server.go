@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net"
@@ -61,7 +62,7 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 		log.Fatalf("init file api: %v", err)
 	}
 
-	gameServer := gamesvcembed.NewServer(gamesvcembed.Config{})
+	gameServer := gamesvcembed.NewServer(gamesvcembed.Config{BearerToken: cfg.Secret})
 	sinusbotServer := sinusbotsvcembed.NewServer(sinusbotsvcembed.Config{
 		AgentID:      cfg.AgentID,
 		Secret:       cfg.Secret,
@@ -79,15 +80,14 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 	mux.HandleFunc("/v1/mail/mailboxes/password", mailMutationHandler("mailbox_password"))
 	mux.HandleFunc("/v1/mail/aliases", mailMutationHandler("mail_alias"))
 	mux.HandleFunc("/v1/mail/reload", mailMutationHandler("mail_reload"))
-	mux.HandleFunc("/v1/agent/mail/metrics", handleMailMetricsHTTP)
+	mux.HandleFunc("/v1/agent/mail/metrics", withBearerAuth(cfg.Secret, handleMailMetricsHTTP))
 	mux.Handle("/health", fileServer.Handler())
 	mux.Handle("/healthz", fileServer.Handler())
 
 	mux.HandleFunc("/v1/webspace/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"ok":         true,
-			"agent_root": strings.TrimSpace(cfg.FileBaseDir),
+			"ok": true,
 			"capabilities": map[string]bool{
 				"webspace_files": true,
 				"webspace_apply": true,
@@ -115,12 +115,12 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 			"checks": checks,
 		})
 	})
-	mux.HandleFunc("/v1/mail/health/report", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/mail/health/report", withBearerAuth(cfg.Secret, func(w http.ResponseWriter, r *http.Request) {
 		runNow := r.URL.Query().Get("refresh") == "1"
 		snapshot := getMailHealthSnapshot(runNow)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(snapshot)
-	})
+	}))
 	mux.Handle("/ports/check-free", gameServer.Handler())
 	mux.Handle("/instance/render-config", gameServer.Handler())
 	mux.Handle("/instance/start", gameServer.Handler())
@@ -132,7 +132,8 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 		}
 		writeJSONError(w, http.StatusNotFound, "NOT_FOUND", "not found")
 	})
-	mux.HandleFunc("/v1/instances/", handleInstanceQueryHTTP)
+	instanceHMACCfg := fileapi.Config{AgentID: cfg.AgentID, Secret: cfg.Secret, MaxSkew: cfg.FileMaxSkew}
+	mux.Handle("/v1/instances/", withInstanceSubRouteAuth(instanceHMACCfg, http.HandlerFunc(handleInstanceQueryHTTP)))
 	mux.Handle("/internal/sinusbot/instances", sinusbotServer.Handler())
 	mux.Handle("/internal/sinusbot/instances/", sinusbotServer.Handler())
 
@@ -441,6 +442,39 @@ func makeWebspaceCompatHandler(delegate http.Handler, agentRoot string) http.Han
 		r.URL.Path = mappedPath
 		delegate.ServeHTTP(w, r)
 	}
+}
+
+// withBearerAuth gates a handler behind a Bearer token check using constant-time comparison.
+func withBearerAuth(secret string, h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		auth := strings.TrimSpace(r.Header.Get("Authorization"))
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if token == auth || subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
+			writeJSONError(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid or missing bearer token")
+			return
+		}
+		h(w, r)
+	}
+}
+
+// withInstanceSubRouteAuth allows unauthenticated GET requests to the bare instance status
+// endpoint (/v1/instances/{id}) while requiring a valid HMAC signature for all sub-routes
+// (/configs/, /access/, /console/, /backups/) that mutate state or expose sensitive data.
+func withInstanceSubRouteAuth(cfg fileapi.Config, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		needsAuth := strings.Contains(path, "/configs/") ||
+			strings.Contains(path, "/access/") ||
+			strings.Contains(path, "/console/") ||
+			strings.Contains(path, "/backups/")
+		if needsAuth {
+			if _, err := fileapi.VerifyRequestSignature(r, cfg); err != nil {
+				writeJSONError(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid or missing request signature")
+				return
+			}
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func mailMutationHandler(capability string) http.HandlerFunc {

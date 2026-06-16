@@ -198,10 +198,10 @@ func TestBuildSniperInstallShellCommandUsesSharedWorkDirWhenEnabled(t *testing.T
 	postInstallSnippet := steamCmdClientSnippet(steamCmdDir, sharedDir)
 
 	shellCmd := buildSniperInstallShellCommand(sharedDir, command, installSnippet, postInstallSnippet)
-	if !strings.Contains(shellCmd, "cd "+sharedDir+" &&") {
+	if !strings.Contains(shellCmd, "cd '"+sharedDir+"' &&") {
 		t.Fatalf("expected shared install shell command to cd into shared dir, got %q", shellCmd)
 	}
-	if strings.Contains(shellCmd, "cd "+instanceDir+" &&") {
+	if strings.Contains(shellCmd, "cd '"+instanceDir+"' &&") {
 		t.Fatalf("did not expect shared install shell command to cd into instance dir, got %q", shellCmd)
 	}
 	if !strings.Contains(shellCmd, "+force_install_dir "+sharedDir) {
@@ -233,7 +233,7 @@ func TestBuildSniperInstallShellCommandUsesInstanceDirWhenNotShared(t *testing.T
 	postInstallSnippet := steamCmdClientSnippet(steamCmdDir, instanceDir)
 
 	shellCmd := buildSniperInstallShellCommand(instanceDir, command, installSnippet, postInstallSnippet)
-	if !strings.Contains(shellCmd, "cd "+instanceDir+" &&") {
+	if !strings.Contains(shellCmd, "cd '"+instanceDir+"' &&") {
 		t.Fatalf("expected non-shared install shell command to cd into instance dir, got %q", shellCmd)
 	}
 }
