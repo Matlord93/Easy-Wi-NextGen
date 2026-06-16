@@ -22,8 +22,9 @@ final class PublicCmsModuleRoutesTest extends WebTestCase
     public function testBlogRouteWorksWithoutCmsPageEntry(): void
     {
         self::ensureKernelShutdown();
-        $client = static::createClient();
         $this->seedSiteWithModules();
+        self::ensureKernelShutdown();
+        $client = static::createClient();
 
         $client->request('GET', '/blog');
 
@@ -38,8 +39,9 @@ final class PublicCmsModuleRoutesTest extends WebTestCase
     public function testModuleRoutesWorkIndependentFromCmsPagesOverview(): void
     {
         self::ensureKernelShutdown();
-        $client = static::createClient();
         $this->seedSiteWithModules();
+        self::ensureKernelShutdown();
+        $client = static::createClient();
 
         $client->request('GET', '/events');
         self::assertResponseIsSuccessful();
