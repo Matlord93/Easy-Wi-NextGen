@@ -54,6 +54,37 @@ func openConsoleLogForWriting(instanceID string) (*os.File, error) {
 	return f, nil
 }
 
+// appendConsoleLogLines appends installer/job output to the same per-instance
+// console log that the game-server wrapper writes. This keeps installation
+// output visible through the live-console endpoint even before the game process
+// has started and makes the most recent installer output available after a
+// console session reconnect.
+func appendConsoleLogLines(instanceID string, lines []string) error {
+	logPath := consoleLogFilePath(instanceID)
+	if logPath == "" || len(lines) == 0 {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		return fmt.Errorf("create console log dir: %w", err)
+	}
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return fmt.Errorf("open console log for append: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	for _, line := range lines {
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			continue
+		}
+		if _, err := f.WriteString(line + "\n"); err != nil {
+			return fmt.Errorf("append console log line: %w", err)
+		}
+	}
+	return nil
+}
+
 // startLogFileStream opens the console log file and follows it like "tail -f".
 // It returns a *startedJournalStream so it can be used as a drop-in
 // replacement for startJournalStream in consoleSession.run().

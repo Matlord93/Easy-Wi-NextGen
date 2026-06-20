@@ -302,6 +302,8 @@ func readAndRestoreTestBody(req *http.Request) []byte {
 }
 
 func TestInstallJobLogsAreMirroredToConsoleSession(t *testing.T) {
+	instanceRuntimeDir = t.TempDir()
+	t.Cleanup(func() { instanceRuntimeDir = "/run/easywi/instances" })
 	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
 	t.Cleanup(func() { globalConsoleSessions.stopAll() })
 
@@ -317,5 +319,35 @@ func TestInstallJobLogsAreMirroredToConsoleSession(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, "install line") || !strings.Contains(body, "ERROR install failed") {
 		t.Fatalf("expected install logs in console response, got %s", body)
+	}
+}
+
+func TestInstallJobLogsArePersistedToConsoleLogFile(t *testing.T) {
+	instanceRuntimeDir = t.TempDir()
+	t.Cleanup(func() { instanceRuntimeDir = "/run/easywi/instances" })
+	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	t.Cleanup(func() { globalConsoleSessions.stopAll() })
+
+	sender := withConsoleLogMirroring(jobs.Job{ID: "job-2", Type: "sniper.install", Payload: map[string]any{"instance_id": "13"}}, nil)
+	sender.Send("job-2", []string{"stdout: downloading", "[stderr] waiting for input"}, nil)
+	globalConsoleSessions.stopAll()
+	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/13/console/logs", nil)
+	w := httptest.NewRecorder()
+	for attempt := 0; attempt < 10; attempt++ {
+		w = httptest.NewRecorder()
+		_ = handleInstanceConsoleHTTP(w, req, "13")
+		if strings.Contains(w.Body.String(), "stdout: downloading") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "stdout: downloading") || !strings.Contains(body, "[stderr] waiting for input") {
+		t.Fatalf("expected persisted install logs in console response, got %s", body)
 	}
 }

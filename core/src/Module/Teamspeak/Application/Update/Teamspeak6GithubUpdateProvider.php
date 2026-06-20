@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\Application\Update;
 
+use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInterface
 {
     private const RELEASE_URL = 'https://api.github.com/repos/teamspeak/teamspeak6-server/releases';
+    private const CACHE_KEY = 'teamspeak6_github_releases_v2';
 
-    public function __construct(private readonly HttpClientInterface $httpClient, private readonly ?string $githubToken = null, private readonly ?TeamspeakChecksumResolver $checksumResolver = null)
+    public function __construct(private readonly HttpClientInterface $httpClient, private readonly ?string $githubToken = null, private readonly ?TeamspeakChecksumResolver $checksumResolver = null, private readonly ?CacheItemPoolInterface $cache = null, private readonly int $cacheTtlSeconds = 900)
     {
     }
 
@@ -80,13 +82,57 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
     /** @return list<array<string,mixed>>|null null when GitHub is unreachable */
     private function fetchReleases(int $timeout = 5): ?array
     {
+        if ($this->cache !== null) {
+            try {
+                $item = $this->cache->getItem(self::CACHE_KEY);
+                if ($item->isHit()) {
+                    $cached = $item->get();
+                    if (is_array($cached)) {
+                        return $this->sortReleases($cached);
+                    }
+                }
+            } catch (\Throwable) {
+                // Cache must never block update checks.
+            }
+        }
+
         try {
-            $headers = ['Accept' => 'application/vnd.github+json'];
+            $headers = ['Accept' => 'application/vnd.github+json', 'User-Agent' => 'Easy-WI-TS6-Updater'];
             if ($this->githubToken) { $headers['Authorization'] = 'Bearer '.$this->githubToken; }
-            return $this->httpClient->request('GET', self::RELEASE_URL, ['headers' => $headers, 'timeout' => $timeout])->toArray();
+            $releases = $this->httpClient->request('GET', self::RELEASE_URL, ['headers' => $headers, 'timeout' => $timeout, 'query' => ['per_page' => 100]])->toArray();
+            $releases = $this->sortReleases($releases);
+
+            if ($this->cache !== null) {
+                try {
+                    $item = $this->cache->getItem(self::CACHE_KEY);
+                    $item->set($releases);
+                    $item->expiresAfter(max(60, $this->cacheTtlSeconds));
+                    $this->cache->save($item);
+                } catch (\Throwable) {
+                    // Cache must never block update checks.
+                }
+            }
+
+            return $releases;
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /** @param array<int,array<string,mixed>> $releases @return list<array<string,mixed>> */
+    private function sortReleases(array $releases): array
+    {
+        $normalized = array_values(array_filter($releases, static fn(mixed $release): bool => is_array($release)));
+        usort($normalized, static function (array $a, array $b): int {
+            $versionA = TeamspeakVersionNormalizer::normalize((string) ($a['tag_name'] ?? '')) ?? '0.0.0';
+            $versionB = TeamspeakVersionNormalizer::normalize((string) ($b['tag_name'] ?? '')) ?? '0.0.0';
+            $cmp = version_compare($versionB, $versionA);
+            if ($cmp !== 0) { return $cmp; }
+
+            return strcmp((string) ($b['published_at'] ?? $b['created_at'] ?? ''), (string) ($a['published_at'] ?? $a['created_at'] ?? ''));
+        });
+
+        return $normalized;
     }
 
     /** @param array<int,array<string,mixed>> $assets */

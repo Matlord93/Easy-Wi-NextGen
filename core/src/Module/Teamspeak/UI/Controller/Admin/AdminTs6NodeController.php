@@ -76,6 +76,7 @@ final class AdminTs6NodeController
         }
 
         if ($form->isSubmitted() && $form->isValid()) {
+            $this->refreshDtoDownloadUrl($dto);
             $agent = $this->agentRepository->find($dto->agentNodeId);
             if ($agent === null) {
                 $form->addError(new FormError($this->translator->trans('form_error_agent_not_found')));
@@ -345,6 +346,8 @@ final class AdminTs6NodeController
             $dto->downloadUrl = Ts6NodeDto::DEFAULT_DOWNLOAD_URL;
         }
 
+        $this->refreshDtoDownloadUrl($dto);
+
         if (trim($dto->installPath) === '' && $dto->osType !== 'windows') {
             $dto->installPath = Ts6NodeDto::DEFAULT_INSTALL_PATH;
         }
@@ -371,6 +374,26 @@ final class AdminTs6NodeController
 
         if (trim($dto->serviceName) === '') {
             $form->addError(new FormError($this->translator->trans('form_error_service_name_required')));
+        }
+    }
+
+
+    private function refreshDtoDownloadUrl(Ts6NodeDto $dto): void
+    {
+        if ($this->githubUpdateProvider === null) {
+            return;
+        }
+
+        $currentUrl = trim($dto->downloadUrl);
+        if ($currentUrl !== '' && $currentUrl !== Ts6NodeDto::DEFAULT_DOWNLOAD_URL && !str_starts_with($currentUrl, 'https://github.com/teamspeak/teamspeak6-server/')) {
+            return;
+        }
+
+        $os = $dto->osType ?? 'linux';
+        $arch = str_contains(strtolower($currentUrl), 'arm64') ? 'arm64' : 'amd64';
+        $latestUrl = $this->githubUpdateProvider->resolveLatestAssetUrl($os, $arch, 'beta');
+        if ($latestUrl !== null) {
+            $dto->downloadUrl = $latestUrl;
         }
     }
 

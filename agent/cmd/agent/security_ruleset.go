@@ -202,7 +202,14 @@ func applySecurityRuleSet(ruleset securityRuleSet) error {
 		return err
 	}
 
-	if len(jails) > 0 && commandExists("fail2ban-client") && runtime.GOOS == "linux" {
+	if len(jails) > 0 {
+		if runtime.GOOS != "linux" {
+			return fmt.Errorf("fail2ban rules require a linux agent")
+		}
+		var ensureOutput strings.Builder
+		if err := ensureFail2banAvailable(&ensureOutput); err != nil {
+			return err
+		}
 		policy := fail2banPolicy{Enabled: true, BanTime: "10m", FindTime: "10m", MaxRetry: 5, IgnoreIPs: []string{"127.0.0.1/8"}, Jails: uniqueStringSlice(jails)}
 		config := buildFail2banConfig(policy)
 		configPath := "/etc/fail2ban/jail.d/easywi.conf"

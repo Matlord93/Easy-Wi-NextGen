@@ -432,6 +432,8 @@ services:
     arguments:
       $httpClient: '@http_client'
       $githubToken: '%app.core_update_token%'
+      $cache: '@cache.app'
+      $cacheTtlSeconds: '%app.update_check_cache_ttl%'
 
   App\Module\Teamspeak\Application\Update\TeamspeakUpdateService:
     arguments:

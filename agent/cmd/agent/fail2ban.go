@@ -33,24 +33,28 @@ func handleFail2banPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, fmt.Errorf("fail2ban policy apply is only supported on linux agents"))
 	}
 
-	if !commandExists("fail2ban-client") {
-		return failureResult(job.ID, fmt.Errorf("fail2ban-client is required to apply fail2ban policy"))
-	}
-
 	policy := fail2banPolicyFromPayload(job.Payload)
+	var ensureOutput strings.Builder
+	if !policy.DryRun {
+		if err := ensureFail2banAvailable(&ensureOutput); err != nil {
+			return failureResult(job.ID, err)
+		}
+	}
 	config := buildFail2banConfig(policy)
 
 	output := map[string]string{
-		"enabled":     strconv.FormatBool(policy.Enabled),
-		"bantime":     policy.BanTime,
-		"findtime":    policy.FindTime,
-		"maxretry":    strconv.Itoa(policy.MaxRetry),
-		"ignore_ips":  strings.Join(policy.IgnoreIPs, ","),
-		"jails":       strings.Join(policy.Jails, ","),
-		"action_type": policy.ActionType,
-		"backend":     policy.Backend,
-		"dry_run":     strconv.FormatBool(policy.DryRun),
-		"config":      config,
+		"ensure_details":     ensureOutput.String(),
+		"enabled":            strconv.FormatBool(policy.Enabled),
+		"bantime":            policy.BanTime,
+		"findtime":           policy.FindTime,
+		"maxretry":           strconv.Itoa(policy.MaxRetry),
+		"ignore_ips":         strings.Join(policy.IgnoreIPs, ","),
+		"jails":              strings.Join(policy.Jails, ","),
+		"action_type":        policy.ActionType,
+		"backend":            policy.Backend,
+		"dry_run":            strconv.FormatBool(policy.DryRun),
+		"fail2ban_available": strconv.FormatBool(commandExists("fail2ban-client")),
+		"config":             config,
 	}
 
 	if policy.DryRun {
@@ -101,8 +105,9 @@ func handleFail2banStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, fmt.Errorf("fail2ban status check is only supported on linux agents"))
 	}
 
-	if !commandExists("fail2ban-client") {
-		return failureResult(job.ID, fmt.Errorf("fail2ban-client is required to check fail2ban status"))
+	var ensureOutput strings.Builder
+	if err := ensureFail2banAvailable(&ensureOutput); err != nil {
+		return failureResult(job.ID, err)
 	}
 
 	jails, err := listFail2banJails()
@@ -113,9 +118,10 @@ func handleFail2banStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 				JobID:  job.ID,
 				Status: "success",
 				Output: map[string]string{
-					"running":     "false",
-					"jails":       string(payload),
-					"reported_at": time.Now().UTC().Format(time.RFC3339),
+					"ensure_details": ensureOutput.String(),
+					"running":        "false",
+					"jails":          string(payload),
+					"reported_at":    time.Now().UTC().Format(time.RFC3339),
 				},
 				Completed: time.Now().UTC(),
 			}, nil
@@ -141,9 +147,10 @@ func handleFail2banStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 	payload, _ := json.Marshal(statuses)
 
 	output := map[string]string{
-		"running":     "true",
-		"jails":       string(payload),
-		"reported_at": time.Now().UTC().Format(time.RFC3339),
+		"ensure_details": ensureOutput.String(),
+		"running":        "true",
+		"jails":          string(payload),
+		"reported_at":    time.Now().UTC().Format(time.RFC3339),
 	}
 
 	return jobs.Result{
@@ -152,6 +159,78 @@ func handleFail2banStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 		Output:    output,
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func ensureFail2banAvailable(output *strings.Builder) error {
+	if runtime.GOOS != "linux" {
+		return fmt.Errorf("fail2ban is only supported on linux agents")
+	}
+
+	if !commandExists("fail2ban-client") {
+		family, err := detectOSFamily()
+		if err != nil {
+			return fmt.Errorf("fail2ban-client is not installed and automatic installation cannot detect the OS family: %w", err)
+		}
+		appendOutput(output, "fail2ban-client_missing=true")
+		if err := installPackages(family, []string{"fail2ban"}, output); err != nil {
+			return fmt.Errorf("fail2ban-client is not installed and automatic fail2ban installation failed: %w", err)
+		}
+		appendOutput(output, "fail2ban_installed=true")
+	} else {
+		appendOutput(output, "fail2ban-client_missing=false")
+	}
+
+	if !commandExists("fail2ban-client") {
+		return fmt.Errorf("fail2ban-client is required but was not found after installation; please install the fail2ban package")
+	}
+
+	if err := ensureFail2banServiceRunning(output); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ensureFail2banServiceRunning(output *strings.Builder) error {
+	if err := runCommandWithOutput("fail2ban-client", []string{"ping"}, output); err == nil {
+		appendOutput(output, "fail2ban_running=true")
+		return nil
+	}
+
+	started := false
+	if commandExists("systemctl") {
+		if err := runCommandWithOutput("systemctl", []string{"enable", "fail2ban"}, output); err != nil {
+			appendOutput(output, "fail2ban_systemctl_enable_failed="+err.Error())
+		}
+		if err := runCommandWithOutput("systemctl", []string{"start", "fail2ban"}, output); err == nil {
+			started = true
+		} else {
+			appendOutput(output, "fail2ban_systemctl_start_failed="+err.Error())
+		}
+	}
+
+	if !started && commandExists("service") {
+		if err := runCommandWithOutput("service", []string{"fail2ban", "start"}, output); err == nil {
+			started = true
+		} else {
+			appendOutput(output, "fail2ban_service_start_failed="+err.Error())
+		}
+	}
+
+	if !started && commandExists("rc-service") {
+		if err := runCommandWithOutput("rc-service", []string{"fail2ban", "start"}, output); err == nil {
+			started = true
+		} else {
+			appendOutput(output, "fail2ban_rc_service_start_failed="+err.Error())
+		}
+	}
+
+	if err := runCommandWithOutput("fail2ban-client", []string{"ping"}, output); err != nil {
+		return fmt.Errorf("fail2ban is installed but the fail2ban service could not be started or reached: %w", err)
+	}
+
+	appendOutput(output, "fail2ban_running=true")
+	return nil
 }
 
 func fail2banPolicyFromPayload(payload map[string]any) fail2banPolicy {

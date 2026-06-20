@@ -163,6 +163,12 @@ Match LocalPort 22
 		}
 	}
 
+	if runtime.GOOS == "linux" {
+		if err := ensureFail2banAvailable(output); err != nil {
+			return err
+		}
+	}
+
 	if commandExists("firewall-cmd") {
 		if err := runCommandWithOutput("systemctl", []string{"enable", "--now", "firewalld"}, output); err != nil {
 			return err

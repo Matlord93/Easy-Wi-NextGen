@@ -60,6 +60,9 @@ func (sender *consoleMirroringJobLogSender) Send(jobID string, lines []string, p
 	if sender.instanceID == "" || len(lines) == 0 {
 		return
 	}
+	if err := appendConsoleLogLines(sender.instanceID, lines); err != nil {
+		log.Printf("mirror job logs to console file failed instance_id=%s job_id=%s lines=%d err=%v", sender.instanceID, jobID, len(lines), err)
+	}
 	session := globalConsoleSessions.getOrCreate(sender.instanceID, resolveInstanceUnitName(sender.instanceID))
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
