@@ -218,9 +218,7 @@ func ensureFail2banServiceRunning(output *strings.Builder) error {
 	}
 
 	if !started && commandExists("rc-service") {
-		if err := runCommandWithOutput("rc-service", []string{"fail2ban", "start"}, output); err == nil {
-			started = true
-		} else {
+		if err := runCommandWithOutput("rc-service", []string{"fail2ban", "start"}, output); err != nil {
 			appendOutput(output, "fail2ban_rc_service_start_failed="+err.Error())
 		}
 	}
