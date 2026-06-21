@@ -11,6 +11,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: MusicbotQueueItemRepository::class)]
 #[ORM\Table(name: 'musicbot_queue_items')]
 #[ORM\Index(name: 'idx_musicbot_queue_instance_position', columns: ['instance_id', 'position'])]
+#[ORM\Index(name: 'idx_musicbot_queue_track', columns: ['track_id'])]
+#[ORM\Index(name: 'idx_musicbot_queue_requested_by', columns: ['requested_by_id'])]
 class MusicbotQueueItem
 {
     #[ORM\Id]

@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'musicbot_workflow_conditions')]
+#[ORM\Index(name: 'idx_musicbot_wf_cond_workflow', columns: ['workflow_id'])]
 class MusicbotWorkflowCondition
 {
     #[ORM\Id]

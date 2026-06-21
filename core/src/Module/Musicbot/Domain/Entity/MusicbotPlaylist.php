@@ -12,6 +12,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: MusicbotPlaylistRepository::class)]
 #[ORM\Table(name: 'musicbot_playlists')]
 #[ORM\Index(name: 'idx_musicbot_playlists_customer', columns: ['customer_id'])]
+#[ORM\Index(name: 'idx_musicbot_playlists_instance', columns: ['instance_id'])]
 class MusicbotPlaylist
 {
     #[ORM\Id]

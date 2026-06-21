@@ -13,6 +13,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'musicbot_autodj_settings')]
 #[ORM\UniqueConstraint(name: 'uniq_musicbot_autodj_instance', columns: ['instance_id'])]
 #[ORM\Index(name: 'idx_musicbot_autodj_customer', columns: ['customer_id'])]
+#[ORM\Index(name: 'fk_autodj_playlist', columns: ['fallback_playlist_id'])]
 class MusicbotAutoDjSettings
 {
     #[ORM\Id]

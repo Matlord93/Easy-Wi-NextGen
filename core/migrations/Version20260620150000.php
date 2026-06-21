@@ -28,9 +28,9 @@ final class Version20260620150000 extends AbstractMigration
                 description CLOB DEFAULT NULL,
                 trigger_type VARCHAR(40) NOT NULL,
                 trigger_config CLOB NOT NULL,
-                enabled BOOLEAN NOT NULL DEFAULT 1,
+                enabled BOOLEAN NOT NULL,
                 last_triggered_at DATETIME DEFAULT NULL,
-                execution_count INTEGER NOT NULL DEFAULT 0,
+                execution_count INTEGER NOT NULL,
                 created_at DATETIME NOT NULL,
                 updated_at DATETIME NOT NULL,
                 CONSTRAINT fk_mw_customer FOREIGN KEY (customer_id) REFERENCES users (id) ON DELETE CASCADE,
@@ -45,7 +45,7 @@ final class Version20260620150000 extends AbstractMigration
                 workflow_id INTEGER NOT NULL,
                 type VARCHAR(60) NOT NULL,
                 value VARCHAR(255) DEFAULT NULL,
-                sort_order INTEGER NOT NULL DEFAULT 0,
+                sort_order INTEGER NOT NULL,
                 CONSTRAINT fk_mwc_workflow FOREIGN KEY (workflow_id) REFERENCES musicbot_workflows (id) ON DELETE CASCADE
             )');
             $this->addSql('CREATE INDEX idx_musicbot_wf_cond_workflow ON musicbot_workflow_conditions (workflow_id)');
@@ -55,7 +55,7 @@ final class Version20260620150000 extends AbstractMigration
                 workflow_id INTEGER NOT NULL,
                 type VARCHAR(60) NOT NULL,
                 config CLOB NOT NULL,
-                sort_order INTEGER NOT NULL DEFAULT 0,
+                sort_order INTEGER NOT NULL,
                 CONSTRAINT fk_mwa_workflow FOREIGN KEY (workflow_id) REFERENCES musicbot_workflows (id) ON DELETE CASCADE
             )');
             $this->addSql('CREATE INDEX idx_musicbot_wf_act_workflow ON musicbot_workflow_actions (workflow_id)');
@@ -65,7 +65,7 @@ final class Version20260620150000 extends AbstractMigration
                 workflow_id INTEGER NOT NULL,
                 triggered_at DATETIME NOT NULL,
                 completed_at DATETIME DEFAULT NULL,
-                status VARCHAR(20) NOT NULL DEFAULT \'pending\',
+                status VARCHAR(20) NOT NULL,
                 trigger_context CLOB NOT NULL,
                 log CLOB DEFAULT NULL,
                 error CLOB DEFAULT NULL,
@@ -84,11 +84,11 @@ final class Version20260620150000 extends AbstractMigration
                 description LONGTEXT DEFAULT NULL,
                 trigger_type VARCHAR(40) NOT NULL,
                 trigger_config JSON NOT NULL,
-                enabled TINYINT(1) NOT NULL DEFAULT 1,
-                last_triggered_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\',
-                execution_count INT NOT NULL DEFAULT 0,
-                created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',
-                updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',
+                enabled TINYINT(1) NOT NULL,
+                last_triggered_at DATETIME DEFAULT NULL,
+                execution_count INT NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
                 INDEX idx_musicbot_workflows_customer (customer_id),
                 INDEX idx_musicbot_workflows_instance (instance_id),
                 INDEX idx_musicbot_workflows_enabled (enabled, trigger_type),
@@ -102,7 +102,7 @@ final class Version20260620150000 extends AbstractMigration
                 workflow_id INT NOT NULL,
                 type VARCHAR(60) NOT NULL,
                 value VARCHAR(255) DEFAULT NULL,
-                sort_order INT NOT NULL DEFAULT 0,
+                sort_order INT NOT NULL,
                 INDEX idx_musicbot_wf_cond_workflow (workflow_id),
                 PRIMARY KEY(id)
             ) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
@@ -113,7 +113,7 @@ final class Version20260620150000 extends AbstractMigration
                 workflow_id INT NOT NULL,
                 type VARCHAR(60) NOT NULL,
                 config JSON NOT NULL,
-                sort_order INT NOT NULL DEFAULT 0,
+                sort_order INT NOT NULL,
                 INDEX idx_musicbot_wf_act_workflow (workflow_id),
                 PRIMARY KEY(id)
             ) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
@@ -122,9 +122,9 @@ final class Version20260620150000 extends AbstractMigration
             $this->addSql('CREATE TABLE musicbot_workflow_executions (
                 id INT AUTO_INCREMENT NOT NULL,
                 workflow_id INT NOT NULL,
-                triggered_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',
-                completed_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\',
-                status VARCHAR(20) NOT NULL DEFAULT \'pending\',
+                triggered_at DATETIME NOT NULL,
+                completed_at DATETIME DEFAULT NULL,
+                status VARCHAR(20) NOT NULL,
                 trigger_context JSON NOT NULL,
                 log LONGTEXT DEFAULT NULL,
                 error LONGTEXT DEFAULT NULL,

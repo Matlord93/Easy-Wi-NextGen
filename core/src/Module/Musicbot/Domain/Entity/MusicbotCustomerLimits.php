@@ -10,7 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: MusicbotCustomerLimitsRepository::class)]
 #[ORM\Table(name: 'musicbot_customer_limits')]
-#[ORM\Index(name: 'idx_musicbot_customer_limits_customer', columns: ['customer_id'])]
+#[ORM\UniqueConstraint(name: 'uniq_musicbot_customer_limits_customer', columns: ['customer_id'])]
 class MusicbotCustomerLimits
 {
     #[ORM\Id]
