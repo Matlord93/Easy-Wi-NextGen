@@ -84,6 +84,56 @@ final class Teamspeak6GithubUpdateProviderTest extends TestCase
         self::assertSame('https://github.com/teamspeak/teamspeak6-server/releases/download/v6.0.0-beta10/teamspeak6-server-linux-amd64.tar.xz', $provider->resolveLatestAssetUrl('linux', 'amd64', 'beta'));
     }
 
+    public function testCheckForUpdatesFallsThroughToOlderReleaseWhenNewestLacksPlatformAsset(): void
+    {
+        // beta11 only has arm64; beta10 has amd64. An amd64 host running beta9 should
+        // find beta10 as the available update rather than stopping at asset_not_found.
+        $provider = new Teamspeak6GithubUpdateProvider($this->clientWith([
+            ['tag_name' => 'v6.0.0-beta11', 'prerelease' => true, 'published_at' => '2026-06-17T00:00:00Z', 'assets' => [
+                ['name' => 'teamspeak6-server-linux-arm64.tar.xz', 'browser_download_url' => 'https://github.com/teamspeak/teamspeak6-server/releases/download/v6.0.0-beta11/teamspeak6-server-linux-arm64.tar.xz'],
+            ]],
+            ['tag_name' => 'v6.0.0-beta10', 'prerelease' => true, 'published_at' => '2026-05-12T00:00:00Z', 'assets' => [
+                ['name' => 'teamspeak6-server-linux-amd64.tar.xz', 'browser_download_url' => 'https://github.com/teamspeak/teamspeak6-server/releases/download/v6.0.0-beta10/teamspeak6-server-linux-amd64.tar.xz'],
+            ]],
+        ]));
+
+        $result = $provider->checkForUpdates('6.0.0-beta9', 'linux', 'amd64', 'beta');
+
+        self::assertTrue($result->updateAvailable);
+        self::assertSame('6.0.0-beta10', $result->availableVersion);
+        self::assertSame('update_available', $result->status);
+    }
+
+    public function testCheckForUpdatesReturnsAssetNotFoundWhenNoPlatformAssetExistsAnywhere(): void
+    {
+        // Only arm64 assets exist; amd64 request should get asset_not_found for the newest release.
+        $provider = new Teamspeak6GithubUpdateProvider($this->clientWith([
+            ['tag_name' => 'v6.0.0-beta11', 'prerelease' => true, 'assets' => [
+                ['name' => 'teamspeak6-server-linux-arm64.tar.xz', 'browser_download_url' => 'https://github.com/teamspeak/teamspeak6-server/releases/download/v6.0.0-beta11/teamspeak6-server-linux-arm64.tar.xz'],
+            ]],
+        ]));
+
+        $result = $provider->checkForUpdates('6.0.0-beta9', 'linux', 'amd64', 'beta');
+
+        self::assertFalse($result->updateAvailable);
+        self::assertSame('asset_not_found', $result->status);
+        self::assertSame('6.0.0-beta11', $result->availableVersion);
+    }
+
+    public function testCheckForUpdatesReturnsNoUpdateAvailableForStableChannelWhenAllReleasesArePrerelease(): void
+    {
+        $provider = new Teamspeak6GithubUpdateProvider($this->clientWith([
+            ['tag_name' => 'v6.0.0-beta11', 'prerelease' => true, 'assets' => [
+                ['name' => 'teamspeak6-server-linux-amd64.tar.xz', 'browser_download_url' => 'https://github.com/teamspeak/teamspeak6-server/releases/download/v6.0.0-beta11/teamspeak6-server-linux-amd64.tar.xz'],
+            ]],
+        ]));
+
+        $result = $provider->checkForUpdates('6.0.0-beta9', 'linux', 'amd64', 'stable');
+
+        self::assertFalse($result->updateAvailable);
+        self::assertSame('no_update_available', $result->status);
+    }
+
     private function clientWith(array $payload): HttpClientInterface
     {
         return new class($payload) implements HttpClientInterface {

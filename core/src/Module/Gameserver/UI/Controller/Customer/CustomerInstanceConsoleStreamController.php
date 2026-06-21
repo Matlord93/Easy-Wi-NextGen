@@ -74,7 +74,14 @@ final class CustomerInstanceConsoleStreamController
                 }
 
                 while ((time() - $startedAt) < $this->maxDurationSeconds) {
-                    $this->eventBus->refreshSubscriberTtl($id);
+                    try {
+                        $this->eventBus->refreshSubscriberTtl($id);
+                    } catch (\Throwable) {
+                        // Non-fatal: a transient Redis reconnect failure must not
+                        // kill the SSE stream. The subscriber TTL may lapse (the
+                        // relay will stop relaying within 60 s) but the stream
+                        // itself recovers on the next iteration.
+                    }
                     $this->eventBus->consumeConsoleEvents(
                         $id,
                         function (array $event): void {

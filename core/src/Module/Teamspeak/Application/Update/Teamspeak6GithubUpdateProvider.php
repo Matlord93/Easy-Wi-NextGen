@@ -32,21 +32,27 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
             return new UpdateResult('ts6', $normalizedInstalledVersion, null, false, 'github_unreachable', 'teamspeak.update.github_unreachable');
         }
 
+        $assetNotFoundResult = null;
+
         foreach ($releases as $release) {
             $isPre = (bool) ($release['prerelease'] ?? false);
             if ($channel !== 'beta' && $isPre) { continue; }
             $releaseTag = (string) ($release['tag_name'] ?? '');
             $tag = TeamspeakVersionNormalizer::normalize($releaseTag);
-            if ($tag === '') { continue; }
+            if ($tag === null) { continue; }
             $assets = (array) ($release['assets'] ?? []);
             $asset = $this->selectAsset($assets, $os, $arch);
             if ($asset === null) {
-                return new UpdateResult('ts6', $normalizedInstalledVersion, $tag, false, 'asset_not_found', 'teamspeak.update.asset_not_found_details', [
+                // The highest-version release does not have an asset for this platform.
+                // Keep searching older releases that may have one; record this result
+                // so we can surface it if no compatible asset is found at all.
+                $assetNotFoundResult ??= new UpdateResult('ts6', $normalizedInstalledVersion, $tag, false, 'asset_not_found', 'teamspeak.update.asset_not_found_details', [
                     'release_tag' => $releaseTag,
                     'os' => strtolower($os),
                     'arch' => strtolower($arch),
                     'assets' => implode(', ', array_values(array_filter(array_map(static fn(array $a): string => (string) ($a['name'] ?? ''), $assets)))),
                 ], null, null, null, $releaseTag);
+                continue;
             }
             $resolver = $this->checksumResolver ?? new TeamspeakChecksumResolver();
             $checksum = $resolver->resolve($asset, $assets, (string) ($release['body'] ?? ''));
@@ -58,7 +64,7 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
             return new UpdateResult('ts6', $normalizedInstalledVersion, $tag, $available, $available ? 'update_available' : 'up_to_date', null, [], $assetUrl, (string) ($asset['name'] ?? null), isset($asset['size']) ? (int) $asset['size'] : null, $releaseTag, (string) ($release['body'] ?? null), $checksum);
         }
 
-        return new UpdateResult('ts6', $normalizedInstalledVersion, null, false, 'no_update_available', 'teamspeak.update.no_update_available');
+        return $assetNotFoundResult ?? new UpdateResult('ts6', $normalizedInstalledVersion, null, false, 'no_update_available', 'teamspeak.update.no_update_available');
     }
 
     public function resolveLatestAssetUrl(string $os, string $arch, string $channel = 'beta'): ?string

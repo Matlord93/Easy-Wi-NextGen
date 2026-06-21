@@ -50,3 +50,25 @@ If you need to inspect process crashes in CI, re-run with:
 ```bash
 XDEBUG_MODE=off php -d memory_limit=768M bin/phpunit --debug --filter AccountSecurityFlowTest
 ```
+
+## Musicbot module quality checks
+
+Musicbot tests are intentionally split between the Go agent/runtime and the Symfony core. The Go checks do not contact real Discord or TeamSpeak services; connector tests use placeholder clients and local control-socket/state-file fallbacks only.
+
+Recommended local verification before merging Musicbot changes:
+
+```bash
+cd agent
+go test ./...
+```
+
+```bash
+cd core
+composer install
+composer test -- --filter 'Musicbot|AgentJobValidator|AgentJobResultApplier'
+composer lint
+php bin/console doctrine:schema:validate --skip-sync
+php bin/console doctrine:migrations:status --show-versions
+```
+
+In minimal Codex containers `core/vendor/` may be absent. In that case, Symfony/PHPUnit/Twig/Doctrine commands are expected to fail until Composer dependencies are installed; CI jobs that enforce Musicbot quality gates must run `composer install` (or restore an equivalent dependency cache) before executing those commands.
