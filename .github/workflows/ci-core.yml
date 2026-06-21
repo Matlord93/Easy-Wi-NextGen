@@ -125,8 +125,8 @@ jobs:
       - name: Run Doctrine migrations
         run: php bin/console doctrine:migrations:migrate --env=test --no-interaction --allow-no-migration
 
-      - name: Validate Doctrine schema
-        run: php bin/console doctrine:schema:validate --env=test --no-interaction
+      - name: Doctrine migrations status
+        run: php bin/console doctrine:migrations:status --env=test --no-interaction -vvv
 
       - name: Doctrine schema diff must be empty
         run: |
@@ -137,6 +137,9 @@ jobs:
             echo 'Doctrine schema:update emitted SQL; mapping and migrated schema are not in sync.' >&2
             exit 1
           fi
+
+      - name: Validate Doctrine schema
+        run: php bin/console doctrine:schema:validate --env=test --no-interaction
 
   release:
     name: Core - release bundle
