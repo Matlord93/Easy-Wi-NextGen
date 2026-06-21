@@ -33,6 +33,7 @@ type Config struct {
 	CreatedAt   string                   `json:"created_at,omitempty"`
 	Note        string                   `json:"note,omitempty"`
 	Control     ControlConfig            `json:"control,omitempty"`
+	Stream      WebradioStreamConfig     `json:"stream,omitempty"`
 }
 
 type ConnectorConfig struct {
@@ -41,16 +42,25 @@ type ConnectorConfig struct {
 }
 
 type TeamSpeakConnectorConfig struct {
-	Enabled         bool           `json:"enabled"`
-	Profile         string         `json:"profile,omitempty"`
-	Backend         string         `json:"backend,omitempty"`
-	Host            string         `json:"host,omitempty"`
-	Port            int            `json:"port,omitempty"`
-	Nickname        string         `json:"nickname,omitempty"`
-	ChannelID       string         `json:"channel_id,omitempty"`
-	ServerPassword  string         `json:"server_password,omitempty"`
-	ChannelPassword string         `json:"channel_password,omitempty"`
-	Config          map[string]any `json:"config,omitempty"`
+	Enabled             bool           `json:"enabled"`
+	Profile             string         `json:"profile,omitempty"`
+	Backend             string         `json:"backend,omitempty"`
+	BackendType         string         `json:"backend_type,omitempty"`
+	BackendPath         string         `json:"backend_path,omitempty"`
+	IdentityPath        string         `json:"identity_path,omitempty"`
+	CommandPrefix       string         `json:"command_prefix,omitempty"`
+	CommandsEnabled     bool           `json:"commands_enabled,omitempty"`
+	EventsEnabled       bool           `json:"events_enabled,omitempty"`
+	AllowedServerGroups []string       `json:"allowed_server_groups,omitempty"`
+	DJServerGroups      []string       `json:"dj_server_groups,omitempty"`
+	AdminServerGroups   []string       `json:"admin_server_groups,omitempty"`
+	Host                string         `json:"host,omitempty"`
+	Port                int            `json:"port,omitempty"`
+	Nickname            string         `json:"nickname,omitempty"`
+	ChannelID           string         `json:"channel_id,omitempty"`
+	ServerPassword      string         `json:"server_password,omitempty"`
+	ChannelPassword     string         `json:"channel_password,omitempty"`
+	Config              map[string]any `json:"config,omitempty"`
 }
 
 type LimitsConfig struct {
@@ -72,15 +82,16 @@ type PlaybackState struct {
 }
 
 type Runtime struct {
-	config     Config
-	logger     *log.Logger
-	logFile    *os.File
-	playback   PlaybackState
-	pipeline   *AudioPipeline
-	connectors map[string]Connector
-	playCancel context.CancelFunc
-	mu         sync.Mutex
-	started    time.Time
+	config       Config
+	logger       *log.Logger
+	logFile      *os.File
+	playback     PlaybackState
+	pipeline     *AudioPipeline
+	connectors   map[string]Connector
+	streamOutput *WebradioStreamOutput
+	playCancel   context.CancelFunc
+	mu           sync.Mutex
+	started      time.Time
 }
 
 type commandRequest struct {
@@ -225,6 +236,8 @@ func (r *Runtime) HandleCommand(line string) commandResponse {
 		return r.handleConnectionStatus(request.Args)
 	case "play", "pause", "resume", "stop", "skip", "volume", "shuffle", "repeat":
 		return r.handlePlayback(command, request.Args)
+	case "queue.sync":
+		return r.handleQueueSync(request.Args)
 	default:
 		return commandResponse{OK: false, Command: command, Error: "unsupported command"}
 	}
@@ -258,7 +271,12 @@ func buildConnectors(config Config) (map[string]Connector, error) {
 		connectors["teamspeak"] = connector
 	}
 	if config.Discord.Enabled {
-		connector := NewDiscordConnector(config.Discord)
+		var connector *DiscordConnector
+		if discordConfigString(config.Discord, "command_mode") == "placeholder" || discordConfigString(config.Discord, "bot_token") == "" {
+			connector = NewDiscordConnector(config.Discord)
+		} else {
+			connector = NewDiscordConnectorWithClient(config.Discord, NewRealDiscordVoiceClient())
+		}
 		if err := connector.ValidateConfig(); err != nil {
 			return nil, err
 		}
@@ -280,7 +298,11 @@ func (r *Runtime) connectorStatuses() map[string]any {
 
 func (r *Runtime) statusPayload() map[string]any {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	snap := r.pipeline.Snapshot()
+	snap.CurrentSource = "" // strip absolute path — must not leak
+	playbackStatus := r.buildPlaybackStatusLocked(snap)
+	safePlayback := r.buildSafePlaybackLocked()
+	r.mu.Unlock()
 	return map[string]any{
 		"installed":  true,
 		"running":    true,
@@ -291,14 +313,121 @@ func (r *Runtime) statusPayload() map[string]any {
 			"customer_id":  r.config.CustomerID,
 			"service_name": r.config.ServiceName,
 		},
-		"connectors":     r.connectorStatuses(),
-		"playback":       r.playback,
-		"audio_pipeline": r.pipeline.Snapshot(),
+		"connectors":      r.connectorStatuses(),
+		"playback":        safePlayback,
+		"playback_status": playbackStatus,
+		"audio_pipeline":  snap,
+		"stream":          r.streamStatusPayload(),
 		"plugins": map[string]any{
 			"directory":         r.config.PluginDir,
 			"manifests":         r.pluginManifestSummaries(),
 			"execution_enabled": false,
 		},
+	}
+}
+
+// buildPlaybackStatusLocked returns a flat map with all playback telemetry fields.
+// Must be called with r.mu held. Never includes file paths or URIs.
+func (r *Runtime) buildPlaybackStatusLocked(snap AudioPipelineStatus) map[string]any {
+	currentQueueItemID, currentTrackID, currentTitle, currentArtist, currentSource := "", "", "", "", ""
+	durationMs := 0
+	if ct := r.playback.CurrentTrack; ct != nil {
+		currentTrackID = ct.ID
+		currentTitle = ct.Title
+		currentArtist = ct.Artist
+		currentSource = string(ct.Source.Type)
+		durationMs = ct.DurationSeconds * 1000
+	}
+	if currentTrackID != "" {
+		for _, item := range r.playback.Queue.Items {
+			if item.TrackID == currentTrackID {
+				currentQueueItemID = item.QueueItemID
+				break
+			}
+		}
+	}
+	return map[string]any{
+		"playback_state":        r.playback.State,
+		"current_queue_item_id": currentQueueItemID,
+		"current_track_id":      currentTrackID,
+		"current_title":         currentTitle,
+		"current_artist":        currentArtist,
+		"current_source":        currentSource,
+		"playback_position_ms":  snap.PlaybackPositionMs,
+		"duration_ms":           durationMs,
+		"queue_length":          len(r.playback.Queue.Items),
+		"repeat_mode":           r.playback.Repeat,
+		"shuffle":               r.playback.Shuffle,
+		"decoder_backend":       snap.DecoderBackend,
+		"decoder_status":        snap.DecoderStatus,
+		"output_backend":        r.pipeline.OutputBackendName(),
+		"output_status":         snap.OutputStatus,
+		"frames_processed":      snap.FramesProcessed,
+		"frames_sent":           snap.FramesSent,
+		"last_error":            snap.LastError,
+		"last_output_error":     snap.LastOutputError,
+		"teamspeak_profile":     r.teamspeakProfileForStatus(),
+		"last_state_change_at":  r.playback.UpdatedAt,
+	}
+}
+
+func (r *Runtime) teamspeakProfileForStatus() string {
+	if connector, ok := r.connectors["teamspeak"].(*TeamSpeakVoiceConnector); ok {
+		return connector.GetStatus(context.Background()).Profile
+	}
+	return normalizeTeamspeakProfile(teamspeakConfigString(r.config.TeamSpeak, "profile"))
+}
+
+// buildSafePlaybackLocked returns the playback state with all file URIs stripped.
+// Must be called with r.mu held.
+func (r *Runtime) buildSafePlaybackLocked() map[string]any {
+	var safeCurrentTrack map[string]any
+	if ct := r.playback.CurrentTrack; ct != nil {
+		safeCurrentTrack = map[string]any{
+			"id":               ct.ID,
+			"title":            ct.Title,
+			"artist":           ct.Artist,
+			"duration_seconds": ct.DurationSeconds,
+			"source": map[string]any{
+				"type":      string(ct.Source.Type),
+				"mime_type": ct.Source.MimeType,
+			},
+			"position_seconds": ct.PositionSeconds,
+			"started_at":       ct.StartedAt,
+			"metadata":         ct.Metadata,
+		}
+	}
+	safeItems := make([]map[string]any, 0, len(r.playback.Queue.Items))
+	for _, item := range r.playback.Queue.Items {
+		safeItems = append(safeItems, map[string]any{
+			"queue_item_id":    item.QueueItemID,
+			"track_id":         item.TrackID,
+			"title":            item.Title,
+			"artist":           item.Artist,
+			"duration_seconds": item.DurationSeconds,
+			"source": map[string]any{
+				"type":      string(item.Source.Type),
+				"mime_type": item.Source.MimeType,
+			},
+			"metadata": item.Metadata,
+		})
+	}
+	return map[string]any{
+		"state":         r.playback.State,
+		"current_track": safeCurrentTrack,
+		"queue": map[string]any{
+			"instance_id":  r.playback.Queue.InstanceID,
+			"items":        safeItems,
+			"repeat":       r.playback.Queue.Repeat,
+			"shuffle":      r.playback.Queue.Shuffle,
+			"revision":     r.playback.Queue.Revision,
+			"generated_at": r.playback.Queue.GeneratedAt,
+		},
+		"volume":       r.playback.Volume,
+		"shuffle":      r.playback.Shuffle,
+		"repeat":       r.playback.Repeat,
+		"updated_at":   r.playback.UpdatedAt,
+		"last_command": r.playback.LastCommand,
 	}
 }
 
@@ -332,6 +461,16 @@ func (r *Runtime) pluginManifestSummaries() []map[string]any {
 		})
 	}
 	return manifests
+}
+
+func (r *Runtime) streamStatusPayload() WebradioStreamStatus {
+	r.mu.Lock()
+	out := r.streamOutput
+	r.mu.Unlock()
+	if out == nil {
+		return WebradioStreamStatus{Enabled: r.config.Stream.Enabled}
+	}
+	return out.Status()
 }
 
 func (r *Runtime) handleConnectionStatus(args map[string]any) commandResponse {
@@ -409,6 +548,36 @@ func (r *Runtime) handlePlayback(command string, args map[string]any) commandRes
 			r.playCancel()
 			r.playCancel = nil
 		}
+		r.playback.CurrentTrack = nil
+		r.playback.Queue.Current = nil
+		if len(r.playback.Queue.Items) > 0 {
+			r.playback.Queue.Items = r.playback.Queue.Items[1:]
+		}
+		if len(r.playback.Queue.Items) > 0 {
+			next := r.playback.Queue.Items[0]
+			nextTrack := &CurrentTrack{
+				ID:              next.TrackID,
+				Title:           next.Title,
+				Artist:          next.Artist,
+				DurationSeconds: next.DurationSeconds,
+				Source:          next.Source,
+				StartedAt:       r.playback.UpdatedAt,
+				Metadata:        next.Metadata,
+			}
+			r.playback.CurrentTrack = nextTrack
+			r.playback.Queue.Current = nextTrack
+			r.playback.Current = next.Source.URI
+			r.playback.State = "playing"
+			ctx, cancel := context.WithCancel(context.Background())
+			r.playCancel = cancel
+			volume := float64(r.playback.Volume) / 100.0
+			r.playback.Queue.GeneratedAt = r.playback.UpdatedAt
+			playback := r.playback
+			r.mu.Unlock()
+			go r.runPipelineTrack(ctx, next.Source, volume)
+			r.logger.Printf("playback command=%s state=%s next_track=%s", command, "playing", next.TrackID)
+			return commandResponse{OK: true, Command: command, Payload: map[string]any{"playback": playback}}
+		}
 		r.playback.State = "stopped"
 	case "volume":
 		if value, ok := args["value"]; ok {
@@ -453,21 +622,178 @@ func (r *Runtime) sourceFromPlaybackArgsLocked(args map[string]any) (AudioSource
 	return AudioSource{}, nil, errors.New("play requires a local track/file path or a queue item")
 }
 
+// StartStreamServer starts the webradio HTTP stream server if configured and enabled.
+// It returns immediately; the server shuts down when ctx is cancelled.
+func (r *Runtime) StartStreamServer(ctx context.Context) error {
+	if !r.config.Stream.Enabled || r.config.Stream.Port == 0 {
+		return nil
+	}
+	out := NewWebradioStreamOutput(r.config.Stream, r.logger)
+	if err := out.Start(ctx); err != nil {
+		return fmt.Errorf("start stream server: %w", err)
+	}
+	r.mu.Lock()
+	r.streamOutput = out
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *Runtime) selectAudioOutput(ctx context.Context) {
+	var primary AudioOutput = NullAudioOutput{}
+	if connector, ok := r.connectors["teamspeak"].(*TeamSpeakVoiceConnector); ok {
+		status := connector.GetStatus(ctx)
+		if status.VoiceClientAvailable && status.CapabilityStatus == CapabilityStatusReady {
+			primary = NewTeamspeakAudioOutputFromConnector(connector)
+		}
+	}
+	if _, isNull := primary.(NullAudioOutput); isNull {
+		if connector, ok := r.connectors["discord"].(*DiscordConnector); ok {
+			status := connector.GetStatus(ctx)
+			if status.VoiceClientAvailable && status.CapabilityStatus == CapabilityStatusReady {
+				primary = NewDiscordAudioOutputWithConfig(connector.voiceClient, connector.config.Config)
+			}
+		}
+	}
+	r.mu.Lock()
+	streamOut := r.streamOutput
+	r.mu.Unlock()
+	if streamOut != nil && streamOut.IsRunning() {
+		r.pipeline.SetOutput(NewFanOutAudioOutput(r.logger, primary, streamOut))
+	} else {
+		r.pipeline.SetOutput(primary)
+	}
+}
+
 func (r *Runtime) runPipelineTrack(ctx context.Context, source AudioSource, volume float64) {
+	r.selectAudioOutput(ctx)
 	err := r.pipeline.ProcessWithVolume(ctx, source, volume)
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if errors.Is(err, context.Canceled) {
+		r.mu.Unlock()
 		return
 	}
 	if err != nil {
 		r.playback.State = "error"
 		r.logger.Printf("audio pipeline error: %v", err)
+		r.mu.Unlock()
 		return
 	}
-	if r.playback.State == "playing" {
-		r.playback.State = "stopped"
+	if r.playback.State != "playing" {
+		r.mu.Unlock()
+		return
 	}
+	// Track finished naturally — advance queue
+	if len(r.playback.Queue.Items) > 0 {
+		r.playback.Queue.Items = r.playback.Queue.Items[1:]
+	}
+	r.playback.CurrentTrack = nil
+	r.playback.Queue.Current = nil
+	if len(r.playback.Queue.Items) == 0 {
+		r.playback.State = "stopped"
+		r.playback.Queue.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+		r.logger.Printf("playback track.finished queue.empty")
+		r.mu.Unlock()
+		return
+	}
+	next := r.playback.Queue.Items[0]
+	nextVolume := float64(r.playback.Volume) / 100.0
+	nextTrack := &CurrentTrack{
+		ID:              next.TrackID,
+		Title:           next.Title,
+		Artist:          next.Artist,
+		DurationSeconds: next.DurationSeconds,
+		Source:          next.Source,
+		StartedAt:       time.Now().UTC().Format(time.RFC3339),
+		Metadata:        next.Metadata,
+	}
+	r.playback.CurrentTrack = nextTrack
+	r.playback.Queue.Current = nextTrack
+	r.playback.Current = next.Source.URI
+	r.playback.Queue.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+	ctx2, cancel := context.WithCancel(context.Background())
+	r.playCancel = cancel
+	r.logger.Printf("playback track.finished auto-advance next=%s", next.TrackID)
+	r.mu.Unlock()
+	go r.runPipelineTrack(ctx2, next.Source, nextVolume)
+}
+
+func (r *Runtime) handleQueueSync(args map[string]any) commandResponse {
+	queueData, ok := args["queue"].(map[string]any)
+	if !ok {
+		return commandResponse{OK: false, Command: "queue.sync", Error: "queue.sync requires a queue object in args"}
+	}
+
+	// Verify instance ID matches to prevent cross-instance data injection
+	if instanceID, ok := queueData["instance_id"].(string); ok && instanceID != "" && instanceID != r.config.InstanceID {
+		return commandResponse{OK: false, Command: "queue.sync", Error: "queue.sync instance_id mismatch"}
+	}
+
+	itemsRaw, _ := queueData["items"].([]any)
+	items := make([]QueueTrack, 0, len(itemsRaw))
+	for _, raw := range itemsRaw {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		sourceRaw, _ := item["source"].(map[string]any)
+		sourceType := TrackSourceType(strings.TrimSpace(asString(sourceRaw["type"])))
+		uri := strings.TrimSpace(asString(sourceRaw["uri"]))
+		// Only accept local upload tracks — no external sources
+		if sourceType != TrackSourceUpload || uri == "" {
+			continue
+		}
+		metadata, _ := item["metadata"].(map[string]any)
+		items = append(items, QueueTrack{
+			QueueItemID:     asString(item["queue_item_id"]),
+			TrackID:         asString(item["track_id"]),
+			Title:           asString(item["title"]),
+			Artist:          asString(item["artist"]),
+			DurationSeconds: asInt(item["duration_seconds"]),
+			Source: AudioSource{
+				Type:     sourceType,
+				URI:      uri,
+				MimeType: asString(sourceRaw["mime_type"]),
+			},
+			Metadata: metadata,
+		})
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Keep CurrentTrack if its TrackID still appears in the new queue
+	currentTrack := r.playback.CurrentTrack
+	if currentTrack != nil {
+		found := false
+		for _, item := range items {
+			if item.TrackID == currentTrack.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			currentTrack = nil
+		}
+	}
+
+	r.playback.Queue.Items = items
+	r.playback.Queue.InstanceID = r.config.InstanceID
+	r.playback.Queue.Revision++
+	r.playback.Queue.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+	r.playback.Queue.Current = currentTrack
+	r.playback.CurrentTrack = currentTrack
+	if currentTrack == nil && len(items) == 0 && r.playback.State == "stopped" {
+		r.playback.Current = ""
+	}
+	r.playback.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	r.logger.Printf("queue.sync instance=%s items=%d revision=%d", r.config.InstanceID, len(items), r.playback.Queue.Revision)
+	return commandResponse{OK: true, Command: "queue.sync", Payload: map[string]any{
+		"synced":   true,
+		"items":    len(items),
+		"revision": r.playback.Queue.Revision,
+		"playback": r.playback,
+	}}
 }
 
 func clampVolume(value any) int {

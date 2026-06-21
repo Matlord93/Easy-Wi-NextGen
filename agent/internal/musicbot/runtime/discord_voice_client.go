@@ -8,12 +8,19 @@ import (
 var ErrDiscordVoiceBackendNotConfigured = errors.New("discord voice backend is not configured; install a Discord voice backend before enabling audio output")
 
 type DiscordVoiceState struct {
-	GatewayConnected bool             `json:"gateway_connected"`
-	VoiceJoined      bool             `json:"voice_joined"`
-	GuildID          string           `json:"guild_id,omitempty"`
-	ChannelID        string           `json:"channel_id,omitempty"`
-	CapabilityStatus CapabilityStatus `json:"capability_status"`
-	LastError        string           `json:"last_error,omitempty"`
+	GatewayConnected   bool             `json:"gateway_connected"`
+	VoiceJoined        bool             `json:"voice_joined"`
+	GuildID            string           `json:"guild_id,omitempty"`
+	ChannelID          string           `json:"channel_id,omitempty"`
+	CapabilityStatus   CapabilityStatus `json:"capability_status"`
+	LastError          string           `json:"last_error,omitempty"`
+	VoiceGatewayState  string           `json:"voice_gateway_state,omitempty"`
+	VoiceUDPState      string           `json:"voice_udp_state,omitempty"`
+	ReconnectCount     uint64           `json:"reconnect_count"`
+	LastVoiceError     string           `json:"last_voice_error,omitempty"`
+	LastHeartbeatAt    string           `json:"last_heartbeat_at,omitempty"`
+	LastHeartbeatAckAt string           `json:"last_heartbeat_ack_at,omitempty"`
+	LastReconnectAt    string           `json:"last_reconnect_at,omitempty"`
 }
 
 type DiscordVoiceClient interface {

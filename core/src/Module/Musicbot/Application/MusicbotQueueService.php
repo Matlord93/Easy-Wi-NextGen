@@ -4,22 +4,24 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotQueueItem;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
-use App\Repository\MusicbotQueueItemRepository;
-use App\Repository\MusicbotTrackRepository;
+use App\Repository\MusicbotQueueItemRepositoryInterface;
+use App\Repository\MusicbotTrackRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class MusicbotQueueService
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly MusicbotQueueItemRepository $queueItemRepository,
-        private readonly MusicbotTrackRepository $trackRepository,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotQueueItemRepositoryInterface $queueItemRepository,
+        private readonly MusicbotTrackRepositoryInterface $trackRepository,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
+        private readonly AgentJobDispatcherInterface $jobDispatcher,
     ) {
     }
 
@@ -67,6 +69,8 @@ final class MusicbotQueueService
         $this->entityManager->persist($queueItem);
         $this->entityManager->flush();
 
+        $this->dispatchQueueSync($instance);
+
         return $queueItem;
     }
 
@@ -77,6 +81,7 @@ final class MusicbotQueueService
         $this->entityManager->remove($queueItem);
         $this->entityManager->flush();
         $this->normalizePositions($instance);
+        $this->dispatchQueueSync($instance);
     }
 
     public function removeTrack(User $customer, MusicbotTrack $track): void
@@ -110,6 +115,7 @@ final class MusicbotQueueService
             $item->setPosition($position++);
         }
         $this->entityManager->flush();
+        $this->dispatchQueueSync($instance);
     }
 
     public function clearQueue(User $customer, MusicbotInstance $instance): void
@@ -119,6 +125,7 @@ final class MusicbotQueueService
             $this->entityManager->remove($queueItem);
         }
         $this->entityManager->flush();
+        $this->dispatchQueueSync($instance);
     }
 
     /** @return MusicbotQueueItem[] */
@@ -141,6 +148,76 @@ final class MusicbotQueueService
             $item->setPosition($position++);
         }
         $this->entityManager->flush();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function buildQueueSnapshot(MusicbotInstance $instance): array
+    {
+        $items = $this->queueItemRepository->findQueueForInstanceOrdered($instance);
+        $serialized = [];
+        foreach ($items as $item) {
+            $track = $item->getTrack();
+            $uri = $this->runtimeSafeFilePath($track, $instance->getInstallPath());
+            if ($uri === '' || $track->getSourceType() !== MusicbotTrackSourceType::Upload) {
+                continue;
+            }
+            $serialized[] = [
+                'queue_item_id' => (string) $item->getId(),
+                'track_id' => (string) $track->getId(),
+                'title' => $track->getTitle(),
+                'artist' => $track->getArtist() ?? '',
+                'duration_seconds' => $track->getDurationSeconds(),
+                'source' => [
+                    'type' => $track->getSourceType()->value,
+                    'uri' => $uri,
+                    'mime_type' => $track->getMimeType(),
+                ],
+                'metadata' => $track->getMetadata(),
+            ];
+        }
+
+        return [
+            'instance_id' => (string) $instance->getId(),
+            'items' => $serialized,
+            'revision' => time(),
+            'generated_at' => (new \DateTimeImmutable())->format(\DateTimeInterface::RFC3339),
+        ];
+    }
+
+    private function runtimeSafeFilePath(MusicbotTrack $track, string $installPath): string
+    {
+        $filePath = $track->getFilePath();
+        if ($filePath === null || trim($filePath) === '') {
+            return '';
+        }
+        $filePath = trim($filePath);
+
+        // Strip absolute data-dir prefix so the runtime receives a relative path
+        $dataDir = rtrim($installPath, '/') . '/data/';
+        if (str_starts_with($filePath, $dataDir)) {
+            $filePath = substr($filePath, strlen($dataDir));
+        }
+
+        // Reject absolute paths and traversal attempts
+        if (str_starts_with($filePath, '/') || str_contains($filePath, '..')) {
+            return '';
+        }
+
+        return $filePath;
+    }
+
+    private function dispatchQueueSync(MusicbotInstance $instance): void
+    {
+        $snapshot = $this->buildQueueSnapshot($instance);
+        $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.queue.sync', [
+            'instance_id' => (string) $instance->getId(),
+            'service_name' => $instance->getServiceName(),
+            'install_path' => $instance->getInstallPath(),
+            'queue_length' => count($snapshot['items']),
+            'queue' => $snapshot,
+        ]);
     }
 
     private function assertCustomerOwnsInstance(User $customer, MusicbotInstance $instance): void

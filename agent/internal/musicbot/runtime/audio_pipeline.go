@@ -105,11 +105,19 @@ type AudioPipelineStatus struct {
 	CurrentSource      string `json:"current_source,omitempty"`
 	DecoderBackend     string `json:"decoder_backend"`
 	DecoderStatus      string `json:"decoder_status"`
+	OutputBackend      string `json:"output_backend"`
 	OutputStatus       string `json:"output_status"`
 	FramesProcessed    uint64 `json:"frames_processed"`
+	FramesSent         uint64 `json:"frames_sent"`
 	PlaybackPositionMs uint64 `json:"playback_position_ms"`
 	LastError          string `json:"last_error,omitempty"`
+	LastOutputError    string `json:"last_output_error,omitempty"`
 	UpdatedAt          string `json:"updated_at"`
+}
+
+// AudioOutputName is implemented by AudioOutput adapters that expose a human-readable backend name.
+type AudioOutputName interface {
+	OutputName() string
 }
 
 type AudioPipeline struct {
@@ -138,7 +146,7 @@ func NewAudioPipeline(resolver AudioSourceResolver, decoder AudioDecoder, resamp
 	if output == nil {
 		output = NullAudioOutput{}
 	}
-	return &AudioPipeline{resolver: resolver, decoder: decoder, resampler: resampler, encoder: encoder, output: output, status: AudioPipelineStatus{DecoderBackend: decoderBackendName(decoder), DecoderStatus: "idle", OutputStatus: "idle", UpdatedAt: time.Now().UTC().Format(time.RFC3339)}}
+	return &AudioPipeline{resolver: resolver, decoder: decoder, resampler: resampler, encoder: encoder, output: output, status: AudioPipelineStatus{DecoderBackend: decoderBackendName(decoder), DecoderStatus: "idle", OutputBackend: outputBackendName(output), OutputStatus: "idle", UpdatedAt: time.Now().UTC().Format(time.RFC3339)}}
 }
 
 func (p *AudioPipeline) LoadSource(ctx context.Context, source AudioSource) (ResolvedAudioSource, error) {
@@ -152,8 +160,10 @@ func (p *AudioPipeline) LoadSource(ctx context.Context, source AudioSource) (Res
 	p.status.DecoderBackend = decoderBackendName(p.decoder)
 	p.status.DecoderStatus = "source_loaded"
 	p.status.FramesProcessed = 0
+	p.status.FramesSent = 0
 	p.status.PlaybackPositionMs = 0
 	p.status.LastError = ""
+	p.status.LastOutputError = ""
 	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	p.mu.Unlock()
 	return resolved, nil
@@ -205,15 +215,20 @@ func (p *AudioPipeline) EncodeOpus(ctx context.Context, frame AudioFrame) (Audio
 }
 
 func (p *AudioPipeline) Output(ctx context.Context, frame AudioFrame) error {
-	if err := p.output.SendAudioFrame(ctx, frame); err != nil {
+	p.mu.Lock()
+	output := p.output
+	p.mu.Unlock()
+	if err := output.SendAudioFrame(ctx, frame); err != nil {
 		p.setError(err)
 		return err
 	}
 	p.mu.Lock()
-	p.status.OutputStatus = "ok"
+	p.status.OutputStatus = "ready"
 	p.status.FramesProcessed++
+	p.status.FramesSent++
 	p.status.PlaybackPositionMs += uint64(frame.DurationMs)
 	p.status.LastError = ""
+	p.status.LastOutputError = ""
 	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	p.mu.Unlock()
 	return nil
@@ -259,6 +274,17 @@ func (p *AudioPipeline) ProcessWithVolume(ctx context.Context, source AudioSourc
 		if err := p.Output(ctx, frame); err != nil {
 			return err
 		}
+		d := audioFrameDuration(frame)
+		if d > 0 {
+			timer := time.NewTimer(d)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				p.setError(ctx.Err())
+				return ctx.Err()
+			case <-timer.C:
+			}
+		}
 	}
 }
 
@@ -281,6 +307,7 @@ func (p *AudioPipeline) setError(err error) {
 	p.status.DecoderStatus = "error"
 	p.status.OutputStatus = "error"
 	p.status.LastError = err.Error()
+	p.status.LastOutputError = err.Error()
 	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 }
 
@@ -495,6 +522,32 @@ func decoderBackendName(decoder AudioDecoder) string {
 	return "unknown"
 }
 
+func outputBackendName(output AudioOutput) string {
+	if named, ok := output.(AudioOutputName); ok {
+		return named.OutputName()
+	}
+	return "unknown"
+}
+
+func (p *AudioPipeline) OutputBackendName() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return outputBackendName(p.output)
+}
+
+func (p *AudioPipeline) SetOutput(output AudioOutput) {
+	if output == nil {
+		output = NullAudioOutput{}
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.output = output
+	p.status.OutputBackend = outputBackendName(output)
+	p.status.OutputStatus = "idle"
+	p.status.LastOutputError = ""
+	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+}
+
 type dummyDecodedAudioStream struct {
 	remaining    int
 	sequence     uint64
@@ -577,6 +630,8 @@ func (o NullAudioOutput) SendAudioFrame(ctx context.Context, frame AudioFrame) e
 	}
 	return nil
 }
+
+func (o NullAudioOutput) OutputName() string { return "null" }
 
 func isSupportedAudioPath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {

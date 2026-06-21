@@ -10,7 +10,7 @@ use App\Module\Musicbot\Domain\Entity\MusicbotRuntimeEvent;
 use App\Repository\MusicbotRuntimeEventRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class MusicbotRuntimeEventService
+final class MusicbotRuntimeEventService implements MusicbotRuntimeEventServiceInterface
 {
     private const SENSITIVE_KEYS = [
         'password', 'token', 'secret',

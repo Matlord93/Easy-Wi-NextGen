@@ -240,6 +240,28 @@ func handleMusicbotConnectionTest(job jobs.Job) orchestratorResult {
 	}}
 }
 
+func handleMusicbotQueueSync(job jobs.Job) orchestratorResult {
+	installPath, err := validateMusicbotInstallPath(payloadValue(job.Payload, "install_path", "install_dir"))
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	queue, ok := job.Payload["queue"]
+	if !ok {
+		return orchestratorResult{status: "failed", errorText: "missing queue payload"}
+	}
+	response, err := NewRuntimeControlClient(installPath).Command("queue.sync", map[string]any{"queue": queue})
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error(), resultPayload: map[string]any{"last_error": err.Error()}}
+	}
+	items := 0
+	if p := response.Payload; p != nil {
+		if n, ok := p["items"].(float64); ok {
+			items = int(n)
+		}
+	}
+	return orchestratorResult{status: "success", resultPayload: map[string]any{"synced": true, "items": items, "runtime": response.Payload}}
+}
+
 var allowedMusicbotPlaybackActions = map[string]bool{
 	"play": true, "pause": true, "resume": true, "stop": true,
 	"skip": true, "volume": true, "shuffle": true, "repeat": true,

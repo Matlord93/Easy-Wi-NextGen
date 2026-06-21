@@ -16,7 +16,7 @@ use App\Module\Core\Domain\Entity\Ts6Token;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Domain\Enum\Ts3InstanceStatus;
 use App\Module\Core\Domain\Enum\Ts6InstanceStatus;
-use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
+use App\Module\Musicbot\Application\MusicbotRuntimeEventServiceInterface;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotConnectionStatus;
@@ -24,6 +24,7 @@ use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
+use App\Repository\MusicbotInstanceRepositoryInterface;
 use App\Repository\SinusbotNodeRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts3NodeRepository;
@@ -40,7 +41,7 @@ final class AgentJobResultApplier
         private readonly Ts3NodeRepository $ts3NodeRepository,
         private readonly Ts6NodeRepository $ts6NodeRepository,
         private readonly SinusbotNodeRepository $sinusbotNodeRepository,
-        private readonly MusicbotInstanceRepository $musicbotInstanceRepository,
+        private readonly MusicbotInstanceRepositoryInterface $musicbotInstanceRepository,
         private readonly MusicbotConnectionRepository $musicbotConnectionRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
@@ -49,7 +50,7 @@ final class AgentJobResultApplier
         private readonly SecretsCrypto $crypto,
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly MusicbotRuntimeEventService $musicbotRuntimeEventService,
+        private readonly MusicbotRuntimeEventServiceInterface $musicbotRuntimeEventService,
     ) {
     }
 
@@ -188,15 +189,27 @@ final class AgentJobResultApplier
                 return;
             }
             if ($status === AgentJobStatus::Success && is_array($payload)) {
+                $previousRuntimePayload = $instance->getRuntimePayload() ?? [];
+                $previousPlaybackStatus = is_array($previousRuntimePayload['playback_status'] ?? null) ? $previousRuntimePayload['playback_status'] : [];
+                $previousState = is_string($previousPlaybackStatus['playback_state'] ?? null) ? $previousPlaybackStatus['playback_state'] : '';
+
                 $runtimeStatus = is_string($payload['status'] ?? null) ? MusicbotInstanceStatus::tryFrom($payload['status']) : null;
                 if ($runtimeStatus instanceof MusicbotInstanceStatus) {
                     $instance->setStatus($runtimeStatus);
                 } elseif (array_key_exists('running', $payload)) {
                     $instance->setStatus((bool) $payload['running'] ? MusicbotInstanceStatus::Running : MusicbotInstanceStatus::Stopped);
                 }
-                $instance->setLastError(is_string($payload['last_error'] ?? null) ? $payload['last_error'] : null);
+                $lastError = is_string($payload['last_error'] ?? null) ? $payload['last_error'] : null;
+                if ($lastError === null) {
+                    $playbackStatus = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : [];
+                    $lastError = is_string($playbackStatus['last_error'] ?? null) && $playbackStatus['last_error'] !== '' ? $playbackStatus['last_error'] : null;
+                }
+                $instance->setLastError($lastError);
                 $runtimePayload = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
                 $instance->setRuntimePayload($runtimePayload);
+
+                $this->recordPlaybackStateTransition($instance, $previousState, $runtimePayload, $job->getId());
+
                 if ($instance->getLastError() !== null) {
                     $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', 'Musicbot runtime reported an error.', ['job_id' => $job->getId(), 'error' => $instance->getLastError()]);
                 }
@@ -212,6 +225,52 @@ final class AgentJobResultApplier
             } elseif ($status === AgentJobStatus::Success) {
                 $this->musicbotRuntimeEventService->record($instance, 'playback.command', 'info', sprintf('Playback command "%s" accepted.', $action), ['job_id' => $job->getId(), 'action' => $action]);
             }
+        }
+    }
+
+    private function recordPlaybackStateTransition(MusicbotInstance $instance, string $previousState, array $runtimePayload, ?string $jobId): void
+    {
+        $playbackStatus = is_array($runtimePayload['playback_status'] ?? null) ? $runtimePayload['playback_status'] : [];
+        $newState = is_string($playbackStatus['playback_state'] ?? null) ? $playbackStatus['playback_state'] : '';
+
+        if ($previousState === '' || $newState === '' || $previousState === $newState) {
+            return;
+        }
+
+        $context = [
+            'job_id' => $jobId,
+            'previous_state' => $previousState,
+            'new_state' => $newState,
+            'track_id' => $playbackStatus['current_track_id'] ?? null,
+            'track_title' => $playbackStatus['current_title'] ?? null,
+        ];
+
+        if ($newState === 'error') {
+            $this->musicbotRuntimeEventService->record($instance, 'playback.error', 'error', 'Playback error occurred.', $context + ['error' => $playbackStatus['last_error'] ?? '']);
+            return;
+        }
+
+        if (in_array($previousState, ['stopped', 'error'], true) && $newState === 'playing') {
+            $this->musicbotRuntimeEventService->record($instance, 'playback.started', 'info', 'Playback started.', $context);
+            return;
+        }
+
+        if ($previousState === 'playing' && $newState === 'paused') {
+            $this->musicbotRuntimeEventService->record($instance, 'playback.paused', 'info', 'Playback paused.', $context);
+            return;
+        }
+
+        if ($previousState === 'paused' && $newState === 'playing') {
+            $this->musicbotRuntimeEventService->record($instance, 'playback.resumed', 'info', 'Playback resumed.', $context);
+            return;
+        }
+
+        if (in_array($previousState, ['playing', 'paused'], true) && $newState === 'stopped') {
+            $queueLength = (int) ($playbackStatus['queue_length'] ?? 0);
+            if ($queueLength === 0) {
+                $this->musicbotRuntimeEventService->record($instance, 'queue.empty', 'info', 'Queue became empty after playback stopped.', $context);
+            }
+            $this->musicbotRuntimeEventService->record($instance, 'playback.stopped', 'info', 'Playback stopped.', $context);
         }
     }
 
@@ -262,9 +321,7 @@ final class AgentJobResultApplier
         if (!is_int($instanceId) && !is_string($instanceId)) {
             return null;
         }
-        $instance = $this->musicbotInstanceRepository->find((int) $instanceId);
-
-        return $instance instanceof MusicbotInstance ? $instance : null;
+        return $this->musicbotInstanceRepository->findById((int) $instanceId);
     }
 
     private function extractError(AgentJob $job, ?array $payload): ?string

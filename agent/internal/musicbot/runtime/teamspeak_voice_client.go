@@ -45,21 +45,7 @@ func NewPlaceholderTeamspeakVoiceClient() *PlaceholderTeamspeakVoiceClient {
 }
 
 func (c *PlaceholderTeamspeakVoiceClient) ValidateConfig(config TeamSpeakConnectorConfig) error {
-	if !config.Enabled {
-		return nil
-	}
-	profile := normalizeTeamspeakProfile(teamspeakConfigString(config, "profile"))
-	if profile == "" {
-		return errors.New("teamspeak config profile must be ts3 or ts6")
-	}
-	backend := teamspeakConfigString(config, "backend")
-	if backend != "" && backend != "ts3_client_compatible" {
-		return errors.New("teamspeak config backend must be ts3_client_compatible")
-	}
-	if teamspeakConfigString(config, "host") == "" && teamspeakConfigString(config, "server_address") == "" {
-		return errors.New("teamspeak config requires host or server_address")
-	}
-	return nil
+	return validateTeamspeakCommonConfig(config)
 }
 
 func (c *PlaceholderTeamspeakVoiceClient) Connect(ctx context.Context, config TeamSpeakConnectorConfig) error {

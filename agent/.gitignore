@@ -2,6 +2,7 @@
 /agent
 /panel-agent
 /gamesvc
+/easywi-teamspeak-bridge
 *.exe
 
 # Test binaries

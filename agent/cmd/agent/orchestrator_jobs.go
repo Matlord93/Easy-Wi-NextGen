@@ -95,6 +95,8 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleMusicbotStatus(job)
 	case "musicbot.playback.action":
 		return handleMusicbotPlaybackAction(job)
+	case "musicbot.queue.sync":
+		return handleMusicbotQueueSync(job)
 	case "musicbot.connection.test":
 		return handleMusicbotConnectionTest(job)
 	case "ts3.virtual.create":

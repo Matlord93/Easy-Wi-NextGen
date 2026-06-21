@@ -46,8 +46,8 @@ func TestRuntimeControlServerStatusAndPlayback(t *testing.T) {
 		t.Fatalf("response = %#v", response)
 	}
 	status := rt.HandleCommand(`{"command":"status"}`)
-	playback := status.Payload["playback"].(PlaybackState)
-	if playback.Volume != 33 {
-		t.Fatalf("volume = %d", playback.Volume)
+	playback, _ := status.Payload["playback"].(map[string]any)
+	if vol, _ := playback["volume"].(int); vol != 33 {
+		t.Fatalf("volume = %v (playback=%#v)", playback["volume"], playback)
 	}
 }

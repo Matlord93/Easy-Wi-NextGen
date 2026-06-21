@@ -14,7 +14,7 @@ use App\Repository\MusicbotPluginRepository;
 use App\Repository\MusicbotQueueItemRepository;
 use App\Repository\MusicbotTrackRepository;
 
-final class MusicbotQuotaService
+final class MusicbotQuotaService implements MusicbotQuotaServiceInterface
 {
     public function __construct(
         private readonly MusicbotPlanLimitResolver $limitResolver,

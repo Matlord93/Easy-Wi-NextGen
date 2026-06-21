@@ -8,7 +8,7 @@ use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Musicbot\Domain\Entity\MusicbotSchedule;
 
-final class MusicbotScheduleJobDispatcher implements MusicbotScheduleDispatcherInterface
+final class MusicbotScheduleDispatcher implements MusicbotScheduleDispatcherInterface
 {
     public function __construct(
         private readonly AgentJobDispatcher $jobDispatcher,

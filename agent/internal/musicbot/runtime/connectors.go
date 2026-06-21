@@ -30,6 +30,21 @@ type ConnectionStatus struct {
 	ChannelID            string           `json:"channel_id,omitempty"`
 	ListenerIDs          []string         `json:"listener_ids,omitempty"`
 	LastError            string           `json:"last_error,omitempty"`
+	VoiceGatewayState    string           `json:"voice_gateway_state,omitempty"`
+	VoiceUDPState        string           `json:"voice_udp_state,omitempty"`
+	ReconnectCount       uint64           `json:"reconnect_count,omitempty"`
+	LastVoiceError       string           `json:"last_voice_error,omitempty"`
+	LastHeartbeatAt      string           `json:"last_heartbeat_at,omitempty"`
+	LastHeartbeatAckAt   string           `json:"last_heartbeat_ack_at,omitempty"`
+	LastReconnectAt      string           `json:"last_reconnect_at,omitempty"`
+	BackendType          string           `json:"backend_type,omitempty"`
+	Host                 string           `json:"host,omitempty"`
+	Port                 int              `json:"port,omitempty"`
+	Nickname             string           `json:"nickname,omitempty"`
+	IdentityPath         string           `json:"identity_path,omitempty"`
+	BackendPath          string           `json:"backend_path,omitempty"`
+	ClientID             string           `json:"client_id,omitempty"`
+	OutputBackend        string           `json:"output_backend,omitempty"`
 	UpdatedAt            string           `json:"updated_at"`
 }
 
@@ -83,7 +98,7 @@ func NewTeamSpeakConnector(config TeamSpeakConnectorConfig) *TeamSpeakVoiceConne
 }
 
 func NewTeamSpeakVoiceConnector(config TeamSpeakConnectorConfig) *TeamSpeakVoiceConnector {
-	return NewTeamSpeakVoiceConnectorWithClient(config, NewPlaceholderTeamspeakVoiceClient())
+	return NewTeamSpeakVoiceConnectorWithClient(config, newTeamspeakVoiceClientForConfig(config))
 }
 
 func NewTeamSpeakVoiceConnectorWithClient(config TeamSpeakConnectorConfig, voiceClient NativeTeamspeakVoiceClient) *TeamSpeakVoiceConnector {
@@ -98,10 +113,18 @@ func NewTeamSpeakVoiceConnectorWithClient(config TeamSpeakConnectorConfig, voice
 			Platform:             "teamspeak",
 			Profile:              profile,
 			Backend:              "ts3_client_compatible",
+			BackendType:          teamspeakBackendType(config),
+			Host:                 teamspeakConfigString(config, "host"),
+			Port:                 teamspeakConfigPort(config),
+			Nickname:             teamspeakConfigString(config, "nickname"),
+			IdentityPath:         teamspeakConfigString(config, "identity_path"),
+			BackendPath:          teamspeakConfigString(config, "backend_path"),
+			ChannelID:            teamspeakConfigString(config, "channel_id"),
+			OutputBackend:        teamspeakOutputBackend(initialTeamspeakCapabilityStatus(config)),
 			Enabled:              config.Enabled,
 			Connected:            false,
 			VoiceClientAvailable: false,
-			CapabilityStatus:     CapabilityStatusClientBackendRequired,
+			CapabilityStatus:     initialTeamspeakCapabilityStatus(config),
 			State:                ConnectionStateDisconnected,
 			UpdatedAt:            time.Now().UTC().Format(time.RFC3339),
 		},
@@ -120,7 +143,11 @@ func (c *TeamSpeakVoiceConnector) ValidateConfig() error {
 
 func (c *TeamSpeakVoiceConnector) Connect(ctx context.Context) error {
 	if err := c.ValidateConfig(); err != nil {
-		c.setError(err)
+		if isTeamSpeakBackendRequiredError(err) {
+			c.setBackendRequired(err)
+		} else {
+			c.setError(err)
+		}
 		return err
 	}
 	select {
@@ -130,7 +157,7 @@ func (c *TeamSpeakVoiceConnector) Connect(ctx context.Context) error {
 	default:
 	}
 	if err := c.voiceClient.Connect(ctx, c.config); err != nil {
-		c.setError(err)
+		c.setBackendRequired(err)
 		return err
 	}
 	c.mu.Lock()
@@ -139,9 +166,17 @@ func (c *TeamSpeakVoiceConnector) Connect(ctx context.Context) error {
 	c.status.Connected = c.status.State == ConnectionStateConnected
 	c.status.Profile = normalizeTeamspeakProfile(teamspeakConfigString(c.config, "profile"))
 	c.status.Backend = "ts3_client_compatible"
+	c.status.BackendType = teamspeakBackendType(c.config)
+	c.status.Host = teamspeakConfigString(c.config, "host")
+	c.status.Port = teamspeakConfigPort(c.config)
+	c.status.Nickname = teamspeakConfigString(c.config, "nickname")
+	c.status.IdentityPath = teamspeakConfigString(c.config, "identity_path")
+	c.status.BackendPath = teamspeakConfigString(c.config, "backend_path")
 	c.status.VoiceClientAvailable = c.status.Connected
 	c.status.CapabilityStatus = c.capabilityStatusLocked()
-	c.status.LastError = c.voiceClient.GetLastError()
+	c.status.ClientID, _ = c.voiceClient.GetClientID(ctx)
+	c.status.OutputBackend = teamspeakOutputBackend(c.status.CapabilityStatus)
+	c.status.LastError = maskTeamspeakSecretError(c.voiceClient.GetLastError(), c.config)
 	c.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	return nil
 }
@@ -163,6 +198,8 @@ func (c *TeamSpeakVoiceConnector) Disconnect(ctx context.Context) error {
 	c.status.Connected = false
 	c.status.VoiceClientAvailable = false
 	c.status.CapabilityStatus = c.capabilityStatusLocked()
+	c.status.OutputBackend = "null"
+	c.status.ClientID = ""
 	c.status.ChannelID = ""
 	c.status.ListenerIDs = nil
 	c.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
@@ -189,7 +226,7 @@ func (c *TeamSpeakVoiceConnector) JoinChannel(ctx context.Context, channelID str
 	default:
 	}
 	if err := c.voiceClient.JoinChannel(ctx, channelID, teamspeakConfigString(c.config, "channel_password")); err != nil {
-		c.setError(err)
+		c.setBackendRequired(err)
 		return err
 	}
 	c.mu.Lock()
@@ -198,6 +235,8 @@ func (c *TeamSpeakVoiceConnector) JoinChannel(ctx context.Context, channelID str
 	c.status.Connected = c.status.State == ConnectionStateConnected
 	c.status.VoiceClientAvailable = c.status.Connected
 	c.status.CapabilityStatus = c.capabilityStatusLocked()
+	c.status.ClientID, _ = c.voiceClient.GetClientID(ctx)
+	c.status.OutputBackend = teamspeakOutputBackend(c.status.CapabilityStatus)
 	c.status.ChannelID = channelID
 	c.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	return nil
@@ -227,11 +266,11 @@ func (c *TeamSpeakVoiceConnector) SendAudioFrame(ctx context.Context, frame Audi
 	}
 	if !c.isVoiceClientAvailable() {
 		err := ErrTeamSpeakVoiceBackendNotConfigured
-		c.setError(err)
+		c.setBackendRequired(err)
 		return err
 	}
 	if err := c.voiceClient.SendOpusFrame(ctx, frame); err != nil {
-		c.setError(err)
+		c.setBackendRequired(err)
 		return err
 	}
 	c.mu.Lock()
@@ -267,7 +306,19 @@ func (c *TeamSpeakVoiceConnector) setError(err error) {
 	c.status.Connected = false
 	c.status.VoiceClientAvailable = false
 	c.status.CapabilityStatus = CapabilityStatusError
-	c.status.LastError = err.Error()
+	c.status.LastError = maskTeamspeakSecretError(err.Error(), c.config)
+	c.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+}
+
+func (c *TeamSpeakVoiceConnector) setBackendRequired(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.status.State = ConnectionStateDisconnected
+	c.status.Connected = false
+	c.status.VoiceClientAvailable = false
+	c.status.CapabilityStatus = CapabilityStatusClientBackendRequired
+	c.status.OutputBackend = "null"
+	c.status.LastError = maskTeamspeakSecretError(err.Error(), c.config)
 	c.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 }
 
@@ -281,13 +332,72 @@ func (c *TeamSpeakVoiceConnector) capabilityStatusLocked() CapabilityStatus {
 	if c.status.State == ConnectionStateError {
 		return CapabilityStatusError
 	}
+	if teamspeakBackendType(c.config) == TeamSpeakBackendTypeDisabled {
+		return CapabilityStatusPlaceholder
+	}
 	if c.status.Connected {
 		return CapabilityStatusReady
 	}
-	if _, ok := c.voiceClient.(*PlaceholderTeamspeakVoiceClient); ok {
-		return CapabilityStatusClientBackendRequired
+	return CapabilityStatusClientBackendRequired
+}
+
+func initialTeamspeakCapabilityStatus(config TeamSpeakConnectorConfig) CapabilityStatus {
+	if teamspeakBackendType(config) == TeamSpeakBackendTypeDisabled {
+		return CapabilityStatusPlaceholder
 	}
-	return CapabilityStatusPlaceholder
+	return CapabilityStatusClientBackendRequired
+}
+
+func newTeamspeakVoiceClientForConfig(config TeamSpeakConnectorConfig) NativeTeamspeakVoiceClient {
+	switch teamspeakBackendType(config) {
+	case TeamSpeakBackendTypeNativeSDK:
+		return NewNativeSdkTeamspeakVoiceClient()
+	case TeamSpeakBackendTypeExternalClientBridge:
+		return NewExternalBridgeTeamspeakVoiceClient()
+	default:
+		return NewPlaceholderTeamspeakVoiceClient()
+	}
+}
+
+func teamspeakBackendType(config TeamSpeakConnectorConfig) string {
+	rawMap := ""
+	if config.Config != nil {
+		rawMap = asString(config.Config["backend_type"])
+	}
+	raw := strings.ToLower(strings.TrimSpace(firstNonEmpty(config.BackendType, rawMap)))
+	switch raw {
+	case TeamSpeakBackendTypeNativeSDK, TeamSpeakBackendTypeExternalClientBridge, TeamSpeakBackendTypeDisabled:
+		return raw
+	case "", TeamSpeakBackendTypePlaceholder:
+		return TeamSpeakBackendTypePlaceholder
+	default:
+		return TeamSpeakBackendTypePlaceholder
+	}
+}
+
+func isTeamSpeakBackendRequiredError(err error) bool {
+	return errors.Is(err, ErrTeamSpeakVoiceBackendNotConfigured) || errors.Is(err, ErrTeamSpeakNativeSDKNotInstalled) || errors.Is(err, ErrTeamSpeakExternalBridgeNotConfigured)
+}
+
+func teamspeakOutputBackend(status CapabilityStatus) string {
+	if status == CapabilityStatusReady {
+		return "teamspeak_voice"
+	}
+	return "null"
+}
+
+func teamspeakConfigPort(config TeamSpeakConnectorConfig) int {
+	if config.Port > 0 {
+		return config.Port
+	}
+	port := 0
+	if config.Config != nil {
+		port = asInt(config.Config["port"])
+	}
+	if port > 0 {
+		return port
+	}
+	return 9987
 }
 
 func teamspeakConfigString(config TeamSpeakConnectorConfig, key string) string {
@@ -300,6 +410,18 @@ func teamspeakConfigString(config TeamSpeakConnectorConfig, key string) string {
 		if config.Backend != "" {
 			return config.Backend
 		}
+	case "backend_type":
+		if config.BackendType != "" {
+			return config.BackendType
+		}
+	case "backend_path":
+		if config.BackendPath != "" {
+			return config.BackendPath
+		}
+	case "identity_path":
+		if config.IdentityPath != "" {
+			return config.IdentityPath
+		}
 	case "host":
 		if config.Host != "" {
 			return config.Host
@@ -307,6 +429,18 @@ func teamspeakConfigString(config TeamSpeakConnectorConfig, key string) string {
 	case "channel_id":
 		if config.ChannelID != "" {
 			return config.ChannelID
+		}
+	case "server_password":
+		if config.ServerPassword != "" {
+			return config.ServerPassword
+		}
+	case "channel_password":
+		if config.ChannelPassword != "" {
+			return config.ChannelPassword
+		}
+	case "nickname":
+		if config.Nickname != "" {
+			return config.Nickname
 		}
 	}
 	if config.Config == nil {
@@ -350,6 +484,20 @@ func asString(value any) string {
 		return ""
 	}
 	return fmt.Sprint(value)
+}
+
+func asInt(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case string:
+		var n int
+		_, _ = fmt.Sscanf(v, "%d", &n)
+		return n
+	}
+	return 0
 }
 
 type DiscordConnector struct {
@@ -449,6 +597,8 @@ func (c *DiscordConnector) Disconnect(ctx context.Context) error {
 	c.status.Connected = false
 	c.status.VoiceClientAvailable = false
 	c.status.CapabilityStatus = c.capabilityStatusLocked()
+	c.status.OutputBackend = "null"
+	c.status.ClientID = ""
 	c.status.ChannelID = ""
 	c.status.ListenerIDs = nil
 	c.status.LastError = ""
@@ -580,11 +730,22 @@ func (c *DiscordConnector) refreshStatusFromVoiceState(ctx context.Context) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.status.Enabled = c.config.Enabled
-	c.status.Backend = "placeholder"
-	if _, ok := c.voiceClient.(*PlaceholderDiscordVoiceClient); !ok {
+	switch c.voiceClient.(type) {
+	case *PlaceholderDiscordVoiceClient:
+		c.status.Backend = "placeholder"
+	case *RealDiscordVoiceClient:
+		c.status.Backend = "discord_gateway"
+	default:
 		c.status.Backend = "discord_voice_client"
 	}
 	c.status.Connected = voiceState.GatewayConnected
+	c.status.VoiceGatewayState = voiceState.VoiceGatewayState
+	c.status.VoiceUDPState = voiceState.VoiceUDPState
+	c.status.ReconnectCount = voiceState.ReconnectCount
+	c.status.LastVoiceError = maskSensitiveError(voiceState.LastVoiceError, c.config.Config)
+	c.status.LastHeartbeatAt = voiceState.LastHeartbeatAt
+	c.status.LastHeartbeatAckAt = voiceState.LastHeartbeatAckAt
+	c.status.LastReconnectAt = voiceState.LastReconnectAt
 	c.status.VoiceClientAvailable = voiceState.CapabilityStatus == CapabilityStatusReady
 	c.status.CapabilityStatus = c.capabilityStatusFromVoiceStateLocked(voiceState)
 	if voiceState.ChannelID != "" || voiceState.VoiceJoined {

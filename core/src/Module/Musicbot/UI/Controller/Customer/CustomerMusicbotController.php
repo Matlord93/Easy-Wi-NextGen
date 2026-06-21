@@ -573,18 +573,32 @@ final class CustomerMusicbotController
     /** @param MusicbotQueueItem[] $queue */
     private function buildRuntimeStatus(MusicbotInstance $instance, array $queue): array
     {
-        $payload = $instance->getRuntimePayload() ?? [];
+        $payload = $this->sanitizeForTemplate($instance->getRuntimePayload() ?? []);
         $playback = is_array($payload['playback'] ?? null) ? $payload['playback'] : [];
+        $ps = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : [];
 
         return [
             'state' => $instance->getStatus()->value,
-            'lastError' => $payload['last_error'] ?? $payload['error'] ?? null,
+            'lastError' => $payload['last_error'] ?? $payload['error'] ?? (is_string($ps['last_error'] ?? null) && $ps['last_error'] !== '' ? $ps['last_error'] : null),
             'runtimePayload' => $payload,
             'currentTrack' => $this->resolveCurrentTrack($queue),
             'queueLength' => count($queue),
-            'repeatMode' => (string) ($playback['repeat_mode'] ?? $playback['repeat'] ?? 'off'),
-            'shuffle' => (bool) ($playback['shuffle'] ?? false),
+            'repeatMode' => (string) ($ps['repeat_mode'] ?? $playback['repeat_mode'] ?? $playback['repeat'] ?? 'off'),
+            'shuffle' => (bool) ($ps['shuffle'] ?? $playback['shuffle'] ?? false),
             'volume' => (int) ($playback['volume'] ?? 50),
+            'playbackState' => (string) ($ps['playback_state'] ?? $instance->getStatus()->value),
+            'currentTrackId' => (string) ($ps['current_track_id'] ?? ''),
+            'currentTitle' => (string) ($ps['current_title'] ?? ''),
+            'currentArtist' => (string) ($ps['current_artist'] ?? ''),
+            'currentSource' => (string) ($ps['current_source'] ?? ''),
+            'playbackPositionMs' => (int) ($ps['playback_position_ms'] ?? 0),
+            'durationMs' => (int) ($ps['duration_ms'] ?? 0),
+            'decoderBackend' => (string) ($ps['decoder_backend'] ?? ''),
+            'decoderStatus' => (string) ($ps['decoder_status'] ?? ''),
+            'outputBackend' => (string) ($ps['output_backend'] ?? ''),
+            'outputStatus' => (string) ($ps['output_status'] ?? ''),
+            'framesProcessed' => (int) ($ps['frames_processed'] ?? 0),
+            'lastStateChangeAt' => (string) ($ps['last_state_change_at'] ?? ''),
         ];
     }
 
@@ -593,7 +607,7 @@ final class CustomerMusicbotController
     {
         $status = [
             'teamspeak' => ['enabled' => false, 'status' => 'missing', 'lastError' => null, 'profile' => 'ts3', 'backend' => 'ts3_client_compatible', 'capability_status' => 'client_backend_required'],
-            'discord' => ['enabled' => false, 'status' => 'missing', 'lastError' => null],
+            'discord' => ['enabled' => false, 'status' => 'missing', 'lastError' => null, 'capability_status' => 'voice_backend_required'],
         ];
         foreach ($this->connectionRepository->findBy(['musicbotInstance' => $instance], ['id' => 'ASC']) as $connection) {
             $platform = $connection->getPlatform()->value;
@@ -601,15 +615,51 @@ final class CustomerMusicbotController
             $status[$platform] = [
                 'enabled' => $connection->isEnabled(),
                 'status' => $connection->getStatus()->value,
-                'lastError' => $connection->getLastError(),
+                'lastError' => $this->sanitizeTextForTemplate($connection->getLastError()),
             ] + ($platform === 'teamspeak' ? [
                 'profile' => $connection->getTeamspeakProfile()->value,
                 'backend' => $connection->getTeamspeakBackend(),
                 'capability_status' => (string) ($config['capability_status'] ?? 'client_backend_required'),
-            ] : []);
+            ] : [
+                'capability_status' => (string) ($config['capability_status'] ?? 'voice_backend_required'),
+            ]);
         }
 
         return $status;
+    }
+
+
+    /**
+     * @param mixed $value
+     * @return mixed
+     */
+    private function sanitizeForTemplate(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return is_string($value) ? $this->sanitizeTextForTemplate($value) : $value;
+        }
+
+        $sanitized = [];
+        foreach ($value as $key => $item) {
+            $keyString = is_string($key) ? strtolower($key) : (string) $key;
+            if (str_contains($keyString, 'token') || str_contains($keyString, 'password') || str_contains($keyString, 'secret') || str_contains($keyString, 'auth')) {
+                $sanitized[$key] = $item === null || $item === '' ? $item : '[redacted]';
+                continue;
+            }
+            $sanitized[$key] = $this->sanitizeForTemplate($item);
+        }
+
+        return $sanitized;
+    }
+
+
+    private function sanitizeTextForTemplate(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        return preg_replace('/(token|password|secret|authorization)([\s_:\-=]+)([^\s,;]+)/i', '$1$2[redacted]', $value) ?? $value;
     }
 
     private function flash(Request $request, string $type, string $message): void
@@ -623,7 +673,7 @@ final class CustomerMusicbotController
     /** @param MusicbotQueueItem[] $queue @return array<string, mixed> */
     private function buildMonitoring(MusicbotInstance $instance, array $queue): array
     {
-        $payload = $instance->getRuntimePayload() ?? [];
+        $payload = $this->sanitizeForTemplate($instance->getRuntimePayload() ?? []);
         $playback = is_array($payload['playback'] ?? null) ? $payload['playback'] : [];
         return [
             'cpu' => $payload['cpu'] ?? $payload['metrics']['cpu'] ?? null,

@@ -108,6 +108,8 @@ services:
 
   App\Module\Core\Application\PrivacyGdprBackgroundJobRunnerInterface: '@App\Module\Core\Application\PrivacyGdprBackgroundJobService'
   App\Module\Musicbot\Infrastructure\Stream\StreamOutputInterface: '@App\Module\Musicbot\Infrastructure\Stream\PlaceholderStreamOutput'
+  App\Module\Musicbot\Application\MusicbotScheduleDispatcherInterface: '@App\Module\Musicbot\Application\MusicbotScheduleDispatcher'
+  App\Repository\MusicbotInstanceRepositoryInterface: '@App\Repository\MusicbotInstanceRepository'
 
   App\Module\Core\Application\Scheduler\ScheduleHandlerRegistry:
     arguments:

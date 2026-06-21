@@ -2,6 +2,45 @@
 
 {% set pageTitle = instance.name %}
 {% set pageSubtitle = 'Musicbot-Instanz verwalten.' %}
+{% set capabilityLabels = {
+    'ready': 'Bereit',
+    'client_backend_required': 'Backend fehlt',
+    'voice_backend_required': 'Backend fehlt',
+    'placeholder': 'Placeholder',
+    'error': 'Fehler'
+} %}
+{% set capabilityBadges = {
+    'ready': 'ui-badge--success',
+    'client_backend_required': 'ui-badge--warning',
+    'voice_backend_required': 'ui-badge--warning',
+    'placeholder': 'ui-badge--muted',
+    'error': 'ui-badge--danger'
+} %}
+{% set playback = runtimePayload.playback|default({}) %}
+{% set playbackStatus = runtimePayload.playback_status|default({}) %}
+{% set audioPipeline = runtimePayload.audio_pipeline|default({}) %}
+{% set outputBackend = playbackStatus.output_backend|default(audioPipeline.output_backend|default('null')) ?: 'null' %}
+{% set outputStatus = playbackStatus.output_status|default(audioPipeline.output_status|default('idle')) ?: 'idle' %}
+{% set ts = connections|filter(row => row.entity.platform.value == 'teamspeak')|first %}
+{% set dc = connections|filter(row => row.entity.platform.value == 'discord')|first %}
+{% set tsConfig = ts ? ts.config : {} %}
+{% set dcConfig = dc ? dc.config : {} %}
+{% set tsEntity = ts ? ts.entity : null %}
+{% set dcEntity = dc ? dc.entity : null %}
+{% set tsCap = ts ? ts.capability_status : 'client_backend_required' %}
+{% set dcCap = dc ? dc.capability_status : 'voice_backend_required' %}
+
+{% macro info_card(title, value, help, badge, badgeClass) %}
+    <div class="ng-card" style="padding:14px;min-height:112px;">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+            <strong>{{ title }}</strong>
+            <span class="ui-badge {{ badgeClass|default('ui-badge--muted') }}" title="{{ help }}">{{ badge }}</span>
+        </div>
+        <div style="font-size:20px;margin-top:10px;color:var(--ng-text);word-break:break-word;">{{ value }}</div>
+        <p style="margin:8px 0 0;color:var(--ng-text-muted);font-size:13px;line-height:1.4;">{{ help }}</p>
+    </div>
+{% endmacro %}
+{% import _self as ui %}
 
 {% block content %}
 {% for message in app.flashes('success') %}<div class="ui-alert ui-alert--success" style="margin-bottom:12px;">{{ message }}</div>{% endfor %}
@@ -14,81 +53,103 @@
             <p style="margin:8px 0 0;color:var(--ng-text-muted);">Kunde: {{ instance.customer.email }} (#{{ instance.customer.id }}) · Node: {{ instance.node.name ?: instance.node.id }}</p>
             <p style="margin:8px 0 0;color:var(--ng-text-muted);">Service: <code>{{ instance.serviceName }}</code> · Pfad: <code>{{ instance.installPath }}</code></p>
         </div>
-        <span class="ui-badge ui-badge--info">{{ instance.status.value }}</span>
+        <span class="ui-badge {{ instance.status.value == 'running' ? 'ui-badge--success' : (instance.status.value == 'error' ? 'ui-badge--danger' : 'ui-badge--muted') }}">{{ instance.status.value == 'running' ? 'Bereit' : (instance.status.value == 'error' ? 'Fehler' : 'Nicht verbunden') }}</span>
     </div>
-    {% if lastError %}<div class="ui-alert ui-alert--danger" style="margin-top:14px;">{{ lastError }}</div>{% endif %}
-    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px;">
-        <div class="ng-card" style="padding:14px;"><strong>CPU</strong><div>{{ instance.cpuLimit }}</div></div>
-        <div class="ng-card" style="padding:14px;"><strong>RAM</strong><div>{{ instance.ramLimit }} MB</div></div>
-        <div class="ng-card" style="padding:14px;"><strong>Disk</strong><div>{{ instance.diskLimit }} MB</div></div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:18px;">
+        {{ ui.info_card('Instanzstatus', instance.status.value, 'Lifecycle-Status aus Core/Agent.', instance.status.value == 'running' ? 'Bereit' : 'Nicht verbunden', instance.status.value == 'running' ? 'ui-badge--success' : 'ui-badge--muted') }}
+        {{ ui.info_card('Runtime', runtimePayload.version|default('unbekannt'), 'Runtime-Version und Status aus musicbot.status.', runtimePayload.running|default(false) ? 'Bereit' : 'Nicht verbunden', runtimePayload.running|default(false) ? 'ui-badge--success' : 'ui-badge--muted') }}
+        {{ ui.info_card('Limits', instance.cpuLimit ~ ' CPU / ' ~ instance.ramLimit ~ ' MB RAM / ' ~ instance.diskLimit ~ ' MB Disk', 'Aktuelle Ressourcenlimits dieser Instanz.', 'Limits', 'ui-badge--info') }}
+        {{ ui.info_card('Output', outputBackend == 'null' ? 'Kein Output' : outputBackend, outputBackend == 'null' ? 'Kein Voice-/Stream-Backend meldet ready.' : 'AudioPipeline hat ein echtes Output-Backend gewählt.', outputBackend == 'null' ? 'Placeholder' : 'Bereit', outputBackend == 'null' ? 'ui-badge--muted' : 'ui-badge--success') }}
     </div>
+
+    {% if lastError %}<div class="ui-alert ui-alert--danger" style="margin-top:14px;"><strong>Letzter Fehler:</strong> {{ lastError }}</div>{% endif %}
+
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;">
         {% for action in actions %}
-            <form method="post" action="{{ path('admin_musicbot_action', {id: instance.id}) }}">
-                <input type="hidden" name="action" value="{{ action }}">
-                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ action|title }}</button>
-            </form>
+            <form method="post" action="{{ path('admin_musicbot_action', {id: instance.id}) }}"><input type="hidden" name="action" value="{{ action }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit" title="Erzeugt einen Agent-Job für {{ action }}.">{{ action|title }}</button></form>
         {% endfor %}
-        <form method="post" action="{{ path('admin_musicbot_delete', {id: instance.id}) }}" onsubmit="return confirm('Musicbot wirklich löschen?');">
-            <button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button>
-        </form>
+        <form method="post" action="{{ path('admin_musicbot_delete', {id: instance.id}) }}" onsubmit="return confirm('Musicbot wirklich löschen?');"><button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button></form>
+    </div>
+</section>
+
+<section class="ng-card" style="padding:20px;margin-top:18px;">
+    <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Fehlerdiagnose</h2>
+    <div style="display:grid;gap:8px;">
+        {% if instance.status.value != 'running' %}<div class="ui-alert ui-alert--warning">Runtime läuft nicht oder wurde vom Agent noch nicht als running bestätigt.</div>{% endif %}
+        {% if queueSummary.length == 0 and playback.current_track|default(null) is empty %}<div class="ui-alert ui-alert--warning">Queue leer: Der Bot hat nichts abzuspielen.</div>{% endif %}
+        {% if playbackStatus.decoder_status|default(audioPipeline.decoder_status|default('')) == 'error' %}<div class="ui-alert ui-alert--danger">Decoder-Fehler: Dateiformat, Decoder-Konfiguration und FFmpeg prüfen.</div>{% endif %}
+        {% if outputBackend == 'null' %}<div class="ui-alert ui-alert--warning">Kein Output Backend ready: Discord/TeamSpeak sind nicht verbunden oder laufen als Placeholder.</div>{% endif %}
+        {% if dcCap != 'ready' %}<div class="ui-alert ui-alert--info">Discord Voice nicht verbunden: {{ capabilityLabels[dcCap]|default('Nicht verbunden') }}.</div>{% endif %}
+        {% if tsCap != 'ready' %}<div class="ui-alert ui-alert--info">TeamSpeak Client Backend fehlt oder nicht verbunden: {{ capabilityLabels[tsCap]|default('Backend fehlt') }}.</div>{% endif %}
+        {% if errors is empty and not lastError %}<div class="ui-alert ui-alert--success">Keine aktuellen Fehler erfasst. Bei Problemen Agent-Job-Status und Runtime-Logs prüfen.</div>{% endif %}
     </div>
 </section>
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:18px;">
     <section class="ng-card" style="padding:20px;">
-        <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Runtime Payload</h2>
-        <pre style="white-space:pre-wrap;max-height:320px;overflow:auto;">{{ runtimePayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+            <h2 style="margin:0;color:var(--ng-text);font-size:18px;">Playback & AudioPipeline</h2>
+            <span class="ui-badge {{ outputStatus == 'error' ? 'ui-badge--danger' : (outputBackend == 'null' ? 'ui-badge--muted' : 'ui-badge--success') }}">{{ outputStatus == 'error' ? 'Fehler' : (outputBackend == 'null' ? 'Placeholder' : 'Bereit') }}</span>
+        </div>
+        <p style="color:var(--ng-text-muted);">State {{ playback.state|default(playbackStatus.playback_state|default('unknown')) }} · Current {{ playbackStatus.current_title|default('—') ?: '—' }} · Queue {{ queueSummary.length }} · Output {{ outputBackend }} · Frames {{ playbackStatus.frames_sent|default(audioPipeline.frames_sent|default(0)) }}</p>
+        <details><summary style="cursor:pointer;color:var(--ng-text-muted);">RuntimePayload einklappen/anzeigen (diagnostisch; Secrets müssen im Payload bereits maskiert sein)</summary><pre style="white-space:pre-wrap;max-height:320px;overflow:auto;">{{ runtimePayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></details>
     </section>
     <section class="ng-card" style="padding:20px;">
         <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Queue</h2>
         <p style="color:var(--ng-text-muted);">{{ queueSummary.length }} Einträge{% if queueSummary.currentTrack %} · aktuell {{ queueSummary.currentTrack.title }}{% endif %}</p>
-        <ul style="margin:0;padding-left:18px;">
-            {% for item in queueSummary.items %}<li>#{{ item.position }} {{ item.track.title }} · {{ item.status }}</li>{% else %}<li style="color:var(--ng-text-muted);">Queue ist leer.</li>{% endfor %}
-        </ul>
+        <ul style="margin:0;padding-left:18px;">{% for item in queueSummary.items %}<li>#{{ item.position }} {{ item.track.title }} · {{ item.status }}</li>{% else %}<li style="color:var(--ng-text-muted);">Queue ist leer.</li>{% endfor %}</ul>
     </section>
 </div>
 
 <section class="ng-card" style="padding:20px;margin-top:18px;">
-    <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Verbindungen</h2>
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+    <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Verbindungen & Secrets</h2>
+    <div class="ui-alert ui-alert--info" style="margin-bottom:12px;">Secrets werden nur als gesetzt/nicht gesetzt angezeigt. Bot-Tokens und Passwörter werden hier nie ausgegeben.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;">
         <div class="ng-card" style="padding:14px;">
-            <h3 style="margin-top:0;">TeamSpeak</h3>
-            {% set ts = connections|filter(row => row.entity.platform.value == 'teamspeak')|first %}
-            {% set tsConfig = ts ? ts.config : {} %}
-            {% set tsEntity = ts ? ts.entity : null %}
-            <p style="color:var(--ng-text-muted);">Status: {{ tsEntity ? tsEntity.status.value : 'missing' }} · Capability: {{ ts ? ts.capability_status : 'client_backend_required' }}</p>
-            {% if tsEntity and tsEntity.lastError %}<div class="ui-alert ui-alert--danger">{{ tsEntity.lastError }}</div>{% endif %}
-            <form method="post" action="{{ path('admin_musicbot_connection_teamspeak_update', {id: instance.id}) }}" style="display:grid;gap:8px;">
-                <label><input type="checkbox" name="enabled" value="1" {% if tsEntity and tsEntity.enabled %}checked{% endif %}> Aktiv</label>
+            <div style="display:flex;justify-content:space-between;gap:8px;"><h3 style="margin:0;">TeamSpeak</h3><span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--muted') }}">{{ capabilityLabels[tsCap]|default('Backend fehlt') }}</span></div>
+            <p style="color:var(--ng-text-muted);">{{ tsEntity ? (tsEntity.enabled ? 'Aktiv' : 'Inaktiv') : 'Nicht angelegt' }} · {{ tsEntity ? tsEntity.status.value : 'missing' }} · Backend-Typ {{ tsConfig.backend_type|default('placeholder') }} · Profil {{ tsEntity ? tsEntity.teamspeakProfile.value : 'ts3' }}</p>
+            {% if ts and ts.secrets|default({}) is not empty %}<p style="color:var(--ng-text-muted);font-size:13px;">Secrets: {% for key,value in ts.secrets %}{{ key }}={{ value is same as(true) ? 'gesetzt' : (value ? value : 'nicht gesetzt') }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% else %}<p style="color:var(--ng-text-muted);font-size:13px;">Secrets: nicht gesetzt oder nicht geladen.</p>{% endif %}
+            {% if tsEntity and ts.last_error|default('') %}<div class="ui-alert ui-alert--danger">{{ ts.last_error|default('') }}</div>{% endif %}
+            {% if tsCap != 'ready' %}<div class="ui-alert ui-alert--warning">TeamSpeak Voice darf erst ready sein, wenn ein echter Client-Layer verbunden ist.</div>{% endif %}
+            <form method="post" action="{{ path('admin_musicbot_connection_teamspeak_update', {id: instance.id}) }}" style="display:grid;gap:8px;margin-top:10px;">
+                <label title="Aktiviert die Verbindungskonfiguration; Placeholder bedeutet nicht echte Audio-Ausgabe."><input type="checkbox" name="enabled" value="1" {% if tsEntity and tsEntity.enabled %}checked{% endif %}> Aktiv</label>
                 <select name="teamspeak_profile">{% for profile in teamspeakProfiles %}<option value="{{ profile.value }}" {% if (tsEntity ? tsEntity.teamspeakProfile.value : 'ts3') == profile.value %}selected{% endif %}>{{ profile.label }}</option>{% endfor %}</select>
-                <input name="teamspeak_host" value="{{ tsConfig.host ?? '' }}" placeholder="Host">
-                <input type="number" name="teamspeak_port" value="{{ tsConfig.port ?? 9987 }}" min="1" max="65535" placeholder="Port">
-                <input name="teamspeak_nickname" value="{{ tsConfig.nickname ?? '' }}" placeholder="Nickname">
-                <input name="teamspeak_channel_id" value="{{ tsConfig.channel_id ?? '' }}" placeholder="Channel ID">
+                <select name="teamspeak_backend_type">{% for value,label in {'placeholder':'Placeholder','native_sdk':'Native SDK','external_client_bridge':'External Client Bridge','disabled':'Disabled'} %}<option value="{{ value }}" {% if tsConfig.backend_type|default('placeholder') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+                <input name="teamspeak_backend_path" value="{{ tsConfig.backend_path|default('') }}" placeholder="Backend Path (optional)">
+                <input name="teamspeak_identity_path" value="{{ tsConfig.identity_path|default('') }}" placeholder="Identity Path (optional)">
+                <input name="teamspeak_command_prefix" value="{{ tsConfig.command_prefix|default('!') }}" placeholder="Command Prefix">
+                <label><input type="checkbox" name="teamspeak_commands_enabled" value="1" {% if tsConfig.commands_enabled|default(true) %}checked{% endif %}> Commands aktiv</label>
+                <label><input type="checkbox" name="teamspeak_events_enabled" value="1" {% if tsConfig.events_enabled|default(true) %}checked{% endif %}> Events aktiv</label>
+                <input name="teamspeak_allowed_server_groups" value="{{ tsConfig.allowed_server_groups|default([])|join(',') }}" placeholder="Allowed Servergruppen">
+                <input name="teamspeak_dj_server_groups" value="{{ tsConfig.dj_server_groups|default([])|join(',') }}" placeholder="DJ Servergruppen">
+                <input name="teamspeak_admin_server_groups" value="{{ tsConfig.admin_server_groups|default([])|join(',') }}" placeholder="Admin Servergruppen">
+                <input name="teamspeak_host" value="{{ tsConfig.host|default('') }}" placeholder="Host">
+                <input type="number" name="teamspeak_port" value="{{ tsConfig.port|default(9987) }}" min="1" max="65535" placeholder="Port">
+                <input name="teamspeak_nickname" value="{{ tsConfig.nickname|default('') }}" placeholder="Nickname">
+                <input name="teamspeak_channel_id" value="{{ tsConfig.channel_id|default('') }}" placeholder="Channel ID">
                 <input type="password" name="teamspeak_server_password" placeholder="Server Passwort (leer lassen = behalten)">
                 <input type="password" name="teamspeak_channel_password" placeholder="Channel Passwort (leer lassen = behalten)">
                 <button class="ui-button ui-button--primary ui-button--sm" type="submit">Speichern</button>
             </form>
             <form method="post" action="{{ path('admin_musicbot_connection_test', {id: instance.id, platform: 'teamspeak'}) }}" style="margin-top:8px;"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">TeamSpeak testen</button></form>
         </div>
+
         <div class="ng-card" style="padding:14px;">
-            <h3 style="margin-top:0;">Discord</h3>
-            {% set dc = connections|filter(row => row.entity.platform.value == 'discord')|first %}
-            {% set dcConfig = dc ? dc.config : {} %}
-            {% set dcEntity = dc ? dc.entity : null %}
-            <p style="color:var(--ng-text-muted);">Status: {{ dcEntity ? dcEntity.status.value : 'missing' }} · Capability: {{ dc.capability_status ?? 'voice_backend_required' }} · Slash Commands: {{ dc.slash_commands_status ?? 'placeholder' }}</p>
-            {% if dcEntity and dcEntity.lastError %}<div class="ui-alert ui-alert--danger">{{ dcEntity.lastError }}</div>{% endif %}
-            <form method="post" action="{{ path('admin_musicbot_connection_discord_update', {id: instance.id}) }}" style="display:grid;gap:8px;">
+            <div style="display:flex;justify-content:space-between;gap:8px;"><h3 style="margin:0;">Discord</h3><span class="ui-badge {{ capabilityBadges[dcCap]|default('ui-badge--muted') }}">{{ capabilityLabels[dcCap]|default('Backend fehlt') }}</span></div>
+            <p style="color:var(--ng-text-muted);">{{ dcEntity ? (dcEntity.enabled ? 'Aktiv' : 'Inaktiv') : 'Nicht angelegt' }} · {{ dcEntity ? dcEntity.status.value : 'missing' }} · Slash Commands {{ dc ? dc.slash_commands_status|default('placeholder') : 'placeholder' }}</p>
+            {% if dc and dc.secrets|default({}) is not empty %}<p style="color:var(--ng-text-muted);font-size:13px;">Secrets: {% for key,value in dc.secrets %}{{ key }}={{ value is same as(true) ? 'gesetzt' : (value ? value : 'nicht gesetzt') }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% else %}<p style="color:var(--ng-text-muted);font-size:13px;">Secrets: nicht gesetzt oder nicht geladen.</p>{% endif %}
+            {% if dcEntity and dc.last_error|default('') %}<div class="ui-alert ui-alert--danger">{{ dc.last_error|default('') }}</div>{% endif %}
+            {% if dcCap != 'ready' %}<div class="ui-alert ui-alert--info">Discord Voice ist optional/experimentell, bis ein echter E2E-Test grün ist.</div>{% endif %}
+            <form method="post" action="{{ path('admin_musicbot_connection_discord_update', {id: instance.id}) }}" style="display:grid;gap:8px;margin-top:10px;">
                 <label><input type="checkbox" name="enabled" value="1" {% if dcEntity and dcEntity.enabled %}checked{% endif %}> Aktiv</label>
-                <input name="application_id" value="{{ dcConfig.application_id ?? '' }}" placeholder="Application ID">
-                <input name="guild_id" value="{{ dcConfig.guild_id ?? '' }}" placeholder="Guild ID">
-                <input name="voice_channel_id" value="{{ dcConfig.voice_channel_id ?? '' }}" placeholder="Voice Channel ID">
-                <select name="command_mode"><option value="placeholder" {% if (dcConfig.command_mode ?? 'placeholder') == 'placeholder' %}selected{% endif %}>Commands Placeholder</option><option value="slash" {% if (dcConfig.command_mode ?? 'placeholder') == 'slash' %}selected{% endif %}>Slash Commands vorbereitet</option></select>
-                <label><input type="checkbox" name="slash_commands_enabled" value="1" {% if dcConfig.slash_commands_enabled ?? false %}checked{% endif %}> Slash Commands vorbereiten (Placeholder)</label>
-                <select name="reconnect_policy"><option value="manual" {% if (dcConfig.reconnect_policy ?? 'manual') == 'manual' %}selected{% endif %}>Reconnect manuell</option><option value="exponential_backoff" {% if (dcConfig.reconnect_policy ?? 'manual') == 'exponential_backoff' %}selected{% endif %}>Exponential Backoff</option></select>
+                <input name="application_id" value="{{ dcConfig.application_id|default('') }}" placeholder="Application ID">
+                <input name="guild_id" value="{{ dcConfig.guild_id|default('') }}" placeholder="Guild ID">
+                <input name="voice_channel_id" value="{{ dcConfig.voice_channel_id|default('') }}" placeholder="Voice Channel ID">
+                <select name="command_mode"><option value="placeholder" {% if dcConfig.command_mode|default('placeholder') == 'placeholder' %}selected{% endif %}>Commands Placeholder</option><option value="slash" {% if dcConfig.command_mode|default('placeholder') == 'slash' %}selected{% endif %}>Slash Commands vorbereitet</option></select>
+                <label><input type="checkbox" name="slash_commands_enabled" value="1" {% if dcConfig.slash_commands_enabled|default(false) %}checked{% endif %}> Slash Commands vorbereiten</label>
+                <select name="reconnect_policy"><option value="manual" {% if dcConfig.reconnect_policy|default('manual') == 'manual' %}selected{% endif %}>Reconnect manuell</option><option value="exponential_backoff" {% if dcConfig.reconnect_policy|default('manual') == 'exponential_backoff' %}selected{% endif %}>Exponential Backoff</option></select>
                 <input type="password" name="bot_token" placeholder="Bot Token (leer lassen = behalten; wird nie angezeigt)">
-                <p style="margin:0;color:var(--ng-text-muted);font-size:12px;">Echte Discord-Voice-Ausgabe benötigt ein separates Voice-Backend; Tokens werden verschlüsselt gespeichert und nicht angezeigt.</p>
                 <button class="ui-button ui-button--primary ui-button--sm" type="submit">Speichern</button>
             </form>
             <form method="post" action="{{ path('admin_musicbot_connection_test', {id: instance.id, platform: 'discord'}) }}" style="margin-top:8px;"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Discord testen</button></form>
@@ -97,14 +158,10 @@
 </section>
 
 <section class="ng-card" style="padding:20px;margin-top:18px;">
-    <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Logs & Runtime Events</h2>
-    <p style="margin:0 0 12px;color:var(--ng-text-muted);">Secrets werden nicht ausgegeben; Tokens und Passwörter bleiben maskiert.</p>
+    <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Agent-Jobs, Logs & Runtime Events</h2>
+    <p style="margin:0 0 12px;color:var(--ng-text-muted);">Aktionen oben erzeugen Agent-Jobs. Secrets werden in Logs und Templates nicht als Plaintext angezeigt.</p>
     {% for event in logs %}
-        <div class="ng-card" style="padding:10px;margin-top:8px;">
-            <strong>{{ event.type }}</strong> <span style="color:var(--ng-text-muted);">{{ event.level }} · {{ event.createdAt|date('Y-m-d H:i:s') }}</span>
-            {% if event.message %}<div>{{ event.message }}</div>{% endif %}
-            {% if event.context is not empty %}<pre style="white-space:pre-wrap;max-height:120px;overflow:auto;">{{ event.context|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>{% endif %}
-        </div>
+        <div class="ng-card" style="padding:10px;margin-top:8px;"><strong>{{ event.type }}</strong> <span style="color:var(--ng-text-muted);">{{ event.level }} · {{ event.createdAt|date('Y-m-d H:i:s') }}</span>{% if event.message %}<div>{{ event.message }}</div>{% endif %}{% if event.context is not empty %}<details style="margin-top:6px;"><summary style="cursor:pointer;color:var(--ng-text-muted);">Kontext anzeigen</summary><pre style="white-space:pre-wrap;max-height:120px;overflow:auto;">{{ event.context|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></details>{% endif %}</div>
     {% else %}
         <p style="margin:0;color:var(--ng-text-muted);">Noch keine Runtime-Events vorhanden.</p>
     {% endfor %}

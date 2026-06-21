@@ -11,7 +11,7 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<MusicbotQueueItem> */
-final class MusicbotQueueItemRepository extends ServiceEntityRepository
+final class MusicbotQueueItemRepository extends ServiceEntityRepository implements MusicbotQueueItemRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {

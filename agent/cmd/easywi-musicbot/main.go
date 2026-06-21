@@ -38,6 +38,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "start control server: %v\n", err)
 		os.Exit(1)
 	}
+	if err := runtime.StartStreamServer(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "start stream server: %v\n", err)
+		os.Exit(1)
+	}
 	if err := runtime.Run(ctx, os.Stdin, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "run runtime: %v\n", err)
 		os.Exit(1)

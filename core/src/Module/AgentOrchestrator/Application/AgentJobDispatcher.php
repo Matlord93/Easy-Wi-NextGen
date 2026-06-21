@@ -8,7 +8,7 @@ use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Repository\AgentJobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class AgentJobDispatcher
+final class AgentJobDispatcher implements AgentJobDispatcherInterface
 {
     public function __construct(
         private readonly AgentJobFactory $factory,

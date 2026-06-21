@@ -10,11 +10,16 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<MusicbotInstance> */
-final class MusicbotInstanceRepository extends ServiceEntityRepository
+final class MusicbotInstanceRepository extends ServiceEntityRepository implements MusicbotInstanceRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, MusicbotInstance::class);
+    }
+
+    public function findById(int $id): ?MusicbotInstance
+    {
+        return $this->find($id);
     }
 
     /** @return MusicbotInstance[] */

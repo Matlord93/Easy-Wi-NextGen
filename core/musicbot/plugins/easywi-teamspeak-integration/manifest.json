@@ -1,0 +1,23 @@
+{
+  "identifier": "easywi.teamspeak.integration",
+  "name": "Easy-Wi TeamSpeak Integration",
+  "version": "0.1.0",
+  "author": "Easy-Wi",
+  "description": "First-party internal Musicbot TeamSpeak command/event bridge. No external code execution.",
+  "permissions": ["commands.register", "events.subscribe", "playback.control", "queue.manage", "playlist.manage"],
+  "supported_platforms": ["teamspeak"],
+  "first_party": true,
+  "removable": false,
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "enabled": {"type": "boolean", "title": "Enable TeamSpeak integration"},
+      "command_prefix": {"type": "string", "title": "Command prefix", "default": "!"},
+      "commands_enabled": {"type": "boolean", "title": "Enable TeamSpeak commands"},
+      "events_enabled": {"type": "boolean", "title": "Enable TeamSpeak events"},
+      "allowed_server_groups": {"type": "array", "title": "Allowed server groups"},
+      "dj_server_groups": {"type": "array", "title": "DJ server groups"},
+      "admin_server_groups": {"type": "array", "title": "Admin server groups"}
+    }
+  }
+}

@@ -64,6 +64,7 @@ final class ApiVersioningGuardTest extends KernelTestCase
             '#^/api/webspaces$#',
             '#^/api/agent/(?:status-batch|servers)$#',
             '#^/api/servers/status$#',
+            '#^/api/musicbots/status$#',
         ];
 
         $violations = [];

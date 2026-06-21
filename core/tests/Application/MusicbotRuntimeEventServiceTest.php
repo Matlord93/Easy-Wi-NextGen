@@ -15,11 +15,16 @@ use PHPUnit\Framework\TestCase;
 
 final class MusicbotRuntimeEventServiceTest extends TestCase
 {
+    private function makeEventRepo(): MusicbotRuntimeEventRepository
+    {
+        return (new \ReflectionClass(MusicbotRuntimeEventRepository::class))->newInstanceWithoutConstructor();
+    }
+
     public function testSanitizeMasksNestedSecrets(): void
     {
         $service = new MusicbotRuntimeEventService(
             $this->createMock(EntityManagerInterface::class),
-            $this->createMock(MusicbotRuntimeEventRepository::class),
+            $this->makeEventRepo(),
         );
 
         self::assertSame([
@@ -53,7 +58,7 @@ final class MusicbotRuntimeEventServiceTest extends TestCase
 
         $service = new MusicbotRuntimeEventService(
             $this->createMock(EntityManagerInterface::class),
-            $this->createMock(MusicbotRuntimeEventRepository::class),
+            $this->makeEventRepo(),
         );
 
         $event = $service->record($instance, 'queue.updated', 'info', 'Queue changed.', ['token' => 'must-mask']);

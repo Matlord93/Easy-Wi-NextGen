@@ -178,7 +178,7 @@ final class AdminMusicbotController
             'connections' => $this->buildConnectionRows($this->connectionRepository->findBy(['musicbotInstance' => $instance], ['id' => 'ASC'])),
             'rawConnections' => $this->connectionRepository->findBy(['musicbotInstance' => $instance], ['id' => 'ASC']),
             'queueSummary' => $this->buildQueueSummary($instance),
-            'runtimePayload' => $instance->getRuntimePayload() ?? [],
+            'runtimePayload' => $this->sanitizeForTemplate($instance->getRuntimePayload() ?? []),
             'lastError' => $this->resolveLastError($instance),
             'logs' => $this->runtimeEventService->latestForInstance($instance, 50),
             'errors' => $this->runtimeEventService->errorsForInstance($instance, 10),
@@ -341,6 +341,15 @@ final class AdminMusicbotController
             'disk_limit' => $this->parsePositiveInt($request->request->get('disk_limit'), 'Disk limit', $errors),
             'teamspeak_enabled' => $request->request->getBoolean('teamspeak_enabled'),
             'teamspeak_profile' => (string) $request->request->get('teamspeak_profile', MusicbotTeamspeakProfile::Ts3->value),
+            'teamspeak_backend_type' => (string) $request->request->get('teamspeak_backend_type', 'placeholder'),
+            'teamspeak_backend_path' => trim((string) $request->request->get('teamspeak_backend_path', '')),
+            'teamspeak_identity_path' => trim((string) $request->request->get('teamspeak_identity_path', '')),
+            'teamspeak_command_prefix' => trim((string) $request->request->get('teamspeak_command_prefix', '!')),
+            'teamspeak_commands_enabled' => $request->request->getBoolean('teamspeak_commands_enabled'),
+            'teamspeak_events_enabled' => $request->request->getBoolean('teamspeak_events_enabled'),
+            'teamspeak_allowed_server_groups' => trim((string) $request->request->get('teamspeak_allowed_server_groups', '')),
+            'teamspeak_dj_server_groups' => trim((string) $request->request->get('teamspeak_dj_server_groups', '')),
+            'teamspeak_admin_server_groups' => trim((string) $request->request->get('teamspeak_admin_server_groups', '')),
             'teamspeak_host' => trim((string) $request->request->get('teamspeak_host', '')),
             'teamspeak_port' => max(1, (int) $request->request->get('teamspeak_port', 9987)),
             'teamspeak_nickname' => trim((string) $request->request->get('teamspeak_nickname', '')),
@@ -367,11 +376,33 @@ final class AdminMusicbotController
         return [
             'profile' => $profile->value,
             'backend' => 'ts3_client_compatible',
+            'backend_type' => $this->normalizeTeamspeakBackendType((string) $request->request->get('teamspeak_backend_type', 'placeholder')),
+            'backend_path' => trim((string) $request->request->get('teamspeak_backend_path', '')),
+            'identity_path' => trim((string) $request->request->get('teamspeak_identity_path', '')),
+            'command_prefix' => trim((string) $request->request->get('teamspeak_command_prefix', '!')) ?: '!',
+            'commands_enabled' => $request->request->getBoolean('teamspeak_commands_enabled'),
+            'events_enabled' => $request->request->getBoolean('teamspeak_events_enabled'),
+            'allowed_server_groups' => $this->parseCsvList((string) $request->request->get('teamspeak_allowed_server_groups', '')),
+            'dj_server_groups' => $this->parseCsvList((string) $request->request->get('teamspeak_dj_server_groups', '')),
+            'admin_server_groups' => $this->parseCsvList((string) $request->request->get('teamspeak_admin_server_groups', '')),
             'host' => trim((string) $request->request->get('teamspeak_host', '')),
             'port' => max(1, (int) $request->request->get('teamspeak_port', 9987)),
             'nickname' => trim((string) $request->request->get('teamspeak_nickname', '')),
             'channel_id' => trim((string) $request->request->get('teamspeak_channel_id', '')),
         ];
+    }
+
+
+
+    /** @return list<string> */
+    private function parseCsvList(string $value): array
+    {
+        return array_values(array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== ''));
+    }
+
+    private function normalizeTeamspeakBackendType(string $backendType): string
+    {
+        return in_array($backendType, ['placeholder', 'native_sdk', 'external_client_bridge', 'disabled'], true) ? $backendType : 'placeholder';
     }
 
     /** @return array<string, mixed> */
@@ -433,6 +464,7 @@ final class AdminMusicbotController
                 'secrets' => $this->secretConfigService->normalizeForApi($connection->getSecretConfig()),
                 'capability_status' => (string) ($config['capability_status'] ?? ($connection->getPlatform() === MusicbotPlatform::Teamspeak ? 'client_backend_required' : 'voice_backend_required')),
                 'slash_commands_status' => $connection->getPlatform() === MusicbotPlatform::Discord ? 'placeholder' : null,
+                'last_error' => $this->sanitizeTextForTemplate($connection->getLastError()),
             ];
         }, $connections);
     }
@@ -448,7 +480,7 @@ final class AdminMusicbotController
 
     private function resolveLastError(MusicbotInstance $instance): ?string
     {
-        $payload = $instance->getRuntimePayload() ?? [];
+        $payload = $this->sanitizeForTemplate($instance->getRuntimePayload() ?? []);
         return isset($payload['last_error']) ? (string) $payload['last_error'] : (isset($payload['error']) ? (string) $payload['error'] : null);
     }
 
@@ -465,6 +497,40 @@ final class AdminMusicbotController
         $connection = new MusicbotConnection($instance, $platform);
         $this->entityManager->persist($connection);
         return $connection;
+    }
+
+
+    /**
+     * @param mixed $value
+     * @return mixed
+     */
+    private function sanitizeForTemplate(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return is_string($value) ? $this->sanitizeTextForTemplate($value) : $value;
+        }
+
+        $sanitized = [];
+        foreach ($value as $key => $item) {
+            $keyString = is_string($key) ? strtolower($key) : (string) $key;
+            if (str_contains($keyString, 'token') || str_contains($keyString, 'password') || str_contains($keyString, 'secret') || str_contains($keyString, 'auth')) {
+                $sanitized[$key] = $item === null || $item === '' ? $item : '[redacted]';
+                continue;
+            }
+            $sanitized[$key] = $this->sanitizeForTemplate($item);
+        }
+
+        return $sanitized;
+    }
+
+
+    private function sanitizeTextForTemplate(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        return preg_replace('/(token|password|secret|authorization)([\s_:\-=]+)([^\s,;]+)/i', '$1$2[redacted]', $value) ?? $value;
     }
 
     private function flash(Request $request, string $type, string $message): void
@@ -504,6 +570,16 @@ final class AdminMusicbotController
             'disk_limit' => 1024,
             'teamspeak_enabled' => false,
             'teamspeak_profile' => MusicbotTeamspeakProfile::Ts3->value,
+            'teamspeak_backend_type' => 'placeholder',
+            'teamspeak_backend_path' => '',
+            'teamspeak_identity_path' => '',
+            'teamspeak_backend_types' => ['placeholder' => 'Placeholder', 'native_sdk' => 'Native SDK', 'external_client_bridge' => 'External Client Bridge', 'disabled' => 'Disabled'],
+            'teamspeak_command_prefix' => '!',
+            'teamspeak_commands_enabled' => true,
+            'teamspeak_events_enabled' => true,
+            'teamspeak_allowed_server_groups' => '',
+            'teamspeak_dj_server_groups' => '',
+            'teamspeak_admin_server_groups' => '',
             'teamspeak_host' => '',
             'teamspeak_port' => 9987,
             'teamspeak_nickname' => '',

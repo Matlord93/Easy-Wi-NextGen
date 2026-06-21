@@ -2,73 +2,136 @@
 
 {% set pageTitle = instance.name %}
 {% set pageSubtitle = 'Musicbot verwalten.' %}
+{% set capabilityLabels = {
+    'ready': 'Bereit',
+    'client_backend_required': 'Backend fehlt',
+    'voice_backend_required': 'Backend fehlt',
+    'placeholder': 'Placeholder',
+    'error': 'Fehler'
+} %}
+{% set capabilityBadges = {
+    'ready': 'ui-badge--success',
+    'client_backend_required': 'ui-badge--warning',
+    'voice_backend_required': 'ui-badge--warning',
+    'placeholder': 'ui-badge--muted',
+    'error': 'ui-badge--danger'
+} %}
+{% set playbackState = runtimeStatus.playbackState|default(runtimeStatus.state|default('stopped')) %}
+{% set outputBackend = runtimeStatus.outputBackend|default('null') ?: 'null' %}
+{% set outputStatus = runtimeStatus.outputStatus|default('idle') ?: 'idle' %}
+{% set ts = platformStatus.teamspeak|default({}) %}
+{% set dc = platformStatus.discord|default({}) %}
+{% set tsCap = ts.capability_status|default('client_backend_required') %}
+{% set dcCap = dc.capability_status|default('voice_backend_required') %}
+{% set currentTitle = runtimeStatus.currentTitle|default('') %}
+{% set currentTrack = runtimeStatus.currentTrack|default(currentTrack|default(null)) %}
+
+{% macro status_card(title, value, help, badge, badgeClass) %}
+    <div class="ng-card" style="padding:14px;min-height:112px;">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+            <strong>{{ title }}</strong>
+            <span class="ui-badge {{ badgeClass|default('ui-badge--muted') }}" title="{{ help }}">{{ badge }}</span>
+        </div>
+        <div style="font-size:22px;margin-top:10px;color:var(--ng-text);">{{ value }}</div>
+        <p style="margin:8px 0 0;color:var(--ng-text-muted);font-size:13px;line-height:1.4;">{{ help }}</p>
+    </div>
+{% endmacro %}
+
+{% import _self as ui %}
 
 {% block content %}
 <div class="cust-page">
     {% for message in app.flashes('success') %}<div class="ui-alert ui-alert--success" style="margin-bottom:12px;">{{ message }}</div>{% endfor %}
     {% for message in app.flashes('error') %}<div class="ui-alert ui-alert--danger" style="margin-bottom:12px;">{{ message }}</div>{% endfor %}
+
     <section class="cust-panel">
         <div class="cust-panel__head">
             <div>
                 <h1 class="cust-panel__title">{{ instance.name }}</h1>
-                <p class="cust-panel__sub">{{ instance.node.name ?: instance.node.id }} · {{ instance.status.value }}</p>
+                <p class="cust-panel__sub">Node {{ instance.node.name ?: instance.node.id }} · Status {{ instance.status.value }}</p>
             </div>
-            <span class="ui-badge ui-badge--info">{{ instance.status.value }}</span>
-        </div>
-        <div class="cust-panel__body" style="display:flex;flex-wrap:wrap;gap:8px;">
-            {% for action in actions %}
-                <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}">
-                    <input type="hidden" name="action" value="{{ action }}">
-                    <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ action|title }}</button>
-                </form>
-            {% endfor %}
-        </div>
-    </section>
-
-    <section class="cust-panel" style="margin-top:18px;">
-        <div class="cust-panel__head">
-            <div><h2 class="cust-panel__title">Playback</h2><p class="cust-panel__sub">Runtime: {{ runtimeStatus.state }} · Queue: {{ runtimeStatus.queueLength }} · Repeat: {{ runtimeStatus.repeatMode }} · Shuffle: {{ runtimeStatus.shuffle ? 'an' : 'aus' }}</p></div>
-            {% if runtimeStatus.lastError %}<span class="ui-badge ui-badge--danger">Fehler</span>{% endif %}
+            <span class="ui-badge {{ instance.status.value == 'running' ? 'ui-badge--success' : (instance.status.value == 'error' ? 'ui-badge--danger' : 'ui-badge--muted') }}">{{ instance.status.value == 'running' ? 'Bereit' : (instance.status.value == 'error' ? 'Fehler' : 'Nicht verbunden') }}</span>
         </div>
         <div class="cust-panel__body">
-            {% if runtimeStatus.lastError %}<div class="ui-alert ui-alert--danger" style="margin-bottom:12px;">{{ runtimeStatus.lastError }}</div>{% endif %}
-            <p style="margin:0 0 12px;color:var(--ng-text-muted);">Aktueller Track: {% if runtimeStatus.currentTrack %}<strong>{{ runtimeStatus.currentTrack.title }}</strong>{% if runtimeStatus.currentTrack.artist %} · {{ runtimeStatus.currentTrack.artist }}{% endif %}{% else %}Noch kein Track aktiv.{% endif %}</p>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-                {% for action,label in {'play':'Play','pause':'Pause','resume':'Resume','stop':'Stop','skip':'Skip'} %}
-                    {% if action != 'skip' or queue is not empty %}<form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}"><input type="hidden" name="action" value="{{ action }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ label }}</button></form>{% endif %}
-                {% endfor %}
-                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;gap:6px;align-items:center;"><input type="hidden" name="action" value="volume"><input type="number" name="volume" min="0" max="100" value="{{ runtimeStatus.volume }}" style="width:72px;"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Volume</button></form>
-                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}"><input type="hidden" name="action" value="shuffle"><input type="hidden" name="shuffle" value="{{ runtimeStatus.shuffle ? '0' : '1' }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Shuffle {{ runtimeStatus.shuffle ? 'aus' : 'an' }}</button></form>
-                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;gap:6px;"><input type="hidden" name="action" value="repeat"><select name="repeat"><option value="off" {% if runtimeStatus.repeatMode == 'off' %}selected{% endif %}>Off</option><option value="one" {% if runtimeStatus.repeatMode == 'one' %}selected{% endif %}>One</option><option value="all" {% if runtimeStatus.repeatMode == 'all' %}selected{% endif %}>All</option></select><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Repeat</button></form>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                {{ ui.status_card('Instanz', instance.status.value == 'running' ? 'Bereit' : 'Nicht verbunden', 'Start/Stop/Restart werden als Agent-Job ausgeführt.', instance.status.value == 'running' ? 'Bereit' : 'Nicht verbunden', instance.status.value == 'running' ? 'ui-badge--success' : 'ui-badge--muted') }}
+                {{ ui.status_card('Wiedergabe', playbackState|title, currentTitle ? 'Aktuell läuft ein Track.' : 'Noch keine aktive Wiedergabe.', playbackState|title, playbackState == 'playing' ? 'ui-badge--success' : 'ui-badge--muted') }}
+                {{ ui.status_card('Output', outputBackend == 'null' ? 'Kein Backend' : outputBackend, outputBackend == 'null' ? 'Kein echtes Voice-/Stream-Output-Backend ist ready. Das ist bei Placeholdern korrekt.' : 'AudioPipeline hat ein Output-Backend gewählt.', outputBackend == 'null' ? 'Placeholder' : 'Bereit', outputBackend == 'null' ? 'ui-badge--muted' : 'ui-badge--success') }}
+                {{ ui.status_card('Queue', runtimeStatus.queueLength|default(queue|length) ~ ' Tracks', queue is empty ? 'Die Queue ist leer. Lade Tracks hoch oder starte eine Playlist.' : 'Queue ist synchronisierbar mit der Runtime.', queue is empty ? 'Leer' : 'Bereit', queue is empty ? 'ui-badge--warning' : 'ui-badge--success') }}
             </div>
-            <details style="margin-top:12px;"><summary style="color:var(--ng-text-muted);cursor:pointer;">Runtime Payload</summary><pre style="white-space:pre-wrap;overflow:auto;max-height:220px;">{{ runtimeStatus.runtimePayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></details>
+
+            <div class="ui-alert ui-alert--info" style="margin-top:14px;">
+                <strong>Hinweis:</strong> Placeholder sind erlaubt, werden aber nicht als echtes Audio-Backend angezeigt. Kunden sehen hier nur „Bereit“, wenn Runtime und Backend wirklich einsatzbereit melden.
+            </div>
         </div>
     </section>
-
 
     <section class="cust-panel" style="margin-top:18px;">
         <div class="cust-panel__head">
             <div>
-                <h2 class="cust-panel__title">Webradio / interner Stream</h2>
-                <p class="cust-panel__sub">Status: {{ streamSettings.enabled ? 'geplant aktiv' : 'deaktiviert' }} · Backend: {{ streamStatus.backend ?? 'placeholder' }} · Zugriff: {{ streamSettings.accessMode.value }}</p>
+                <h2 class="cust-panel__title">Warum spielt der Bot nicht?</h2>
+                <p class="cust-panel__sub">Schnelle Fehlerdiagnose ohne technische Rohdaten.</p>
             </div>
-            <span class="ui-badge {{ streamSettings.enabled ? 'ui-badge--info' : 'ui-badge--muted' }}">{{ streamSettings.enabled ? 'aktiviert' : 'aus' }}</span>
+        </div>
+        <div class="cust-panel__body" style="display:grid;gap:8px;">
+            {% if instance.status.value != 'running' %}<div class="ui-alert ui-alert--warning">Runtime läuft nicht oder ist noch nicht als running gemeldet.</div>{% endif %}
+            {% if queue is empty and not currentTitle and currentTrack is empty %}<div class="ui-alert ui-alert--warning">Queue leer: Lade einen Track hoch oder füge eine Playlist zur Queue hinzu.</div>{% endif %}
+            {% if runtimeStatus.decoderStatus|default('') == 'error' %}<div class="ui-alert ui-alert--danger">Decoder-Fehler: Prüfe Dateiformat und FFmpeg-Installation.</div>{% endif %}
+            {% if outputStatus == 'error' %}<div class="ui-alert ui-alert--danger">Output-Fehler: {{ runtimeStatus.lastOutputError|default(runtimeStatus.lastError|default('Bitte Logs prüfen.')) }}</div>{% endif %}
+            {% if outputBackend == 'null' %}<div class="ui-alert ui-alert--warning">Kein Output Backend ready: TeamSpeak/Discord sind nicht verbunden oder laufen als Placeholder.</div>{% endif %}
+            {% if dcCap != 'ready' %}<div class="ui-alert ui-alert--info">Discord Voice nicht verbunden: Status {{ capabilityLabels[dcCap]|default('Nicht verbunden') }}.</div>{% endif %}
+            {% if tsCap != 'ready' %}<div class="ui-alert ui-alert--info">TeamSpeak Client Backend fehlt oder ist nicht verbunden: Status {{ capabilityLabels[tsCap]|default('Backend fehlt') }}.</div>{% endif %}
+            {% if runtimeStatus.lastError|default('') %}<div class="ui-alert ui-alert--danger">Letzter Runtime-Fehler: {{ runtimeStatus.lastError }}</div>{% endif %}
+        </div>
+    </section>
+
+    <section class="cust-panel" style="margin-top:18px;">
+        <div class="cust-panel__head">
+            <div>
+                <h2 class="cust-panel__title">Aktuelle Wiedergabe</h2>
+                <p class="cust-panel__sub">State {{ playbackState }} · Repeat {{ runtimeStatus.repeatMode|default('off') }} · Shuffle {{ runtimeStatus.shuffle|default(false) ? 'an' : 'aus' }} · Volume {{ runtimeStatus.volume|default(50) }}%</p>
+            </div>
+            {% if runtimeStatus.lastError|default('') %}<span class="ui-badge ui-badge--danger">Fehler</span>{% endif %}
         </div>
         <div class="cust-panel__body">
-            <div class="ui-alert ui-alert--warning" style="margin-bottom:12px;">
-                Die Stream-Architektur ist vorbereitet, aber es ist noch kein echtes Icecast-/Shoutcast-Backend aktiv. Es wird aktuell kein Audio-Broadcast gestartet.
+            <div class="ng-card" style="padding:14px;margin-bottom:12px;">
+                {% if currentTitle %}
+                    <strong>{{ currentTitle }}</strong>{% if runtimeStatus.currentArtist|default('') %} · {{ runtimeStatus.currentArtist }}{% endif %}
+                    {% if runtimeStatus.durationMs|default(0) > 0 %}<div style="color:var(--ng-text-muted);font-size:13px;margin-top:4px;">{{ (runtimeStatus.playbackPositionMs / 1000)|round }}s / {{ (runtimeStatus.durationMs / 1000)|round }}s</div>{% endif %}
+                {% elseif currentTrack %}
+                    <strong>{{ currentTrack.title }}</strong>{% if currentTrack.artist %} · {{ currentTrack.artist }}{% endif %}
+                {% else %}
+                    <strong>Keine aktuelle Wiedergabe</strong>
+                    <p style="margin:6px 0 0;color:var(--ng-text-muted);">Starte einen Track aus Library, Queue oder Playlist.</p>
+                {% endif %}
+                <p style="margin:10px 0 0;color:var(--ng-text-muted);font-size:13px;">Decoder {{ runtimeStatus.decoderBackend|default('—') ?: '—' }} / {{ runtimeStatus.decoderStatus|default('—') ?: '—' }} · Output {{ outputBackend }} / {{ outputStatus }} · Frames {{ runtimeStatus.framesProcessed|default(0) }}</p>
             </div>
-            <p style="margin:0 0 12px;color:var(--ng-text-muted);">Platzhalter-URL: <code>{{ streamStatus.stream_url_placeholder ?? ('/stream/' ~ streamSettings.publicSlug) }}</code> · Stream bereit: {{ streamStatus.stream_ready ? 'ja' : 'nein' }} · Token vorhanden: {{ streamSettings.streamTokenHash ? 'ja' : 'nein' }}</p>
-            <form method="post" action="{{ path('customer_musicbot_stream_update', {id: instance.id}) }}" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px;align-items:end;">
-                <label>Stream-Titel<input class="ui-input" name="stream_title" value="{{ streamSettings.streamTitle ?: instance.name }}"></label>
-                <label>Zugriff<select class="ui-input" name="access_mode"><option value="private" {% if streamSettings.accessMode.value == 'private' %}selected{% endif %}>Private</option><option value="public" {% if streamSettings.accessMode.value == 'public' %}selected{% endif %}>Public</option><option value="token" {% if streamSettings.accessMode.value == 'token' %}selected{% endif %}>Token</option></select></label>
-                <label>Bitrate<input class="ui-input" type="number" name="bitrate" min="32" max="320" value="{{ streamSettings.bitrate }}"></label>
-                <label>Format<select class="ui-input" name="format"><option value="mp3" {% if streamSettings.format == 'mp3' %}selected{% endif %}>MP3</option><option value="ogg" {% if streamSettings.format == 'ogg' %}selected{% endif %}>OGG</option><option value="aac" {% if streamSettings.format == 'aac' %}selected{% endif %}>AAC</option><option value="opus" {% if streamSettings.format == 'opus' %}selected{% endif %}>Opus</option></select></label>
-                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Stream-Einstellungen speichern</button>
-            </form>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <form method="post" action="{{ path('customer_musicbot_stream_toggle', {id: instance.id}) }}"><input type="hidden" name="enabled" value="{{ streamSettings.enabled ? '0' : '1' }}"><button class="ui-button ui-button--primary ui-button--sm" type="submit">{{ streamSettings.enabled ? 'Webradio deaktivieren' : 'Webradio aktivieren' }}</button></form>
-                <form method="post" action="{{ path('customer_musicbot_stream_rotate_token', {id: instance.id}) }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Stream-Token rotieren</button></form>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                {% for action,label in {'play':'Play','pause':'Pause','resume':'Resume','stop':'Stop','skip':'Skip'} %}
+                    <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}"><input type="hidden" name="action" value="{{ action }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ label }}</button></form>
+                {% endfor %}
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;gap:6px;align-items:center;"><input type="hidden" name="action" value="volume"><input type="number" name="volume" min="0" max="100" value="{{ runtimeStatus.volume|default(50) }}" style="width:72px;"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Volume</button></form>
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}"><input type="hidden" name="action" value="shuffle"><input type="hidden" name="shuffle" value="{{ runtimeStatus.shuffle|default(false) ? '0' : '1' }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Shuffle {{ runtimeStatus.shuffle|default(false) ? 'aus' : 'an' }}</button></form>
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;gap:6px;"><input type="hidden" name="action" value="repeat"><select name="repeat"><option value="off" {% if runtimeStatus.repeatMode|default('off') == 'off' %}selected{% endif %}>Off</option><option value="one" {% if runtimeStatus.repeatMode|default('off') == 'one' %}selected{% endif %}>One</option><option value="all" {% if runtimeStatus.repeatMode|default('off') == 'all' %}selected{% endif %}>All</option></select><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Repeat</button></form>
+            </div>
+            <details style="margin-top:12px;"><summary style="color:var(--ng-text-muted);cursor:pointer;">RuntimePayload anzeigen (diagnostisch, sollte bereits sanitisiert sein)</summary><pre style="white-space:pre-wrap;overflow:auto;max-height:220px;">{{ runtimeStatus.runtimePayload|default({})|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></details>
+        </div>
+    </section>
+
+    <section class="cust-panel" style="margin-top:18px;">
+        <div class="cust-panel__head"><h2 class="cust-panel__title">TeamSpeak & Discord Status</h2></div>
+        <div class="cust-panel__body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
+            <div class="ng-card" style="padding:14px;">
+                <div style="display:flex;justify-content:space-between;gap:8px;"><strong>TeamSpeak</strong><span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--muted') }}">{{ capabilityLabels[tsCap]|default('Nicht verbunden') }}</span></div>
+                <p style="color:var(--ng-text-muted);">{{ ts.enabled|default(false) ? 'Aktiviert' : 'Inaktiv' }} · Profil {{ ts.profile|default('ts3') }} · Backend {{ ts.backend|default('ts3_client_compatible') }}</p>
+                {% if tsCap != 'ready' %}<div class="ui-alert ui-alert--warning">TeamSpeak-Audio ist nur bereit, wenn ein echter Client-Layer verbunden ist.</div>{% endif %}
+                {% if ts.lastError|default('') %}<div class="ui-alert ui-alert--danger" style="margin-top:8px;">{{ ts.lastError }}</div>{% endif %}
+            </div>
+            <div class="ng-card" style="padding:14px;">
+                <div style="display:flex;justify-content:space-between;gap:8px;"><strong>Discord</strong><span class="ui-badge {{ capabilityBadges[dcCap]|default('ui-badge--muted') }}">{{ capabilityLabels[dcCap]|default('Nicht verbunden') }}</span></div>
+                <p style="color:var(--ng-text-muted);">{{ dc.enabled|default(false) ? 'Aktiviert' : 'Inaktiv' }} · {{ dc.status|default('missing') }}</p>
+                {% if dcCap != 'ready' %}<div class="ui-alert ui-alert--info">Discord Voice ist vorbereitet, aber ohne echtes Voice-Backend nicht verbunden.</div>{% endif %}
+                {% if dc.lastError|default('') %}<div class="ui-alert ui-alert--danger" style="margin-top:8px;">{{ dc.lastError }}</div>{% endif %}
             </div>
         </div>
     </section>
@@ -84,41 +147,29 @@
                 <thead><tr><th>Position</th><th>Titel</th><th>Status</th><th>Angefragt von</th><th>Aktionen</th></tr></thead>
                 <tbody>
                 {% for item in queue %}
-                    <tr>
-                        <td>{{ item.position }}</td>
-                        <td>{{ item.track.title }}{% if item.track.artist %} · {{ item.track.artist }}{% endif %}</td>
-                        <td>{{ item.status }}</td>
-                        <td>{% if item.requestedBy %}{{ item.requestedBy.email }}{% else %}—{% endif %}</td>
-                        <td><form method="post" action="{{ path('customer_musicbot_queue_item_delete', {id: instance.id, queueItemId: item.id}) }}"><button class="ui-button ui-button--danger ui-button--sm" type="submit">Entfernen</button></form></td>
-                    </tr>
+                    <tr><td>{{ item.position }}</td><td>{{ item.track.title }}{% if item.track.artist %} · {{ item.track.artist }}{% endif %}</td><td>{{ item.status }}</td><td>{% if item.requestedBy %}{{ item.requestedBy.email }}{% else %}—{% endif %}</td><td><form method="post" action="{{ path('customer_musicbot_queue_item_delete', {id: instance.id, queueItemId: item.id}) }}"><button class="ui-button ui-button--danger ui-button--sm" type="submit">Entfernen</button></form></td></tr>
                 {% else %}
-                    <tr><td colspan="5" style="padding:16px;text-align:center;color:var(--ng-text-muted);">Queue ist leer.</td></tr>
+                    <tr><td colspan="5" style="padding:18px;text-align:center;color:var(--ng-text-muted);">Queue ist leer. Lade Tracks hoch oder starte eine Playlist.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
     </section>
 
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:18px;">
         <section class="cust-panel">
-            <div class="cust-panel__head"><h2 class="cust-panel__title">Track-Library</h2></div>
+            <div class="cust-panel__head"><h2 class="cust-panel__title">Uploads & Track-Library</h2></div>
             <div class="cust-panel__body">
                 <form method="post" enctype="multipart/form-data" action="{{ path('customer_musicbot_track_upload', {id: instance.id}) }}" style="display:grid;gap:8px;margin-bottom:12px;">
-                    <input type="file" name="track_file" accept=".mp3,.ogg,.wav,.flac,audio/mpeg,audio/ogg,audio/wav,audio/flac" required>
+                    <input type="file" name="track_file" accept=".mp3,.ogg,.wav,.flac,audio/mpeg,audio/ogg,audio/wav,audio/flac" required title="Erlaubt sind lokale Audiodateien wie MP3, OGG, WAV und FLAC.">
                     <input name="title" placeholder="Titel (optional)">
                     <input name="artist" placeholder="Artist (optional)">
                     <button class="ui-button ui-button--primary ui-button--sm" type="submit">Track hochladen</button>
                 </form>
                 {% for track in tracks %}
-                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:8px;">
-                        <span>{{ track.title }}{% if track.artist %} · {{ track.artist }}{% endif %} <small style="color:var(--ng-text-muted);">{{ track.mimeType }}</small></span>
-                        <span style="display:flex;gap:6px;">
-                            <form method="post" action="{{ path('customer_musicbot_track_queue', {id: instance.id, trackId: track.id}) }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Zur Queue hinzufügen</button></form>
-                            <form method="post" action="{{ path('customer_musicbot_track_delete', {id: instance.id, trackId: track.id}) }}" onsubmit="return confirm('Track löschen?');"><button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button></form>
-                        </span>
-                    </div>
+                    <div class="ng-card" style="padding:10px;margin-top:8px;display:flex;justify-content:space-between;gap:8px;align-items:center;"><span>{{ track.title }}{% if track.artist %} · {{ track.artist }}{% endif %} <small style="color:var(--ng-text-muted);">{{ track.mimeType }}</small></span><span style="display:flex;gap:6px;"><form method="post" action="{{ path('customer_musicbot_track_queue', {id: instance.id, trackId: track.id}) }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Zur Queue</button></form><form method="post" action="{{ path('customer_musicbot_track_delete', {id: instance.id, trackId: track.id}) }}" onsubmit="return confirm('Track löschen?');"><button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button></form></span></div>
                 {% else %}
-                    <p style="margin:0;color:var(--ng-text-muted);">Noch keine Tracks hochgeladen.</p>
+                    <p style="margin:0;color:var(--ng-text-muted);">Noch keine Tracks hochgeladen. Externe YouTube-/Spotify-Quellen sind nicht Teil dieses Musicbots.</p>
                 {% endfor %}
             </div>
         </section>
@@ -126,33 +177,12 @@
         <section class="cust-panel">
             <div class="cust-panel__head"><h2 class="cust-panel__title">Playlists</h2></div>
             <div class="cust-panel__body">
-                <form method="post" action="{{ path('customer_musicbot_playlist_create', {id: instance.id}) }}" style="display:flex;gap:8px;margin-bottom:12px;">
-                    <input name="name" placeholder="Neue Playlist" required>
-                    <select name="visibility"><option value="private">Privat</option><option value="customer">Kunde</option></select>
-                    <button class="ui-button ui-button--primary ui-button--sm" type="submit">Erstellen</button>
-                </form>
+                <form method="post" action="{{ path('customer_musicbot_playlist_create', {id: instance.id}) }}" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;"><input name="name" placeholder="Neue Playlist" required><select name="visibility"><option value="private">Privat</option><option value="customer">Kunde</option></select><button class="ui-button ui-button--primary ui-button--sm" type="submit">Erstellen</button></form>
                 {% for playlist in playlists %}
                     <div class="ng-card" style="padding:10px;margin-top:8px;">
-                        <form method="post" action="{{ path('customer_musicbot_playlist_update', {id: instance.id, playlistId: playlist.id}) }}" style="display:flex;gap:8px;align-items:center;">
-                            <input name="name" value="{{ playlist.name }}" required>
-                            <select name="visibility"><option value="private" {% if playlist.visibility.value == 'private' %}selected{% endif %}>Privat</option><option value="customer" {% if playlist.visibility.value == 'customer' %}selected{% endif %}>Kunde</option><option value="public" {% if playlist.visibility.value == 'public' %}selected{% endif %}>Public</option></select>
-                            <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Speichern</button>
-                        </form>
-                        <div style="display:flex;gap:6px;margin-top:8px;">
-                            <form method="post" action="{{ path('customer_musicbot_playlist_track_add', {id: instance.id, playlistId: playlist.id}) }}">
-                                <select name="track_id">{% for track in tracks %}<option value="{{ track.id }}">{{ track.title }}</option>{% endfor %}</select>
-                                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Track hinzufügen</button>
-                            </form>
-                            <form method="post" action="{{ path('customer_musicbot_playlist_queue', {id: instance.id, playlistId: playlist.id}) }}"><button class="ui-button ui-button--primary ui-button--sm" type="submit">Playlist starten</button></form>
-                            <form method="post" action="{{ path('customer_musicbot_playlist_delete', {id: instance.id, playlistId: playlist.id}) }}" onsubmit="return confirm('Playlist löschen?');"><button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button></form>
-                        </div>
-                        <ul style="margin:8px 0 0;">
-                            {% for item in playlistItems[playlist.id] ?? [] %}
-                                <li>{{ item.track.title }} <form method="post" action="{{ path('customer_musicbot_playlist_track_remove', {id: instance.id, itemId: item.id}) }}" style="display:inline;"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">entfernen</button></form></li>
-                            {% else %}
-                                <li style="color:var(--ng-text-muted);">Keine Tracks in dieser Playlist.</li>
-                            {% endfor %}
-                        </ul>
+                        <form method="post" action="{{ path('customer_musicbot_playlist_update', {id: instance.id, playlistId: playlist.id}) }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><input name="name" value="{{ playlist.name }}" required><select name="visibility"><option value="private" {% if playlist.visibility.value == 'private' %}selected{% endif %}>Privat</option><option value="customer" {% if playlist.visibility.value == 'customer' %}selected{% endif %}>Kunde</option><option value="public" {% if playlist.visibility.value == 'public' %}selected{% endif %}>Public</option></select><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Speichern</button></form>
+                        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><form method="post" action="{{ path('customer_musicbot_playlist_track_add', {id: instance.id, playlistId: playlist.id}) }}"><select name="track_id">{% for track in tracks %}<option value="{{ track.id }}">{{ track.title }}</option>{% endfor %}</select><button class="ui-button ui-button--ghost ui-button--sm" type="submit" {% if tracks is empty %}disabled{% endif %}>Track hinzufügen</button></form><form method="post" action="{{ path('customer_musicbot_playlist_queue', {id: instance.id, playlistId: playlist.id}) }}"><button class="ui-button ui-button--primary ui-button--sm" type="submit">Playlist starten</button></form><form method="post" action="{{ path('customer_musicbot_playlist_delete', {id: instance.id, playlistId: playlist.id}) }}" onsubmit="return confirm('Playlist löschen?');"><button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button></form></div>
+                        <ul style="margin:8px 0 0;">{% for item in playlistItems[playlist.id]|default([]) %}<li>{{ item.track.title }} <form method="post" action="{{ path('customer_musicbot_playlist_track_remove', {id: instance.id, itemId: item.id}) }}" style="display:inline;"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">entfernen</button></form></li>{% else %}<li style="color:var(--ng-text-muted);">Keine Tracks in dieser Playlist.</li>{% endfor %}</ul>
                     </div>
                 {% else %}
                     <p style="margin:0;color:var(--ng-text-muted);">Noch keine Playlists vorhanden.</p>
@@ -161,69 +191,40 @@
         </section>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:18px;">
         <section class="cust-panel">
-            <div class="cust-panel__head"><h2 class="cust-panel__title">Plattform-Verbindungen</h2></div>
-            <div class="cust-panel__body">
-                <div class="ng-card" style="padding:10px;margin-bottom:8px;">
-                    <strong>TeamSpeak</strong> · {{ platformStatus.teamspeak.enabled ? 'aktiv' : 'inaktiv' }} · {{ platformStatus.teamspeak.status }} · Profil {{ platformStatus.teamspeak.profile }} · Backend {{ platformStatus.teamspeak.backend }} · Capability {{ platformStatus.teamspeak.capability_status }}
-                    {% if platformStatus.teamspeak.lastError %}<div class="ui-alert ui-alert--danger" style="margin-top:8px;">{{ platformStatus.teamspeak.lastError }}</div>{% endif %}
-                </div>
-                <div class="ng-card" style="padding:10px;">
-                    <strong>Discord</strong> · {{ platformStatus.discord.enabled ? 'aktiv' : 'inaktiv' }} · {{ platformStatus.discord.status }}
-                    {% if platformStatus.discord.lastError %}<div class="ui-alert ui-alert--danger" style="margin-top:8px;">{{ platformStatus.discord.lastError }}</div>{% endif %}
-                </div>
-                {% if connections is empty %}
-                    <p style="margin:0;color:var(--ng-text-muted);">Keine Verbindungen konfiguriert.</p>
-                {% endfor %}
+            <div class="cust-panel__head"><h2 class="cust-panel__title">Auto-DJ & Webradio</h2></div>
+            <div class="cust-panel__body" style="display:grid;gap:12px;">
+                <div class="ng-card" style="padding:12px;"><div style="display:flex;justify-content:space-between;"><strong>Auto-DJ</strong><span class="ui-badge ui-badge--warning">Experimentell</span></div><p style="color:var(--ng-text-muted);margin-bottom:0;">Auto-DJ-Regeln sind vorbereitet. Nutze Playlists/Queue als primären produktiven Weg, bis Auto-DJ E2E getestet ist.</p></div>
+                <div class="ng-card" style="padding:12px;"><div style="display:flex;justify-content:space-between;"><strong>Webradio</strong><span class="ui-badge ui-badge--muted">Placeholder</span></div><p style="color:var(--ng-text-muted);">{{ streamSettings.enabled ? 'Geplant aktiv' : 'Deaktiviert' }} · Backend {{ streamStatus.backend|default('placeholder') }} · Zugriff {{ streamSettings.accessMode.value }}</p><div class="ui-alert ui-alert--warning">Es ist noch kein echtes Icecast-/Shoutcast-Backend aktiv; es wird kein Audio-Broadcast gestartet.</div></div>
+                <form method="post" action="{{ path('customer_musicbot_stream_update', {id: instance.id}) }}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end;"><label>Stream-Titel<input class="ui-input" name="stream_title" value="{{ streamSettings.streamTitle ?: instance.name }}"></label><label>Zugriff<select class="ui-input" name="access_mode"><option value="private" {% if streamSettings.accessMode.value == 'private' %}selected{% endif %}>Private</option><option value="public" {% if streamSettings.accessMode.value == 'public' %}selected{% endif %}>Public</option><option value="token" {% if streamSettings.accessMode.value == 'token' %}selected{% endif %}>Token</option></select></label><label>Bitrate<input class="ui-input" type="number" name="bitrate" min="32" max="320" value="{{ streamSettings.bitrate }}"></label><label>Format<select class="ui-input" name="format"><option value="mp3" {% if streamSettings.format == 'mp3' %}selected{% endif %}>MP3</option><option value="ogg" {% if streamSettings.format == 'ogg' %}selected{% endif %}>OGG</option><option value="aac" {% if streamSettings.format == 'aac' %}selected{% endif %}>AAC</option><option value="opus" {% if streamSettings.format == 'opus' %}selected{% endif %}>Opus</option></select></label><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Speichern</button></form>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;"><form method="post" action="{{ path('customer_musicbot_stream_toggle', {id: instance.id}) }}"><input type="hidden" name="enabled" value="{{ streamSettings.enabled ? '0' : '1' }}"><button class="ui-button ui-button--primary ui-button--sm" type="submit">{{ streamSettings.enabled ? 'Webradio deaktivieren' : 'Webradio aktivieren' }}</button></form><form method="post" action="{{ path('customer_musicbot_stream_rotate_token', {id: instance.id}) }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Stream-Token rotieren</button></form></div>
+            </div>
+        </section>
+
+        <section class="cust-panel">
+            <div class="cust-panel__head"><h2 class="cust-panel__title">Scheduler & Workflows</h2></div>
+            <div class="cust-panel__body" style="display:grid;gap:12px;">
+                <div class="ng-card" style="padding:12px;"><strong>Scheduler</strong><p style="margin:6px 0 0;color:var(--ng-text-muted);">Zeitpläne sind vorbereitet und über API/Admin sichtbar. Für Live-Ausführung bitte Staging-E2E prüfen.</p></div>
+                <div class="ng-card" style="padding:12px;"><strong>Workflows</strong><p style="margin:6px 0 0;color:var(--ng-text-muted);">Workflow-Trigger sind vorbereitet. TeamSpeak-Events lösen erst mit echter Bridge produktiv aus.</p></div>
             </div>
         </section>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:18px;">
         <section class="cust-panel">
             <div class="cust-panel__head"><h2 class="cust-panel__title">Plugins</h2></div>
             <div class="cust-panel__body">
-                <form method="post" action="{{ path('customer_musicbot_plugin_assign', {id: instance.id}) }}" style="display:flex;gap:8px;margin-bottom:12px;">
-                    <select name="identifier" class="ui-input" style="flex:1;">
-                        {% for manifest in pluginManifests %}
-                            <option value="{{ manifest.identifier }}">{{ manifest.name }} {{ manifest.version }}</option>
-                        {% endfor %}
-                    </select>
-                    <button class="ui-button ui-button--sm" type="submit" {% if pluginManifests is empty %}disabled{% endif %}>Zuweisen</button>
-                </form>
-                {% for plugin in plugins %}
-                    <div class="ng-card" style="padding:10px;margin-top:8px;">
-                        <strong>{{ plugin.name }} {{ plugin.version }}</strong> · {% if plugin.enabled %}aktiv{% else %}inaktiv{% endif %}
-                        <div style="color:var(--ng-text-muted);font-size:12px;">{{ plugin.identifier }} · Permissions: {{ plugin.permissions|join(', ') ?: 'keine' }}</div>
-                        <form method="post" action="{{ path('customer_musicbot_plugin_toggle', {id: instance.id, pluginId: plugin.id}) }}" style="display:inline-block;margin-top:8px;">
-                            <input type="hidden" name="enabled" value="{{ plugin.enabled ? '0' : '1' }}">
-                            <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ plugin.enabled ? 'Deaktivieren' : 'Aktivieren' }}</button>
-                        </form>
-                        <form method="post" action="{{ path('customer_musicbot_plugin_config', {id: instance.id, pluginId: plugin.id}) }}" style="margin-top:8px;">
-                            <textarea class="ui-input" name="config_json" rows="3" style="width:100%;font-family:monospace;">{{ plugin.config|json_encode(constant('JSON_PRETTY_PRINT')) }}</textarea>
-                            <button class="ui-button ui-button--ghost ui-button--sm" type="submit" style="margin-top:6px;">Konfiguration speichern</button>
-                        </form>
-                    </div>
-                {% else %}
-                    <p style="margin:0;color:var(--ng-text-muted);">Keine Plugins zugewiesen. Manifeste werden nur registriert und konfiguriert; es wird kein fremder Code ausgeführt.</p>
-                {% endfor %}
+                <form method="post" action="{{ path('customer_musicbot_plugin_assign', {id: instance.id}) }}" style="display:flex;gap:8px;margin-bottom:12px;"><select name="identifier" class="ui-input" style="flex:1;">{% for manifest in pluginManifests %}<option value="{{ manifest.identifier }}">{{ manifest.name }} {{ manifest.version }}</option>{% endfor %}</select><button class="ui-button ui-button--sm" type="submit" {% if pluginManifests is empty %}disabled{% endif %}>Zuweisen</button></form>
+                {% for plugin in plugins %}<div class="ng-card" style="padding:10px;margin-top:8px;"><strong>{{ plugin.name }} {{ plugin.version }}</strong> · {{ plugin.enabled ? 'aktiv' : 'inaktiv' }}<div style="color:var(--ng-text-muted);font-size:12px;">{{ plugin.identifier }} · Permissions: {{ plugin.permissions|join(', ') ?: 'keine' }}</div><form method="post" action="{{ path('customer_musicbot_plugin_toggle', {id: instance.id, pluginId: plugin.id}) }}" style="display:inline-block;margin-top:8px;"><input type="hidden" name="enabled" value="{{ plugin.enabled ? '0' : '1' }}"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ plugin.enabled ? 'Deaktivieren' : 'Aktivieren' }}</button></form><details style="margin-top:8px;"><summary style="cursor:pointer;color:var(--ng-text-muted);">Konfiguration bearbeiten</summary><form method="post" action="{{ path('customer_musicbot_plugin_config', {id: instance.id, pluginId: plugin.id}) }}" style="margin-top:8px;"><textarea class="ui-input" name="config_json" rows="3" style="width:100%;font-family:monospace;">{{ plugin.config|json_encode(constant('JSON_PRETTY_PRINT')) }}</textarea><button class="ui-button ui-button--ghost ui-button--sm" type="submit" style="margin-top:6px;">Speichern</button></form></details></div>{% else %}<p style="margin:0;color:var(--ng-text-muted);">Keine Plugins zugewiesen. First-Party-Manifeste können aktiviert werden; fremde Codeausführung findet nicht statt.</p>{% endfor %}
             </div>
         </section>
 
         <section class="cust-panel">
-            <div class="cust-panel__head"><h2 class="cust-panel__title">Monitoring & Logs</h2></div>
+            <div class="cust-panel__head"><h2 class="cust-panel__title">Logs</h2></div>
             <div class="cust-panel__body">
-                <p style="margin:0 0 8px;color:var(--ng-text-muted);">Queue: {{ monitoring.queueLength }} · Current: {% if monitoring.currentTrack %}{{ monitoring.currentTrack.title }}{% else %}—{% endif %} · Last Action: {{ monitoring.lastPlaybackAction ?: '—' }} · Heartbeat: {{ monitoring.lastRuntimeHeartbeat ?: '—' }}</p>
-                <p style="margin:0 0 12px;color:var(--ng-text-muted);">CPU: {{ monitoring.cpu is not null ? monitoring.cpu : '—' }} · RAM: {{ monitoring.ram is not null ? monitoring.ram : '—' }}</p>
-                {% for event in logs %}
-                    <div class="ng-card" style="padding:8px;margin-top:6px;">
-                        <strong>{{ event.type }}</strong> <span style="color:var(--ng-text-muted);">{{ event.createdAt|date('Y-m-d H:i:s') }} · {{ event.level }}</span>
-                        {% if event.message %}<div>{{ event.message }}</div>{% endif %}
-                    </div>
-                {% else %}
-                    <p style="margin:0;color:var(--ng-text-muted);">Noch keine Runtime-Events vorhanden.</p>
-                {% endfor %}
+                <p style="margin:0 0 8px;color:var(--ng-text-muted);">Queue {{ monitoring.queueLength|default(0) }} · Heartbeat {{ monitoring.lastRuntimeHeartbeat|default('—') ?: '—' }} · CPU {{ monitoring.cpu is not null ? monitoring.cpu : '—' }} · RAM {{ monitoring.ram is not null ? monitoring.ram : '—' }}</p>
+                {% for event in logs %}<div class="ng-card" style="padding:8px;margin-top:6px;"><strong>{{ event.type }}</strong> <span style="color:var(--ng-text-muted);">{{ event.createdAt|date('Y-m-d H:i:s') }} · {{ event.level }}</span>{% if event.message %}<div>{{ event.message }}</div>{% endif %}</div>{% else %}<p style="margin:0;color:var(--ng-text-muted);">Noch keine Runtime-Events vorhanden.</p>{% endfor %}
             </div>
         </section>
     </div>

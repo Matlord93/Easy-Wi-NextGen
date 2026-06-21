@@ -46,14 +46,23 @@
             <label><input type="checkbox" name="teamspeak_enabled" value="1" {% if form.teamspeak_enabled %}checked{% endif %}> TeamSpeak aktiv</label>
             <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
                 <label><span>Profil</span><select name="teamspeak_profile">{% for profile in form.teamspeak_profiles %}<option value="{{ profile.value }}" {% if form.teamspeak_profile == profile.value %}selected{% endif %}>{{ profile.label }}</option>{% endfor %}</select></label>
+                <label><span>Backend</span><select name="teamspeak_backend_type">{% for value,label in form.teamspeak_backend_types %}<option value="{{ value }}" {% if form.teamspeak_backend_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+                <label><span>Backend Path (optional)</span><input name="teamspeak_backend_path" value="{{ form.teamspeak_backend_path }}" placeholder="/opt/easywi/ts-bridge"></label>
+                <label><span>Identity Path (optional)</span><input name="teamspeak_identity_path" value="{{ form.teamspeak_identity_path }}" placeholder="/srv/musicbot/identity.ini"></label>
+                <label><span>Command Prefix</span><input name="teamspeak_command_prefix" value="{{ form.teamspeak_command_prefix }}" placeholder="!"></label>
+                <label><span>Commands</span><input type="checkbox" name="teamspeak_commands_enabled" value="1" {% if form.teamspeak_commands_enabled %}checked{% endif %}> aktiv</label>
+                <label><span>Events</span><input type="checkbox" name="teamspeak_events_enabled" value="1" {% if form.teamspeak_events_enabled %}checked{% endif %}> aktiv</label>
+                <label><span>Allowed Servergruppen</span><input name="teamspeak_allowed_server_groups" value="{{ form.teamspeak_allowed_server_groups }}" placeholder="12,34"></label>
+                <label><span>DJ Servergruppen</span><input name="teamspeak_dj_server_groups" value="{{ form.teamspeak_dj_server_groups }}" placeholder="56"></label>
+                <label><span>Admin Servergruppen</span><input name="teamspeak_admin_server_groups" value="{{ form.teamspeak_admin_server_groups }}" placeholder="78"></label>
                 <label><span>Host</span><input name="teamspeak_host" value="{{ form.teamspeak_host }}" placeholder="voice.example.com"></label>
                 <label><span>Port</span><input type="number" name="teamspeak_port" min="1" max="65535" value="{{ form.teamspeak_port }}"></label>
                 <label><span>Nickname</span><input name="teamspeak_nickname" value="{{ form.teamspeak_nickname }}" placeholder="EasyWI Musicbot"></label>
                 <label><span>Channel ID</span><input name="teamspeak_channel_id" value="{{ form.teamspeak_channel_id }}"></label>
-                <label><span>Server Passwort (optional)</span><input type="password" name="teamspeak_server_password" value="{{ form.teamspeak_server_password }}"></label>
-                <label><span>Channel Passwort (optional)</span><input type="password" name="teamspeak_channel_password" value="{{ form.teamspeak_channel_password }}"></label>
+                <label><span>Server Passwort (optional)</span><input type="password" name="teamspeak_server_password" placeholder="leer lassen, wird verschlüsselt gespeichert"></label>
+                <label><span>Channel Passwort (optional)</span><input type="password" name="teamspeak_channel_password" placeholder="leer lassen, wird verschlüsselt gespeichert"></label>
             </div>
-            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">TeamSpeak 3 und TeamSpeak 6 nutzen dasselbe TS3-client-kompatible Voice-Backend; echte Audio-Unterstützung ist noch nicht implementiert.</p>
+            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">TeamSpeak 3 und TeamSpeak 6 nutzen denselben TS3-client-kompatiblen Backend-Weg. Placeholder ist kein echter Audio-Client; Native SDK und External Bridge sind vorbereitete Optionen und benötigen installierte Backend-Komponenten.</p>
         </section>
         <div style="display:flex;gap:18px;align-items:center;">
             <label><input type="checkbox" name="discord_enabled" value="1" {% if form.discord_enabled %}checked{% endif %}> Discord aktiv</label>
