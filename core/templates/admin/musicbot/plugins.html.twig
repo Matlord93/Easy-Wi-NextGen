@@ -1,0 +1,31 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Musicbot Plugins{% endblock %}
+
+{% block body %}
+<div class="ng-card" style="padding:20px;">
+    <h1 style="margin:0 0 8px;color:var(--ng-text);font-size:22px;">Musicbot Plugins</h1>
+    <p style="margin:0 0 16px;color:var(--ng-text-muted);">Plugins werden nur per Manifest registriert, konfiguriert und zugewiesen. Es wird kein hochgeladener Plugin-Code ausgeführt.</p>
+
+    <h2 style="font-size:18px;color:var(--ng-text);">Registrierte Manifeste</h2>
+    {% for manifest in manifests %}
+        <div class="ng-card" style="padding:12px;margin-top:10px;">
+            <strong>{{ manifest.name }} {{ manifest.version }}</strong> <span style="color:var(--ng-text-muted);">{{ manifest.identifier }}</span>
+            <div style="color:var(--ng-text-muted);font-size:13px;">{{ manifest.description ?: 'Keine Beschreibung' }}</div>
+            <div style="margin-top:6px;color:var(--ng-text-muted);font-size:12px;">Permissions: {{ manifest.permissions|join(', ') ?: 'keine' }} · Plattformen: {{ manifest.supportedPlatforms|join(', ') ?: 'alle' }}</div>
+        </div>
+    {% else %}
+        <p style="color:var(--ng-text-muted);">Keine Plugin-Manifeste gefunden.</p>
+    {% endfor %}
+
+    <h2 style="font-size:18px;color:var(--ng-text);margin-top:20px;">Zuweisungen</h2>
+    {% for plugin in plugins %}
+        <div class="ng-card" style="padding:12px;margin-top:10px;">
+            <strong>{{ plugin.name }} {{ plugin.version }}</strong> · {{ plugin.enabled ? 'aktiv' : 'inaktiv' }}
+            <div style="color:var(--ng-text-muted);font-size:12px;">{{ plugin.identifier }} · Kunde #{{ plugin.customer ? plugin.customer.id : 'global' }} · Instanz #{{ plugin.instance ? plugin.instance.id : 'global' }}</div>
+        </div>
+    {% else %}
+        <p style="color:var(--ng-text-muted);">Noch keine Plugin-Zuweisungen vorhanden.</p>
+    {% endfor %}
+</div>
+{% endblock %}

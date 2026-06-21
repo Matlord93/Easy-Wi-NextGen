@@ -16,6 +16,14 @@ use App\Module\Core\Domain\Entity\Ts6Token;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Domain\Enum\Ts3InstanceStatus;
 use App\Module\Core\Domain\Enum\Ts6InstanceStatus;
+use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
+use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
+use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
+use App\Module\Musicbot\Domain\Enum\MusicbotConnectionStatus;
+use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
+use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
+use App\Repository\MusicbotConnectionRepository;
+use App\Repository\MusicbotInstanceRepository;
 use App\Repository\SinusbotNodeRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts3NodeRepository;
@@ -32,6 +40,8 @@ final class AgentJobResultApplier
         private readonly Ts3NodeRepository $ts3NodeRepository,
         private readonly Ts6NodeRepository $ts6NodeRepository,
         private readonly SinusbotNodeRepository $sinusbotNodeRepository,
+        private readonly MusicbotInstanceRepository $musicbotInstanceRepository,
+        private readonly MusicbotConnectionRepository $musicbotConnectionRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
         private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
@@ -39,6 +49,7 @@ final class AgentJobResultApplier
         private readonly SecretsCrypto $crypto,
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly MusicbotRuntimeEventService $musicbotRuntimeEventService,
     ) {
     }
 
@@ -77,6 +88,10 @@ final class AgentJobResultApplier
             $this->applySinusbotNodeResult($job, $status, $payload);
         }
 
+        if (str_starts_with($type, 'musicbot.')) {
+            $this->applyMusicbotResult($job, $status, $payload);
+        }
+
         if ($type === 'admin.ssh_key.store') {
             $this->applyAdminSshKeyResult($job, $status);
         }
@@ -84,6 +99,184 @@ final class AgentJobResultApplier
         // core.ssh.policy.apply is a fire-and-forget job; no domain state to update on completion.
 
         $this->entityManager->flush();
+    }
+
+
+    private function applyMusicbotResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
+    {
+        if ($job->getType() === 'musicbot.connection.test') {
+            $this->applyMusicbotConnectionTestResult($job, $status, $payload);
+            return;
+        }
+
+        $instance = $this->findMusicbotInstanceFromJob($job);
+        if (!$instance instanceof MusicbotInstance) {
+            return;
+        }
+
+        if ($job->getType() === 'musicbot.install') {
+            if ($status === AgentJobStatus::Success) {
+                $instance->setStatus(MusicbotInstanceStatus::Stopped);
+                $instance->setLastError(null);
+                $this->musicbotRuntimeEventService->record($instance, 'instance.installed', 'info', 'Musicbot installation completed.', ['job_id' => $job->getId()]);
+            } elseif ($status === AgentJobStatus::Failed) {
+                $error = $this->extractError($job, $payload);
+                $instance->setStatus(MusicbotInstanceStatus::Error);
+                $instance->setLastError($error);
+                $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', 'Musicbot installation failed.', ['job_id' => $job->getId(), 'error' => $error]);
+            }
+        }
+
+        if ($job->getType() === 'musicbot.uninstall') {
+            if ($status === AgentJobStatus::Success) {
+                $instance->setStatus(MusicbotInstanceStatus::Stopped);
+                $instance->setLastError(null);
+                $this->musicbotRuntimeEventService->record($instance, 'instance.uninstalled', 'info', 'Musicbot uninstall completed.', ['job_id' => $job->getId()]);
+            } elseif ($status === AgentJobStatus::Failed) {
+                $error = $this->extractError($job, $payload);
+                $instance->setStatus(MusicbotInstanceStatus::Error);
+                $instance->setLastError($error);
+                $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', 'Musicbot uninstall failed.', ['job_id' => $job->getId(), 'error' => $error]);
+            }
+        }
+
+
+        if ($job->getType() === 'musicbot.update' || $job->getType() === 'musicbot.repair') {
+            $operation = $job->getType() === 'musicbot.update' ? 'update' : 'repair';
+            if ($status === AgentJobStatus::Success) {
+                $instance->setLastError(null);
+                if (is_array($payload)) {
+                    $instance->setRuntimePayload($payload);
+                }
+                $this->musicbotRuntimeEventService->record($instance, $operation === 'repair' ? 'instance.repaired' : 'instance.updated', 'info', sprintf('Musicbot %s completed.', $operation), ['job_id' => $job->getId()]);
+            } elseif ($status === AgentJobStatus::Failed) {
+                $error = $this->extractError($job, $payload);
+                $instance->setStatus(MusicbotInstanceStatus::Error);
+                $instance->setLastError($error);
+                $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', sprintf('Musicbot %s failed.', $operation), ['job_id' => $job->getId(), 'error' => $error]);
+            }
+        }
+
+        if ($job->getType() === 'musicbot.service.action') {
+            $action = strtolower((string) ($job->getPayload()['action'] ?? ''));
+            if ($status === AgentJobStatus::Failed) {
+                $error = $this->extractError($job, $payload);
+                $instance->setStatus(MusicbotInstanceStatus::Error);
+                $instance->setLastError($error);
+                $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', sprintf('Musicbot action "%s" failed.', $action), ['job_id' => $job->getId(), 'action' => $action, 'error' => $error]);
+                return;
+            }
+            if ($status === AgentJobStatus::Success) {
+                $instance->setStatus($action === 'stop' ? MusicbotInstanceStatus::Stopped : MusicbotInstanceStatus::Running);
+                $instance->setLastError(null);
+                $eventType = match ($action) {
+                    'start' => 'instance.started',
+                    'stop' => 'instance.stopped',
+                    'restart' => 'instance.restarted',
+                    default => 'instance.'.($action ?: 'action'),
+                };
+                $this->musicbotRuntimeEventService->record($instance, $eventType, 'info', sprintf('Musicbot action "%s" completed.', $action), ['job_id' => $job->getId(), 'action' => $action]);
+            }
+        }
+
+        if ($job->getType() === 'musicbot.status') {
+            if ($status === AgentJobStatus::Failed) {
+                $error = $this->extractError($job, $payload);
+                $instance->setStatus(MusicbotInstanceStatus::Error);
+                $instance->setLastError($error);
+                $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', 'Musicbot status check failed.', ['job_id' => $job->getId(), 'error' => $error]);
+                return;
+            }
+            if ($status === AgentJobStatus::Success && is_array($payload)) {
+                $runtimeStatus = is_string($payload['status'] ?? null) ? MusicbotInstanceStatus::tryFrom($payload['status']) : null;
+                if ($runtimeStatus instanceof MusicbotInstanceStatus) {
+                    $instance->setStatus($runtimeStatus);
+                } elseif (array_key_exists('running', $payload)) {
+                    $instance->setStatus((bool) $payload['running'] ? MusicbotInstanceStatus::Running : MusicbotInstanceStatus::Stopped);
+                }
+                $instance->setLastError(is_string($payload['last_error'] ?? null) ? $payload['last_error'] : null);
+                $runtimePayload = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
+                $instance->setRuntimePayload($runtimePayload);
+                if ($instance->getLastError() !== null) {
+                    $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', 'Musicbot runtime reported an error.', ['job_id' => $job->getId(), 'error' => $instance->getLastError()]);
+                }
+            }
+        }
+
+        if ($job->getType() === 'musicbot.playback.action') {
+            $action = strtolower((string) ($job->getPayload()['action'] ?? ''));
+            if ($status === AgentJobStatus::Failed) {
+                $error = $this->extractError($job, $payload);
+                $instance->setLastError($error);
+                $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', sprintf('Playback command "%s" failed.', $action), ['job_id' => $job->getId(), 'action' => $action, 'error' => $error]);
+            } elseif ($status === AgentJobStatus::Success) {
+                $this->musicbotRuntimeEventService->record($instance, 'playback.command', 'info', sprintf('Playback command "%s" accepted.', $action), ['job_id' => $job->getId(), 'action' => $action]);
+            }
+        }
+    }
+
+    private function applyMusicbotConnectionTestResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
+    {
+        $instance = $this->findMusicbotInstanceFromJob($job);
+        if (!$instance instanceof MusicbotInstance) {
+            return;
+        }
+        $platformValue = strtolower((string) ($job->getPayload()['platform'] ?? ''));
+        $platform = MusicbotPlatform::tryFrom($platformValue);
+        if (!$platform instanceof MusicbotPlatform) {
+            return;
+        }
+        $connection = $this->musicbotConnectionRepository->findOneBy([
+            'musicbotInstance' => $instance,
+            'platform' => $platform,
+        ]);
+        if (!$connection instanceof MusicbotConnection) {
+            return;
+        }
+        if ($status === AgentJobStatus::Success) {
+            $runtimeStatus = is_string($payload['status'] ?? null) ? MusicbotConnectionStatus::tryFrom($payload['status']) : null;
+            $connection->setStatus($runtimeStatus ?? MusicbotConnectionStatus::Connected);
+            $connection->setLastConnectedAt(new \DateTimeImmutable());
+            $connection->setLastError(null);
+            $this->musicbotRuntimeEventService->record($instance, 'connector.status.changed', 'info', 'Musicbot connector test completed.', [
+                'job_id' => $job->getId(),
+                'platform' => $platform->value,
+                'status' => $connection->getStatus()->value,
+            ]);
+        } elseif ($status === AgentJobStatus::Failed) {
+            $error = $this->extractError($job, $payload);
+            $connection->setStatus(MusicbotConnectionStatus::Error);
+            $connection->setLastError($error);
+            $this->musicbotRuntimeEventService->record($instance, 'connector.status.changed', 'error', 'Musicbot connector test failed.', [
+                'job_id' => $job->getId(),
+                'platform' => $platform->value,
+                'status' => MusicbotConnectionStatus::Error->value,
+                'error' => $error,
+            ]);
+        }
+    }
+
+    private function findMusicbotInstanceFromJob(AgentJob $job): ?MusicbotInstance
+    {
+        $instanceId = $job->getPayload()['instance_id'] ?? null;
+        if (!is_int($instanceId) && !is_string($instanceId)) {
+            return null;
+        }
+        $instance = $this->musicbotInstanceRepository->find((int) $instanceId);
+
+        return $instance instanceof MusicbotInstance ? $instance : null;
+    }
+
+    private function extractError(AgentJob $job, ?array $payload): ?string
+    {
+        if (is_array($payload) && is_string($payload['last_error'] ?? null)) {
+            return $payload['last_error'];
+        }
+        if (is_array($payload) && is_string($payload['error'] ?? null)) {
+            return $payload['error'];
+        }
+
+        return $job->getErrorText();
     }
 
     private function applyTs3NodeResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void

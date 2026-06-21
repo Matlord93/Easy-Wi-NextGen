@@ -4,6 +4,13 @@ module_teamspeak_controllers:
     namespace: App\Module\Teamspeak\UI\Controller
   type: attribute
 
+
+module_musicbot_controllers:
+  resource:
+    path: ../src/Module/Musicbot/UI/Controller/
+    namespace: App\Module\Musicbot\UI\Controller
+  type: attribute
+
 module_easywi_migration_controllers:
   resource:
     path: ../src/Module/EasyWiMigration/UI/Controller/

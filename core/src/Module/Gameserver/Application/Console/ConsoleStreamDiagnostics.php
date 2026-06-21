@@ -33,7 +33,17 @@ final class ConsoleStreamDiagnostics
 
     public function isRelayRequired(): bool
     {
-        return $this->redis instanceof \Redis;
+        if (!$this->redis instanceof \Redis) {
+            return false;
+        }
+
+        // Only require the relay when Redis is actually reachable.
+        // RedisConnectionFactory returns a non-connected \Redis instance on failure,
+        // so a presence check alone is insufficient. When Redis is unreachable,
+        // FallbackConsoleEventBus falls back to direct agent polling and the relay
+        // command is not involved — reporting redis_unavailable in that case would
+        // kill the stream unnecessarily.
+        return $this->redisPingOk();
     }
 
     public function isNullClient(): bool

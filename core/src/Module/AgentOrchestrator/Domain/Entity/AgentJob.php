@@ -15,6 +15,15 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_agent_jobs_idempotency', columns: ['idempotency_key'])]
 class AgentJob
 {
+    private const REDACTED_KEYS = [
+        'bot_token', 'server_password', 'channel_password',
+        'api_secret', 'api_key', 'stream_token',
+        'runtime_control_token', 'webhook_secret',
+        'password', 'token', 'secret',
+    ];
+
+    private const SECRET_PATTERN = '/((?:bot_token|server_password|channel_password|api_secret|api_key|stream_token|runtime_control_token|webhook_secret|password|token|secret)["\s]*[:=]["\s]*)([^\s,"\'}\]\r\n]+)/i';
+
     #[ORM\Id]
     #[ORM\Column(length: 36)]
     private string $id;
@@ -151,12 +160,12 @@ class AgentJob
 
     public function setLogText(?string $logText): void
     {
-        $this->logText = $logText !== '' ? $logText : null;
+        $this->logText = $logText !== '' ? $this->redactSecretPatterns($logText) : null;
     }
 
     public function setErrorText(?string $errorText): void
     {
-        $this->errorText = $errorText !== '' ? $errorText : null;
+        $this->errorText = $errorText !== '' ? $this->redactSecretPatterns($errorText) : null;
     }
 
     public function setRetries(int $retries): void
@@ -171,6 +180,40 @@ class AgentJob
 
     public function setResultPayload(?array $payload): void
     {
-        $this->resultPayload = $payload === [] ? null : $payload;
+        $this->resultPayload = $payload === [] || $payload === null ? null : $this->stripSecretKeys($payload);
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function stripSecretKeys(?array $data): ?array
+    {
+        if ($data === null) {
+            return null;
+        }
+        $clean = [];
+        foreach ($data as $key => $value) {
+            $lower = strtolower((string) $key);
+            $isSensitive = false;
+            foreach (self::REDACTED_KEYS as $k) {
+                if (str_contains($lower, $k)) {
+                    $isSensitive = true;
+                    break;
+                }
+            }
+            if ($isSensitive) {
+                continue;
+            }
+            $clean[$key] = is_array($value) ? $this->stripSecretKeys($value) : $value;
+        }
+
+        return $clean;
+    }
+
+    private function redactSecretPatterns(?string $text): ?string
+    {
+        if ($text === null || $text === '') {
+            return $text;
+        }
+
+        return (string) preg_replace(self::SECRET_PATTERN, '$1********', $text);
     }
 }

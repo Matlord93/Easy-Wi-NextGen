@@ -1,0 +1,67 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'Musicbot erstellen' %}
+{% set pageSubtitle = 'Eine neue native Musicbot-Instanz vorbereiten.' %}
+
+{% block content %}
+<section class="ng-card" style="padding:22px;max-width:920px;">
+    <h1 style="margin:0 0 8px;color:var(--ng-text);font-size:22px;">Musicbot erstellen</h1>
+    <p style="margin:0 0 18px;color:var(--ng-text-muted);">Es wird nur die Instanz angelegt und ein <code>musicbot.instance.create</code>-Agent-Job erzeugt.</p>
+
+    {% if form.errors is not empty %}
+        <div class="ui-alert ui-alert--danger" style="margin-bottom:16px;">
+            {% for error in form.errors %}<div>{{ error }}</div>{% endfor %}
+        </div>
+    {% endif %}
+
+    <form method="post" action="{{ path('admin_musicbot_create') }}" style="display:grid;gap:16px;">
+        <label>
+            <span>Kunde</span>
+            <select name="customer_id" required>
+                <option value="">Bitte wählen</option>
+                {% for customer in customers %}
+                    <option value="{{ customer.id }}" {% if form.customer and form.customer.id == customer.id %}selected{% endif %}>{{ customer.email }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Node/Agent</span>
+            <select name="node_id" required>
+                <option value="">Bitte wählen</option>
+                {% for node in nodes %}
+                    <option value="{{ node.id }}" {% if form.node and form.node.id == node.id %}selected{% endif %}>{{ node.name ?: node.id }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Name</span>
+            <input name="name" value="{{ form.name }}" required maxlength="120">
+        </label>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+            <label><span>CPU Limit</span><input type="number" name="cpu_limit" min="0" value="{{ form.cpu_limit }}"></label>
+            <label><span>RAM Limit (MB)</span><input type="number" name="ram_limit" min="0" value="{{ form.ram_limit }}"></label>
+            <label><span>Disk Limit (MB)</span><input type="number" name="disk_limit" min="0" value="{{ form.disk_limit }}"></label>
+        </div>
+        <section class="ng-card" style="padding:14px;display:grid;gap:12px;">
+            <label><input type="checkbox" name="teamspeak_enabled" value="1" {% if form.teamspeak_enabled %}checked{% endif %}> TeamSpeak aktiv</label>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+                <label><span>Profil</span><select name="teamspeak_profile">{% for profile in form.teamspeak_profiles %}<option value="{{ profile.value }}" {% if form.teamspeak_profile == profile.value %}selected{% endif %}>{{ profile.label }}</option>{% endfor %}</select></label>
+                <label><span>Host</span><input name="teamspeak_host" value="{{ form.teamspeak_host }}" placeholder="voice.example.com"></label>
+                <label><span>Port</span><input type="number" name="teamspeak_port" min="1" max="65535" value="{{ form.teamspeak_port }}"></label>
+                <label><span>Nickname</span><input name="teamspeak_nickname" value="{{ form.teamspeak_nickname }}" placeholder="EasyWI Musicbot"></label>
+                <label><span>Channel ID</span><input name="teamspeak_channel_id" value="{{ form.teamspeak_channel_id }}"></label>
+                <label><span>Server Passwort (optional)</span><input type="password" name="teamspeak_server_password" value="{{ form.teamspeak_server_password }}"></label>
+                <label><span>Channel Passwort (optional)</span><input type="password" name="teamspeak_channel_password" value="{{ form.teamspeak_channel_password }}"></label>
+            </div>
+            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">TeamSpeak 3 und TeamSpeak 6 nutzen dasselbe TS3-client-kompatible Voice-Backend; echte Audio-Unterstützung ist noch nicht implementiert.</p>
+        </section>
+        <div style="display:flex;gap:18px;align-items:center;">
+            <label><input type="checkbox" name="discord_enabled" value="1" {% if form.discord_enabled %}checked{% endif %}> Discord aktiv</label>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button class="ui-button ui-button--primary" type="submit">Erstellen</button>
+            <a class="ui-button ui-button--ghost" href="{{ path('admin_musicbot_index') }}">Abbrechen</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

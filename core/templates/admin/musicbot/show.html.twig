@@ -1,0 +1,112 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = instance.name %}
+{% set pageSubtitle = 'Musicbot-Instanz verwalten.' %}
+
+{% block content %}
+{% for message in app.flashes('success') %}<div class="ui-alert ui-alert--success" style="margin-bottom:12px;">{{ message }}</div>{% endfor %}
+{% for message in app.flashes('error') %}<div class="ui-alert ui-alert--danger" style="margin-bottom:12px;">{{ message }}</div>{% endfor %}
+
+<section class="ng-card" style="padding:22px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;">
+        <div>
+            <h1 style="margin:0;color:var(--ng-text);font-size:24px;">{{ instance.name }}</h1>
+            <p style="margin:8px 0 0;color:var(--ng-text-muted);">Kunde: {{ instance.customer.email }} (#{{ instance.customer.id }}) · Node: {{ instance.node.name ?: instance.node.id }}</p>
+            <p style="margin:8px 0 0;color:var(--ng-text-muted);">Service: <code>{{ instance.serviceName }}</code> · Pfad: <code>{{ instance.installPath }}</code></p>
+        </div>
+        <span class="ui-badge ui-badge--info">{{ instance.status.value }}</span>
+    </div>
+    {% if lastError %}<div class="ui-alert ui-alert--danger" style="margin-top:14px;">{{ lastError }}</div>{% endif %}
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px;">
+        <div class="ng-card" style="padding:14px;"><strong>CPU</strong><div>{{ instance.cpuLimit }}</div></div>
+        <div class="ng-card" style="padding:14px;"><strong>RAM</strong><div>{{ instance.ramLimit }} MB</div></div>
+        <div class="ng-card" style="padding:14px;"><strong>Disk</strong><div>{{ instance.diskLimit }} MB</div></div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;">
+        {% for action in actions %}
+            <form method="post" action="{{ path('admin_musicbot_action', {id: instance.id}) }}">
+                <input type="hidden" name="action" value="{{ action }}">
+                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ action|title }}</button>
+            </form>
+        {% endfor %}
+        <form method="post" action="{{ path('admin_musicbot_delete', {id: instance.id}) }}" onsubmit="return confirm('Musicbot wirklich löschen?');">
+            <button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button>
+        </form>
+    </div>
+</section>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:18px;">
+    <section class="ng-card" style="padding:20px;">
+        <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Runtime Payload</h2>
+        <pre style="white-space:pre-wrap;max-height:320px;overflow:auto;">{{ runtimePayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+    </section>
+    <section class="ng-card" style="padding:20px;">
+        <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Queue</h2>
+        <p style="color:var(--ng-text-muted);">{{ queueSummary.length }} Einträge{% if queueSummary.currentTrack %} · aktuell {{ queueSummary.currentTrack.title }}{% endif %}</p>
+        <ul style="margin:0;padding-left:18px;">
+            {% for item in queueSummary.items %}<li>#{{ item.position }} {{ item.track.title }} · {{ item.status }}</li>{% else %}<li style="color:var(--ng-text-muted);">Queue ist leer.</li>{% endfor %}
+        </ul>
+    </section>
+</div>
+
+<section class="ng-card" style="padding:20px;margin-top:18px;">
+    <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Verbindungen</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+        <div class="ng-card" style="padding:14px;">
+            <h3 style="margin-top:0;">TeamSpeak</h3>
+            {% set ts = connections|filter(row => row.entity.platform.value == 'teamspeak')|first %}
+            {% set tsConfig = ts ? ts.config : {} %}
+            {% set tsEntity = ts ? ts.entity : null %}
+            <p style="color:var(--ng-text-muted);">Status: {{ tsEntity ? tsEntity.status.value : 'missing' }} · Capability: {{ ts ? ts.capability_status : 'client_backend_required' }}</p>
+            {% if tsEntity and tsEntity.lastError %}<div class="ui-alert ui-alert--danger">{{ tsEntity.lastError }}</div>{% endif %}
+            <form method="post" action="{{ path('admin_musicbot_connection_teamspeak_update', {id: instance.id}) }}" style="display:grid;gap:8px;">
+                <label><input type="checkbox" name="enabled" value="1" {% if tsEntity and tsEntity.enabled %}checked{% endif %}> Aktiv</label>
+                <select name="teamspeak_profile">{% for profile in teamspeakProfiles %}<option value="{{ profile.value }}" {% if (tsEntity ? tsEntity.teamspeakProfile.value : 'ts3') == profile.value %}selected{% endif %}>{{ profile.label }}</option>{% endfor %}</select>
+                <input name="teamspeak_host" value="{{ tsConfig.host ?? '' }}" placeholder="Host">
+                <input type="number" name="teamspeak_port" value="{{ tsConfig.port ?? 9987 }}" min="1" max="65535" placeholder="Port">
+                <input name="teamspeak_nickname" value="{{ tsConfig.nickname ?? '' }}" placeholder="Nickname">
+                <input name="teamspeak_channel_id" value="{{ tsConfig.channel_id ?? '' }}" placeholder="Channel ID">
+                <input type="password" name="teamspeak_server_password" placeholder="Server Passwort (leer lassen = behalten)">
+                <input type="password" name="teamspeak_channel_password" placeholder="Channel Passwort (leer lassen = behalten)">
+                <button class="ui-button ui-button--primary ui-button--sm" type="submit">Speichern</button>
+            </form>
+            <form method="post" action="{{ path('admin_musicbot_connection_test', {id: instance.id, platform: 'teamspeak'}) }}" style="margin-top:8px;"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">TeamSpeak testen</button></form>
+        </div>
+        <div class="ng-card" style="padding:14px;">
+            <h3 style="margin-top:0;">Discord</h3>
+            {% set dc = connections|filter(row => row.entity.platform.value == 'discord')|first %}
+            {% set dcConfig = dc ? dc.config : {} %}
+            {% set dcEntity = dc ? dc.entity : null %}
+            <p style="color:var(--ng-text-muted);">Status: {{ dcEntity ? dcEntity.status.value : 'missing' }} · Capability: {{ dc.capability_status ?? 'voice_backend_required' }} · Slash Commands: {{ dc.slash_commands_status ?? 'placeholder' }}</p>
+            {% if dcEntity and dcEntity.lastError %}<div class="ui-alert ui-alert--danger">{{ dcEntity.lastError }}</div>{% endif %}
+            <form method="post" action="{{ path('admin_musicbot_connection_discord_update', {id: instance.id}) }}" style="display:grid;gap:8px;">
+                <label><input type="checkbox" name="enabled" value="1" {% if dcEntity and dcEntity.enabled %}checked{% endif %}> Aktiv</label>
+                <input name="application_id" value="{{ dcConfig.application_id ?? '' }}" placeholder="Application ID">
+                <input name="guild_id" value="{{ dcConfig.guild_id ?? '' }}" placeholder="Guild ID">
+                <input name="voice_channel_id" value="{{ dcConfig.voice_channel_id ?? '' }}" placeholder="Voice Channel ID">
+                <select name="command_mode"><option value="placeholder" {% if (dcConfig.command_mode ?? 'placeholder') == 'placeholder' %}selected{% endif %}>Commands Placeholder</option><option value="slash" {% if (dcConfig.command_mode ?? 'placeholder') == 'slash' %}selected{% endif %}>Slash Commands vorbereitet</option></select>
+                <label><input type="checkbox" name="slash_commands_enabled" value="1" {% if dcConfig.slash_commands_enabled ?? false %}checked{% endif %}> Slash Commands vorbereiten (Placeholder)</label>
+                <select name="reconnect_policy"><option value="manual" {% if (dcConfig.reconnect_policy ?? 'manual') == 'manual' %}selected{% endif %}>Reconnect manuell</option><option value="exponential_backoff" {% if (dcConfig.reconnect_policy ?? 'manual') == 'exponential_backoff' %}selected{% endif %}>Exponential Backoff</option></select>
+                <input type="password" name="bot_token" placeholder="Bot Token (leer lassen = behalten; wird nie angezeigt)">
+                <p style="margin:0;color:var(--ng-text-muted);font-size:12px;">Echte Discord-Voice-Ausgabe benötigt ein separates Voice-Backend; Tokens werden verschlüsselt gespeichert und nicht angezeigt.</p>
+                <button class="ui-button ui-button--primary ui-button--sm" type="submit">Speichern</button>
+            </form>
+            <form method="post" action="{{ path('admin_musicbot_connection_test', {id: instance.id, platform: 'discord'}) }}" style="margin-top:8px;"><button class="ui-button ui-button--ghost ui-button--sm" type="submit">Discord testen</button></form>
+        </div>
+    </div>
+</section>
+
+<section class="ng-card" style="padding:20px;margin-top:18px;">
+    <h2 style="margin:0 0 12px;color:var(--ng-text);font-size:18px;">Logs & Runtime Events</h2>
+    <p style="margin:0 0 12px;color:var(--ng-text-muted);">Secrets werden nicht ausgegeben; Tokens und Passwörter bleiben maskiert.</p>
+    {% for event in logs %}
+        <div class="ng-card" style="padding:10px;margin-top:8px;">
+            <strong>{{ event.type }}</strong> <span style="color:var(--ng-text-muted);">{{ event.level }} · {{ event.createdAt|date('Y-m-d H:i:s') }}</span>
+            {% if event.message %}<div>{{ event.message }}</div>{% endif %}
+            {% if event.context is not empty %}<pre style="white-space:pre-wrap;max-height:120px;overflow:auto;">{{ event.context|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>{% endif %}
+        </div>
+    {% else %}
+        <p style="margin:0;color:var(--ng-text-muted);">Noch keine Runtime-Events vorhanden.</p>
+    {% endfor %}
+</section>
+{% endblock %}

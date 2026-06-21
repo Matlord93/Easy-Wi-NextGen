@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Repository;
+
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
+use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\Persistence\ManagerRegistry;
+
+/** @extends ServiceEntityRepository<MusicbotInstance> */
+final class MusicbotInstanceRepository extends ServiceEntityRepository
+{
+    public function __construct(ManagerRegistry $registry)
+    {
+        parent::__construct($registry, MusicbotInstance::class);
+    }
+
+    /** @return MusicbotInstance[] */
+    public function findByCustomer(User $customer): array
+    {
+        return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
+    }
+
+    public function findOneForCustomer(int $id, User $customer): ?MusicbotInstance
+    {
+        return $this->findOneBy(['id' => $id, 'customer' => $customer]);
+    }
+}

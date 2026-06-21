@@ -54,8 +54,17 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
     public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {
-            $this->redisBus->consumeConsoleEvents($instanceId, $onEvent, $shouldStop);
-            return;
+            try {
+                $this->redisBus->consumeConsoleEvents($instanceId, $onEvent, $shouldStop);
+
+                return;
+            } catch (\RedisException) {
+                // Redis became unavailable mid-stream. Null out the bus so that
+                // all subsequent calls (refreshSubscriberTtl, getSubscriberCount …)
+                // fall through to the in-process fallbacks, and continue below to
+                // stream directly from the agent for the remainder of this iteration.
+                $this->redisBus = null;
+            }
         }
 
         foreach ($this->grpcClient->attachStream($instanceId) as $event) {

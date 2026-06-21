@@ -51,7 +51,7 @@
 - Voice action logs now redact token values, persist only token hashes, and include a per-action correlation ID for traceability.
 - GDPR/DSAR flow hardening completed:
   - Export processor now claims jobs atomically and transitions `pending -> running -> ready|failed` to prevent duplicate processing under concurrency.
-  - New cleanup job deletes expired exports and records `gdpr.export_deleted` audit events (`app:gdpr:exports:cleanup`).
+  - The internal Privacy & GDPR scheduler (`privacy_gdpr_background`) deletes expired exports and records `gdpr.export_deleted` audit events when the operator enables it in the panel.
   - Download authorization enforces scoped export lookup and allows one-time token links with TTL for delegated retrieval use-cases.
   - Export payload now redacts secret/token/password/private-key fields recursively before archive creation.
 
@@ -63,8 +63,7 @@
 2. Run tests:
    - `cd agent && go test ./...`
    - `cd ../core && ./bin/phpunit tests/Extension/BbcodeTwigExtensionTest.php`
-   - `cd ../core && ./bin/console app:gdpr:exports:process --limit=25`
-   - `cd ../core && ./bin/console app:gdpr:exports:cleanup --limit=100`
+   - Enable **Privacy & GDPR background jobs** in the admin panel and use the optional superadmin-only **Run now** action to process/cleanup GDPR tasks through the internal scheduler.
 3. Run frontend smoke checks:
    - `cd core && node --test tests/frontend/*.test.js`
 

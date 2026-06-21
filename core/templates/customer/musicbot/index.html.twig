@@ -1,0 +1,50 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set pageTitle = 'Musicbots' %}
+{% set pageSubtitle = 'Verwalte deine Musicbot-Instanzen.' %}
+
+{% block content %}
+<div class="cust-page">
+    <section class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h1 class="cust-panel__title">Musicbots</h1>
+                <p class="cust-panel__sub">Deine nativen Musicbot-Instanzen und deren Runtime-Status.</p>
+            </div>
+        </div>
+        <div class="cust-panel__body--flush">
+            <table class="ui-table" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Node</th>
+                        <th>TeamSpeak</th>
+                        <th>Discord</th>
+                        <th>Aktueller Track</th>
+                        <th>Queue</th>
+                        <th>Aktualisiert</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in instances %}
+                    {% set instance = row.instance %}
+                    <tr>
+                        <td><a href="{{ path('customer_musicbot_show', {id: instance.id}) }}">{{ instance.name }}</a></td>
+                        <td><span class="ui-badge ui-badge--info">{{ instance.status.value }}</span></td>
+                        <td>{{ instance.node.name ?: instance.node.id }}</td>
+                        <td>{% if row.teamspeakActive %}aktiv{% else %}inaktiv{% endif %}</td>
+                        <td>{% if row.discordActive %}aktiv{% else %}inaktiv{% endif %}</td>
+                        <td>{% if row.currentTrack %}{{ row.currentTrack.title }}{% else %}—{% endif %}</td>
+                        <td>{{ row.queueLength }}</td>
+                        <td>{{ instance.updatedAt|date('d.m.Y H:i') }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8" style="padding:18px;text-align:center;color:var(--ng-text-muted);">Du hast noch keine Musicbots.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

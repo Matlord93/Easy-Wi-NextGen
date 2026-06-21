@@ -81,6 +81,22 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleServiceAction(job)
 	case "sinusbot.status":
 		return handleServiceStatus(job)
+	case "musicbot.install":
+		return handleMusicbotInstall(job)
+	case "musicbot.uninstall":
+		return handleMusicbotUninstall(job)
+	case "musicbot.update":
+		return handleMusicbotUpdate(job)
+	case "musicbot.repair":
+		return handleMusicbotRepair(job)
+	case "musicbot.service.action":
+		return handleServiceAction(job)
+	case "musicbot.status":
+		return handleMusicbotStatus(job)
+	case "musicbot.playback.action":
+		return handleMusicbotPlaybackAction(job)
+	case "musicbot.connection.test":
+		return handleMusicbotConnectionTest(job)
 	case "ts3.virtual.create":
 		return handleTs3VirtualCreate(job)
 	case "ts3.virtual.action":

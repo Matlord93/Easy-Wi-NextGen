@@ -44,8 +44,8 @@ class Ts6Instance implements ResourceEventSource
     private ?string $installedVersion = null;
     #[ORM\Column(length: 32, nullable: true)]
     private ?string $availableVersion = null;
-    #[ORM\Column(length: 16, options: ['default' => 'stable'])]
-    private string $updateChannel = 'stable';
+    #[ORM\Column(length: 16, options: ['default' => 'beta'])]
+    private string $updateChannel = 'beta';
     #[ORM\Column(length: 16, nullable: true)]
     private ?string $platformOs = null;
     #[ORM\Column(length: 16, nullable: true)]

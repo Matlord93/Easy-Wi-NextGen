@@ -64,7 +64,15 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
                 }
             });
         } catch (\RedisException) {
-            // reconnect handled by caller.
+            // After a subscribe timeout the socket may still be in pub/sub mode.
+            // Closing it ensures phpredis reconnects cleanly on the next regular
+            // command (e.g. EXPIRE in refreshSubscriberTtl) instead of sending
+            // that command over a connection that is in subscriber mode.
+            try {
+                $this->redis->close();
+            } catch (\Throwable) {
+                // Ignore close errors; reconnect will happen on the next command.
+            }
         }
     }
 

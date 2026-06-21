@@ -1,0 +1,53 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'Musicbots' %}
+{% set pageSubtitle = 'Native Musicbot-Instanzen verwalten.' %}
+{% set topbarActions = [{ label: 'Musicbot erstellen', href: path('admin_musicbot_new'), variant: 'primary' }] %}
+
+{% block content %}
+<section class="ng-card" style="padding:20px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:center;">
+        <div>
+            <h1 style="margin:0;color:var(--ng-text);font-size:22px;">Musicbot-Instanzen</h1>
+            <p style="margin:6px 0 0;color:var(--ng-text-muted);">Native Musicbots ohne SinusBot- oder TS3AudioBot-Backend.</p>
+        </div>
+        <a class="ui-button ui-button--primary" href="{{ path('admin_musicbot_new') }}">Neu</a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-top:18px;">
+        {% for label, value in {'Gesamt': summary.total, 'Running': summary.running, 'Stopped': summary.stopped, 'Error': summary.error, 'Provisioning': summary.provisioning, 'Nodes': summary.nodes} %}
+            <div class="ng-card" style="padding:14px;">
+                <div style="color:var(--ng-text-muted);font-size:12px;">{{ label }}</div>
+                <div style="color:var(--ng-text);font-size:26px;font-weight:700;">{{ value }}</div>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="ng-card" style="margin-top:18px;overflow:hidden;">
+    <table class="ui-table" style="width:100%;">
+        <thead>
+            <tr>
+                <th>Name</th><th>Kunde</th><th>Node/Agent</th><th>Status</th><th>TeamSpeak</th><th>Discord</th><th>Limits</th><th style="text-align:right;">Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+            {% set instance = row.instance %}
+            <tr>
+                <td><a href="{{ path('admin_musicbot_show', {id: instance.id}) }}">{{ instance.name }}</a><br><small style="color:var(--ng-text-muted);">{{ instance.serviceName }}</small></td>
+                <td>{{ instance.customer.email }}<br><small style="color:var(--ng-text-muted);">#{{ instance.customer.id }}</small></td>
+                <td>{{ instance.node.name ?: instance.node.id }}<br><small style="color:var(--ng-text-muted);">{{ instance.node.id }}</small></td>
+                <td><span class="ui-badge ui-badge--info">{{ instance.status.value }}</span></td>
+                <td>{% if row.teamspeakActive %}<span class="ui-badge ui-badge--success">aktiv</span>{% else %}<span class="ui-badge">inaktiv</span>{% endif %}</td>
+                <td>{% if row.discordActive %}<span class="ui-badge ui-badge--success">aktiv</span>{% else %}<span class="ui-badge">inaktiv</span>{% endif %}</td>
+                <td>{{ instance.cpuLimit }} CPU · {{ instance.ramLimit }} MB · {{ instance.diskLimit }} MB</td>
+                <td style="text-align:right;"><a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_musicbot_show', {id: instance.id}) }}">Öffnen</a></td>
+            </tr>
+        {% else %}
+            <tr><td colspan="8" style="padding:20px;text-align:center;color:var(--ng-text-muted);">Noch keine Musicbot-Instanzen vorhanden.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

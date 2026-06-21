@@ -27,8 +27,11 @@ Recommended agent tags:
 ## Required assets
 Each agent release must include the platform asset and checksum/signature files expected by the panel:
 
-- `easywi-agent-linux-amd64`
-- `easywi-agent-windows-amd64.exe`
+- `easywi-agent-linux-amd64.tar.gz`
+- `easywi-agent-linux-amd64.zip`
+- `easywi-agent-linux-arm64.tar.gz`
+- `easywi-agent-linux-arm64.zip`
+- `easywi-agent-windows-amd64.zip`
 - `checksums-agent.txt`
 - `checksums-agent.txt.asc` (recommended; the agent update path expects a signature URL when present)
 
@@ -41,5 +44,5 @@ Each agent release must include the platform asset and checksum/signature files 
 1. Admin selects Stable, Beta or Dev in the panel.
 2. Panel resolves the newest release in that exact channel and picks the node OS/arch artifact.
 3. Panel creates async `agent.update` / `agent.self_update` job with `version`, `channel`, asset URL and checksums URL.
-4. Agent downloads binary, verifies checksum/signature, swaps binary, restarts.
+4. Agent downloads the archive asset, verifies checksum/signature, extracts the contained `easywi-agent` / `easywi-agent.exe`, swaps the running binary, and restarts.
 5. Core verifies IST version via next heartbeat.
