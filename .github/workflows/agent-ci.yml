@@ -33,7 +33,7 @@ jobs:
         working-directory: agent
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
 
       - name: Ensure non-root runner user
@@ -47,6 +47,19 @@ jobs:
       - name: Configure isolated Go build cache
         uses: ./.github/actions/configure-go-build-cache
 
+      - name: Cache Go module downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('agent/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Verify Go modules
+        run: go mod verify
 
       - name: Prepare Python for OpenAPI checks
         working-directory: .
@@ -86,6 +99,8 @@ jobs:
 
       - name: Go test
         run: go test ./...
+        env:
+          GOPROXY: https://proxy.golang.org,direct
 
       - name: Go vet
         run: go vet ./...

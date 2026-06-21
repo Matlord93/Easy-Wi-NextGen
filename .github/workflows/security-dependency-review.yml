@@ -32,7 +32,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user

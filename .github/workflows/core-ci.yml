@@ -35,9 +35,28 @@ jobs:
     defaults:
       run:
         working-directory: core
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: easywi_test
+          MARIADB_USER: easywi
+          MARIADB_PASSWORD: easywi
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: test
+      APP_DEBUG: '0'
+      DATABASE_URL: "mysql://easywi:easywi@127.0.0.1:3306/easywi_test?serverVersion=mariadb-10.11.0&charset=utf8mb4"
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
 
       - name: Ensure non-root runner user
@@ -125,19 +144,24 @@ jobs:
             fi
           done
 
-      - name: Doctrine schema validate (CI safety)
-        env:
-          APP_ENV: test
-          APP_DEBUG: '0'
-          DATABASE_URL: 'sqlite:///%kernel.project_dir%/var/ci_migrations.db'
-        run: php bin/console doctrine:schema:validate --skip-sync --no-interaction
+      - name: Doctrine mapping validation (CI safety)
+        run: php bin/console doctrine:schema:validate --skip-sync --env=test --no-interaction
 
-      - name: Doctrine migrations dry-run (CI safety)
-        env:
-          APP_ENV: test
-          APP_DEBUG: '0'
-          DATABASE_URL: 'sqlite:///%kernel.project_dir%/var/ci_migrations.db'
-        run: php bin/console doctrine:migrations:migrate --dry-run --no-interaction --allow-no-migration
+      - name: Doctrine migrations (CI safety)
+        run: php bin/console doctrine:migrations:migrate --env=test --no-interaction --allow-no-migration
+
+      - name: Doctrine schema validation (CI safety)
+        run: php bin/console doctrine:schema:validate --env=test --no-interaction
+
+      - name: Doctrine schema diff must be empty (CI safety)
+        run: |
+          set -euo pipefail
+          diff_output="$(php bin/console doctrine:schema:update --dump-sql --env=test --no-interaction)"
+          printf '%s\n' "${diff_output}"
+          if printf '%s\n' "${diff_output}" | grep -Eiq '^(CREATE|ALTER|DROP|RENAME|TRUNCATE|INSERT|UPDATE|DELETE)[[:space:]]'; then
+            echo 'Doctrine schema:update emitted SQL; mapping and migrated schema are not in sync.' >&2
+            exit 1
+          fi
 
       - name: Verify required tools
         run: |
@@ -177,7 +201,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
 
       - name: Ensure non-root runner user

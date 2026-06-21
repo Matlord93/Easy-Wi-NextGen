@@ -15,7 +15,7 @@ jobs:
       run:
         working-directory: core
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
@@ -33,7 +33,7 @@ jobs:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
@@ -47,7 +47,7 @@ jobs:
   contract:
     runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
