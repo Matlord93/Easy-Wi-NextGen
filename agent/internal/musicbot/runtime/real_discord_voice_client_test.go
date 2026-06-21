@@ -317,9 +317,6 @@ func TestRealDiscordVoiceClientGatewayConnect(t *testing.T) {
 	if len(ops) == 0 || ops[0] != gwOpcodeIdentify {
 		t.Fatalf("expected first sent op to be Identify (2), got %v", ops)
 	}
-	gw.mu.Lock()
-	raw, _ := json.Marshal(gw.sent[0])
-	gw.mu.Unlock()
 	if strings.Contains(state.LastError, "test-token-redacted") {
 		t.Fatalf("state.LastError leaked token: %q", state.LastError)
 	}
