@@ -29,22 +29,22 @@ class MusicbotStreamSettings
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private MusicbotInstance $instance;
 
-    #[ORM\Column]
+    #[ORM\Column(options: ['default' => false])]
     private bool $enabled = false;
 
     #[ORM\Column(length: 64)]
     private string $publicSlug;
 
-    #[ORM\Column(enumType: MusicbotStreamAccessMode::class, length: 10)]
+    #[ORM\Column(enumType: MusicbotStreamAccessMode::class, length: 10, options: ['default' => 'private'])]
     private MusicbotStreamAccessMode $accessMode = MusicbotStreamAccessMode::Private;
 
     #[ORM\Column(length: 150, nullable: true)]
     private ?string $streamTitle = null;
 
-    #[ORM\Column]
+    #[ORM\Column(options: ['default' => 128])]
     private int $bitrate = 128;
 
-    #[ORM\Column(length: 10)]
+    #[ORM\Column(length: 10, options: ['default' => 'mp3'])]
     private string $format = 'mp3';
 
     #[ORM\Column(length: 120, nullable: true)]
