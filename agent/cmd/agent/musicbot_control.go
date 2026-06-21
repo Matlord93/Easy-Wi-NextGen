@@ -79,7 +79,7 @@ func (c RuntimeControlClient) roundTrip(network, address string, payload []byte)
 	if err != nil {
 		return runtimeControlResponse{}, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(4 * time.Second))
 	if _, err := conn.Write(append(payload, '\n')); err != nil {
 		return runtimeControlResponse{}, err

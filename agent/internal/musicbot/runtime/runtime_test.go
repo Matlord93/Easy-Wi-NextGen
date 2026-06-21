@@ -46,7 +46,7 @@ func TestRuntimeStatusAndDummyPlayback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer runtime.Close()
+	defer func() { _ = runtime.Close() }()
 
 	status := runtime.HandleCommand("status")
 	if !status.OK || status.Payload["running"] != true {
@@ -89,7 +89,7 @@ func TestRuntimeStatusIncludesPluginDirectoryAndManifestSummaries(t *testing.T) 
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer runtime.Close()
+	defer func() { _ = runtime.Close() }()
 
 	status := runtime.HandleCommand("status")
 	plugins, ok := status.Payload["plugins"].(map[string]any)

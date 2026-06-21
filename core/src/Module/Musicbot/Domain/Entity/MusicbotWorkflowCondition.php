@@ -20,7 +20,7 @@ class MusicbotWorkflowCondition
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private MusicbotWorkflow $workflow;
 
-    #[ORM\Column(enumType: MusicbotWorkflowConditionType::class)]
+    #[ORM\Column(enumType: MusicbotWorkflowConditionType::class, length: 60)]
     private MusicbotWorkflowConditionType $type;
 
     #[ORM\Column(length: 255, nullable: true)]

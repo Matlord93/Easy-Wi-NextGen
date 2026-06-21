@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const teamSpeakVoiceBackendNotConfiguredMessage = "TeamSpeak voice client backend is not configured."
+const teamSpeakVoiceBackendNotConfiguredMessage = "TeamSpeak voice client backend is not configured"
 
 var ErrTeamSpeakVoiceBackendNotConfigured = errors.New(teamSpeakVoiceBackendNotConfiguredMessage)
 

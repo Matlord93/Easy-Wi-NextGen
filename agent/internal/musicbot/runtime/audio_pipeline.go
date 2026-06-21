@@ -243,12 +243,12 @@ func (p *AudioPipeline) ProcessWithVolume(ctx context.Context, source AudioSourc
 	if err != nil {
 		return err
 	}
-	defer resolved.Reader.Close()
+	defer func() { _ = resolved.Reader.Close() }()
 	stream, err := p.Decode(ctx, resolved.Source)
 	if err != nil {
 		return err
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	for {
 		frame, err := stream.NextFrame(ctx)
 		if errors.Is(err, io.EOF) {
@@ -376,11 +376,11 @@ func (r FileAudioSourceResolver) Resolve(ctx context.Context, source AudioSource
 	}
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return ResolvedAudioSource{}, err
 	}
 	if stat.IsDir() {
-		file.Close()
+		_ = file.Close()
 		return ResolvedAudioSource{}, errors.New("audio source must be a file")
 	}
 	resolved := source

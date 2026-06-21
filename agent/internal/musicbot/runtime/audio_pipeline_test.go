@@ -24,7 +24,7 @@ func TestFileAudioSourceResolverValidatesFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	defer resolved.Reader.Close()
+	defer func() { _ = resolved.Reader.Close() }()
 	if resolved.Path != path || resolved.Size != 5 {
 		t.Fatalf("resolved = %#v", resolved)
 	}
@@ -55,7 +55,7 @@ func TestDummyDecoderProducesControlledFrames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	first, err := stream.NextFrame(context.Background())
 	if err != nil {

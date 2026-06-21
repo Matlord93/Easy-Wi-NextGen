@@ -753,13 +753,14 @@ func (c *DiscordConnector) refreshStatusFromVoiceState(ctx context.Context) {
 	} else if c.status.ChannelID == "" {
 		c.status.ChannelID = discordConfigString(c.config, "voice_channel_id")
 	}
-	if c.status.CapabilityStatus == CapabilityStatusReady {
+	switch c.status.CapabilityStatus {
+	case CapabilityStatusReady:
 		c.status.State = ConnectionStateConnected
 		c.status.LastError = ""
-	} else if c.status.CapabilityStatus == CapabilityStatusError {
+	case CapabilityStatusError:
 		c.status.State = ConnectionStateError
 		c.status.LastError = maskSensitiveError(firstNonEmpty(voiceState.LastError, c.voiceClient.GetLastError()), c.config.Config)
-	} else {
+	default:
 		c.status.State = ConnectionStateDisconnected
 		c.status.LastError = maskSensitiveError(firstNonEmpty(voiceState.LastError, c.voiceClient.GetLastError()), c.config.Config)
 	}

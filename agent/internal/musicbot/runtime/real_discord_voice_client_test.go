@@ -269,7 +269,7 @@ func TestRealDiscordVoiceClientSendFrameRequiresReadyState(t *testing.T) {
 	t.Parallel()
 
 	c := newRealDiscordVoiceClientWith(defaultWSDialFunc, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 
 	frame := AudioFrame{
 		Format:       "opus",
@@ -294,10 +294,10 @@ func TestRealDiscordVoiceClientGatewayConnect(t *testing.T) {
 	t.Parallel()
 
 	dial, gw := gatewayDialScript("session-abc", "user-123")
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 
 	c := newRealDiscordVoiceClientWith(dial, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 
 	cfg := ConnectorConfig{
 		Enabled: true,
@@ -320,10 +320,6 @@ func TestRealDiscordVoiceClientGatewayConnect(t *testing.T) {
 	gw.mu.Lock()
 	raw, _ := json.Marshal(gw.sent[0])
 	gw.mu.Unlock()
-	if strings.Contains(string(raw), "test-token-redacted") {
-		// Token appears in the Identify payload, which is expected over the wire,
-		// but must NOT appear in any logged/exported state.
-	}
 	if strings.Contains(state.LastError, "test-token-redacted") {
 		t.Fatalf("state.LastError leaked token: %q", state.LastError)
 	}
@@ -348,10 +344,10 @@ func TestRealDiscordVoiceClientVoiceStateTransitions(t *testing.T) {
 	}
 
 	dial, gw, _ := voiceHandshakeDialScript("gw-session", userID, ssrc, secretKey)
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 
 	c := newRealDiscordVoiceClientWith(dial, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 
 	// Initial state.
 	if s := c.GetVoiceState(context.Background()).CapabilityStatus; s != CapabilityStatusVoiceBackendRequired {
@@ -459,10 +455,10 @@ func TestRealDiscordVoiceClientLeaveVoiceChannel(t *testing.T) {
 	secretKey := make([]byte, 32)
 
 	dial, gw, _ := voiceHandshakeDialScript("gw-s", userID, ssrc, secretKey)
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 
 	c := newRealDiscordVoiceClientWith(dial, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 
 	cfg := ConnectorConfig{Enabled: true, Config: map[string]any{"bot_token": "t"}}
 	if err := c.ConnectGateway(context.Background(), cfg); err != nil {

@@ -12,8 +12,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: MusicbotStreamSettingsRepository::class)]
 #[ORM\Table(name: 'musicbot_stream_settings')]
 #[ORM\UniqueConstraint(name: 'uniq_musicbot_stream_instance', columns: ['instance_id'])]
+#[ORM\UniqueConstraint(name: 'uniq_musicbot_stream_slug', columns: ['public_slug'])]
 #[ORM\Index(name: 'idx_musicbot_stream_customer', columns: ['customer_id'])]
-#[ORM\Index(name: 'idx_musicbot_stream_slug', columns: ['public_slug'])]
 class MusicbotStreamSettings
 {
     #[ORM\Id]
@@ -32,10 +32,10 @@ class MusicbotStreamSettings
     #[ORM\Column]
     private bool $enabled = false;
 
-    #[ORM\Column(length: 64, unique: true)]
+    #[ORM\Column(length: 64)]
     private string $publicSlug;
 
-    #[ORM\Column(enumType: MusicbotStreamAccessMode::class)]
+    #[ORM\Column(enumType: MusicbotStreamAccessMode::class, length: 10)]
     private MusicbotStreamAccessMode $accessMode = MusicbotStreamAccessMode::Private;
 
     #[ORM\Column(length: 150, nullable: true)]

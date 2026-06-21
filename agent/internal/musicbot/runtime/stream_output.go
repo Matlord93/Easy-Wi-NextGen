@@ -23,12 +23,12 @@ import (
 // status response.
 type WebradioStreamConfig struct {
 	Enabled        bool   `json:"enabled"`
-	BindAddr       string `json:"bind_addr,omitempty"`    // default: "127.0.0.1"
-	Port           int    `json:"port"`                   // required when enabled
-	Slug           string `json:"slug"`                   // required: URL path segment
-	AccessMode     string `json:"access_mode"`            // "public" | "private" | "token"
-	StreamToken    string `json:"stream_token"`           // plaintext; never logged
-	MaxListeners   int    `json:"max_listeners,omitempty"` // 0 = unlimited
+	BindAddr       string `json:"bind_addr,omitempty"`        // default: "127.0.0.1"
+	Port           int    `json:"port"`                       // required when enabled
+	Slug           string `json:"slug"`                       // required: URL path segment
+	AccessMode     string `json:"access_mode"`                // "public" | "private" | "token"
+	StreamToken    string `json:"stream_token"`               // plaintext; never logged
+	MaxListeners   int    `json:"max_listeners,omitempty"`    // 0 = unlimited
 	RateLimitBurst int    `json:"rate_limit_burst,omitempty"` // max new conns per IP per minute (default 20)
 }
 
@@ -395,13 +395,13 @@ func streamingWAVHeader(sampleRate, channels, bitsPerSample int) []byte {
 	binary.LittleEndian.PutUint32(h[4:8], wavDataSizeIndefinite) // RIFF chunk size
 	copy(h[8:12], "WAVE")
 	copy(h[12:16], "fmt ")
-	binary.LittleEndian.PutUint32(h[16:20], 16)                        // PCM subchunk size
-	binary.LittleEndian.PutUint16(h[20:22], 1)                         // PCM format tag
-	binary.LittleEndian.PutUint16(h[22:24], uint16(channels))          // channels
-	binary.LittleEndian.PutUint32(h[24:28], uint32(sampleRate))        // sample rate
-	binary.LittleEndian.PutUint32(h[28:32], byteRate)                  // byte rate
-	binary.LittleEndian.PutUint16(h[32:34], blockAlign)                // block align
-	binary.LittleEndian.PutUint16(h[34:36], uint16(bitsPerSample))     // bits per sample
+	binary.LittleEndian.PutUint32(h[16:20], 16)                    // PCM subchunk size
+	binary.LittleEndian.PutUint16(h[20:22], 1)                     // PCM format tag
+	binary.LittleEndian.PutUint16(h[22:24], uint16(channels))      // channels
+	binary.LittleEndian.PutUint32(h[24:28], uint32(sampleRate))    // sample rate
+	binary.LittleEndian.PutUint32(h[28:32], byteRate)              // byte rate
+	binary.LittleEndian.PutUint16(h[32:34], blockAlign)            // block align
+	binary.LittleEndian.PutUint16(h[34:36], uint16(bitsPerSample)) // bits per sample
 	copy(h[36:40], "data")
 	binary.LittleEndian.PutUint32(h[40:44], wavDataSizeIndefinite) // data chunk size
 	return h

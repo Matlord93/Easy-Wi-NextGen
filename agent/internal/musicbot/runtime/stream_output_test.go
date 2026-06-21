@@ -505,9 +505,6 @@ func TestRuntime_StartStreamServer_Enabled(t *testing.T) {
 	if !st.Running {
 		t.Error("status.running should be true")
 	}
-	if st.Enabled {
-		// Enabled is read from config; config.Enabled was true in the struct
-	}
 }
 
 // --- Secret leak tests ---

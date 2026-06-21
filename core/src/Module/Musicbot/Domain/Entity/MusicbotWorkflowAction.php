@@ -20,7 +20,7 @@ class MusicbotWorkflowAction
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private MusicbotWorkflow $workflow;
 
-    #[ORM\Column(enumType: MusicbotWorkflowActionType::class)]
+    #[ORM\Column(enumType: MusicbotWorkflowActionType::class, length: 60)]
     private MusicbotWorkflowActionType $type;
 
     /** @var array<string, mixed> */

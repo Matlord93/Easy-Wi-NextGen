@@ -37,7 +37,7 @@ class MusicbotWorkflow
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
-    #[ORM\Column(enumType: MusicbotWorkflowTriggerType::class)]
+    #[ORM\Column(enumType: MusicbotWorkflowTriggerType::class, length: 40)]
     private MusicbotWorkflowTriggerType $triggerType;
 
     /** @var array<string, mixed> */

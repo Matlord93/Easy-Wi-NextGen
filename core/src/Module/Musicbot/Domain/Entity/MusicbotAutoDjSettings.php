@@ -35,7 +35,7 @@ class MusicbotAutoDjSettings
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?MusicbotPlaylist $fallbackPlaylist = null;
 
-    #[ORM\Column(enumType: MusicbotAutoDjMode::class)]
+    #[ORM\Column(enumType: MusicbotAutoDjMode::class, length: 30)]
     private MusicbotAutoDjMode $mode = MusicbotAutoDjMode::Random;
 
     #[ORM\Column]

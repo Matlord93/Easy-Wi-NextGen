@@ -83,7 +83,7 @@ func TestStatusContainsNoFilePaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	// Simulate a queue with a file path
 	r.mu.Lock()

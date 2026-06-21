@@ -30,7 +30,7 @@ class MusicbotWorkflowExecution
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $completedAt = null;
 
-    #[ORM\Column(enumType: MusicbotWorkflowExecutionStatus::class)]
+    #[ORM\Column(enumType: MusicbotWorkflowExecutionStatus::class, length: 20)]
     private MusicbotWorkflowExecutionStatus $status = MusicbotWorkflowExecutionStatus::Pending;
 
     /** @var array<string, mixed> */

@@ -16,7 +16,7 @@ func TestRuntimeControlServerStatusAndPlayback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer rt.Close()
+	defer func() { _ = rt.Close() }()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := rt.StartControlServer(ctx); err != nil {
@@ -34,7 +34,7 @@ func TestRuntimeControlServerStatusAndPlayback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial control socket: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := conn.Write([]byte(`{"command":"volume","args":{"value":33}}` + "\n")); err != nil {
 		t.Fatalf("write command: %v", err)
 	}

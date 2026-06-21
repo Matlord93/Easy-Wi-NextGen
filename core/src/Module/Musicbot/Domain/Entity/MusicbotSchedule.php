@@ -41,7 +41,7 @@ class MusicbotSchedule
     #[ORM\Column]
     private bool $enabled;
 
-    #[ORM\Column(enumType: MusicbotScheduleAction::class)]
+    #[ORM\Column(enumType: MusicbotScheduleAction::class, length: 32)]
     private MusicbotScheduleAction $action;
 
     #[ORM\Column(type: 'json', nullable: true)]

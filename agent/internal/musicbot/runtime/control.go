@@ -60,7 +60,7 @@ func (r *Runtime) serveControl(listener net.Listener) {
 }
 
 func (r *Runtime) handleControlConn(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	scanner := bufio.NewScanner(conn)
 	encoder := json.NewEncoder(conn)
 	for scanner.Scan() {

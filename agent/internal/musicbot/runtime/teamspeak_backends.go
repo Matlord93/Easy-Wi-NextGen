@@ -21,8 +21,8 @@ const (
 	TeamSpeakBackendTypeExternalClientBridge = "external_client_bridge"
 	TeamSpeakBackendTypeDisabled             = "disabled"
 
-	teamSpeakNativeSDKNotInstalledMessage       = "TeamSpeak native SDK backend is not installed."
-	teamSpeakExternalBridgeNotConfiguredMessage = "TeamSpeak external client bridge is not configured."
+	teamSpeakNativeSDKNotInstalledMessage       = "TeamSpeak native SDK backend is not installed"
+	teamSpeakExternalBridgeNotConfiguredMessage = "TeamSpeak external client bridge is not configured"
 )
 
 var (
