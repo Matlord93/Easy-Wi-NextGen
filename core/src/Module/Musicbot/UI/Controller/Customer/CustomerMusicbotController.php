@@ -6,8 +6,10 @@ namespace App\Module\Musicbot\UI\Controller\Customer;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\Domain\Enum\ModuleKey;
 use App\Module\Musicbot\Application\MusicbotPlaybackCommandService;
 use App\Module\Musicbot\Application\MusicbotPlaylistService;
 use App\Module\Musicbot\Application\MusicbotPluginService;
@@ -35,6 +37,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/musicbots')]
+#[RequiresModule(ModuleKey::Musicbot->value)]
 final class CustomerMusicbotController
 {
     private const ACTIONS = ['start', 'stop', 'restart', 'status'];

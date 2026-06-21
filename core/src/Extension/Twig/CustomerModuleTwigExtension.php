@@ -9,6 +9,7 @@ use App\Repository\DatabaseRepository;
 use App\Repository\DomainRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\MailboxRepository;
+use App\Repository\MusicbotInstanceRepository;
 use App\Repository\ShopRentalRepository;
 use App\Repository\SinusbotInstanceRepository;
 use App\Repository\SinusbotNodeRepository;
@@ -34,6 +35,7 @@ final class CustomerModuleTwigExtension extends AbstractExtension
         private readonly DatabaseRepository $databaseRepository,
         private readonly DomainRepository $domainRepository,
         private readonly MailboxRepository $mailboxRepository,
+        private readonly MusicbotInstanceRepository $musicbotInstanceRepository,
         private readonly ShopRentalRepository $shopRentalRepository,
     ) {
     }
@@ -66,6 +68,7 @@ final class CustomerModuleTwigExtension extends AbstractExtension
                 || $this->ts6VirtualServerRepository->count(['customerId' => $customerId, 'archivedAt' => null]) > 0,
             'sinusbot' => $this->sinusbotInstanceRepository->count(['customer' => $actor, 'archivedAt' => null]) > 0
                 || $this->sinusbotNodeRepository->count(['customer' => $actor, 'instanceMode' => 'solo']) > 0,
+            'musicbot' => $this->musicbotInstanceRepository->count(['customer' => $actor]) > 0,
             'web' => $this->webspaceRepository->count(['customer' => $actor]) > 0,
             'database' => $this->databaseRepository->count(['customer' => $actor]) > 0,
             'domain' => $this->domainRepository->count(['customer' => $actor]) > 0,

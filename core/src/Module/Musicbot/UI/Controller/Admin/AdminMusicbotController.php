@@ -7,9 +7,11 @@ namespace App\Module\Musicbot\UI\Controller\Admin;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\Domain\Enum\ModuleKey;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
@@ -41,6 +43,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/musicbots')]
+#[RequiresModule(ModuleKey::Musicbot->value)]
 final class AdminMusicbotController
 {
     private const ACTIONS = ['install', 'uninstall', 'start', 'stop', 'restart', 'status', 'update', 'repair'];

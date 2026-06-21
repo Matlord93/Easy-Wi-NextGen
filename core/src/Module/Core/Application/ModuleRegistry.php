@@ -41,6 +41,12 @@ final class ModuleRegistry
             'version' => '1.0.0',
             'description' => 'Sinusbot music bot instances.',
         ],
+        ModuleKey::Musicbot->value => [
+            'label' => 'Musicbot',
+            'version' => '1.0.0',
+            'description' => 'Native music bot instances, playback, connectors, streams, and workflows.',
+            'default_enabled' => false,
+        ],
         ModuleKey::Ts->value => [
             'label' => 'Teamspeak',
             'version' => '1.0.0',
@@ -121,7 +127,7 @@ final class ModuleRegistry
         $definition = self::DEFINITIONS[$moduleKey];
         $setting = $this->moduleSettingRepository->find($moduleKey);
 
-        $previousEnabled = $setting?->isEnabled() ?? true;
+        $previousEnabled = $setting?->isEnabled() ?? ($definition['default_enabled'] ?? true);
 
         if ($setting === null) {
             $setting = new ModuleSetting($moduleKey, $definition['version'], $enabled);

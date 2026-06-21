@@ -11,6 +11,7 @@ enum ModuleKey: string
     case Dns = 'dns';
     case Game = 'game';
     case Sinusbot = 'sinusbot';
+    case Musicbot = 'musicbot';
     case Ts = 'ts';
     case Ts6 = 'ts6';
     case TsVirtual = 'ts_virtual';

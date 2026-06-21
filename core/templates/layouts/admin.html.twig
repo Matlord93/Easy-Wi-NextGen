@@ -15,6 +15,7 @@
 %}
 {% set moduleGame = module_enabled('game') %}
 {% set moduleSinusbot = module_enabled('sinusbot') %}
+{% set moduleMusicbot = module_enabled('musicbot') %}
 {% set moduleTs = module_enabled('ts') %}
 {% set moduleTs6 = module_enabled('ts6') %}
 {% set moduleTsCombined = moduleTs or moduleTs6 %}
@@ -93,7 +94,8 @@
     moduleTsCombined  ? { key: 'ts-nodes',    label: t('admin_nav_ts_nodes', page_locale()),    href: path('admin_ts_nodes_index'),     iconSvg: icon.server } : null,
     moduleTs          ? { key: 'ts3-servers',  label: t('admin_nav_ts3_servers', page_locale()), href: path('admin_ts3_servers_index'),  iconSvg: icon.voice } : null,
     moduleTs6         ? { key: 'ts6-servers',  label: t('admin_nav_ts6_servers', page_locale()), href: path('admin_ts6_servers_index'),  iconSvg: icon.voice } : null,
-    moduleSinusbot    ? { key: 'sinusbot',     label: t('admin_nav_sinusbot', page_locale()),    href: path('admin_sinusbot_nodes_index'),iconSvg: icon.sinusbot } : null
+    moduleSinusbot    ? { key: 'sinusbot',     label: t('admin_nav_sinusbot', page_locale()),    href: path('admin_sinusbot_nodes_index'),iconSvg: icon.sinusbot } : null,
+    moduleMusicbot    ? { key: 'musicbots',    label: t('admin_nav_musicbots', page_locale()),   href: path('admin_musicbot_index'),      iconSvg: icon.plugins } : null
 ]|filter(v => v) %}
 
 {% set systemModuleItems = [

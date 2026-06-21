@@ -40,11 +40,13 @@
 {% set moduleDns     = module_enabled('dns') %}
 {% set moduleBilling = module_enabled('billing') %}
 {% set moduleSinusbot = module_enabled('sinusbot') %}
+{% set moduleMusicbot = module_enabled('musicbot') %}
 {% set showVoiceserver = module_enabled('voice') or moduleTs6 or moduleTs %}
 
 {% set customerHasGame     = customer_has_module('game') %}
 {% set customerHasVoice    = customer_has_module('voice') %}
 {% set customerHasSinusbot = customer_has_module('sinusbot') %}
+{% set customerHasMusicbot = customer_has_module('musicbot') %}
 {% set customerHasWeb      = customer_has_module('web') %}
 {% set customerHasDatabase = customer_has_module('database') %}
 {% set customerHasDomain   = customer_has_module('domain') %}
@@ -86,7 +88,8 @@
 {% set infrastructureItems = [
     moduleGame and customerHasGame ? { key: 'gameservers', label: t('customer_nav_game_servers', page_locale()), href: path('customer_instances'),    iconSvg: icon.gamepad } : null,
     showVoiceserver and customerHasVoice ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl, iconSvg: icon.voice } : null,
-    moduleSinusbot and customerHasSinusbot ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index'), iconSvg: icon.sinusbot } : null
+    moduleSinusbot and customerHasSinusbot ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index'), iconSvg: icon.sinusbot } : null,
+    moduleMusicbot and customerHasMusicbot ? { key: 'musicbots', label: t('customer_nav_musicbots', page_locale()), href: path('customer_musicbot_index'), iconSvg: icon.sinusbot } : null
 ]|filter(v => v) %}
 
 {% set serviceItems = [

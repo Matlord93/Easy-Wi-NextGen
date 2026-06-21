@@ -9,11 +9,11 @@ use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
-final class Version20260621110000 extends AbstractMigration
+final class Version20260621120000 extends AbstractMigration
 {
     public function getDescription(): string
     {
-        return 'Change ts6_instances.update_channel column DEFAULT from stable to beta';
+        return 'Ensure ts6_instances.update_channel default matches the beta entity mapping';
     }
 
     public function up(Schema $schema): void
