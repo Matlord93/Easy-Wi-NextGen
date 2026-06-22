@@ -32,6 +32,7 @@ final class AgentJobValidator
             'musicbot.teamspeak_backend.validate',
             'musicbot.teamspeak_backend.test_connection' => $this->requireKeys($payload, ['node_id', 'backend_type', 'backend_path', 'binary_path', 'library_path', 'install_path']),
             'musicbot.teamspeak_backend.install_official_client' => $this->requireKeys($payload, ['node_id', 'version', 'download_url', 'install_path', 'requested_by', 'accepted_license_confirmation']),
+            'musicbot.teamspeak_backend.install_sdk_client' => $this->requireKeys($payload, ['node_id', 'version', 'download_url', 'install_path', 'requested_by', 'accepted_license_confirmation']),
             'musicbot.plugin.install' => $this->requireKeys($payload, ['instance_id', 'plugin_id']),
             'musicbot.plugin.remove' => $this->requireKeys($payload, ['instance_id', 'plugin_id']),
             'musicbot.instance.create' => $this->requireKeys($payload, ['instance_id', 'customer_id', 'node_id', 'service_name', 'install_dir']),

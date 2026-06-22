@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"easywi/agent/internal/jobs"
 )
@@ -299,6 +300,170 @@ func TestTeamspeakOfficialClientRequiresConfirmation(t *testing.T) {
 	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
 	if result.resultPayload["status"] != teamspeakBackendStatusOfficialInvalid {
 		t.Fatalf("status=%v, want official_client_invalid", result.resultPayload["status"])
+	}
+}
+
+// PTY-specific tests
+
+func TestTeamspeakOfficialClientPTYRequiresTTY(t *testing.T) {
+	// Installer exits with error unless stdin is a real TTY.
+	installer := []byte("#!/bin/sh\nif ! [ -t 0 ]; then echo 'TTY required' >&2; exit 1; fi\nmkdir -p \"$2\"\nprintf library > \"$2/libts3client.so\"\nprintf opus > \"$2/libopus.so\"\n")
+	sum := sha256.Sum256(installer)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(installer)
+	}))
+	defer server.Close()
+	restore := mockOfficialClientDownload(t, server.URL, "files.teamspeak-services.com")
+	defer restore()
+
+	job := teamspeakOfficialClientJob(t, "https://files.teamspeak-services.com/client.run", hex.EncodeToString(sum[:]))
+	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+	if result.status != "success" || result.resultPayload["status"] != teamspeakBackendStatusOfficialInstalled {
+		t.Fatalf("PTY-required installer: status=%s payload_status=%v error=%s", result.status, result.resultPayload["status"], result.errorText)
+	}
+	if fmt.Sprint(result.resultPayload["library_path"]) == "" {
+		t.Fatalf("library_path missing in result: %#v", result.resultPayload)
+	}
+}
+
+func TestTeamspeakOfficialClientPTYSendsEnterAndY(t *testing.T) {
+	// Installer prints a "license agreement" prompt, reads Enter, then reads the accept answer.
+	// The PTY loop must send "\r" for the first read and "y\r" for the second.
+	installer := []byte("#!/bin/sh\nprintf 'Please review the license terms and conditions.\\nDo you accept the license agreement? [y/n]: '\nread -r _dummy\nread -r answer\nif [ \"$answer\" = \"y\" ]; then\nmkdir -p \"$2\"\nprintf library > \"$2/libts3client.so\"\nprintf opus > \"$2/libopus.so\"\nexit 0\nfi\nexit 1\n")
+	sum := sha256.Sum256(installer)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(installer)
+	}))
+	defer server.Close()
+	restore := mockOfficialClientDownload(t, server.URL, "files.teamspeak-services.com")
+	defer restore()
+
+	job := teamspeakOfficialClientJob(t, "https://files.teamspeak-services.com/client.run", hex.EncodeToString(sum[:]))
+	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+	if result.status != "success" || result.resultPayload["status"] != teamspeakBackendStatusOfficialInstalled {
+		t.Fatalf("PTY Enter+Y: status=%s payload_status=%v error=%s", result.status, result.resultPayload["status"], result.errorText)
+	}
+}
+
+func TestTeamspeakOfficialClientPTYTimeout(t *testing.T) {
+	// Installer sleeps forever; expect timeout error.
+	installer := []byte("#!/bin/sh\nsleep 9999\n")
+	sum := sha256.Sum256(installer)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(installer)
+	}))
+	defer server.Close()
+	restore := mockOfficialClientDownload(t, server.URL, "files.teamspeak-services.com")
+	defer restore()
+
+	// Use a very short installer timeout so the test finishes quickly.
+	old := teamspeakOfficialClientInstallerTimeout
+	teamspeakOfficialClientInstallerTimeout = 2 * time.Second
+	defer func() { teamspeakOfficialClientInstallerTimeout = old }()
+
+	job := teamspeakOfficialClientJob(t, "https://files.teamspeak-services.com/client.run", hex.EncodeToString(sum[:]))
+	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+	if result.status == "success" {
+		t.Fatalf("expected failure for sleep-forever installer, got success")
+	}
+	if !strings.Contains(result.errorText, "timed out") {
+		t.Fatalf("expected timeout error, got: %s", result.errorText)
+	}
+}
+
+func TestTeamspeakOfficialClientOutputLimited(t *testing.T) {
+	// Installer emits 16 KB of noise then creates the files.
+	var sb strings.Builder
+	sb.WriteString("#!/bin/sh\n")
+	for i := 0; i < 200; i++ {
+		sb.WriteString("printf 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\\n'\n")
+	}
+	sb.WriteString("mkdir -p \"$2\"\nprintf library > \"$2/libts3client.so\"\nprintf opus > \"$2/libopus.so\"\n")
+	installer := []byte(sb.String())
+	sum := sha256.Sum256(installer)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(installer)
+	}))
+	defer server.Close()
+	restore := mockOfficialClientDownload(t, server.URL, "files.teamspeak-services.com")
+	defer restore()
+
+	job := teamspeakOfficialClientJob(t, "https://files.teamspeak-services.com/client.run", hex.EncodeToString(sum[:]))
+	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+	// Should succeed despite large output.
+	if result.status != "success" {
+		t.Fatalf("large-output installer failed unexpectedly: status=%s error=%s", result.status, result.errorText)
+	}
+	// last_error must be bounded even when set.
+	if errStr := fmt.Sprint(result.resultPayload["last_error"]); len(errStr) > 2500 {
+		t.Fatalf("last_error too long: %d chars", len(errStr))
+	}
+}
+
+func TestTeamspeakOfficialClientTermsNotInLastError(t *testing.T) {
+	// Installer prints a fake license block then exits with error.
+	installer := []byte("#!/bin/sh\nprintf 'END USER LICENSE AGREEMENT\\nLorem ipsum legal boilerplate\\nterms and conditions apply\\n'\nexit 1\n")
+	sum := sha256.Sum256(installer)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(installer)
+	}))
+	defer server.Close()
+	restore := mockOfficialClientDownload(t, server.URL, "files.teamspeak-services.com")
+	defer restore()
+
+	job := teamspeakOfficialClientJob(t, "https://files.teamspeak-services.com/client.run", hex.EncodeToString(sum[:]))
+	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+	if result.status == "success" {
+		t.Skip("installer unexpectedly succeeded")
+	}
+	combined := result.errorText + fmt.Sprint(result.resultPayload["last_error"])
+	if len(combined) > 5000 {
+		t.Fatalf("error output too long (%d chars), license text may not be sanitized", len(combined))
+	}
+	// Full license body must not appear verbatim; only placeholder is acceptable.
+	if strings.Count(combined, "boilerplate") > 1 {
+		t.Fatalf("license text leaked into error output: %s", combined[:min(300, len(combined))])
+	}
+}
+
+func TestTeamspeakOfficialClientNoShellInjection(t *testing.T) {
+	t.Parallel()
+	for _, bad := range []string{
+		"/opt/teamspeak-client/;rm -rf /tmp/x",   // semicolon
+		"/opt/teamspeak-client/$(whoami)",         // command substitution
+		"/opt/teamspeak-client/`id`",              // backtick substitution
+		"/opt/teamspeak-client/\x00evil",          // null byte
+		"/opt/teamspeak-client/\nevil",            // newline
+		"/opt/teamspeak-client/a|b",               // pipe
+		"/opt/teamspeak-client/a&b",               // background operator
+	} {
+		job := jobs.Job{ID: "job-ts-inject", Type: "musicbot.teamspeak_backend.install_official_client", Payload: map[string]any{
+			"node_id":                       "agent-1",
+			"version":                       "3.6.2",
+			"download_url":                  "https://files.teamspeak-services.com/client.run",
+			"expected_sha256":               "",
+			"install_path":                  bad,
+			"requested_by":                  "1",
+			"accepted_license_confirmation": "true",
+		}}
+		result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+		if result.status == "success" {
+			t.Fatalf("injection path %q was accepted, want rejection", bad)
+		}
+	}
+}
+
+func TestTeamspeakOfficialClientAcceptedConfirmationFalseNoPTY(t *testing.T) {
+	t.Parallel()
+	// When confirmation is false the installer must never be run.
+	job := teamspeakOfficialClientJob(t, "https://files.teamspeak-services.com/client.run", "")
+	job.Payload["accepted_license_confirmation"] = "false"
+	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+	if result.resultPayload["status"] != teamspeakBackendStatusOfficialInvalid {
+		t.Fatalf("status=%v, want official_client_invalid", result.resultPayload["status"])
+	}
+	if result.status == "success" {
+		t.Fatalf("expected failure when confirmation=false")
 	}
 }
 

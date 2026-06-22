@@ -465,12 +465,90 @@ https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-lin
 
 Before the job is queued, the admin must confirm that the TeamSpeak Client use is legally allowed on the node, that Easy-Wi does not ship proprietary TeamSpeak files, that the download happens only locally on that node, and that no automatic redistribution happens.
 
+#### PTY / TTY requirement
+
+The official TeamSpeak 3 installer (`*.run`) requires a real terminal (TTY) because it displays the license agreement through a pager and waits for user input before extracting files. Piping plain stdin (e.g. `yes | installer`) does not work reliably.
+
+The agent therefore runs the installer in a **pseudo-terminal (PTY)** using `github.com/creack/pty`. The expect-like interaction loop:
+
+1. Sends `Enter` immediately to advance past any startup prompt.
+2. Detects pager prompts (`--More--`, `(END)`, etc.) and sends `q` to exit the pager.
+3. Detects the license acceptance prompt (`accept`, `agree`, `license`, `terms`, `[y/n]`) and sends `y` followed by `Enter`.
+4. Falls back to sending the sequence `q` (3 s) then `y` (5 s) if no recognizable prompts appear.
+
+**The PTY loop only sends input when `accepted_license_confirmation=true`.** The admin must explicitly set this field in the job payload. If it is `false`, the installer is never started and the result is `official_client_invalid` with the message `accepted_license_confirmation=true is required`.
+
+The loop times out after 300 seconds. On timeout the installer process is killed and the result is `official_client_invalid` with the message `official TeamSpeak installer timed out while running in PTY mode`.
+
+PTY output is buffered to a maximum of 8 KB. ANSI escape sequences (pager colour codes, cursor movements) are stripped before the buffer is matched against prompts or written to `last_error`. License and privacy-policy text blocks in the output are collapsed to a single placeholder line `[license/terms text omitted]` and the sanitized error field is limited to 2000 characters.
+
 Security constraints:
 
 - Only `https://files.teamspeak-services.com/...` is accepted by default.
 - `file://`, `ftp://`, localhost, IP-address URLs, and foreign hosts are rejected.
 - Redirects are re-validated against the same allowlist.
-- The agent downloads to a temporary directory, limits download size, verifies SHA-256 when configured, extracts with `exec.CommandContext` and fixed arguments, sanitizes output, and removes temporary files.
+- `install_path` is validated: must be absolute, contain `/teamspeak-client`, and must not contain null bytes, newlines, or shell metacharacters (`;`, `$`, `` ` ``, `&`, `|`, `<`, `>`).
+- The installer is executed via `exec.CommandContext` with arguments passed as separate strings — no shell interpolation.
+- The agent downloads to a temporary directory, limits download size, verifies SHA-256 when configured, and removes temporary files after extraction.
 - Proprietary TeamSpeak files are never committed to this repository.
 
-If the official client installer does not provide a usable `libts3client.so`, Easy-Wi records `official_client_installed_library_missing` and does **not** mark the Musicbot TeamSpeak backend as ready. In that case, use the manual SDK/library path fields to provide an allowed `libts3client.so`/client layer.
+#### No Fake-Ready: libts3client.so is mandatory
+
+After the installer exits the agent recursively searches the `install_path` for `libts3client.so`, `libopus.so`, and `libopus.so.0`.
+
+- **If `libts3client.so` is not found:** status is set to `official_client_installed_library_missing` and the backend remains **not ready**. The admin must provide a compatible client library manually.
+- **If `libts3client.so` is found:** `library_path` and (if present) `opus_library_path` are set in the result, `backend_type_suggestion` is set to `client_library`, and the backend may be registered for use.
+
+A successful extraction without a usable `libts3client.so` never produces `ready` or `connected` status. The placeholder/stub path is not used as a fallback.
+
+### Optional TeamSpeak 3 SDK 3.5.2 installation
+
+Admins may also trigger **TeamSpeak 3 SDK installieren** from **Admin → Musicbot → TeamSpeak Client Backend**. This installs the official TeamSpeak 3 client/SDK library (`libteamspeak_sdk_client.so`) by downloading the SDK tarball from `files.teamspeak-services.com`.
+
+The default SDK download URL is:
+
+```text
+https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz
+```
+
+The SDK tarball is extracted safely (path traversal prevention, file count and total size limits) and a compatibility symlink `libts3client.so → libteamspeak_sdk_client.so` is created automatically so that existing configurations pointing to `libts3client.so` continue to work.
+
+#### Agent job: `musicbot.teamspeak_backend.install_sdk_client`
+
+Required payload fields:
+
+| Field | Description |
+|-------|-------------|
+| `node_id` | Agent node ID |
+| `version` | SDK version string (e.g. `"3.5.2"`) |
+| `download_url` | HTTPS URL on `files.teamspeak-services.com` |
+| `install_path` | Absolute path for extraction (no shell metacharacters) |
+| `requested_by` | Admin user ID |
+| `accepted_license_confirmation` | Must be `true` |
+
+Optional fields: `expected_sha256`, `install_dependencies` (triggers `apt-get`/`dnf`/`yum` install of `libopus0` and `libglib2.0-0`), `rebuild_backend_binary` + `binary_source_path` (triggers `CGO_ENABLED=1 go build -tags ts3clientlib`).
+
+#### Tarball extraction security
+
+- Path traversal detection: every entry's resolved path is checked against `install_path` before writing.
+- Symlinks: only relative symlinks whose resolved target stays within `install_path` are allowed; absolute symlink targets are rejected.
+- Hard links are skipped.
+- Device/special files are skipped.
+- Maximum file count: 2000 entries. Maximum total uncompressed size: 200 MB.
+- File permissions are sanitised to at most `0755`; owner-readable bit is enforced.
+
+#### Library resolver
+
+After extraction, the agent calls `resolveTeamspeakLibraryPath` which now accepts both `libts3client.so` and `libteamspeak_sdk_client.so`. Directory-mode lookup checks `libts3client.so` first (backwards-compatible default), then `libteamspeak_sdk_client.so`. Either name can be used in `library_path`.
+
+#### No Fake-Ready: library must be found
+
+If neither `libteamspeak_sdk_client.so` nor `libts3client.so` is found after extraction, the status is `sdk_client_installed_library_missing` and the backend remains not ready. The admin must verify the SDK tarball contains the expected library.
+
+#### Security constraints
+
+- Only `https://files.teamspeak-services.com/...` is accepted.
+- `http://`, `ftp://`, localhost, IP addresses, and foreign hosts are rejected.
+- `install_path` must be absolute and must not contain null bytes, newlines, or shell metacharacters (`;`, `$`, `` ` ``, `&`, `|`, `<`, `>`).
+- Blocked install paths: `/`, `/etc`, `/bin`, `/sbin`, `/usr`, `/lib`, `/lib64`, `/boot`, `/proc`, `/sys`, `/dev`, `/run`, `/tmp`, `/root`.
+- No proprietary SDK files are committed to this repository.

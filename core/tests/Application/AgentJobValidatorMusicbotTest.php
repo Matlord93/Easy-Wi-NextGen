@@ -120,4 +120,25 @@ final class AgentJobValidatorMusicbotTest extends TestCase
         self::assertArrayNotHasKey('server_password', $payload);
         self::assertArrayNotHasKey('channel_password', $payload);
     }
+
+    public function testMusicbotTeamspeakSDKClientInstallRequiresConfirmationPayload(): void
+    {
+        $validator = new AgentJobValidator();
+        $payload = [
+            'node_id' => 'agent-1',
+            'version' => '3.5.2',
+            'download_url' => 'https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz',
+            'expected_sha256' => '',
+            'install_path' => '/opt/easywi/musicbot/teamspeak-client/sdk/',
+            'requested_by' => '1',
+            'accepted_license_confirmation' => true,
+        ];
+
+        self::assertSame([], $validator->validate('musicbot.teamspeak_backend.install_sdk_client', $payload));
+        self::assertContains('Missing required field: accepted_license_confirmation', $validator->validate('musicbot.teamspeak_backend.install_sdk_client', array_diff_key($payload, ['accepted_license_confirmation' => true])));
+        self::assertContains('Missing required field: download_url', $validator->validate('musicbot.teamspeak_backend.install_sdk_client', array_diff_key($payload, ['download_url' => true])));
+        self::assertContains('Missing required field: install_path', $validator->validate('musicbot.teamspeak_backend.install_sdk_client', array_diff_key($payload, ['install_path' => true])));
+        self::assertArrayNotHasKey('server_password', $payload);
+        self::assertArrayNotHasKey('channel_password', $payload);
+    }
 }

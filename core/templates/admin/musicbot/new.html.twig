@@ -2,78 +2,202 @@
 
 {% set pageTitle = 'Musicbot erstellen' %}
 {% set pageSubtitle = 'Eine neue native Musicbot-Instanz vorbereiten.' %}
+{% set activeNav = 'musicbots' %}
 
 {% block content %}
-<section class="ng-card" style="padding:22px;max-width:920px;">
-    <h1 style="margin:0 0 8px;color:var(--ng-text);font-size:22px;">Musicbot erstellen</h1>
-    <p style="margin:0 0 18px;color:var(--ng-text-muted);">Es wird nur die Instanz angelegt und ein <code>musicbot.instance.create</code>-Agent-Job erzeugt.</p>
+<div style="display:flex;flex-direction:column;gap:20px;max-width:960px;">
+
+    {# ── Breadcrumb / Header ── #}
+    <div class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero" style="padding-bottom:0;">
+            <div class="tkt-hero__inner" style="padding-bottom:16px;">
+                <div>
+                    <div class="tkt-hero__breadcrumb">
+                        <a href="{{ path('admin_musicbot_index') }}" style="color:var(--ng-text-muted);text-decoration:none;">Musicbots</a>
+                        <span>/</span>
+                        <span>Neu erstellen</span>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            Musicbot
+                        </div>
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">Musicbot erstellen</h1>
+                    <p class="tkt-hero__sub">Es wird nur die Instanz angelegt und ein <code style="font-family:monospace;font-size:12px;">musicbot.instance.create</code>-Agent-Job erzeugt.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {% if form.errors is not empty %}
-        <div class="ui-alert ui-alert--danger" style="margin-bottom:16px;">
+        <div class="ng-alert ng-alert--danger">
             {% for error in form.errors %}<div>{{ error }}</div>{% endfor %}
         </div>
     {% endif %}
 
-    <form method="post" action="{{ path('admin_musicbot_create') }}" style="display:grid;gap:16px;">
-        <label>
-            <span>Kunde</span>
-            <select name="customer_id" required>
-                <option value="">Bitte wählen</option>
-                {% for customer in customers %}
-                    <option value="{{ customer.id }}" {% if form.customer and form.customer.id == customer.id %}selected{% endif %}>{{ customer.email }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>
-            <span>Node/Agent</span>
-            <select name="node_id" required>
-                <option value="">Bitte wählen</option>
-                {% for node in nodes %}
-                    <option value="{{ node.id }}" {% if form.node and form.node.id == node.id %}selected{% endif %}>{{ node.name ?: node.id }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>
-            <span>Name</span>
-            <input name="name" value="{{ form.name }}" required maxlength="120">
-        </label>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
-            <label><span>CPU Limit</span><input type="number" name="cpu_limit" min="0" value="{{ form.cpu_limit }}"></label>
-            <label><span>RAM Limit (MB)</span><input type="number" name="ram_limit" min="0" value="{{ form.ram_limit }}"></label>
-            <label><span>Disk Limit (MB)</span><input type="number" name="disk_limit" min="0" value="{{ form.disk_limit }}"></label>
-        </div>
-        <section class="ng-card" style="padding:14px;display:grid;gap:12px;">
-            <label><input type="checkbox" name="teamspeak_enabled" value="1" {% if form.teamspeak_enabled %}checked{% endif %}> TeamSpeak aktiv</label>
-            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
-                <label><span>Profil</span><select name="teamspeak_profile">{% for profile in form.teamspeak_profiles %}<option value="{{ profile.value }}" {% if form.teamspeak_profile == profile.value %}selected{% endif %}>{{ profile.label }}</option>{% endfor %}</select></label>
-                <label><span>Backend</span><select name="teamspeak_backend_type">{% for value,label in form.teamspeak_backend_types %}<option value="{{ value }}" {% if form.teamspeak_backend_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-                <label><span>Backend Path</span><input name="teamspeak_backend_path" value="{{ form.teamspeak_backend_path }}" placeholder="/usr/local/bin/easywi-teamspeak-client"></label>
-                <label><span>Library Path</span><input name="teamspeak_library_path" value="{{ form.teamspeak_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libts3client.so"></label>
-                <label><span>Opus Library Path (optional)</span><input name="teamspeak_opus_library_path" value="{{ form.teamspeak_opus_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libopus.so"></label>
-                <label><span>Binary Path</span><input name="teamspeak_binary_path" value="{{ form.teamspeak_binary_path }}" placeholder="/usr/local/bin/easywi-teamspeak-client"></label>
-                <label><span>Identity Path (optional)</span><input name="teamspeak_identity_path" value="{{ form.teamspeak_identity_path }}" placeholder="/srv/musicbot/identity.ini"></label>
-                <label><span>Command Prefix</span><input name="teamspeak_command_prefix" value="{{ form.teamspeak_command_prefix }}" placeholder="!"></label>
-                <label><span>Commands</span><input type="checkbox" name="teamspeak_commands_enabled" value="1" {% if form.teamspeak_commands_enabled %}checked{% endif %}> aktiv</label>
-                <label><span>Events</span><input type="checkbox" name="teamspeak_events_enabled" value="1" {% if form.teamspeak_events_enabled %}checked{% endif %}> aktiv</label>
-                <label><span>Allowed Servergruppen</span><input name="teamspeak_allowed_server_groups" value="{{ form.teamspeak_allowed_server_groups }}" placeholder="12,34"></label>
-                <label><span>DJ Servergruppen</span><input name="teamspeak_dj_server_groups" value="{{ form.teamspeak_dj_server_groups }}" placeholder="56"></label>
-                <label><span>Admin Servergruppen</span><input name="teamspeak_admin_server_groups" value="{{ form.teamspeak_admin_server_groups }}" placeholder="78"></label>
-                <label><span>Host</span><input name="teamspeak_host" value="{{ form.teamspeak_host }}" placeholder="voice.example.com"></label>
-                <label><span>Port</span><input type="number" name="teamspeak_port" min="1" max="65535" value="{{ form.teamspeak_port }}"></label>
-                <label><span>Nickname</span><input name="teamspeak_nickname" value="{{ form.teamspeak_nickname }}" placeholder="EasyWI Musicbot"></label>
-                <label><span>Channel ID</span><input name="teamspeak_channel_id" value="{{ form.teamspeak_channel_id }}"></label>
-                <label><span>Server Passwort (optional)</span><input type="password" name="teamspeak_server_password" placeholder="leer lassen, wird verschlüsselt gespeichert"></label>
-                <label><span>Channel Passwort (optional)</span><input type="password" name="teamspeak_channel_password" placeholder="leer lassen, wird verschlüsselt gespeichert"></label>
+    <form method="post" action="{{ path('admin_musicbot_create') }}" style="display:flex;flex-direction:column;gap:16px;">
+
+        {# ── Basis-Einstellungen ── #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(100,115,255,.12);flex-shrink:0;">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#6473ff" stroke-width="2"><path stroke-linecap="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                    </span>
+                    <div>
+                        <h2 class="ng-data-card__title">Basis-Einstellungen</h2>
+                        <p class="ng-data-card__sub">Kunde, Node und Name der neuen Instanz</p>
+                    </div>
+                </div>
             </div>
-            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">TeamSpeak 3 und TeamSpeak 6 nutzen denselben TS3-client-kompatiblen Backend-Weg. Easy-Wi baut TeamSpeak nicht nach und integriert keine Fremd-Musicbot-Systeme; ein Administrator muss einen erlaubten lokalen Client-Layer bereitstellen und validieren.</p>
-        </section>
-        <div style="display:flex;gap:18px;align-items:center;">
-            <label><input type="checkbox" name="discord_enabled" value="1" {% if form.discord_enabled %}checked{% endif %}> Discord aktiv</label>
+            <div class="ng-data-card__body">
+                <div class="nodes-form-grid">
+                    <div class="form-field">
+                        <label class="form-label" for="customer_id">Kunde</label>
+                        <select name="customer_id" id="customer_id" required class="form-input">
+                            <option value="">Bitte wählen</option>
+                            {% for customer in customers %}
+                                <option value="{{ customer.id }}" {% if form.customer and form.customer.id == customer.id %}selected{% endif %}>{{ customer.email }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label" for="node_id">Node / Agent</label>
+                        <select name="node_id" id="node_id" required class="form-input">
+                            <option value="">Bitte wählen</option>
+                            {% for node in nodes %}
+                                <option value="{{ node.id }}" {% if form.node and form.node.id == node.id %}selected{% endif %}>{{ node.name ?: node.id }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label" for="name">Name</label>
+                        <input name="name" id="name" value="{{ form.name }}" required maxlength="120" class="form-input" placeholder="Mein Musicbot">
+                    </div>
+                </div>
+            </div>
         </div>
-        <div style="display:flex;gap:10px;">
+
+        {# ── Ressourcen-Limits ── #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.10);flex-shrink:0;">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path stroke-linecap="round" d="M21 12c0 1.657-4.03 3-9 3s-9-1.343-9-3M21 19c0 1.657-4.03 3-9 3s-9-1.343-9-3M3 5v14M21 5v14"/></svg>
+                    </span>
+                    <div>
+                        <h2 class="ng-data-card__title">Ressourcen-Limits</h2>
+                        <p class="ng-data-card__sub">CPU, RAM und Disk-Kontingente für diese Instanz</p>
+                    </div>
+                </div>
+            </div>
+            <div class="ng-data-card__body">
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+                    <div class="form-field">
+                        <label class="form-label" for="cpu_limit">CPU Limit</label>
+                        <input type="number" name="cpu_limit" id="cpu_limit" min="0" value="{{ form.cpu_limit }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label" for="ram_limit">RAM Limit (MB)</label>
+                        <input type="number" name="ram_limit" id="ram_limit" min="0" value="{{ form.ram_limit }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label" for="disk_limit">Disk Limit (MB)</label>
+                        <input type="number" name="disk_limit" id="disk_limit" min="0" value="{{ form.disk_limit }}" class="form-input">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── TeamSpeak-Konfiguration ── #}
+        <details class="ng-data-card">
+            <summary style="padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;user-select:none;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(14,165,233,.10);flex-shrink:0;">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#0ea5e9" stroke-width="2"><path stroke-linecap="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    </span>
+                    <div>
+                        <h2 class="ng-data-card__title" style="margin:0;">TeamSpeak-Konfiguration</h2>
+                        <p class="ng-data-card__sub" style="margin:2px 0 0;">TeamSpeak 3/6 Client-Layer und Verbindungseinstellungen</p>
+                    </div>
+                </div>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" style="flex-shrink:0;transition:transform .2s;color:var(--ng-text-muted);" class="details-chevron"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </summary>
+            <div class="ng-data-card__body" style="border-top:1px solid var(--ng-border);">
+                <label class="role-toggle" style="margin-bottom:14px;">
+                    <input type="checkbox" name="teamspeak_enabled" value="1" {% if form.teamspeak_enabled %}checked{% endif %}>
+                    <span>TeamSpeak aktiv</span>
+                </label>
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px;">
+                    <div class="form-field">
+                        <label class="form-label">Profil</label>
+                        <select name="teamspeak_profile" class="form-input">{% for profile in form.teamspeak_profiles %}<option value="{{ profile.value }}" {% if form.teamspeak_profile == profile.value %}selected{% endif %}>{{ profile.label }}</option>{% endfor %}</select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Backend</label>
+                        <select name="teamspeak_backend_type" class="form-input">{% for value,label in form.teamspeak_backend_types %}<option value="{{ value }}" {% if form.teamspeak_backend_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+                    </div>
+                    <div class="form-field"><label class="form-label">Backend Path</label><input name="teamspeak_backend_path" value="{{ form.teamspeak_backend_path }}" placeholder="/usr/local/bin/easywi-teamspeak-client" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Library Path</label><input name="teamspeak_library_path" value="{{ form.teamspeak_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libts3client.so" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Opus Library Path</label><input name="teamspeak_opus_library_path" value="{{ form.teamspeak_opus_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libopus.so" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Binary Path</label><input name="teamspeak_binary_path" value="{{ form.teamspeak_binary_path }}" placeholder="/usr/local/bin/easywi-teamspeak-client" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Identity Path</label><input name="teamspeak_identity_path" value="{{ form.teamspeak_identity_path }}" placeholder="/srv/musicbot/identity.ini" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Command Prefix</label><input name="teamspeak_command_prefix" value="{{ form.teamspeak_command_prefix }}" placeholder="!" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Allowed Servergruppen</label><input name="teamspeak_allowed_server_groups" value="{{ form.teamspeak_allowed_server_groups }}" placeholder="12,34" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">DJ Servergruppen</label><input name="teamspeak_dj_server_groups" value="{{ form.teamspeak_dj_server_groups }}" placeholder="56" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Admin Servergruppen</label><input name="teamspeak_admin_server_groups" value="{{ form.teamspeak_admin_server_groups }}" placeholder="78" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Host</label><input name="teamspeak_host" value="{{ form.teamspeak_host }}" placeholder="voice.example.com" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Port</label><input type="number" name="teamspeak_port" min="1" max="65535" value="{{ form.teamspeak_port }}" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Nickname</label><input name="teamspeak_nickname" value="{{ form.teamspeak_nickname }}" placeholder="EasyWI Musicbot" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Channel ID</label><input name="teamspeak_channel_id" value="{{ form.teamspeak_channel_id }}" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Server Passwort</label><input type="password" name="teamspeak_server_password" placeholder="leer lassen, wird verschlüsselt gespeichert" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Channel Passwort</label><input type="password" name="teamspeak_channel_password" placeholder="leer lassen, wird verschlüsselt gespeichert" class="form-input"></div>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <label class="role-toggle"><input type="checkbox" name="teamspeak_commands_enabled" value="1" {% if form.teamspeak_commands_enabled %}checked{% endif %}><span>Commands aktiv</span></label>
+                    <label class="role-toggle"><input type="checkbox" name="teamspeak_events_enabled" value="1" {% if form.teamspeak_events_enabled %}checked{% endif %}><span>Events aktiv</span></label>
+                </div>
+                <p style="margin:12px 0 0;font-size:12px;color:var(--ng-text-muted);">TeamSpeak 3 und TeamSpeak 6 nutzen denselben TS3-client-kompatiblen Backend-Weg. Ein Administrator muss einen erlaubten lokalen Client-Layer bereitstellen und validieren.</p>
+            </div>
+        </details>
+
+        {# ── Discord ── #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,.12);flex-shrink:0;">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2"><path stroke-linecap="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    </span>
+                    <div>
+                        <h2 class="ng-data-card__title">Discord</h2>
+                        <p class="ng-data-card__sub">Discord Voice-Backend (optional/experimentell)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="ng-data-card__body">
+                <label class="role-toggle">
+                    <input type="checkbox" name="discord_enabled" value="1" {% if form.discord_enabled %}checked{% endif %}>
+                    <span>Discord aktiv</span>
+                </label>
+            </div>
+        </div>
+
+        {# ── Aktionen ── #}
+        <div style="display:flex;gap:10px;padding:16px 0;">
             <button class="ui-button ui-button--primary" type="submit">Erstellen</button>
             <a class="ui-button ui-button--ghost" href="{{ path('admin_musicbot_index') }}">Abbrechen</a>
         </div>
+
     </form>
-</section>
+</div>
+
+<script>
+    document.querySelectorAll('details').forEach(d => {
+        d.addEventListener('toggle', () => {
+            const chevron = d.querySelector('.details-chevron');
+            if (chevron) chevron.style.transform = d.open ? 'rotate(180deg)' : '';
+        });
+    });
+</script>
 {% endblock %}

@@ -2,98 +2,285 @@
 
 {% set pageTitle = 'TeamSpeak Client Backend' %}
 {% set pageSubtitle = 'Lokal bereitgestellten TeamSpeak Client-/SDK-Layer registrieren und prüfen.' %}
+{% set activeNav = 'musicbots' %}
 {% set status = form.status|default('not_configured') %}
 
+{% set statusMap = {
+    'ready': 'success',
+    'connected': 'success',
+    'not_configured': 'neutral',
+    'client_backend_required': 'warning',
+    'library_missing': 'danger',
+    'opus_missing': 'danger',
+} %}
+
 {% block content %}
-<section class="ng-card" style="padding:22px;display:grid;gap:16px;max-width:1120px;">
-    <div>
-        <h1 style="margin:0 0 8px;color:var(--ng-text);font-size:22px;">Musicbot → TeamSpeak Client Backend</h1>
-        <p style="margin:0;color:var(--ng-text-muted);">Easy-Wi baut TeamSpeak nicht nach und lädt keine proprietären TeamSpeak-Dateien herunter. Hinterlege hier einen lokal bereitgestellten erlaubten Client-/SDK-Layer.</p>
-    </div>
+<div style="display:flex;flex-direction:column;gap:20px;max-width:1120px;">
 
-    {% for message in app.flashes('success') %}<div class="ui-alert ui-alert--success">{{ message }}</div>{% endfor %}
-    {% for message in app.flashes('error') %}<div class="ui-alert ui-alert--danger">{{ message }}</div>{% endfor %}
-
-    {% if app.request.query.get('last_job_id') %}
-        <div class="ui-alert ui-alert--info">Letzte Job-ID: <code>{{ app.request.query.get('last_job_id') }}</code></div>
-    {% endif %}
-
-    {% if status in ['ready', 'connected'] %}
-        <div class="ui-alert ui-alert--success">TeamSpeak Client Backend ist bereit.</div>
-    {% elseif status == 'client_backend_required' %}
-        <div class="ui-alert ui-alert--warning">easywi-teamspeak-client wurde ohne ts3clientlib gebaut. Bitte mit <code>-tags ts3clientlib</code> neu bauen.</div>
-    {% elseif status == 'library_missing' %}
-        <div class="ui-alert ui-alert--danger">libts3client.so wurde nicht gefunden. Bitte erlaubte TeamSpeak Client Library lokal bereitstellen.</div>
-    {% elseif status == 'opus_missing' %}
-        <div class="ui-alert ui-alert--danger">libopus.so oder libopus.so.0 wurde nicht gefunden. Bitte Opus lokal oder als System-Library bereitstellen.</div>
-    {% endif %}
-
-    <div class="ng-card" style="padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-        <div><strong>Status</strong><br><span class="ui-badge {{ status in ['ready','connected'] ? 'ui-badge--success' : (status == 'not_configured' ? 'ui-badge--muted' : 'ui-badge--warning') }}">{{ status }}</span></div>
-        <div><strong>Letzter Check</strong><br>{{ form.last_checked_at ? form.last_checked_at|date('Y-m-d H:i:s') : '—' }}</div>
-        <div><strong>Node</strong><br>{{ selectedNode ? (selectedNode.name ?: selectedNode.id) : '—' }}</div>
-        <div><strong>Checksum</strong><br><code style="word-break:break-all;">{{ form.checksum ?: '—' }}</code></div>
-    </div>
-
-    {% if form.last_error %}
-        <div class="ui-alert ui-alert--danger">Letzter Fehler: {{ form.last_error }}</div>
-    {% endif %}
-    {% if form.official_client_status == 'official_client_installed' %}
-        <div class="ui-alert ui-alert--success">Offizieller TeamSpeak Client wurde installiert und eine ladbare libts3client.so wurde gefunden. Bitte jetzt <strong>Backend prüfen</strong> ausführen, um den Client-Layer zu validieren und den Backend-Status zu aktualisieren.</div>
-    {% elseif form.official_client_status == 'official_client_installed_library_missing' %}
-        <div class="ui-alert ui-alert--warning">Offizieller TeamSpeak Client wurde installiert, aber es wurde kein ladbarer Client-Layer (libts3client.so) gefunden. Bitte TS3 Client SDK/Library oder kompatiblen Client-Layer konfigurieren.</div>
-    {% elseif form.official_client_last_error %}
-        <div class="ui-alert ui-alert--danger">Offizieller Client: {{ form.official_client_last_error }}</div>
-    {% endif %}
-
-    <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_save') }}" style="display:grid;gap:14px;">
-        <label><span>Node</span><select name="node_id" required onchange="window.location='{{ path('admin_musicbot_teamspeak_backend') }}?node_id='+encodeURIComponent(this.value)">{% for node in nodes %}<option value="{{ node.id }}" {% if form.node_id == node.id %}selected{% endif %}>{{ node.name ?: node.id }}</option>{% endfor %}</select></label>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
-            <label><span>Backend Type</span><select name="backend_type"><option value="client_library" {% if form.backend_type == 'client_library' %}selected{% endif %}>Client Library</option><option value="native_sdk" {% if form.backend_type == 'native_sdk' %}selected{% endif %}>Native SDK</option></select></label>
-            <label><span>Version</span><input name="version" value="{{ form.version }}" placeholder="optional"></label>
-            <label><span>Backend Path</span><input name="backend_path" value="{{ form.backend_path }}" required placeholder="/usr/local/bin/easywi-teamspeak-client"></label>
-            <label><span>Binary Path</span><input name="binary_path" value="{{ form.binary_path }}" required placeholder="/usr/local/bin/easywi-teamspeak-client"></label>
-            <label><span>Library Path</span><input name="library_path" value="{{ form.library_path }}" required placeholder="/opt/easywi/musicbot/teamspeak-client/libts3client.so"></label>
-            <label><span>Opus Library Path</span><input name="opus_library_path" value="{{ form.opus_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libopus.so"></label>
-            <label><span>Identity Path</span><input name="identity_path" value="{{ form.identity_path }}" placeholder="optional"></label>
-            <label><span>Install Path</span><input name="install_path" value="{{ form.install_path }}" required placeholder="/opt/easywi/musicbot/teamspeak-client/"></label>
-            <label><span>Expected Checksum</span><input name="checksum" value="{{ form.checksum }}" placeholder="optional SHA-256"></label>
-            <label style="display:flex;gap:8px;align-items:center;margin-top:22px;"><input type="checkbox" name="auto_install_enabled" value="1" {% if form.auto_install_enabled %}checked{% endif %}> Auto-Install erlauben (keine proprietären Downloads)</label>
-        </div>
-        <section class="ng-card" style="padding:14px;display:grid;gap:12px;">
-            <h2 style="margin:0;color:var(--ng-text);font-size:18px;">Offizieller TeamSpeak 3 Linux Client (optional)</h2>
-            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">Lädt den offiziellen TeamSpeak Client nur nach Admin-Bestätigung von einer erlaubten TeamSpeak-Download-URL herunter. Es werden keine TeamSpeak-Dateien ins Repo committed.</p>
-            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">Nach Klick auf den Installationsbutton zeigt der Job-Fortschritt die Schritte Job gestartet, Download läuft, Checksum geprüft, Installation abgeschlossen, Library gefunden/nicht gefunden und den nächsten Schritt über Status und letzten Fehler an.</p>
-            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
-                <label style="display:flex;gap:8px;align-items:center;margin-top:22px;"><input type="checkbox" name="official_client_install_enabled" value="1" {% if form.official_client_install_enabled %}checked{% endif %}> Offizielle Client-Installation in Easy-Wi verwalten</label>
-                <label><span>Status</span><input value="{{ form.official_client_status }}" readonly></label>
-                <label><span>Version</span><input name="official_client_version" value="{{ form.official_client_version }}" placeholder="3.6.2"></label>
-                <label><span>Download URL</span><input name="official_client_download_url" value="{{ form.official_client_download_url }}" placeholder="https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run"></label>
-                <label><span>Expected SHA-256</span><input name="official_client_expected_sha256" value="{{ form.official_client_expected_sha256 }}" placeholder="optional"></label>
-                <label><span>Official Client Install Path</span><input name="official_client_install_path" value="{{ form.official_client_install_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/official-client/"></label>
-                <label><span>Zuletzt installiert</span><input value="{{ form.official_client_last_installed_at ? form.official_client_last_installed_at|date('Y-m-d H:i:s') : '—' }}" readonly></label>
+    {# ── Hero / Header ── #}
+    <div class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero" style="padding-bottom:0;">
+            <div class="tkt-hero__inner" style="padding-bottom:16px;">
+                <div>
+                    <div class="tkt-hero__breadcrumb">
+                        <a href="{{ path('admin_musicbot_index') }}" style="color:var(--ng-text-muted);text-decoration:none;">Musicbots</a>
+                        <span>/</span>
+                        <span>TeamSpeak Client Backend</span>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            Musicbot
+                        </div>
+                        <span class="ui-badge ui-badge--{{ statusMap[status] ?? 'neutral' }}" style="font-size:11px;">{{ status }}</span>
+                    </div>
+                    <h1 class="tkt-hero__title" style="margin-top:10px;">TeamSpeak Client Backend</h1>
+                    <p class="tkt-hero__sub">Easy-Wi baut TeamSpeak nicht nach. Hinterlege hier einen lokal bereitgestellten erlaubten Client-/SDK-Layer.</p>
+                </div>
             </div>
-        </section>
-        <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">Installiert keine proprietären Dateien aus dem Internet. Der Button registriert und validiert einen lokal bereitgestellten TeamSpeak Client-/SDK-Layer.</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:14px 20px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+            <div class="tkt-kpi">
+                <div class="tkt-kpi__label">Status</div>
+                <div class="tkt-kpi__value" style="font-size:14px;">{{ status }}</div>
+            </div>
+            <div class="tkt-kpi">
+                <div class="tkt-kpi__label">Letzter Check</div>
+                <div class="tkt-kpi__value" style="font-size:13px;">{{ form.last_checked_at ? form.last_checked_at|date('Y-m-d H:i') : '—' }}</div>
+            </div>
+            <div class="tkt-kpi">
+                <div class="tkt-kpi__label">Node</div>
+                <div class="tkt-kpi__value" style="font-size:14px;">{{ selectedNode ? (selectedNode.name ?: selectedNode.id) : '—' }}</div>
+            </div>
+            <div class="tkt-kpi">
+                <div class="tkt-kpi__label">Checksum</div>
+                <div class="tkt-kpi__value" style="font-size:11px;font-family:monospace;word-break:break-all;">{{ form.checksum ? form.checksum|slice(0,16) ~ '…' : '—' }}</div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Flash Messages ── #}
+    {% for message in app.flashes('success') %}<div class="ng-alert ng-alert--success">{{ message }}</div>{% endfor %}
+    {% for message in app.flashes('error') %}<div class="ng-alert ng-alert--danger">{{ message }}</div>{% endfor %}
+    {% if app.request.query.get('last_job_id') %}
+        <div class="ng-alert ng-alert--info">Letzte Job-ID: <code style="font-family:monospace;">{{ app.request.query.get('last_job_id') }}</code></div>
+    {% endif %}
+
+    {# ── Status-Alerts ── #}
+    {% if status in ['ready', 'connected'] %}
+        <div class="ng-alert ng-alert--success">TeamSpeak Client Backend ist bereit.</div>
+    {% elseif status == 'client_backend_required' %}
+        <div class="ng-alert ng-alert--warning">easywi-teamspeak-client wurde ohne ts3clientlib gebaut. Bitte mit <code style="font-family:monospace;">-tags ts3clientlib</code> neu bauen.</div>
+    {% elseif status == 'library_missing' %}
+        <div class="ng-alert ng-alert--danger">libts3client.so wurde nicht gefunden. Bitte erlaubte TeamSpeak Client Library lokal bereitstellen.</div>
+    {% elseif status == 'opus_missing' %}
+        <div class="ng-alert ng-alert--danger">libopus.so wurde nicht gefunden. Bitte Opus lokal oder als System-Library bereitstellen.</div>
+    {% endif %}
+    {% if form.last_error %}
+        <div class="ng-alert ng-alert--danger">Letzter Fehler: {{ form.last_error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_save') }}" style="display:flex;flex-direction:column;gap:16px;">
+
+        {# ── Backend-Konfiguration ── #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(14,165,233,.10);flex-shrink:0;">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#0ea5e9" stroke-width="2"><path stroke-linecap="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </span>
+                    <div>
+                        <h2 class="ng-data-card__title">Backend-Konfiguration</h2>
+                        <p class="ng-data-card__sub">Node, Pfade und Backend-Typ des Client-Layers</p>
+                    </div>
+                </div>
+            </div>
+            <div class="ng-data-card__body">
+                <div class="nodes-form-grid">
+                    <div class="form-field">
+                        <label class="form-label" for="node_id">Node</label>
+                        <select name="node_id" id="node_id" required class="form-input" onchange="window.location='{{ path('admin_musicbot_teamspeak_backend') }}?node_id='+encodeURIComponent(this.value)">
+                            {% for node in nodes %}
+                                <option value="{{ node.id }}" {% if form.node_id == node.id %}selected{% endif %}>{{ node.name ?: node.id }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Backend Type</label>
+                        <select name="backend_type" class="form-input">
+                            <option value="client_library" {% if form.backend_type == 'client_library' %}selected{% endif %}>Client Library</option>
+                            <option value="native_sdk" {% if form.backend_type == 'native_sdk' %}selected{% endif %}>Native SDK</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Version</label>
+                        <input name="version" value="{{ form.version }}" placeholder="optional" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Backend Path</label>
+                        <input name="backend_path" value="{{ form.backend_path }}" required placeholder="/usr/local/bin/easywi-teamspeak-client" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Binary Path</label>
+                        <input name="binary_path" value="{{ form.binary_path }}" required placeholder="/usr/local/bin/easywi-teamspeak-client" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Library Path</label>
+                        <input name="library_path" value="{{ form.library_path }}" required placeholder="/opt/easywi/musicbot/teamspeak-client/libts3client.so" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Opus Library Path</label>
+                        <input name="opus_library_path" value="{{ form.opus_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libopus.so" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Identity Path</label>
+                        <input name="identity_path" value="{{ form.identity_path }}" placeholder="optional" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Install Path</label>
+                        <input name="install_path" value="{{ form.install_path }}" required placeholder="/opt/easywi/musicbot/teamspeak-client/" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Expected Checksum (SHA-256)</label>
+                        <input name="checksum" value="{{ form.checksum }}" placeholder="optional" class="form-input">
+                    </div>
+                </div>
+                <label class="role-toggle" style="margin-top:12px;">
+                    <input type="checkbox" name="auto_install_enabled" value="1" {% if form.auto_install_enabled %}checked{% endif %}>
+                    <span>Auto-Install erlauben (keine proprietären Downloads)</span>
+                </label>
+            </div>
+        </div>
+
+        {# ── Offizieller TeamSpeak 3 Linux Client ── #}
+        <details class="ng-data-card">
+            <summary style="padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;user-select:none;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(34,197,94,.10);flex-shrink:0;">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><path stroke-linecap="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    </span>
+                    <div>
+                        <h2 class="ng-data-card__title" style="margin:0;">Offizieller TeamSpeak 3 Linux Client (optional)</h2>
+                        <p class="ng-data-card__sub" style="margin:2px 0 0;">Nur nach Admin-Bestätigung, von erlaubter TeamSpeak-Download-URL</p>
+                    </div>
+                </div>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" style="flex-shrink:0;transition:transform .2s;color:var(--ng-text-muted);" class="details-chevron"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </summary>
+            <div class="ng-data-card__body" style="border-top:1px solid var(--ng-border);">
+                <p style="margin:0 0 12px;font-size:12px;color:var(--ng-text-muted);">Lädt den offiziellen TeamSpeak Client nur nach Admin-Bestätigung herunter. Keine TeamSpeak-Dateien werden ins Repo committed.</p>
+                {% if form.official_client_status == 'official_client_installed' %}
+                    <div class="ng-alert ng-alert--success" style="margin-bottom:12px;">Offizieller TeamSpeak Client installiert. Bitte jetzt <strong>Backend prüfen</strong> ausführen.</div>
+                {% elseif form.official_client_status == 'official_client_installed_library_missing' %}
+                    <div class="ng-alert ng-alert--warning" style="margin-bottom:12px;">Offizieller Client installiert, aber libts3client.so nicht gefunden.</div>
+                {% elseif form.official_client_last_error %}
+                    <div class="ng-alert ng-alert--danger" style="margin-bottom:12px;">{{ form.official_client_last_error }}</div>
+                {% endif %}
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+                    <label class="role-toggle"><input type="checkbox" name="official_client_install_enabled" value="1" {% if form.official_client_install_enabled %}checked{% endif %}><span>Installation in Easy-Wi verwalten</span></label>
+                    <div class="form-field"><label class="form-label">Status</label><input value="{{ form.official_client_status }}" readonly class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Version</label><input name="official_client_version" value="{{ form.official_client_version }}" placeholder="3.6.2" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Download URL</label><input name="official_client_download_url" value="{{ form.official_client_download_url }}" placeholder="https://files.teamspeak-services.com/…" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Expected SHA-256</label><input name="official_client_expected_sha256" value="{{ form.official_client_expected_sha256 }}" placeholder="optional" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Install Path</label><input name="official_client_install_path" value="{{ form.official_client_install_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/official-client/" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Zuletzt installiert</label><input value="{{ form.official_client_last_installed_at ? form.official_client_last_installed_at|date('Y-m-d H:i:s') : '—' }}" readonly class="form-input"></div>
+                </div>
+            </div>
+        </details>
+
+        {# ── TeamSpeak 3 SDK ── #}
+        <details class="ng-data-card">
+            <summary style="padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;user-select:none;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,.12);flex-shrink:0;">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2"><path stroke-linecap="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    </span>
+                    <div>
+                        <h2 class="ng-data-card__title" style="margin:0;">TeamSpeak 3 SDK 3.5.2 (optional)</h2>
+                        <p class="ng-data-card__sub" style="margin:2px 0 0;">Enthält libteamspeak_sdk_client.so mit automatischem Symlink</p>
+                    </div>
+                </div>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" style="flex-shrink:0;transition:transform .2s;color:var(--ng-text-muted);" class="details-chevron"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </summary>
+            <div class="ng-data-card__body" style="border-top:1px solid var(--ng-border);">
+                <p style="margin:0 0 12px;font-size:12px;color:var(--ng-text-muted);">Lädt das offizielle TeamSpeak 3 SDK nur nach Admin-Bestätigung herunter. Kompatibilitäts-Symlink <code style="font-family:monospace;">libts3client.so → libteamspeak_sdk_client.so</code> wird automatisch erstellt.</p>
+                {% if form.sdk_client_last_error %}
+                    <div class="ng-alert ng-alert--danger" style="margin-bottom:12px;">{{ form.sdk_client_last_error }}</div>
+                {% endif %}
+                {% if form.sdk_client_status == 'sdk_client_installed' %}
+                    <div class="ng-alert ng-alert--success" style="margin-bottom:12px;">TeamSpeak 3 SDK installiert. Bitte jetzt Backend prüfen ausführen.</div>
+                {% elseif form.sdk_client_status == 'sdk_client_installed_library_missing' %}
+                    <div class="ng-alert ng-alert--warning" style="margin-bottom:12px;">SDK entpackt, aber libteamspeak_sdk_client.so nicht gefunden.</div>
+                {% endif %}
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+                    <label class="role-toggle"><input type="checkbox" name="sdk_client_install_enabled" value="1" {% if form.sdk_client_install_enabled %}checked{% endif %}><span>SDK-Installation in Easy-Wi verwalten</span></label>
+                    <div class="form-field"><label class="form-label">Status</label><input value="{{ form.sdk_client_status }}" readonly class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Version</label><input name="sdk_client_version" value="{{ form.sdk_client_version }}" placeholder="3.5.2" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Download URL</label><input name="sdk_client_download_url" value="{{ form.sdk_client_download_url }}" placeholder="https://files.teamspeak-services.com/…" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Expected SHA-256</label><input name="sdk_client_expected_sha256" value="{{ form.sdk_client_expected_sha256 }}" placeholder="optional" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">SDK Install Path</label><input name="sdk_client_install_path" value="{{ form.sdk_client_install_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/sdk/" class="form-input"></div>
+                    <div class="form-field"><label class="form-label">Zuletzt installiert</label><input value="{{ form.sdk_client_last_installed_at ? form.sdk_client_last_installed_at|date('Y-m-d H:i:s') : '—' }}" readonly class="form-input"></div>
+                </div>
+            </div>
+        </details>
+
+        <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">Installiert keine proprietären Dateien aus dem Internet. Registriert und validiert einen lokal bereitgestellten Client-/SDK-Layer.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="ui-button ui-button--primary" type="submit">Speichern</button>
         </div>
+
     </form>
 
+    {# ── Backend-Aktionen ── #}
     {% if selectedNode %}
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            {% for action,label in {'validate':'Backend prüfen','install':'Client Backend installieren/registrieren','test_connection':'Verbindung testen','repair':'Repair','status':'Status aktualisieren'} %}
-                <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: action}) }}">
-                    <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
-                    <button class="ui-button {{ action == 'install' ? 'ui-button--primary' : 'ui-button--ghost' }}" type="submit">{{ label }}</button>
-                </form>
-            {% endfor %}
-            <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: 'install_official_client'}) }}" onsubmit="return confirm('Ich bestätige, dass die Nutzung des TeamSpeak Clients auf diesem Server lizenzrechtlich erlaubt ist, Easy-Wi keine proprietären TeamSpeak-Dateien ausliefert, der Download nur lokal auf diesem Node erfolgt und keine automatische Weiterverteilung erfolgt.');">
-                <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
-                <label style="display:block;margin-bottom:6px;"><input type="checkbox" name="accepted_license_confirmation" value="1" required> Lizenz-/Nutzungsbestätigung akzeptiert</label>
-                <button class="ui-button ui-button--ghost" type="submit">Offiziellen TeamSpeak Client installieren</button>
-            </form>
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(100,116,139,.10);flex-shrink:0;">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </span>
+                    <div>
+                        <h2 class="ng-data-card__title">Backend-Aktionen</h2>
+                        <p class="ng-data-card__sub">Validierung, Installation und Verbindungstest</p>
+                    </div>
+                </div>
+            </div>
+            <div class="ng-data-card__body">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+                    {% for action,label in {'validate':'Backend prüfen','install':'Client Backend installieren','test_connection':'Verbindung testen','repair':'Repair','status':'Status aktualisieren'} %}
+                        <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: action}) }}">
+                            <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
+                            <button class="ui-button {{ action == 'install' ? 'ui-button--primary' : 'ui-button--ghost' }} ui-button--sm" type="submit">{{ label }}</button>
+                        </form>
+                    {% endfor %}
+                </div>
+                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:14px;">
+                    <h3 style="margin:0 0 10px;font-size:13px;font-weight:700;color:var(--ng-text);">Offiziellen Client installieren</h3>
+                    <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: 'install_official_client'}) }}" onsubmit="return confirm('Ich bestätige, dass die Nutzung des TeamSpeak Clients lizenzrechtlich erlaubt ist.');">
+                        <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
+                        <label class="role-toggle" style="margin-bottom:10px;"><input type="checkbox" name="accepted_license_confirmation" value="1" required><span>Lizenz- und Nutzungsbestätigung akzeptiert</span></label>
+                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Offiziellen TeamSpeak Client installieren</button>
+                    </form>
+                </div>
+                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:14px;margin-top:10px;">
+                    <h3 style="margin:0 0 10px;font-size:13px;font-weight:700;color:var(--ng-text);">SDK installieren</h3>
+                    <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: 'install_sdk_client'}) }}" onsubmit="return confirm('Ich bestätige, dass die Nutzung des TeamSpeak SDK lizenzrechtlich erlaubt ist.');">
+                        <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
+                        <label class="role-toggle" style="margin-bottom:10px;"><input type="checkbox" name="accepted_license_confirmation" value="1" required><span>SDK-Lizenz- und Nutzungsbestätigung akzeptiert</span></label>
+                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">TeamSpeak 3 SDK installieren</button>
+                    </form>
+                </div>
+            </div>
         </div>
     {% endif %}
-</section>
+
+</div>
+
+<script>
+    document.querySelectorAll('details').forEach(d => {
+        d.addEventListener('toggle', () => {
+            const chevron = d.querySelector('.details-chevron');
+            if (chevron) chevron.style.transform = d.open ? 'rotate(180deg)' : '';
+        });
+    });
+</script>
 {% endblock %}

@@ -24,4 +24,10 @@ enum MusicbotTeamspeakBackendStatus: string
     case OfficialClientInstalledLibraryMissing = 'official_client_installed_library_missing';
     case OfficialClientInvalid = 'official_client_invalid';
     case OfficialClientReady = 'official_client_ready';
+    case SdkClientNotInstalled = 'sdk_client_not_installed';
+    case SdkClientDownloadFailed = 'sdk_client_download_failed';
+    case SdkClientChecksumFailed = 'sdk_client_checksum_failed';
+    case SdkClientInstalled = 'sdk_client_installed';
+    case SdkClientInstalledLibraryMissing = 'sdk_client_installed_library_missing';
+    case SdkClientInvalid = 'sdk_client_invalid';
 }

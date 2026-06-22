@@ -86,6 +86,30 @@ class MusicbotTeamspeakBackendConfig
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $officialClientLastInstalledAt = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $sdkClientInstallEnabled = false;
+
+    #[ORM\Column(length: 32, options: ['default' => '3.5.2'])]
+    private string $sdkClientVersion = '3.5.2';
+
+    #[ORM\Column(length: 1024, options: ['default' => 'https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz'])]
+    private string $sdkClientDownloadUrl = 'https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz';
+
+    #[ORM\Column(length: 128, nullable: true)]
+    private ?string $sdkClientExpectedSha256 = null;
+
+    #[ORM\Column(length: 1024, options: ['default' => '/opt/easywi/musicbot/teamspeak-client/sdk/'])]
+    private string $sdkClientInstallPath = '/opt/easywi/musicbot/teamspeak-client/sdk/';
+
+    #[ORM\Column(length: 64, options: ['default' => 'sdk_client_not_installed'])]
+    private string $sdkClientStatus = 'sdk_client_not_installed';
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $sdkClientLastError = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $sdkClientLastInstalledAt = null;
+
     public function __construct(Agent $node)
     {
         $this->node = $node;
@@ -136,6 +160,22 @@ class MusicbotTeamspeakBackendConfig
     public function setOfficialClientLastError(?string $officialClientLastError): void { $this->officialClientLastError = $officialClientLastError; }
     public function getOfficialClientLastInstalledAt(): ?\DateTimeImmutable { return $this->officialClientLastInstalledAt; }
     public function setOfficialClientLastInstalledAt(?\DateTimeImmutable $officialClientLastInstalledAt): void { $this->officialClientLastInstalledAt = $officialClientLastInstalledAt; }
+    public function isSdkClientInstallEnabled(): bool { return $this->sdkClientInstallEnabled; }
+    public function setSdkClientInstallEnabled(bool $sdkClientInstallEnabled): void { $this->sdkClientInstallEnabled = $sdkClientInstallEnabled; }
+    public function getSdkClientVersion(): string { return $this->sdkClientVersion; }
+    public function setSdkClientVersion(string $sdkClientVersion): void { $this->sdkClientVersion = $sdkClientVersion; }
+    public function getSdkClientDownloadUrl(): string { return $this->sdkClientDownloadUrl; }
+    public function setSdkClientDownloadUrl(string $sdkClientDownloadUrl): void { $this->sdkClientDownloadUrl = $sdkClientDownloadUrl; }
+    public function getSdkClientExpectedSha256(): ?string { return $this->sdkClientExpectedSha256; }
+    public function setSdkClientExpectedSha256(?string $sdkClientExpectedSha256): void { $this->sdkClientExpectedSha256 = $sdkClientExpectedSha256; }
+    public function getSdkClientInstallPath(): string { return $this->sdkClientInstallPath; }
+    public function setSdkClientInstallPath(string $sdkClientInstallPath): void { $this->sdkClientInstallPath = $sdkClientInstallPath; }
+    public function getSdkClientStatus(): string { return $this->sdkClientStatus; }
+    public function setSdkClientStatus(string $sdkClientStatus): void { $this->sdkClientStatus = $sdkClientStatus; }
+    public function getSdkClientLastError(): ?string { return $this->sdkClientLastError; }
+    public function setSdkClientLastError(?string $sdkClientLastError): void { $this->sdkClientLastError = $sdkClientLastError; }
+    public function getSdkClientLastInstalledAt(): ?\DateTimeImmutable { return $this->sdkClientLastInstalledAt; }
+    public function setSdkClientLastInstalledAt(?\DateTimeImmutable $sdkClientLastInstalledAt): void { $this->sdkClientLastInstalledAt = $sdkClientLastInstalledAt; }
 
     /** @param array<string, mixed> $payload */
     public function applyAgentResult(array $payload): void
@@ -173,6 +213,16 @@ class MusicbotTeamspeakBackendConfig
             $this->officialClientStatus = $status->value;
             $this->officialClientLastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
         }
+        if (str_starts_with($status->value, 'sdk_client_')) {
+            $this->sdkClientStatus = $status->value;
+            $this->sdkClientLastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
+            if (is_string($payload['sdk_client_install_path'] ?? null) && $payload['sdk_client_install_path'] !== '') {
+                $this->sdkClientInstallPath = $payload['sdk_client_install_path'];
+            }
+            if (is_string($payload['sdk_client_last_installed_at'] ?? null) && $payload['sdk_client_last_installed_at'] !== '') {
+                $this->sdkClientLastInstalledAt = new \DateTimeImmutable($payload['sdk_client_last_installed_at']);
+            }
+        }
         $this->lastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
         $this->lastCheckedAt = new \DateTimeImmutable();
     }
@@ -203,6 +253,19 @@ class MusicbotTeamspeakBackendConfig
             'download_url' => $this->officialClientDownloadUrl,
             'expected_sha256' => $this->officialClientExpectedSha256 ?? '',
             'install_path' => $this->officialClientInstallPath,
+            'requested_by' => $requestedBy,
+            'accepted_license_confirmation' => true,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function toSDKClientAgentPayload(string $requestedBy): array
+    {
+        return [
+            'version' => $this->sdkClientVersion,
+            'download_url' => $this->sdkClientDownloadUrl,
+            'expected_sha256' => $this->sdkClientExpectedSha256 ?? '',
+            'install_path' => $this->sdkClientInstallPath,
             'requested_by' => $requestedBy,
             'accepted_license_confirmation' => true,
         ];

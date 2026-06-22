@@ -140,7 +140,7 @@ final class AdminMusicbotController
         return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId()]);
     }
 
-    #[Route(path: '/teamspeak-backend/{action}', name: 'admin_musicbot_teamspeak_backend_action', requirements: ['action' => 'install|validate|status|test_connection|repair|install_official_client'], methods: ['POST'])]
+    #[Route(path: '/teamspeak-backend/{action}', name: 'admin_musicbot_teamspeak_backend_action', requirements: ['action' => 'install|validate|status|test_connection|repair|install_official_client|install_sdk_client'], methods: ['POST'])]
     public function teamspeakBackendAction(Request $request, string $action): Response
     {
         $actor = $this->requireAdmin($request);
@@ -151,23 +151,27 @@ final class AdminMusicbotController
             return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId()]);
         }
 
-        if ($action === 'install_official_client' && !$request->request->getBoolean('accepted_license_confirmation')) {
-            $this->flash($request, 'error', 'Bitte Lizenz-/Nutzungsbestätigung für den offiziellen TeamSpeak Client bestätigen.');
+        if (in_array($action, ['install_official_client', 'install_sdk_client'], true) && !$request->request->getBoolean('accepted_license_confirmation')) {
+            $this->flash($request, 'error', 'Bitte Lizenz-/Nutzungsbestätigung bestätigen.');
             return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId()]);
         }
 
-        $missing = $action === 'install_official_client'
-            ? $this->missingOfficialClientRequiredFields($config)
-            : $this->missingTeamspeakBackendRequiredFields($config);
+        $missing = match ($action) {
+            'install_official_client' => $this->missingOfficialClientRequiredFields($config),
+            'install_sdk_client' => $this->missingSDKClientRequiredFields($config),
+            default => $this->missingTeamspeakBackendRequiredFields($config),
+        };
         if ($missing !== []) {
             $this->flash($request, 'error', 'Fehlende Pflichtfelder: '.implode(', ', $missing));
             return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId()]);
         }
 
         $jobType = 'musicbot.teamspeak_backend.'.($action === 'install' ? 'install' : $action);
-        $payload = $action === 'install_official_client'
-            ? $config->toOfficialClientAgentPayload((string) $actor->getId())
-            : $config->toAgentPayload();
+        $payload = match ($action) {
+            'install_official_client' => $config->toOfficialClientAgentPayload((string) $actor->getId()),
+            'install_sdk_client' => $config->toSDKClientAgentPayload((string) $actor->getId()),
+            default => $config->toAgentPayload(),
+        };
         $payload += [
             'node_id' => $node->getId(),
             'requested_by' => (string) $actor->getId(),
@@ -179,11 +183,12 @@ final class AdminMusicbotController
         $config->setLastCheckedAt(new \DateTimeImmutable());
         $this->entityManager->flush();
         $this->auditLogger->log($actor, 'musicbot.teamspeak_backend_job_queued', ['node_id' => $node->getId(), 'job_id' => $job->getId(), 'job_type' => $jobType]);
-        $message = $action === 'install_official_client'
-            ? sprintf('Offizieller TeamSpeak Client Installationsjob wurde gestartet. Job-ID: %s', $job->getId())
-            : ($action === 'install'
-            ? sprintf('TeamSpeak Client Backend Installationsprüfung wurde gestartet. Job-ID: %s', $job->getId())
-            : sprintf('TeamSpeak Client Backend Prüfung wurde gestartet. Job-ID: %s', $job->getId()));
+        $message = match ($action) {
+            'install_official_client' => sprintf('Offizieller TeamSpeak Client Installationsjob wurde gestartet. Job-ID: %s', $job->getId()),
+            'install_sdk_client' => sprintf('TeamSpeak SDK Installationsjob wurde gestartet. Job-ID: %s', $job->getId()),
+            'install' => sprintf('TeamSpeak Client Backend Installationsprüfung wurde gestartet. Job-ID: %s', $job->getId()),
+            default => sprintf('TeamSpeak Client Backend Prüfung wurde gestartet. Job-ID: %s', $job->getId()),
+        };
         $this->flash($request, 'success', $message);
 
         return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId().'&last_job_id='.$job->getId()]);
@@ -439,6 +444,11 @@ final class AdminMusicbotController
         $config->setOfficialClientDownloadUrl(trim((string) $request->request->get('official_client_download_url', 'https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run')));
         $config->setOfficialClientExpectedSha256(trim((string) $request->request->get('official_client_expected_sha256', '')) ?: null);
         $config->setOfficialClientInstallPath(trim((string) $request->request->get('official_client_install_path', '/opt/easywi/musicbot/teamspeak-client/official-client/')));
+        $config->setSdkClientInstallEnabled($request->request->getBoolean('sdk_client_install_enabled'));
+        $config->setSdkClientVersion(trim((string) $request->request->get('sdk_client_version', '3.5.2')) ?: '3.5.2');
+        $config->setSdkClientDownloadUrl(trim((string) $request->request->get('sdk_client_download_url', 'https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz')));
+        $config->setSdkClientExpectedSha256(trim((string) $request->request->get('sdk_client_expected_sha256', '')) ?: null);
+        $config->setSdkClientInstallPath(trim((string) $request->request->get('sdk_client_install_path', '/opt/easywi/musicbot/teamspeak-client/sdk/')));
     }
 
     /** @return string[] */
@@ -477,6 +487,23 @@ final class AdminMusicbotController
         return $missing;
     }
 
+    /** @return string[] */
+    private function missingSDKClientRequiredFields(MusicbotTeamspeakBackendConfig $config): array
+    {
+        $missing = [];
+        foreach ([
+            'sdk_client_version' => $config->getSdkClientVersion(),
+            'sdk_client_download_url' => $config->getSdkClientDownloadUrl(),
+            'sdk_client_install_path' => $config->getSdkClientInstallPath(),
+        ] as $key => $value) {
+            if (trim((string) $value) === '') {
+                $missing[] = $key;
+            }
+        }
+
+        return $missing;
+    }
+
     /** @return array<string, mixed> */
     private function buildTeamspeakBackendForm(?MusicbotTeamspeakBackendConfig $config, ?Agent $node): array
     {
@@ -503,6 +530,14 @@ final class AdminMusicbotController
             'official_client_status' => $config?->getOfficialClientStatus() ?? 'official_client_not_installed',
             'official_client_last_error' => $this->sanitizeTextForTemplate($config?->getOfficialClientLastError()),
             'official_client_last_installed_at' => $config?->getOfficialClientLastInstalledAt(),
+            'sdk_client_install_enabled' => $config?->isSdkClientInstallEnabled() ?? false,
+            'sdk_client_version' => $config?->getSdkClientVersion() ?? '3.5.2',
+            'sdk_client_download_url' => $config?->getSdkClientDownloadUrl() ?? 'https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz',
+            'sdk_client_expected_sha256' => $config?->getSdkClientExpectedSha256() ?? '',
+            'sdk_client_install_path' => $config?->getSdkClientInstallPath() ?? '/opt/easywi/musicbot/teamspeak-client/sdk/',
+            'sdk_client_status' => $config?->getSdkClientStatus() ?? 'sdk_client_not_installed',
+            'sdk_client_last_error' => $this->sanitizeTextForTemplate($config?->getSdkClientLastError()),
+            'sdk_client_last_installed_at' => $config?->getSdkClientLastInstalledAt(),
         ];
     }
 

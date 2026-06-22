@@ -111,6 +111,10 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleMusicbotTeamspeakBackendTestConnection(job)
 	case "musicbot.teamspeak_backend.install_official_client":
 		return handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+	case "musicbot.teamspeak_backend.install_sdk_client":
+		return handleMusicbotTeamspeakBackendInstallSDKClient(job)
+	case "musicbot.config.apply":
+		return handleMusicbotConfigApply(job)
 	case "ts3.virtual.create":
 		return handleTs3VirtualCreate(job)
 	case "ts3.virtual.action":

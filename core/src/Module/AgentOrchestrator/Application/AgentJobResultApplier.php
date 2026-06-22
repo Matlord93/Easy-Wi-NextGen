@@ -263,7 +263,9 @@ final class AgentJobResultApplier
             }
             $config->setLastError(null);
             $eventType = match ($job->getType()) {
-                'musicbot.teamspeak_backend.install', 'musicbot.teamspeak_backend.install_official_client' => 'teamspeak_backend.installed',
+                'musicbot.teamspeak_backend.install',
+                'musicbot.teamspeak_backend.install_official_client',
+                'musicbot.teamspeak_backend.install_sdk_client' => 'teamspeak_backend.installed',
                 default => 'teamspeak_backend.checked',
             };
             $this->recordNodeScopedMusicbotEvent((string) $nodeId, $eventType, 'info', 'TeamSpeak Client Backend validation completed.', ['job_id' => $job->getId(), 'status' => $config->getStatus()->value]);

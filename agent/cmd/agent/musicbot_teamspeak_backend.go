@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -16,11 +17,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"easywi/agent/internal/jobs"
+	"github.com/creack/pty"
 )
 
 const (
@@ -47,6 +51,19 @@ const (
 const teamspeakBackendDefaultTimeout = 8 * time.Second
 const teamspeakOfficialClientDownloadTimeout = 90 * time.Second
 const teamspeakOfficialClientMaxDownloadBytes int64 = 250 * 1024 * 1024
+
+// teamspeakOfficialClientInstallerTimeout is the maximum time the PTY-based installer loop may run.
+// Overridable in tests.
+var teamspeakOfficialClientInstallerTimeout = 300 * time.Second
+
+// teamspeakPTYControlRe matches ANSI/VT100 escape sequences emitted by terminal pagers.
+var teamspeakPTYControlRe = regexp.MustCompile(`\x1b(?:\[[0-9;?]*[a-zA-Z]|[^\[])`)
+
+func stripTeamspeakPTYControl(s string) string {
+	s = teamspeakPTYControlRe.ReplaceAllString(s, "")
+	s = strings.ReplaceAll(s, "\r", "")
+	return s
+}
 
 var teamspeakOfficialClientAllowedHosts = map[string]bool{
 	"files.teamspeak-services.com": true,
@@ -397,8 +414,9 @@ func validateTeamspeakOfficialInstallPath(rawPath string) (string, error) {
 	if strings.TrimSpace(rawPath) == "" {
 		return "", errors.New("official_client_install_path is required")
 	}
-	if strings.ContainsAny(rawPath, "\x00\n\r") || !filepath.IsAbs(rawPath) {
-		return "", errors.New("official_client_install_path must be an absolute path")
+	// Reject null bytes, newlines, and shell metacharacters as defense-in-depth.
+	if strings.ContainsAny(rawPath, "\x00\n\r;$`&|<>") || !filepath.IsAbs(rawPath) {
+		return "", errors.New("official_client_install_path must be an absolute path without shell metacharacters")
 	}
 	cleaned := filepath.Clean(rawPath)
 	if cleaned == string(filepath.Separator) || cleaned == "." || !strings.Contains(strings.ToLower(filepath.ToSlash(cleaned)), "/teamspeak-client") {
@@ -446,14 +464,109 @@ func downloadTeamspeakOfficialClient(downloadURL string, destination string) (st
 }
 
 func extractTeamspeakOfficialClient(installerPath string, installPath string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	const maxOutputBytes = 8 * 1024
+
+	ctx, cancel := context.WithTimeout(context.Background(), teamspeakOfficialClientInstallerTimeout)
 	defer cancel()
+
 	cmd := exec.CommandContext(ctx, installerPath, "--target", installPath, "--noexec")
-	output, err := cmd.CombinedOutput()
+
+	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		return fmt.Errorf("extract official TeamSpeak client installer: %v: %s", err, sanitizeTeamspeakOfficialClientText(string(output)))
+		return fmt.Errorf("extract official TeamSpeak client installer (pty): %w", err)
 	}
-	return nil
+	defer func() { _ = ptmx.Close() }()
+
+	exitCh := make(chan error, 1)
+	var mu sync.Mutex
+	var outputBuf bytes.Buffer
+
+	go func() {
+		tmp := make([]byte, 512)
+		for {
+			n, readErr := ptmx.Read(tmp)
+			if n > 0 {
+				mu.Lock()
+				if outputBuf.Len() < maxOutputBytes {
+					toWrite := n
+					if remaining := maxOutputBytes - outputBuf.Len(); toWrite > remaining {
+						toWrite = remaining
+					}
+					outputBuf.Write(tmp[:toWrite])
+				}
+				mu.Unlock()
+			}
+			if readErr != nil {
+				break
+			}
+		}
+		exitCh <- cmd.Wait()
+	}()
+
+	sentEnter := false
+	sentQ := false
+	sentY := false
+	startedAt := time.Now()
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case exitErr := <-exitCh:
+			if ctx.Err() != nil {
+				return errors.New("official TeamSpeak installer timed out while running in PTY mode")
+			}
+			if exitErr != nil {
+				mu.Lock()
+				out := sanitizeTeamspeakOfficialClientText(outputBuf.String())
+				mu.Unlock()
+				return fmt.Errorf("extract official TeamSpeak client installer: %w: %s", exitErr, out)
+			}
+			return nil
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			return errors.New("official TeamSpeak installer timed out while running in PTY mode")
+		case <-ticker.C:
+			elapsed := time.Since(startedAt)
+			mu.Lock()
+			current := stripTeamspeakPTYControl(strings.ToLower(outputBuf.String()))
+			mu.Unlock()
+
+			// Send initial Enter to advance past any startup prompt.
+			if !sentEnter {
+				_, _ = ptmx.Write([]byte("\r"))
+				sentEnter = true
+			}
+
+			// Quit pager (less/more) when prompt is recognized or after a short wait.
+			if !sentQ {
+				if strings.Contains(current, "--more--") ||
+					strings.Contains(current, "(end)") ||
+					strings.Contains(current, "press enter") ||
+					strings.Contains(current, "hit enter") ||
+					elapsed > 3*time.Second {
+					_, _ = ptmx.Write([]byte("q"))
+					sentQ = true
+				}
+			}
+
+			// Accept license when recognized or after fallback delay.
+			if !sentY {
+				if strings.Contains(current, "accept") ||
+					strings.Contains(current, "agree") ||
+					strings.Contains(current, "license") ||
+					strings.Contains(current, "terms") ||
+					strings.Contains(current, "[y/n]") ||
+					strings.Contains(current, "(y/n)") ||
+					elapsed > 5*time.Second {
+					_, _ = ptmx.Write([]byte("y\r"))
+					sentY = true
+				}
+			}
+		}
+	}
 }
 
 func collectTeamspeakOfficialInstalledFiles(root string, limit int) []string {
@@ -509,12 +622,44 @@ func chmodTeamspeakOfficialTree(root string) error {
 }
 
 func sanitizeTeamspeakOfficialClientText(value string) string {
+	value = stripTeamspeakPTYControl(value)
 	value = strings.ReplaceAll(value, "\x00", "")
 	lines := strings.Split(value, "\n")
-	if len(lines) > 20 {
-		lines = lines[:20]
+	filtered := make([]string, 0, len(lines))
+	inLicenseBlock := false
+	for _, line := range lines {
+		lower := strings.ToLower(strings.TrimSpace(line))
+		// Collapse license/terms/privacy blocks into a single placeholder line.
+		if strings.Contains(lower, "end user license") ||
+			strings.Contains(lower, "license agreement") ||
+			strings.Contains(lower, "terms and conditions") ||
+			strings.Contains(lower, "terms of service") ||
+			strings.Contains(lower, "privacy policy") {
+			if !inLicenseBlock {
+				filtered = append(filtered, "[license/terms text omitted]")
+				inLicenseBlock = true
+			}
+			continue
+		}
+		if inLicenseBlock {
+			// Resume capture on blank lines or accept prompts.
+			if lower == "" || strings.HasPrefix(lower, "do you accept") ||
+				lower == "[y/n]" || lower == "(y/n)" || lower == "y/n" {
+				inLicenseBlock = false
+				filtered = append(filtered, line)
+			}
+			continue
+		}
+		filtered = append(filtered, line)
 	}
-	return strings.TrimSpace(strings.Join(lines, "\n"))
+	if len(filtered) > 20 {
+		filtered = filtered[:20]
+	}
+	result := strings.TrimSpace(strings.Join(filtered, "\n"))
+	if len(result) > 2000 {
+		result = result[:2000]
+	}
+	return result
 }
 
 func validateTeamspeakBackendConfig(cfg teamspeakBackendConfig, probeBuildMode bool) teamspeakBackendValidation {
@@ -647,18 +792,32 @@ func resolveTeamspeakLibraryPath(path string) (string, error) {
 		return "", errors.New("library_path must be an absolute path")
 	}
 	candidate := filepath.Clean(path)
+	allowedNames := []string{"libts3client.so", "libteamspeak_sdk_client.so"}
 	if stat, err := os.Stat(candidate); err == nil && stat.IsDir() {
-		candidate = filepath.Join(candidate, "libts3client.so")
+		for _, name := range allowedNames {
+			if p := filepath.Join(candidate, name); func() bool { s, e := os.Stat(p); return e == nil && !s.IsDir() }() {
+				candidate = p
+				break
+			}
+		}
 	}
 	stat, err := os.Stat(candidate)
 	if err != nil {
-		return "", fmt.Errorf("libts3client.so missing: %s", candidate)
+		return "", fmt.Errorf("client library missing: %s", candidate)
 	}
 	if stat.IsDir() || stat.Mode().Perm()&0o444 == 0 {
-		return "", fmt.Errorf("libts3client.so is not readable: %s", candidate)
+		return "", fmt.Errorf("client library is not readable: %s", candidate)
 	}
-	if filepath.Base(candidate) != "libts3client.so" {
-		return "", fmt.Errorf("library_path must point to libts3client.so or a directory containing it")
+	base := filepath.Base(candidate)
+	validName := false
+	for _, name := range allowedNames {
+		if base == name {
+			validName = true
+			break
+		}
+	}
+	if !validName {
+		return "", fmt.Errorf("library_path must point to libts3client.so, libteamspeak_sdk_client.so, or a directory containing one of them")
 	}
 	return candidate, nil
 }
