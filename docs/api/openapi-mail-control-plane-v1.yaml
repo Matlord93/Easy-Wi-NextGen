@@ -1,0 +1,960 @@
+openapi: 3.0.3
+info:
+  title: EasyWI Mail Control Plane API
+  version: 1.0.0
+  description: |
+    Unified API contract for Panel (Admin/Customer) and Agent mail control-plane endpoints.
+
+    Security baseline:
+    - mTLS between trusted control-plane peers.
+    - Short-lived JWT bearer tokens.
+    - Replay protection via nonce/timestamp/idempotency strategy.
+
+    Backward compatibility notes:
+    - All endpoints are versioned with `/v1`.
+    - Additive changes (new optional fields, new enum values) are backward compatible.
+    - Breaking changes require `/v2` path prefix and migration period.
+
+x-api-versioning:
+  strategy: uri-versioning
+  current_major: v1
+  compatibility:
+    additive_changes: allowed
+    breaking_changes: require_new_major
+servers:
+  - url: https://panel.example.com
+    description: Panel API endpoint (admin/customer + ingest)
+  - url: https://agent.example.com
+    description: Agent API endpoint (execution-plane)
+
+tags:
+  - name: Admin Mail
+  - name: Customer Mail
+  - name: Agent Mail
+
+paths:
+  /api/v1/admin/mail/overview:
+    get:
+      tags: [Admin Mail]
+      summary: Mail platform overview metrics
+      operationId: getAdminMailOverview
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/FromParam'
+        - $ref: '#/components/parameters/ToParam'
+      responses:
+        '200':
+          description: Overview metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOverviewResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/v1/admin/mail/queue:
+    get:
+      tags: [Admin Mail]
+      summary: Queue depth/deferred time series
+      operationId: getAdminMailQueue
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/FromParam'
+        - $ref: '#/components/parameters/ToParam'
+        - name: bucket
+          in: query
+          schema:
+            type: integer
+            minimum: 60
+            maximum: 3600
+            default: 300
+      responses:
+        '200':
+          description: Queue series
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminQueueResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/v1/admin/mail/queue/flush:
+    post:
+      tags: [Admin Mail]
+      summary: Flush deferred queue
+      operationId: postAdminMailQueueFlush
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '202':
+          description: Flush accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedActionResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/v1/admin/mail/services/{service}/restart:
+    post:
+      tags: [Admin Mail]
+      summary: Restart a mail service on managed nodes
+      operationId: postAdminMailServiceRestart
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [postfix, dovecot, opendkim, rspamd]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                node_id:
+                  type: string
+      responses:
+        '202':
+          description: Restart accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedActionResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/v1/customer/mail/domains:
+    post:
+      tags: [Customer Mail]
+      summary: Create customer mail domain
+      operationId: postCustomerMailDomain
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDomainRequest'
+      responses:
+        '201':
+          description: Domain created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/v1/customer/mail/users:
+    post:
+      tags: [Customer Mail]
+      summary: Create customer mailbox user
+      operationId: postCustomerMailUser
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/v1/customer/mail/forwardings:
+    post:
+      tags: [Customer Mail]
+      summary: Create forwarding rule
+      operationId: postCustomerMailForwarding
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateForwardingRequest'
+      responses:
+        '201':
+          description: Forwarding created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForwardingResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/v1/customer/mail/domains/{id}/dkim/rotate:
+    post:
+      tags: [Customer Mail]
+      summary: Rotate DKIM selector/key metadata for a domain
+      operationId: postCustomerRotateDkim
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateDkimRequest'
+            examples:
+              rotateExample:
+                value:
+                  selector_hint: mail202610
+                  activate_immediately: false
+      responses:
+        '202':
+          description: Rotation accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotateDkimResponse'
+              examples:
+                rotateAccepted:
+                  value:
+                    status: accepted
+                    job_id: 8fe2d4c1-6f77-4ce6-8c6a-f0409a6f17d3
+                    domain_id: d_123
+                    old_selector: mail202509
+                    new_selector: mail202610
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/agent/mail/apply:
+    post:
+      tags: [Agent Mail]
+      summary: Apply deterministic mail configuration snapshot on node
+      operationId: postAgentMailApply
+      security:
+        - mutualTLS: []
+          bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+        - $ref: '#/components/parameters/AgentIdHeader'
+        - $ref: '#/components/parameters/TimestampHeader'
+        - $ref: '#/components/parameters/NonceHeader'
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentApplyRequest'
+            examples:
+              applyExample:
+                value:
+                  snapshot_id: snap_2026-10-15T20:00:00Z
+                  node_id: node-1
+                  services: [postfix, dovecot, opendkim]
+                  render_version: 1
+                  dry_run: false
+      responses:
+        '200':
+          description: Apply completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentApplyResponse'
+              examples:
+                applySuccess:
+                  value:
+                    status: success
+                    snapshot_id: snap_2026-10-15T20:00:00Z
+                    changed_files: 7
+                    reloaded_services: [postfix, dovecot, opendkim]
+                    rollback_performed: false
+                    correlation_id: 2f3dc046-f2e0-4492-9849-8e7e52f0eb45
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/agent/mail/check-dns:
+    post:
+      tags: [Agent Mail]
+      summary: Execute DNS/TLS checks for one domain
+      operationId: postAgentMailCheckDns
+      security:
+        - mutualTLS: []
+          bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+        - $ref: '#/components/parameters/AgentIdHeader'
+        - $ref: '#/components/parameters/TimestampHeader'
+        - $ref: '#/components/parameters/NonceHeader'
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentCheckDnsRequest'
+            examples:
+              checkDnsExample:
+                value:
+                  domain: example.com
+                  dkim_selector: mail202610
+                  expected_mx:
+                    - mx1.example.com
+                    - mx2.example.com
+                  ip: 203.0.113.10
+      responses:
+        '200':
+          description: DNS check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCheckDnsResponse'
+              examples:
+                checkDnsResult:
+                  value:
+                    domain: example.com
+                    checked_at: '2026-10-15T20:01:00Z'
+                    summary_status: warning
+                    findings:
+                      - check: spf
+                        status: ok
+                        severity: info
+                        observed_value: "v=spf1 mx a ip4:203.0.113.10 -all"
+                      - check: dmarc
+                        status: warn
+                        severity: warning
+                        observed_value: "v=DMARC1; p=none"
+                        expected_value: "v=DMARC1; p=quarantine|reject"
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/agent/mail/health:
+    get:
+      tags: [Agent Mail]
+      summary: Agent mail subsystem health
+      operationId: getAgentMailHealth
+      security:
+        - mutualTLS: []
+          bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/AgentIdHeader'
+        - $ref: '#/components/parameters/TimestampHeader'
+        - $ref: '#/components/parameters/NonceHeader'
+        - $ref: '#/components/parameters/SignatureHeader'
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentHealthResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/agent/mail/logs:
+    post:
+      tags: [Agent Mail]
+      summary: Batch ingest structured mail logs
+      operationId: postAgentMailLogs
+      security:
+        - mutualTLS: []
+          bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+        - $ref: '#/components/parameters/AgentIdHeader'
+        - $ref: '#/components/parameters/TimestampHeader'
+        - $ref: '#/components/parameters/NonceHeader'
+        - $ref: '#/components/parameters/SignatureHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  maxItems: 1000
+                  items:
+                    $ref: '#/components/schemas/LogEvent'
+      responses:
+        '200':
+          description: Batch accepted/processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  persisted:
+                    type: integer
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/agent/mail/metrics:
+    get:
+      tags: [Agent Mail]
+      summary: Structured mail metrics snapshot
+      operationId: getAgentMailMetrics
+      security:
+        - mutualTLS: []
+          bearerJwt: []
+      parameters:
+        - $ref: '#/components/parameters/AgentIdHeader'
+        - $ref: '#/components/parameters/TimestampHeader'
+        - $ref: '#/components/parameters/NonceHeader'
+        - $ref: '#/components/parameters/SignatureHeader'
+      responses:
+        '200':
+          description: Metrics snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsSnapshot'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+components:
+  securitySchemes:
+    mutualTLS:
+      type: mutualTLS
+      description: |
+        Client certificate issued by control-plane CA, pinned per node at ingress/panel metadata.
+    bearerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Short-lived JWT (recommended TTL 60s) with claims `iss`, `aud`, `sub`, `iat`, `exp`, `jti`.
+
+  parameters:
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Required for mutating operations to support safe retries.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    AgentIdHeader:
+      name: X-Agent-ID
+      in: header
+      required: true
+      schema:
+        type: string
+    TimestampHeader:
+      name: X-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+        format: date-time
+    NonceHeader:
+      name: X-Nonce
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    SignatureHeader:
+      name: X-Signature
+      in: header
+      required: true
+      schema:
+        type: string
+
+    FromParam:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+    ToParam:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+
+  responses:
+    ErrorResponse:
+      description: Standard error envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorModel'
+
+  schemas:
+    ErrorModel:
+      type: object
+      required: [code, message, correlation_id]
+      properties:
+        code:
+          type: string
+          example: invalid_request
+        message:
+          type: string
+          example: Validation failed for field domain.
+        details:
+          type: object
+          additionalProperties: true
+        correlation_id:
+          type: string
+          format: uuid
+
+    AcceptedActionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [accepted]
+        job_id:
+          type: string
+          format: uuid
+        correlation_id:
+          type: string
+          format: uuid
+
+    AdminOverviewResponse:
+      type: object
+      properties:
+        range:
+          $ref: '#/components/schemas/TimeRange'
+        overview:
+          type: object
+          properties:
+            queue_depth:
+              type: number
+            deferred_mails:
+              type: number
+            bounces:
+              type: number
+            dkim_failures:
+              type: number
+            auth_failures:
+              type: number
+        top_senders:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopItem'
+        top_domains:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopItem'
+
+    AdminQueueResponse:
+      type: object
+      properties:
+        range:
+          allOf:
+            - $ref: '#/components/schemas/TimeRange'
+            - type: object
+              properties:
+                bucket:
+                  type: integer
+        series:
+          type: array
+          items:
+            type: object
+            properties:
+              bucket_start:
+                type: string
+                format: date-time
+              value:
+                type: number
+
+    TimeRange:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+
+    TopItem:
+      type: object
+      properties:
+        subject:
+          type: string
+        value:
+          type: number
+
+    CreateDomainRequest:
+      type: object
+      required: [domain]
+      properties:
+        domain:
+          type: string
+          example: example.com
+        capabilities:
+          $ref: '#/components/schemas/DomainCapabilities'
+        mail_enabled:
+          type: boolean
+          default: true
+          description: Legacy gate; when false, mailbox operations return MAIL_BACKEND_DISABLED.
+        mail_backend:
+          allOf:
+            - $ref: '#/components/schemas/MailBackend'
+          default: local
+
+    DomainResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        domain:
+          type: string
+        capabilities:
+          $ref: '#/components/schemas/DomainCapabilities'
+        mail_enabled:
+          type: boolean
+        mail_backend:
+          $ref: '#/components/schemas/MailBackend'
+        dkim_selector:
+          type: string
+        dkim_status:
+          type: string
+
+    CreateUserRequest:
+      type: object
+      required: [address, password]
+      properties:
+        address:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 12
+        quota_mb:
+          type: integer
+          minimum: 1
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        address:
+          type: string
+        quota_mb:
+          type: integer
+
+
+    MailBackend:
+      type: string
+      enum: [none, local, panel, external]
+      description: Exactly one backend is active cluster-wide.
+
+    DomainCapabilities:
+      type: object
+      required: [webspace, mail]
+      properties:
+        webspace:
+          type: boolean
+          description: Domain can be attached to a webspace/vhost lifecycle.
+        mail:
+          type: boolean
+          description: Domain can be attached to mail lifecycle and mailbox operations.
+
+    MailBackendDisabledError:
+      type: object
+      required: [error, error_code, ui_hint, mail_enabled, mail_backend]
+      properties:
+        error:
+          type: string
+        error_code:
+          type: string
+          enum: [MAIL_BACKEND_DISABLED]
+        ui_hint:
+          type: string
+        mail_enabled:
+          type: boolean
+        mail_backend:
+          $ref: '#/components/schemas/MailBackend'
+
+    CreateForwardingRequest:
+      type: object
+      required: [source, destination]
+      properties:
+        source:
+          type: string
+          format: email
+        destination:
+          type: string
+          format: email
+        keep_local_copy:
+          type: boolean
+          default: false
+
+    ForwardingResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        destination:
+          type: string
+
+    RotateDkimRequest:
+      type: object
+      properties:
+        selector_hint:
+          type: string
+        activate_immediately:
+          type: boolean
+          default: false
+
+    RotateDkimResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [accepted]
+        job_id:
+          type: string
+          format: uuid
+        domain_id:
+          type: string
+        old_selector:
+          type: string
+        new_selector:
+          type: string
+
+    AgentApplyRequest:
+      type: object
+      required: [snapshot_id, node_id, services, render_version]
+      properties:
+        snapshot_id:
+          type: string
+        node_id:
+          type: string
+        services:
+          type: array
+          items:
+            type: string
+            enum: [postfix, dovecot, opendkim, rspamd]
+        render_version:
+          type: integer
+        dry_run:
+          type: boolean
+          default: false
+
+    AgentApplyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, failed]
+        snapshot_id:
+          type: string
+        changed_files:
+          type: integer
+        reloaded_services:
+          type: array
+          items:
+            type: string
+        rollback_performed:
+          type: boolean
+        correlation_id:
+          type: string
+          format: uuid
+
+    AgentCheckDnsRequest:
+      type: object
+      required: [domain]
+      properties:
+        domain:
+          type: string
+        dkim_selector:
+          type: string
+        expected_mx:
+          type: array
+          items:
+            type: string
+        ip:
+          type: string
+
+    AgentCheckDnsResponse:
+      type: object
+      properties:
+        domain:
+          type: string
+        checked_at:
+          type: string
+          format: date-time
+        summary_status:
+          type: string
+          enum: [ok, warning, error]
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/DnsFinding'
+
+    DnsFinding:
+      type: object
+      properties:
+        check:
+          type: string
+          enum: [spf, dkim, dmarc, mx, ptr, tls, mta_sts]
+        status:
+          type: string
+          enum: [ok, warn, fail]
+        severity:
+          type: string
+          enum: [info, warning, error]
+        details:
+          type: string
+        observed_value:
+          type: string
+        expected_value:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    AgentHealthResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        capabilities:
+          type: object
+          additionalProperties:
+            type: boolean
+
+    LogEvent:
+      type: object
+      required: [created_at, level, source, domain, event_type, message]
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum: [info, warning, error, critical]
+        source:
+          type: string
+          enum: [postfix, dovecot, opendkim, agent, dns, rspamd]
+        domain:
+          type: string
+        user_id:
+          type: integer
+          nullable: true
+        event_type:
+          type: string
+          enum: [delivery, auth, tls, spam, bounce, dns_check, queue, policy]
+        message:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+
+    MetricsSnapshot:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        node_id:
+          type: string
+        window_seconds:
+          type: integer
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricPoint'
+        top_senders:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopMetric'
+        top_domains:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopMetric'
+        queue:
+          $ref: '#/components/schemas/QueueState'
+
+    MetricPoint:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [gauge, counter]
+        unit:
+          type: string
+        value:
+          type: number
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        bucket_size_seconds:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    TopMetric:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: number
+
+    QueueState:
+      type: object
+      properties:
+        depth:
+          type: integer
+        deferred:
+          type: integer
+        active:
+          type: integer

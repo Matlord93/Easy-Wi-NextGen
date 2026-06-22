@@ -1,0 +1,59 @@
+version: 1
+updated_at: "2026-03-02"
+modules:
+  - module: gameserver
+    targets:
+      - os: linux
+        tier: ga
+        notes: "Produktiv unterstützt für Agent + Konsole + API Endpunkte."
+      - os: windows
+        tier: beta
+        notes: "Agent/Endpoints verfügbar; operative Härtung und breitere Feldtests laufen."
+      - os: windows-core-only
+        tier: tech-preview
+        notes: "Nur Kernpfade (Endpoint/Relay) validiert, keine vollständige Betriebsfreigabe."
+mail_lifecycle:
+  task: TASK-016
+  backend_modes: [none, local, panel, external]
+  rules:
+    - "exactly_one_active_backend: true"
+    - "none_means_mail_operations_blocked: true"
+    - "mail_enabled_false_blocks_mail_jobs: true"
+  telemetry:
+    auth_failure_alert_event: mail.security.auth_failures_alert
+
+webspace_lifecycle:
+  task: TASK-015
+  targets:
+    - os: linux
+      tier: ga
+      notes: "File API hardening + vhost rollback + ssl orchestration supported."
+    - os: windows
+      tier: tech-preview
+      notes: "Webspace lifecycle handlers are not fully supported on windows."
+
+
+os_feature_parity:
+  task: TASK-018
+  targets:
+    - os: linux
+      capabilities:
+        build: supported
+        tests: supported
+        smoke_start: supported
+        smoke_core_connectivity: supported
+        smoke_dummy_job: supported
+        webspace_lifecycle: supported
+    - os: windows
+      capabilities:
+        build: supported
+        tests: supported
+        smoke_start: supported
+        smoke_core_connectivity: supported
+        smoke_dummy_job: supported
+        webspace_lifecycle: partial
+  known_issues:
+    - os: windows
+      issue: "Webspace lifecycle remains tech preview and is not GA for production rollout."
+    - os: linux
+      issue: "No additional known issues for TASK-018 smoke scope."

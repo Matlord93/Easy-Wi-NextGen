@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package easywi.console.v1;
+
+option go_package = "easywi/agent/internal/consolepb;consolepb";
+
+message UserContext {
+  string user_id = 1;
+  repeated string roles = 2;
+  string tenant_id = 3;
+}
+
+message AttachRequest {
+  string instance_id = 1;
+  UserContext user_context = 2;
+  string idempotency_key = 3;
+  int64 timestamp_unix_ms = 4;
+}
+
+message ConsoleEvent {
+  string instance_id = 1;
+  bytes chunk_bytes = 2;
+  string line = 3;
+  uint64 seq = 4;
+  bool is_ansi = 5;
+  string encoding = 6;
+  string status = 7;
+  int32 pid = 8;
+  int64 ts_unix_ms = 9;
+}
+
+message CommandRequest {
+  string instance_id = 1;
+  string command = 2;
+  string idempotency_key = 3;
+  UserContext user_context = 4;
+  int64 timestamp_unix_ms = 5;
+}
+
+message CommandAck {
+  bool applied = 1;
+  bool duplicate = 2;
+  uint64 seq = 3;
+  string reason = 4;
+  string idempotency_key = 5;
+  int64 ts_unix_ms = 6;
+}
+
+message StartInstanceRequest {
+  string instance_id = 1;
+  string idempotency_key = 2;
+  int64 timestamp_unix_ms = 3;
+}
+
+message StopInstanceRequest {
+  string instance_id = 1;
+  string idempotency_key = 2;
+  int64 timestamp_unix_ms = 3;
+}
+
+message InstanceAck {
+  bool accepted = 1;
+  string state = 2;
+}
+
+message CapabilityRequest {}
+
+message CapabilityResponse {
+  bool supports_pty = 1;
+  string os = 2;
+  string version = 3;
+  string fallback = 4;
+}
+
+service ConsoleService {
+  rpc AttachConsoleStream(AttachRequest) returns (stream ConsoleEvent);
+  rpc SendConsoleCommand(CommandRequest) returns (CommandAck);
+  rpc StartInstance(StartInstanceRequest) returns (InstanceAck);
+  rpc StopInstance(StopInstanceRequest) returns (InstanceAck);
+  rpc GetCapability(CapabilityRequest) returns (CapabilityResponse);
+}
