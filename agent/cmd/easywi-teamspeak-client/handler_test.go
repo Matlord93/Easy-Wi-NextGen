@@ -17,17 +17,17 @@ import (
 // ──────────────────────────────────────────────────────────────────────────
 
 type mockBackend struct {
-	name_         string
-	connected_    bool
-	clientID_     string
-	channelID_    string
-	connectErr    error
-	reconnectErr  error
-	joinErr       error
-	leaveErr      error
-	setNickErr    error
-	sendFrameErr  error
-	shutdownErr   error
+	name_        string
+	connected_   bool
+	clientID_    string
+	channelID_   string
+	connectErr   error
+	reconnectErr error
+	joinErr      error
+	leaveErr     error
+	setNickErr   error
+	sendFrameErr error
+	shutdownErr  error
 }
 
 func newMock() *mockBackend { return &mockBackend{name_: "mock", clientID_: "mock-42"} }
@@ -696,7 +696,7 @@ func TestHandlerFullProtocolSequence(t *testing.T) {
 		wantOK  bool
 		wantKey string // field that must be non-empty in the response
 	}{
-		{request{Action: "status"}, true, ""},                           // disconnected status is ok=true
+		{request{Action: "status"}, true, ""}, // disconnected status is ok=true
 		{request{Action: "connect", Host: "ts.example.com", Port: 9987, Profile: "ts3", Nickname: "Bot"}, true, "client_id"},
 		{request{Action: "set_nickname", Nickname: "Bot [DJ]"}, true, ""},
 		{request{Action: "status"}, true, "client_id"},
@@ -726,4 +726,3 @@ func TestHandlerFullProtocolSequence(t *testing.T) {
 		}
 	}
 }
-

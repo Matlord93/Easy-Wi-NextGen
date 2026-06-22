@@ -516,7 +516,7 @@ func NewNativeSDKAdapter(backendPath string) *NativeSDKAdapter {
 func (a *NativeSDKAdapter) Connect(ctx context.Context, params connectParams) (string, error) {
 	return a.proc.Connect(ctx, params)
 }
-func (a *NativeSDKAdapter) Disconnect(ctx context.Context) error  { return a.proc.Disconnect(ctx) }
+func (a *NativeSDKAdapter) Disconnect(ctx context.Context) error { return a.proc.Disconnect(ctx) }
 func (a *NativeSDKAdapter) Reconnect(ctx context.Context) (string, error) {
 	return a.proc.Reconnect(ctx)
 }

@@ -75,12 +75,12 @@ func ts3BridgeConnectStatusCallback(scHandlerID C.uint64, newStatus C.int, error
 
 // ts3ClientLibBackend connects to TeamSpeak 3/6 via the official client library.
 type ts3ClientLibBackend struct {
-	mu          sync.Mutex
-	logger      *log.Logger
-	connected   bool
-	clientID    string
-	channelID   string
-	lastCfg     connectConfig
+	mu        sync.Mutex
+	logger    *log.Logger
+	connected bool
+	clientID  string
+	channelID string
+	lastCfg   connectConfig
 }
 
 func newBackend(logger *log.Logger) ClientBackend {

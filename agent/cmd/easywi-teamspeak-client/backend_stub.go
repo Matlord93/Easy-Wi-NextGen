@@ -43,14 +43,14 @@ func (b *stubBackend) Connect(_ context.Context, cfg connectConfig) (string, err
 	return "", errSDKNotInstalled
 }
 
-func (b *stubBackend) Disconnect(_ context.Context) error                  { return nil }
-func (b *stubBackend) Reconnect(_ context.Context) (string, error)         { return "", errSDKNotInstalled }
-func (b *stubBackend) SetNickname(_ context.Context, _ string) error       { return nil }
-func (b *stubBackend) LeaveChannel(_ context.Context) error                { return nil }
-func (b *stubBackend) Shutdown(_ context.Context) error                    { return nil }
-func (b *stubBackend) Connected() bool                                     { return false }
-func (b *stubBackend) ClientID() string                                    { return "" }
-func (b *stubBackend) CurrentChannelID() string                            { return "" }
+func (b *stubBackend) Disconnect(_ context.Context) error            { return nil }
+func (b *stubBackend) Reconnect(_ context.Context) (string, error)   { return "", errSDKNotInstalled }
+func (b *stubBackend) SetNickname(_ context.Context, _ string) error { return nil }
+func (b *stubBackend) LeaveChannel(_ context.Context) error          { return nil }
+func (b *stubBackend) Shutdown(_ context.Context) error              { return nil }
+func (b *stubBackend) Connected() bool                               { return false }
+func (b *stubBackend) ClientID() string                              { return "" }
+func (b *stubBackend) CurrentChannelID() string                      { return "" }
 
 func (b *stubBackend) JoinChannel(_ context.Context, _, _ string) (string, error) {
 	return "", errSDKNotInstalled

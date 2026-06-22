@@ -36,7 +36,7 @@ type request struct {
 	Profile         string `json:"profile,omitempty"`
 	Nickname        string `json:"nickname,omitempty"`
 	IdentityPath    string `json:"identity_path,omitempty"`
-	ServerPassword  string `json:"server_password,omitempty"`  // secret — never log
+	ServerPassword  string `json:"server_password,omitempty"` // secret — never log
 	ChannelID       string `json:"channel_id,omitempty"`
 	ChannelPassword string `json:"channel_password,omitempty"` // secret — never log
 	Format          string `json:"format,omitempty"`

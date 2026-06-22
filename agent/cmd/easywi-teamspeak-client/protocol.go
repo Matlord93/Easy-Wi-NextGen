@@ -7,11 +7,12 @@
 // It receives EASYWI_TS_CLIENT_LIB=1 or EASYWI_TS_NATIVE_SDK=1 from the bridge.
 //
 // Build modes
-//   Default (no tags): stub backend — fails clearly on connect with SDK install
-//                      instructions; all protocol logic is compiled and tested.
-//   -tags ts3clientlib: links against the official TeamSpeak 3 client library
-//                       (libts3client.so); see backend_ts3clientlib.go for build
-//                       and SDK install instructions.
+//
+//	Default (no tags): stub backend — fails clearly on connect with SDK install
+//	                   instructions; all protocol logic is compiled and tested.
+//	-tags ts3clientlib: links against the official TeamSpeak 3 client library
+//	                    (libts3client.so); see backend_ts3clientlib.go for build
+//	                    and SDK install instructions.
 //
 // Security constraints honoured by this binary:
 //   - No reverse engineering of the TeamSpeak network protocol.
@@ -38,7 +39,7 @@ type request struct {
 	Profile         string `json:"profile,omitempty"`
 	Nickname        string `json:"nickname,omitempty"`
 	IdentityPath    string `json:"identity_path,omitempty"`
-	ServerPassword  string `json:"server_password,omitempty"`  // secret — never log
+	ServerPassword  string `json:"server_password,omitempty"` // secret — never log
 	ChannelID       string `json:"channel_id,omitempty"`
 	ChannelPassword string `json:"channel_password,omitempty"` // secret — never log
 	BackendPath     string `json:"backend_path,omitempty"`     // path to SDK library (.so)
