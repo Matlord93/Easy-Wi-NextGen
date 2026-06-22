@@ -223,7 +223,7 @@
             </div>
         </details>
 
-        <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">Installiert keine proprietären Dateien aus dem Internet. Registriert und validiert einen lokal bereitgestellten Client-/SDK-Layer.</p>
+        <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">Installiert keine proprietären Dateien aus dem Internet. Easy-Wi lädt keine proprietären TeamSpeak-Dateien herunter. Registriert und validiert einen lokal bereitgestellten Client-/SDK-Layer.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="ui-button ui-button--primary" type="submit">Speichern</button>
         </div>
@@ -246,7 +246,7 @@
             </div>
             <div class="ng-data-card__body">
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-                    {% for action,label in {'validate':'Backend prüfen','install':'Client Backend installieren','test_connection':'Verbindung testen','repair':'Repair','status':'Status aktualisieren'} %}
+                    {% for action,label in {'validate':'Backend prüfen','install':'Client Backend installieren/registrieren','test_connection':'Verbindung testen','repair':'Repair','status':'Status aktualisieren'} %}
                         <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: action}) }}">
                             <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
                             <button class="ui-button {{ action == 'install' ? 'ui-button--primary' : 'ui-button--ghost' }} ui-button--sm" type="submit">{{ label }}</button>
@@ -257,7 +257,7 @@
                     <h3 style="margin:0 0 10px;font-size:13px;font-weight:700;color:var(--ng-text);">Offiziellen Client installieren</h3>
                     <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: 'install_official_client'}) }}" onsubmit="return confirm('Ich bestätige, dass die Nutzung des TeamSpeak Clients lizenzrechtlich erlaubt ist.');">
                         <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
-                        <label class="role-toggle" style="margin-bottom:10px;"><input type="checkbox" name="accepted_license_confirmation" value="1" required><span>Lizenz- und Nutzungsbestätigung akzeptiert</span></label>
+                        <label class="role-toggle" style="margin-bottom:10px;"><input type="checkbox" name="accepted_license_confirmation" value="1" required><span>Lizenz-/Nutzungsbestätigung akzeptiert</span></label>
                         <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Offiziellen TeamSpeak Client installieren</button>
                     </form>
                 </div>

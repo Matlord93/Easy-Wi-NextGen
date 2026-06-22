@@ -223,9 +223,9 @@ func TestMaskSecrets(t *testing.T) {
 		"teamspeak_password": "s3cr3t",
 		"api_token":          "tok_abc123",
 		"nested": map[string]any{
-			"db_secret":  "hunter2",
-			"db_host":    "localhost",
-			"auth_key":   "mykey",
+			"db_secret": "hunter2",
+			"db_host":   "localhost",
+			"auth_key":  "mykey",
 		},
 		"public_value": "visible",
 	}

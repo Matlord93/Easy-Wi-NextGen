@@ -164,11 +164,11 @@ func TestExtractTeamspeakSDKTarballPathTraversal(t *testing.T) {
 
 func TestHandleSDKClientAcceptedConfirmationFalse(t *testing.T) {
 	job := jobs.Job{ID: "job-sdk", Type: "musicbot.teamspeak_backend.install_sdk_client", Payload: map[string]any{
-		"node_id":                      "agent-1",
-		"version":                      "3.5.2",
-		"download_url":                 "https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz",
-		"install_path":                 "/opt/easywi/musicbot/teamspeak-client/sdk/",
-		"requested_by":                 "1",
+		"node_id":                       "agent-1",
+		"version":                       "3.5.2",
+		"download_url":                  "https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz",
+		"install_path":                  "/opt/easywi/musicbot/teamspeak-client/sdk/",
+		"requested_by":                  "1",
 		"accepted_license_confirmation": false,
 	}}
 
@@ -183,11 +183,11 @@ func TestHandleSDKClientAcceptedConfirmationFalse(t *testing.T) {
 
 func TestHandleSDKClientBlocksForeignHost(t *testing.T) {
 	job := jobs.Job{ID: "job-sdk", Type: "musicbot.teamspeak_backend.install_sdk_client", Payload: map[string]any{
-		"node_id":                      "agent-1",
-		"version":                      "3.5.2",
-		"download_url":                 "https://evil.example.com/sdk.tar.gz",
-		"install_path":                 "/opt/easywi/musicbot/teamspeak-client/sdk/",
-		"requested_by":                 "1",
+		"node_id":                       "agent-1",
+		"version":                       "3.5.2",
+		"download_url":                  "https://evil.example.com/sdk.tar.gz",
+		"install_path":                  "/opt/easywi/musicbot/teamspeak-client/sdk/",
+		"requested_by":                  "1",
 		"accepted_license_confirmation": true,
 	}}
 
@@ -240,12 +240,12 @@ func TestHandleSDKClientChecksumMismatch(t *testing.T) {
 
 	installDir := t.TempDir()
 	job := jobs.Job{ID: "job-sdk", Type: "musicbot.teamspeak_backend.install_sdk_client", Payload: map[string]any{
-		"node_id":                      "agent-1",
-		"version":                      "3.5.2",
-		"download_url":                 "https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz",
-		"expected_sha256":              "0000000000000000000000000000000000000000000000000000000000000000",
-		"install_path":                 installDir,
-		"requested_by":                 "1",
+		"node_id":                       "agent-1",
+		"version":                       "3.5.2",
+		"download_url":                  "https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz",
+		"expected_sha256":               "0000000000000000000000000000000000000000000000000000000000000000",
+		"install_path":                  installDir,
+		"requested_by":                  "1",
 		"accepted_license_confirmation": true,
 	}}
 
@@ -276,12 +276,12 @@ func TestHandleSDKClientLibraryDetectionAndSymlink(t *testing.T) {
 
 	installDir := t.TempDir()
 	job := jobs.Job{ID: "job-sdk", Type: "musicbot.teamspeak_backend.install_sdk_client", Payload: map[string]any{
-		"node_id":                      "agent-1",
-		"version":                      "3.5.2",
-		"download_url":                 "https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz",
-		"expected_sha256":              sha256sum,
-		"install_path":                 installDir,
-		"requested_by":                 "1",
+		"node_id":                       "agent-1",
+		"version":                       "3.5.2",
+		"download_url":                  "https://files.teamspeak-services.com/releases/sdk/3.5.2/teamspeak-sdk-3.5.2.tar.gz",
+		"expected_sha256":               sha256sum,
+		"install_path":                  installDir,
+		"requested_by":                  "1",
 		"accepted_license_confirmation": true,
 	}}
 

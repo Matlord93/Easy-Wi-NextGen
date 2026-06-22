@@ -80,10 +80,10 @@ func handleMusicbotConfigApply(job jobs.Job) orchestratorResult {
 		status:  "success",
 		logText: fmt.Sprintf("config.apply: wrote %s for service %s at %s", configPath, serviceName, appliedAt),
 		resultPayload: map[string]any{
-			"success":     true,
-			"config_path": configPath,
-			"applied_at":  appliedAt,
-			"instance_id": instanceID,
+			"success":      true,
+			"config_path":  configPath,
+			"applied_at":   appliedAt,
+			"instance_id":  instanceID,
 			"service_name": serviceName,
 		},
 	}

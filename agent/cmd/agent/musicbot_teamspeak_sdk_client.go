@@ -22,12 +22,12 @@ import (
 )
 
 const (
-	teamspeakBackendStatusSDKClientNotInstalled    = "sdk_client_not_installed"
-	teamspeakBackendStatusSDKClientDownloadFailed  = "sdk_client_download_failed"
-	teamspeakBackendStatusSDKClientChecksumFailed  = "sdk_client_checksum_failed"
-	teamspeakBackendStatusSDKClientInstalled       = "sdk_client_installed"
-	teamspeakBackendStatusSDKClientLibraryMissing  = "sdk_client_installed_library_missing"
-	teamspeakBackendStatusSDKClientInvalid         = "sdk_client_invalid"
+	teamspeakBackendStatusSDKClientNotInstalled   = "sdk_client_not_installed"
+	teamspeakBackendStatusSDKClientDownloadFailed = "sdk_client_download_failed"
+	teamspeakBackendStatusSDKClientChecksumFailed = "sdk_client_checksum_failed"
+	teamspeakBackendStatusSDKClientInstalled      = "sdk_client_installed"
+	teamspeakBackendStatusSDKClientLibraryMissing = "sdk_client_installed_library_missing"
+	teamspeakBackendStatusSDKClientInvalid        = "sdk_client_invalid"
 )
 
 const teamspeakSDKClientDownloadTimeout = 120 * time.Second

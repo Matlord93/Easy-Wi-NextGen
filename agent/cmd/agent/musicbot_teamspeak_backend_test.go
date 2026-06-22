@@ -429,13 +429,13 @@ func TestTeamspeakOfficialClientTermsNotInLastError(t *testing.T) {
 func TestTeamspeakOfficialClientNoShellInjection(t *testing.T) {
 	t.Parallel()
 	for _, bad := range []string{
-		"/opt/teamspeak-client/;rm -rf /tmp/x",   // semicolon
-		"/opt/teamspeak-client/$(whoami)",         // command substitution
-		"/opt/teamspeak-client/`id`",              // backtick substitution
-		"/opt/teamspeak-client/\x00evil",          // null byte
-		"/opt/teamspeak-client/\nevil",            // newline
-		"/opt/teamspeak-client/a|b",               // pipe
-		"/opt/teamspeak-client/a&b",               // background operator
+		"/opt/teamspeak-client/;rm -rf /tmp/x", // semicolon
+		"/opt/teamspeak-client/$(whoami)",      // command substitution
+		"/opt/teamspeak-client/`id`",           // backtick substitution
+		"/opt/teamspeak-client/\x00evil",       // null byte
+		"/opt/teamspeak-client/\nevil",         // newline
+		"/opt/teamspeak-client/a|b",            // pipe
+		"/opt/teamspeak-client/a&b",            // background operator
 	} {
 		job := jobs.Job{ID: "job-ts-inject", Type: "musicbot.teamspeak_backend.install_official_client", Payload: map[string]any{
 			"node_id":                       "agent-1",
