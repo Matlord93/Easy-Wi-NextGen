@@ -65,19 +65,19 @@ class MusicbotTeamspeakBackendConfig
     #[ORM\Column(options: ['default' => false])]
     private bool $officialClientInstallEnabled = false;
 
-    #[ORM\Column(length: 32)]
+    #[ORM\Column(length: 32, options: ['default' => '3.6.2'])]
     private string $officialClientVersion = '3.6.2';
 
-    #[ORM\Column(length: 1024)]
+    #[ORM\Column(length: 1024, options: ['default' => 'https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run'])]
     private string $officialClientDownloadUrl = 'https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run';
 
     #[ORM\Column(length: 128, nullable: true)]
     private ?string $officialClientExpectedSha256 = null;
 
-    #[ORM\Column(length: 1024)]
+    #[ORM\Column(length: 1024, options: ['default' => '/opt/easywi/musicbot/teamspeak-client/official-client/'])]
     private string $officialClientInstallPath = '/opt/easywi/musicbot/teamspeak-client/official-client/';
 
-    #[ORM\Column(length: 64)]
+    #[ORM\Column(length: 64, options: ['default' => 'official_client_not_installed'])]
     private string $officialClientStatus = 'official_client_not_installed';
 
     #[ORM\Column(type: 'text', nullable: true)]

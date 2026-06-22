@@ -229,7 +229,7 @@ func TestTeamspeakOfficialClientForeignRedirectBlocked(t *testing.T) {
 	// The redirect target is the foreign test server, not the allowed host.
 	// The CheckRedirect validator must reject it.
 	teamspeakOfficialHTTPClient = &http.Client{
-		Timeout: teamspeakOfficialClientDownloadTimeout,
+		Timeout:   teamspeakOfficialClientDownloadTimeout,
 		Transport: rewriteHostTransport{target: redirectingURL, base: http.DefaultTransport},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 5 {
