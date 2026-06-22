@@ -54,6 +54,25 @@ final class CustomerInstanceConsoleHealthProbeTest extends TestCase
         self::assertSame('degraded_query_unavailable', $probe['runtime_status']);
     }
 
+
+    public function testEnvelopeRuntimeProbeIsRecognized(): void
+    {
+        $controller = $this->buildController(['ok' => true, 'data' => ['status' => 'running', 'running' => true]]);
+        $probe = $this->invokeProbe($controller, 1);
+
+        self::assertTrue($probe['running']);
+        self::assertSame('running', $probe['runtime_status']);
+    }
+
+    public function testAlternativeRuntimeStatusFieldIsRecognized(): void
+    {
+        $controller = $this->buildController(['ok' => true, 'data' => ['runtime_status' => 'online']]);
+        $probe = $this->invokeProbe($controller, 1);
+
+        self::assertTrue($probe['running']);
+        self::assertSame('running', $probe['runtime_status']);
+    }
+
     private function buildController(array $runtimeStatusPayload): CustomerInstanceActionApiController
     {
         $agentClient = $this->createMock(AgentGameServerClient::class);

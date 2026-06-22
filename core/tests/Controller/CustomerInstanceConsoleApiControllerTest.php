@@ -154,6 +154,70 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         self::assertTrue((bool) $payload['data']['can_send_command']);
     }
 
+
+    public function testLogsEnvelopeAcceptsRootAgentConsoleResponse(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+
+        $instance = $this->createMock(Instance::class);
+        $instance->method('getId')->willReturn(7);
+        $instance->method('getCustomer')->willReturn($customer);
+
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
+
+        $agentClient = $this->createMock(AgentGameServerClient::class);
+        $agentClient->method('getConsoleLogs')->willReturn([
+            'cursor' => 'abc:1',
+            'lines' => [['id' => 1, 'text' => 'hello', 'ts' => '2026-01-01T00:00:00Z']],
+            'meta' => ['state' => 'connected', 'journal_available' => true],
+        ]);
+
+        $controller = $this->newControllerWithRepo($repo, $agentClient);
+        $request = Request::create('/api/instances/7/console/logs', 'GET');
+        $request->attributes->set('current_user', $customer);
+
+        $payload = json_decode((string) $controller->logsEnvelope($request, 7)->getContent(), true);
+
+        self::assertTrue((bool) $payload['ok']);
+        self::assertSame('hello', $payload['data']['lines'][0]['message']);
+        self::assertTrue((bool) $payload['data']['session']['connected']);
+    }
+
+    public function testLogsEnvelopeAcceptsEnvelopedAgentConsoleResponse(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+
+        $instance = $this->createMock(Instance::class);
+        $instance->method('getId')->willReturn(7);
+        $instance->method('getCustomer')->willReturn($customer);
+
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
+
+        $agentClient = $this->createMock(AgentGameServerClient::class);
+        $agentClient->method('getConsoleLogs')->willReturn([
+            'ok' => true,
+            'data' => [
+                'cursor' => 'abc:2',
+                'lines' => [['id' => 2, 'text' => 'world', 'ts' => '2026-01-01T00:00:01Z']],
+                'meta' => ['state' => 'connected', 'journal_available' => true],
+            ],
+        ]);
+
+        $controller = $this->newControllerWithRepo($repo, $agentClient);
+        $request = Request::create('/api/instances/7/console/logs', 'GET');
+        $request->attributes->set('current_user', $customer);
+
+        $payload = json_decode((string) $controller->logsEnvelope($request, 7)->getContent(), true);
+
+        self::assertTrue((bool) $payload['ok']);
+        self::assertSame('world', $payload['data']['lines'][0]['message']);
+        self::assertSame('abc:2', $payload['data']['cursor']);
+    }
+
     private function newControllerWithRepo(InstanceRepository $repo, ?AgentGameServerClient $agentClient = null): CustomerInstanceActionApiController
     {
         $reflection = new \ReflectionClass(CustomerInstanceActionApiController::class);

@@ -160,9 +160,11 @@ class AgentGameServerClient
      */
     public function getInstanceStatus(Instance $instance): array
     {
-        return $this->requestJson($instance, 'POST', '/instance/status', [
+        $payload = $this->requestJson($instance, 'POST', '/instance/status', [
             'instance_id' => (string) $instance->getId(),
         ]);
+
+        return self::unwrapAgentEnvelope($payload);
     }
 
     /**
@@ -211,6 +213,22 @@ class AgentGameServerClient
         }
 
         return $this->requestJson($instance, 'GET', sprintf('/v1/instances/%d/console/logs', (int) $instance->getId()), $payload);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public static function unwrapAgentEnvelope(array $payload): array
+    {
+        if (($payload['ok'] ?? null) === true && is_array($payload['data'] ?? null)) {
+            /** @var array<string, mixed> $data */
+            $data = $payload['data'];
+
+            return $data;
+        }
+
+        return $payload;
     }
 
     /**

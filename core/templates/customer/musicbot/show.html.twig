@@ -124,7 +124,7 @@
             <div class="ng-card" style="padding:14px;">
                 <div style="display:flex;justify-content:space-between;gap:8px;"><strong>TeamSpeak</strong><span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--muted') }}">{{ capabilityLabels[tsCap]|default('Nicht verbunden') }}</span></div>
                 <p style="color:var(--ng-text-muted);">{{ ts.enabled|default(false) ? 'Aktiviert' : 'Inaktiv' }} · Profil {{ ts.profile|default('ts3') }} · Backend {{ ts.backend|default('ts3_client_compatible') }}</p>
-                {% if tsCap != 'ready' %}<div class="ui-alert ui-alert--warning">TeamSpeak-Audio ist nur bereit, wenn ein echter Client-Layer verbunden ist.</div>{% endif %}
+                {% if tsCap != 'ready' %}<div class="ui-alert ui-alert--warning">TeamSpeak Client Backend ist noch nicht vom Administrator eingerichtet.</div>{% endif %}
                 {% if ts.lastError|default('') %}<div class="ui-alert ui-alert--danger" style="margin-top:8px;">{{ ts.lastError }}</div>{% endif %}
             </div>
             <div class="ng-card" style="padding:14px;">

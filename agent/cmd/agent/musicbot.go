@@ -98,6 +98,19 @@ func handleMusicbotRepair(job jobs.Job) orchestratorResult {
 	if err := ensureMusicbotDirectories(layout); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
+	binaryRepaired := false
+	if stat, err := os.Stat(layout.binaryPath); err != nil || stat.IsDir() {
+		runtimeSource, sourceErr := resolveMusicbotRuntimeBinary(job)
+		if sourceErr != nil {
+			return orchestratorResult{status: "failed", errorText: sourceErr.Error()}
+		}
+		if _, installErr := installMusicbotRuntimeBinary(runtimeSource, layout.binaryPath); installErr != nil {
+			return orchestratorResult{status: "failed", errorText: installErr.Error()}
+		}
+		binaryRepaired = true
+	} else if err := os.Chmod(layout.binaryPath, 0o755); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("chmod runtime binary: %v", err)}
+	}
 	configValid := false
 	if data, err := os.ReadFile(layout.configPath); err == nil {
 		var decoded map[string]any
@@ -122,7 +135,7 @@ func handleMusicbotRepair(job jobs.Job) orchestratorResult {
 			}
 		}
 	}
-	return orchestratorResult{status: "success", resultPayload: map[string]any{"repaired": true, "config_valid": configValid, "config_permissions": "0600", "systemd_unit": layout.unitPath, "install_path": layout.installPath}}
+	return orchestratorResult{status: "success", resultPayload: map[string]any{"repaired": true, "binary_repaired": binaryRepaired, "runtime_binary": layout.binaryPath, "config_valid": configValid, "config_permissions": "0600", "systemd_unit": layout.unitPath, "install_path": layout.installPath}}
 }
 
 func handleMusicbotUninstall(job jobs.Job) orchestratorResult {
@@ -380,7 +393,7 @@ func resolveMusicbotRuntimeBinary(job jobs.Job) (string, error) {
 	}
 	stat, err := os.Stat(binary)
 	if err != nil {
-		return "", fmt.Errorf("runtime binary not available: %v", err)
+		return "", fmt.Errorf("runtime binary not available at %s: install easywi-musicbot to /usr/local/bin/easywi-musicbot or pass an admin-configured absolute runtime_binary path; %v", binary, err)
 	}
 	if stat.IsDir() {
 		return "", fmt.Errorf("runtime binary path is a directory")

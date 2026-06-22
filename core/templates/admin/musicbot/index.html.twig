@@ -2,7 +2,10 @@
 
 {% set pageTitle = 'Musicbots' %}
 {% set pageSubtitle = 'Native Musicbot-Instanzen verwalten.' %}
-{% set topbarActions = [{ label: 'Musicbot erstellen', href: path('admin_musicbot_new'), variant: 'primary' }] %}
+{% set topbarActions = [
+    { label: 'TeamSpeak Client Backend', href: path('admin_musicbot_teamspeak_backend'), variant: 'ghost' },
+    { label: 'Musicbot erstellen', href: path('admin_musicbot_new'), variant: 'primary' }
+] %}
 
 {% block content %}
 <section class="ng-card" style="padding:20px;">

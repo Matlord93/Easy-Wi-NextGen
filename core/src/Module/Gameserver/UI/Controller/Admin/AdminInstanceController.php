@@ -1439,10 +1439,11 @@ final class AdminInstanceController
             ];
         }
 
+        $runtimePayload = AgentGameServerClient::unwrapAgentEnvelope($status);
         $runtimeStatus = $this->normalizeRuntimeStatus(
-            $status['status'] ?? null,
-            $status['running'] ?? null,
-            $status['online'] ?? null,
+            $runtimePayload['status'] ?? $runtimePayload['runtime_status'] ?? $runtimePayload['state'] ?? $runtimePayload['running_state'] ?? null,
+            $runtimePayload['running'] ?? null,
+            $runtimePayload['online'] ?? null,
         );
         if ($runtimeStatus === null) {
             return [

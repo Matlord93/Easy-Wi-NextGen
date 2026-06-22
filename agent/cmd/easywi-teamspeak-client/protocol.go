@@ -57,4 +57,5 @@ type response struct {
 	State     string `json:"state,omitempty"`
 	ClientID  string `json:"client_id,omitempty"`
 	ChannelID string `json:"channel_id,omitempty"`
+	BuildMode string `json:"build_mode,omitempty"`
 }

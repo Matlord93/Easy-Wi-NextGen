@@ -14,8 +14,10 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Domain\Enum\ModuleKey;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
+use App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig;
 use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
+use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakBackendStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakProfile;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
 use App\Module\Musicbot\Application\MusicbotAutoDjService;
@@ -35,6 +37,7 @@ use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPluginRepository;
 use App\Repository\MusicbotQueueItemRepository;
 use App\Repository\MusicbotScheduleRepository;
+use App\Repository\MusicbotTeamspeakBackendConfigRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -52,6 +55,7 @@ final class AdminMusicbotController
     public function __construct(
         private readonly MusicbotInstanceRepository $instanceRepository,
         private readonly MusicbotConnectionRepository $connectionRepository,
+        private readonly MusicbotTeamspeakBackendConfigRepository $teamspeakBackendConfigRepository,
         private readonly MusicbotQueueItemRepository $queueItemRepository,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly MusicbotAutoDjService $autoDjService,
@@ -102,6 +106,87 @@ final class AdminMusicbotController
             'manifests' => $this->pluginRegistryService->listManifests(),
             'plugins' => $this->pluginRepository->findBy([], ['identifier' => 'ASC']),
         ]));
+    }
+
+    #[Route(path: '/teamspeak-backend', name: 'admin_musicbot_teamspeak_backend', methods: ['GET'])]
+    public function teamspeakBackend(Request $request): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->resolveTeamspeakBackendNode($request);
+        $config = $node instanceof Agent ? $this->teamspeakBackendConfigRepository->findOneByNode($node) : null;
+
+        return new Response($this->twig->render('admin/musicbot/teamspeak_backend.html.twig', [
+            'activeNav' => 'musicbots',
+            'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
+            'selectedNode' => $node,
+            'config' => $config,
+            'form' => $this->buildTeamspeakBackendForm($config, $node),
+            'statuses' => MusicbotTeamspeakBackendStatus::cases(),
+        ]));
+    }
+
+    #[Route(path: '/teamspeak-backend/save', name: 'admin_musicbot_teamspeak_backend_save', methods: ['POST'])]
+    public function saveTeamspeakBackend(Request $request): Response
+    {
+        $actor = $this->requireAdmin($request);
+        $node = $this->requireTeamspeakBackendNode($request);
+        $config = $this->teamspeakBackendConfigRepository->findOneByNode($node) ?? new MusicbotTeamspeakBackendConfig($node);
+        $this->applyTeamspeakBackendRequest($config, $request);
+        $this->entityManager->persist($config);
+        $this->entityManager->flush();
+        $this->auditLogger->log($actor, 'musicbot.teamspeak_backend_saved', ['node_id' => $node->getId()]);
+        $this->flash($request, 'success', 'TeamSpeak Client Backend Konfiguration wurde gespeichert.');
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId()]);
+    }
+
+    #[Route(path: '/teamspeak-backend/{action}', name: 'admin_musicbot_teamspeak_backend_action', requirements: ['action' => 'install|validate|status|test_connection|repair|install_official_client'], methods: ['POST'])]
+    public function teamspeakBackendAction(Request $request, string $action): Response
+    {
+        $actor = $this->requireAdmin($request);
+        $node = $this->requireTeamspeakBackendNode($request);
+        $config = $this->teamspeakBackendConfigRepository->findOneByNode($node);
+        if (!$config instanceof MusicbotTeamspeakBackendConfig) {
+            $this->flash($request, 'error', 'Bitte TeamSpeak Client Backend Konfiguration zuerst speichern.');
+            return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId()]);
+        }
+
+        if ($action === 'install_official_client' && !$request->request->getBoolean('accepted_license_confirmation')) {
+            $this->flash($request, 'error', 'Bitte Lizenz-/Nutzungsbestätigung für den offiziellen TeamSpeak Client bestätigen.');
+            return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId()]);
+        }
+
+        $missing = $action === 'install_official_client'
+            ? $this->missingOfficialClientRequiredFields($config)
+            : $this->missingTeamspeakBackendRequiredFields($config);
+        if ($missing !== []) {
+            $this->flash($request, 'error', 'Fehlende Pflichtfelder: '.implode(', ', $missing));
+            return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId()]);
+        }
+
+        $jobType = 'musicbot.teamspeak_backend.'.($action === 'install' ? 'install' : $action);
+        $payload = $action === 'install_official_client'
+            ? $config->toOfficialClientAgentPayload((string) $actor->getId())
+            : $config->toAgentPayload();
+        $payload += [
+            'node_id' => $node->getId(),
+            'requested_by' => (string) $actor->getId(),
+            'dry_run' => false,
+        ];
+        unset($payload['server_password'], $payload['channel_password'], $payload['bot_token']);
+
+        $job = $this->jobDispatcher->dispatch($node, $jobType, $payload);
+        $config->setLastCheckedAt(new \DateTimeImmutable());
+        $this->entityManager->flush();
+        $this->auditLogger->log($actor, 'musicbot.teamspeak_backend_job_queued', ['node_id' => $node->getId(), 'job_id' => $job->getId(), 'job_type' => $jobType]);
+        $message = $action === 'install_official_client'
+            ? sprintf('Offizieller TeamSpeak Client Installationsjob wurde gestartet. Job-ID: %s', $job->getId())
+            : ($action === 'install'
+            ? sprintf('TeamSpeak Client Backend Installationsprüfung wurde gestartet. Job-ID: %s', $job->getId())
+            : sprintf('TeamSpeak Client Backend Prüfung wurde gestartet. Job-ID: %s', $job->getId()));
+        $this->flash($request, 'success', $message);
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/teamspeak-backend?node_id='.$node->getId().'&last_job_id='.$job->getId()]);
     }
 
     #[Route(path: '/new', name: 'admin_musicbot_new', methods: ['GET'])]
@@ -311,6 +396,116 @@ final class AdminMusicbotController
         return $actor;
     }
 
+    private function resolveTeamspeakBackendNode(Request $request): ?Agent
+    {
+        $nodeId = (string) $request->query->get('node_id', $request->request->get('node_id', ''));
+        if ($nodeId === '') {
+            $nodes = $this->agentRepository->findBy([], ['name' => 'ASC'], 1);
+            return $nodes[0] ?? null;
+        }
+        $node = $this->agentRepository->find($nodeId);
+        return $node instanceof Agent ? $node : null;
+    }
+
+    private function requireTeamspeakBackendNode(Request $request): Agent
+    {
+        $node = $this->resolveTeamspeakBackendNode($request);
+        if (!$node instanceof Agent) {
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException('Agent node not found.');
+        }
+
+        return $node;
+    }
+
+    private function applyTeamspeakBackendRequest(MusicbotTeamspeakBackendConfig $config, Request $request): void
+    {
+        $backendType = (string) $request->request->get('backend_type', 'client_library');
+        if (!in_array($backendType, ['client_library', 'native_sdk'], true)) {
+            $backendType = 'client_library';
+        }
+
+        $config->setBackendType($backendType);
+        $config->setBackendPath(trim((string) $request->request->get('backend_path', '')));
+        $config->setBinaryPath(trim((string) $request->request->get('binary_path', '')));
+        $config->setLibraryPath(trim((string) $request->request->get('library_path', '')));
+        $config->setOpusLibraryPath(trim((string) $request->request->get('opus_library_path', '')) ?: null);
+        $config->setIdentityPath(trim((string) $request->request->get('identity_path', '')) ?: null);
+        $config->setInstallPath(trim((string) $request->request->get('install_path', '/opt/easywi/musicbot/teamspeak-client/')));
+        $config->setVersion(trim((string) $request->request->get('version', '')) ?: null);
+        $config->setChecksum(trim((string) $request->request->get('checksum', '')) ?: null);
+        $config->setAutoInstallEnabled($request->request->getBoolean('auto_install_enabled'));
+        $config->setOfficialClientInstallEnabled($request->request->getBoolean('official_client_install_enabled'));
+        $config->setOfficialClientVersion(trim((string) $request->request->get('official_client_version', '3.6.2')) ?: '3.6.2');
+        $config->setOfficialClientDownloadUrl(trim((string) $request->request->get('official_client_download_url', 'https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run')));
+        $config->setOfficialClientExpectedSha256(trim((string) $request->request->get('official_client_expected_sha256', '')) ?: null);
+        $config->setOfficialClientInstallPath(trim((string) $request->request->get('official_client_install_path', '/opt/easywi/musicbot/teamspeak-client/official-client/')));
+    }
+
+    /** @return string[] */
+    private function missingTeamspeakBackendRequiredFields(MusicbotTeamspeakBackendConfig $config): array
+    {
+        $missing = [];
+        foreach ([
+            'backend_type' => $config->getBackendType(),
+            'backend_path' => $config->getBackendPath(),
+            'binary_path' => $config->getBinaryPath(),
+            'library_path' => $config->getLibraryPath(),
+            'install_path' => $config->getInstallPath(),
+        ] as $key => $value) {
+            if (trim((string) $value) === '') {
+                $missing[] = $key;
+            }
+        }
+
+        return $missing;
+    }
+
+    /** @return string[] */
+    private function missingOfficialClientRequiredFields(MusicbotTeamspeakBackendConfig $config): array
+    {
+        $missing = [];
+        foreach ([
+            'official_client_version' => $config->getOfficialClientVersion(),
+            'official_client_download_url' => $config->getOfficialClientDownloadUrl(),
+            'official_client_install_path' => $config->getOfficialClientInstallPath(),
+        ] as $key => $value) {
+            if (trim((string) $value) === '') {
+                $missing[] = $key;
+            }
+        }
+
+        return $missing;
+    }
+
+    /** @return array<string, mixed> */
+    private function buildTeamspeakBackendForm(?MusicbotTeamspeakBackendConfig $config, ?Agent $node): array
+    {
+        return [
+            'node_id' => $node?->getId() ?? '',
+            'backend_type' => $config?->getBackendType() ?? 'client_library',
+            'backend_path' => $config?->getBackendPath() ?? '/usr/local/bin/easywi-teamspeak-client',
+            'binary_path' => $config?->getBinaryPath() ?? '/usr/local/bin/easywi-teamspeak-client',
+            'library_path' => $config?->getLibraryPath() ?? '/opt/easywi/musicbot/teamspeak-client/libts3client.so',
+            'opus_library_path' => $config?->getOpusLibraryPath() ?? '/opt/easywi/musicbot/teamspeak-client/libopus.so',
+            'identity_path' => $config?->getIdentityPath() ?? '',
+            'install_path' => $config?->getInstallPath() ?? '/opt/easywi/musicbot/teamspeak-client/',
+            'version' => $config?->getVersion() ?? '',
+            'checksum' => $config?->getChecksum() ?? '',
+            'auto_install_enabled' => $config?->isAutoInstallEnabled() ?? false,
+            'status' => $config?->getStatus()->value ?? MusicbotTeamspeakBackendStatus::NotConfigured->value,
+            'last_error' => $this->sanitizeTextForTemplate($config?->getLastError()),
+            'last_checked_at' => $config?->getLastCheckedAt(),
+            'official_client_install_enabled' => $config?->isOfficialClientInstallEnabled() ?? false,
+            'official_client_version' => $config?->getOfficialClientVersion() ?? '3.6.2',
+            'official_client_download_url' => $config?->getOfficialClientDownloadUrl() ?? 'https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run',
+            'official_client_expected_sha256' => $config?->getOfficialClientExpectedSha256() ?? '',
+            'official_client_install_path' => $config?->getOfficialClientInstallPath() ?? '/opt/easywi/musicbot/teamspeak-client/official-client/',
+            'official_client_status' => $config?->getOfficialClientStatus() ?? 'official_client_not_installed',
+            'official_client_last_error' => $this->sanitizeTextForTemplate($config?->getOfficialClientLastError()),
+            'official_client_last_installed_at' => $config?->getOfficialClientLastInstalledAt(),
+        ];
+    }
+
     private function findInstance(int $id): MusicbotInstance
     {
         $instance = $this->instanceRepository->find($id);
@@ -388,6 +583,7 @@ final class AdminMusicbotController
             'backend_path' => trim((string) $request->request->get('teamspeak_backend_path', '')),
             'identity_path' => trim((string) $request->request->get('teamspeak_identity_path', '')),
             'library_path' => trim((string) $request->request->get('teamspeak_library_path', '')),
+            'opus_library_path' => trim((string) $request->request->get('teamspeak_opus_library_path', '')),
             'binary_path' => trim((string) $request->request->get('teamspeak_binary_path', '')),
             'command_prefix' => trim((string) $request->request->get('teamspeak_command_prefix', '!')) ?: '!',
             'commands_enabled' => $request->request->getBoolean('teamspeak_commands_enabled'),
@@ -584,8 +780,9 @@ final class AdminMusicbotController
             'teamspeak_backend_path' => '',
             'teamspeak_identity_path' => '',
             'teamspeak_library_path' => '',
+            'teamspeak_opus_library_path' => '',
             'teamspeak_binary_path' => '',
-            'teamspeak_backend_types' => ['placeholder' => 'Placeholder', 'native_sdk' => 'Native SDK', 'external_client_bridge' => 'External Client Bridge', 'disabled' => 'Disabled'],
+            'teamspeak_backend_types' => ['client_library' => 'Client Library', 'native_sdk' => 'Native SDK', 'disabled' => 'Disabled'],
             'teamspeak_command_prefix' => '!',
             'teamspeak_commands_enabled' => true,
             'teamspeak_events_enabled' => true,

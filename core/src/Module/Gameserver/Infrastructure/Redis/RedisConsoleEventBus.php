@@ -48,6 +48,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
 
     public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
     {
+        $this->refreshSubscriberTtl($instanceId);
         $this->redis->setOption(\Redis::OPT_READ_TIMEOUT, 1.0);
 
         try {
@@ -95,28 +96,102 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
 
     public function getSubscriberCount(int $instanceId): int
     {
-        return (int) $this->redis->get($this->subscriberKey($instanceId));
+        $tracked = (int) $this->redis->get($this->subscriberKey($instanceId));
+        $pubSub = $this->getPubSubSubscriberCount($instanceId);
+
+        if ($pubSub > 0 && $tracked <= 0) {
+            $this->repairSubscriberKey($instanceId);
+        }
+
+        return max($tracked, $pubSub);
     }
 
     public function getInstancesWithSubscribers(): array
     {
+        $out = [];
         $keys = $this->redis->keys('console_subscribers:*');
-        if (!is_array($keys)) {
+        if (is_array($keys)) {
+            foreach ($keys as $key) {
+                if (!is_string($key) || !str_contains($key, ':')) {
+                    continue;
+                }
+                $id = (int) substr($key, strrpos($key, ':') + 1);
+                if ($id > 0 && (int) $this->redis->get($this->subscriberKey($id)) > 0) {
+                    $out[] = $id;
+                }
+            }
+        }
+
+        foreach ($this->getInstancesWithPubSubSubscribers() as $id) {
+            $out[] = $id;
+            if ((int) $this->redis->get($this->subscriberKey($id)) <= 0) {
+                $this->repairSubscriberKey($id);
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /** @return list<int> */
+    private function getInstancesWithPubSubSubscribers(): array
+    {
+        try {
+            $channels = $this->redis->rawCommand('PUBSUB', 'CHANNELS', 'console:*');
+        } catch (\Throwable) {
+            return [];
+        }
+
+        if (!is_array($channels)) {
             return [];
         }
 
         $out = [];
-        foreach ($keys as $key) {
-            if (!is_string($key) || !str_contains($key, ':')) {
+        foreach ($channels as $channel) {
+            if (!is_string($channel) || !preg_match('/^console:(\d+)$/', $channel, $matches)) {
                 continue;
             }
-            $id = (int) substr($key, strrpos($key, ':') + 1);
-            if ($id > 0 && $this->getSubscriberCount($id) > 0) {
+            $id = (int) $matches[1];
+            if ($id > 0 && $this->getPubSubSubscriberCount($id) > 0) {
                 $out[] = $id;
             }
         }
 
         return array_values(array_unique($out));
+    }
+
+    private function getPubSubSubscriberCount(int $instanceId): int
+    {
+        try {
+            $result = $this->redis->rawCommand('PUBSUB', 'NUMSUB', $this->channel($instanceId));
+        } catch (\Throwable) {
+            return 0;
+        }
+
+        if (!is_array($result)) {
+            return 0;
+        }
+
+        if (array_key_exists($this->channel($instanceId), $result)) {
+            return (int) $result[$this->channel($instanceId)];
+        }
+
+        for ($i = 0, $count = count($result); $i < $count - 1; $i += 2) {
+            if ($result[$i] === $this->channel($instanceId)) {
+                return (int) $result[$i + 1];
+            }
+        }
+
+        return 0;
+    }
+
+    private function repairSubscriberKey(int $instanceId): void
+    {
+        try {
+            $this->redis->setex($this->subscriberKey($instanceId), 60, '1');
+        } catch (\Throwable) {
+            // Pub/Sub discovery must remain a best-effort enhancement; the
+            // legacy TTL-key mechanism continues to work if repair fails.
+        }
     }
 
     private function channel(int $instanceId): string

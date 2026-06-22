@@ -186,7 +186,7 @@ func (h *handler) handleSendOpusFrame(req request) response {
 
 func (h *handler) handleStatus() response {
 	if !h.backend.Connected() {
-		return response{OK: true, State: stateDisconnected}
+		return response{OK: true, State: stateDisconnected, BuildMode: h.backend.Name()}
 	}
 	return response{
 		OK:        true,
@@ -194,6 +194,7 @@ func (h *handler) handleStatus() response {
 		State:     stateConnected,
 		ClientID:  h.backend.ClientID(),
 		ChannelID: h.backend.CurrentChannelID(),
+		BuildMode: h.backend.Name(),
 	}
 }
 

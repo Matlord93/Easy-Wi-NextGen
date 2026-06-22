@@ -99,6 +99,18 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleMusicbotQueueSync(job)
 	case "musicbot.connection.test":
 		return handleMusicbotConnectionTest(job)
+	case "musicbot.teamspeak_backend.install":
+		return handleMusicbotTeamspeakBackendInstall(job)
+	case "musicbot.teamspeak_backend.status":
+		return handleMusicbotTeamspeakBackendStatus(job)
+	case "musicbot.teamspeak_backend.repair":
+		return handleMusicbotTeamspeakBackendRepair(job)
+	case "musicbot.teamspeak_backend.validate":
+		return handleMusicbotTeamspeakBackendValidate(job)
+	case "musicbot.teamspeak_backend.test_connection":
+		return handleMusicbotTeamspeakBackendTestConnection(job)
+	case "musicbot.teamspeak_backend.install_official_client":
+		return handleMusicbotTeamspeakBackendInstallOfficialClient(job)
 	case "ts3.virtual.create":
 		return handleTs3VirtualCreate(job)
 	case "ts3.virtual.action":

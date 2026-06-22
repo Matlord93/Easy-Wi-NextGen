@@ -47,6 +47,7 @@ final class MusicbotPlaybackStateFeedbackTest extends TestCase
         $this->inject($applier, 'sinusbotNodeRepository', $this->nullRepo(\App\Repository\SinusbotNodeRepository::class));
         $this->inject($applier, 'musicbotInstanceRepository', $instanceRepo);
         $this->inject($applier, 'musicbotConnectionRepository', $this->nullRepo(\App\Repository\MusicbotConnectionRepository::class));
+        $this->inject($applier, 'musicbotTeamspeakBackendConfigRepository', $this->nullRepo(\App\Repository\MusicbotTeamspeakBackendConfigRepository::class));
         $this->inject($applier, 'ts3InstanceRepository', $this->nullRepo(\App\Repository\Ts3InstanceRepository::class));
         $this->inject($applier, 'ts6InstanceRepository', $this->nullRepo(\App\Repository\Ts6InstanceRepository::class));
         $this->inject($applier, 'ts3VirtualServerRepository', $this->nullRepo(\App\Repository\Ts3VirtualServerRepository::class));

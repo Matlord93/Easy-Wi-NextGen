@@ -79,4 +79,45 @@ final class AgentJobValidatorMusicbotTest extends TestCase
             'instance_id' => '42',
         ]));
     }
+
+    public function testMusicbotTeamspeakBackendInstallRequiresLocalBackendFields(): void
+    {
+        $validator = new AgentJobValidator();
+
+        $payload = [
+            'node_id' => 'agent-1',
+            'backend_type' => 'client_library',
+            'backend_path' => '/usr/local/bin/easywi-teamspeak-client',
+            'binary_path' => '/usr/local/bin/easywi-teamspeak-client',
+            'library_path' => '/opt/easywi/musicbot/teamspeak-client/libts3client.so',
+            'opus_library_path' => '/opt/easywi/musicbot/teamspeak-client/libopus.so',
+            'install_path' => '/opt/easywi/musicbot/teamspeak-client/',
+            'requested_by' => '1',
+            'dry_run' => false,
+        ];
+
+        self::assertSame([], $validator->validate('musicbot.teamspeak_backend.install', $payload));
+        self::assertContains('Missing required field: library_path', $validator->validate('musicbot.teamspeak_backend.install', array_diff_key($payload, ['library_path' => true])));
+        self::assertArrayNotHasKey('server_password', $payload);
+        self::assertArrayNotHasKey('channel_password', $payload);
+    }
+
+    public function testMusicbotTeamspeakOfficialClientInstallRequiresConfirmationPayload(): void
+    {
+        $validator = new AgentJobValidator();
+        $payload = [
+            'node_id' => 'agent-1',
+            'version' => '3.6.2',
+            'download_url' => 'https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run',
+            'expected_sha256' => '',
+            'install_path' => '/opt/easywi/musicbot/teamspeak-client/official-client/',
+            'requested_by' => '1',
+            'accepted_license_confirmation' => true,
+        ];
+
+        self::assertSame([], $validator->validate('musicbot.teamspeak_backend.install_official_client', $payload));
+        self::assertContains('Missing required field: accepted_license_confirmation', $validator->validate('musicbot.teamspeak_backend.install_official_client', array_diff_key($payload, ['accepted_license_confirmation' => true])));
+        self::assertArrayNotHasKey('server_password', $payload);
+        self::assertArrayNotHasKey('channel_password', $payload);
+    }
 }

@@ -47,6 +47,9 @@
     let i18n = defaultI18n;
     try {
         i18n = { ...defaultI18n, ...(root.dataset.i18n ? JSON.parse(root.dataset.i18n) : {}) };
+        if ((root.dataset.streamUnavailableMessage || '').trim() !== '') {
+            i18n.streamUnavailable = root.dataset.streamUnavailableMessage.trim();
+        }
     } catch (_) {
         i18n = defaultI18n;
     }
@@ -287,7 +290,9 @@
                 window.clearInterval(fallbackRetryTimer);
                 fallbackRetryTimer = null;
             }
-            markStreamHealthy();
+            if (healthEl) {
+                healthEl.textContent = tr('streamReconnecting', { attempt: 0 });
+            }
         };
         const handleStreamEvent = (event) => {
             let payload = {};
@@ -297,11 +302,11 @@
                 return;
             }
 
-            if (payload.type === 'ping' || payload.type === 'status' || payload.type === 'chunk' || payload.chunk_base64) {
-                markStreamHealthy();
+            if (payload.type === 'ping') {
+                return;
             }
 
-            if (payload.chunk_base64) {
+            if (payload.type === 'chunk' || payload.chunk_base64) {
                 const seq = Number(payload.seq ?? -1);
                 if (Number.isFinite(seq) && seq >= 0) {
                     if (seq < lastSeqSeen) {
@@ -319,6 +324,7 @@
                 }
                 const decoded = decodeBase64(payload.chunk_base64);
                 if (decoded) {
+                    markStreamHealthy();
                     appendLine(decoded);
                 }
             }

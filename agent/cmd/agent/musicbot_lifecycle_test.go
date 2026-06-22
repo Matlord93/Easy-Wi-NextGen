@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"easywi/agent/internal/jobs"
@@ -86,6 +87,21 @@ func TestMusicbotUpdateFailsWhenRuntimeBinaryMissing(t *testing.T) {
 	result := handleMusicbotUpdate(job)
 	if result.status != "failed" {
 		t.Fatalf("update status=%s, want failed", result.status)
+	}
+	if !strings.Contains(result.errorText, "install easywi-musicbot to /usr/local/bin/easywi-musicbot") {
+		t.Fatalf("update error=%q, want actionable missing-binary message", result.errorText)
+	}
+}
+
+func TestMusicbotRepairInstallsMissingRuntimeBinary(t *testing.T) {
+	t.Parallel()
+	job, installPath, _ := musicbotLifecycleJob(t)
+	if result := handleMusicbotRepair(job); result.status != "success" {
+		t.Fatalf("repair failed: %s", result.errorText)
+	}
+	assertFileExists(t, filepath.Join(installPath, "bin", "easywi-musicbot"))
+	if mode := fileMode(t, filepath.Join(installPath, "bin", "easywi-musicbot")); mode.Perm() != 0o755 {
+		t.Fatalf("runtime binary mode = %v, want 0755", mode.Perm())
 	}
 }
 

@@ -20,12 +20,14 @@ use App\Module\Musicbot\Application\MusicbotRuntimeEventServiceInterface;
 use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
+use App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig;
 use App\Module\Musicbot\Domain\Enum\MusicbotConnectionStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotInstanceRepositoryInterface;
+use App\Repository\MusicbotTeamspeakBackendConfigRepository;
 use App\Repository\SinusbotNodeRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts3NodeRepository;
@@ -44,6 +46,7 @@ final class AgentJobResultApplier
         private readonly SinusbotNodeRepository $sinusbotNodeRepository,
         private readonly MusicbotInstanceRepositoryInterface $musicbotInstanceRepository,
         private readonly MusicbotConnectionRepository $musicbotConnectionRepository,
+        private readonly MusicbotTeamspeakBackendConfigRepository $musicbotTeamspeakBackendConfigRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
         private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
@@ -107,6 +110,11 @@ final class AgentJobResultApplier
 
     private function applyMusicbotResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
     {
+        if (str_starts_with($job->getType(), 'musicbot.teamspeak_backend.')) {
+            $this->applyMusicbotTeamspeakBackendResult($job, $status, $payload);
+            return;
+        }
+
         if ($job->getType() === 'musicbot.connection.test') {
             $this->applyMusicbotConnectionTestResult($job, $status, $payload);
             return;
@@ -232,6 +240,49 @@ final class AgentJobResultApplier
             } elseif ($status === AgentJobStatus::Success) {
                 $this->musicbotRuntimeEventService->record($instance, 'playback.command', 'info', sprintf('Playback command "%s" accepted.', $action), ['job_id' => $job->getId(), 'action' => $action]);
             }
+        }
+    }
+
+    private function applyMusicbotTeamspeakBackendResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
+    {
+        $nodeId = $job->getPayload()['node_id'] ?? null;
+        if (!is_int($nodeId) && !is_string($nodeId)) {
+            return;
+        }
+
+        $config = $this->musicbotTeamspeakBackendConfigRepository->findOneByNode($job->getNode());
+        if (!$config instanceof MusicbotTeamspeakBackendConfig) {
+            return;
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        if ($status === AgentJobStatus::Success) {
+            $config->applyAgentResult($payload + ['status' => 'ready']);
+            if (($payload['status'] ?? '') === 'connected') {
+                $config->applyAgentResult($payload + ['status' => 'connected']);
+            }
+            $config->setLastError(null);
+            $eventType = match ($job->getType()) {
+                'musicbot.teamspeak_backend.install', 'musicbot.teamspeak_backend.install_official_client' => 'teamspeak_backend.installed',
+                default => 'teamspeak_backend.checked',
+            };
+            $this->recordNodeScopedMusicbotEvent((string) $nodeId, $eventType, 'info', 'TeamSpeak Client Backend validation completed.', ['job_id' => $job->getId(), 'status' => $config->getStatus()->value]);
+            return;
+        }
+
+        $config->applyAgentResult($payload + ['status' => $payload['status'] ?? 'failed', 'last_error' => $this->extractError($job, $payload)]);
+        $this->recordNodeScopedMusicbotEvent((string) $nodeId, 'teamspeak_backend.install_failed', 'error', 'TeamSpeak Client Backend validation failed.', ['job_id' => $job->getId(), 'status' => $config->getStatus()->value, 'error' => $config->getLastError()]);
+    }
+
+    /** @param array<string, mixed> $context */
+    private function recordNodeScopedMusicbotEvent(string $nodeId, string $type, string $level, string $message, array $context = []): void
+    {
+        if (!$this->musicbotInstanceRepository instanceof MusicbotInstanceRepository) {
+            return;
+        }
+        $instance = $this->musicbotInstanceRepository->findOneBy(['node' => $nodeId], ['updatedAt' => 'DESC']);
+        if ($instance instanceof MusicbotInstance) {
+            $this->musicbotRuntimeEventService->record($instance, $type, $level, $message, $context);
         }
     }
 

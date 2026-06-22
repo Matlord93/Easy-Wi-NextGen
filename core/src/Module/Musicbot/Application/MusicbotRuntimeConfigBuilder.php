@@ -108,12 +108,14 @@ final class MusicbotRuntimeConfigBuilder
 
         return [
             'enabled' => true,
+            'platform' => 'teamspeak',
             'profile' => (string) ($config['profile'] ?? 'ts3'),
             'backend' => (string) ($config['backend'] ?? 'ts3_client_compatible'),
             'backend_type' => (string) ($config['backend_type'] ?? 'placeholder'),
             'backend_path' => (string) ($config['backend_path'] ?? ''),
             'identity_path' => (string) ($config['identity_path'] ?? ''),
             'library_path' => (string) ($config['library_path'] ?? ''),
+            'opus_library_path' => (string) ($config['opus_library_path'] ?? ''),
             'binary_path' => (string) ($config['binary_path'] ?? ''),
             'host' => (string) ($config['host'] ?? ''),
             'port' => (int) ($config['port'] ?? 9987),

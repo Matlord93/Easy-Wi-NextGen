@@ -98,7 +98,13 @@ final class ConsoleRelayCommand extends Command
                 $attempt++;
                 $sleepMs = min(30_000, 1000 * (2 ** min($attempt, 5)) + random_int(0, 300));
                 $correlationId = bin2hex(random_bytes(6));
-                $this->logger->warning('console relay reconnect', [
+                $this->logger->warning(sprintf(
+                    'console relay reconnect instance=%d attempt=%d error="%s" exception="%s"',
+                    $instanceId,
+                    $attempt,
+                    $e->getMessage(),
+                    $e::class,
+                ), [
                     'instance_id' => $instanceId,
                     'attempt' => $attempt,
                     'error' => $e->getMessage(),

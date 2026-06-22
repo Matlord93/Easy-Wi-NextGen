@@ -47,7 +47,10 @@
             <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
                 <label><span>Profil</span><select name="teamspeak_profile">{% for profile in form.teamspeak_profiles %}<option value="{{ profile.value }}" {% if form.teamspeak_profile == profile.value %}selected{% endif %}>{{ profile.label }}</option>{% endfor %}</select></label>
                 <label><span>Backend</span><select name="teamspeak_backend_type">{% for value,label in form.teamspeak_backend_types %}<option value="{{ value }}" {% if form.teamspeak_backend_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-                <label><span>Backend Path (optional)</span><input name="teamspeak_backend_path" value="{{ form.teamspeak_backend_path }}" placeholder="/opt/easywi/ts-bridge"></label>
+                <label><span>Backend Path</span><input name="teamspeak_backend_path" value="{{ form.teamspeak_backend_path }}" placeholder="/usr/local/bin/easywi-teamspeak-client"></label>
+                <label><span>Library Path</span><input name="teamspeak_library_path" value="{{ form.teamspeak_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libts3client.so"></label>
+                <label><span>Opus Library Path (optional)</span><input name="teamspeak_opus_library_path" value="{{ form.teamspeak_opus_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libopus.so"></label>
+                <label><span>Binary Path</span><input name="teamspeak_binary_path" value="{{ form.teamspeak_binary_path }}" placeholder="/usr/local/bin/easywi-teamspeak-client"></label>
                 <label><span>Identity Path (optional)</span><input name="teamspeak_identity_path" value="{{ form.teamspeak_identity_path }}" placeholder="/srv/musicbot/identity.ini"></label>
                 <label><span>Command Prefix</span><input name="teamspeak_command_prefix" value="{{ form.teamspeak_command_prefix }}" placeholder="!"></label>
                 <label><span>Commands</span><input type="checkbox" name="teamspeak_commands_enabled" value="1" {% if form.teamspeak_commands_enabled %}checked{% endif %}> aktiv</label>
@@ -62,7 +65,7 @@
                 <label><span>Server Passwort (optional)</span><input type="password" name="teamspeak_server_password" placeholder="leer lassen, wird verschlüsselt gespeichert"></label>
                 <label><span>Channel Passwort (optional)</span><input type="password" name="teamspeak_channel_password" placeholder="leer lassen, wird verschlüsselt gespeichert"></label>
             </div>
-            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">TeamSpeak 3 und TeamSpeak 6 nutzen denselben TS3-client-kompatiblen Backend-Weg. Placeholder ist kein echter Audio-Client; Native SDK und External Bridge sind vorbereitete Optionen und benötigen installierte Backend-Komponenten.</p>
+            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">TeamSpeak 3 und TeamSpeak 6 nutzen denselben TS3-client-kompatiblen Backend-Weg. Easy-Wi baut TeamSpeak nicht nach und integriert keine Fremd-Musicbot-Systeme; ein Administrator muss einen erlaubten lokalen Client-Layer bereitstellen und validieren.</p>
         </section>
         <div style="display:flex;gap:18px;align-items:center;">
             <label><input type="checkbox" name="discord_enabled" value="1" {% if form.discord_enabled %}checked{% endif %}> Discord aktiv</label>

@@ -578,6 +578,97 @@ CI secrets required:
 
 ## Run log
 
+### Run #7 — 2026-06-22 (branch `claude/intelligent-newton-03ve4w`) — Finale Validierung offizieller TeamSpeak Client Install-Flow
+
+| Parameter | Wert |
+|-----------|------|
+| Datum | 2026-06-22 |
+| Branch | `claude/intelligent-newton-03ve4w` |
+| Umgebung | Remote-Container, Go 1.25.11, PHP 8.4.19, GCC 13, kein Docker-Daemon, kein `libts3client.so`, kein echter TS3-Server |
+| TeamSpeak E2E | **ausgeführt** — `easywi-ts-e2e-helper` als NDJSON-Fixture (`client_library`) |
+| Discord E2E | nicht ausgeführt |
+
+**Ergebnis: 71 PASS, 3 WARN, 0 FAIL** (exit code 2 = nur Warnungen)
+
+| Sektion | Ergebnis | Notiz |
+|---------|----------|-------|
+| Prerequisites (8) | ✅ 8/8 PASS | Alle Tools vorhanden |
+| Symfony Core — Routen (12) | ✅ 12/12 PASS | Alle Musicbot-Routen vorhanden |
+| Symfony Core — Agent-Handler | ✅ 3/3 PASS | install, status, queue.sync registriert |
+| Symfony Core — Doctrine migrations | ⚠️ WARN | Kein MariaDB in dieser Umgebung — erwartet |
+| Runtime build + stdin/stdout Protokoll | ✅ 10/10 PASS | |
+| Runtime — Control-Socket | ✅ 4/4 PASS | Socket stabil |
+| Bridge build + Protokoll | ✅ 13/13 PASS | |
+| Discord E2E | ⚠️ übersprungen | Token nicht konfiguriert |
+| TeamSpeak Phase A — Bridge-Direkttest | ✅ 6/6 PASS | connected → joined → opus → left; kein Secret in stdout/stderr |
+| TeamSpeak Phase B — Runtime + AudioPipeline | ✅ 8/8 PASS | `capability_status=ready`, `connected=true`, WAV queued+played, no secrets |
+| TeamSpeak `frames_sent > 0` | ⚠️ WARN | ffmpeg nicht im Container; auf ubuntu-latest CI PASS |
+
+**Go-Unit-Tests (16/16 PASS):**
+
+| Test | Ergebnis |
+|------|----------|
+| `TestTeamspeakBackendValidPathAccepted` | ✅ |
+| `TestTeamspeakBackendMissingPathIsBinaryMissing` | ✅ |
+| `TestTeamspeakBackendNonExecutablePath` | ✅ |
+| `TestTeamspeakBackendMissingLibraryAndOpus` | ✅ |
+| `TestTeamspeakBackendStubBuildRequiresClientBackend` | ✅ |
+| `TestTeamspeakBackendConnectionTestConnectedAndSecretMasked` | ✅ |
+| `TestTeamspeakBackendRejectsForeignMusicbotBinaries` | ✅ |
+| `TestTeamspeakOfficialClientURLAllowlist` | ✅ |
+| `TestTeamspeakOfficialClientChecksumMismatch` | ✅ |
+| `TestTeamspeakOfficialClientDownloadFailed` | ✅ |
+| `TestTeamspeakOfficialClientInstallerWithoutLibrary` | ✅ |
+| `TestTeamspeakOfficialClientInstallerWithLibrary` | ✅ |
+| `TestTeamspeakOfficialClientForeignRedirectBlocked` | ✅ |
+| `TestTeamspeakOfficialClientInstallPathInjectionRejected` | ✅ |
+| `TestTeamspeakOfficialClientInstallerSuggestsBackendType` | ✅ |
+| `TestTeamspeakOfficialClientRequiresConfirmation` | ✅ |
+
+**PHP-Unit-Tests (6/6 PASS):**
+
+| Test | Ergebnis |
+|------|----------|
+| `AgentPayloadContainsNoSecretsAndIncludesExpectedChecksum` | ✅ |
+| `AgentResultUpdatesReadyAndFailureStatuses` | ✅ |
+| `OfficialClientResultAppliesBackendSuggestions` | ✅ |
+| `OfficialClientResultDoesNotOverwriteExistingBackendPath` | ✅ |
+| `AdminTemplateShowsInstallRegisterButtonAndNoDownloadPromise` | ✅ |
+| `CustomerTemplateShowsAdminMissingBackendMessage` | ✅ |
+
+**Validierungsergebnis des offiziellen TeamSpeak Client Install-Flows:**
+
+| Prüfung | Ergebnis | Notiz |
+|---------|----------|-------|
+| URL-Allowlist (nur `https://files.teamspeak-services.com`) | ✅ | `validateTeamspeakOfficialClientURL` erzwingt Host + HTTPS |
+| Fremd-Redirect blockiert | ✅ | `CheckRedirect` validiert jeden Redirect-Schritt; Test grün |
+| SHA-256-Prüfung bei Mismatch | ✅ | `official_client_checksum_failed` |
+| Download-Fehler sauber gemeldet | ✅ | `official_client_download_failed` |
+| Installer ohne libts3client.so | ✅ | `official_client_installed_library_missing`, kein Fake-Ready |
+| Installer mit libts3client.so | ✅ | `official_client_installed`, `backend_type_suggestion=client_library` |
+| Kein Fake-Ready ohne Library | ✅ | Status bleibt `official_client_installed_library_missing` |
+| Shell-Injection über install_path blockiert | ✅ | Null-Byte, Newline, relative Pfade, `/`, kein `/teamspeak-client` abgelehnt |
+| Bestätigung erforderlich | ✅ | Ohne `accepted_license_confirmation=true` → `official_client_invalid` |
+| Keine Secrets in Payload/Logs | ✅ | `server_password`, `channel_password` nicht im Job-Payload |
+| Backend-Suggestion wenn Library gefunden | ✅ | `backend_type_suggestion=client_library`, `backend_path_suggestion` wenn Binary vorhanden |
+| PHP-Entity wendet Suggestion an (nur wenn leer) | ✅ | Bestehender `backendPath` wird nicht überschrieben |
+| UI-Statusmeldung `official_client_installed` | ✅ | Erfolgsmeldung + Hinweis auf validate |
+| UI-Statusmeldung `official_client_installed_library_missing` | ✅ | Warnung ohne Fake-Ready |
+
+**Einschränkungen dieser Umgebung (kein Fake-Ready):**
+
+| Voraussetzung | Status | Was fehlt |
+|---|---|---|
+| Echter TS3/TS6-Testserver | ❌ | `MUSICBOT_E2E_TS_HOST` auf isolierten Server zeigen; Docker-Anleitung in §3 |
+| `libts3client.so` | ❌ | Proprietäre SDK-Library — muss vom Admin nach Registrierung bei TeamSpeak SDK bereitgestellt werden |
+| `libopus-dev` | ⚠️ | Im Container nicht installiert; auf ubuntu-latest CI verfügbar |
+| Echter Panel-Klick | ❌ | Kein Browser-Zugriff im Remote-Container |
+| `frames_sent > 0` | ⚠️ | ffmpeg fehlt im Container; in CI (ubuntu-latest) PASS |
+
+Das Ergebnis ist korrekt: Der Stack ist vollständig implementiert und getestet. `capability_status=ready` und `connected=true` wurden mit dem `easywi-ts-e2e-helper` verifiziert. Echter Voice-Betrieb mit `libts3client.so` und einem isolierten TS3-Server bleibt das finale Gate für TeamSpeak-Voice-`stable`.
+
+---
+
 ### Run #6 — 2026-06-22 (branch `claude/friendly-keller-m3uwuh`) — ts3clientlib Build + Helper E2E
 
 | Parameter | Wert |
@@ -834,3 +925,55 @@ Nach Erfolg: Discord Voice von `beta/experimental` auf `beta` (oder `stable`) ho
 | `scripts/musicbot-live-e2e.sh` | Live E2E script |
 | `docs/release/musicbot-production-readiness.md` | Release gate checklist |
 | `docs/architecture/musicbot-teamspeak-external-bridge-protocol.md` | Bridge IPC protocol specification |
+
+## Managed TeamSpeak Client Backend E2E
+
+TeamSpeak live E2E is optional and must only use disposable test servers, never production TeamSpeak servers. Easy-Wi does not implement the TeamSpeak protocol and does not integrate SinusBot, TS3AudioBot, Lavalink, or another Musicbot system. The live path requires an administrator-provided, allowed TeamSpeak client/SDK layer installed on the node.
+
+Build and install the helper with the real client-library backend:
+
+```bash
+cd agent
+CGO_ENABLED=1 go build -tags ts3clientlib -o easywi-teamspeak-client ./cmd/easywi-teamspeak-client
+sudo install -m 0755 easywi-teamspeak-client /usr/local/bin/easywi-teamspeak-client
+```
+
+Place the licensed libraries locally, for example:
+
+```text
+/opt/easywi/musicbot/teamspeak-client/libts3client.so
+/opt/easywi/musicbot/teamspeak-client/libopus.so
+```
+
+Before running `scripts/musicbot-live-e2e.sh`, validate the node with `musicbot.teamspeak_backend.status` and `musicbot.teamspeak_backend.test_connection`. Expected statuses are:
+
+- `client_backend_required` for stub builds.
+- `ready` only after a real client layer is installed and validation succeeds.
+- `connected` only after the connection/join test succeeds.
+- `failed` for bad credentials or connection errors; secrets must be redacted from output.
+
+### Panel-driven backend registration check
+
+Before enabling TeamSpeak live E2E, verify the admin panel flow:
+
+1. Open **Admin → Musicbot → TeamSpeak Client Backend**.
+2. Save the node-scoped paths for `/usr/local/bin/easywi-teamspeak-client`, `/opt/easywi/musicbot/teamspeak-client/libts3client.so`, and Opus.
+3. Click **Client Backend installieren/registrieren**.
+4. Confirm the queued `musicbot.teamspeak_backend.install` job contains `backend_path`, `binary_path`, `library_path`, `opus_library_path`, `install_path`, `node_id`, `requested_by`, and `dry_run=false`.
+5. Confirm the job payload contains no TeamSpeak server/channel passwords and no proprietary file content.
+6. Use **Status aktualisieren** or **Backend prüfen** until the status is `ready`; stub builds must stay `client_backend_required`.
+
+Only after the panel shows `ready` or a test shows `connected` should customers see TeamSpeak voice as usable. Otherwise the customer UI must show: "TeamSpeak Client Backend ist noch nicht vom Administrator eingerichtet."
+
+### Optional official-client install test
+
+The admin-triggered official-client install path is separate from normal backend validation. Test it only with an explicit admin confirmation:
+
+1. Open **Admin → Musicbot → TeamSpeak Client Backend**.
+2. Enable the optional official client install fields and keep version `3.6.2` unless testing an approved update.
+3. Use the default TeamSpeak URL or another URL on `files.teamspeak-services.com`.
+4. Set `official_client_expected_sha256` when a known checksum is available.
+5. Tick the license/usage confirmation checkbox and click **Offiziellen TeamSpeak Client installieren**.
+6. Verify `musicbot.teamspeak_backend.install_official_client` contains no TeamSpeak server/channel passwords.
+7. Verify failed checksum/download cases report `official_client_checksum_failed` / `official_client_download_failed`.
+8. If `libts3client.so` is not found, verify `official_client_installed_library_missing` and no fake `ready` state.

@@ -391,3 +391,86 @@ Audio frames reach the bridge but the SDK is not transmitting them to the server
 ```bash
 which ffmpeg || echo "ffmpeg missing — install ffmpeg"
 ```
+
+## Managed Easy-Wi Backend Registration
+
+Easy-Wi does **not** rebuild or reimplement TeamSpeak. A production TeamSpeak Musicbot backend is a locally provided, administrator-approved TeamSpeak client or SDK layer that is registered with Easy-Wi and validated on the node.
+
+Required admin values for `Admin → Musicbot → TeamSpeak Client Backend` are stored in the database, not in customer-specific environment variables:
+
+- `backend_type`: `client_library` or `native_sdk`.
+- `backend_path` / `binary_path`: usually `/usr/local/bin/easywi-teamspeak-client`.
+- `library_path`: `/opt/easywi/musicbot/teamspeak-client/libts3client.so` or a directory containing `libts3client.so`.
+- `opus_library_path`: optional explicit `/opt/easywi/musicbot/teamspeak-client/libopus.so`; if omitted, the validator also checks the SDK directory and common system library paths.
+- `identity_path`: optional TeamSpeak identity file with restrictive permissions.
+- `install_path`, `version`, `checksum`, `auto_install_enabled`, `status`, `last_error`, and `last_checked_at`.
+
+No proprietary TeamSpeak SDK/client files are committed to this repository, and the agent never downloads them automatically. Administrators must obtain and place the allowed files according to their license.
+
+### Build the managed helper
+
+```bash
+cd agent
+CGO_ENABLED=1 go build -tags ts3clientlib -o easywi-teamspeak-client ./cmd/easywi-teamspeak-client
+sudo install -m 0755 easywi-teamspeak-client /usr/local/bin/easywi-teamspeak-client
+```
+
+### Install the local client layer
+
+```bash
+sudo install -d -m 0755 /opt/easywi/musicbot/teamspeak-client
+sudo install -m 0644 libts3client.so /opt/easywi/musicbot/teamspeak-client/libts3client.so
+sudo install -m 0644 libopus.so /opt/easywi/musicbot/teamspeak-client/libopus.so
+```
+
+### Validate through the agent
+
+Use the panel buttons or dispatch the corresponding agent jobs:
+
+- `musicbot.teamspeak_backend.status`
+- `musicbot.teamspeak_backend.validate`
+- `musicbot.teamspeak_backend.repair`
+- `musicbot.teamspeak_backend.test_connection`
+
+The validator checks absolute paths, executable bits, readable `libts3client.so`, available `libopus.so`/`libopus.so.0`, optional identity permissions, SHA-256 checksum when configured, and rejects known third-party Musicbot binaries such as SinusBot, TS3AudioBot, and Lavalink. A stub build reports `client_backend_required`; it must never be shown as `ready`.
+
+### Admin panel registration button
+
+Use **Admin → Musicbot → TeamSpeak Client Backend** after the helper and licensed libraries have been placed on the node. The button **"Client Backend installieren/registrieren"** dispatches `musicbot.teamspeak_backend.install` with the saved node-scoped database configuration.
+
+The button performs local registration and validation only:
+
+- It does **not** download `libts3client.so`, `libopus.so`, SDK archives, or any proprietary TeamSpeak files.
+- It does **not** call `curl`/`wget` or fetch TeamSpeak assets from the internet.
+- It sends path/checksum metadata to the agent, not TeamSpeak server passwords or channel passwords.
+- It validates absolute `backend_path`, executable permissions, `library_path`, `opus_library_path`, optional `identity_path`, checksum, symlink safety, and blocked binary names.
+
+Typical panel results:
+
+| Status | Panel message | Fix |
+| --- | --- | --- |
+| `ready` / `connected` | TeamSpeak Client Backend ist bereit. | The backend can be used by Musicbot instances. |
+| `client_backend_required` | easywi-teamspeak-client wurde ohne ts3clientlib gebaut. | Rebuild with `CGO_ENABLED=1 go build -tags ts3clientlib -o easywi-teamspeak-client ./cmd/easywi-teamspeak-client`. |
+| `library_missing` | libts3client.so wurde nicht gefunden. | Place the allowed TeamSpeak Client Library at the configured local path. |
+| `opus_missing` | libopus.so oder libopus.so.0 wurde nicht gefunden. | Install/provide Opus locally or as a system library. |
+| `binary_missing` / `binary_not_executable` | Backend binary missing or not executable. | Install `easywi-teamspeak-client` to `/usr/local/bin/easywi-teamspeak-client` with mode `0755`. |
+
+### Optional official TeamSpeak 3 Linux Client installation
+
+Admins may optionally trigger **Offiziellen TeamSpeak Client installieren** from **Admin → Musicbot → TeamSpeak Client Backend**. This is a conscious admin action, not a background download. The default version is `3.6.2` and the default URL is:
+
+```text
+https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run
+```
+
+Before the job is queued, the admin must confirm that the TeamSpeak Client use is legally allowed on the node, that Easy-Wi does not ship proprietary TeamSpeak files, that the download happens only locally on that node, and that no automatic redistribution happens.
+
+Security constraints:
+
+- Only `https://files.teamspeak-services.com/...` is accepted by default.
+- `file://`, `ftp://`, localhost, IP-address URLs, and foreign hosts are rejected.
+- Redirects are re-validated against the same allowlist.
+- The agent downloads to a temporary directory, limits download size, verifies SHA-256 when configured, extracts with `exec.CommandContext` and fixed arguments, sanitizes output, and removes temporary files.
+- Proprietary TeamSpeak files are never committed to this repository.
+
+If the official client installer does not provide a usable `libts3client.so`, Easy-Wi records `official_client_installed_library_missing` and does **not** mark the Musicbot TeamSpeak backend as ready. In that case, use the manual SDK/library path fields to provide an allowed `libts3client.so`/client layer.

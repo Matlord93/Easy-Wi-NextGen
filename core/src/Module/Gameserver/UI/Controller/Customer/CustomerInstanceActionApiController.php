@@ -1197,7 +1197,7 @@ final class CustomerInstanceActionApiController
         if ($this->agentGameServerClient instanceof AgentGameServerClient) {
             try {
                 $agentPayload = $this->agentGameServerClient->getConsoleLogs($instance, $cursorRaw !== '' ? $cursorRaw : null);
-                $data = is_array($agentPayload['data'] ?? null) ? $agentPayload['data'] : [];
+                $data = AgentGameServerClient::unwrapAgentEnvelope($agentPayload);
                 $rawLines = is_array($data['lines'] ?? null) ? $data['lines'] : [];
                 $mapped = [];
                 foreach ($rawLines as $line) {
@@ -1329,9 +1329,9 @@ final class CustomerInstanceActionApiController
         if ($this->agentGameServerClient !== null) {
             try {
                 $logsPayload = $this->agentGameServerClient->getConsoleLogs($instance);
-                $logsData = is_array($logsPayload['data'] ?? null) ? $logsPayload['data'] : [];
-                $session = is_array($logsData['session'] ?? null) ? $logsData['session'] : [];
-                $logsSessionConnected = (bool) ($session['connected'] ?? false);
+                $logsData = AgentGameServerClient::unwrapAgentEnvelope($logsPayload);
+                $session = is_array($logsData['session'] ?? null) ? $logsData['session'] : (is_array($logsData['meta'] ?? null) ? $logsData['meta'] : []);
+                $logsSessionConnected = (bool) ($session['connected'] ?? false) || strtolower((string) ($session['state'] ?? '')) === 'connected';
             } catch (\Throwable) {
             }
         }
@@ -2103,10 +2103,11 @@ final class CustomerInstanceActionApiController
         if ($this->agentGameServerClient !== null) {
             try {
                 $runtimePayload = $this->agentGameServerClient->getInstanceStatus($instance);
+                $runtimeData = AgentGameServerClient::unwrapAgentEnvelope($runtimePayload);
                 $runtimeStatus = $this->normalizeAgentRuntimeStatus(
-                    $runtimePayload['status'] ?? null,
-                    $runtimePayload['running'] ?? null,
-                    $runtimePayload['online'] ?? null,
+                    $runtimeData['status'] ?? $runtimeData['runtime_status'] ?? $runtimeData['state'] ?? $runtimeData['running_state'] ?? null,
+                    $runtimeData['running'] ?? null,
+                    $runtimeData['online'] ?? null,
                 );
                 if ($runtimeStatus instanceof InstanceStatus) {
                     $running = $runtimeStatus === InstanceStatus::Running;

@@ -537,7 +537,11 @@ final class CustomerMusicbotController
             }
         }
 
-        return $queue[0]->getTrack() ?? null;
+        if ($queue === []) {
+            return null;
+        }
+
+        return $queue[0]->getTrack();
     }
 
     /** @return array<int, \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist> */

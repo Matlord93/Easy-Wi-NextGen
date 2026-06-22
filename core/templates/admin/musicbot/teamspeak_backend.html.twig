@@ -1,0 +1,99 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'TeamSpeak Client Backend' %}
+{% set pageSubtitle = 'Lokal bereitgestellten TeamSpeak Client-/SDK-Layer registrieren und prüfen.' %}
+{% set status = form.status|default('not_configured') %}
+
+{% block content %}
+<section class="ng-card" style="padding:22px;display:grid;gap:16px;max-width:1120px;">
+    <div>
+        <h1 style="margin:0 0 8px;color:var(--ng-text);font-size:22px;">Musicbot → TeamSpeak Client Backend</h1>
+        <p style="margin:0;color:var(--ng-text-muted);">Easy-Wi baut TeamSpeak nicht nach und lädt keine proprietären TeamSpeak-Dateien herunter. Hinterlege hier einen lokal bereitgestellten erlaubten Client-/SDK-Layer.</p>
+    </div>
+
+    {% for message in app.flashes('success') %}<div class="ui-alert ui-alert--success">{{ message }}</div>{% endfor %}
+    {% for message in app.flashes('error') %}<div class="ui-alert ui-alert--danger">{{ message }}</div>{% endfor %}
+
+    {% if app.request.query.get('last_job_id') %}
+        <div class="ui-alert ui-alert--info">Letzte Job-ID: <code>{{ app.request.query.get('last_job_id') }}</code></div>
+    {% endif %}
+
+    {% if status in ['ready', 'connected'] %}
+        <div class="ui-alert ui-alert--success">TeamSpeak Client Backend ist bereit.</div>
+    {% elseif status == 'client_backend_required' %}
+        <div class="ui-alert ui-alert--warning">easywi-teamspeak-client wurde ohne ts3clientlib gebaut. Bitte mit <code>-tags ts3clientlib</code> neu bauen.</div>
+    {% elseif status == 'library_missing' %}
+        <div class="ui-alert ui-alert--danger">libts3client.so wurde nicht gefunden. Bitte erlaubte TeamSpeak Client Library lokal bereitstellen.</div>
+    {% elseif status == 'opus_missing' %}
+        <div class="ui-alert ui-alert--danger">libopus.so oder libopus.so.0 wurde nicht gefunden. Bitte Opus lokal oder als System-Library bereitstellen.</div>
+    {% endif %}
+
+    <div class="ng-card" style="padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+        <div><strong>Status</strong><br><span class="ui-badge {{ status in ['ready','connected'] ? 'ui-badge--success' : (status == 'not_configured' ? 'ui-badge--muted' : 'ui-badge--warning') }}">{{ status }}</span></div>
+        <div><strong>Letzter Check</strong><br>{{ form.last_checked_at ? form.last_checked_at|date('Y-m-d H:i:s') : '—' }}</div>
+        <div><strong>Node</strong><br>{{ selectedNode ? (selectedNode.name ?: selectedNode.id) : '—' }}</div>
+        <div><strong>Checksum</strong><br><code style="word-break:break-all;">{{ form.checksum ?: '—' }}</code></div>
+    </div>
+
+    {% if form.last_error %}
+        <div class="ui-alert ui-alert--danger">Letzter Fehler: {{ form.last_error }}</div>
+    {% endif %}
+    {% if form.official_client_status == 'official_client_installed' %}
+        <div class="ui-alert ui-alert--success">Offizieller TeamSpeak Client wurde installiert und eine ladbare libts3client.so wurde gefunden. Bitte jetzt <strong>Backend prüfen</strong> ausführen, um den Client-Layer zu validieren und den Backend-Status zu aktualisieren.</div>
+    {% elseif form.official_client_status == 'official_client_installed_library_missing' %}
+        <div class="ui-alert ui-alert--warning">Offizieller TeamSpeak Client wurde installiert, aber es wurde kein ladbarer Client-Layer (libts3client.so) gefunden. Bitte TS3 Client SDK/Library oder kompatiblen Client-Layer konfigurieren.</div>
+    {% elseif form.official_client_last_error %}
+        <div class="ui-alert ui-alert--danger">Offizieller Client: {{ form.official_client_last_error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_save') }}" style="display:grid;gap:14px;">
+        <label><span>Node</span><select name="node_id" required onchange="window.location='{{ path('admin_musicbot_teamspeak_backend') }}?node_id='+encodeURIComponent(this.value)">{% for node in nodes %}<option value="{{ node.id }}" {% if form.node_id == node.id %}selected{% endif %}>{{ node.name ?: node.id }}</option>{% endfor %}</select></label>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+            <label><span>Backend Type</span><select name="backend_type"><option value="client_library" {% if form.backend_type == 'client_library' %}selected{% endif %}>Client Library</option><option value="native_sdk" {% if form.backend_type == 'native_sdk' %}selected{% endif %}>Native SDK</option></select></label>
+            <label><span>Version</span><input name="version" value="{{ form.version }}" placeholder="optional"></label>
+            <label><span>Backend Path</span><input name="backend_path" value="{{ form.backend_path }}" required placeholder="/usr/local/bin/easywi-teamspeak-client"></label>
+            <label><span>Binary Path</span><input name="binary_path" value="{{ form.binary_path }}" required placeholder="/usr/local/bin/easywi-teamspeak-client"></label>
+            <label><span>Library Path</span><input name="library_path" value="{{ form.library_path }}" required placeholder="/opt/easywi/musicbot/teamspeak-client/libts3client.so"></label>
+            <label><span>Opus Library Path</span><input name="opus_library_path" value="{{ form.opus_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libopus.so"></label>
+            <label><span>Identity Path</span><input name="identity_path" value="{{ form.identity_path }}" placeholder="optional"></label>
+            <label><span>Install Path</span><input name="install_path" value="{{ form.install_path }}" required placeholder="/opt/easywi/musicbot/teamspeak-client/"></label>
+            <label><span>Expected Checksum</span><input name="checksum" value="{{ form.checksum }}" placeholder="optional SHA-256"></label>
+            <label style="display:flex;gap:8px;align-items:center;margin-top:22px;"><input type="checkbox" name="auto_install_enabled" value="1" {% if form.auto_install_enabled %}checked{% endif %}> Auto-Install erlauben (keine proprietären Downloads)</label>
+        </div>
+        <section class="ng-card" style="padding:14px;display:grid;gap:12px;">
+            <h2 style="margin:0;color:var(--ng-text);font-size:18px;">Offizieller TeamSpeak 3 Linux Client (optional)</h2>
+            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">Lädt den offiziellen TeamSpeak Client nur nach Admin-Bestätigung von einer erlaubten TeamSpeak-Download-URL herunter. Es werden keine TeamSpeak-Dateien ins Repo committed.</p>
+            <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">Nach Klick auf den Installationsbutton zeigt der Job-Fortschritt die Schritte Job gestartet, Download läuft, Checksum geprüft, Installation abgeschlossen, Library gefunden/nicht gefunden und den nächsten Schritt über Status und letzten Fehler an.</p>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+                <label style="display:flex;gap:8px;align-items:center;margin-top:22px;"><input type="checkbox" name="official_client_install_enabled" value="1" {% if form.official_client_install_enabled %}checked{% endif %}> Offizielle Client-Installation in Easy-Wi verwalten</label>
+                <label><span>Status</span><input value="{{ form.official_client_status }}" readonly></label>
+                <label><span>Version</span><input name="official_client_version" value="{{ form.official_client_version }}" placeholder="3.6.2"></label>
+                <label><span>Download URL</span><input name="official_client_download_url" value="{{ form.official_client_download_url }}" placeholder="https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run"></label>
+                <label><span>Expected SHA-256</span><input name="official_client_expected_sha256" value="{{ form.official_client_expected_sha256 }}" placeholder="optional"></label>
+                <label><span>Official Client Install Path</span><input name="official_client_install_path" value="{{ form.official_client_install_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/official-client/"></label>
+                <label><span>Zuletzt installiert</span><input value="{{ form.official_client_last_installed_at ? form.official_client_last_installed_at|date('Y-m-d H:i:s') : '—' }}" readonly></label>
+            </div>
+        </section>
+        <p style="margin:0;color:var(--ng-text-muted);font-size:13px;">Installiert keine proprietären Dateien aus dem Internet. Der Button registriert und validiert einen lokal bereitgestellten TeamSpeak Client-/SDK-Layer.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="ui-button ui-button--primary" type="submit">Speichern</button>
+        </div>
+    </form>
+
+    {% if selectedNode %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            {% for action,label in {'validate':'Backend prüfen','install':'Client Backend installieren/registrieren','test_connection':'Verbindung testen','repair':'Repair','status':'Status aktualisieren'} %}
+                <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: action}) }}">
+                    <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
+                    <button class="ui-button {{ action == 'install' ? 'ui-button--primary' : 'ui-button--ghost' }}" type="submit">{{ label }}</button>
+                </form>
+            {% endfor %}
+            <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: 'install_official_client'}) }}" onsubmit="return confirm('Ich bestätige, dass die Nutzung des TeamSpeak Clients auf diesem Server lizenzrechtlich erlaubt ist, Easy-Wi keine proprietären TeamSpeak-Dateien ausliefert, der Download nur lokal auf diesem Node erfolgt und keine automatische Weiterverteilung erfolgt.');">
+                <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
+                <label style="display:block;margin-bottom:6px;"><input type="checkbox" name="accepted_license_confirmation" value="1" required> Lizenz-/Nutzungsbestätigung akzeptiert</label>
+                <button class="ui-button ui-button--ghost" type="submit">Offiziellen TeamSpeak Client installieren</button>
+            </form>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

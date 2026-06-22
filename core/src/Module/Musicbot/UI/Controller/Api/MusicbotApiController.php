@@ -1729,7 +1729,11 @@ final class MusicbotApiController
             }
         }
 
-        return $queue[0]->getTrack() ?? null;
+        if ($queue === []) {
+            return null;
+        }
+
+        return $queue[0]->getTrack();
     }
 
     private function nextQueuePosition(array $queue): int
