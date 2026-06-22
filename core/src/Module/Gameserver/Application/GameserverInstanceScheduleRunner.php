@@ -69,6 +69,10 @@ final class GameserverInstanceScheduleRunner
         $now ??= new \DateTimeImmutable();
         $this->lastCreatedJobIds = [];
         $queued = 0;
+
+        $this->logger->info('gameserver.restart_cron.started', [
+            'now' => $now->setTimezone(new \DateTimeZone('UTC'))->format(DATE_ATOM),
+        ]);
         $lastScheduleId = 0;
 
         do {
@@ -161,6 +165,11 @@ final class GameserverInstanceScheduleRunner
             return 0;
         }
 
+        $this->logger->info('gameserver.restart_cron.due_found', [
+            'schedule_id' => $schedule->getId(),
+            'instance_id' => $instance->getId(),
+        ]);
+
         $job = $this->queueRestartJob($schedule, $instance);
         $schedule->markQueued($now);
         $this->entityManager->persist($schedule);
@@ -173,7 +182,7 @@ final class GameserverInstanceScheduleRunner
             'cron_expression' => $schedule->getCronExpression(),
             'time_zone' => $schedule->getTimeZone() ?? 'UTC',
         ]);
-        $this->logger->info('gameserver.instance.schedule_queued', [
+        $this->logger->info('gameserver.restart_job_created', [
             'schedule_id' => $schedule->getId(),
             'instance_id' => $instance->getId(),
             'job_id' => $job->getId(),
@@ -283,12 +292,23 @@ final class GameserverInstanceScheduleRunner
             return true;
         }
 
-        $normalizedCapabilities = array_values(array_filter(array_map(static fn (mixed $value): string => trim((string) $value), $capabilities)));
+        $normalizedCapabilities = [];
+        foreach ($capabilities as $key => $value) {
+            if (is_string($key) && $key !== '' && $value === true) {
+                $normalizedCapabilities[] = trim($key);
+                continue;
+            }
+
+            $normalizedCapabilities[] = trim((string) $value);
+        }
+        $normalizedCapabilities = array_values(array_filter($normalizedCapabilities));
         if ($normalizedCapabilities === []) {
             return true;
         }
 
-        return in_array('instance.restart', $normalizedCapabilities, true);
+        return in_array('instance.restart', $normalizedCapabilities, true)
+            || in_array('windows_full_job_dispatch', $normalizedCapabilities, true)
+            || in_array('job_polling', $normalizedCapabilities, true);
     }
 
     private function isWindowsInstance(Instance $instance): bool

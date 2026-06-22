@@ -55,6 +55,7 @@ final class MusicbotPlaybackStateFeedbackTest extends TestCase
         $this->inject($applier, 'userRepository', $this->nullRepo(\App\Repository\UserRepository::class));
         $this->inject($applier, 'entityManager', $em);
         $this->inject($applier, 'musicbotRuntimeEventService', $eventService);
+        $this->inject($applier, 'musicbotSecretConfigService', new \App\Module\Musicbot\Application\MusicbotSecretConfigService(new \App\Module\Core\Application\SecretsCrypto('test-secret')));
 
         return $applier;
     }

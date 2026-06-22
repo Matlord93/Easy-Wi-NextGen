@@ -28,13 +28,15 @@ RUN_MUTATING="${MUSICBOT_E2E_RUN_MUTATING:-0}"
 
 # Pre-built binaries (auto-built if not provided)
 RUNTIME_BIN="${MUSICBOT_E2E_RUNTIME_BIN:-}"
-BRIDGE_BIN="${MUSICBOT_E2E_BRIDGE_BIN:-}"
+BRIDGE_BIN="${MUSICBOT_E2E_TS_BRIDGE_BIN:-${MUSICBOT_E2E_BRIDGE_BIN:-}}"
 
 # Discord
 RUN_DISCORD="${MUSICBOT_E2E_RUN_DISCORD:-0}"
 DISCORD_TOKEN="${MUSICBOT_E2E_DISCORD_TOKEN:-}"
 DISCORD_GUILD_ID="${MUSICBOT_E2E_DISCORD_GUILD_ID:-}"
 DISCORD_VOICE_CHANNEL_ID="${MUSICBOT_E2E_DISCORD_VOICE_CHANNEL_ID:-}"
+DISCORD_TEXT_CHANNEL_ID="${MUSICBOT_E2E_DISCORD_TEXT_CHANNEL_ID:-}"
+AUDIO_FIXTURE="${MUSICBOT_E2E_AUDIO_FIXTURE:-}"
 
 # TeamSpeak
 RUN_TEAMSPEAK="${MUSICBOT_E2E_RUN_TEAMSPEAK:-0}"
@@ -42,6 +44,10 @@ TS_HOST="${MUSICBOT_E2E_TS_HOST:-}"
 TS_PORT="${MUSICBOT_E2E_TS_PORT:-9987}"
 TS_CHANNEL_ID="${MUSICBOT_E2E_TS_CHANNEL_ID:-1}"
 TS_PASSWORD="${MUSICBOT_E2E_TS_PASSWORD:-}"
+TS_NICKNAME="${MUSICBOT_E2E_TS_NICKNAME:-EasyWi-E2E}"
+TS_IDENTITY_PATH="${MUSICBOT_E2E_TS_IDENTITY_PATH:-}"
+TS_CLIENT_BACKEND_TYPE="${MUSICBOT_E2E_TS_CLIENT_BACKEND_TYPE:-placeholder}"
+TS_CLIENT_BACKEND_PATH="${MUSICBOT_E2E_TS_CLIENT_BACKEND_PATH:-}"
 
 PASSES=0
 WARNINGS=0
@@ -299,7 +305,7 @@ build_bridge() {
   if [[ -n "$BRIDGE_BIN" ]]; then
     [[ -x "$BRIDGE_BIN" ]] \
       && { pass "Bridge binary provided: $BRIDGE_BIN"; return 0; } \
-      || { fail "MUSICBOT_E2E_BRIDGE_BIN not executable: $BRIDGE_BIN"; return 1; }
+      || { fail "MUSICBOT_E2E_TS_BRIDGE_BIN/MUSICBOT_E2E_TS_BRIDGE_BIN/MUSICBOT_E2E_BRIDGE_BIN not executable: $BRIDGE_BIN"; return 1; }
   fi
   have go || { warn "Bridge build skipped: go binary missing"; return 1; }
   local bin="$TMP_DIR/easywi-teamspeak-bridge"
@@ -418,7 +424,7 @@ check_agent_runtime() {
   info "--- Runtime control socket ---"
   local sock_log="$TMP_DIR/runtime-sock.log"
 
-  "$RUNTIME_BIN" -config "$config" >"$TMP_DIR/runtime-bg-out.txt" 2>"$sock_log" &
+  "$RUNTIME_BIN" -config "$config" < <(sleep infinity) >"$TMP_DIR/runtime-bg-out.txt" 2>"$sock_log" &
   local runtime_pid=$!
   PIDS+=("$runtime_pid")
 
@@ -633,6 +639,7 @@ check_discord() {
       "bot_token":        "$DISCORD_TOKEN",
       "guild_id":         "$DISCORD_GUILD_ID",
       "voice_channel_id": "$DISCORD_VOICE_CHANNEL_ID",
+      "text_channel_id":  "$DISCORD_TEXT_CHANNEL_ID",
       "command_mode":     "voice_only"
     }
   },
@@ -694,6 +701,83 @@ JSON
         warn "Discord E2E: send_opus_frame: $(sanitize_str "$send_resp" | head -c 120)"
       fi
 
+
+      local fixture_rel="uploads/discord-e2e.wav"
+      local fixture_abs="$TMP_DIR/discord-data/$fixture_rel"
+      mkdir -p "$(dirname "$fixture_abs")"
+      if [[ -n "$AUDIO_FIXTURE" ]]; then
+        if [[ -f "$AUDIO_FIXTURE" ]]; then
+          cp "$AUDIO_FIXTURE" "$fixture_abs"
+          pass "Discord E2E: local audio fixture copied into runtime data dir"
+        else
+          warn "Discord E2E: MUSICBOT_E2E_AUDIO_FIXTURE is set but not a file; skipping AudioPipeline playback"
+          fixture_abs=""
+        fi
+      elif have python3; then
+        python3 - "$fixture_abs" <<'PYWAV'
+import math
+import struct
+import sys
+import wave
+path = sys.argv[1]
+rate = 48000
+frames = rate // 2
+with wave.open(path, 'wb') as w:
+    w.setnchannels(2)
+    w.setsampwidth(2)
+    w.setframerate(rate)
+    for n in range(frames):
+        sample = int(1200 * math.sin(2 * math.pi * 440 * n / rate))
+        w.writeframes(struct.pack('<hh', sample, sample))
+PYWAV
+        pass "Discord E2E: generated local WAV audio fixture"
+      else
+        warn "Discord E2E: python3 missing and MUSICBOT_E2E_AUDIO_FIXTURE unset; skipping AudioPipeline playback"
+        fixture_abs=""
+      fi
+
+      if [[ -n "$fixture_abs" ]]; then
+        local queue_resp
+        queue_resp="$(control_cmd "$sock" "{\"command\":\"queue.sync\",\"args\":{\"queue\":{\"instance_id\":\"discord-e2e\",\"items\":[{\"queue_item_id\":\"discord-e2e-1\",\"track_id\":\"discord-e2e-track\",\"title\":\"Discord E2E Local Fixture\",\"artist\":\"Easy-Wi\",\"duration_seconds\":1,\"source\":{\"type\":\"upload\",\"uri\":\"$fixture_rel\",\"mime_type\":\"audio/wav\"},\"metadata\":{}}],\"revision\":1}}}" 8)"
+        if printf '%s' "$queue_resp" | grep -q '"synced":true'; then
+          pass "Discord E2E: queued local audio fixture"
+        else
+          warn "Discord E2E: queue.sync fixture response: $(sanitize_str "$queue_resp" | head -c 200)"
+        fi
+
+        local play_resp
+        play_resp="$(control_cmd "$sock" '{"command":"play"}' 8)"
+        if printf '%s' "$play_resp" | grep -q '"ok":true'; then
+          pass "Discord E2E: AudioPipeline play started for local fixture"
+        else
+          warn "Discord E2E: play fixture response: $(sanitize_str "$play_resp" | head -c 200)"
+        fi
+
+        sleep 2
+        local pipeline_status
+        pipeline_status="$(control_cmd "$sock" '{"command":"status"}' 8)"
+        if printf '%s' "$pipeline_status" | grep -q '"output_backend":"discord_voice"'; then
+          pass "Discord E2E: status shows output_backend=discord_voice"
+        else
+          warn "Discord E2E: output_backend not discord_voice: $(sanitize_str "$pipeline_status" | head -c 200)"
+        fi
+        local frames_sent
+        frames_sent="$(printf '%s' "$pipeline_status" | sed -nE 's/.*"frames_sent"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/p' | tail -n1)"
+        if [[ "${frames_sent:-0}" =~ ^[0-9]+$ && "${frames_sent:-0}" -gt 0 ]]; then
+          pass "Discord E2E: AudioPipeline frames_sent > 0"
+        else
+          warn "Discord E2E: frames_sent not > 0 (value=${frames_sent:-missing})"
+        fi
+
+        local stop_resp
+        stop_resp="$(control_cmd "$sock" '{"command":"stop"}' 8)"
+        if printf '%s' "$stop_resp" | grep -q '"ok":true'; then
+          pass "Discord E2E: playback stop acknowledged"
+        else
+          warn "Discord E2E: stop response: $(sanitize_str "$stop_resp" | head -c 120)"
+        fi
+      fi
+
       # Leave voice channel
       local leave_resp
       leave_resp="$(control_cmd "$sock" '{"command":"leave_voice"}' 8)"
@@ -741,12 +825,14 @@ check_teamspeak() {
 
   # Build command sequence; the server_password and channel_password fields
   # come from ENV and will be masked before any output is displayed.
+  local opus_frame="//9oAAABAAAA"
   local -a cmds=(
     '{"action":"status"}'
-    "{\"action\":\"connect\",\"host\":\"${TS_HOST}\",\"port\":${TS_PORT},\"nickname\":\"EasyWi-E2E\",\"server_password\":\"${TS_PASSWORD}\"}"
+    '{"action":"connect","backend_type":"'"${TS_CLIENT_BACKEND_TYPE}"'","backend_path":"'"${TS_CLIENT_BACKEND_PATH}"'","host":"'"${TS_HOST}"'","port":'"${TS_PORT}"',"nickname":"'"${TS_NICKNAME}"'","identity_path":"'"${TS_IDENTITY_PATH}"'","server_password":"'"${TS_PASSWORD}"'"}'
     '{"action":"status"}'
-    "{\"action\":\"join_channel\",\"channel_id\":\"${TS_CHANNEL_ID}\",\"channel_password\":\"${TS_PASSWORD}\"}"
+    '{"action":"join_channel","channel_id":"'"${TS_CHANNEL_ID}"'","channel_password":"'"${TS_PASSWORD}"'"}'
     '{"action":"status"}'
+    '{"action":"send_opus_frame","format":"opus","payload":"'"${opus_frame}"'","duration_ms":20}'
     '{"action":"leave_channel"}'
     '{"action":"status"}'
     '{"action":"disconnect"}'
@@ -784,17 +870,155 @@ check_teamspeak() {
         fi
       fi
 
-      # [5] leave channel
+      # [2]/[4] status connected
+      if [[ "${#resp[@]}" -ge 5 ]] && printf '%s' "${resp[4]}" | grep -q '"state":"connected"'; then
+        pass "TeamSpeak E2E: status connected=true"
+      else
+        warn "TeamSpeak E2E: connected status response: $(sanitize_str "${resp[4]:-${resp[2]:-<empty>}}" | head -c 200)"
+      fi
+
+      # [5] send_opus_frame
       if [[ "${#resp[@]}" -ge 6 ]]; then
         if printf '%s' "${resp[5]}" | grep -q '"ok":true'; then
+          pass "TeamSpeak E2E: Opus frame sent through bridge"
+        else
+          warn "TeamSpeak E2E: send_opus_frame: $(sanitize_str "${resp[5]}" | head -c 200)"
+        fi
+      fi
+
+
+      # Runtime external_client_bridge + AudioPipeline check. This only runs after
+      # the direct bridge connect succeeded, i.e. when a real adapter is present.
+      if build_runtime; then
+        local rt_config="$TMP_DIR/ts-runtime.json"
+        local rt_sock="$TMP_DIR/ts-runtime.sock"
+        local rt_log="$TMP_DIR/ts-runtime.log"
+        local rt_out="$TMP_DIR/ts-runtime-out.txt"
+        mkdir -p "$TMP_DIR/ts-runtime-install" "$TMP_DIR/ts-runtime-data/uploads" "$TMP_DIR/ts-runtime-logs" "$TMP_DIR/plugins"
+        cat > "$rt_config" <<JSON
+{
+  "instance_id": "teamspeak-e2e",
+  "customer_id": "e2e-customer",
+  "service_name": "easywi-musicbot-teamspeak-e2e",
+  "install_path": "$TMP_DIR/ts-runtime-install",
+  "data_dir": "$TMP_DIR/ts-runtime-data",
+  "log_dir": "$TMP_DIR/ts-runtime-logs",
+  "plugin_dir": "$TMP_DIR/plugins",
+  "control": { "unix_socket": "$rt_sock" },
+  "teamspeak": {
+    "enabled": true,
+    "profile": "ts3",
+    "backend": "ts3_client_compatible",
+    "backend_type": "external_client_bridge",
+    "backend_path": "$BRIDGE_BIN",
+    "host": "$TS_HOST",
+    "port": $TS_PORT,
+    "nickname": "$TS_NICKNAME",
+    "identity_path": "$TS_IDENTITY_PATH",
+    "channel_id": "$TS_CHANNEL_ID",
+    "server_password": "$TS_PASSWORD",
+    "channel_password": "$TS_PASSWORD",
+    "config": {
+      "bridge_backend_type": "$TS_CLIENT_BACKEND_TYPE",
+      "client_backend_type": "$TS_CLIENT_BACKEND_TYPE",
+      "client_library_path": "$TS_CLIENT_BACKEND_PATH",
+      "native_sdk_path": "$TS_CLIENT_BACKEND_PATH"
+    }
+  },
+  "discord": { "enabled": false },
+  "limits": { "cpu": 10, "ram": 128, "disk": 1024 }
+}
+JSON
+        "$RUNTIME_BIN" -config "$rt_config" < <(sleep infinity) >"$rt_out" 2>"$rt_log" &
+        local rt_pid=$!
+        PIDS+=("$rt_pid")
+        if wait_for_socket "$rt_sock" 80; then
+          local rt_status
+          rt_status="$(control_cmd "$rt_sock" '{"command":"status"}' 8)"
+          if printf '%s' "$rt_status" | grep -q '"capability_status":"ready"'; then
+            pass "TeamSpeak E2E: runtime capability_status=ready"
+          else
+            warn "TeamSpeak E2E: runtime capability_status not ready: $(sanitize_str "$rt_status" | head -c 200)"
+          fi
+          if printf '%s' "$rt_status" | grep -q '"connected":true'; then
+            pass "TeamSpeak E2E: runtime status connected=true"
+          else
+            warn "TeamSpeak E2E: runtime status does not show connected=true: $(sanitize_str "$rt_status" | head -c 200)"
+          fi
+
+          local fixture_rel="uploads/teamspeak-e2e.wav"
+          local fixture_abs="$TMP_DIR/ts-runtime-data/$fixture_rel"
+          if [[ -n "$AUDIO_FIXTURE" && -f "$AUDIO_FIXTURE" ]]; then
+            cp "$AUDIO_FIXTURE" "$fixture_abs"
+            pass "TeamSpeak E2E: local audio fixture copied into runtime data dir"
+          elif have python3; then
+            python3 - "$fixture_abs" <<'PYWAV'
+import math
+import struct
+import sys
+import wave
+path = sys.argv[1]
+rate = 48000
+frames = rate // 2
+with wave.open(path, 'wb') as w:
+    w.setnchannels(2)
+    w.setsampwidth(2)
+    w.setframerate(rate)
+    for n in range(frames):
+        sample = int(1200 * math.sin(2 * math.pi * 440 * n / rate))
+        w.writeframes(struct.pack('<hh', sample, sample))
+PYWAV
+            pass "TeamSpeak E2E: generated local WAV audio fixture"
+          else
+            warn "TeamSpeak E2E: python3 missing and MUSICBOT_E2E_AUDIO_FIXTURE unset; skipping runtime frames_sent check"
+            fixture_abs=""
+          fi
+
+          if [[ -n "$fixture_abs" ]]; then
+            local queue_resp play_resp pipeline_status frames_sent
+            queue_resp="$(control_cmd "$rt_sock" "{\"command\":\"queue.sync\",\"args\":{\"queue\":{\"instance_id\":\"teamspeak-e2e\",\"items\":[{\"queue_item_id\":\"teamspeak-e2e-1\",\"track_id\":\"teamspeak-e2e-track\",\"title\":\"TeamSpeak E2E Local Fixture\",\"artist\":\"Easy-Wi\",\"duration_seconds\":1,\"source\":{\"type\":\"upload\",\"uri\":\"$fixture_rel\",\"mime_type\":\"audio/wav\"},\"metadata\":{}}],\"revision\":1}}}" 8)"
+            if printf '%s' "$queue_resp" | grep -q '"synced":true'; then
+              pass "TeamSpeak E2E: queued local audio fixture"
+            else
+              warn "TeamSpeak E2E: queue.sync fixture response: $(sanitize_str "$queue_resp" | head -c 200)"
+            fi
+            play_resp="$(control_cmd "$rt_sock" '{"command":"play"}' 8)"
+            if printf '%s' "$play_resp" | grep -q '"ok":true'; then
+              pass "TeamSpeak E2E: AudioPipeline play started for local fixture"
+            else
+              warn "TeamSpeak E2E: play fixture response: $(sanitize_str "$play_resp" | head -c 200)"
+            fi
+            sleep 2
+            pipeline_status="$(control_cmd "$rt_sock" '{"command":"status"}' 8)"
+            frames_sent="$(printf '%s' "$pipeline_status" | sed -nE 's/.*"frames_sent"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/p' | tail -n1)"
+            if [[ "${frames_sent:-0}" =~ ^[0-9]+$ && "${frames_sent:-0}" -gt 0 ]]; then
+              pass "TeamSpeak E2E: AudioPipeline frames_sent > 0"
+            else
+              warn "TeamSpeak E2E: frames_sent not > 0 (value=${frames_sent:-missing})"
+            fi
+            local stop_resp
+            stop_resp="$(control_cmd "$rt_sock" '{"command":"stop"}' 8)"
+          fi
+        else
+          warn "TeamSpeak E2E: runtime control socket did not appear"
+        fi
+        kill "$rt_pid" 2>/dev/null || true
+        wait "$rt_pid" 2>/dev/null || true
+        check_no_secret "$rt_out" "TeamSpeak runtime stdout"
+        check_no_secret "$rt_log" "TeamSpeak runtime stderr"
+      fi
+
+      # [6] leave channel
+      if [[ "${#resp[@]}" -ge 7 ]]; then
+        if printf '%s' "${resp[6]}" | grep -q '"ok":true'; then
           pass "TeamSpeak E2E: left channel"
         else
-          warn "TeamSpeak E2E: leave_channel: $(sanitize_str "${resp[5]}" | head -c 200)"
+          warn "TeamSpeak E2E: leave_channel: $(sanitize_str "${resp[6]}" | head -c 200)"
         fi
       fi
 
     elif printf '%s' "$connect_resp" | grep -q 'client_backend_required'; then
-      pass "TeamSpeak E2E: PlaceholderAdapter returns client_backend_required (expected without real TS client)"
+      pass "TeamSpeak live voice skipped: no real client adapter configured"
       warn "TeamSpeak E2E: actual voice requires a real TeamspeakClientAdapter — PlaceholderAdapter is current"
     else
       fail "TeamSpeak E2E: connect response unexpected: $(sanitize_str "$connect_resp" | head -c 200)"

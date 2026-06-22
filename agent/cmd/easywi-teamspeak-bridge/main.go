@@ -15,7 +15,7 @@ func main() {
 		logger.Println("warning: EASYWI_TS_BRIDGE=1 not set; expected to be launched by the Musicbot runtime")
 	}
 
-	adapter := NewPlaceholderAdapter()
+	adapter := NewSelectingAdapter()
 	b := newBridge(adapter, os.Stdout, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -28,12 +28,12 @@ func main() {
 
 	select {
 	case err := <-done:
-		_ = adapter.Close()
+		_ = adapter.Shutdown(context.Background())
 		if err != nil {
 			logger.Printf("protocol error: %v", err)
 			os.Exit(1)
 		}
 	case <-ctx.Done():
-		_ = adapter.Close()
+		_ = adapter.Shutdown(context.Background())
 	}
 }

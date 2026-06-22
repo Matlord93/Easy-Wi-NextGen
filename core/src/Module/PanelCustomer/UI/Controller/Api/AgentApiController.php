@@ -2158,6 +2158,13 @@ final class AgentApiController
         }
 
         $this->entityManager->persist($schedule);
+        $this->logger->info($resultStatus === JobResultStatus::Succeeded ? 'gameserver.restart_job_completed' : 'gameserver.restart_job_failed', [
+            'schedule_id' => $schedule->getId(),
+            'instance_id' => $schedule->getInstance()->getId(),
+            'job_id' => $job->getId(),
+            'status' => $resultStatus->value,
+        ]);
+
         $this->auditLogger->log(null, 'instance.restart.schedule_completed', [
             'schedule_id' => $schedule->getId(),
             'instance_id' => $schedule->getInstance()->getId(),

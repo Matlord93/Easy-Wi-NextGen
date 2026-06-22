@@ -17,6 +17,7 @@ final class AgentJobValidator
             'ts3.instance.create' => $this->requireKeys($payload, ['instance_id', 'voice_port', 'query_port', 'file_port', 'db_mode']),
             'ts6.instance.create' => $this->requireKeys($payload, ['instance_id', 'name']),
             'ts3.instance.action', 'ts6.instance.action' => $this->requireKeys($payload, ['instance_id', 'action']),
+            'musicbot.config.apply' => $this->requireKeys($payload, ['instance_id', 'service_name', 'config']),
             'musicbot.install' => $this->requireKeys($payload, ['instance_id', 'customer_id', 'node_id', 'service_name', 'install_path']),
             'musicbot.uninstall' => $this->requireKeys($payload, ['instance_id', 'service_name']),
             'musicbot.update' => $this->requireKeys($payload, ['instance_id', 'service_name', 'install_path']),

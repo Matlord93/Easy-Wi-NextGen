@@ -31,6 +31,7 @@ type mockAdapter struct {
 	leaveChannelErr error
 	setNicknameErr  error
 	sendFrameErr    error
+	shutdownCalls   int
 }
 
 func (m *mockAdapter) Connect(_ context.Context, _ connectParams) (string, error) {
@@ -47,6 +48,8 @@ func (m *mockAdapter) Connect(_ context.Context, _ connectParams) (string, error
 }
 
 func (m *mockAdapter) Disconnect(_ context.Context) error { return nil }
+
+func (m *mockAdapter) Authenticate(_ context.Context) error { return nil }
 
 func (m *mockAdapter) Reconnect(_ context.Context) (string, error) {
 	m.mu.Lock()
@@ -96,7 +99,12 @@ func (m *mockAdapter) Status(_ context.Context) (adapterStatus, error) {
 	return adapterStatus{State: stateDisconnected}, nil
 }
 
-func (m *mockAdapter) Close() error { return nil }
+func (m *mockAdapter) Shutdown(_ context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.shutdownCalls++
+	return nil
+}
 
 // runRequests feeds reqs to the bridge and returns the parsed responses in order.
 func runRequests(t *testing.T, adapter TeamspeakClientAdapter, reqs ...bridgeRequest) []bridgeResponse {
@@ -222,6 +230,48 @@ func TestBridgeContinuesAfterInvalidJSON(t *testing.T) {
 }
 
 // --- connect ---
+
+func TestBridgeConnectSelectsNativeSDKStub(t *testing.T) {
+	resps := runRequests(t, NewSelectingAdapter(), bridgeRequest{
+		Action: "connect", BackendType: "native_sdk", BackendPath: "", Host: "ts.example.com", ServerPassword: "server-secret",
+	})
+	r := resps[0]
+	if r.OK {
+		t.Fatal("native_sdk stub without SDK should not connect")
+	}
+	if !strings.Contains(r.Error, "native_sdk") || !strings.Contains(r.Error, "backend_path") {
+		t.Fatalf("native_sdk stub error = %q", r.Error)
+	}
+	if strings.Contains(r.Error, "server-secret") {
+		t.Fatalf("server password leaked in native_sdk error: %q", r.Error)
+	}
+}
+
+func TestBridgeConnectSelectsClientLibraryStub(t *testing.T) {
+	resps := runRequests(t, NewSelectingAdapter(), bridgeRequest{
+		Action: "connect", BackendType: "client_library", BackendPath: "", Host: "ts.example.com",
+	})
+	r := resps[0]
+	if r.OK {
+		t.Fatal("client_library stub without library should not connect")
+	}
+	if !strings.Contains(r.Error, "client_library") || !strings.Contains(r.Error, "backend_path") {
+		t.Fatalf("client_library stub error = %q", r.Error)
+	}
+}
+
+func TestBridgeShutdownCallsAdapterShutdown(t *testing.T) {
+	adapter := &mockAdapter{}
+	resps := runRequests(t, adapter, bridgeRequest{Action: "shutdown"})
+	if !resps[0].OK {
+		t.Fatalf("shutdown failed: %v", resps[0].Error)
+	}
+	adapter.mu.Lock()
+	defer adapter.mu.Unlock()
+	if adapter.shutdownCalls != 1 {
+		t.Fatalf("shutdown calls = %d, want 1", adapter.shutdownCalls)
+	}
+}
 
 func TestBridgeConnectPlaceholderFails(t *testing.T) {
 	resps := runRequests(t, NewPlaceholderAdapter(), bridgeRequest{

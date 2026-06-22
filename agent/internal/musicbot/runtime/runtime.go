@@ -192,6 +192,8 @@ func (r *Runtime) Run(ctx context.Context, input io.Reader, output io.Writer) er
 	r.logger.Printf("started instance=%s service=%s", r.config.InstanceID, r.config.ServiceName)
 	defer r.logger.Printf("stopped instance=%s service=%s", r.config.InstanceID, r.config.ServiceName)
 
+	go r.autoConnectAll(ctx)
+
 	responses := make(chan commandResponse)
 	done := make(chan struct{})
 	go func() {
@@ -215,6 +217,30 @@ func (r *Runtime) Run(ctx context.Context, input io.Reader, output io.Writer) er
 		case response := <-responses:
 			if err := encoder.Encode(response); err != nil {
 				return err
+			}
+		}
+	}
+}
+
+// autoConnectAll connects all enabled connectors and auto-joins the configured
+// TeamSpeak channel. Runs in a goroutine; errors are logged but do not stop
+// the runtime.
+func (r *Runtime) autoConnectAll(ctx context.Context) {
+	for platform, connector := range r.connectors {
+		if err := connector.Connect(ctx); err != nil {
+			r.logger.Printf("auto-connect %s: %v", platform, err)
+			continue
+		}
+		r.logger.Printf("auto-connect %s: ok", platform)
+		if platform == "teamspeak" {
+			channelID := teamspeakConfigString(r.config.TeamSpeak, "channel_id")
+			if channelID == "" {
+				continue
+			}
+			if err := connector.JoinChannel(ctx, channelID); err != nil {
+				r.logger.Printf("auto-join teamspeak channel %s: %v", channelID, err)
+			} else {
+				r.logger.Printf("auto-join teamspeak channel %s: ok", channelID)
 			}
 		}
 	}

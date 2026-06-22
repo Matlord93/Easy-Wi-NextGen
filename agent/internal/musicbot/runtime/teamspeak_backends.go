@@ -180,6 +180,8 @@ type ExternalBridgeTeamspeakVoiceClient struct {
 
 type teamspeakBridgeRequest struct {
 	Action          string `json:"action"`
+	BackendType     string `json:"backend_type,omitempty"`
+	BackendPath     string `json:"backend_path,omitempty"`
 	Host            string `json:"host,omitempty"`
 	Port            int    `json:"port,omitempty"`
 	Profile         string `json:"profile,omitempty"`
@@ -194,11 +196,13 @@ type teamspeakBridgeRequest struct {
 }
 
 type teamspeakBridgeResponse struct {
-	OK        bool   `json:"ok"`
-	Error     string `json:"error,omitempty"`
-	State     string `json:"state,omitempty"`
-	ClientID  string `json:"client_id,omitempty"`
-	ChannelID string `json:"channel_id,omitempty"`
+	OK          bool   `json:"ok"`
+	Error       string `json:"error,omitempty"`
+	BackendType string `json:"backend_type,omitempty"`
+	Ready       bool   `json:"ready,omitempty"`
+	State       string `json:"state,omitempty"`
+	ClientID    string `json:"client_id,omitempty"`
+	ChannelID   string `json:"channel_id,omitempty"`
 }
 
 func NewExternalBridgeTeamspeakVoiceClient() *ExternalBridgeTeamspeakVoiceClient {
@@ -253,7 +257,7 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 	c.scanner = bufio.NewScanner(stdout)
 	c.mu.Unlock()
 
-	resp, err := c.bridgeRoundTrip(ctx, teamspeakBridgeRequest{Action: "connect", Host: teamspeakConfigString(config, "host"), Port: teamspeakConfigPort(config), Profile: normalizeTeamspeakProfile(teamspeakConfigString(config, "profile")), Nickname: teamspeakConfigString(config, "nickname"), IdentityPath: teamspeakConfigString(config, "identity_path"), ServerPassword: teamspeakConfigString(config, "server_password")})
+	resp, err := c.bridgeRoundTrip(ctx, teamspeakBridgeRequest{Action: "connect", BackendType: teamspeakBridgeAdapterType(config), BackendPath: teamspeakBridgeAdapterPath(config), Host: teamspeakConfigString(config, "host"), Port: teamspeakConfigPort(config), Profile: normalizeTeamspeakProfile(teamspeakConfigString(config, "profile")), Nickname: teamspeakConfigString(config, "nickname"), IdentityPath: teamspeakConfigString(config, "identity_path"), ChannelID: teamspeakConfigString(config, "channel_id"), ServerPassword: teamspeakConfigString(config, "server_password"), ChannelPassword: teamspeakConfigString(config, "channel_password")})
 	if err != nil {
 		_ = c.Disconnect(context.Background())
 		return c.recordError(err)
@@ -401,6 +405,25 @@ func (c *ExternalBridgeTeamspeakVoiceClient) bridgeRoundTrip(ctx context.Context
 		c.clientID = resp.ClientID
 	}
 	return resp, nil
+}
+
+func teamspeakBridgeAdapterType(config TeamSpeakConnectorConfig) string {
+	if v := teamspeakConfigString(config, "bridge_backend_type"); v != "" {
+		return v
+	}
+	if v := teamspeakConfigString(config, "client_backend_type"); v != "" {
+		return v
+	}
+	return "placeholder"
+}
+
+func teamspeakBridgeAdapterPath(config TeamSpeakConnectorConfig) string {
+	for _, key := range []string{"client_library_path", "native_sdk_path", "sdk_path", "library_path"} {
+		if v := teamspeakConfigString(config, key); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func validateTeamspeakCommonConfig(config TeamSpeakConnectorConfig) error {

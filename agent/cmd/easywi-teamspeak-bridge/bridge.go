@@ -22,6 +22,8 @@ const (
 // Fields not relevant to the current action are ignored.
 type bridgeRequest struct {
 	Action          string `json:"action"`
+	BackendType     string `json:"backend_type,omitempty"`
+	BackendPath     string `json:"backend_path,omitempty"`
 	Host            string `json:"host,omitempty"`
 	Port            int    `json:"port,omitempty"`
 	Profile         string `json:"profile,omitempty"`
@@ -37,11 +39,13 @@ type bridgeRequest struct {
 
 // bridgeResponse is the JSON object the bridge writes to stdout after each request.
 type bridgeResponse struct {
-	OK        bool   `json:"ok"`
-	Error     string `json:"error,omitempty"`
-	State     string `json:"state,omitempty"`
-	ClientID  string `json:"client_id,omitempty"`
-	ChannelID string `json:"channel_id,omitempty"`
+	OK          bool   `json:"ok"`
+	Error       string `json:"error,omitempty"`
+	BackendType string `json:"backend_type,omitempty"`
+	Ready       bool   `json:"ready,omitempty"`
+	State       string `json:"state,omitempty"`
+	ClientID    string `json:"client_id,omitempty"`
+	ChannelID   string `json:"channel_id,omitempty"`
 }
 
 // bridge is the protocol engine. It owns the adapter, tracks connection state,
@@ -121,12 +125,16 @@ func (b *bridge) handleConnect(ctx context.Context, req bridgeRequest) bridgeRes
 		port = 9987
 	}
 	params := connectParams{
-		Host:           req.Host,
-		Port:           port,
-		Profile:        normalizeProfile(req.Profile),
-		Nickname:       req.Nickname,
-		IdentityPath:   req.IdentityPath,
-		ServerPassword: req.ServerPassword,
+		BackendType:     normalizeBackendType(req.BackendType),
+		BackendPath:     req.BackendPath,
+		Host:            req.Host,
+		Port:            port,
+		Profile:         normalizeProfile(req.Profile),
+		Nickname:        req.Nickname,
+		IdentityPath:    req.IdentityPath,
+		ChannelID:       req.ChannelID,
+		ServerPassword:  req.ServerPassword,
+		ChannelPassword: req.ChannelPassword,
 	}
 
 	b.mu.Lock()
@@ -150,12 +158,16 @@ func (b *bridge) handleConnect(ctx context.Context, req bridgeRequest) bridgeRes
 	b.channelID = ""
 	b.mu.Unlock()
 
-	b.logger.Printf("connected to %s:%d profile=%s", params.Host, port, params.Profile)
-	return bridgeResponse{OK: true, State: stateConnected, ClientID: clientID}
+	b.logger.Printf("connected to %s:%d profile=%s backend=%s", params.Host, port, params.Profile, params.BackendType)
+	return bridgeResponse{OK: true, BackendType: params.BackendType, Ready: true, State: stateConnected, ClientID: clientID}
 }
 
 func (b *bridge) handleDisconnect(ctx context.Context, req bridgeRequest) bridgeResponse {
-	_ = b.adapter.Disconnect(ctx)
+	if req.Action == "shutdown" {
+		_ = b.adapter.Shutdown(ctx)
+	} else {
+		_ = b.adapter.Disconnect(ctx)
+	}
 	b.mu.Lock()
 	b.state = stateDisconnected
 	b.clientID = ""
@@ -260,13 +272,31 @@ func (b *bridge) handleSendOpusFrame(ctx context.Context, req bridgeRequest) bri
 }
 
 func (b *bridge) handleStatus() bridgeResponse {
+	status, err := b.adapter.Status(context.Background())
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if err != nil {
+		return bridgeResponse{OK: false, Error: b.mask(err.Error())}
+	}
+	state := b.state
+	if status.State != "" && b.clientID == "" {
+		state = status.State
+	}
+	clientID := b.clientID
+	if clientID == "" {
+		clientID = status.ClientID
+	}
+	channelID := b.channelID
+	if channelID == "" {
+		channelID = status.ChannelID
+	}
 	return bridgeResponse{
-		OK:        true,
-		State:     b.state,
-		ClientID:  b.clientID,
-		ChannelID: b.channelID,
+		OK:          true,
+		BackendType: status.BackendType,
+		Ready:       status.Ready && state == stateConnected,
+		State:       state,
+		ClientID:    clientID,
+		ChannelID:   channelID,
 	}
 }
 

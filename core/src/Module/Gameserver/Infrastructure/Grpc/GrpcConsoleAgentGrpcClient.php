@@ -65,10 +65,12 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
             throw new \RuntimeException($message);
         }
 
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : $payload;
+
         return new ConsoleCommandResult(
-            (bool) ($payload['applied'] ?? true),
-            (bool) ($payload['duplicate'] ?? false),
-            isset($payload['seq']) ? (int) $payload['seq'] : null,
+            (bool) ($data['applied'] ?? $data['accepted'] ?? true),
+            (bool) ($data['duplicate'] ?? false),
+            isset($data['seq']) ? (int) $data['seq'] : null,
         );
     }
 
@@ -113,8 +115,11 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
             }
 
             foreach ($lines as $line) {
+                $chunk = (string) ($line['text'] ?? '');
                 yield [
-                    'chunk' => (string) ($line['text'] ?? ''),
+                    'type' => 'chunk',
+                    'chunk' => $chunk,
+                    'chunk_base64' => base64_encode($chunk),
                     'ts' => (string) ($line['ts'] ?? (new \DateTimeImmutable())->format(DATE_ATOM)),
                     'seq' => isset($line['id']) ? (int) $line['id'] : null,
                     'status' => isset($line['level']) && $line['level'] !== '' ? (string) $line['level'] : null,

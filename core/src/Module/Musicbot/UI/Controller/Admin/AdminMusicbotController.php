@@ -22,6 +22,7 @@ use App\Module\Musicbot\Application\MusicbotAutoDjService;
 use App\Module\Musicbot\Application\MusicbotScheduleService;
 use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Application\MusicbotStreamService;
+use App\Module\Musicbot\Application\MusicbotRuntimeConfigBuilder;
 use App\Module\Musicbot\Application\MusicbotWorkflowService;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflow;
 use App\Repository\MusicbotAutoDjSettingsRepository;
@@ -62,6 +63,7 @@ final class AdminMusicbotController
         private readonly MusicbotWorkflowService $workflowService,
         private readonly MusicbotWorkflowRepository $workflowRepository,
         private readonly MusicbotSecretConfigService $secretConfigService,
+        private readonly MusicbotRuntimeConfigBuilder $runtimeConfigBuilder,
         private readonly PluginRegistryService $pluginRegistryService,
         private readonly MusicbotPluginRepository $pluginRepository,
         private readonly UserRepository $userRepository,
@@ -231,6 +233,7 @@ final class AdminMusicbotController
         $this->runtimeEventService->record($instance, 'connector.status.changed', 'info', 'TeamSpeak connection updated', ['platform' => 'teamspeak', 'profile' => $connection->getTeamspeakProfile()->value]);
         $this->auditLogger->log($actor, 'musicbot.admin_connection_teamspeak_updated', ['instance_id' => $id, 'connection_id' => $connection->getId(), 'enabled' => $connection->isEnabled(), 'profile' => $connection->getTeamspeakProfile()->value]);
         $this->entityManager->flush();
+        $this->dispatchConfigApplyJob($instance);
         $this->flash($request, 'success', 'TeamSpeak-Verbindung wurde gespeichert.');
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/admin/musicbots/%d', $id)]);
@@ -247,6 +250,7 @@ final class AdminMusicbotController
         $config['application_id'] = trim((string) $request->request->get('application_id', $config['application_id'] ?? ''));
         $config['guild_id'] = trim((string) $request->request->get('guild_id', $config['guild_id'] ?? ''));
         $config['voice_channel_id'] = trim((string) $request->request->get('voice_channel_id', $config['voice_channel_id'] ?? ''));
+        $config['text_channel_id'] = trim((string) $request->request->get('text_channel_id', $config['text_channel_id'] ?? ''));
         $config['command_mode'] = in_array((string) $request->request->get('command_mode', $config['command_mode'] ?? 'placeholder'), ['placeholder', 'slash'], true) ? (string) $request->request->get('command_mode', $config['command_mode'] ?? 'placeholder') : 'placeholder';
         $config['slash_commands_enabled'] = $request->request->getBoolean('slash_commands_enabled');
         $config['reconnect_policy'] = in_array((string) $request->request->get('reconnect_policy', $config['reconnect_policy'] ?? 'manual'), ['manual', 'exponential_backoff'], true) ? (string) $request->request->get('reconnect_policy', $config['reconnect_policy'] ?? 'manual') : 'manual';
@@ -259,6 +263,7 @@ final class AdminMusicbotController
         $this->runtimeEventService->record($instance, 'connector.status.changed', 'info', 'Discord connection updated', ['platform' => 'discord']);
         $this->auditLogger->log($actor, 'musicbot.admin_connection_discord_updated', ['instance_id' => $id, 'connection_id' => $connection->getId(), 'enabled' => $connection->isEnabled()]);
         $this->entityManager->flush();
+        $this->dispatchConfigApplyJob($instance);
         $this->flash($request, 'success', 'Discord-Verbindung wurde gespeichert.');
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/admin/musicbots/%d', $id)]);
@@ -382,6 +387,8 @@ final class AdminMusicbotController
             'backend_type' => $this->normalizeTeamspeakBackendType((string) $request->request->get('teamspeak_backend_type', 'placeholder')),
             'backend_path' => trim((string) $request->request->get('teamspeak_backend_path', '')),
             'identity_path' => trim((string) $request->request->get('teamspeak_identity_path', '')),
+            'library_path' => trim((string) $request->request->get('teamspeak_library_path', '')),
+            'binary_path' => trim((string) $request->request->get('teamspeak_binary_path', '')),
             'command_prefix' => trim((string) $request->request->get('teamspeak_command_prefix', '!')) ?: '!',
             'commands_enabled' => $request->request->getBoolean('teamspeak_commands_enabled'),
             'events_enabled' => $request->request->getBoolean('teamspeak_events_enabled'),
@@ -576,6 +583,8 @@ final class AdminMusicbotController
             'teamspeak_backend_type' => 'placeholder',
             'teamspeak_backend_path' => '',
             'teamspeak_identity_path' => '',
+            'teamspeak_library_path' => '',
+            'teamspeak_binary_path' => '',
             'teamspeak_backend_types' => ['placeholder' => 'Placeholder', 'native_sdk' => 'Native SDK', 'external_client_bridge' => 'External Client Bridge', 'disabled' => 'Disabled'],
             'teamspeak_command_prefix' => '!',
             'teamspeak_commands_enabled' => true,
@@ -591,6 +600,7 @@ final class AdminMusicbotController
             'teamspeak_channel_password' => '',
             'teamspeak_profiles' => MusicbotTeamspeakProfile::cases(),
             'discord_enabled' => false,
+            'discord_text_channel_id' => '',
             'errors' => [],
         ];
 
@@ -725,6 +735,21 @@ final class AdminMusicbotController
         $this->auditLogger->log($actor, 'musicbot.admin_workflow_disabled', ['workflow_id' => $workflow->getId(), 'customer_id' => $workflow->getCustomer()->getId()]);
 
         return new \Symfony\Component\HttpFoundation\JsonResponse(['data' => $this->workflowService->normalize($workflow)]);
+    }
+
+    private function dispatchConfigApplyJob(MusicbotInstance $instance): void
+    {
+        if (!in_array($instance->getStatus(), [MusicbotInstanceStatus::Running, MusicbotInstanceStatus::Stopped, MusicbotInstanceStatus::Installed], true)) {
+            return;
+        }
+
+        $runtimeConfig = $this->runtimeConfigBuilder->build($instance);
+        $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.config.apply', array_merge([
+            'instance_id' => (string) $instance->getId(),
+            'service_name' => $instance->getServiceName(),
+            'install_path' => $instance->getInstallPath(),
+            'config_file_permissions' => '0600',
+        ], ['config' => $runtimeConfig]));
     }
 
     private function jobTypeForAction(string $action): string

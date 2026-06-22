@@ -17,6 +17,7 @@ use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Domain\Enum\Ts3InstanceStatus;
 use App\Module\Core\Domain\Enum\Ts6InstanceStatus;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventServiceInterface;
+use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotConnectionStatus;
@@ -51,6 +52,7 @@ final class AgentJobResultApplier
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotRuntimeEventServiceInterface $musicbotRuntimeEventService,
+        private readonly MusicbotSecretConfigService $musicbotSecretConfigService,
     ) {
     }
 
@@ -110,6 +112,11 @@ final class AgentJobResultApplier
             return;
         }
 
+        if ($job->getType() === 'musicbot.config.apply') {
+            $this->applyMusicbotConfigApplyResult($job, $status, $payload);
+            return;
+        }
+
         $instance = $this->findMusicbotInstanceFromJob($job);
         if (!$instance instanceof MusicbotInstance) {
             return;
@@ -147,7 +154,7 @@ final class AgentJobResultApplier
             if ($status === AgentJobStatus::Success) {
                 $instance->setLastError(null);
                 if (is_array($payload)) {
-                    $instance->setRuntimePayload($payload);
+                    $instance->setRuntimePayload($this->musicbotSecretConfigService->sanitizePayload($payload));
                 }
                 $this->musicbotRuntimeEventService->record($instance, $operation === 'repair' ? 'instance.repaired' : 'instance.updated', 'info', sprintf('Musicbot %s completed.', $operation), ['job_id' => $job->getId()]);
             } elseif ($status === AgentJobStatus::Failed) {
@@ -206,7 +213,7 @@ final class AgentJobResultApplier
                 }
                 $instance->setLastError($lastError);
                 $runtimePayload = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
-                $instance->setRuntimePayload($runtimePayload);
+                $instance->setRuntimePayload($this->musicbotSecretConfigService->sanitizePayload($runtimePayload));
 
                 $this->recordPlaybackStateTransition($instance, $previousState, $runtimePayload, $job->getId());
 
@@ -271,6 +278,22 @@ final class AgentJobResultApplier
                 $this->musicbotRuntimeEventService->record($instance, 'queue.empty', 'info', 'Queue became empty after playback stopped.', $context);
             }
             $this->musicbotRuntimeEventService->record($instance, 'playback.stopped', 'info', 'Playback stopped.', $context);
+        }
+    }
+
+    private function applyMusicbotConfigApplyResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
+    {
+        $instance = $this->findMusicbotInstanceFromJob($job);
+        if (!$instance instanceof MusicbotInstance) {
+            return;
+        }
+
+        if ($status === AgentJobStatus::Success) {
+            $this->musicbotRuntimeEventService->record($instance, 'config.applied', 'info', 'Runtime config applied successfully.', ['job_id' => $job->getId()]);
+        } elseif ($status === AgentJobStatus::Failed) {
+            $error = $this->extractError($job, $payload);
+            $instance->setLastError($error);
+            $this->musicbotRuntimeEventService->record($instance, 'config.apply_failed', 'error', 'Runtime config apply failed.', ['job_id' => $job->getId(), 'error' => $error]);
         }
     }
 
