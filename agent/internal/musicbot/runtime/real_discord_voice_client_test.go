@@ -416,7 +416,7 @@ func TestRealDiscordVoiceClientReconnectPath(t *testing.T) {
 
 	cfg := ConnectorConfig{Enabled: true, Config: map[string]any{"bot_token": "tok-r"}}
 	c := newRealDiscordVoiceClientWith(dial, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 
 	if err := c.ConnectGateway(context.Background(), cfg); err != nil {
 		t.Fatalf("first ConnectGateway() = %v", err)
@@ -494,10 +494,10 @@ func TestRealDiscordVoiceClientSendFrameAfterJoin(t *testing.T) {
 	secretKey := make([]byte, 32)
 
 	dial, gw, _ := voiceHandshakeDialScript("gw-s2", userID, ssrc, secretKey)
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 
 	c := newRealDiscordVoiceClientWith(dial, newTestUDPDialer(t), mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 
 	cfg := ConnectorConfig{Enabled: true, Config: map[string]any{"bot_token": "t"}}
 	if err := c.ConnectGateway(context.Background(), cfg); err != nil {
@@ -527,7 +527,7 @@ func TestRealDiscordVoiceClientContextCancelDuringSend(t *testing.T) {
 	t.Parallel()
 
 	c := newRealDiscordVoiceClientWith(defaultWSDialFunc, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before send
@@ -581,7 +581,7 @@ func TestRealDiscordVoiceClientGatewayConnectMissingToken(t *testing.T) {
 	t.Parallel()
 
 	c := newRealDiscordVoiceClientWith(defaultWSDialFunc, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 
 	err := c.ConnectGateway(context.Background(), ConnectorConfig{Enabled: true, Config: nil})
 	if err == nil {
@@ -598,7 +598,7 @@ func TestRealDiscordVoiceClientDisconnectClearsGatewayState(t *testing.T) {
 	t.Parallel()
 
 	dial, gw := gatewayDialScript("sess-dc", "user-dc")
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 
 	c := newRealDiscordVoiceClientWith(dial, mockUDPDial, mockIPDiscovery)
 
@@ -620,7 +620,7 @@ func TestRealDiscordVoiceClientDisconnectClearsGatewayState(t *testing.T) {
 
 func TestRealDiscordVoiceClientGatewayHeartbeatTimeoutMarksError(t *testing.T) {
 	c := newRealDiscordVoiceClientWith(defaultWSDialFunc, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 	conn := newMockWSConn(4)
 	go c.gatewayHeartbeatLoop(conn, 5*time.Millisecond)
 	deadline := time.After(200 * time.Millisecond)
@@ -651,7 +651,7 @@ func TestRealDiscordVoiceClientVoiceWebsocketCloseSchedulesReconnect(t *testing.
 		return gw, nil
 	}
 	c := newRealDiscordVoiceClientWith(dial, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 	c.rememberConfig(ConnectorConfig{Enabled: true, Config: map[string]any{"bot_token": "tok"}})
 	conn := newMockWSConn(1)
 	c.mu.Lock()
@@ -682,7 +682,7 @@ func TestRealDiscordVoiceClientVoiceWebsocketCloseSchedulesReconnect(t *testing.
 
 func TestRealDiscordVoiceClientUDPSendFailureUpdatesObservability(t *testing.T) {
 	c := newRealDiscordVoiceClientWith(defaultWSDialFunc, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
 		t.Fatal(err)
@@ -716,7 +716,7 @@ func TestRealDiscordVoiceClientRepeatedReconnectDoesNotStayInFlight(t *testing.T
 		return gw, nil
 	}
 	c := newRealDiscordVoiceClientWith(dial, mockUDPDial, mockIPDiscovery)
-	defer c.Close(context.Background())
+	defer func() { _ = c.Close(context.Background()) }()
 	cfg := ConnectorConfig{Enabled: true, Config: map[string]any{"bot_token": "tok"}}
 	for i := 0; i < 3; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
