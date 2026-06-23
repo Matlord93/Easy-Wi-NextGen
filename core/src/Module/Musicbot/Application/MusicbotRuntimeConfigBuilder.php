@@ -211,6 +211,7 @@ final class MusicbotRuntimeConfigBuilder
         $runtimeConfig['client_binary_path'] = $clientBinaryPath;
         $runtimeConfig['audio_backend'] = $backendConfig->getAudioBackend();
         $runtimeConfig['autoconnect'] = true;
+        unset($runtimeConfig['library_path'], $runtimeConfig['opus_library_path']);
 
         $runscriptPath = trim($backendConfig->getOfficialClientRunscriptPath() ?? '');
         if ($runscriptPath !== '') {
