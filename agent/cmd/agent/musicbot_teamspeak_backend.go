@@ -47,10 +47,10 @@ const (
 	teamspeakBackendStatusOfficialInvalid        = "official_client_invalid"
 	teamspeakBackendStatusOfficialReady          = "official_client_ready"
 
-	teamspeakBackendStatusExternalBridgeReady    = "external_bridge_ready"
-	teamspeakBackendStatusXvfbMissing            = "xvfb_missing"
-	teamspeakBackendStatusAudioBackendMissing    = "audio_backend_missing"
-	teamspeakBackendStatusClientBinaryMissing    = "client_binary_missing"
+	teamspeakBackendStatusExternalBridgeReady = "external_bridge_ready"
+	teamspeakBackendStatusXvfbMissing         = "xvfb_missing"
+	teamspeakBackendStatusAudioBackendMissing = "audio_backend_missing"
+	teamspeakBackendStatusClientBinaryMissing = "client_binary_missing"
 )
 
 const teamspeakBackendDefaultTimeout = 8 * time.Second

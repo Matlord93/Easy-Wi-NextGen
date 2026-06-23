@@ -373,7 +373,7 @@ func startTS3Client(ctx context.Context, params connectParams, clientBinary, tmp
 // waitForTCPConnection polls until a TCP connection to host:port exists in the
 // system's established connections table, or ctx is cancelled.
 func waitForTCPConnection(ctx context.Context, host string, port int) error {
-	target := fmt.Sprintf("%s:%d", host, port)
+	target := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {

@@ -59,9 +59,9 @@ func oggPage(data []byte, serial uint32, granule uint64, seqno uint32, flags byt
 	headerSize := 27 + len(segments)
 	page := make([]byte, headerSize+len(data))
 
-	copy(page[0:4], []byte("OggS"))  // capture pattern
-	page[4] = 0                      // stream structure version
-	page[5] = flags                  // header type
+	copy(page[0:4], []byte("OggS")) // capture pattern
+	page[4] = 0                     // stream structure version
+	page[5] = flags                 // header type
 	binary.LittleEndian.PutUint64(page[6:14], granule)
 	binary.LittleEndian.PutUint32(page[14:18], serial)
 	binary.LittleEndian.PutUint32(page[18:22], seqno)
