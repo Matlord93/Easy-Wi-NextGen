@@ -237,14 +237,14 @@ func (a *ExternalClientBridgeAdapter) cleanup() error {
 func startXvfb(tmpHome string) (string, *exec.Cmd, error) {
 	xvfbPath, err := exec.LookPath("Xvfb")
 	if err != nil {
-		return "", nil, errors.New("Xvfb not found: install the xvfb package")
+		return "", nil, errors.New("xvfb not found: install the xvfb package")
 	}
 
 	display := allocateDisplay()
 	cmd := exec.Command(xvfbPath, display, "-screen", "0", "1x1x8", "-nolisten", "tcp")
 	cmd.Env = append(os.Environ(), "HOME="+tmpHome)
 	if err := cmd.Start(); err != nil {
-		return "", nil, fmt.Errorf("Xvfb start: %w", err)
+		return "", nil, fmt.Errorf("xvfb start: %w", err)
 	}
 	time.Sleep(300 * time.Millisecond)
 	return display, cmd, nil
