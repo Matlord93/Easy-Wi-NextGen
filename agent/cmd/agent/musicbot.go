@@ -38,7 +38,7 @@ func handleMusicbotInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if runtime.GOOS != "windows" {
-		unitContent := systemdUnitTemplate(layout.serviceName, "easywi", layout.installPath, layout.installPath, installedBinary, fmt.Sprintf("--config %s", layout.configPath), 0, 0)
+		unitContent := musicbotSystemdUnit(layout.serviceName, layout.installPath, installedBinary, layout.configPath)
 		if err := os.WriteFile(layout.unitPath, []byte(unitContent), 0o644); err != nil {
 			return orchestratorResult{status: "failed", errorText: fmt.Sprintf("write systemd unit: %v", err)}
 		}
@@ -125,7 +125,7 @@ func handleMusicbotRepair(job jobs.Job) orchestratorResult {
 		_ = os.Chmod(layout.configPath, 0o600)
 	}
 	if runtime.GOOS != "windows" {
-		unitContent := systemdUnitTemplate(layout.serviceName, "easywi", layout.installPath, layout.installPath, layout.binaryPath, fmt.Sprintf("--config %s", layout.configPath), 0, 0)
+		unitContent := musicbotSystemdUnit(layout.serviceName, layout.installPath, layout.binaryPath, layout.configPath)
 		if err := os.WriteFile(layout.unitPath, []byte(unitContent), 0o644); err != nil {
 			return orchestratorResult{status: "failed", errorText: fmt.Sprintf("write systemd unit: %v", err)}
 		}
@@ -477,6 +477,48 @@ func musicbotInstallPayload(layout musicbotLayout, binaryPath string) map[string
 			"native":  true,
 		},
 	}
+}
+
+// musicbotSystemdUnit returns a systemd unit for the easywi-musicbot service.
+// Unlike game server units, PrivateDevices is disabled so child processes like
+// Xvfb and PulseAudio (used by the external_client_bridge backend) can access
+// audio/DRI devices when needed, and PrivateTmp=true provides an isolated /tmp
+// namespace shared by all subprocesses of the service.
+func musicbotSystemdUnit(serviceName, installPath, binaryPath, configPath string) string {
+	command := fmt.Sprintf("%s --config %s", binaryPath, configPath)
+	limits := buildSystemdLimits(0, 0)
+	return fmt.Sprintf(`[Unit]
+Description=Easy-Wi Musicbot Instance %s
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=easywi
+WorkingDirectory=%s
+Environment=HOME=%s
+Environment=XDG_CONFIG_HOME=%s/.config
+Environment=XDG_DATA_HOME=%s/.local/share
+ExecStartPre=/usr/bin/test -d %s
+ExecStart=%s
+StandardOutput=journal
+StandardError=journal
+Restart=on-failure
+RestartSec=10
+UMask=0027
+LimitNOFILE=1048576
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=false
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=%s
+%s
+
+[Install]
+WantedBy=multi-user.target
+`, serviceName, installPath, installPath, installPath, installPath, installPath, command, installPath, limits)
 }
 
 func copyMusicbotFile(source string, destination string, mode os.FileMode) error {

@@ -60,6 +60,10 @@ type TeamSpeakConnectorConfig struct {
 	ChannelID           string         `json:"channel_id,omitempty"`
 	ServerPassword      string         `json:"server_password,omitempty"`
 	ChannelPassword     string         `json:"channel_password,omitempty"`
+	BridgePath          string         `json:"bridge_path,omitempty"`
+	ClientBinaryPath    string         `json:"client_binary_path,omitempty"`
+	ClientRunscriptPath string         `json:"client_runscript_path,omitempty"`
+	AudioBackend        string         `json:"audio_backend,omitempty"`
 	Config              map[string]any `json:"config,omitempty"`
 }
 

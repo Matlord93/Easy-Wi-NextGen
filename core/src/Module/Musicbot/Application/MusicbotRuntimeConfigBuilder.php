@@ -7,6 +7,8 @@ namespace App\Module\Musicbot\Application;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
+use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakBackendStatus;
+use App\Repository\MusicbotTeamspeakBackendConfigRepository;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotPluginRepository;
 use App\Repository\MusicbotStreamSettingsRepository;
@@ -30,6 +32,7 @@ final class MusicbotRuntimeConfigBuilder
         private readonly MusicbotStreamSettingsRepository $streamSettingsRepository,
         private readonly MusicbotPluginRepository $pluginRepository,
         private readonly MusicbotSecretConfigService $secretConfigService,
+        private readonly ?MusicbotTeamspeakBackendConfigRepository $teamspeakBackendConfigRepository = null,
     ) {
     }
 
@@ -52,7 +55,7 @@ final class MusicbotRuntimeConfigBuilder
             'service_name' => $instance->getServiceName(),
             'install_path' => $instance->getInstallPath(),
             'discord' => $this->buildDiscordConfig($connections),
-            'teamspeak' => $this->buildTeamspeakConfig($connections),
+            'teamspeak' => $this->buildTeamspeakConfig($instance, $connections),
             'stream' => $this->buildStreamConfig($instance),
             'plugins' => $this->buildPluginConfigs($instance),
             'config_file_permissions' => '0600',
@@ -95,7 +98,7 @@ final class MusicbotRuntimeConfigBuilder
     }
 
     /** @param MusicbotConnection[] $connections @return array<string, mixed> */
-    private function buildTeamspeakConfig(array $connections): array
+    private function buildTeamspeakConfig(MusicbotInstance $instance, array $connections): array
     {
         $connection = $this->findConnection($connections, MusicbotPlatform::Teamspeak);
 
@@ -106,7 +109,7 @@ final class MusicbotRuntimeConfigBuilder
         $config = $connection->getConnectionConfig();
         $secrets = $this->secretConfigService->normalizeForRuntime($connection->getSecretConfig());
 
-        return [
+        $runtimeConfig = [
             'enabled' => true,
             'platform' => 'teamspeak',
             'profile' => (string) ($config['profile'] ?? 'ts3'),
@@ -130,6 +133,91 @@ final class MusicbotRuntimeConfigBuilder
             'server_password' => $secrets['server_password'] ?? '',
             'channel_password' => $secrets['channel_password'] ?? '',
         ];
+
+        return $this->mergeTeamspeakBackendConfig($instance, $runtimeConfig);
+    }
+
+
+    /** @param array<string, mixed> $runtimeConfig @return array<string, mixed> */
+    private function mergeTeamspeakBackendConfig(MusicbotInstance $instance, array $runtimeConfig): array
+    {
+        $selectedBackendType = (string) ($runtimeConfig['backend_type'] ?? 'placeholder');
+        $runtimeConfig['backend_status'] = 'client_backend_required';
+
+        if ((string) ($runtimeConfig['profile'] ?? 'ts3') !== 'ts3' || $selectedBackendType === 'placeholder' || $selectedBackendType === 'disabled') {
+            return $runtimeConfig;
+        }
+
+        $backendConfig = $this->teamspeakBackendConfigRepository?->findOneByNode($instance->getNode());
+        if ($backendConfig === null) {
+            return $runtimeConfig;
+        }
+
+        $status = $backendConfig->getStatus();
+
+        if ($selectedBackendType === 'external_client_bridge') {
+            return $this->mergeExternalClientBridgeConfig($backendConfig, $runtimeConfig, $status);
+        }
+
+        $hasReadyStatus = in_array($status, [MusicbotTeamspeakBackendStatus::Ready, MusicbotTeamspeakBackendStatus::Connected], true);
+        $backendPath = trim($backendConfig->getBackendPath()) !== '' ? $backendConfig->getBackendPath() : $backendConfig->getBinaryPath();
+        $libraryPath = $backendConfig->getLibraryPath();
+        $opusLibraryPath = (string) $backendConfig->getOpusLibraryPath();
+
+        if (!$hasReadyStatus || trim($backendPath) === '' || trim($libraryPath) === '' || trim($opusLibraryPath) === '') {
+            return $runtimeConfig;
+        }
+
+        $runtimeConfig['backend_status'] = $status->value;
+        $runtimeConfig['backend_type'] = 'client_library';
+        $runtimeConfig['backend_path'] = $backendPath;
+        $runtimeConfig['binary_path'] = $backendConfig->getBinaryPath();
+        $runtimeConfig['library_path'] = $libraryPath;
+        $runtimeConfig['opus_library_path'] = $opusLibraryPath;
+        if ($backendConfig->getIdentityPath() !== null && trim($backendConfig->getIdentityPath()) !== '') {
+            $runtimeConfig['identity_path'] = $backendConfig->getIdentityPath();
+        }
+        if ($backendConfig->getChecksum() !== null && trim($backendConfig->getChecksum()) !== '') {
+            $runtimeConfig['checksum'] = $backendConfig->getChecksum();
+        }
+
+        return $runtimeConfig;
+    }
+
+    /** @param array<string, mixed> $runtimeConfig @return array<string, mixed> */
+    private function mergeExternalClientBridgeConfig(
+        \App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig $backendConfig,
+        array $runtimeConfig,
+        MusicbotTeamspeakBackendStatus $status,
+    ): array {
+        $readyStatuses = [
+            MusicbotTeamspeakBackendStatus::ExternalBridgeReady,
+            MusicbotTeamspeakBackendStatus::Connected,
+        ];
+        if (!in_array($status, $readyStatuses, true)) {
+            return $runtimeConfig;
+        }
+
+        $bridgePath = trim($backendConfig->getBridgePath());
+        $clientBinaryPath = trim($backendConfig->getOfficialClientBinaryPath() ?? '');
+
+        if ($bridgePath === '' || $clientBinaryPath === '') {
+            return $runtimeConfig;
+        }
+
+        $runtimeConfig['backend_status'] = $status->value;
+        $runtimeConfig['backend_type'] = 'external_client_bridge';
+        $runtimeConfig['bridge_path'] = $bridgePath;
+        $runtimeConfig['client_binary_path'] = $clientBinaryPath;
+        $runtimeConfig['audio_backend'] = $backendConfig->getAudioBackend();
+        $runtimeConfig['autoconnect'] = true;
+
+        $runscriptPath = trim($backendConfig->getOfficialClientRunscriptPath() ?? '');
+        if ($runscriptPath !== '') {
+            $runtimeConfig['client_runscript_path'] = $runscriptPath;
+        }
+
+        return $runtimeConfig;
     }
 
     /** @return array<string, mixed> */

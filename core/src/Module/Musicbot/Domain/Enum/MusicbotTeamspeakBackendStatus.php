@@ -30,4 +30,8 @@ enum MusicbotTeamspeakBackendStatus: string
     case SdkClientInstalled = 'sdk_client_installed';
     case SdkClientInstalledLibraryMissing = 'sdk_client_installed_library_missing';
     case SdkClientInvalid = 'sdk_client_invalid';
+    case ExternalBridgeReady = 'external_bridge_ready';
+    case XvfbMissing = 'xvfb_missing';
+    case AudioBackendMissing = 'audio_backend_missing';
+    case ClientBinaryMissing = 'client_binary_missing';
 }

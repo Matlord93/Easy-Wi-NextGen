@@ -16,10 +16,11 @@ import (
 )
 
 const (
-	adapterBackendPlaceholder   = "placeholder"
-	adapterBackendNativeSDK     = "native_sdk"
-	adapterBackendClientLibrary = "client_library"
-	adapterBackendDisabled      = "disabled"
+	adapterBackendPlaceholder          = "placeholder"
+	adapterBackendNativeSDK            = "native_sdk"
+	adapterBackendClientLibrary        = "client_library"
+	adapterBackendDisabled             = "disabled"
+	adapterBackendExternalClientBridge = "external_client_bridge"
 )
 
 // ErrClientBackendNotAvailable is returned by stub adapters for all operations
@@ -30,16 +31,19 @@ var ErrClientBackendDisabled = errors.New("TeamSpeak client backend disabled")
 
 // connectParams holds the configuration supplied by the runtime in a connect request.
 type connectParams struct {
-	BackendType     string
-	BackendPath     string
-	Host            string
-	Port            int
-	Profile         string
-	Nickname        string
-	IdentityPath    string
-	ChannelID       string
-	ServerPassword  string // secret – must not appear in logs or error strings
-	ChannelPassword string // secret – must not appear in logs or error strings
+	BackendType         string
+	BackendPath         string
+	Host                string
+	Port                int
+	Profile             string
+	Nickname            string
+	IdentityPath        string
+	ChannelID           string
+	ServerPassword      string // secret – must not appear in logs or error strings
+	ChannelPassword     string // secret – must not appear in logs or error strings
+	ClientBinaryPath    string
+	ClientRunscriptPath string
+	AudioBackend        string
 }
 
 // adapterStatus is a point-in-time snapshot returned by TeamspeakClientAdapter.Status.
@@ -82,6 +86,8 @@ func NewTeamspeakClientAdapter(backendType, backendPath string) TeamspeakClientA
 		return NewNativeSDKAdapter(backendPath)
 	case adapterBackendClientLibrary:
 		return NewClientLibraryAdapter(backendPath)
+	case adapterBackendExternalClientBridge:
+		return NewExternalClientBridgeAdapter()
 	default:
 		return NewPlaceholderAdapter()
 	}
@@ -97,6 +103,8 @@ func normalizeBackendType(backendType string) string {
 		return adapterBackendClientLibrary
 	case adapterBackendDisabled:
 		return adapterBackendDisabled
+	case adapterBackendExternalClientBridge:
+		return adapterBackendExternalClientBridge
 	default:
 		return adapterBackendPlaceholder
 	}

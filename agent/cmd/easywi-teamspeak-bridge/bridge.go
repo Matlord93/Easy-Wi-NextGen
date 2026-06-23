@@ -21,20 +21,23 @@ const (
 // bridgeRequest is the JSON object the runtime sends over stdin.
 // Fields not relevant to the current action are ignored.
 type bridgeRequest struct {
-	Action          string `json:"action"`
-	BackendType     string `json:"backend_type,omitempty"`
-	BackendPath     string `json:"backend_path,omitempty"`
-	Host            string `json:"host,omitempty"`
-	Port            int    `json:"port,omitempty"`
-	Profile         string `json:"profile,omitempty"`
-	Nickname        string `json:"nickname,omitempty"`
-	IdentityPath    string `json:"identity_path,omitempty"`
-	ServerPassword  string `json:"server_password,omitempty"`
-	ChannelID       string `json:"channel_id,omitempty"`
-	ChannelPassword string `json:"channel_password,omitempty"`
-	Format          string `json:"format,omitempty"`
-	Payload         string `json:"payload,omitempty"`
-	DurationMs      int    `json:"duration_ms,omitempty"`
+	Action              string `json:"action"`
+	BackendType         string `json:"backend_type,omitempty"`
+	BackendPath         string `json:"backend_path,omitempty"`
+	Host                string `json:"host,omitempty"`
+	Port                int    `json:"port,omitempty"`
+	Profile             string `json:"profile,omitempty"`
+	Nickname            string `json:"nickname,omitempty"`
+	IdentityPath        string `json:"identity_path,omitempty"`
+	ServerPassword      string `json:"server_password,omitempty"`
+	ChannelID           string `json:"channel_id,omitempty"`
+	ChannelPassword     string `json:"channel_password,omitempty"`
+	Format              string `json:"format,omitempty"`
+	Payload             string `json:"payload,omitempty"`
+	DurationMs          int    `json:"duration_ms,omitempty"`
+	ClientBinaryPath    string `json:"client_binary_path,omitempty"`
+	ClientRunscriptPath string `json:"client_runscript_path,omitempty"`
+	AudioBackend        string `json:"audio_backend,omitempty"`
 }
 
 // bridgeResponse is the JSON object the bridge writes to stdout after each request.
@@ -125,16 +128,19 @@ func (b *bridge) handleConnect(ctx context.Context, req bridgeRequest) bridgeRes
 		port = 9987
 	}
 	params := connectParams{
-		BackendType:     normalizeBackendType(req.BackendType),
-		BackendPath:     req.BackendPath,
-		Host:            req.Host,
-		Port:            port,
-		Profile:         normalizeProfile(req.Profile),
-		Nickname:        req.Nickname,
-		IdentityPath:    req.IdentityPath,
-		ChannelID:       req.ChannelID,
-		ServerPassword:  req.ServerPassword,
-		ChannelPassword: req.ChannelPassword,
+		BackendType:         normalizeBackendType(req.BackendType),
+		BackendPath:         req.BackendPath,
+		Host:                req.Host,
+		Port:                port,
+		Profile:             normalizeProfile(req.Profile),
+		Nickname:            req.Nickname,
+		IdentityPath:        req.IdentityPath,
+		ChannelID:           req.ChannelID,
+		ServerPassword:      req.ServerPassword,
+		ChannelPassword:     req.ChannelPassword,
+		ClientBinaryPath:    req.ClientBinaryPath,
+		ClientRunscriptPath: req.ClientRunscriptPath,
+		AudioBackend:        req.AudioBackend,
 	}
 
 	b.mu.Lock()

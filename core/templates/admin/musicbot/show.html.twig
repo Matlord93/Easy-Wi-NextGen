@@ -303,7 +303,7 @@
                                 </div>
                                 <div class="form-field">
                                     <label class="form-label">Backend Type</label>
-                                    <select name="teamspeak_backend_type" class="form-input">{% for value,label in {'placeholder':'Placeholder','native_sdk':'Native SDK','external_client_bridge':'External Client Bridge','disabled':'Disabled'} %}<option value="{{ value }}" {% if tsConfig.backend_type|default('placeholder') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+                                    <select name="teamspeak_backend_type" class="form-input">{% for value,label in {'placeholder':'Placeholder','client_library':'Client Library','native_sdk':'Native SDK','external_client_bridge':'External Client Bridge','disabled':'Disabled'} %}<option value="{{ value }}" {% if tsConfig.backend_type|default('placeholder') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
                                 </div>
                                 <div class="form-field"><label class="form-label">Backend Path</label><input name="teamspeak_backend_path" value="{{ tsConfig.backend_path|default('') }}" placeholder="Backend Path" class="form-input"></div>
                                 <div class="form-field"><label class="form-label">Identity Path</label><input name="teamspeak_identity_path" value="{{ tsConfig.identity_path|default('') }}" placeholder="Identity Path" class="form-input"></div>

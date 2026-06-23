@@ -110,6 +110,18 @@ class MusicbotTeamspeakBackendConfig
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $sdkClientLastInstalledAt = null;
 
+    #[ORM\Column(length: 1024, options: ['default' => '/usr/local/bin/easywi-teamspeak-bridge'])]
+    private string $bridgePath = '/usr/local/bin/easywi-teamspeak-bridge';
+
+    #[ORM\Column(length: 1024, nullable: true)]
+    private ?string $officialClientBinaryPath = null;
+
+    #[ORM\Column(length: 1024, nullable: true)]
+    private ?string $officialClientRunscriptPath = null;
+
+    #[ORM\Column(length: 64, options: ['default' => 'pulseaudio_virtual_source'])]
+    private string $audioBackend = 'pulseaudio_virtual_source';
+
     public function __construct(Agent $node)
     {
         $this->node = $node;
@@ -176,6 +188,14 @@ class MusicbotTeamspeakBackendConfig
     public function setSdkClientLastError(?string $sdkClientLastError): void { $this->sdkClientLastError = $sdkClientLastError; }
     public function getSdkClientLastInstalledAt(): ?\DateTimeImmutable { return $this->sdkClientLastInstalledAt; }
     public function setSdkClientLastInstalledAt(?\DateTimeImmutable $sdkClientLastInstalledAt): void { $this->sdkClientLastInstalledAt = $sdkClientLastInstalledAt; }
+    public function getBridgePath(): string { return $this->bridgePath; }
+    public function setBridgePath(string $bridgePath): void { $this->bridgePath = $bridgePath; }
+    public function getOfficialClientBinaryPath(): ?string { return $this->officialClientBinaryPath; }
+    public function setOfficialClientBinaryPath(?string $officialClientBinaryPath): void { $this->officialClientBinaryPath = $officialClientBinaryPath; }
+    public function getOfficialClientRunscriptPath(): ?string { return $this->officialClientRunscriptPath; }
+    public function setOfficialClientRunscriptPath(?string $officialClientRunscriptPath): void { $this->officialClientRunscriptPath = $officialClientRunscriptPath; }
+    public function getAudioBackend(): string { return $this->audioBackend; }
+    public function setAudioBackend(string $audioBackend): void { $this->audioBackend = $audioBackend; }
 
     /** @param array<string, mixed> $payload */
     public function applyAgentResult(array $payload): void
@@ -200,7 +220,7 @@ class MusicbotTeamspeakBackendConfig
         if (is_string($payload['official_client_last_installed_at'] ?? null) && $payload['official_client_last_installed_at'] !== '') {
             $this->officialClientLastInstalledAt = new \DateTimeImmutable($payload['official_client_last_installed_at']);
         }
-        if (is_string($payload['backend_type_suggestion'] ?? null) && $payload['backend_type_suggestion'] !== '' && in_array($payload['backend_type_suggestion'], ['client_library', 'native_sdk'], true)) {
+        if (is_string($payload['backend_type_suggestion'] ?? null) && $payload['backend_type_suggestion'] !== '' && in_array($payload['backend_type_suggestion'], ['client_library', 'native_sdk', 'external_client_bridge'], true)) {
             $this->backendType = $payload['backend_type_suggestion'];
         }
         if (is_string($payload['backend_path_suggestion'] ?? null) && $payload['backend_path_suggestion'] !== '' && trim($this->backendPath) === '') {
@@ -223,6 +243,18 @@ class MusicbotTeamspeakBackendConfig
                 $this->sdkClientLastInstalledAt = new \DateTimeImmutable($payload['sdk_client_last_installed_at']);
             }
         }
+        if (is_string($payload['client_binary_path'] ?? null) && $payload['client_binary_path'] !== '') {
+            $this->officialClientBinaryPath = $payload['client_binary_path'];
+        }
+        if (is_string($payload['client_runscript_path'] ?? null) && $payload['client_runscript_path'] !== '') {
+            $this->officialClientRunscriptPath = $payload['client_runscript_path'];
+        }
+        if (is_string($payload['bridge_path'] ?? null) && $payload['bridge_path'] !== '') {
+            $this->bridgePath = $payload['bridge_path'];
+        }
+        if (str_starts_with($status->value, 'external_bridge_') || in_array($status->value, ['xvfb_missing', 'audio_backend_missing', 'client_binary_missing'], true)) {
+            $this->lastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
+        }
         $this->lastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
         $this->lastCheckedAt = new \DateTimeImmutable();
     }
@@ -242,6 +274,10 @@ class MusicbotTeamspeakBackendConfig
             'checksum' => $this->checksum ?? '',
             'expected_checksum' => $this->checksum ?? '',
             'auto_install_enabled' => $this->autoInstallEnabled,
+            'bridge_path' => $this->bridgePath,
+            'client_binary_path' => $this->officialClientBinaryPath ?? '',
+            'client_runscript_path' => $this->officialClientRunscriptPath ?? '',
+            'audio_backend' => $this->audioBackend,
         ];
     }
 

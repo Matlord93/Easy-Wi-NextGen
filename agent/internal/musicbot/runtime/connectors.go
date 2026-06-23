@@ -442,6 +442,22 @@ func teamspeakConfigString(config TeamSpeakConnectorConfig, key string) string {
 		if config.Nickname != "" {
 			return config.Nickname
 		}
+	case "bridge_path":
+		if config.BridgePath != "" {
+			return config.BridgePath
+		}
+	case "client_binary_path":
+		if config.ClientBinaryPath != "" {
+			return config.ClientBinaryPath
+		}
+	case "client_runscript_path":
+		if config.ClientRunscriptPath != "" {
+			return config.ClientRunscriptPath
+		}
+	case "audio_backend":
+		if config.AudioBackend != "" {
+			return config.AudioBackend
+		}
 	}
 	if config.Config == nil {
 		return ""

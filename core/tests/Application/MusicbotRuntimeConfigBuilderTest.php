@@ -14,11 +14,14 @@ use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlugin;
 use App\Module\Musicbot\Domain\Entity\MusicbotStreamSettings;
+use App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
 use App\Module\Musicbot\Domain\Enum\MusicbotStreamAccessMode;
+use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakBackendStatus;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotPluginRepository;
 use App\Repository\MusicbotStreamSettingsRepository;
+use App\Repository\MusicbotTeamspeakBackendConfigRepository;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -108,6 +111,121 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         self::assertSame('srv-pw', $config['teamspeak']['server_password']);
         self::assertSame('chan-pw', $config['teamspeak']['channel_password']);
         self::assertSame(['10', '11'], $config['teamspeak']['allowed_server_groups']);
+    }
+
+
+    public function testTeamspeakRuntimeConfigMergesReadyAdminClientLibraryBackendPaths(): void
+    {
+        $conn = new MusicbotConnection($this->instance, MusicbotPlatform::Teamspeak, [
+            'host' => 'panel.florian-stern.de',
+            'port' => 9987,
+            'profile' => 'ts3',
+            'backend_type' => 'client_library',
+            'backend_path' => '',
+            'library_path' => '',
+            'opus_library_path' => '',
+        ], []);
+        $conn->setEnabled(true);
+
+        $backendConfig = new MusicbotTeamspeakBackendConfig($this->instance->getNode());
+        $backendConfig->setBackendType('client_library');
+        $backendConfig->setBackendPath('/usr/local/bin/easywi-teamspeak-client');
+        $backendConfig->setBinaryPath('/usr/local/bin/easywi-teamspeak-client');
+        $backendConfig->setLibraryPath('/opt/easywi/musicbot/teamspeak-client/libts3client.so');
+        $backendConfig->setOpusLibraryPath('/usr/lib/x86_64-linux-gnu/libopus.so.0');
+        $backendConfig->setStatus(MusicbotTeamspeakBackendStatus::Ready);
+
+        $builder = $this->buildService([$conn], null, [], $backendConfig);
+        $config = $builder->build($this->instance);
+
+        self::assertSame('panel.florian-stern.de', $config['teamspeak']['host']);
+        self::assertSame(9987, $config['teamspeak']['port']);
+        self::assertSame('client_library', $config['teamspeak']['backend_type']);
+        self::assertSame('/usr/local/bin/easywi-teamspeak-client', $config['teamspeak']['backend_path']);
+        self::assertSame('/opt/easywi/musicbot/teamspeak-client/libts3client.so', $config['teamspeak']['library_path']);
+        self::assertSame('/usr/lib/x86_64-linux-gnu/libopus.so.0', $config['teamspeak']['opus_library_path']);
+    }
+
+    public function testExternalClientBridgeRuntimeConfigEmitsBridgePathAndNotLibraryPath(): void
+    {
+        $conn = new MusicbotConnection($this->instance, MusicbotPlatform::Teamspeak, [
+            'host' => 'ts3.example.com',
+            'port' => 9987,
+            'profile' => 'ts3',
+            'backend_type' => 'external_client_bridge',
+        ], []);
+        $conn->setEnabled(true);
+
+        $backendConfig = new MusicbotTeamspeakBackendConfig($this->instance->getNode());
+        $backendConfig->setBackendType('external_client_bridge');
+        $backendConfig->setBridgePath('/usr/local/bin/easywi-teamspeak-bridge');
+        $backendConfig->setOfficialClientBinaryPath('/opt/easywi/musicbot/teamspeak-client/official-client/ts3client_linux_amd64');
+        $backendConfig->setOfficialClientRunscriptPath('/opt/easywi/musicbot/teamspeak-client/official-client/ts3client_runscript.sh');
+        $backendConfig->setAudioBackend('pulseaudio_virtual_source');
+        $backendConfig->setStatus(MusicbotTeamspeakBackendStatus::ExternalBridgeReady);
+
+        $builder = $this->buildService([$conn], null, [], $backendConfig);
+        $config = $builder->build($this->instance);
+
+        self::assertSame('external_client_bridge', $config['teamspeak']['backend_type']);
+        self::assertSame('/usr/local/bin/easywi-teamspeak-bridge', $config['teamspeak']['bridge_path']);
+        self::assertSame('/opt/easywi/musicbot/teamspeak-client/official-client/ts3client_linux_amd64', $config['teamspeak']['client_binary_path']);
+        self::assertSame('pulseaudio_virtual_source', $config['teamspeak']['audio_backend']);
+        self::assertTrue($config['teamspeak']['autoconnect']);
+        // library_path and opus_library_path must NOT be emitted for external_client_bridge
+        self::assertArrayNotHasKey('library_path', $config['teamspeak']);
+        self::assertArrayNotHasKey('opus_library_path', $config['teamspeak']);
+    }
+
+    public function testExternalClientBridgeNotReadyYieldsClientBackendRequired(): void
+    {
+        $conn = new MusicbotConnection($this->instance, MusicbotPlatform::Teamspeak, [
+            'host' => 'ts3.example.com',
+            'port' => 9987,
+            'profile' => 'ts3',
+            'backend_type' => 'external_client_bridge',
+        ], []);
+        $conn->setEnabled(true);
+
+        $backendConfig = new MusicbotTeamspeakBackendConfig($this->instance->getNode());
+        $backendConfig->setBackendType('external_client_bridge');
+        $backendConfig->setStatus(MusicbotTeamspeakBackendStatus::XvfbMissing);
+
+        $builder = $this->buildService([$conn], null, [], $backendConfig);
+        $config = $builder->build($this->instance);
+
+        self::assertSame('client_backend_required', $config['teamspeak']['backend_status'], 'Non-ready bridge status must not forward incomplete config to runtime');
+    }
+
+    public function testPlaceholderIsNotTreatedAsReadyAndClientLibraryRequiresAdminBackend(): void
+    {
+        $conn = new MusicbotConnection($this->instance, MusicbotPlatform::Teamspeak, [
+            'host' => 'ts3.example.com',
+            'port' => 9987,
+            'profile' => 'ts3',
+            'backend_type' => 'placeholder',
+        ], []);
+        $conn->setEnabled(true);
+
+        $config = $this->buildService([$conn], null, [])->build($this->instance);
+
+        self::assertSame('placeholder', $config['teamspeak']['backend_type']);
+        self::assertSame('', $config['teamspeak']['backend_path']);
+        self::assertSame('client_backend_required', $config['teamspeak']['backend_status']);
+
+        $conn = new MusicbotConnection($this->instance, MusicbotPlatform::Teamspeak, [
+            'host' => 'ts3.example.com',
+            'port' => 9987,
+            'profile' => 'ts3',
+            'backend_type' => 'client_library',
+        ], []);
+        $conn->setEnabled(true);
+
+        $config = $this->buildService([$conn], null, [])->build($this->instance);
+
+        self::assertSame('client_library', $config['teamspeak']['backend_type']);
+        self::assertSame('', $config['teamspeak']['backend_path']);
+        self::assertSame('client_backend_required', $config['teamspeak']['backend_status']);
     }
 
     public function testBuildReturnsFalseEnabledForDisabledConnection(): void
@@ -204,7 +322,7 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
     }
 
     /** @param MusicbotConnection[] $connections @param MusicbotPlugin[] $plugins */
-    private function buildService(array $connections, ?MusicbotStreamSettings $streamSettings, array $plugins): MusicbotRuntimeConfigBuilder
+    private function buildService(array $connections, ?MusicbotStreamSettings $streamSettings, array $plugins, ?MusicbotTeamspeakBackendConfig $teamspeakBackendConfig = null): MusicbotRuntimeConfigBuilder
     {
         $connectionRepo = $this->createStub(MusicbotConnectionRepository::class);
         $connectionRepo->method('findBy')->willReturn($connections);
@@ -215,6 +333,9 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         $pluginRepo = $this->createStub(MusicbotPluginRepository::class);
         $pluginRepo->method('findBy')->willReturn($plugins);
 
-        return new MusicbotRuntimeConfigBuilder($connectionRepo, $streamRepo, $pluginRepo, $this->secretService);
+        $teamspeakBackendRepo = $this->createStub(MusicbotTeamspeakBackendConfigRepository::class);
+        $teamspeakBackendRepo->method('findOneByNode')->willReturn($teamspeakBackendConfig);
+
+        return new MusicbotRuntimeConfigBuilder($connectionRepo, $streamRepo, $pluginRepo, $this->secretService, $teamspeakBackendRepo);
     }
 }

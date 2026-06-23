@@ -8,10 +8,14 @@
 {% set statusMap = {
     'ready': 'success',
     'connected': 'success',
+    'external_bridge_ready': 'success',
     'not_configured': 'neutral',
     'client_backend_required': 'warning',
     'library_missing': 'danger',
     'opus_missing': 'danger',
+    'xvfb_missing': 'danger',
+    'audio_backend_missing': 'danger',
+    'client_binary_missing': 'danger',
 } %}
 
 {% block content %}
@@ -67,7 +71,7 @@
     {% endif %}
 
     {# ── Status-Alerts ── #}
-    {% if status in ['ready', 'connected'] %}
+    {% if status in ['ready', 'connected', 'external_bridge_ready'] %}
         <div class="ng-alert ng-alert--success">TeamSpeak Client Backend ist bereit.</div>
     {% elseif status == 'client_backend_required' %}
         <div class="ng-alert ng-alert--warning">easywi-teamspeak-client wurde ohne ts3clientlib gebaut. Bitte mit <code style="font-family:monospace;">-tags ts3clientlib</code> neu bauen.</div>
@@ -75,6 +79,12 @@
         <div class="ng-alert ng-alert--danger">libts3client.so wurde nicht gefunden. Bitte erlaubte TeamSpeak Client Library lokal bereitstellen.</div>
     {% elseif status == 'opus_missing' %}
         <div class="ng-alert ng-alert--danger">libopus.so wurde nicht gefunden. Bitte Opus lokal oder als System-Library bereitstellen.</div>
+    {% elseif status == 'xvfb_missing' %}
+        <div class="ng-alert ng-alert--danger">Xvfb nicht gefunden. Bitte <code style="font-family:monospace;">apt-get install xvfb</code> ausführen oder "Abhängigkeiten installieren" nutzen.</div>
+    {% elseif status == 'audio_backend_missing' %}
+        <div class="ng-alert ng-alert--danger">PulseAudio/PipeWire nicht gefunden. Bitte <code style="font-family:monospace;">apt-get install pulseaudio</code> ausführen oder "Abhängigkeiten installieren" nutzen.</div>
+    {% elseif status == 'client_binary_missing' %}
+        <div class="ng-alert ng-alert--danger">TeamSpeak Client Binary (ts3client_linux_amd64) nicht gefunden. Bitte offiziellen TS3 Client installieren.</div>
     {% endif %}
     {% if form.last_error %}
         <div class="ng-alert ng-alert--danger">Letzter Fehler: {{ form.last_error }}</div>
@@ -107,44 +117,93 @@
                     </div>
                     <div class="form-field">
                         <label class="form-label">Backend Type</label>
-                        <select name="backend_type" class="form-input">
-                            <option value="client_library" {% if form.backend_type == 'client_library' %}selected{% endif %}>Client Library</option>
+                        <select name="backend_type" id="backend_type_select" class="form-input" onchange="updateBackendTypeVisibility(this.value)">
+                            <option value="external_client_bridge" {% if form.backend_type == 'external_client_bridge' %}selected{% endif %}>External Client Bridge (empfohlen — SinusBot-ähnlicher Modus)</option>
+                            <option value="client_library" {% if form.backend_type == 'client_library' %}selected{% endif %}>Client Library (experimentell)</option>
                             <option value="native_sdk" {% if form.backend_type == 'native_sdk' %}selected{% endif %}>Native SDK</option>
                         </select>
+                        <p id="hint_external_client_bridge" style="margin:6px 0 0;font-size:11px;color:var(--ng-text-muted);{% if form.backend_type != 'external_client_bridge' %}display:none;{% endif %}">
+                            Startet den echten TeamSpeak 3 Client headless via Xvfb + PulseAudio. Passwörter werden nie als CLI-Argumente übergeben.
+                        </p>
                     </div>
                     <div class="form-field">
                         <label class="form-label">Version</label>
                         <input name="version" value="{{ form.version }}" placeholder="optional" class="form-input">
                     </div>
-                    <div class="form-field">
+                    <div class="form-field client-library-field native-sdk-field" {% if form.backend_type == 'external_client_bridge' %}style="display:none"{% endif %}>
                         <label class="form-label">Backend Path</label>
-                        <input name="backend_path" value="{{ form.backend_path }}" required placeholder="/usr/local/bin/easywi-teamspeak-client" class="form-input">
+                        <input name="backend_path" value="{{ form.backend_path }}" placeholder="/usr/local/bin/easywi-teamspeak-client" class="form-input">
                     </div>
-                    <div class="form-field">
+                    <div class="form-field client-library-field native-sdk-field" {% if form.backend_type == 'external_client_bridge' %}style="display:none"{% endif %}>
                         <label class="form-label">Binary Path</label>
-                        <input name="binary_path" value="{{ form.binary_path }}" required placeholder="/usr/local/bin/easywi-teamspeak-client" class="form-input">
+                        <input name="binary_path" value="{{ form.binary_path }}" placeholder="/usr/local/bin/easywi-teamspeak-client" class="form-input">
                     </div>
-                    <div class="form-field">
+                    <div class="form-field client-library-field native-sdk-field" {% if form.backend_type == 'external_client_bridge' %}style="display:none"{% endif %}>
                         <label class="form-label">Library Path</label>
-                        <input name="library_path" value="{{ form.library_path }}" required placeholder="/opt/easywi/musicbot/teamspeak-client/libts3client.so" class="form-input">
+                        <input name="library_path" value="{{ form.library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libts3client.so" class="form-input">
                     </div>
-                    <div class="form-field">
+                    <div class="form-field client-library-field native-sdk-field" {% if form.backend_type == 'external_client_bridge' %}style="display:none"{% endif %}>
                         <label class="form-label">Opus Library Path</label>
                         <input name="opus_library_path" value="{{ form.opus_library_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/libopus.so" class="form-input">
                     </div>
-                    <div class="form-field">
+                    <div class="form-field client-library-field native-sdk-field" {% if form.backend_type == 'external_client_bridge' %}style="display:none"{% endif %}>
                         <label class="form-label">Identity Path</label>
                         <input name="identity_path" value="{{ form.identity_path }}" placeholder="optional" class="form-input">
                     </div>
                     <div class="form-field">
                         <label class="form-label">Install Path</label>
-                        <input name="install_path" value="{{ form.install_path }}" required placeholder="/opt/easywi/musicbot/teamspeak-client/" class="form-input">
+                        <input name="install_path" value="{{ form.install_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/" class="form-input">
                     </div>
-                    <div class="form-field">
+                    <div class="form-field client-library-field native-sdk-field" {% if form.backend_type == 'external_client_bridge' %}style="display:none"{% endif %}>
                         <label class="form-label">Expected Checksum (SHA-256)</label>
                         <input name="checksum" value="{{ form.checksum }}" placeholder="optional" class="form-input">
                     </div>
                 </div>
+
+                {# ── External Client Bridge fields ── #}
+                <div id="external_bridge_fields" {% if form.backend_type != 'external_client_bridge' %}style="display:none"{% endif %}>
+                    <div style="background:rgba(14,165,233,.07);border:1px solid rgba(14,165,233,.20);border-radius:8px;padding:12px 14px;margin:12px 0;font-size:12px;color:var(--ng-text-muted);">
+                        <strong style="color:var(--ng-text);">SinusBot-ähnlicher Modus</strong> — Echter TeamSpeak 3 Client läuft headless via Xvfb + PulseAudio. Passwörter werden über eine temporäre 0600-Konfigurationsdatei übergeben, nie als CLI-Argumente. Kein SinusBot, kein TS3AudioBot, kein Reverse Engineering.
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px;">
+                        <div class="form-field">
+                            <label class="form-label">Bridge Path</label>
+                            <input name="bridge_path" value="{{ form.bridge_path }}" placeholder="/usr/local/bin/easywi-teamspeak-bridge" class="form-input">
+                            <span style="font-size:11px;color:var(--ng-text-muted);">Pfad zum easywi-teamspeak-bridge Binary</span>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">TS3 Client Binary Path</label>
+                            <input name="official_client_binary_path" value="{{ form.official_client_binary_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/official-client/ts3client_linux_amd64" class="form-input">
+                            <span style="font-size:11px;color:var(--ng-text-muted);">Pfad zu ts3client_linux_amd64 (nach Installation automatisch befüllt)</span>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">TS3 Runscript Path (optional)</label>
+                            <input name="official_client_runscript_path" value="{{ form.official_client_runscript_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/official-client/ts3client_runscript.sh" class="form-input">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">Audio Backend</label>
+                            <select name="audio_backend" class="form-input">
+                                <option value="pulseaudio_virtual_source" {% if form.audio_backend == 'pulseaudio_virtual_source' %}selected{% endif %}>PulseAudio Virtual Source (empfohlen)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;padding:10px;background:var(--ng-surface-soft);border-radius:6px;font-size:12px;">
+                        <span style="color:var(--ng-text-muted);">Status-Checks:</span>
+                        <span style="color:{{ status == 'xvfb_missing' ? 'var(--ng-danger)' : (status in ['external_bridge_ready','connected'] ? 'var(--ng-success)' : 'var(--ng-text-muted)') }};">
+                            Xvfb: {{ status == 'xvfb_missing' ? 'fehlt' : (status in ['external_bridge_ready','connected','audio_backend_missing','client_binary_missing'] ? 'vorhanden' : '—') }}
+                        </span>
+                        <span style="color:{{ status == 'audio_backend_missing' ? 'var(--ng-danger)' : (status in ['external_bridge_ready','connected'] ? 'var(--ng-success)' : 'var(--ng-text-muted)') }};">
+                            PulseAudio/PipeWire: {{ status == 'audio_backend_missing' ? 'fehlt' : (status in ['external_bridge_ready','connected','client_binary_missing'] ? 'vorhanden' : '—') }}
+                        </span>
+                        <span style="color:{{ status == 'client_binary_missing' ? 'var(--ng-danger)' : (status in ['external_bridge_ready','connected'] ? 'var(--ng-success)' : 'var(--ng-text-muted)') }};">
+                            TS3 Client: {{ status == 'client_binary_missing' ? 'fehlt' : (status in ['external_bridge_ready','connected'] ? 'vorhanden' : '—') }}
+                        </span>
+                        <span style="color:{{ status in ['external_bridge_ready','connected'] ? 'var(--ng-success)' : 'var(--ng-text-muted)' }};">
+                            Bridge: {{ status in ['external_bridge_ready','connected'] ? 'bereit' : '—' }}
+                        </span>
+                    </div>
+                </div>
+
                 <label class="role-toggle" style="margin-top:12px;">
                     <input type="checkbox" name="auto_install_enabled" value="1" {% if form.auto_install_enabled %}checked{% endif %}>
                     <span>Auto-Install erlauben (keine proprietären Downloads)</span>
@@ -269,6 +328,15 @@
                         <button class="ui-button ui-button--ghost ui-button--sm" type="submit">TeamSpeak 3 SDK installieren</button>
                     </form>
                 </div>
+                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:14px;margin-top:10px;">
+                    <h3 style="margin:0 0 4px;font-size:13px;font-weight:700;color:var(--ng-text);">Systemabhängigkeiten installieren (External Client Bridge)</h3>
+                    <p style="margin:0 0 10px;font-size:12px;color:var(--ng-text-muted);">Installiert xvfb, dbus-x11, libpulse0, libglib2.0-0, libx11-6, libnss3, libgtk-3-0 via apt-get/dnf/yum. Nur für Debian/Ubuntu/RHEL. Erfordert Root-Rechte.</p>
+                    <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: 'install_dependencies'}) }}" onsubmit="return confirm('Systemabhängigkeiten auf dem Node installieren? Dies erfordert Root-Rechte.');">
+                        <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
+                        <label class="role-toggle" style="margin-bottom:10px;"><input type="checkbox" name="install_dependencies" value="1" required><span>Ich bestätige, dass Systemabhängigkeiten installiert werden dürfen</span></label>
+                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Abhängigkeiten installieren</button>
+                    </form>
+                </div>
             </div>
         </div>
     {% endif %}
@@ -282,5 +350,19 @@
             if (chevron) chevron.style.transform = d.open ? 'rotate(180deg)' : '';
         });
     });
+
+    function updateBackendTypeVisibility(backendType) {
+        const isExternalBridge = backendType === 'external_client_bridge';
+        document.querySelectorAll('.client-library-field, .native-sdk-field').forEach(el => {
+            el.style.display = isExternalBridge ? 'none' : '';
+        });
+        const extFields = document.getElementById('external_bridge_fields');
+        if (extFields) extFields.style.display = isExternalBridge ? '' : 'none';
+        const hint = document.getElementById('hint_external_client_bridge');
+        if (hint) hint.style.display = isExternalBridge ? '' : 'none';
+    }
+    // Apply on load
+    const sel = document.getElementById('backend_type_select');
+    if (sel) updateBackendTypeVisibility(sel.value);
 </script>
 {% endblock %}

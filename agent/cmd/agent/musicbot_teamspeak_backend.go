@@ -46,6 +46,11 @@ const (
 	teamspeakBackendStatusOfficialLibraryMissing = "official_client_installed_library_missing"
 	teamspeakBackendStatusOfficialInvalid        = "official_client_invalid"
 	teamspeakBackendStatusOfficialReady          = "official_client_ready"
+
+	teamspeakBackendStatusExternalBridgeReady    = "external_bridge_ready"
+	teamspeakBackendStatusXvfbMissing            = "xvfb_missing"
+	teamspeakBackendStatusAudioBackendMissing    = "audio_backend_missing"
+	teamspeakBackendStatusClientBinaryMissing    = "client_binary_missing"
 )
 
 const teamspeakBackendDefaultTimeout = 8 * time.Second
@@ -80,47 +85,57 @@ var teamspeakOfficialHTTPClient = &http.Client{
 }
 
 type teamspeakBackendConfig struct {
-	BackendType      string
-	BackendPath      string
-	LibraryPath      string
-	OpusLibraryPath  string
-	IdentityPath     string
-	InstallPath      string
-	BinaryPath       string
-	Version          string
-	ExpectedChecksum string
-	AutoInstall      bool
-	Host             string
-	Port             int
-	Profile          string
-	Nickname         string
-	ChannelID        string
-	ServerPassword   string
-	ChannelPassword  string
+	BackendType         string
+	BackendPath         string
+	LibraryPath         string
+	OpusLibraryPath     string
+	IdentityPath        string
+	InstallPath         string
+	BinaryPath          string
+	Version             string
+	ExpectedChecksum    string
+	AutoInstall         bool
+	Host                string
+	Port                int
+	Profile             string
+	Nickname            string
+	ChannelID           string
+	ServerPassword      string
+	ChannelPassword     string
+	BridgePath          string
+	ClientBinaryPath    string
+	ClientRunscriptPath string
+	AudioBackend        string
+	InstallDependencies bool
 }
 
 type teamspeakBackendValidation struct {
-	Status          string
-	BackendType     string
-	BackendPath     string
-	LibraryPath     string
-	OpusLibraryPath string
-	IdentityPath    string
-	InstallPath     string
-	BinaryPath      string
-	Version         string
-	Checksum        string
-	AutoInstall     bool
-	BinaryFound     bool
-	BinaryExec      bool
-	LibraryFound    bool
-	OpusFound       bool
-	IdentityFound   bool
-	BuildMode       string
-	Ready           bool
-	Connected       bool
-	LastError       string
-	LastCheckedAt   string
+	Status                string
+	BackendType           string
+	BackendPath           string
+	LibraryPath           string
+	OpusLibraryPath       string
+	IdentityPath          string
+	InstallPath           string
+	BinaryPath            string
+	Version               string
+	Checksum              string
+	AutoInstall           bool
+	BinaryFound           bool
+	BinaryExec            bool
+	LibraryFound          bool
+	OpusFound             bool
+	IdentityFound         bool
+	BuildMode             string
+	Ready                 bool
+	Connected             bool
+	LastError             string
+	LastCheckedAt         string
+	BridgePath            string
+	ClientBinaryPath      string
+	ClientRunscriptPath   string
+	XvfbAvailable         bool
+	AudioBackendAvailable bool
 }
 
 type teamspeakBackendProcessResponse struct {
@@ -200,17 +215,20 @@ func handleMusicbotTeamspeakBackendTestConnection(job jobs.Job) orchestratorResu
 		return teamspeakBackendResult("failed", validation)
 	}
 	connect := map[string]any{
-		"action":           "connect",
-		"backend_type":     cfg.BackendType,
-		"backend_path":     cfg.LibraryPath,
-		"host":             cfg.Host,
-		"port":             cfg.Port,
-		"profile":          cfg.Profile,
-		"nickname":         cfg.Nickname,
-		"identity_path":    cfg.IdentityPath,
-		"server_password":  cfg.ServerPassword,
-		"channel_id":       cfg.ChannelID,
-		"channel_password": cfg.ChannelPassword,
+		"action":                "connect",
+		"backend_type":          cfg.BackendType,
+		"backend_path":          cfg.LibraryPath,
+		"host":                  cfg.Host,
+		"port":                  cfg.Port,
+		"profile":               cfg.Profile,
+		"nickname":              cfg.Nickname,
+		"identity_path":         cfg.IdentityPath,
+		"server_password":       cfg.ServerPassword,
+		"channel_id":            cfg.ChannelID,
+		"channel_password":      cfg.ChannelPassword,
+		"client_binary_path":    cfg.ClientBinaryPath,
+		"client_runscript_path": cfg.ClientRunscriptPath,
+		"audio_backend":         cfg.AudioBackend,
 	}
 	resp, err := teamspeakBackendCommandSequence(cfg, []map[string]any{connect})
 	if err != nil {
@@ -326,9 +344,21 @@ func handleMusicbotTeamspeakBackendInstallOfficialClient(job jobs.Job) orchestra
 		return orchestratorResult{status: "failed", errorText: msg, resultPayload: result}
 	}
 	result["status"] = teamspeakBackendStatusOfficialInstalled
-	result["backend_type_suggestion"] = "client_library"
-	if info, err := os.Stat("/usr/local/bin/easywi-teamspeak-client"); err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0 {
-		result["backend_path_suggestion"] = "/usr/local/bin/easywi-teamspeak-client"
+
+	clientBinaryPath := findFirstExistingFile(installPath, []string{"ts3client_linux_amd64", "ts3client_linux_x86_64"})
+	clientRunscriptPath := findFirstExistingFile(installPath, []string{"ts3client_runscript.sh"})
+	if clientBinaryPath != "" {
+		result["client_binary_path"] = clientBinaryPath
+		result["client_runscript_path"] = clientRunscriptPath
+		result["backend_type_suggestion"] = "external_client_bridge"
+		if info, err := os.Stat("/usr/local/bin/easywi-teamspeak-bridge"); err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0 {
+			result["bridge_path_suggestion"] = "/usr/local/bin/easywi-teamspeak-bridge"
+		}
+	} else {
+		result["backend_type_suggestion"] = "client_library"
+		if info, err := os.Stat("/usr/local/bin/easywi-teamspeak-client"); err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0 {
+			result["backend_path_suggestion"] = "/usr/local/bin/easywi-teamspeak-client"
+		}
 	}
 	return orchestratorResult{status: "success", resultPayload: result}
 }
@@ -347,23 +377,28 @@ func teamspeakBackendConfigFromJob(job jobs.Job) teamspeakBackendConfig {
 		_, _ = fmt.Sscanf(raw, "%d", &port)
 	}
 	return teamspeakBackendConfig{
-		BackendType:      normalizeAgentTeamspeakBackendType(payloadValue(job.Payload, "backend_type")),
-		BackendPath:      backendPath,
-		LibraryPath:      strings.TrimSpace(payloadValue(job.Payload, "library_path")),
-		OpusLibraryPath:  strings.TrimSpace(payloadValue(job.Payload, "opus_library_path")),
-		IdentityPath:     strings.TrimSpace(payloadValue(job.Payload, "identity_path")),
-		InstallPath:      strings.TrimSpace(payloadValue(job.Payload, "install_path")),
-		BinaryPath:       binaryPath,
-		Version:          strings.TrimSpace(payloadValue(job.Payload, "version")),
-		ExpectedChecksum: strings.TrimSpace(payloadValue(job.Payload, "expected_checksum", "checksum")),
-		AutoInstall:      payloadBool(job.Payload, "auto_install_enabled"),
-		Host:             strings.TrimSpace(payloadValue(job.Payload, "host")),
-		Port:             port,
-		Profile:          normalizeTeamspeakBackendProfile(payloadValue(job.Payload, "profile")),
-		Nickname:         strings.TrimSpace(payloadValue(job.Payload, "nickname")),
-		ChannelID:        strings.TrimSpace(payloadValue(job.Payload, "channel_id")),
-		ServerPassword:   payloadValue(job.Payload, "server_password"),
-		ChannelPassword:  payloadValue(job.Payload, "channel_password"),
+		BackendType:         normalizeAgentTeamspeakBackendType(payloadValue(job.Payload, "backend_type")),
+		BackendPath:         backendPath,
+		LibraryPath:         strings.TrimSpace(payloadValue(job.Payload, "library_path")),
+		OpusLibraryPath:     strings.TrimSpace(payloadValue(job.Payload, "opus_library_path")),
+		IdentityPath:        strings.TrimSpace(payloadValue(job.Payload, "identity_path")),
+		InstallPath:         strings.TrimSpace(payloadValue(job.Payload, "install_path")),
+		BinaryPath:          binaryPath,
+		Version:             strings.TrimSpace(payloadValue(job.Payload, "version")),
+		ExpectedChecksum:    strings.TrimSpace(payloadValue(job.Payload, "expected_checksum", "checksum")),
+		AutoInstall:         payloadBool(job.Payload, "auto_install_enabled"),
+		Host:                strings.TrimSpace(payloadValue(job.Payload, "host")),
+		Port:                port,
+		Profile:             normalizeTeamspeakBackendProfile(payloadValue(job.Payload, "profile")),
+		Nickname:            strings.TrimSpace(payloadValue(job.Payload, "nickname")),
+		ChannelID:           strings.TrimSpace(payloadValue(job.Payload, "channel_id")),
+		ServerPassword:      payloadValue(job.Payload, "server_password"),
+		ChannelPassword:     payloadValue(job.Payload, "channel_password"),
+		BridgePath:          strings.TrimSpace(payloadValue(job.Payload, "bridge_path")),
+		ClientBinaryPath:    strings.TrimSpace(payloadValue(job.Payload, "client_binary_path")),
+		ClientRunscriptPath: strings.TrimSpace(payloadValue(job.Payload, "client_runscript_path")),
+		AudioBackend:        strings.TrimSpace(payloadValue(job.Payload, "audio_backend")),
+		InstallDependencies: payloadBool(job.Payload, "install_dependencies"),
 	}
 }
 
@@ -663,6 +698,9 @@ func sanitizeTeamspeakOfficialClientText(value string) string {
 }
 
 func validateTeamspeakBackendConfig(cfg teamspeakBackendConfig, probeBuildMode bool) teamspeakBackendValidation {
+	if cfg.BackendType == "external_client_bridge" {
+		return validateTeamspeakExternalClientBridgeConfig(cfg)
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	result := teamspeakBackendValidation{Status: teamspeakBackendStatusReady, BackendType: cfg.BackendType, BackendPath: cfg.BackendPath, LibraryPath: cfg.LibraryPath, OpusLibraryPath: cfg.OpusLibraryPath, IdentityPath: cfg.IdentityPath, InstallPath: cfg.InstallPath, BinaryPath: cfg.BinaryPath, Version: cfg.Version, AutoInstall: cfg.AutoInstall, LastCheckedAt: now}
 	if cfg.BackendType == "" || cfg.BackendType == "placeholder" || cfg.BackendType == "disabled" {
@@ -729,6 +767,168 @@ func validateTeamspeakBackendConfig(cfg teamspeakBackendConfig, probeBuildMode b
 	}
 	result.Ready = true
 	return result
+}
+
+func validateTeamspeakExternalClientBridgeConfig(cfg teamspeakBackendConfig) teamspeakBackendValidation {
+	now := time.Now().UTC().Format(time.RFC3339)
+	result := teamspeakBackendValidation{
+		Status:        teamspeakBackendStatusReady,
+		BackendType:   cfg.BackendType,
+		InstallPath:   cfg.InstallPath,
+		AutoInstall:   cfg.AutoInstall,
+		LastCheckedAt: now,
+	}
+
+	bridgePath := cfg.BridgePath
+	if bridgePath == "" {
+		bridgePath = cfg.BackendPath
+	}
+	if bridgePath == "" {
+		bridgePath = "/usr/local/bin/easywi-teamspeak-bridge"
+	}
+	if err := validateTeamspeakBackendExecutable(bridgePath); err != nil {
+		result.Status = teamspeakBackendStatusBinaryMissing
+		result.LastError = "easywi-teamspeak-bridge binary missing or not executable: " + err.Error()
+		return result
+	}
+	result.BridgePath = bridgePath
+	result.BackendPath = bridgePath
+	result.BinaryFound = true
+	result.BinaryExec = true
+
+	clientBinaryPath := cfg.ClientBinaryPath
+	if clientBinaryPath == "" {
+		result.Status = teamspeakBackendStatusClientBinaryMissing
+		result.LastError = "client_binary_path (ts3client_linux_amd64) is required for external_client_bridge"
+		return result
+	}
+	if err := validateTeamspeakBackendExecutable(clientBinaryPath); err != nil {
+		result.Status = teamspeakBackendStatusClientBinaryMissing
+		result.LastError = "TeamSpeak client binary missing or not executable: " + err.Error()
+		return result
+	}
+	result.ClientBinaryPath = clientBinaryPath
+
+	if cfg.ClientRunscriptPath != "" {
+		if info, err := os.Stat(cfg.ClientRunscriptPath); err == nil && !info.IsDir() {
+			result.ClientRunscriptPath = cfg.ClientRunscriptPath
+		}
+	}
+
+	if _, err := exec.LookPath("Xvfb"); err != nil {
+		result.Status = teamspeakBackendStatusXvfbMissing
+		result.LastError = "Xvfb not found in PATH; install the xvfb package (e.g. apt-get install xvfb)"
+		return result
+	}
+	result.XvfbAvailable = true
+
+	audioOK := false
+	for _, bin := range []string{"pulseaudio", "pipewire-pulse", "pipewire", "pactl"} {
+		if _, err := exec.LookPath(bin); err == nil {
+			audioOK = true
+			break
+		}
+	}
+	if !audioOK {
+		result.Status = teamspeakBackendStatusAudioBackendMissing
+		result.LastError = "PulseAudio or PipeWire not found; install pulseaudio or pipewire-pulse"
+		return result
+	}
+	result.AudioBackendAvailable = true
+
+	result.Ready = true
+	result.Status = teamspeakBackendStatusExternalBridgeReady
+	return result
+}
+
+func handleMusicbotTeamspeakBackendInstallDependencies(job jobs.Job) orchestratorResult {
+	if !payloadBool(job.Payload, "install_dependencies") {
+		return orchestratorResult{
+			status:    "failed",
+			errorText: "install_dependencies=true is required to install system dependencies",
+			resultPayload: map[string]any{
+				"status":     teamspeakBackendStatusFailed,
+				"last_error": "install_dependencies=true is required to install system dependencies",
+			},
+		}
+	}
+
+	packages := []string{"xvfb", "dbus-x11", "libpulse0", "libglib2.0-0", "libx11-6", "libnss3", "libgtk-3-0"}
+
+	aptPath, aptErr := exec.LookPath("apt-get")
+	if aptErr == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, aptPath, "install", "-y", "--no-install-recommends")
+		cmd.Args = append(cmd.Args, packages...)
+		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		out, err := cmd.CombinedOutput()
+		outStr := strings.TrimSpace(string(out))
+		if len(outStr) > 4000 {
+			outStr = outStr[:4000]
+		}
+		if err != nil {
+			return orchestratorResult{
+				status:    "failed",
+				errorText: fmt.Sprintf("apt-get install failed: %v", err),
+				resultPayload: map[string]any{
+					"status":     teamspeakBackendStatusFailed,
+					"last_error": fmt.Sprintf("apt-get install failed: %v\n%s", err, outStr),
+				},
+			}
+		}
+		return orchestratorResult{
+			status: "success",
+			resultPayload: map[string]any{
+				"status":   "dependencies_installed",
+				"packages": packages,
+				"output":   outStr,
+			},
+		}
+	}
+
+	for _, mgr := range []string{"dnf", "yum"} {
+		mgrPath, err := exec.LookPath(mgr)
+		if err != nil {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, mgrPath, "install", "-y")
+		cmd.Args = append(cmd.Args, packages...)
+		out, err := cmd.CombinedOutput()
+		outStr := strings.TrimSpace(string(out))
+		if len(outStr) > 4000 {
+			outStr = outStr[:4000]
+		}
+		if err != nil {
+			return orchestratorResult{
+				status:    "failed",
+				errorText: fmt.Sprintf("%s install failed: %v", mgr, err),
+				resultPayload: map[string]any{
+					"status":     teamspeakBackendStatusFailed,
+					"last_error": fmt.Sprintf("%s install failed: %v\n%s", mgr, err, outStr),
+				},
+			}
+		}
+		return orchestratorResult{
+			status: "success",
+			resultPayload: map[string]any{
+				"status":   "dependencies_installed",
+				"packages": packages,
+				"output":   outStr,
+			},
+		}
+	}
+
+	return orchestratorResult{
+		status:    "failed",
+		errorText: "no supported package manager found (apt-get, dnf, yum)",
+		resultPayload: map[string]any{
+			"status":     teamspeakBackendStatusFailed,
+			"last_error": "no supported package manager found (apt-get, dnf, yum)",
+		},
+	}
 }
 
 func validateTeamspeakBackendExecutable(path string) error {
@@ -882,10 +1082,8 @@ func classifyTeamspeakBackendValidationError(err error) string {
 
 func normalizeAgentTeamspeakBackendType(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "client_library", "native_sdk", "disabled", "placeholder":
+	case "client_library", "native_sdk", "disabled", "placeholder", "external_client_bridge":
 		return strings.ToLower(strings.TrimSpace(raw))
-	case "external_client_bridge":
-		return "client_library"
 	default:
 		return "placeholder"
 	}
@@ -918,12 +1116,22 @@ func teamspeakBackendCommandSequence(cfg teamspeakBackendConfig, reqs []map[stri
 func teamspeakBackendCommandResponses(cfg teamspeakBackendConfig, reqs []map[string]any) ([]teamspeakBackendProcessResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), teamspeakBackendDefaultTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, cfg.BackendPath)
-	if cfg.BackendType == "native_sdk" {
-		cmd.Env = append(os.Environ(), "EASYWI_TS_NATIVE_SDK=1")
-	} else {
-		cmd.Env = append(os.Environ(), "EASYWI_TS_CLIENT_LIB=1")
+	binaryPath := cfg.BackendPath
+	var envVar string
+	switch cfg.BackendType {
+	case "native_sdk":
+		envVar = "EASYWI_TS_NATIVE_SDK=1"
+	case "external_client_bridge":
+		binaryPath = cfg.BridgePath
+		if binaryPath == "" {
+			binaryPath = "/usr/local/bin/easywi-teamspeak-bridge"
+		}
+		envVar = "EASYWI_TS_BRIDGE=1"
+	default:
+		envVar = "EASYWI_TS_CLIENT_LIB=1"
 	}
+	cmd := exec.CommandContext(ctx, binaryPath)
+	cmd.Env = append(os.Environ(), envVar)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -1009,27 +1217,32 @@ func sanitizeTeamspeakBackendError(value string, cfg teamspeakBackendConfig) str
 
 func teamspeakBackendResult(status string, validation teamspeakBackendValidation) orchestratorResult {
 	payload := map[string]any{
-		"backend_type":         validation.BackendType,
-		"backend_path":         validation.BackendPath,
-		"library_path":         validation.LibraryPath,
-		"opus_library_path":    validation.OpusLibraryPath,
-		"identity_path":        validation.IdentityPath,
-		"install_path":         validation.InstallPath,
-		"binary_path":          validation.BinaryPath,
-		"version":              validation.Version,
-		"checksum":             validation.Checksum,
-		"auto_install_enabled": validation.AutoInstall,
-		"status":               validation.Status,
-		"binary_found":         validation.BinaryFound,
-		"binary_executable":    validation.BinaryExec,
-		"library_found":        validation.LibraryFound,
-		"opus_found":           validation.OpusFound,
-		"identity_found":       validation.IdentityFound,
-		"build_mode":           validation.BuildMode,
-		"ready":                validation.Ready,
-		"connected":            validation.Connected,
-		"last_error":           validation.LastError,
-		"last_checked_at":      validation.LastCheckedAt,
+		"backend_type":            validation.BackendType,
+		"backend_path":            validation.BackendPath,
+		"library_path":            validation.LibraryPath,
+		"opus_library_path":       validation.OpusLibraryPath,
+		"identity_path":           validation.IdentityPath,
+		"install_path":            validation.InstallPath,
+		"binary_path":             validation.BinaryPath,
+		"version":                 validation.Version,
+		"checksum":                validation.Checksum,
+		"auto_install_enabled":    validation.AutoInstall,
+		"status":                  validation.Status,
+		"binary_found":            validation.BinaryFound,
+		"binary_executable":       validation.BinaryExec,
+		"library_found":           validation.LibraryFound,
+		"opus_found":              validation.OpusFound,
+		"identity_found":          validation.IdentityFound,
+		"build_mode":              validation.BuildMode,
+		"ready":                   validation.Ready,
+		"connected":               validation.Connected,
+		"last_error":              validation.LastError,
+		"last_checked_at":         validation.LastCheckedAt,
+		"bridge_path":             validation.BridgePath,
+		"client_binary_path":      validation.ClientBinaryPath,
+		"client_runscript_path":   validation.ClientRunscriptPath,
+		"xvfb_available":          validation.XvfbAvailable,
+		"audio_backend_available": validation.AudioBackendAvailable,
 	}
 	return orchestratorResult{status: status, errorText: validation.LastError, resultPayload: payload}
 }
