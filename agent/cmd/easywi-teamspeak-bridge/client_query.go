@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -152,6 +153,10 @@ func writeClientQueryPluginConfig(ts3Home, host string, port int) error {
 // configuration at <persistentTs3Home>/.ts3client/clientquery.ini. Returns "" when
 // the file is absent or contains no ApiKey entry; never returns an error so the
 // caller can proceed without auth when the key is not yet available.
+//
+// The TS3 ClientQuery plugin writes the key as "api_key=..." (with underscore).
+// Older or alternative builds may write "ApiKey=..." or "apikey=...". All forms
+// are matched case-insensitively, with and without the underscore.
 func readClientQueryApiKey(persistentTs3Home string) string {
 	iniPath := filepath.Join(persistentTs3Home, ".ts3client", "clientquery.ini")
 	data, err := os.ReadFile(iniPath)
@@ -164,7 +169,10 @@ func readClientQueryApiKey(persistentTs3Home string) string {
 		if eqIdx < 0 {
 			continue
 		}
-		if strings.ToLower(strings.TrimSpace(line[:eqIdx])) == "apikey" {
+		// Normalise: lower-case and strip underscores → "apikey" matches both
+		// "api_key" and "ApiKey" and "apikey".
+		normKey := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(line[:eqIdx])), "_", "")
+		if normKey == "apikey" {
 			val := strings.TrimSpace(line[eqIdx+1:])
 			if val != "" {
 				return val
@@ -172,6 +180,22 @@ func readClientQueryApiKey(persistentTs3Home string) string {
 		}
 	}
 	return ""
+}
+
+// maskApiKey returns a display-safe version of apiKey that hides the middle
+// section. For keys longer than 8 characters the format is XXXX-...-XXXX,
+// showing the first 4 and last 4 characters. Shorter keys are fully redacted.
+func maskApiKey(apiKey string) string {
+	if len(apiKey) <= 8 {
+		return "[redacted]"
+	}
+	return apiKey[:4] + "-...-" + apiKey[len(apiKey)-4:]
+}
+
+// clientQueryApiKeyIniPath returns the path to the clientquery.ini file inside
+// persistentTs3Home, for logging purposes.
+func clientQueryApiKeyIniPath(persistentTs3Home string) string {
+	return filepath.Join(persistentTs3Home, ".ts3client", "clientquery.ini")
 }
 
 // ts3Escape encodes a string value for use as a parameter in the TeamSpeak 3
@@ -285,66 +309,196 @@ func probeClientQueryControlReady(host string, port int, apiKey string) bool {
 	return false
 }
 
-// connectViaClientQuery sends the ClientQuery "connect" command to the TS3 client.
-// The nickname is TS3-escaped before transmission. Returns nil when ClientQuery
-// responds with error id=0 (command accepted).
+// connectViaClientQuery authenticates to the ClientQuery plugin and sends the
+// "connect" command to the TS3 client. The nickname is TS3-escaped before
+// transmission. Returns nil when ClientQuery responds with error id=0 (command accepted).
+//
+// Logging (structured key=value lines, no secrets):
+//   - clientquery_auth_attempt=true
+//   - clientquery_auth_success=true|false
+//   - clientquery_connect_command=connect
+//   - clientquery_connect_host=<host>
+//   - clientquery_connect_port=<port>
+//   - clientquery_connect_response_error_id=<id>
+//   - clientquery_connect_success=true|false
 func connectViaClientQuery(host string, cqPort int, apiKey, tsHost string, tsPort int, nickname string) error {
+	log.Printf("external_client_bridge clientquery_auth_attempt=true")
 	conn, scanner, err := clientQueryConnect(host, cqPort, apiKey, 5*time.Second)
 	if err != nil {
+		log.Printf("external_client_bridge clientquery_auth_success=false clientquery_auth_error=%s", sanitizeErrorForLog(err.Error()))
 		return fmt.Errorf("clientquery_connect_cmd: dial: %w", err)
 	}
+	log.Printf("external_client_bridge clientquery_auth_success=true")
 	defer func() { _ = conn.Close() }()
 
 	cmd := fmt.Sprintf("connect address=%s port=%d", tsHost, tsPort)
 	if nickname != "" {
 		cmd += " nickname=" + ts3Escape(nickname)
 	}
+	log.Printf("external_client_bridge clientquery_connect_command=connect clientquery_connect_host=%s clientquery_connect_port=%d", tsHost, tsPort)
 	resp, err := clientQueryExecCommand(conn, scanner, cmd, 10*time.Second)
 	if err != nil {
+		log.Printf("external_client_bridge clientquery_connect_success=false clientquery_connect_error=%s", sanitizeErrorForLog(err.Error()))
 		return fmt.Errorf("clientquery_connect_cmd: %w", err)
 	}
 	for _, line := range strings.Split(resp, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "error id=0") {
+			log.Printf("external_client_bridge clientquery_connect_response_error_id=0 clientquery_connect_success=true")
 			return nil
 		}
 		if strings.HasPrefix(line, "error id=") {
+			errID := strings.TrimPrefix(line, "error id=")
+			if spaceIdx := strings.IndexByte(errID, ' '); spaceIdx > 0 {
+				errID = errID[:spaceIdx]
+			}
+			log.Printf("external_client_bridge clientquery_connect_response_error_id=%s clientquery_connect_success=false", errID)
 			return fmt.Errorf("clientquery_connect_cmd failed: %s", line)
 		}
 	}
+	log.Printf("external_client_bridge clientquery_connect_success=false clientquery_connect_error=no_error_line")
 	return fmt.Errorf("clientquery_connect_cmd: no error line in response: %s", resp)
 }
 
+// sanitizeErrorForLog strips secrets and limits the length of an error string
+// before it appears in log lines.
+func sanitizeErrorForLog(errMsg string) string {
+	if len(errMsg) > 200 {
+		errMsg = errMsg[:200]
+	}
+	return strings.ReplaceAll(errMsg, "\n", " ")
+}
+
+// whoamiResult is the parsed outcome of a single ClientQuery "whoami" call.
+type whoamiResult struct {
+	clid    string // non-empty when client is assigned an ID by the TS server
+	cid     string // non-empty when client is in a channel
+	errorID string // numeric error id from the response (e.g. "0", "1794", "1796")
+	state   string // human-readable state: "not_connected", "busy", "connected", "error", "dial_failed"
+	rawResp string // full raw response for diagnostic messages
+}
+
+// parseWhoamiResponse parses the multi-line ClientQuery "whoami" response into a
+// whoamiResult. A complete success looks like:
+//
+//	clid=29 cid=1
+//	error id=0 msg=ok
+//
+// error id=1794 msg=not\sconnected → not yet connected, retry.
+// error id=1796 msg=currently\snot\spossible → busy (license check, etc.), retry.
+func parseWhoamiResponse(resp string) whoamiResult {
+	r := whoamiResult{rawResp: resp}
+	for _, rawLine := range strings.Split(resp, "\n") {
+		line := strings.TrimSpace(rawLine)
+		// Extract clid and cid from "clid=29 cid=1 ..." style lines.
+		for _, token := range strings.Fields(line) {
+			if strings.HasPrefix(token, "clid=") {
+				r.clid = strings.TrimPrefix(token, "clid=")
+			} else if strings.HasPrefix(token, "cid=") {
+				r.cid = strings.TrimPrefix(token, "cid=")
+			}
+		}
+		if strings.HasPrefix(line, "error id=") {
+			rest := strings.TrimPrefix(line, "error id=")
+			if spaceIdx := strings.IndexByte(rest, ' '); spaceIdx > 0 {
+				r.errorID = rest[:spaceIdx]
+			} else {
+				r.errorID = rest
+			}
+		}
+	}
+	switch r.errorID {
+	case "0":
+		if r.clid != "" && r.cid != "" {
+			r.state = "connected"
+		} else {
+			// error id=0 without clid/cid: treat as still connecting.
+			r.state = "not_connected"
+		}
+	case "1794":
+		r.state = "not_connected"
+	case "1796":
+		r.state = "busy"
+	case "":
+		r.state = "dial_failed"
+	default:
+		r.state = "error"
+	}
+	return r
+}
+
 // waitForTSServerConnected polls "whoami" via ClientQuery every second until the
-// TS3 client is connected to a TeamSpeak server (error id=0). Returns an error
-// when ctx is cancelled before a successful connection is observed.
-func waitForTSServerConnected(ctx context.Context, host string, port int, apiKey string) error {
+// TS3 client reports a real server connection (clid + cid + error id=0). Returns
+// an error when ctx is cancelled before a successful connection is observed.
+//
+// Retry policy:
+//   - error id=1794 (not\sconnected): normal pre-connection state, retry silently.
+//   - error id=1796 (currently\snot\spossible): busy (license dialog, startup),
+//     retry up to context deadline.
+//   - Other non-zero error IDs: log and retry until timeout.
+//   - dial failure: log and retry.
+//
+// Success requires all three: clid present, cid present, error id=0.
+// Returns (clid, cid, nil) on success.
+func waitForTSServerConnected(ctx context.Context, host string, port int, apiKey string) (clid, cid string, err error) {
 	if host == "" {
 		host = "127.0.0.1"
 	}
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
+
+	var lastResult whoamiResult
+	attempt := 0
+
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("ts3_connect_timeout: TS3 client did not connect to TeamSpeak server within deadline")
+			msg := fmt.Sprintf(
+				"ts3_connect_timeout: TS3 client did not connect to TeamSpeak server within deadline; "+
+					"host=%s port=%d attempts=%d last_state=%s last_error_id=%s",
+				host, port, attempt, lastResult.state, lastResult.errorID)
+			if lastResult.rawResp != "" {
+				msg += " last_whoami_response=" + sanitizeWhoamiForLog(lastResult.rawResp)
+			}
+			return "", "", fmt.Errorf("%s", msg)
 		case <-ticker.C:
-			conn, scanner, err := clientQueryConnect(host, port, apiKey, clientQueryDialTimeout)
-			if err != nil {
+			attempt++
+			conn, scannerInner, dialErr := clientQueryConnect(host, port, apiKey, clientQueryDialTimeout)
+			if dialErr != nil {
+				lastResult = whoamiResult{state: "dial_failed", rawResp: dialErr.Error()}
+				log.Printf("external_client_bridge wait_server_connected_attempt=%d wait_server_connected_whoami_state=dial_failed", attempt)
 				continue
 			}
-			resp, cmdErr := clientQueryExecCommand(conn, scanner, "whoami", clientQueryDialTimeout)
+			resp, cmdErr := clientQueryExecCommand(conn, scannerInner, "whoami", clientQueryDialTimeout)
 			_ = conn.Close()
 			if cmdErr != nil {
+				lastResult = whoamiResult{state: "dial_failed", rawResp: cmdErr.Error()}
+				log.Printf("external_client_bridge wait_server_connected_attempt=%d wait_server_connected_whoami_state=dial_failed", attempt)
 				continue
 			}
-			for _, line := range strings.Split(resp, "\n") {
-				if strings.HasPrefix(strings.TrimSpace(line), "error id=0") {
-					return nil
-				}
+			result := parseWhoamiResponse(resp)
+			lastResult = result
+
+			log.Printf("external_client_bridge wait_server_connected_attempt=%d wait_server_connected_whoami_state=%s wait_server_connected_last_error_id=%s",
+				attempt, result.state, result.errorID)
+
+			if result.state == "connected" {
+				log.Printf("external_client_bridge connected_clid=%s connected_cid=%s", result.clid, result.cid)
+				return result.clid, result.cid, nil
 			}
+			// All other states (not_connected, busy, error, dial_failed) → retry.
 		}
 	}
+}
+
+// sanitizeWhoamiForLog strips newlines from a whoami response for safe inline logging.
+func sanitizeWhoamiForLog(s string) string {
+	s = strings.ReplaceAll(s, "\n", " | ")
+	s = strings.ReplaceAll(s, "\r", "")
+	if len(s) > 200 {
+		s = s[:200]
+	}
+	return s
 }
 
 // waitForClientQueryReady polls until the ClientQuery plugin is up and accepting
@@ -375,7 +529,7 @@ func waitForClientQueryReady(ctx context.Context, host string, port int, apiKey 
 						return fmt.Errorf(
 							"clientquery_port_mismatch: ClientQuery plugin is listening on default port %d, not configured port %d; "+
 								"the plugin may have ignored its INI configuration. "+
-								"Tip: set client_query_port=0 or client_query_port=%d to use the default.",
+								"Tip: set client_query_port=0 or client_query_port=%d to use the default",
 							clientQueryDefaultPort, port, clientQueryDefaultPort)
 					}
 				}
@@ -399,33 +553,6 @@ func probeClientQueryBanner(conn net.Conn) bool {
 		return strings.HasPrefix(strings.TrimSpace(scanner.Text()), "TS3 Client")
 	}
 	return false
-}
-
-// detectActualClientQueryPort probes expectedPort; if not listening, also checks
-// clientQueryDefaultPort (25639). Returns (actualPort, mismatch bool, error).
-// mismatch is true when expectedPort != actualPort and actualPort == clientQueryDefaultPort.
-func detectActualClientQueryPort(host string, expectedPort int) (actualPort int, mismatch bool, err error) {
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	addr := net.JoinHostPort(host, fmt.Sprintf("%d", expectedPort))
-	conn, dialErr := net.DialTimeout("tcp", addr, clientQueryDialTimeout)
-	if dialErr == nil {
-		if probeClientQueryBanner(conn) {
-			return expectedPort, false, nil
-		}
-	}
-	// Expected port not ready, check default
-	if expectedPort != clientQueryDefaultPort {
-		defAddr := net.JoinHostPort(host, fmt.Sprintf("%d", clientQueryDefaultPort))
-		conn2, dialErr2 := net.DialTimeout("tcp", defAddr, clientQueryDialTimeout)
-		if dialErr2 == nil {
-			if probeClientQueryBanner(conn2) {
-				return clientQueryDefaultPort, true, nil
-			}
-		}
-	}
-	return expectedPort, false, fmt.Errorf("clientquery_not_ready: port %s not listening", addr)
 }
 
 // parseActualClientQueryPortFromLog scans log text for lines matching

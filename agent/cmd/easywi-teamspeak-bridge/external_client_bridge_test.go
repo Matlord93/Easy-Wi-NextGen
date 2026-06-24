@@ -291,7 +291,7 @@ func TestWaitForXvfbReadySocketCheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MkdirTemp: %v", err)
 	}
-	defer os.RemoveAll(socketDir)
+	defer func() { _ = os.RemoveAll(socketDir) }()
 
 	// Override the socket path by pointing the display to a non-existent number,
 	// then create the socket ourselves after a short delay.
@@ -926,7 +926,7 @@ func TestCheckPulseSocketReadyTrueWhenListening(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create unix listener: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	if !checkPulseSocketReady(sockPath) {
 		t.Error("checkPulseSocketReady should return true for a listening Unix socket")
 	}
@@ -1299,7 +1299,7 @@ func TestProbeClientQueryLicenseBlockDetects1796(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	go func() {
@@ -1307,12 +1307,12 @@ func TestProbeClientQueryLicenseBlockDetects1796(t *testing.T) {
 		if acceptErr != nil {
 			return
 		}
-		defer conn.Close()
-		fmt.Fprintf(conn, "TS3 Client\n\nwelcome\n")
+		defer func() { _ = conn.Close() }()
+		_, _ = fmt.Fprintf(conn, "TS3 Client\n\nwelcome\n")
 		scanner := bufio.NewScanner(conn)
 		for scanner.Scan() {
 			if strings.Contains(scanner.Text(), "use") {
-				fmt.Fprintf(conn, "error id=1796 msg=currently\\snot\\spossible\n")
+				_, _ = fmt.Fprintf(conn, "error id=1796 msg=currently\\snot\\spossible\n")
 				return
 			}
 		}
@@ -1332,7 +1332,7 @@ func TestProbeClientQueryLicenseBlockFalseWhenNoLicenseViewerInLog(t *testing.T)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	go func() {
@@ -1340,12 +1340,12 @@ func TestProbeClientQueryLicenseBlockFalseWhenNoLicenseViewerInLog(t *testing.T)
 		if acceptErr != nil {
 			return
 		}
-		defer conn.Close()
-		fmt.Fprintf(conn, "TS3 Client\n\nwelcome\n")
+		defer func() { _ = conn.Close() }()
+		_, _ = fmt.Fprintf(conn, "TS3 Client\n\nwelcome\n")
 		scanner := bufio.NewScanner(conn)
 		for scanner.Scan() {
 			if strings.Contains(scanner.Text(), "use") {
-				fmt.Fprintf(conn, "error id=1796 msg=currently\\snot\\spossible\n")
+				_, _ = fmt.Fprintf(conn, "error id=1796 msg=currently\\snot\\spossible\n")
 				return
 			}
 		}
@@ -1402,5 +1402,113 @@ func TestBuildTS3EnvContainsXDGCacheHome(t *testing.T) {
 	}
 	if strings.HasPrefix(m["XDG_CACHE_HOME"], "/ts3home") {
 		t.Errorf("XDG_CACHE_HOME %q must not be inside ts3home /ts3home", m["XDG_CACHE_HOME"])
+	}
+}
+
+// ── PulseAudio socket safety ──────────────────────────────────────────────────
+
+// TestPulseAudioStateEnvSocketEmptyWhenNotReady verifies that envSocket() returns
+// "" when audioReady is false, preventing PULSE_SERVER from being set in TS3 env.
+func TestPulseAudioStateEnvSocketEmptyWhenNotReady(t *testing.T) {
+	state := pulseAudioState{
+		socketPath:  "/run/pulse.sock",
+		socketReady: true,
+		started:     true,
+		audioReady:  false, // not dialable
+	}
+	if got := state.envSocket(); got != "" {
+		t.Errorf("envSocket() = %q, want empty when audioReady=false", got)
+	}
+}
+
+// TestPulseAudioStateEnvSocketSetWhenReady verifies that envSocket() returns
+// the socket path only when audioReady is true.
+func TestPulseAudioStateEnvSocketSetWhenReady(t *testing.T) {
+	state := pulseAudioState{
+		socketPath: "/run/pulse.sock",
+		audioReady: true,
+	}
+	if got := state.envSocket(); got != "/run/pulse.sock" {
+		t.Errorf("envSocket() = %q, want /run/pulse.sock", got)
+	}
+}
+
+// TestBuildTS3EnvNoPulseServerWhenSocketEmptyAudioReady verifies PULSE_SERVER is absent
+// from the TS3 environment when pulseSocketPath is empty (not ready).
+func TestBuildTS3EnvNoPulseServerWhenSocketEmptyAudioReady(t *testing.T) {
+	env := buildTS3Env("/ts3home", "/xdg", "/tmp", ":175", "", "/opt/ts3", "/cache")
+	m := envToMap(env)
+	if _, present := m["PULSE_SERVER"]; present {
+		t.Errorf("PULSE_SERVER must not be set in env when socket is empty, got %q", m["PULSE_SERVER"])
+	}
+}
+
+// TestBuildTS3EnvPulseServerSetWhenSocketPresent verifies PULSE_SERVER is
+// included when a valid pulse socket path is provided.
+func TestBuildTS3EnvPulseServerSetWhenSocketPresent(t *testing.T) {
+	env := buildTS3Env("/ts3home", "/xdg", "/tmp", ":175", "/run/pulse.sock", "/opt/ts3", "/cache")
+	m := envToMap(env)
+	if m["PULSE_SERVER"] != "unix:/run/pulse.sock" {
+		t.Errorf("PULSE_SERVER = %q, want unix:/run/pulse.sock", m["PULSE_SERVER"])
+	}
+}
+
+// TestCheckPulseSocketReadyNotExist verifies checkPulseSocketReady returns false
+// when the socket path does not exist.
+func TestCheckPulseSocketReadyNotExist(t *testing.T) {
+	if checkPulseSocketReady("/nonexistent/path/pulse.sock") {
+		t.Error("checkPulseSocketReady should return false for nonexistent socket")
+	}
+}
+
+// TestCheckPulseSocketReadyRegularFile verifies checkPulseSocketReady returns false
+// for a regular file (not a Unix socket).
+func TestCheckPulseSocketReadyRegularFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fake.sock")
+	if err := os.WriteFile(path, []byte("not a socket"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if checkPulseSocketReady(path) {
+		t.Error("checkPulseSocketReady should return false for a regular file")
+	}
+}
+
+// ── maskApiKey in Connect() ────────────────────────────────────────────────────
+
+// TestMaskApiKeyNeverLogsFullKey verifies that a full API key with sufficient
+// length is never returned verbatim by maskApiKey (must be masked).
+func TestMaskApiKeyNeverLogsFullKey(t *testing.T) {
+	longKey := "ABCD1234-EFGH5678-IJKL9012-MNOP3456"
+	masked := maskApiKey(longKey)
+	if masked == longKey {
+		t.Error("maskApiKey must not return the full key; it would leak into logs")
+	}
+}
+
+// TestClientQueryApiKeyIniPath verifies the helper returns the correct path.
+func TestClientQueryApiKeyIniPath(t *testing.T) {
+	got := clientQueryApiKeyIniPath("/srv/ts3home")
+	want := "/srv/ts3home/.ts3client/clientquery.ini"
+	if got != want {
+		t.Errorf("clientQueryApiKeyIniPath = %q, want %q", got, want)
+	}
+}
+
+// ── adapterStatus.Ready after Connect ────────────────────────────────────────
+
+// TestExternalClientBridgeAdapterStatusNotReadyWhenDisconnected verifies that a
+// freshly-created adapter reports not-ready before any Connect() call.
+func TestExternalClientBridgeAdapterStatusNotReadyWhenDisconnected(t *testing.T) {
+	a := NewExternalClientBridgeAdapter()
+	status, err := a.Status(context.Background())
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if status.Ready {
+		t.Error("adapter should not be ready before Connect()")
+	}
+	if status.State != stateDisconnected {
+		t.Errorf("state = %q, want disconnected", status.State)
 	}
 }

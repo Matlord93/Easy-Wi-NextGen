@@ -445,6 +445,35 @@ func TestExternalBridgeConnectPassesInstancePathAndRuntimeDir(t *testing.T) {
 	}
 }
 
+func TestRuntimeSelectAudioOutputPicksTeamSpeakWhenReady(t *testing.T) {
+	t.Parallel()
+	bridge := writeMockTeamspeakBridge(t, false)
+	connector := NewTeamSpeakVoiceConnector(TeamSpeakConnectorConfig{
+		Enabled:     true,
+		Profile:     "ts3",
+		Backend:     "ts3_client_compatible",
+		BackendType: TeamSpeakBackendTypeExternalClientBridge,
+		BackendPath: bridge,
+		Host:        "127.0.0.1",
+		ChannelID:   "123",
+	})
+	if err := connector.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect() = %v", err)
+	}
+	if err := connector.JoinChannel(context.Background(), "123"); err != nil {
+		t.Fatalf("JoinChannel() = %v", err)
+	}
+	r := &Runtime{
+		connectors: map[string]Connector{"teamspeak": connector},
+		pipeline:   NewAudioPipeline(nil, nil, nil, nil, nil),
+	}
+	r.selectAudioOutput(context.Background())
+	if got := r.pipeline.OutputBackendName(); got != "teamspeak_voice" {
+		t.Fatalf("OutputBackendName() = %q, want teamspeak_voice (TeamSpeak ready)", got)
+	}
+	_ = connector.Disconnect(context.Background())
+}
+
 // writeMockTeamspeakBridge returns a path to a mock bridge executable by
 // symlinking the test binary itself. TestMain detects the "mock-ts-bridge"
 // base name and runs runMockBridgeProtocol instead of the test suite.

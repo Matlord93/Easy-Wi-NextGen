@@ -20,7 +20,7 @@ func TestAllocateClientQueryPortBusyExplicitPortReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	busyPort := ln.Addr().(*net.TCPAddr).Port
 
 	_, allocErr := allocateClientQueryPort("127.0.0.1", "", busyPort)
@@ -40,7 +40,7 @@ func TestAllocateClientQueryPortBusyExplicitPortSuggestsFreePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	busyPort := ln.Addr().(*net.TCPAddr).Port
 
 	_, allocErr := allocateClientQueryPort("127.0.0.1", "", busyPort)
@@ -98,7 +98,7 @@ func TestAllocateClientQueryPortAutoFallsBackOnBusyDeterministicPort(t *testing.
 	if err != nil {
 		t.Skipf("cannot bind 127.0.0.1:%d to simulate busy port: %v", deterPort, err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	port, allocErr := allocateClientQueryPort("127.0.0.1", instancePath, 0)
 	if allocErr != nil {
@@ -246,7 +246,7 @@ func TestWaitForClientQueryReadyPortMismatch(t *testing.T) {
 	if err != nil {
 		t.Skipf("cannot bind %d (port in use): %v", clientQueryDefaultPort, err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	// Serve the TS3 Client banner.
 	go func() {
@@ -379,21 +379,21 @@ func TestClientQueryConnectAuthSuccess(t *testing.T) {
 			"auth": "error id=0 msg=ok\n",
 		})
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	conn, scanner, err := clientQueryConnect("127.0.0.1", port, "mykey", 2*time.Second)
 	if err != nil {
 		t.Fatalf("clientQueryConnect: %v", err)
 	}
 	_ = scanner
-	conn.Close()
+	_ = conn.Close()
 }
 
 func TestClientQueryConnectNoBanner(t *testing.T) {
 	ln, port := mockCQServer(t, func(conn net.Conn) {
-		conn.Close() // close immediately without banner
+		_ = conn.Close() // close immediately without banner
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	_, _, err := clientQueryConnect("127.0.0.1", port, "", 500*time.Millisecond)
 	if err == nil {
@@ -407,7 +407,7 @@ func TestClientQueryConnectAuthFailed(t *testing.T) {
 			"auth": "error id=1796 msg=invalid_api_key\n",
 		})
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	_, _, err := clientQueryConnect("127.0.0.1", port, "wrongkey", 2*time.Second)
 	if err == nil {
@@ -423,7 +423,7 @@ func TestConnectViaClientQuerySuccess(t *testing.T) {
 			"connect": "error id=0 msg=ok\n",
 		})
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	err := connectViaClientQuery("127.0.0.1", port, "", "ts3.example.com", 9987, "MusicBot")
 	if err != nil {
@@ -437,7 +437,7 @@ func TestConnectViaClientQueryFailed(t *testing.T) {
 			"connect": "error id=770 msg=cannot_connect_to_server\n",
 		})
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	err := connectViaClientQuery("127.0.0.1", port, "", "bad.host", 9987, "Bot")
 	if err == nil {
@@ -454,7 +454,7 @@ func TestProbeClientQueryControlReady1794(t *testing.T) {
 			"whoami": "error id=1794 msg=not\\sconnected\n",
 		})
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	if !probeClientQueryControlReady("127.0.0.1", port, "") {
 		t.Error("probeClientQueryControlReady should return true for error id=1794")
@@ -462,13 +462,13 @@ func TestProbeClientQueryControlReady1794(t *testing.T) {
 }
 
 func TestProbeClientQueryControlReadyConnected(t *testing.T) {
-	// error id=0 from whoami = fully connected
+	// error id=0 from whoami = fully connected; uses real cid format.
 	ln, port := mockCQServer(t, func(conn net.Conn) {
 		lineDispatcher(conn, map[string]string{
-			"whoami": "clid=1 cuid=abc\nerror id=0 msg=ok\n",
+			"whoami": "clid=29 cid=1\nerror id=0 msg=ok\n",
 		})
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	if !probeClientQueryControlReady("127.0.0.1", port, "") {
 		t.Error("probeClientQueryControlReady should return true for error id=0")
@@ -478,17 +478,25 @@ func TestProbeClientQueryControlReadyConnected(t *testing.T) {
 // ── waitForTSServerConnected ──────────────────────────────────────────────────
 
 func TestWaitForTSServerConnectedImmediate(t *testing.T) {
+	// Simulate a fully connected state: clid and cid present, error id=0.
 	ln, port := mockCQServer(t, func(conn net.Conn) {
 		lineDispatcher(conn, map[string]string{
-			"whoami": "clid=1 cuid=abc\nerror id=0 msg=ok\n",
+			"whoami": "clid=29 cid=1\nerror id=0 msg=ok\n",
 		})
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := waitForTSServerConnected(ctx, "127.0.0.1", port, ""); err != nil {
+	gotCLID, gotCID, err := waitForTSServerConnected(ctx, "127.0.0.1", port, "")
+	if err != nil {
 		t.Fatalf("waitForTSServerConnected: %v", err)
+	}
+	if gotCLID != "29" {
+		t.Errorf("clid = %q, want 29", gotCLID)
+	}
+	if gotCID != "1" {
+		t.Errorf("cid = %q, want 1", gotCID)
 	}
 }
 
@@ -499,12 +507,349 @@ func TestWaitForTSServerConnectedTimeout(t *testing.T) {
 			"whoami": "error id=1794 msg=not\\sconnected\n",
 		})
 	})
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
-	err := waitForTSServerConnected(ctx, "127.0.0.1", port, "")
+	_, _, err := waitForTSServerConnected(ctx, "127.0.0.1", port, "")
 	if err == nil {
 		t.Fatal("expected timeout error when TS server never connects")
+	}
+}
+
+// TestWaitForTSServerConnectedRetry1794ThenSuccess verifies the happy path where
+// whoami first returns 1794 (not connected) then returns clid+cid+error id=0.
+// This matches the real-world sequence observed after sending the ClientQuery connect command.
+func TestWaitForTSServerConnectedRetry1794ThenSuccess(t *testing.T) {
+	responses := []string{
+		"error id=1794 msg=not\\sconnected\n",
+		"error id=1794 msg=not\\sconnected\n",
+		"clid=29 cid=1\nerror id=0 msg=ok\n",
+	}
+	idx := 0
+	ln, port := mockCQServer(t, func(conn net.Conn) {
+		defer func() { _ = conn.Close() }()
+		_, _ = conn.Write([]byte("TS3 Client\n"))
+		sc := bufio.NewScanner(conn)
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if strings.HasPrefix(line, "whoami") {
+				var resp string
+				if idx < len(responses) {
+					resp = responses[idx]
+					idx++
+				} else {
+					resp = "clid=29 cid=1\nerror id=0 msg=ok\n"
+				}
+				_, _ = conn.Write([]byte(resp))
+			}
+		}
+	})
+	defer func() { _ = ln.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	gotCLID, gotCID, err := waitForTSServerConnected(ctx, "127.0.0.1", port, "")
+	if err != nil {
+		t.Fatalf("waitForTSServerConnected: %v", err)
+	}
+	if gotCLID != "29" {
+		t.Errorf("clid = %q, want 29", gotCLID)
+	}
+	if gotCID != "1" {
+		t.Errorf("cid = %q, want 1", gotCID)
+	}
+}
+
+// TestWaitForTSServerConnectedRetry1796 verifies that error id=1796
+// (currently not possible) is treated as a retry, not a fatal error.
+func TestWaitForTSServerConnectedRetry1796(t *testing.T) {
+	responses := []string{
+		"error id=1796 msg=currently\\snot\\spossible\n",
+		"error id=1796 msg=currently\\snot\\spossible\n",
+		"clid=5 cid=2\nerror id=0 msg=ok\n",
+	}
+	idx := 0
+	ln, port := mockCQServer(t, func(conn net.Conn) {
+		defer func() { _ = conn.Close() }()
+		_, _ = conn.Write([]byte("TS3 Client\n"))
+		sc := bufio.NewScanner(conn)
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if strings.HasPrefix(line, "whoami") {
+				var resp string
+				if idx < len(responses) {
+					resp = responses[idx]
+					idx++
+				} else {
+					resp = "clid=5 cid=2\nerror id=0 msg=ok\n"
+				}
+				_, _ = conn.Write([]byte(resp))
+			}
+		}
+	})
+	defer func() { _ = ln.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	gotCLID, gotCID, err := waitForTSServerConnected(ctx, "127.0.0.1", port, "")
+	if err != nil {
+		t.Fatalf("expected success after 1796 retries, got: %v", err)
+	}
+	if gotCLID != "5" {
+		t.Errorf("clid = %q, want 5", gotCLID)
+	}
+	if gotCID != "2" {
+		t.Errorf("cid = %q, want 2", gotCID)
+	}
+}
+
+// TestWaitForTSServerConnectedRequiresCID verifies that error id=0 without cid
+// is NOT treated as success; a cid must be present.
+func TestWaitForTSServerConnectedRequiresCID(t *testing.T) {
+	// First response has clid but no cid; second response has both.
+	responses := []string{
+		"clid=29\nerror id=0 msg=ok\n",   // clid only — not enough
+		"clid=29 cid=1\nerror id=0 msg=ok\n", // full success
+	}
+	idx := 0
+	ln, port := mockCQServer(t, func(conn net.Conn) {
+		defer func() { _ = conn.Close() }()
+		_, _ = conn.Write([]byte("TS3 Client\n"))
+		sc := bufio.NewScanner(conn)
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if strings.HasPrefix(line, "whoami") {
+				var resp string
+				if idx < len(responses) {
+					resp = responses[idx]
+					idx++
+				} else {
+					resp = "clid=29 cid=1\nerror id=0 msg=ok\n"
+				}
+				_, _ = conn.Write([]byte(resp))
+			}
+		}
+	})
+	defer func() { _ = ln.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	gotCLID, gotCID, err := waitForTSServerConnected(ctx, "127.0.0.1", port, "")
+	if err != nil {
+		t.Fatalf("waitForTSServerConnected: %v", err)
+	}
+	if gotCLID != "29" || gotCID != "1" {
+		t.Errorf("got clid=%q cid=%q, want clid=29 cid=1", gotCLID, gotCID)
+	}
+}
+
+// TestWaitForTSServerConnectedTimeoutIncludesContext verifies that the timeout
+// error message includes host, port, and attempt count.
+func TestWaitForTSServerConnectedTimeoutIncludesContext(t *testing.T) {
+	ln, port := mockCQServer(t, func(conn net.Conn) {
+		lineDispatcher(conn, map[string]string{
+			"whoami": "error id=1794 msg=not\\sconnected\n",
+		})
+	})
+	defer func() { _ = ln.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel()
+	_, _, err := waitForTSServerConnected(ctx, "127.0.0.1", port, "")
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "ts3_connect_timeout") {
+		t.Errorf("error %q does not contain ts3_connect_timeout", msg)
+	}
+	if !strings.Contains(msg, "127.0.0.1") {
+		t.Errorf("error %q does not contain host", msg)
+	}
+	if !strings.Contains(msg, fmt.Sprintf("%d", port)) {
+		t.Errorf("error %q does not contain port", msg)
+	}
+	if !strings.Contains(msg, "attempts=") {
+		t.Errorf("error %q does not contain attempt count", msg)
+	}
+}
+
+// TestConnectViaClientQuerySendsAuthThenConnect verifies the full protocol:
+// the mock server checks that auth is received before the connect command.
+func TestConnectViaClientQuerySendsAuthThenConnect(t *testing.T) {
+	authReceived := false
+	connectReceived := false
+	ln, port := mockCQServer(t, func(conn net.Conn) {
+		defer func() { _ = conn.Close() }()
+		_, _ = conn.Write([]byte("TS3 Client\n"))
+		sc := bufio.NewScanner(conn)
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if strings.HasPrefix(line, "auth apikey=testkey") {
+				authReceived = true
+				_, _ = conn.Write([]byte("error id=0 msg=ok\n"))
+			} else if strings.HasPrefix(line, "connect address=ts.example.com port=9987") {
+				if !authReceived {
+					// auth must precede connect
+					_, _ = conn.Write([]byte("error id=1796 msg=auth_required\n"))
+					return
+				}
+				connectReceived = true
+				_, _ = conn.Write([]byte("error id=0 msg=ok\n"))
+			}
+		}
+	})
+	defer func() { _ = ln.Close() }()
+
+	err := connectViaClientQuery("127.0.0.1", port, "testkey", "ts.example.com", 9987, "MusicBot")
+	if err != nil {
+		t.Fatalf("connectViaClientQuery: %v", err)
+	}
+	if !authReceived {
+		t.Error("auth apikey command was not sent to the mock server")
+	}
+	if !connectReceived {
+		t.Error("connect command was not sent to the mock server")
+	}
+}
+
+// TestConnectViaClientQueryNicknameEscaped verifies that the nickname is
+// TS3-escaped (spaces → \s) in the connect command.
+func TestConnectViaClientQueryNicknameEscaped(t *testing.T) {
+	var receivedConnect string
+	ln, port := mockCQServer(t, func(conn net.Conn) {
+		defer func() { _ = conn.Close() }()
+		_, _ = conn.Write([]byte("TS3 Client\n"))
+		sc := bufio.NewScanner(conn)
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if strings.HasPrefix(line, "connect") {
+				receivedConnect = line
+				_, _ = conn.Write([]byte("error id=0 msg=ok\n"))
+			}
+		}
+	})
+	defer func() { _ = ln.Close() }()
+
+	err := connectViaClientQuery("127.0.0.1", port, "", "ts.example.com", 9987, "Easy Wi Musicbot")
+	if err != nil {
+		t.Fatalf("connectViaClientQuery: %v", err)
+	}
+	if !strings.Contains(receivedConnect, `nickname=Easy\sWi\sMusicbot`) {
+		t.Errorf("connect command %q does not contain escaped nickname", receivedConnect)
+	}
+}
+
+// ── readClientQueryApiKey with api_key (underscore) ─────────────────────────
+
+// TestReadClientQueryApiKeyUnderscore verifies that the key is read when
+// the ini file uses the "api_key=..." format (with underscore) as written by
+// the official TS3 ClientQuery plugin.
+func TestReadClientQueryApiKeyUnderscore(t *testing.T) {
+	dir := t.TempDir()
+	ts3dir := filepath.Join(dir, ".ts3client")
+	if err := os.MkdirAll(ts3dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	iniPath := filepath.Join(ts3dir, "clientquery.ini")
+	// Typical TS3 ClientQuery plugin format with underscore key name.
+	if err := os.WriteFile(iniPath, []byte("[ClientQuery]\napi_key=ABCD-1234-EFGH-5678\nPort=25639\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got := readClientQueryApiKey(dir)
+	if got != "ABCD-1234-EFGH-5678" {
+		t.Errorf("readClientQueryApiKey = %q, want ABCD-1234-EFGH-5678 (api_key with underscore not parsed)", got)
+	}
+}
+
+// TestReadClientQueryApiKeyApiKeyMixed verifies mixed-case ApiKey= (no underscore).
+func TestReadClientQueryApiKeyMixed(t *testing.T) {
+	dir := t.TempDir()
+	ts3dir := filepath.Join(dir, ".ts3client")
+	if err := os.MkdirAll(ts3dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	iniPath := filepath.Join(ts3dir, "clientquery.ini")
+	if err := os.WriteFile(iniPath, []byte("[ClientQuery]\nApiKey=WXYZ-9876\nPort=25639\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got := readClientQueryApiKey(dir)
+	if got != "WXYZ-9876" {
+		t.Errorf("readClientQueryApiKey = %q, want WXYZ-9876 (ApiKey not parsed)", got)
+	}
+}
+
+// ── maskApiKey ────────────────────────────────────────────────────────────────
+
+// TestMaskApiKeyLong verifies that a long key is masked with first/last 4 chars.
+func TestMaskApiKeyLong(t *testing.T) {
+	key := "ABCD-1234-EFGH-5678-WXYZ"
+	got := maskApiKey(key)
+	if !strings.HasPrefix(got, "ABCD") {
+		t.Errorf("maskApiKey = %q, want prefix ABCD", got)
+	}
+	if !strings.HasSuffix(got, "WXYZ") {
+		t.Errorf("maskApiKey = %q, want suffix WXYZ", got)
+	}
+	if strings.Contains(got, "1234") || strings.Contains(got, "EFGH") {
+		t.Errorf("maskApiKey = %q, must not contain middle portion", got)
+	}
+}
+
+// TestMaskApiKeyShort verifies that short keys are fully redacted.
+func TestMaskApiKeyShort(t *testing.T) {
+	got := maskApiKey("abc")
+	if got != "[redacted]" {
+		t.Errorf("maskApiKey(%q) = %q, want [redacted]", "abc", got)
+	}
+}
+
+// TestMaskApiKeyNotFullKey verifies that the full API key never appears when masked.
+func TestMaskApiKeyNotFullKey(t *testing.T) {
+	key := "SECRET-APIKEY-THAT-MUST-NOT-LEAK"
+	masked := maskApiKey(key)
+	if masked == key {
+		t.Error("maskApiKey returned the full key unchanged — key would leak into logs")
+	}
+	// The masked version must not contain the middle section.
+	if strings.Contains(masked, "APIKEY-THAT-MUST-NOT") {
+		t.Errorf("maskApiKey = %q, middle section should not appear", masked)
+	}
+}
+
+// ── parseWhoamiResponse ───────────────────────────────────────────────────────
+
+func TestParseWhoamiResponseConnected(t *testing.T) {
+	resp := "clid=29 cid=1\nerror id=0 msg=ok\n"
+	r := parseWhoamiResponse(resp)
+	if r.clid != "29" || r.cid != "1" || r.errorID != "0" || r.state != "connected" {
+		t.Errorf("parseWhoamiResponse = clid=%q cid=%q errorID=%q state=%q; want 29/1/0/connected",
+			r.clid, r.cid, r.errorID, r.state)
+	}
+}
+
+func TestParseWhoamiResponseNotConnected(t *testing.T) {
+	resp := "error id=1794 msg=not\\sconnected\n"
+	r := parseWhoamiResponse(resp)
+	if r.state != "not_connected" || r.errorID != "1794" {
+		t.Errorf("state=%q errorID=%q; want not_connected/1794", r.state, r.errorID)
+	}
+}
+
+func TestParseWhoamiResponseBusy(t *testing.T) {
+	resp := "error id=1796 msg=currently\\snot\\spossible\n"
+	r := parseWhoamiResponse(resp)
+	if r.state != "busy" || r.errorID != "1796" {
+		t.Errorf("state=%q errorID=%q; want busy/1796", r.state, r.errorID)
+	}
+}
+
+func TestParseWhoamiResponseClidWithoutCid(t *testing.T) {
+	// error id=0 with clid but no cid should not be treated as connected.
+	resp := "clid=29\nerror id=0 msg=ok\n"
+	r := parseWhoamiResponse(resp)
+	if r.state == "connected" {
+		t.Errorf("state=%q but cid is empty; should not be connected", r.state)
 	}
 }

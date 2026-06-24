@@ -36,8 +36,8 @@ func validateClientQueryPlugin(officialClientDir string) error {
 	info, err := os.Stat(pluginPath)
 	if err != nil || !info.Mode().IsRegular() {
 		return fmt.Errorf(
-			"clientquery_plugin_missing: plugin %s not found in %s/plugins/. "+
-				"The official TeamSpeak client installation is incomplete.",
+			"clientquery_plugin_missing: plugin %s not found in %s/plugins/; "+
+				"the official TeamSpeak client installation is incomplete",
 			clientQueryPluginName, officialClientDir)
 	}
 	return nil
@@ -309,8 +309,13 @@ func (a *ExternalClientBridgeAdapter) Connect(ctx context.Context, params connec
 
 	// Read the ClientQuery API key from the persistent ts3home. The key is written
 	// by the TS3 client plugin on first run and persists across restarts.
+	cqIniPath := clientQueryApiKeyIniPath(persistentHome)
+	log.Printf("external_client_bridge clientquery_ini_path=%s", cqIniPath)
 	apiKey := readClientQueryApiKey(persistentHome)
 	log.Printf("external_client_bridge clientquery_api_key_present=%v", apiKey != "")
+	if apiKey != "" {
+		log.Printf("external_client_bridge clientquery_api_key_masked=%s", maskApiKey(apiKey))
+	}
 
 	if err := waitForClientQueryReady(monCtx, cqHost, cqPort, apiKey); err != nil {
 		// Distinguish between TS3 crash (ProcessState != nil after Wait()) and
@@ -365,18 +370,32 @@ func (a *ExternalClientBridgeAdapter) Connect(ctx context.Context, params connec
 	}
 
 	// Wait until the TS3 client is actually connected to the TeamSpeak server.
-	if err := waitForTSServerConnected(monCtx, cqHost, cqPort, apiKey); err != nil {
+	// Success requires whoami to return clid=<id> cid=<id> + error id=0.
+	connectedCLID, connectedCID, waitErr := waitForTSServerConnected(monCtx, cqHost, cqPort, apiKey)
+	if waitErr != nil {
 		_ = a.cleanupKeepFiles()
-		return "", fmt.Errorf("external_client_bridge ts_server_connect: %w", err)
+		return "", fmt.Errorf("external_client_bridge ts_server_connect: %w", waitErr)
 	}
-	log.Printf("external_client_bridge ts_server_connected=true")
+	log.Printf("external_client_bridge ts_server_connected=true connected_clid=%s connected_cid=%s", connectedCLID, connectedCID)
+	log.Printf("external_client_bridge state_connected=true capability_status=ready voice_client_available=true")
+
+	// Determine whether audio injection is available (PulseAudio sink reachable).
+	a.mu.Lock()
+	audioReady := a.pulseSocket != "" && a.sinkName != ""
+	a.mu.Unlock()
+	log.Printf("external_client_bridge audio_injection_ready=%v", audioReady)
+	if !audioReady {
+		log.Printf("external_client_bridge audio_injection_ready=false pulse_socket_empty=%v sink_name_empty=%v; clientquery_control_ready=true teamspeak_server_connected=true but audio frames will fail until PulseAudio is ready",
+			a.pulseSocket == "", a.sinkName == "")
+	}
 
 	a.mu.Lock()
 	a.clientQueryHost = cqHost
 	a.clientQueryPort = cqPort
+	a.clientID = connectedCLID
 	a.state = stateConnected
 	a.mu.Unlock()
-	return "", nil
+	return connectedCLID, nil
 }
 
 // collectTS3StartFailedError gathers diagnostics when the TS3 client fails to

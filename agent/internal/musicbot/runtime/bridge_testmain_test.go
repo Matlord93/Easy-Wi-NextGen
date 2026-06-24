@@ -43,8 +43,8 @@ func runMockBridgeProtocol(fail bool) {
 		var resp string
 		switch {
 		case strings.Contains(line, "disconnect"):
-			fmt.Fprintln(w, `{"ok":true}`)
-			w.Flush()
+			_, _ = fmt.Fprintln(w, `{"ok":true}`)
+			_ = w.Flush()
 			return
 		case strings.Contains(line, "reconnect"):
 			resp = `{"ok":true,"state":"connected","client_id":"mock-client"}`
@@ -59,7 +59,7 @@ func runMockBridgeProtocol(fail bool) {
 		default:
 			resp = `{"ok":true}`
 		}
-		fmt.Fprintln(w, resp)
-		w.Flush()
+		_, _ = fmt.Fprintln(w, resp)
+		_ = w.Flush()
 	}
 }

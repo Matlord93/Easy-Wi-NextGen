@@ -58,7 +58,11 @@ final class MusicbotQueueServiceSyncTest extends TestCase
         };
 
         $quotaService = new class implements MusicbotQuotaServiceInterface {
+            public function assertCanCreateMusicbot(User $customer): void {}
             public function assertCanAddToQueue(User $customer, MusicbotInstance $instance): void {}
+            public function assertCanUploadTrack(User $customer, int $fileSizeBytes): void {}
+            public function assertWebradioAllowed(User $customer): void {}
+            public function assertCanManageTeamspeakConnection(User $customer): void {}
         };
 
         $agentJobProto = (new \ReflectionClass(AgentJob::class))->newInstanceWithoutConstructor();
