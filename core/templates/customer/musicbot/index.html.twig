@@ -19,15 +19,31 @@
     <div class="ng-card" style="overflow:hidden;">
         <div class="tkt-hero">
             <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:6px;">
-                    <div class="tkt-hero__pill">
-                        <span class="tkt-hero__pill-dot"></span>
-                        Musicbots
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <div class="tkt-hero__pill">
+                            <span class="tkt-hero__pill-dot"></span>
+                            Musicbots
+                        </div>
+                        <h1 class="tkt-hero__title">Meine Musicbots</h1>
+                        <p class="tkt-hero__sub">
+                            Deine nativen Musicbot-Instanzen und deren Runtime-Status.
+                            {% if usage is defined %}
+                                <span style="margin-left:8px;opacity:.7;">{{ usage.musicbots.used }}/{{ usage.musicbots.max }} Bots genutzt</span>
+                            {% endif %}
+                        </p>
                     </div>
-                    <h1 class="tkt-hero__title">Meine Musicbots</h1>
-                    <p class="tkt-hero__sub">Deine nativen Musicbot-Instanzen und deren Runtime-Status.</p>
+                    {% if canCreate is defined and canCreate %}
+                        <a href="{{ path('customer_musicbot_new') }}" class="ui-btn ui-btn--primary" style="white-space:nowrap;">
+                            + Musicbot erstellen
+                        </a>
+                    {% elseif usage is defined %}
+                        <span class="ui-btn" style="opacity:.45;cursor:not-allowed;white-space:nowrap;" title="Limit erreicht: {{ usage.musicbots.used }}/{{ usage.musicbots.max }}">
+                            + Musicbot erstellen
+                        </span>
+                    {% endif %}
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:16px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:16px;">
                     <div class="tkt-kpi">
                         <div class="tkt-kpi__label">Gesamt</div>
                         <div class="tkt-kpi__value">{{ instances|length }}</div>
@@ -44,98 +60,107 @@
                         <div class="tkt-kpi__label">Stopped</div>
                         <div class="tkt-kpi__value">{{ instances|filter(r => r.instance.status.value == 'stopped')|length }}</div>
                     </div>
+                    {% if usage is defined and usage.storage_mb is defined %}
+                    <div class="tkt-kpi" title="{{ usage.storage_mb.used|number_format(1) }} / {{ usage.storage_mb.max }} MB">
+                        <div class="tkt-kpi__label">Storage</div>
+                        <div class="tkt-kpi__value" style="font-size:15px;">{{ usage.storage_mb.used|number_format(1) }}&thinsp;<span style="font-size:11px;font-weight:400;opacity:.6;">/ {{ usage.storage_mb.max }} MB</span></div>
+                    </div>
+                    {% endif %}
                 </div>
-            </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-            <div class="tkt-qa" style="cursor:default;">
-                <div class="tkt-qa__icon" style="background:rgba(99,102,241,0.15);color:#818cf8;">♫</div>
-                <div class="tkt-qa__title">Native Musicbots</div>
-                <div class="tkt-qa__sub">Keine SinusBot- oder TS3AudioBot-Abhängigkeit</div>
-            </div>
-            <div class="tkt-qa" style="cursor:default;">
-                <div class="tkt-qa__icon" style="background:rgba(34,197,94,0.12);color:#4ade80;">▶</div>
-                <div class="tkt-qa__title">Playback-Steuerung</div>
-                <div class="tkt-qa__sub">Queue, Playlists und Live-Steuerung</div>
-            </div>
-            <div class="tkt-qa" style="cursor:default;">
-                <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">⚙</div>
-                <div class="tkt-qa__title">Auto-DJ & Webradio</div>
-                <div class="tkt-qa__sub">Streaming und automatisierte Wiedergabe</div>
             </div>
         </div>
     </div>
 
-    {# ── Instanz-Liste ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-filter-bar">
-            <div class="tkt-filter-bar__top">
-                <div>
-                    <h2 class="tkt-filter-bar__title">Meine Instanzen</h2>
-                    <p class="tkt-filter-bar__sub">Übersicht deiner Musicbot-Instanzen mit aktuellem Status.</p>
-                </div>
+    {# ── Flash messages ── #}
+    {% for type, msgs in app.flashes(['success','error','warning','info']) %}
+        {% for msg in msgs %}
+            <div class="ng-card" style="padding:12px 16px;border-left:3px solid {% if type=='success' %}var(--ng-success){% elseif type=='error' %}var(--ng-danger){% else %}var(--ng-primary){% endif %};">
+                <span style="font-size:13px;">{{ msg }}</span>
+            </div>
+        {% endfor %}
+    {% endfor %}
+
+    {# ── Bot Cards ── #}
+    {% if instances is empty %}
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="text-align:center;padding:64px 20px;">
+                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" style="display:block;margin:0 auto 16px;opacity:.2;" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                <p style="margin:0;font-size:15px;font-weight:600;color:var(--ng-text);">Noch keine Musicbots</p>
+                <p style="margin:6px 0 20px;font-size:13px;color:var(--ng-text-muted);">Erstelle deinen ersten Musicbot und verbinde ihn mit TeamSpeak.</p>
+                {% if canCreate is defined and canCreate %}
+                    <a href="{{ path('customer_musicbot_new') }}" class="ui-btn ui-btn--primary">+ Musicbot erstellen</a>
+                {% endif %}
             </div>
         </div>
-
-        <table class="ui-table" style="width:100%;">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Status</th>
-                    <th>Node</th>
-                    <th>TeamSpeak</th>
-                    <th>Discord</th>
-                    <th>Aktueller Track</th>
-                    <th>Queue</th>
-                    <th>Aktualisiert</th>
-                </tr>
-            </thead>
-            <tbody>
+    {% else %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;">
             {% for row in instances %}
                 {% set instance = row.instance %}
                 {% set statusClass = statusMap[instance.status.value] ?? 'neutral' %}
-                <tr>
-                    <td>
-                        <a href="{{ path('customer_musicbot_show', {id: instance.id}) }}" style="font-weight:600;color:var(--ng-text);text-decoration:none;">{{ instance.name }}</a>
-                    </td>
-                    <td>
-                        <span class="ui-badge ui-badge--{{ statusClass }}">{{ instance.status.value|title }}</span>
-                    </td>
-                    <td style="color:var(--ng-text-muted);font-size:13px;">{{ instance.node.name ?: instance.node.id }}</td>
-                    <td>
-                        {% if row.teamspeakActive %}
-                            <span class="ui-badge ui-badge--success">aktiv</span>
-                        {% else %}
-                            <span class="ui-badge ui-badge--neutral">inaktiv</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if row.discordActive %}
-                            <span class="ui-badge ui-badge--success">aktiv</span>
-                        {% else %}
-                            <span class="ui-badge ui-badge--neutral">inaktiv</span>
-                        {% endif %}
-                    </td>
-                    <td style="font-size:13px;color:var(--ng-text-muted);">
-                        {% if row.currentTrack %}{{ row.currentTrack.title }}{% else %}—{% endif %}
-                    </td>
-                    <td style="font-size:13px;color:var(--ng-text-muted);">{{ row.queueLength }}</td>
-                    <td style="font-size:12px;color:var(--ng-text-muted);">{{ instance.updatedAt|date('d.m.Y H:i') }}</td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="8">
-                        <div style="text-align:center;padding:48px 20px;">
-                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" style="display:block;margin:0 auto 12px;opacity:.2;color:var(--ng-text-muted);" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-                            <p style="margin:0;font-size:14px;font-weight:600;color:var(--ng-text);">Du hast noch keine Musicbots.</p>
-                            <p style="margin:6px 0 0;font-size:13px;color:var(--ng-text-muted);">Wende dich an deinen Anbieter, um eine Musicbot-Instanz zu erhalten.</p>
+                <div class="ng-card" style="overflow:hidden;display:flex;flex-direction:column;">
+
+                    {# Card header #}
+                    <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:10px;">
+                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(99,102,241,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#818cf8;font-size:18px;">♫</div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                <a href="{{ path('customer_musicbot_show', {id: instance.id}) }}" style="color:var(--ng-text);text-decoration:none;">{{ instance.name }}</a>
+                            </div>
+                            <div style="font-size:11px;color:var(--ng-text-muted);margin-top:1px;">{{ instance.node.name ?: instance.node.id }}</div>
                         </div>
-                    </td>
-                </tr>
+                        <span class="ui-badge ui-badge--{{ statusClass }}">{{ instance.status.value|title }}</span>
+                    </div>
+
+                    {# Status grid #}
+                    <div style="padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;">
+                        <div>
+                            <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:3px;">TeamSpeak</div>
+                            {% if row.teamspeakActive %}
+                                <span class="ui-badge ui-badge--success" style="font-size:11px;">aktiv</span>
+                            {% else %}
+                                <span class="ui-badge ui-badge--neutral" style="font-size:11px;">inaktiv</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:3px;">Discord</div>
+                            {% if row.discordActive %}
+                                <span class="ui-badge ui-badge--success" style="font-size:11px;">aktiv</span>
+                            {% else %}
+                                <span class="ui-badge ui-badge--neutral" style="font-size:11px;">inaktiv</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:3px;">Aktueller Track</div>
+                            <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                {% if row.currentTrack %}{{ row.currentTrack.title }}{% else %}<span style="color:var(--ng-text-muted);">—</span>{% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:3px;">Queue</div>
+                            <div style="font-size:12px;font-weight:500;">{{ row.queueLength }} Track(s)</div>
+                        </div>
+                    </div>
+
+                    {# Action bar #}
+                    <div style="padding:10px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);display:flex;gap:8px;align-items:center;">
+                        <a href="{{ path('customer_musicbot_show', {id: instance.id}) }}" class="ui-btn" style="font-size:12px;padding:4px 10px;flex:1;text-align:center;">Öffnen</a>
+                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+                            <input type="hidden" name="action" value="start">
+                            <button type="submit" class="ui-btn ui-btn--success" style="font-size:12px;padding:4px 10px;" title="Starten">▶</button>
+                        </form>
+                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+                            <input type="hidden" name="action" value="stop">
+                            <button type="submit" class="ui-btn" style="font-size:12px;padding:4px 10px;" title="Stoppen">■</button>
+                        </form>
+                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+                            <input type="hidden" name="action" value="restart">
+                            <button type="submit" class="ui-btn" style="font-size:12px;padding:4px 10px;" title="Neustarten">↺</button>
+                        </form>
+                    </div>
+                </div>
             {% endfor %}
-            </tbody>
-        </table>
-    </div>
+        </div>
+    {% endif %}
 
 </div>
 {% endblock %}

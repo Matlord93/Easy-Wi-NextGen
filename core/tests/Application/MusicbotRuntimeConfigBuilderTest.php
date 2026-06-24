@@ -172,6 +172,11 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         self::assertSame('/opt/easywi/musicbot/teamspeak-client/official-client/ts3client_linux_amd64', $config['teamspeak']['client_binary_path']);
         self::assertSame('pulseaudio_virtual_source', $config['teamspeak']['audio_backend']);
         self::assertTrue($config['teamspeak']['autoconnect']);
+        // instance_path and runtime_dir must be set so the bridge uses a persistent dir.
+        self::assertSame('/var/lib/easywi/musicbot/musicbot-test-abc123', $config['teamspeak']['instance_path']);
+        self::assertSame('/var/lib/easywi/musicbot/musicbot-test-abc123/runtime/teamspeak-bridge', $config['teamspeak']['runtime_dir']);
+        // client_query_host must default to 127.0.0.1 so the bridge binds on loopback.
+        self::assertSame('127.0.0.1', $config['teamspeak']['client_query_host']);
         // library_path and opus_library_path must NOT be emitted for external_client_bridge
         self::assertArrayNotHasKey('library_path', $config['teamspeak']);
         self::assertArrayNotHasKey('opus_library_path', $config['teamspeak']);
@@ -226,6 +231,32 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         self::assertSame('client_library', $config['teamspeak']['backend_type']);
         self::assertSame('', $config['teamspeak']['backend_path']);
         self::assertSame('client_backend_required', $config['teamspeak']['backend_status']);
+    }
+
+    public function testPlaceholderBackendTypeIsAutoPromotedToExternalClientBridgeWhenNodeBackendIsReady(): void
+    {
+        $conn = new MusicbotConnection($this->instance, MusicbotPlatform::Teamspeak, [
+            'host' => 'ts3.example.com',
+            'port' => 9987,
+            'profile' => 'ts3',
+            'backend_type' => 'placeholder',
+        ], []);
+        $conn->setEnabled(true);
+
+        $backendConfig = new MusicbotTeamspeakBackendConfig($this->instance->getNode());
+        $backendConfig->setBackendType('external_client_bridge');
+        $backendConfig->setBridgePath('/usr/local/bin/easywi-teamspeak-bridge');
+        $backendConfig->setOfficialClientBinaryPath('/opt/easywi/musicbot/teamspeak-client/official-client/ts3client_linux_amd64');
+        $backendConfig->setAudioBackend('pulseaudio_virtual_source');
+        $backendConfig->setStatus(MusicbotTeamspeakBackendStatus::ExternalBridgeReady);
+
+        $builder = $this->buildService([$conn], null, [], $backendConfig);
+        $config = $builder->build($this->instance);
+
+        self::assertSame('external_client_bridge', $config['teamspeak']['backend_type'],
+            'placeholder backend_type must be promoted to external_client_bridge when node backend is ready');
+        self::assertSame('/usr/local/bin/easywi-teamspeak-bridge', $config['teamspeak']['bridge_path']);
+        self::assertSame('127.0.0.1', $config['teamspeak']['client_query_host']);
     }
 
     public function testBuildReturnsFalseEnabledForDisabledConnection(): void

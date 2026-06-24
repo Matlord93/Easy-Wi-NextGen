@@ -16,6 +16,7 @@
     'xvfb_missing': 'danger',
     'audio_backend_missing': 'danger',
     'client_binary_missing': 'danger',
+    'clientquery_plugin_missing': 'danger',
 } %}
 
 {% block content %}
@@ -85,6 +86,8 @@
         <div class="ng-alert ng-alert--danger">PulseAudio/PipeWire nicht gefunden. Bitte <code style="font-family:monospace;">apt-get install pulseaudio</code> ausführen oder "Abhängigkeiten installieren" nutzen.</div>
     {% elseif status == 'client_binary_missing' %}
         <div class="ng-alert ng-alert--danger">TeamSpeak Client Binary (ts3client_linux_amd64) nicht gefunden. Bitte offiziellen TS3 Client installieren.</div>
+    {% elseif status == 'clientquery_plugin_missing' %}
+        <div class="ng-alert ng-alert--danger">ClientQuery Plugin (<code style="font-family:monospace;">libclientquery_plugin_linux_amd64.so</code>) fehlt im <code style="font-family:monospace;">plugins/</code> Verzeichnis des offiziellen TS3 Clients. Bitte <strong>Repair</strong> ausführen oder den offiziellen Client neu installieren. Kein manuelles Kopieren nötig.</div>
     {% endif %}
     {% if form.last_error %}
         <div class="ng-alert ng-alert--danger">Letzter Fehler: {{ form.last_error }}</div>
@@ -196,7 +199,10 @@
                             PulseAudio/PipeWire: {{ status == 'audio_backend_missing' ? 'fehlt' : (status in ['external_bridge_ready','connected','client_binary_missing'] ? 'vorhanden' : '—') }}
                         </span>
                         <span style="color:{{ status == 'client_binary_missing' ? 'var(--ng-danger)' : (status in ['external_bridge_ready','connected'] ? 'var(--ng-success)' : 'var(--ng-text-muted)') }};">
-                            TS3 Client: {{ status == 'client_binary_missing' ? 'fehlt' : (status in ['external_bridge_ready','connected'] ? 'vorhanden' : '—') }}
+                            TS3 Client: {{ status == 'client_binary_missing' ? 'fehlt' : (status in ['external_bridge_ready','connected','clientquery_plugin_missing'] ? 'vorhanden' : '—') }}
+                        </span>
+                        <span style="color:{{ status == 'clientquery_plugin_missing' ? 'var(--ng-danger)' : (status in ['external_bridge_ready','connected'] ? 'var(--ng-success)' : 'var(--ng-text-muted)') }};">
+                            ClientQuery Plugin: {{ status == 'clientquery_plugin_missing' ? 'fehlt' : (status in ['external_bridge_ready','connected'] ? 'vorhanden' : '—') }}
                         </span>
                         <span style="color:{{ status in ['external_bridge_ready','connected'] ? 'var(--ng-success)' : 'var(--ng-text-muted)' }};">
                             Bridge: {{ status in ['external_bridge_ready','connected'] ? 'bereit' : '—' }}
@@ -242,7 +248,24 @@
                     <div class="form-field"><label class="form-label">Expected SHA-256</label><input name="official_client_expected_sha256" value="{{ form.official_client_expected_sha256 }}" placeholder="optional" class="form-input"></div>
                     <div class="form-field"><label class="form-label">Install Path</label><input name="official_client_install_path" value="{{ form.official_client_install_path }}" placeholder="/opt/easywi/musicbot/teamspeak-client/official-client/" class="form-input"></div>
                     <div class="form-field"><label class="form-label">Zuletzt installiert</label><input value="{{ form.official_client_last_installed_at ? form.official_client_last_installed_at|date('Y-m-d H:i:s') : '—' }}" readonly class="form-input"></div>
+                    {% if form.official_client_binary_path %}
+                    <div class="form-field"><label class="form-label">Binary Path (erkannt)</label><input value="{{ form.official_client_binary_path }}" readonly class="form-input" style="font-family:monospace;font-size:11px;"></div>
+                    {% endif %}
+                    {% if form.official_client_runscript_path %}
+                    <div class="form-field"><label class="form-label">Runscript Path (erkannt)</label><input value="{{ form.official_client_runscript_path }}" readonly class="form-input" style="font-family:monospace;font-size:11px;"></div>
+                    {% endif %}
                 </div>
+                {% if form.official_client_binary_path %}
+                <div style="margin-top:10px;padding:10px;background:var(--ng-surface-soft);border-radius:6px;font-size:12px;">
+                    <strong style="color:var(--ng-text);">Erwartete Dateien nach Installation:</strong>
+                    {% set ocdir = form.official_client_binary_path|split('/')|slice(0,-1)|join('/') %}
+                    <ul style="margin:6px 0 0;padding-left:18px;color:var(--ng-text-muted);">
+                        {% for fname in ['ts3client_linux_amd64','ts3client_runscript.sh','plugins/libclientquery_plugin_linux_amd64.so','platforms/libqxcb.so','soundbackends/libalsa_linux_amd64.so','sqldrivers/libqsqlite.so'] %}
+                            <li><code style="font-family:monospace;">{{ ocdir }}/{{ fname }}</code></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
             </div>
         </details>
 
@@ -305,13 +328,23 @@
             </div>
             <div class="ng-data-card__body">
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-                    {% for action,label in {'validate':'Backend prüfen','install':'Client Backend installieren/registrieren','test_connection':'Verbindung testen','repair':'Repair','status':'Status aktualisieren'} %}
+                    {% for action,label in {'validate':'Backend prüfen','install':'Client Backend installieren/registrieren','test_connection':'Verbindung testen','status':'Status aktualisieren'} %}
                         <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: action}) }}">
                             <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
                             <button class="ui-button {{ action == 'install' ? 'ui-button--primary' : 'ui-button--ghost' }} ui-button--sm" type="submit">{{ label }}</button>
                         </form>
                     {% endfor %}
+                    <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: 'repair'}) }}" title="Versucht fehlendes libclientquery_plugin_linux_amd64.so aus ts3home zu migrieren. Lädt keine proprietären Dateien herunter.">
+                        <input type="hidden" name="node_id" value="{{ selectedNode.id }}">
+                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Repair (Plugin migrieren)</button>
+                    </form>
                 </div>
+                {% if status == 'clientquery_plugin_missing' %}
+                <div class="ng-alert ng-alert--warning" style="margin-bottom:12px;font-size:12px;">
+                    <strong>ClientQuery Plugin fehlt.</strong>
+                    Klicke <strong>Repair (Plugin migrieren)</strong> — der Agent sucht <code style="font-family:monospace;">libclientquery_plugin_linux_amd64.so</code> in bekannten ts3home-Verzeichnissen und kopiert es nach <code style="font-family:monospace;">official-client/plugins/</code>. Kein manuelles Kopieren nötig. Falls Repair nicht hilft, bitte offiziellen Client neu installieren.
+                </div>
+                {% endif %}
                 <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:14px;">
                     <h3 style="margin:0 0 10px;font-size:13px;font-weight:700;color:var(--ng-text);">Offiziellen Client installieren</h3>
                     <form method="post" action="{{ path('admin_musicbot_teamspeak_backend_action', {action: 'install_official_client'}) }}" onsubmit="return confirm('Ich bestätige, dass die Nutzung des TeamSpeak Clients lizenzrechtlich erlaubt ist.');">

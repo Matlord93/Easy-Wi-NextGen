@@ -19,7 +19,7 @@ use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
  * libsodium secretbox). Values not starting with that prefix are considered plaintext legacy data
  * and are accepted for backwards-compatibility reads, then re-encrypted on the next write.
  */
-final class MusicbotSecretConfigService
+final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceInterface
 {
     public const SECRET_KEYS = [
         'bot_token',

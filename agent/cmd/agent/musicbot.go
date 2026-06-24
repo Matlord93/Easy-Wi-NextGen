@@ -402,7 +402,11 @@ func resolveMusicbotRuntimeBinary(job jobs.Job) (string, error) {
 }
 
 func ensureMusicbotDirectories(layout musicbotLayout) error {
-	for _, dir := range []string{layout.installPath, layout.dataDir, layout.logDir, layout.pluginDir, layout.binDir, filepath.Dir(layout.unitPath)} {
+	dirs := []string{layout.installPath, layout.dataDir, layout.logDir, layout.pluginDir, layout.binDir, filepath.Dir(layout.unitPath)}
+	if layout.installPath != "" {
+		dirs = append(dirs, filepath.Join(layout.installPath, "runtime", "tmp"))
+	}
+	for _, dir := range dirs {
 		if dir == "" || dir == "." {
 			continue
 		}
@@ -480,10 +484,11 @@ func musicbotInstallPayload(layout musicbotLayout, binaryPath string) map[string
 }
 
 // musicbotSystemdUnit returns a systemd unit for the easywi-musicbot service.
-// Unlike game server units, PrivateDevices is disabled so child processes like
-// Xvfb and PulseAudio (used by the external_client_bridge backend) can access
-// audio/DRI devices when needed, and PrivateTmp=true provides an isolated /tmp
-// namespace shared by all subprocesses of the service.
+// PrivateDevices is disabled so child processes like Xvfb and PulseAudio can
+// access audio/DRI devices. PrivateTmp=false lets Xvfb write to the real
+// /tmp/.X11-unix socket directory (required on systems where the private
+// tmpfs namespace is not visible to xdpyinfo/Xvfb before the display is ready).
+// TMPDIR is overridden to keep TS3 temp files inside the instance directory.
 func musicbotSystemdUnit(serviceName, installPath, binaryPath, configPath string) string {
 	command := fmt.Sprintf("%s --config %s", binaryPath, configPath)
 	limits := buildSystemdLimits(0, 0)
@@ -500,6 +505,7 @@ WorkingDirectory=%s
 Environment=HOME=%s
 Environment=XDG_CONFIG_HOME=%s/.config
 Environment=XDG_DATA_HOME=%s/.local/share
+Environment=TMPDIR=%s/runtime/tmp
 ExecStartPre=/usr/bin/test -d %s
 ExecStart=%s
 StandardOutput=journal
@@ -509,16 +515,50 @@ RestartSec=10
 UMask=0027
 LimitNOFILE=1048576
 NoNewPrivileges=true
-PrivateTmp=true
+PrivateTmp=false
 PrivateDevices=false
 ProtectSystem=strict
 ProtectHome=false
-ReadWritePaths=%s
+ReadWritePaths=%s /tmp
 %s
 
 [Install]
 WantedBy=multi-user.target
-`, serviceName, installPath, installPath, installPath, installPath, installPath, command, installPath, limits)
+`, serviceName, installPath, installPath, installPath, installPath, installPath, installPath, command, installPath, limits)
+}
+
+// handleMusicbotServiceAction wraps handleServiceAction with pre-flight ownership
+// checks before a start/restart so systemd never fails mid-launch on EPERM.
+func handleMusicbotServiceAction(job jobs.Job) orchestratorResult {
+	action := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "action")))
+	if (action == "start" || action == "restart") && runtime.GOOS != "windows" {
+		installPath, err := validateMusicbotInstallPath(payloadValue(job.Payload, "install_path", "install_dir"))
+		if err == nil {
+			if err := checkMusicbotRuntimeAccess(installPath, job); err != nil {
+				return orchestratorResult{status: "failed", errorText: err.Error()}
+			}
+		}
+	}
+	return handleServiceAction(job)
+}
+
+// checkMusicbotRuntimeAccess verifies that the runtime user can actually read the
+// config and execute the binary before systemd is told to start the service.
+func checkMusicbotRuntimeAccess(installPath string, job jobs.Job) error {
+	runtimeUser := musicbotRuntimeUser(job)
+	configPath := filepath.Join(installPath, "config.json")
+	binaryPath := filepath.Join(installPath, "bin", "easywi-musicbot")
+
+	if err := runCommand("sudo", "-u", runtimeUser, "test", "-d", installPath); err != nil {
+		return fmt.Errorf("runtime user %s cannot access install directory %s", runtimeUser, installPath)
+	}
+	if err := runCommand("sudo", "-u", runtimeUser, "test", "-r", configPath); err != nil {
+		return fmt.Errorf("runtime user cannot read config.json")
+	}
+	if err := runCommand("sudo", "-u", runtimeUser, "test", "-x", binaryPath); err != nil {
+		return fmt.Errorf("runtime user cannot execute %s", binaryPath)
+	}
+	return nil
 }
 
 func copyMusicbotFile(source string, destination string, mode os.FileMode) error {

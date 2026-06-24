@@ -166,6 +166,49 @@ UNIT
   rm -f "$tmpUnit"
 }
 
+# install_single_binary downloads a single named binary from the release, verifies
+# its checksum, and installs it atomically to targetPath with mode 0755.
+# Returns 0 on success, 1 if the asset is not found in the release (non-fatal).
+install_single_binary() {
+  local releaseBase="$1"
+  local checksumsFile="$2"
+  local assetName="$3"
+  local targetPath="$4"
+  local tempDir="$5"
+
+  local tmpFile="${tempDir}/${assetName}"
+  local tmpBin
+
+  # Try .zip first, then bare binary name
+  if curl_cmd "${releaseBase}/${assetName}.zip" -o "${tmpFile}.zip" 2>/dev/null; then
+    command -v unzip >/dev/null || fail 'unzip fehlt'
+    unzip -oq "${tmpFile}.zip" -d "${tempDir}" || fail "Entpacken von ${assetName}.zip fehlgeschlagen"
+    tmpBin="${tempDir}/${assetName}"
+    if [[ ! -f "$tmpBin" ]]; then
+      log "WARNUNG: ${assetName} nicht in .zip gefunden, überspringe"
+      return 1
+    fi
+    verify_checksum "$checksumsFile" "${tmpFile}.zip" "${assetName}.zip" 2>/dev/null \
+      || verify_checksum "$checksumsFile" "$tmpBin" "$assetName" 2>/dev/null \
+      || { log "WARNUNG: Keine Prüfsumme für ${assetName} gefunden, überspringe Checksum-Prüfung"; }
+  elif curl_cmd "${releaseBase}/${assetName}" -o "${tmpFile}" 2>/dev/null; then
+    tmpBin="${tmpFile}"
+    verify_checksum "$checksumsFile" "$tmpBin" "$assetName" 2>/dev/null \
+      || { log "WARNUNG: Keine Prüfsumme für ${assetName} gefunden, überspringe Checksum-Prüfung"; }
+  else
+    log "WARNUNG: ${assetName} nicht im Release gefunden, überspringe"
+    return 1
+  fi
+
+  if [[ -f "$targetPath" ]] && cmp -s "$tmpBin" "$targetPath"; then
+    log "Binary bereits aktuell: $targetPath"
+  else
+    install -m 0755 "$tmpBin" "$targetPath"
+    log "Binary installiert: $targetPath"
+  fi
+  return 0
+}
+
 main() {
   command -v curl >/dev/null || fail 'curl fehlt'
   command -v jq >/dev/null || fail 'jq fehlt'
@@ -176,7 +219,7 @@ main() {
   tag="$(resolve_tag "$VERSION")"
   [[ -n "$tag" && "$tag" != "null" ]] || fail 'keine Release-Version gefunden'
 
-  local releaseBase="https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/${tag}"
+  local releaseBase="https://github.com/Matlord93/webinterface/releases/download/${tag}"
   local targetBinary="${INSTALL_DIR}/easywi-agent"
   local archSuffix
   archSuffix="$(resolve_arch_suffix)"
@@ -201,6 +244,14 @@ main() {
   else
     install -m 0755 "$downloadedBinary" "$targetBinary"
     log "Binary aktualisiert: $targetBinary"
+  fi
+
+  # Install musicbot and bridge binaries (linux amd64 only; non-fatal if missing from release)
+  if [[ "$archSuffix" == "amd64" ]]; then
+    install_single_binary "$releaseBase" "$checksumsFile" \
+      "easywi-musicbot-linux-amd64" "${INSTALL_DIR}/easywi-musicbot" "$tempDir" || true
+    install_single_binary "$releaseBase" "$checksumsFile" \
+      "easywi-teamspeak-bridge-linux-amd64" "${INSTALL_DIR}/easywi-teamspeak-bridge" "$tempDir" || true
   fi
 
   if [[ ! -f "$CONFIG_PATH" ]]; then

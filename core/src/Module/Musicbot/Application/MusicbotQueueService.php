@@ -74,6 +74,33 @@ final class MusicbotQueueService
         return $queueItem;
     }
 
+    /**
+     * Add a track at the front of the queue (position 0) and shift all existing items down.
+     * Used by "Play Now" to immediately start a specific track.
+     */
+    public function prependTrackToQueue(User $customer, MusicbotInstance $instance, MusicbotTrack $track, ?User $requestedBy = null): MusicbotQueueItem
+    {
+        $this->assertCustomerOwnsInstance($customer, $instance);
+        $this->assertCustomerOwnsTrack($customer, $track);
+        if ($track->getInstance() instanceof MusicbotInstance && $track->getInstance()->getId() !== $instance->getId()) {
+            throw new \InvalidArgumentException('Track belongs to another musicbot instance.');
+        }
+        $this->quotaService->assertCanAddToQueue($customer, $instance);
+
+        // Shift all existing items one position down.
+        foreach ($this->queueItemRepository->findQueueForInstanceOrdered($instance) as $existing) {
+            $existing->setPosition($existing->getPosition() + 1);
+        }
+
+        $queueItem = new MusicbotQueueItem($instance, $track, 0, $requestedBy ?? $customer);
+        $this->entityManager->persist($queueItem);
+        $this->entityManager->flush();
+
+        $this->dispatchQueueSync($instance);
+
+        return $queueItem;
+    }
+
     public function removeQueueItem(User $customer, MusicbotQueueItem $queueItem): void
     {
         $this->assertCustomerOwnsInstance($customer, $queueItem->getInstance());
@@ -159,8 +186,8 @@ final class MusicbotQueueService
         $serialized = [];
         foreach ($items as $item) {
             $track = $item->getTrack();
-            $uri = $this->runtimeSafeFilePath($track, $instance->getInstallPath());
-            if ($uri === '' || $track->getSourceType() !== MusicbotTrackSourceType::Upload) {
+            $sourceEntry = $this->buildSourceEntry($track, $instance->getInstallPath());
+            if ($sourceEntry === null) {
                 continue;
             }
             $serialized[] = [
@@ -169,11 +196,7 @@ final class MusicbotQueueService
                 'title' => $track->getTitle(),
                 'artist' => $track->getArtist() ?? '',
                 'duration_seconds' => $track->getDurationSeconds(),
-                'source' => [
-                    'type' => $track->getSourceType()->value,
-                    'uri' => $uri,
-                    'mime_type' => $track->getMimeType(),
-                ],
+                'source' => $sourceEntry,
                 'metadata' => $track->getMetadata(),
             ];
         }
@@ -184,6 +207,63 @@ final class MusicbotQueueService
             'revision' => time(),
             'generated_at' => (new \DateTimeImmutable())->format(\DateTimeInterface::RFC3339),
         ];
+    }
+
+    /**
+     * Build the `source` sub-object for the queue snapshot for the given track.
+     * Returns null when the track has no usable URI and should be skipped.
+     *
+     * @return array<string, string>|null
+     */
+    private function buildSourceEntry(MusicbotTrack $track, string $installPath): ?array
+    {
+        return match ($track->getSourceType()) {
+            MusicbotTrackSourceType::Upload => $this->buildUploadSource($track, $installPath),
+            MusicbotTrackSourceType::Webradio => $this->buildWebradioSource($track),
+            MusicbotTrackSourceType::Youtube => $this->buildYoutubeSource($track),
+            default => null,
+        };
+    }
+
+    /** @return array<string, string>|null */
+    private function buildUploadSource(MusicbotTrack $track, string $installPath): ?array
+    {
+        $uri = $this->runtimeSafeFilePath($track, $installPath);
+        if ($uri === '') {
+            return null;
+        }
+
+        return ['type' => MusicbotTrackSourceType::Upload->value, 'uri' => $uri, 'mime_type' => $track->getMimeType()];
+    }
+
+    /** @return array<string, string>|null */
+    private function buildWebradioSource(MusicbotTrack $track): ?array
+    {
+        $streamUrl = (string) ($track->getMetadata()['stream_url'] ?? '');
+        if ($streamUrl === '' || !str_starts_with($streamUrl, 'http')) {
+            return null;
+        }
+
+        return ['type' => MusicbotTrackSourceType::Webradio->value, 'uri' => $streamUrl, 'mime_type' => 'audio/mpeg'];
+    }
+
+    /** @return array<string, string>|null */
+    private function buildYoutubeSource(MusicbotTrack $track): ?array
+    {
+        $metadata = $track->getMetadata();
+        // Prefer a previously resolved direct audio URL (cached by the resolver service).
+        $resolvedUrl = (string) ($metadata['resolved_url'] ?? '');
+        if ($resolvedUrl !== '' && str_starts_with($resolvedUrl, 'http')) {
+            return ['type' => MusicbotTrackSourceType::Upload->value, 'uri' => $resolvedUrl, 'mime_type' => 'audio/mpeg'];
+        }
+
+        $youtubeUrl = (string) ($metadata['youtube_url'] ?? '');
+        if ($youtubeUrl === '') {
+            return null;
+        }
+
+        // Pass the YouTube URL to the runtime. The agent resolves it via yt-dlp on its side.
+        return ['type' => MusicbotTrackSourceType::Youtube->value, 'uri' => $youtubeUrl, 'mime_type' => 'audio/mpeg'];
     }
 
     private function runtimeSafeFilePath(MusicbotTrack $track, string $installPath): string

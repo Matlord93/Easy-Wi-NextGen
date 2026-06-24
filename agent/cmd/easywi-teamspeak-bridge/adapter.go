@@ -44,16 +44,24 @@ type connectParams struct {
 	ClientBinaryPath    string
 	ClientRunscriptPath string
 	AudioBackend        string
+	InstancePath        string // base path for persistent runtime dirs (e.g. musicbot instance dir)
+	RuntimeDir          string // explicit runtime dir; overrides InstancePath-derived path when non-empty
+	ClientQueryHost     string // host for ClientQuery plugin (default 127.0.0.1)
+	ClientQueryPort     int    // explicit ClientQuery port; 0 = auto-allocate
 }
 
 // adapterStatus is a point-in-time snapshot returned by TeamspeakClientAdapter.Status.
 type adapterStatus struct {
-	BackendType string
-	Ready       bool
-	State       string // "connected", "disconnected", "connecting", "error"
-	ClientID    string
-	ChannelID   string
-	LastError   string
+	BackendType           string
+	Ready                 bool
+	State                 string // "connected", "disconnected", "connecting", "error"
+	ClientID              string
+	ChannelID             string
+	LastError             string
+	Ts3LogPath            string // path to last ts3client log (external_client_bridge only)
+	CrashdumpPath         string // path to last crashdump (external_client_bridge only)
+	ClientQueryPort       int    // allocated ClientQuery port (external_client_bridge only)
+	LicenseAcceptRequired bool   // TS3 Client license must be accepted once before connecting
 }
 
 // TeamspeakClientAdapter is the interface a real TeamSpeak client layer must implement

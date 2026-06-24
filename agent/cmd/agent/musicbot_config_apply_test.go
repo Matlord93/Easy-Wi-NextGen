@@ -105,8 +105,86 @@ func TestHandleMusicbotConfigApplySecurePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat config.json: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("expected 0600, got %04o", perm)
+	// 0640: owner rw, group r — readable by the runtime user (easywi) as owner or group member.
+	// Must NOT be 0600 (root:root) which would deny the service user read access.
+	if perm := info.Mode().Perm(); perm != 0o640 {
+		t.Errorf("expected 0640, got %04o", perm)
+	}
+}
+
+func TestHandleMusicbotConfigApplyParentDirsTraversable(t *testing.T) {
+	dir := t.TempDir()
+	// Simulate parent dirs created with restrictive 0750 (no world-execute).
+	grandparent := filepath.Join(dir, "easywi")
+	parent := filepath.Join(grandparent, "musicbot")
+	installPath := filepath.Join(parent, "instance-traverse")
+	if err := os.MkdirAll(installPath, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// Strip world-execute from the two parents to confirm the handler re-adds it.
+	if err := os.Chmod(grandparent, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	result := handleMusicbotConfigApply(jobs.Job{
+		ID:   "job-traverse",
+		Type: "musicbot.config.apply",
+		Payload: map[string]any{
+			"instance_id":  "9",
+			"service_name": "musicbot-traverse",
+			"install_path": installPath,
+			"config":       map[string]any{"a": "b"},
+		},
+	})
+	if result.status != "success" {
+		t.Fatalf("expected success: %s", result.errorText)
+	}
+
+	for _, d := range []string{grandparent, parent} {
+		info, err := os.Stat(d)
+		if err != nil {
+			t.Fatalf("stat %s: %v", d, err)
+		}
+		if info.Mode().Perm()&0o001 == 0 {
+			t.Errorf("parent dir %s missing world-execute bit: %04o", d, info.Mode().Perm())
+		}
+	}
+}
+
+func TestHandleMusicbotConfigApplyAtomicWritePreservesPermissions(t *testing.T) {
+	dir := t.TempDir()
+	installPath := filepath.Join(dir, "musicbot", "preserve-perm")
+	if err := os.MkdirAll(installPath, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(installPath, "config.json")
+	// Existing file with correct permissions to verify they survive an overwrite.
+	if err := os.WriteFile(configPath, []byte(`{"old":"data"}`), 0o640); err != nil {
+		t.Fatal(err)
+	}
+
+	result := handleMusicbotConfigApply(jobs.Job{
+		ID:   "job-preserve",
+		Type: "musicbot.config.apply",
+		Payload: map[string]any{
+			"instance_id":  "11",
+			"service_name": "musicbot-preserve",
+			"install_path": installPath,
+			"config":       map[string]any{"new": "data"},
+		},
+	})
+	if result.status != "success" {
+		t.Fatalf("expected success: %s", result.errorText)
+	}
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("stat config.json: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o640 {
+		t.Errorf("overwrite changed permissions to %04o, expected 0640", perm)
 	}
 }
 
@@ -208,6 +286,15 @@ func TestHandleMusicbotConfigApplyAtomicWrite(t *testing.T) {
 	if parsed["new"] != "data" || parsed["old"] != nil {
 		t.Errorf("atomic replace failed: %v", parsed)
 	}
+	// final permissions must be 0640
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("stat config.json after atomic replace: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o640 {
+		t.Errorf("expected 0640 after atomic replace, got %04o", perm)
+	}
+
 	// no leftover temp files
 	entries, _ := os.ReadDir(installPath)
 	for _, e := range entries {

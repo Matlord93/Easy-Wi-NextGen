@@ -386,7 +386,7 @@ func (s *Server) handleInstanceStatus(w http.ResponseWriter, r *http.Request) {
 	if exists {
 		response.Status = "running"
 		response.Running = true
-		if cmd.Process != nil {
+		if cmd != nil && cmd.Process != nil {
 			response.Pid = cmd.Process.Pid
 		}
 	}

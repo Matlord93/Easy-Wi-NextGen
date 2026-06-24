@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -42,6 +43,113 @@ func TestGamesvcErrorEnvelope5xx(t *testing.T) {
 		t.Fatalf("expected 500, got %d body=%s", rr.Code, rr.Body.String())
 	}
 	assertErrorEnvelope(t, rr.Body.Bytes(), "INTERNAL_ERROR", rr.Header().Get("X-Request-ID"))
+}
+
+func TestInstanceStatusStopped(t *testing.T) {
+	const testToken = "test-secret"
+	srv := newGameServer(gamesvcConfig{BearerToken: testToken})
+	h := srv.routes()
+
+	req := httptest.NewRequest(http.MethodPost, "/instance/status", strings.NewReader(`{"instance_id":"inst-unknown"}`))
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	payload := decodeJSONMap(t, rr.Body.Bytes())
+	if got := payload["status"]; got != "stopped" {
+		t.Fatalf("expected status=stopped, got %v", got)
+	}
+	if got, ok := payload["running"].(bool); !ok || got {
+		t.Fatalf("expected running=false, got %v", payload["running"])
+	}
+	if payload["ok"] != true {
+		t.Fatalf("expected ok=true, got %v", payload["ok"])
+	}
+}
+
+func TestInstanceStatusRunning(t *testing.T) {
+	const testToken = "test-secret"
+	srv := newGameServer(gamesvcConfig{BearerToken: testToken})
+
+	cmd := exec.Command("sleep", "60")
+	if err := cmd.Start(); err != nil {
+		t.Skipf("cannot start sleep process: %v", err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+
+	srv.mu.Lock()
+	srv.processes["inst-running"] = cmd
+	srv.mu.Unlock()
+
+	h := srv.routes()
+	req := httptest.NewRequest(http.MethodPost, "/instance/status", strings.NewReader(`{"instance_id":"inst-running"}`))
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	payload := decodeJSONMap(t, rr.Body.Bytes())
+	if got := payload["status"]; got != "running" {
+		t.Fatalf("expected status=running, got %v", got)
+	}
+	if got, ok := payload["running"].(bool); !ok || !got {
+		t.Fatalf("expected running=true, got %v", payload["running"])
+	}
+	if payload["ok"] != true {
+		t.Fatalf("expected ok=true, got %v", payload["ok"])
+	}
+}
+
+func TestInstanceStatusAlwaysHasStatusField(t *testing.T) {
+	const testToken = "test-secret"
+	for _, instanceID := range []string{"inst-present", "inst-absent"} {
+		t.Run(instanceID, func(t *testing.T) {
+			srv := newGameServer(gamesvcConfig{BearerToken: testToken})
+			h := srv.routes()
+
+			body := `{"instance_id":"` + instanceID + `"}`
+			req := httptest.NewRequest(http.MethodPost, "/instance/status", strings.NewReader(body))
+			req.Header.Set("Authorization", "Bearer "+testToken)
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d", rr.Code)
+			}
+			payload := decodeJSONMap(t, rr.Body.Bytes())
+			status, hasStatus := payload["status"]
+			if !hasStatus {
+				t.Fatal("response missing required status field")
+			}
+			s, ok := status.(string)
+			if !ok || (s != "running" && s != "stopped") {
+				t.Fatalf("status must be \"running\" or \"stopped\", got %v", status)
+			}
+			if _, hasData := payload["data"]; hasData {
+				data := payload["data"]
+				if data == nil {
+					t.Fatal("response must not contain a null data field")
+				}
+				if m, ok := data.(map[string]any); ok && len(m) == 0 {
+					t.Fatal("response must not contain an empty data object")
+				}
+			}
+		})
+	}
+}
+
+func decodeJSONMap(t *testing.T, raw []byte) map[string]any {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return payload
 }
 
 func assertErrorEnvelope(t *testing.T, raw []byte, expectedCode, expectedRequestID string) {

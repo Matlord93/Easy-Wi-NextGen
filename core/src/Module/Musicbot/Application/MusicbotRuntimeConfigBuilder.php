@@ -144,7 +144,7 @@ final class MusicbotRuntimeConfigBuilder
         $selectedBackendType = (string) ($runtimeConfig['backend_type'] ?? 'placeholder');
         $runtimeConfig['backend_status'] = 'client_backend_required';
 
-        if ((string) ($runtimeConfig['profile'] ?? 'ts3') !== 'ts3' || $selectedBackendType === 'placeholder' || $selectedBackendType === 'disabled') {
+        if ((string) ($runtimeConfig['profile'] ?? 'ts3') !== 'ts3' || $selectedBackendType === 'disabled') {
             return $runtimeConfig;
         }
 
@@ -153,10 +153,28 @@ final class MusicbotRuntimeConfigBuilder
             return $runtimeConfig;
         }
 
+        // When the connection still has 'placeholder' as backend_type but the node
+        // has an external_client_bridge backend that is ready, promote automatically
+        // so config.json never lands with backend_type=placeholder on a capable node.
+        if ($selectedBackendType === 'placeholder' && $backendConfig->getBackendType() === 'external_client_bridge') {
+            $readyStatuses = [
+                MusicbotTeamspeakBackendStatus::ExternalBridgeReady,
+                MusicbotTeamspeakBackendStatus::Connected,
+            ];
+            if (in_array($backendConfig->getStatus(), $readyStatuses, true)) {
+                $selectedBackendType = 'external_client_bridge';
+                $runtimeConfig['backend_type'] = 'external_client_bridge';
+            }
+        }
+
+        if ($selectedBackendType === 'placeholder') {
+            return $runtimeConfig;
+        }
+
         $status = $backendConfig->getStatus();
 
         if ($selectedBackendType === 'external_client_bridge') {
-            return $this->mergeExternalClientBridgeConfig($backendConfig, $runtimeConfig, $status);
+            return $this->mergeExternalClientBridgeConfig($instance, $backendConfig, $runtimeConfig, $status);
         }
 
         $hasReadyStatus = in_array($status, [MusicbotTeamspeakBackendStatus::Ready, MusicbotTeamspeakBackendStatus::Connected], true);
@@ -186,6 +204,7 @@ final class MusicbotRuntimeConfigBuilder
 
     /** @param array<string, mixed> $runtimeConfig @return array<string, mixed> */
     private function mergeExternalClientBridgeConfig(
+        MusicbotInstance $instance,
         \App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig $backendConfig,
         array $runtimeConfig,
         MusicbotTeamspeakBackendStatus $status,
@@ -205,17 +224,27 @@ final class MusicbotRuntimeConfigBuilder
             return $runtimeConfig;
         }
 
+        $installPath = $instance->getInstallPath();
         $runtimeConfig['backend_status'] = $status->value;
         $runtimeConfig['backend_type'] = 'external_client_bridge';
         $runtimeConfig['bridge_path'] = $bridgePath;
         $runtimeConfig['client_binary_path'] = $clientBinaryPath;
         $runtimeConfig['audio_backend'] = $backendConfig->getAudioBackend();
         $runtimeConfig['autoconnect'] = true;
+        $runtimeConfig['instance_path'] = $installPath;
+        $runtimeConfig['runtime_dir'] = $installPath . '/runtime/teamspeak-bridge';
+        $runtimeConfig['client_query_host'] = (string) ($runtimeConfig['client_query_host'] ?? '127.0.0.1') ?: '127.0.0.1';
         unset($runtimeConfig['library_path'], $runtimeConfig['opus_library_path']);
 
         $runscriptPath = trim($backendConfig->getOfficialClientRunscriptPath() ?? '');
         if ($runscriptPath !== '') {
             $runtimeConfig['client_runscript_path'] = $runscriptPath;
+        }
+
+        // Default to port 0 so the bridge uses the plugin default (25639).
+        // This avoids a port mismatch when the ClientQuery plugin ignores custom INI files.
+        if (!isset($runtimeConfig['client_query_port']) || $runtimeConfig['client_query_port'] === '') {
+            $runtimeConfig['client_query_port'] = 0;
         }
 
         return $runtimeConfig;

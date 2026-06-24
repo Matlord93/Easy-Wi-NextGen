@@ -10,4 +10,6 @@ enum MusicbotTrackSourceType: string
     case Stream = 'stream';
     case Url = 'url';
     case Plugin = 'plugin';
+    case Webradio = 'webradio';
+    case Youtube = 'youtube';
 }

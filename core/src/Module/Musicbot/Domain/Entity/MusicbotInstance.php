@@ -53,6 +53,10 @@ class MusicbotInstance
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $lastError = null;
 
+    /** @var array<string, mixed> */
+    #[ORM\Column(type: 'json', options: ['default' => '{}'])]
+    private array $instanceConfig = [];
+
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $runtimePayload = null;
@@ -78,6 +82,9 @@ class MusicbotInstance
     }
 
     public function getId(): ?int { return $this->id; }
+    /** @return array<string, mixed> */ public function getInstanceConfig(): array { return $this->instanceConfig; }
+    /** @param array<string, mixed> $config */ public function setInstanceConfig(array $config): void { $this->instanceConfig = $config; $this->touch(); }
+    public function getConfigValue(string $key, mixed $default = null): mixed { return $this->instanceConfig[$key] ?? $default; }
     public function getCustomer(): User { return $this->customer; }
     public function getNode(): Agent { return $this->node; }
     public function getName(): string { return $this->name; }

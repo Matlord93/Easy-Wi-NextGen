@@ -28,6 +28,13 @@ const (
 var (
 	ErrTeamSpeakNativeSDKNotInstalled       = errors.New(teamSpeakNativeSDKNotInstalledMessage)
 	ErrTeamSpeakExternalBridgeNotConfigured = errors.New(teamSpeakExternalBridgeNotConfiguredMessage)
+
+	ErrTeamSpeakBridgeMissingBridgeBinary = errors.New("missing_bridge_binary")
+	ErrTeamSpeakBridgeMissingClientBinary = errors.New("missing_client_binary")
+	ErrTeamSpeakBridgeXvfbFailed          = errors.New("xvfb_failed")
+	ErrTeamSpeakBridgePulseaudioFailed    = errors.New("pulseaudio_failed")
+	ErrTeamSpeakBridgeTsClientStartFailed = errors.New("ts3client_start_failed")
+	ErrTeamSpeakBridgeConnectFailed       = errors.New("connect_failed")
 )
 
 type teamspeakBackendBase struct {
@@ -171,11 +178,12 @@ func (c *NativeSdkTeamspeakVoiceClient) SendOpusFrame(ctx context.Context, frame
 // shell and refuses known third-party musicbot binaries.
 type ExternalBridgeTeamspeakVoiceClient struct {
 	teamspeakBackendBase
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	scanner *bufio.Scanner
-	channel string
+	mu          sync.Mutex    // protects cmd, stdin, scanner, state fields
+	roundTripMu sync.Mutex    // serializes bridgeRoundTrip calls
+	cmd         *exec.Cmd
+	stdin       io.WriteCloser
+	scanner     *bufio.Scanner
+	channel     string
 }
 
 type teamspeakBridgeRequest struct {
@@ -196,11 +204,16 @@ type teamspeakBridgeRequest struct {
 	ClientBinaryPath    string `json:"client_binary_path,omitempty"`
 	ClientRunscriptPath string `json:"client_runscript_path,omitempty"`
 	AudioBackend        string `json:"audio_backend,omitempty"`
+	InstancePath        string `json:"instance_path,omitempty"`
+	RuntimeDir          string `json:"runtime_dir,omitempty"`
+	ClientQueryHost     string `json:"client_query_host,omitempty"`
+	ClientQueryPort     int    `json:"client_query_port,omitempty"`
 }
 
 type teamspeakBridgeResponse struct {
 	OK          bool   `json:"ok"`
 	Error       string `json:"error,omitempty"`
+	ErrorCode   string `json:"error_code,omitempty"`
 	BackendType string `json:"backend_type,omitempty"`
 	Ready       bool   `json:"ready,omitempty"`
 	State       string `json:"state,omitempty"`
@@ -281,6 +294,10 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 		ClientBinaryPath:    teamspeakConfigString(config, "client_binary_path"),
 		ClientRunscriptPath: teamspeakConfigString(config, "client_runscript_path"),
 		AudioBackend:        teamspeakConfigString(config, "audio_backend"),
+		InstancePath:        teamspeakConfigString(config, "instance_path"),
+		RuntimeDir:          teamspeakConfigString(config, "runtime_dir"),
+		ClientQueryHost:     teamspeakConfigString(config, "client_query_host"),
+		ClientQueryPort:     teamspeakConfigClientQueryPort(config),
 	})
 	if err != nil {
 		_ = c.Disconnect(context.Background())
@@ -394,41 +411,91 @@ func (c *ExternalBridgeTeamspeakVoiceClient) bridgeRoundTrip(ctx context.Context
 	if err := ctx.Err(); err != nil {
 		return teamspeakBridgeResponse{}, err
 	}
+	c.roundTripMu.Lock()
+	defer c.roundTripMu.Unlock()
+
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.stdin == nil || c.scanner == nil {
+	stdin := c.stdin
+	scanner := c.scanner
+	c.mu.Unlock()
+
+	if stdin == nil || scanner == nil {
 		return teamspeakBridgeResponse{}, ErrTeamSpeakExternalBridgeNotConfigured
 	}
 	encoded, err := json.Marshal(req)
 	if err != nil {
 		return teamspeakBridgeResponse{}, err
 	}
-	if _, err := c.stdin.Write(append(encoded, '\n')); err != nil {
+	if _, err := stdin.Write(append(encoded, '\n')); err != nil {
 		return teamspeakBridgeResponse{}, fmt.Errorf("teamspeak bridge write: %w", err)
 	}
-	if !c.scanner.Scan() {
-		if err := c.scanner.Err(); err != nil {
-			return teamspeakBridgeResponse{}, fmt.Errorf("teamspeak bridge read: %w", err)
+
+	type scanResult struct {
+		line []byte
+		err  error
+	}
+	result := make(chan scanResult, 1)
+	go func() {
+		if !scanner.Scan() {
+			if scanErr := scanner.Err(); scanErr != nil {
+				result <- scanResult{err: fmt.Errorf("teamspeak bridge read: %w", scanErr)}
+			} else {
+				result <- scanResult{err: errors.New("teamspeak bridge closed")}
+			}
+			return
 		}
-		return teamspeakBridgeResponse{}, errors.New("teamspeak bridge closed")
-	}
-	var resp teamspeakBridgeResponse
-	if err := json.Unmarshal(c.scanner.Bytes(), &resp); err != nil {
-		return teamspeakBridgeResponse{}, fmt.Errorf("teamspeak bridge response: %w", err)
-	}
-	if !resp.OK {
-		if resp.Error == "" {
-			resp.Error = "teamspeak bridge command failed"
+		b := scanner.Bytes()
+		cp := make([]byte, len(b))
+		copy(cp, b)
+		result <- scanResult{line: cp}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return teamspeakBridgeResponse{}, ctx.Err()
+	case r := <-result:
+		if r.err != nil {
+			return teamspeakBridgeResponse{}, r.err
 		}
-		return resp, errors.New(resp.Error)
+		var resp teamspeakBridgeResponse
+		if err := json.Unmarshal(r.line, &resp); err != nil {
+			return teamspeakBridgeResponse{}, fmt.Errorf("teamspeak bridge response: %w", err)
+		}
+		if !resp.OK {
+			return resp, bridgeErrorFromCode(resp.ErrorCode, resp.Error)
+		}
+		c.mu.Lock()
+		if resp.State == string(ConnectionStateConnected) {
+			c.state = ConnectionStateConnected
+		}
+		if resp.ClientID != "" {
+			c.clientID = resp.ClientID
+		}
+		c.mu.Unlock()
+		return resp, nil
 	}
-	if resp.State == string(ConnectionStateConnected) {
-		c.state = ConnectionStateConnected
+}
+
+func bridgeErrorFromCode(code, message string) error {
+	switch code {
+	case "missing_bridge_binary":
+		return ErrTeamSpeakBridgeMissingBridgeBinary
+	case "missing_client_binary":
+		return ErrTeamSpeakBridgeMissingClientBinary
+	case "xvfb_failed":
+		return ErrTeamSpeakBridgeXvfbFailed
+	case "pulseaudio_failed":
+		return ErrTeamSpeakBridgePulseaudioFailed
+	case "ts3client_start_failed":
+		return ErrTeamSpeakBridgeTsClientStartFailed
+	case "connect_failed":
+		return ErrTeamSpeakBridgeConnectFailed
+	default:
+		if message == "" {
+			return errors.New("teamspeak bridge command failed")
+		}
+		return errors.New(message)
 	}
-	if resp.ClientID != "" {
-		c.clientID = resp.ClientID
-	}
-	return resp, nil
 }
 
 func teamspeakBridgeAdapterType(config TeamSpeakConnectorConfig) string {
@@ -465,6 +532,9 @@ func validateTeamspeakCommonConfig(config TeamSpeakConnectorConfig) error {
 		return nil
 	}
 	profile := normalizeTeamspeakProfile(teamspeakConfigString(config, "profile"))
+	if profile == "" && teamspeakBackendType(config) == TeamSpeakBackendTypeExternalClientBridge {
+		profile = "ts3"
+	}
 	if profile == "" {
 		return errors.New("teamspeak config profile must be ts3 or ts6")
 	}
@@ -512,7 +582,13 @@ func validateTeamspeakBridgePath(path string) error {
 		return errors.New("unsupported TeamSpeak bridge binary")
 	}
 	info, err := os.Stat(path)
-	if err != nil || info.IsDir() {
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%w: %s", ErrTeamSpeakBridgeMissingBridgeBinary, path)
+		}
+		return ErrTeamSpeakExternalBridgeNotConfigured
+	}
+	if info.IsDir() {
 		return ErrTeamSpeakExternalBridgeNotConfigured
 	}
 	if info.Mode()&0o111 == 0 {

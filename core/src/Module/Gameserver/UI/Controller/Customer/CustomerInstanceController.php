@@ -1186,6 +1186,15 @@ final class CustomerInstanceController
             $runtimePayload['online'] ?? null,
         );
         if ($runtimeStatus === null) {
+            if ($queryStatus === InstanceStatus::Stopped->value || $instance->getStatus() === InstanceStatus::Stopped) {
+                return [
+                    'status' => InstanceStatus::Stopped->value,
+                    'reason' => null,
+                    'error_code' => null,
+                    'checked_at' => $checkedAt,
+                ];
+            }
+
             return [
                 'status' => $hasFreshQueryStatus ? $queryStatus : null,
                 'reason' => 'Agent status response missing recognizable runtime status field.',

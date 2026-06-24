@@ -43,6 +43,7 @@ type ConnectorConfig struct {
 
 type TeamSpeakConnectorConfig struct {
 	Enabled             bool           `json:"enabled"`
+	Autoconnect         bool           `json:"autoconnect,omitempty"`
 	Profile             string         `json:"profile,omitempty"`
 	Backend             string         `json:"backend,omitempty"`
 	BackendType         string         `json:"backend_type,omitempty"`
@@ -64,6 +65,10 @@ type TeamSpeakConnectorConfig struct {
 	ClientBinaryPath    string         `json:"client_binary_path,omitempty"`
 	ClientRunscriptPath string         `json:"client_runscript_path,omitempty"`
 	AudioBackend        string         `json:"audio_backend,omitempty"`
+	InstancePath        string         `json:"instance_path,omitempty"`
+	RuntimeDir          string         `json:"runtime_dir,omitempty"`
+	ClientQueryHost     string         `json:"client_query_host,omitempty"`
+	ClientQueryPort     int            `json:"client_query_port,omitempty"`
 	Config              map[string]any `json:"config,omitempty"`
 }
 
@@ -192,6 +197,38 @@ func (r *Runtime) Close() error {
 	return r.logFile.Close()
 }
 
+// RunService runs the musicbot as a long-running systemd service.
+// Connectors are started synchronously before the process blocks. The service
+// only exits when ctx is cancelled (SIGTERM/SIGINT). Stdin EOF — which systemd
+// delivers immediately via /dev/null — does NOT terminate the process.
+func (r *Runtime) RunService(ctx context.Context) error {
+	r.logger.Printf("started instance=%s service=%s", r.config.InstanceID, r.config.ServiceName)
+	defer r.logger.Printf("stopped instance=%s service=%s", r.config.InstanceID, r.config.ServiceName)
+
+	r.autoConnectAll(ctx)
+
+	if ctx.Err() != nil {
+		return nil
+	}
+
+	r.logger.Printf("runtime idle, waiting for commands/events")
+	<-ctx.Done()
+	r.logger.Printf("shutdown signal received")
+
+	for platform, connector := range r.connectors {
+		if err := connector.Disconnect(context.Background()); err != nil {
+			r.logger.Printf("disconnect %s: %v", platform, err)
+		}
+	}
+
+	return nil
+}
+
+// Run processes JSON commands from input and writes responses to output.
+// It exits when ctx is cancelled or when input reaches EOF. Use this for
+// interactive / local-testing mode (--interactive flag). For the systemd
+// service mode use RunService instead, which does not tie process lifetime
+// to stdin.
 func (r *Runtime) Run(ctx context.Context, input io.Reader, output io.Writer) error {
 	r.logger.Printf("started instance=%s service=%s", r.config.InstanceID, r.config.ServiceName)
 	defer r.logger.Printf("stopped instance=%s service=%s", r.config.InstanceID, r.config.ServiceName)
@@ -227,21 +264,43 @@ func (r *Runtime) Run(ctx context.Context, input io.Reader, output io.Writer) er
 }
 
 // autoConnectAll connects all enabled connectors and auto-joins the configured
-// TeamSpeak channel. Runs in a goroutine; errors are logged but do not stop
-// the runtime.
+// TeamSpeak channel. Context cancellation (e.g. from a racing shutdown) is
+// treated as a clean exit, not a logged error.
 func (r *Runtime) autoConnectAll(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
 	for platform, connector := range r.connectors {
+		if ctx.Err() != nil {
+			return
+		}
+		if platform == "teamspeak" && !r.config.TeamSpeak.Autoconnect {
+			continue
+		}
+		if platform == "teamspeak" && teamspeakBackendType(r.config.TeamSpeak) == TeamSpeakBackendTypeExternalClientBridge {
+			r.logger.Printf("external client bridge starting")
+		}
 		if err := connector.Connect(ctx); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			r.logger.Printf("auto-connect %s: %v", platform, err)
 			continue
 		}
-		r.logger.Printf("auto-connect %s: ok", platform)
+		if platform == "teamspeak" && teamspeakBackendType(r.config.TeamSpeak) == TeamSpeakBackendTypeExternalClientBridge {
+			r.logger.Printf("teamspeak auto-connect started")
+		} else {
+			r.logger.Printf("auto-connect %s: ok", platform)
+		}
 		if platform == "teamspeak" {
 			channelID := teamspeakConfigString(r.config.TeamSpeak, "channel_id")
 			if channelID == "" {
 				continue
 			}
 			if err := connector.JoinChannel(ctx, channelID); err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
 				r.logger.Printf("auto-join teamspeak channel %s: %v", channelID, err)
 			} else {
 				r.logger.Printf("auto-join teamspeak channel %s: ok", channelID)
@@ -295,7 +354,7 @@ func buildConnectors(config Config) (map[string]Connector, error) {
 	connectors := map[string]Connector{}
 	if config.TeamSpeak.Enabled {
 		connector := NewTeamSpeakConnector(config.TeamSpeak)
-		if err := connector.ValidateConfig(); err != nil {
+		if err := connector.ValidateConfig(); err != nil && !isTeamSpeakBackendRequiredError(err) {
 			return nil, err
 		}
 		connectors["teamspeak"] = connector

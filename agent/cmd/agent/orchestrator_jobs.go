@@ -90,7 +90,7 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 	case "musicbot.repair":
 		return handleMusicbotRepair(job)
 	case "musicbot.service.action":
-		return handleServiceAction(job)
+		return handleMusicbotServiceAction(job)
 	case "musicbot.status":
 		return handleMusicbotStatus(job)
 	case "musicbot.playback.action":

@@ -34,4 +34,5 @@ enum MusicbotTeamspeakBackendStatus: string
     case XvfbMissing = 'xvfb_missing';
     case AudioBackendMissing = 'audio_backend_missing';
     case ClientBinaryMissing = 'client_binary_missing';
+    case ClientQueryPluginMissing = 'clientquery_plugin_missing';
 }

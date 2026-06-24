@@ -1,638 +1,930 @@
 {% extends 'customer/base.html.twig' %}
 
 {% set pageTitle = instance.name %}
-{% set pageSubtitle = 'Musicbot verwalten.' %}
 {% set activeNav = 'musicbots' %}
 
-{% set capabilityLabels = {
-    'ready': 'Bereit',
-    'client_backend_required': 'Backend fehlt',
-    'voice_backend_required': 'Backend fehlt',
-    'placeholder': 'Placeholder',
-    'error': 'Fehler'
-} %}
-{% set capabilityBadges = {
-    'ready': 'ui-badge--success',
-    'client_backend_required': 'ui-badge--warning',
-    'voice_backend_required': 'ui-badge--warning',
-    'placeholder': 'ui-badge--neutral',
-    'error': 'ui-badge--danger'
-} %}
 {% set statusMap = {
     'running':      'success',
     'stopped':      'neutral',
     'error':        'danger',
-    'provisioning': 'primary'
+    'provisioning': 'primary',
+    'installing':   'info'
+} %}
+{% set capabilityLabels = {
+    'ready':                  'Verbunden',
+    'client_backend_required':'Backend fehlt',
+    'voice_backend_required': 'Backend fehlt',
+    'placeholder':            'Placeholder',
+    'error':                  'Fehler'
+} %}
+{% set capabilityBadges = {
+    'ready':                  'ui-badge--success',
+    'client_backend_required':'ui-badge--warning',
+    'voice_backend_required': 'ui-badge--warning',
+    'placeholder':            'ui-badge--neutral',
+    'error':                  'ui-badge--danger'
 } %}
 
-{% set playbackState = runtimeStatus.playbackState|default(runtimeStatus.state|default('stopped')) %}
-{% set outputBackend = runtimeStatus.outputBackend|default('null') ?: 'null' %}
-{% set outputStatus = runtimeStatus.outputStatus|default('idle') ?: 'idle' %}
-{% set ts = platformStatus.teamspeak|default({}) %}
-{% set dc = platformStatus.discord|default({}) %}
-{% set tsCap = ts.capability_status|default('client_backend_required') %}
-{% set dcCap = dc.capability_status|default('voice_backend_required') %}
-{% set currentTitle = runtimeStatus.currentTitle|default('') %}
-{% set currentTrack = runtimeStatus.currentTrack|default(currentTrack|default(null)) %}
+{% set playbackState   = runtimeStatus.playbackState|default(runtimeStatus.state|default('stopped')) %}
+{% set outputBackend   = runtimeStatus.outputBackend|default('null') ?: 'null' %}
+{% set outputStatus    = runtimeStatus.outputStatus|default('idle') ?: 'idle' %}
+{% set ts              = platformStatus.teamspeak|default({}) %}
+{% set dc              = platformStatus.discord|default({}) %}
+{% set tsCap           = ts.capability_status|default('client_backend_required') %}
+{% set dcCap           = dc.capability_status|default('voice_backend_required') %}
+{% set currentTitle    = runtimeStatus.currentTitle|default('') %}
 {% set instStatusClass = statusMap[instance.status.value] ?? 'neutral' %}
+
+{# resolved instanceConfig defaults #}
+{% set cfg_autostart       = instanceConfig.autostart|default(false) %}
+{% set cfg_prefix          = instanceConfig.command_prefix|default('!') %}
+{% set cfg_volume          = instanceConfig.default_volume|default(50) %}
+{% set cfg_auto_dj         = instanceConfig.auto_dj|default(false) %}
+{% set cfg_repeat          = instanceConfig.repeat_default|default('off') %}
+{% set cfg_shuffle         = instanceConfig.shuffle_default|default(false) %}
 
 {% block content %}
 <div style="display:flex;flex-direction:column;gap:20px;">
 
-    {% for message in app.flashes('success') %}<div class="ng-alert ng-alert--success">{{ message }}</div>{% endfor %}
-    {% for message in app.flashes('error') %}<div class="ng-alert ng-alert--danger">{{ message }}</div>{% endfor %}
+    {# Flash messages #}
+    {% for type, msgs in app.flashes(['success','error','warning','info']) %}
+        {% for msg in msgs %}
+            <div class="ng-card" style="padding:12px 16px;border-left:3px solid
+                {% if type=='success' %}var(--ng-success){% elseif type=='error' %}var(--ng-danger){% elseif type=='warning' %}var(--ng-warning){% else %}var(--ng-primary){% endif %};">
+                <span style="font-size:13px;">{{ msg }}</span>
+            </div>
+        {% endfor %}
+    {% endfor %}
 
-    {# ── Hero / Instance Header ── #}
+    {# ── Hero ── #}
     <div class="ng-card" style="overflow:hidden;">
         <div class="tkt-hero" style="padding-bottom:0;">
-            <div class="tkt-hero__inner" style="padding-bottom:16px;">
-                <div>
-                    <div class="tkt-hero__breadcrumb">
-                        <a href="{{ path('customer_musicbot_index') }}" style="color:var(--ng-text-muted);text-decoration:none;">Musicbots</a>
-                        <span>/</span>
-                        <span>{{ instance.name }}</span>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+            <div class="tkt-hero__inner" style="padding-bottom:14px;">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                    <div>
                         <div class="tkt-hero__pill">
                             <span class="tkt-hero__pill-dot"></span>
-                            Musicbot
+                            <a href="{{ path('customer_musicbot_index') }}" style="color:inherit;text-decoration:none;">Musicbots</a>
+                            &rsaquo; {{ instance.name }}
                         </div>
-                        <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:11px;">{{ instance.status.value|title }}</span>
-                        {% if outputBackend != 'null' %}
-                            <span class="ui-badge ui-badge--success" style="font-size:11px;">Audio aktiv</span>
+                        <h1 class="tkt-hero__title" style="margin-top:8px;">{{ instance.name }}</h1>
+                        <p class="tkt-hero__sub" style="margin:0;">
+                            Node: {{ instance.node.name ?: instance.node.id }}
+                            &nbsp;&middot;&nbsp;
+                            <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:11px;vertical-align:middle;">{{ instance.status.value|title }}</span>
+                        </p>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;">
+                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+                            <input type="hidden" name="action" value="start">
+                            <button type="submit" class="ui-btn ui-btn--success" style="font-size:12px;padding:5px 12px;">▶ Start</button>
+                        </form>
+                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+                            <input type="hidden" name="action" value="stop">
+                            <button type="submit" class="ui-btn" style="font-size:12px;padding:5px 12px;">■ Stop</button>
+                        </form>
+                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+                            <input type="hidden" name="action" value="restart">
+                            <button type="submit" class="ui-btn" style="font-size:12px;padding:5px 12px;">↺ Restart</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {# Tab nav #}
+        <div style="display:flex;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);overflow-x:auto;-webkit-overflow-scrolling:touch;">
+            {% for tabId, tabLabel in {
+                'dashboard':    'Dashboard',
+                'musik':        'Musik',
+                'queue':        'Queue',
+                'playlists':    'Playlists',
+                'verbindungen': 'Verbindungen',
+                'einstellungen':'Einstellungen',
+                'logs':         'Logs'
+            } %}
+                <button type="button" id="tab-{{ tabId }}" onclick="mbTab('{{ tabId }}')"
+                    style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;color:var(--ng-text-muted);transition:color .15s,border-color .15s;">
+                    {{ tabLabel }}{% if tabId == 'queue' %}<span style="margin-left:4px;font-size:10px;background:var(--ng-border);border-radius:8px;padding:1px 5px;">{{ queue|length }}</span>{% endif %}
+                </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# ══════════════════════════════════════════════════════
+       DASHBOARD
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-dashboard">
+
+        {# ── Player card ── #}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:18px;">♪</span>
+                    <h3 style="margin:0;font-size:13px;font-weight:700;">Jetzt läuft</h3>
+                    <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:10px;">{{ instance.status.value|title }}</span>
+                </div>
+                <div style="font-size:11px;color:var(--ng-text-muted);">
+                    Output: {{ outputBackend }} · {{ outputStatus }}
+                </div>
+            </div>
+
+            {# Now playing display #}
+            <div style="padding:20px 20px 16px;text-align:center;background:linear-gradient(180deg,var(--ng-surface-soft) 0%,var(--ng-surface) 100%);min-height:80px;display:flex;align-items:center;justify-content:center;">
+                {% if currentTitle %}
+                    <div>
+                        <div style="font-size:17px;font-weight:700;color:var(--ng-text);">{{ currentTitle }}</div>
+                        {% if runtimeStatus.currentArtist|default('') %}
+                            <div style="font-size:13px;color:var(--ng-text-muted);margin-top:3px;">{{ runtimeStatus.currentArtist }}</div>
+                        {% endif %}
+                        {% if runtimeStatus.durationMs|default(0) > 0 %}
+                            <div style="font-size:11px;color:var(--ng-text-muted);margin-top:6px;">
+                                {{ (runtimeStatus.playbackPositionMs|default(0) / 1000)|round }}s / {{ (runtimeStatus.durationMs / 1000)|round }}s
+                            </div>
                         {% endif %}
                     </div>
-                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ instance.name }}</h1>
-                    <p class="tkt-hero__sub">Node: {{ instance.node.name ?: instance.node.id }}</p>
-                </div>
+                {% elseif runtimeStatus.currentTrack is defined and runtimeStatus.currentTrack %}
+                    <div>
+                        <div style="font-size:17px;font-weight:700;">{{ runtimeStatus.currentTrack.title }}</div>
+                        {% if runtimeStatus.currentTrack.artist %}
+                            <div style="font-size:13px;color:var(--ng-text-muted);margin-top:3px;">{{ runtimeStatus.currentTrack.artist }}</div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div style="color:var(--ng-text-muted);">
+                        <div style="font-size:28px;opacity:.2;margin-bottom:8px;">♪</div>
+                        <div style="font-size:13px;">Kein Track aktiv</div>
+                        <div style="font-size:12px;margin-top:4px;">Wähle einen Track aus der Bibliothek oder starte eine Playlist</div>
+                    </div>
+                {% endif %}
             </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:14px 20px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-            <div class="tkt-kpi">
-                <div class="tkt-kpi__label">Instanz</div>
-                <div class="tkt-kpi__value" style="font-size:14px;">{{ instance.status.value == 'running' ? 'Bereit' : 'Nicht verbunden' }}</div>
-            </div>
-            <div class="tkt-kpi">
-                <div class="tkt-kpi__label">Wiedergabe</div>
-                <div class="tkt-kpi__value" style="font-size:14px;">{{ playbackState|title }}</div>
-            </div>
-            <div class="tkt-kpi">
-                <div class="tkt-kpi__label">Output</div>
-                <div class="tkt-kpi__value" style="font-size:14px;">{{ outputBackend == 'null' ? 'Kein Backend' : outputBackend }}</div>
-            </div>
-            <div class="tkt-kpi">
-                <div class="tkt-kpi__label">Queue</div>
-                <div class="tkt-kpi__value" style="font-size:14px;">{{ runtimeStatus.queueLength|default(queue|length) }} Tracks</div>
-            </div>
-        </div>
-    </div>
 
-    {# ── Playback Quick Actions ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div style="padding:13px 20px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:8px;">
-            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:var(--ng-text-muted);"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            <h3 style="margin:0;font-size:13px;font-weight:700;color:var(--ng-text);">Schnellaktionen</h3>
-        </div>
-        <div style="padding:14px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-            {% for action,label in {'play':'▶ Play','pause':'⏸ Pause','resume':'▶ Resume','stop':'⏹ Stop','skip':'⏭ Skip'} %}
-                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}">
-                    <input type="hidden" name="action" value="{{ action }}">
-                    <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ label }}</button>
+            {# Transport controls #}
+            <div style="padding:12px 16px;border-top:1px solid var(--ng-border);display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:center;">
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:contents;">
+                    <input type="hidden" name="action" value="play">
+                    <button type="submit" class="ui-btn ui-btn--primary" style="font-size:14px;min-width:44px;">▶</button>
                 </form>
-            {% endfor %}
-            <div style="height:20px;width:1px;background:var(--ng-border);margin:0 4px;"></div>
-            <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;gap:6px;align-items:center;">
-                <input type="hidden" name="action" value="volume">
-                <input type="number" name="volume" min="0" max="100" value="{{ runtimeStatus.volume|default(50) }}" style="width:72px;" class="form-input">
-                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Volume</button>
-            </form>
-            <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}">
-                <input type="hidden" name="action" value="shuffle">
-                <input type="hidden" name="shuffle" value="{{ runtimeStatus.shuffle|default(false) ? '0' : '1' }}">
-                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Shuffle {{ runtimeStatus.shuffle|default(false) ? 'aus' : 'an' }}</button>
-            </form>
-            <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;gap:6px;">
-                <input type="hidden" name="action" value="repeat">
-                <select name="repeat" class="form-input" style="font-size:12px;padding:5px 8px;">
-                    <option value="off" {% if runtimeStatus.repeatMode|default('off') == 'off' %}selected{% endif %}>Off</option>
-                    <option value="one" {% if runtimeStatus.repeatMode|default('off') == 'one' %}selected{% endif %}>One</option>
-                    <option value="all" {% if runtimeStatus.repeatMode|default('off') == 'all' %}selected{% endif %}>All</option>
-                </select>
-                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Repeat</button>
-            </form>
-        </div>
-    </div>
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:contents;">
+                    <input type="hidden" name="action" value="pause">
+                    <button type="submit" class="ui-btn" style="font-size:14px;min-width:44px;">⏸</button>
+                </form>
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:contents;">
+                    <input type="hidden" name="action" value="stop">
+                    <button type="submit" class="ui-btn" style="font-size:14px;min-width:44px;">⏹</button>
+                </form>
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:contents;">
+                    <input type="hidden" name="action" value="skip">
+                    <button type="submit" class="ui-btn" style="font-size:14px;min-width:44px;">⏭</button>
+                </form>
 
-    {# ── Status & Diagnose ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(100,115,255,.12);flex-shrink:0;">
-                    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#6473ff" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4l3 3"/></svg>
-                </span>
-                <div>
-                    <h2 class="ng-data-card__title">Warum spielt der Bot nicht?</h2>
-                    <p class="ng-data-card__sub">Schnelle Fehlerdiagnose ohne technische Rohdaten</p>
-                </div>
+                <div style="width:1px;height:24px;background:var(--ng-border);margin:0 4px;"></div>
+
+                {# Volume slider #}
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;align-items:center;gap:8px;">
+                    <input type="hidden" name="action" value="volume">
+                    <span style="font-size:13px;">🔊</span>
+                    <input type="range" name="volume" min="0" max="100" value="{{ runtimeStatus.volume|default(cfg_volume) }}"
+                           style="width:100px;accent-color:var(--ng-primary);"
+                           oninput="this.nextElementSibling.textContent=this.value+'%'">
+                    <span style="font-size:12px;color:var(--ng-text-muted);min-width:32px;">{{ runtimeStatus.volume|default(cfg_volume) }}%</span>
+                    <button type="submit" class="ui-btn" style="font-size:12px;padding:4px 10px;">Set</button>
+                </form>
+
+                <div style="width:1px;height:24px;background:var(--ng-border);margin:0 4px;"></div>
+
+                {# Shuffle #}
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:contents;">
+                    <input type="hidden" name="action" value="shuffle">
+                    <input type="hidden" name="shuffle" value="{{ runtimeStatus.shuffle|default(false) ? '0' : '1' }}">
+                    <button type="submit" class="ui-btn{% if runtimeStatus.shuffle|default(false) %} ui-btn--primary{% endif %}" style="font-size:12px;padding:4px 10px;" title="Shuffle">⇌</button>
+                </form>
+
+                {# Repeat #}
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;align-items:center;gap:6px;">
+                    <input type="hidden" name="action" value="repeat">
+                    <select name="repeat" style="font-size:12px;padding:4px 8px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);">
+                        <option value="off" {% if runtimeStatus.repeatMode|default('off') == 'off' %}selected{% endif %}>Repeat: Off</option>
+                        <option value="one" {% if runtimeStatus.repeatMode|default('off') == 'one' %}selected{% endif %}>Repeat: One</option>
+                        <option value="all" {% if runtimeStatus.repeatMode|default('off') == 'all' %}selected{% endif %}>Repeat: All</option>
+                    </select>
+                    <button type="submit" class="ui-btn" style="font-size:12px;padding:4px 10px;">Set</button>
+                </form>
             </div>
         </div>
-        <div class="ng-data-card__body">
-            <div style="display:grid;gap:8px;">
+
+        {# ── KPI row ── #}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+            <div class="ng-card" style="padding:12px 14px;">
+                <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Bot-Status</div>
+                <div style="font-size:14px;font-weight:700;">
+                    <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:12px;">{{ instance.status.value|title }}</span>
+                </div>
+            </div>
+            <div class="ng-card" style="padding:12px 14px;">
+                <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">TeamSpeak</div>
+                <div style="font-size:14px;font-weight:700;">
+                    <span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--neutral') }}" style="font-size:11px;">{{ capabilityLabels[tsCap]|default('—') }}</span>
+                </div>
+            </div>
+            <div class="ng-card" style="padding:12px 14px;">
+                <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Audio-Backend</div>
+                <div style="font-size:14px;font-weight:700;">
+                    {% if outputBackend != 'null' %}
+                        <span class="ui-badge ui-badge--success" style="font-size:11px;">Aktiv</span>
+                    {% else %}
+                        <span class="ui-badge ui-badge--neutral" style="font-size:11px;">Inaktiv</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="ng-card" style="padding:12px 14px;">
+                <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Queue</div>
+                <div style="font-size:20px;font-weight:700;">{{ queue|length }}</div>
+            </div>
+            <div class="ng-card" style="padding:12px 14px;">
+                <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Tracks</div>
+                <div style="font-size:20px;font-weight:700;">{{ tracks|length }}</div>
+            </div>
+            <div class="ng-card" style="padding:12px 14px;">
+                <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Volume</div>
+                <div style="font-size:20px;font-weight:700;">{{ runtimeStatus.volume|default(cfg_volume) }}%</div>
+            </div>
+        </div>
+
+        {# ── Diagnose ── #}
+        {% set hasIssue = instance.status.value != 'running' or outputBackend == 'null' or runtimeStatus.lastError|default('') %}
+        {% if hasIssue %}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:11px 16px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Diagnose</h3>
+            </div>
+            <div style="padding:14px 16px;display:grid;gap:8px;">
                 {% if instance.status.value != 'running' %}
-                    <div class="ng-alert ng-alert--warning">Runtime läuft nicht oder ist noch nicht als running gemeldet.</div>
-                {% endif %}
-                {% if queue is empty and not currentTitle and currentTrack is empty %}
-                    <div class="ng-alert ng-alert--warning">Queue leer: Lade einen Track hoch oder füge eine Playlist zur Queue hinzu.</div>
-                {% endif %}
-                {% if runtimeStatus.decoderStatus|default('') == 'error' %}
-                    <div class="ng-alert ng-alert--danger">Decoder-Fehler: Prüfe Dateiformat und FFmpeg-Installation.</div>
-                {% endif %}
-                {% if outputStatus == 'error' %}
-                    <div class="ng-alert ng-alert--danger">Output-Fehler: {{ runtimeStatus.lastOutputError|default(runtimeStatus.lastError|default('Bitte Logs prüfen.')) }}</div>
+                    <div style="font-size:13px;padding:8px 12px;background:rgba(245,158,11,.08);border-left:3px solid var(--ng-warning);border-radius:4px;">
+                        Bot läuft nicht (Status: <strong>{{ instance.status.value }}</strong>). Über Start-Button oben starten.
+                    </div>
                 {% endif %}
                 {% if outputBackend == 'null' %}
-                    <div class="ng-alert ng-alert--warning">Kein Output Backend ready: TeamSpeak/Discord sind nicht verbunden oder laufen als Placeholder.</div>
-                {% endif %}
-                {% if dcCap != 'ready' %}
-                    <div class="ng-alert ng-alert--info">Discord Voice: {{ capabilityLabels[dcCap]|default('Nicht verbunden') }}</div>
-                {% endif %}
-                {% if tsCap != 'ready' %}
-                    <div class="ng-alert ng-alert--info">TeamSpeak: {{ capabilityLabels[tsCap]|default('Backend fehlt') }}</div>
+                    <div style="font-size:13px;padding:8px 12px;background:rgba(245,158,11,.08);border-left:3px solid var(--ng-warning);border-radius:4px;">
+                        Kein Audio-Backend aktiv — TeamSpeak muss verbunden und Backend eingerichtet sein.
+                    </div>
                 {% endif %}
                 {% if runtimeStatus.lastError|default('') %}
-                    <div class="ng-alert ng-alert--danger">Letzter Runtime-Fehler: {{ runtimeStatus.lastError }}</div>
-                {% endif %}
-                {% if instance.status.value == 'running' and outputBackend != 'null' and queue is not empty %}
-                    <div class="ng-alert ng-alert--success">Alle Systeme bereit. Bot sollte Audio ausgeben.</div>
+                    <div style="font-size:13px;padding:8px 12px;background:rgba(239,68,68,.08);border-left:3px solid var(--ng-danger);border-radius:4px;">
+                        Letzter Fehler: {{ runtimeStatus.lastError }}
+                    </div>
                 {% endif %}
             </div>
         </div>
+        {% endif %}
+
+        {# ── Last 5 logs ── #}
+        {% if logs is not empty %}
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:11px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Letzte Ereignisse</h3>
+                <button type="button" onclick="mbTab('logs')" style="font-size:11px;border:none;background:none;cursor:pointer;color:var(--ng-primary);">Alle anzeigen</button>
+            </div>
+            <div style="padding:10px 16px;display:flex;flex-direction:column;gap:5px;">
+                {% for event in logs|slice(0,5) %}
+                    <div style="display:flex;gap:8px;align-items:baseline;font-size:12px;">
+                        <span class="ui-badge ui-badge--neutral" style="font-size:9px;flex-shrink:0;">{{ event.level }}</span>
+                        <span style="font-weight:600;flex-shrink:0;color:var(--ng-text);">{{ event.type }}</span>
+                        {% if event.message %}
+                            <span style="color:var(--ng-text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ event.message }}</span>
+                        {% endif %}
+                        <span style="color:var(--ng-text-muted);flex-shrink:0;">{{ event.createdAt|date('H:i:s') }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
-    {# ── Aktuelle Wiedergabe ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(34,197,94,.10);flex-shrink:0;">
-                    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><path stroke-linecap="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-                </span>
-                <div>
-                    <h2 class="ng-data-card__title">Aktuelle Wiedergabe</h2>
-                    <p class="ng-data-card__sub">State: {{ playbackState }} · Repeat: {{ runtimeStatus.repeatMode|default('off') }} · Shuffle: {{ runtimeStatus.shuffle|default(false) ? 'an' : 'aus' }} · Volume: {{ runtimeStatus.volume|default(50) }}%</p>
-                </div>
+    {# ══════════════════════════════════════════════════════
+       MUSIK
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-musik" style="display:none;">
+
+        {# Add music sources #}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Musik hinzufügen</h3>
             </div>
-            {% if runtimeStatus.lastError|default('') %}
-                <div class="ng-data-card__actions"><span class="ui-badge ui-badge--danger">Fehler</span></div>
-            {% endif %}
-        </div>
-        <div class="ng-data-card__body">
-            <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:16px;margin-bottom:12px;">
-                {% if currentTitle %}
-                    <div style="font-size:15px;font-weight:700;color:var(--ng-text);">{{ currentTitle }}{% if runtimeStatus.currentArtist|default('') %} <span style="font-weight:400;color:var(--ng-text-muted);">· {{ runtimeStatus.currentArtist }}</span>{% endif %}</div>
-                    {% if runtimeStatus.durationMs|default(0) > 0 %}
-                        <div style="font-size:12px;color:var(--ng-text-muted);margin-top:6px;">{{ (runtimeStatus.playbackPositionMs / 1000)|round }}s / {{ (runtimeStatus.durationMs / 1000)|round }}s</div>
-                    {% endif %}
-                {% elseif currentTrack %}
-                    <div style="font-size:15px;font-weight:700;color:var(--ng-text);">{{ currentTrack.title }}{% if currentTrack.artist %} <span style="font-weight:400;color:var(--ng-text-muted);">· {{ currentTrack.artist }}</span>{% endif %}</div>
+            {# Sub-tab nav #}
+            <div style="display:flex;border-bottom:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                <button type="button" onclick="musicTab('upload')" id="mtab-upload"
+                    style="padding:9px 16px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--ng-primary);color:var(--ng-primary);">
+                    ⬆ Upload
+                </button>
+                <button type="button" onclick="musicTab('webradio')" id="mtab-webradio"
+                    style="padding:9px 16px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--ng-text-muted);">
+                    📻 Webradio
+                </button>
+                <button type="button" onclick="musicTab('youtube')" id="mtab-youtube"
+                    style="padding:9px 16px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--ng-text-muted);">
+                    ▶ YouTube
+                </button>
+            </div>
+
+            {# Upload #}
+            <div id="mpanel-upload" style="padding:16px;">
+                <form method="post" enctype="multipart/form-data" action="{{ path('customer_musicbot_track_upload', {id: instance.id}) }}" style="display:grid;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">
+                            Audiodatei <span style="font-weight:400;opacity:.6;">(MP3, OGG, WAV, FLAC, M4A)</span>
+                        </label>
+                        <input type="file" name="track_file" accept=".mp3,.ogg,.wav,.flac,.m4a,audio/mpeg,audio/ogg,audio/wav,audio/flac,audio/mp4" required
+                               style="width:100%;font-size:13px;">
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div>
+                            <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Titel <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                            <input name="title" placeholder="Titel"
+                                   style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                        </div>
+                        <div>
+                            <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Künstler <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                            <input name="artist" placeholder="Künstler"
+                                   style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                        </div>
+                    </div>
+                    <div><button class="ui-btn ui-btn--primary" type="submit">Track hochladen</button></div>
+                </form>
+            </div>
+
+            {# Webradio #}
+            <div id="mpanel-webradio" style="display:none;padding:16px;">
+                <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-primary);margin-bottom:14px;color:var(--ng-text-muted);">
+                    Webradio-Streams werden per URL direkt abgespielt (http/https). Localhost und private IPs sind nicht erlaubt.
+                </div>
+                <form method="post" action="{{ path('customer_musicbot_track_webradio', {id: instance.id}) }}" style="display:grid;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Name des Senders</label>
+                        <input name="title" placeholder="z. B. Bayern 3" required
+                               style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Stream-URL</label>
+                        <input name="stream_url" type="url" placeholder="https://stream.example.com/live.mp3" required
+                               style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="ui-btn ui-btn--primary" type="submit" name="_webradio_action" value="add">Hinzufügen</button>
+                        <button class="ui-btn" type="submit" name="_webradio_action" value="add_queue">+ Queue</button>
+                        <button class="ui-btn" type="submit" name="_webradio_action" value="play_now">▶ Play now</button>
+                    </div>
+                </form>
+            </div>
+
+            {# YouTube #}
+            <div id="mpanel-youtube" style="display:none;padding:16px;">
+                {% if not youtubeResolverAvailable|default(false) %}
+                    <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-warning);margin-bottom:14px;color:var(--ng-text-muted);">
+                        yt-dlp ist auf dem Server nicht installiert. YouTube-URLs werden gespeichert, die Wiedergabe hängt vom Agent ab.
+                    </div>
                 {% else %}
-                    <div style="font-size:14px;font-weight:600;color:var(--ng-text);">Keine aktuelle Wiedergabe</div>
-                    <p style="margin:6px 0 0;font-size:12px;color:var(--ng-text-muted);">Starte einen Track aus Library, Queue oder Playlist.</p>
+                    <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-success);margin-bottom:14px;color:var(--ng-text-muted);">
+                        yt-dlp verfügbar – YouTube-URLs werden beim Abspielen automatisch aufgelöst.
+                    </div>
                 {% endif %}
-                <p style="margin:10px 0 0;font-size:11px;color:var(--ng-text-muted);">Decoder: {{ runtimeStatus.decoderBackend|default('—') ?: '—' }} / {{ runtimeStatus.decoderStatus|default('—') ?: '—' }} · Output: {{ outputBackend }} / {{ outputStatus }} · Frames: {{ runtimeStatus.framesProcessed|default(0) }}</p>
+                <form method="post" action="{{ path('customer_musicbot_track_youtube', {id: instance.id}) }}" style="display:grid;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">YouTube-URL</label>
+                        <input name="youtube_url" type="url" placeholder="https://www.youtube.com/watch?v=..." required
+                               style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Titel <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                        <input name="title" placeholder="Leer = aus URL ermitteln"
+                               style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="ui-btn ui-btn--primary" type="submit">Hinzufügen</button>
+                    </div>
+                </form>
             </div>
+        </div>
+
+        {# Track library #}
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Bibliothek <span style="font-weight:400;color:var(--ng-text-muted);font-size:12px;">({{ tracks|length }} Tracks)</span></h3>
+            </div>
+            {% if tracks is empty %}
+                <div style="text-align:center;padding:48px 20px;color:var(--ng-text-muted);font-size:13px;">
+                    Noch keine Tracks vorhanden. Datei hochladen, Webradio oder YouTube-Link hinzufügen.
+                </div>
+            {% else %}
+                <table class="ui-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th style="font-size:12px;width:60px;">Quelle</th>
+                            <th style="font-size:12px;">Titel</th>
+                            <th style="font-size:12px;display:none;" class="hide-mobile">Künstler</th>
+                            <th style="font-size:12px;text-align:right;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for track in tracks %}
+                        {% set sourceType = track.sourceType.value %}
+                        <tr>
+                            <td>
+                                {% if sourceType == 'upload' %}
+                                    <span class="ui-badge ui-badge--neutral" style="font-size:9px;">Upload</span>
+                                {% elseif sourceType == 'webradio' %}
+                                    <span class="ui-badge ui-badge--info" style="font-size:9px;">Radio</span>
+                                {% elseif sourceType == 'youtube' %}
+                                    <span class="ui-badge ui-badge--danger" style="font-size:9px;">YouTube</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">{{ track.title }}</div>
+                                {% if sourceType == 'webradio' and track.metadata.stream_url is defined %}
+                                    <div style="font-size:10px;color:var(--ng-text-muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">{{ track.metadata.stream_url }}</div>
+                                {% elseif sourceType == 'youtube' and track.metadata.youtube_url is defined %}
+                                    <div style="font-size:10px;color:var(--ng-text-muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">{{ track.metadata.youtube_url }}</div>
+                                {% endif %}
+                            </td>
+                            <td style="font-size:12px;color:var(--ng-text-muted);display:none;" class="hide-mobile">{{ track.artist ?: '—' }}</td>
+                            <td style="text-align:right;white-space:nowrap;">
+                                <form method="post" action="{{ path('customer_musicbot_track_play_now', {id: instance.id, trackId: track.id}) }}" style="display:inline;">
+                                    <button class="ui-btn ui-btn--primary" type="submit" style="font-size:11px;padding:3px 8px;">▶</button>
+                                </form>
+                                <form method="post" action="{{ path('customer_musicbot_track_queue', {id: instance.id, trackId: track.id}) }}" style="display:inline;">
+                                    <button class="ui-btn" type="submit" style="font-size:11px;padding:3px 8px;">+Q</button>
+                                </form>
+                                <form method="post" action="{{ path('customer_musicbot_track_delete', {id: instance.id, trackId: track.id}) }}" style="display:inline;" onsubmit="return confirm('Track „{{ track.title }}" löschen?');">
+                                    <button class="ui-btn" type="submit" style="font-size:11px;padding:3px 8px;color:var(--ng-danger);">✕</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
         </div>
     </div>
 
-    {# ── Queue ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,.12);flex-shrink:0;">
-                    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2"><path stroke-linecap="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-                </span>
-                <div>
-                    <h2 class="ng-data-card__title">Queue</h2>
-                    <p class="ng-data-card__sub">{{ queue|length }} Einträge in der Wiedergabeliste</p>
-                </div>
+    {# ══════════════════════════════════════════════════════
+       QUEUE
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-queue" style="display:none;">
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Queue <span style="font-weight:400;color:var(--ng-text-muted);font-size:12px;">({{ queue|length }} Einträge)</span></h3>
+                {% if queue is not empty %}
+                    <form method="post" action="{{ path('customer_musicbot_queue_clear', {id: instance.id}) }}" onsubmit="return confirm('Queue leeren?');" style="display:contents;">
+                        <button class="ui-btn" type="submit" style="font-size:12px;padding:4px 10px;color:var(--ng-danger);">Queue leeren</button>
+                    </form>
+                {% endif %}
             </div>
             {% if queue is not empty %}
-                <div class="ng-data-card__actions">
-                    <form method="post" action="{{ path('customer_musicbot_queue_clear', {id: instance.id}) }}" onsubmit="return confirm('Queue leeren?');">
-                        <button class="ui-button ui-button--danger ui-button--sm" type="submit">Queue leeren</button>
-                    </form>
-                </div>
-            {% endif %}
-        </div>
-        <div style="overflow:hidden;">
-            {% if queue is not empty %}
-                <div style="padding:10px 20px;border-bottom:1px solid var(--ng-border);background:var(--ng-surface-soft);">
+                <div style="padding:10px 16px;border-bottom:1px solid var(--ng-border);background:var(--ng-surface-soft);">
                     <form method="post" action="{{ path('customer_musicbot_queue_sort', {id: instance.id}) }}" style="display:flex;gap:8px;align-items:center;">
-                        <input name="queue_item_ids" value="{% for item in queue %}{{ item.id }}{% if not loop.last %},{% endif %}{% endfor %}" style="min-width:260px;" class="form-input" style="font-size:12px;">
-                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Reihenfolge speichern</button>
+                        <input name="queue_item_ids" value="{% for item in queue %}{{ item.id }}{% if not loop.last %},{% endif %}{% endfor %}"
+                               placeholder="IDs kommagetrennt für Sortierung"
+                               style="flex:1;padding:6px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:12px;">
+                        <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;">Reihenfolge speichern</button>
                     </form>
                 </div>
             {% endif %}
             <table class="ui-table" style="width:100%;">
                 <thead>
-                    <tr><th>Pos.</th><th>Titel</th><th>Status</th><th>Angefragt von</th><th></th></tr>
+                    <tr>
+                        <th style="font-size:11px;width:40px;">#</th>
+                        <th style="font-size:11px;">Titel</th>
+                        <th style="font-size:11px;width:80px;">Status</th>
+                        <th style="font-size:11px;">Angefragt</th>
+                        <th></th>
+                    </tr>
                 </thead>
                 <tbody>
                 {% for item in queue %}
                     <tr>
                         <td style="font-size:12px;color:var(--ng-text-muted);">{{ item.position }}</td>
-                        <td style="font-weight:600;">{{ item.track.title }}{% if item.track.artist %} <span style="font-weight:400;color:var(--ng-text-muted);">· {{ item.track.artist }}</span>{% endif %}</td>
+                        <td>
+                            <div style="font-size:13px;font-weight:600;">{{ item.track.title }}</div>
+                            {% if item.track.artist %}<div style="font-size:11px;color:var(--ng-text-muted);">{{ item.track.artist }}</div>{% endif %}
+                        </td>
                         <td><span class="ui-badge ui-badge--neutral" style="font-size:10px;">{{ item.status }}</span></td>
                         <td style="font-size:12px;color:var(--ng-text-muted);">{% if item.requestedBy %}{{ item.requestedBy.email }}{% else %}—{% endif %}</td>
                         <td style="text-align:right;">
-                            <form method="post" action="{{ path('customer_musicbot_queue_item_delete', {id: instance.id, queueItemId: item.id}) }}">
-                                <button class="ui-button ui-button--danger ui-button--sm" type="submit">Entfernen</button>
+                            <form method="post" action="{{ path('customer_musicbot_queue_item_delete', {id: instance.id, queueItemId: item.id}) }}" style="display:contents;">
+                                <button class="ui-btn" type="submit" style="font-size:11px;padding:3px 8px;color:var(--ng-danger);">Entfernen</button>
                             </form>
                         </td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--ng-text-muted);">Queue ist leer. Lade Tracks hoch oder starte eine Playlist.</td></tr>
+                    <tr>
+                        <td colspan="5" style="text-align:center;padding:40px 20px;color:var(--ng-text-muted);font-size:13px;">
+                            Queue ist leer — Track aus Bibliothek hinzufügen oder Playlist starten.
+                        </td>
+                    </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 
-    {# ── 2-column: Library + Playlists ── #}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-
-        {# Track Library #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(14,165,233,.10);flex-shrink:0;">
-                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#0ea5e9" stroke-width="2"><path stroke-linecap="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    </span>
-                    <div>
-                        <h2 class="ng-data-card__title">Uploads & Track-Library</h2>
-                        <p class="ng-data-card__sub">MP3, OGG, WAV, FLAC</p>
-                    </div>
-                </div>
+    {# ══════════════════════════════════════════════════════
+       PLAYLISTS
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-playlists" style="display:none;">
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Neue Playlist erstellen</h3>
             </div>
-            <div class="ng-data-card__body">
-                <form method="post" enctype="multipart/form-data" action="{{ path('customer_musicbot_track_upload', {id: instance.id}) }}" style="display:grid;gap:8px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--ng-border);">
-                    <div class="form-field">
-                        <label class="form-label">Audiodatei</label>
-                        <input type="file" name="track_file" accept=".mp3,.ogg,.wav,.flac,audio/mpeg,audio/ogg,audio/wav,audio/flac" required class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">Titel (optional)</label>
-                        <input name="title" placeholder="Titel" class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">Artist (optional)</label>
-                        <input name="artist" placeholder="Artist" class="form-input">
-                    </div>
-                    <button class="ui-button ui-button--primary ui-button--sm" type="submit">Track hochladen</button>
-                </form>
-                {% if tracks is empty %}
-                    <div style="text-align:center;padding:24px;color:var(--ng-text-muted);font-size:13px;">
-                        Noch keine Tracks hochgeladen.
-                    </div>
-                {% else %}
-                    <div style="display:flex;flex-direction:column;gap:8px;">
-                        {% for track in tracks %}
-                            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:10px 12px;">
-                                <div style="min-width:0;">
-                                    <div style="font-size:13px;font-weight:600;color:var(--ng-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ track.title }}</div>
-                                    {% if track.artist %}<div style="font-size:11px;color:var(--ng-text-muted);">{{ track.artist }}</div>{% endif %}
-                                    <div style="font-size:10px;color:var(--ng-text-muted);font-family:monospace;">{{ track.mimeType }}</div>
-                                </div>
-                                <div style="display:flex;gap:6px;flex-shrink:0;">
-                                    <form method="post" action="{{ path('customer_musicbot_track_queue', {id: instance.id, trackId: track.id}) }}">
-                                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Zur Queue</button>
-                                    </form>
-                                    <form method="post" action="{{ path('customer_musicbot_track_delete', {id: instance.id, trackId: track.id}) }}" onsubmit="return confirm('Track löschen?');">
-                                        <button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button>
-                                    </form>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-        {# Playlists #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,.12);flex-shrink:0;">
-                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2"><path stroke-linecap="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12h.01M12 16h.01"/></svg>
-                    </span>
-                    <div>
-                        <h2 class="ng-data-card__title">Playlists</h2>
-                        <p class="ng-data-card__sub">{{ playlists|length }} Playlists</p>
-                    </div>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                <form method="post" action="{{ path('customer_musicbot_playlist_create', {id: instance.id}) }}" style="display:flex;gap:8px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--ng-border);flex-wrap:wrap;">
-                    <input name="name" placeholder="Neue Playlist" required class="form-input" style="flex:1;min-width:120px;">
-                    <select name="visibility" class="form-input" style="width:120px;">
+            <div style="padding:14px 16px;">
+                <form method="post" action="{{ path('customer_musicbot_playlist_create', {id: instance.id}) }}" style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <input name="name" placeholder="Playlist-Name" required
+                           style="flex:1;min-width:160px;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    <select name="visibility"
+                            style="padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                         <option value="private">Privat</option>
                         <option value="customer">Kunde</option>
                     </select>
-                    <button class="ui-button ui-button--primary ui-button--sm" type="submit">Erstellen</button>
+                    <button class="ui-btn ui-btn--primary" type="submit">Erstellen</button>
                 </form>
-                {% if playlists is empty %}
-                    <div style="text-align:center;padding:24px;color:var(--ng-text-muted);font-size:13px;">
-                        Noch keine Playlists vorhanden.
-                    </div>
-                {% else %}
-                    <div style="display:flex;flex-direction:column;gap:12px;">
-                        {% for playlist in playlists %}
-                            <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:14px;">
-                                <form method="post" action="{{ path('customer_musicbot_playlist_update', {id: instance.id, playlistId: playlist.id}) }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-                                    <input name="name" value="{{ playlist.name }}" required class="form-input" style="flex:1;min-width:100px;">
-                                    <select name="visibility" class="form-input" style="width:110px;">
-                                        <option value="private" {% if playlist.visibility.value == 'private' %}selected{% endif %}>Privat</option>
-                                        <option value="customer" {% if playlist.visibility.value == 'customer' %}selected{% endif %}>Kunde</option>
-                                        <option value="public" {% if playlist.visibility.value == 'public' %}selected{% endif %}>Public</option>
-                                    </select>
-                                    <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Speichern</button>
-                                </form>
-                                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-                                    <form method="post" action="{{ path('customer_musicbot_playlist_track_add', {id: instance.id, playlistId: playlist.id}) }}" style="display:flex;gap:6px;">
-                                        <select name="track_id" class="form-input" style="font-size:12px;">{% for track in tracks %}<option value="{{ track.id }}">{{ track.title }}</option>{% endfor %}</select>
-                                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit" {% if tracks is empty %}disabled{% endif %}>Track hinzufügen</button>
-                                    </form>
-                                    <form method="post" action="{{ path('customer_musicbot_playlist_queue', {id: instance.id, playlistId: playlist.id}) }}">
-                                        <button class="ui-button ui-button--primary ui-button--sm" type="submit">▶ Starten</button>
-                                    </form>
-                                    <form method="post" action="{{ path('customer_musicbot_playlist_delete', {id: instance.id, playlistId: playlist.id}) }}" onsubmit="return confirm('Playlist löschen?');">
-                                        <button class="ui-button ui-button--danger ui-button--sm" type="submit">Löschen</button>
-                                    </form>
-                                </div>
-                                {% set pItems = playlistItems[playlist.id]|default([]) %}
-                                {% if pItems is not empty %}
-                                    <ul style="margin:0;padding-left:16px;font-size:12px;display:flex;flex-direction:column;gap:4px;">
-                                        {% for item in pItems %}
-                                            <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                                                <span>{{ item.track.title }}</span>
-                                                <form method="post" action="{{ path('customer_musicbot_playlist_track_remove', {id: instance.id, itemId: item.id}) }}" style="display:inline;">
-                                                    <button class="ui-button ui-button--ghost ui-button--sm" style="font-size:10px;padding:2px 6px;" type="submit">entfernen</button>
-                                                </form>
-                                            </li>
+            </div>
+        </div>
+
+        {% if playlists is empty %}
+            <div class="ng-card" style="text-align:center;padding:48px 20px;color:var(--ng-text-muted);font-size:13px;">
+                Noch keine Playlists vorhanden.
+            </div>
+        {% else %}
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                {% for playlist in playlists %}
+                    <div class="ng-card" style="overflow:hidden;">
+                        <div style="padding:12px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <form method="post" action="{{ path('customer_musicbot_playlist_update', {id: instance.id, playlistId: playlist.id}) }}" style="display:flex;gap:8px;flex:1;align-items:center;flex-wrap:wrap;min-width:200px;">
+                                <input name="name" value="{{ playlist.name }}" required
+                                       style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                                <select name="visibility"
+                                        style="padding:6px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                                    <option value="private" {% if playlist.visibility.value == 'private' %}selected{% endif %}>Privat</option>
+                                    <option value="customer" {% if playlist.visibility.value == 'customer' %}selected{% endif %}>Kunde</option>
+                                    <option value="public" {% if playlist.visibility.value == 'public' %}selected{% endif %}>Öffentlich</option>
+                                </select>
+                                <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;">Speichern</button>
+                            </form>
+                            <form method="post" action="{{ path('customer_musicbot_playlist_queue', {id: instance.id, playlistId: playlist.id}) }}" style="display:contents;">
+                                <button class="ui-btn ui-btn--primary" type="submit" style="font-size:12px;padding:5px 10px;">▶ Starten</button>
+                            </form>
+                            <form method="post" action="{{ path('customer_musicbot_playlist_delete', {id: instance.id, playlistId: playlist.id}) }}" style="display:contents;" onsubmit="return confirm('Playlist löschen?');">
+                                <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;color:var(--ng-danger);">Löschen</button>
+                            </form>
+                        </div>
+                        <div style="padding:12px 16px;">
+                            <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;">
+                                <form method="post" action="{{ path('customer_musicbot_playlist_track_add', {id: instance.id, playlistId: playlist.id}) }}" style="display:flex;gap:6px;">
+                                    <select name="track_id"
+                                            style="font-size:12px;padding:5px 8px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);">
+                                        {% for track in tracks %}
+                                            <option value="{{ track.id }}">{{ track.title }}</option>
                                         {% endfor %}
-                                    </ul>
-                                {% else %}
-                                    <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">Keine Tracks in dieser Playlist.</p>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-    </div>
-
-    {# ── 2-column: TeamSpeak/Discord Status + Stream ── #}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-
-        {# Verbindungen #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(14,165,233,.10);flex-shrink:0;">
-                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#0ea5e9" stroke-width="2"><path stroke-linecap="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    </span>
-                    <div>
-                        <h2 class="ng-data-card__title">TeamSpeak & Discord</h2>
-                        <p class="ng-data-card__sub">Verbindungsstatus der Voice-Backends</p>
-                    </div>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                <div style="display:grid;gap:10px;">
-                    <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
-                        <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;">
-                            <strong style="font-size:13px;">TeamSpeak</strong>
-                            <span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--neutral') }}">{{ capabilityLabels[tsCap]|default('Nicht verbunden') }}</span>
-                        </div>
-                        <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">{{ ts.enabled|default(false) ? 'Aktiviert' : 'Inaktiv' }} · Profil: {{ ts.profile|default('ts3') }} · Backend: {{ ts.backend|default('ts3_client_compatible') }}</p>
-                        {% if tsCap != 'ready' %}
-                            <div class="ng-alert ng-alert--warning" style="margin-top:8px;">TeamSpeak Client Backend ist noch nicht vom Administrator eingerichtet.</div>
-                        {% endif %}
-                        {% if ts.lastError|default('') %}
-                            <div class="ng-alert ng-alert--danger" style="margin-top:8px;">{{ ts.lastError }}</div>
-                        {% endif %}
-                    </div>
-                    <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
-                        <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;">
-                            <strong style="font-size:13px;">Discord</strong>
-                            <span class="ui-badge {{ capabilityBadges[dcCap]|default('ui-badge--neutral') }}">{{ capabilityLabels[dcCap]|default('Nicht verbunden') }}</span>
-                        </div>
-                        <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">{{ dc.enabled|default(false) ? 'Aktiviert' : 'Inaktiv' }} · {{ dc.status|default('missing') }}</p>
-                        {% if dcCap != 'ready' %}
-                            <div class="ng-alert ng-alert--info" style="margin-top:8px;">Discord Voice ist vorbereitet, aber ohne echtes Voice-Backend nicht verbunden.</div>
-                        {% endif %}
-                        {% if dc.lastError|default('') %}
-                            <div class="ng-alert ng-alert--danger" style="margin-top:8px;">{{ dc.lastError }}</div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {# Auto-DJ & Webradio #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.10);flex-shrink:0;">
-                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" stroke-width="2"><path stroke-linecap="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.143 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
-                    </span>
-                    <div>
-                        <h2 class="ng-data-card__title">Auto-DJ & Webradio</h2>
-                        <p class="ng-data-card__sub">Streaming und Automation</p>
-                    </div>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                <div style="display:grid;gap:10px;">
-                    <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                            <strong style="font-size:13px;">Auto-DJ</strong>
-                            <span class="ui-badge ui-badge--warning">Experimentell</span>
-                        </div>
-                        <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">Auto-DJ-Regeln sind vorbereitet. Nutze Playlists/Queue als primären Weg.</p>
-                    </div>
-                    <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                            <strong style="font-size:13px;">Webradio</strong>
-                            <span class="ui-badge ui-badge--neutral">Placeholder</span>
-                        </div>
-                        <p style="margin:0 0 8px;font-size:12px;color:var(--ng-text-muted);">{{ streamSettings.enabled ? 'Geplant aktiv' : 'Deaktiviert' }} · Backend: {{ streamStatus.backend|default('placeholder') }} · Zugriff: {{ streamSettings.accessMode.value }}</p>
-                        <div class="ng-alert ng-alert--warning" style="margin-bottom:10px;">Kein echtes Icecast-/Shoutcast-Backend aktiv.</div>
-                        <form method="post" action="{{ path('customer_musicbot_stream_update', {id: instance.id}) }}" style="display:grid;gap:8px;margin-bottom:10px;">
-                            <div class="form-field"><label class="form-label">Stream-Titel</label><input class="form-input" name="stream_title" value="{{ streamSettings.streamTitle ?: instance.name }}"></div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-                                <div class="form-field">
-                                    <label class="form-label">Zugriff</label>
-                                    <select class="form-input" name="access_mode">
-                                        <option value="private" {% if streamSettings.accessMode.value == 'private' %}selected{% endif %}>Private</option>
-                                        <option value="public" {% if streamSettings.accessMode.value == 'public' %}selected{% endif %}>Public</option>
-                                        <option value="token" {% if streamSettings.accessMode.value == 'token' %}selected{% endif %}>Token</option>
                                     </select>
-                                </div>
-                                <div class="form-field"><label class="form-label">Bitrate</label><input class="form-input" type="number" name="bitrate" min="32" max="320" value="{{ streamSettings.bitrate }}"></div>
-                                <div class="form-field">
-                                    <label class="form-label">Format</label>
-                                    <select class="form-input" name="format">
-                                        <option value="mp3" {% if streamSettings.format == 'mp3' %}selected{% endif %}>MP3</option>
-                                        <option value="ogg" {% if streamSettings.format == 'ogg' %}selected{% endif %}>OGG</option>
-                                        <option value="aac" {% if streamSettings.format == 'aac' %}selected{% endif %}>AAC</option>
-                                        <option value="opus" {% if streamSettings.format == 'opus' %}selected{% endif %}>Opus</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Speichern</button>
-                        </form>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <form method="post" action="{{ path('customer_musicbot_stream_toggle', {id: instance.id}) }}">
-                                <input type="hidden" name="enabled" value="{{ streamSettings.enabled ? '0' : '1' }}">
-                                <button class="ui-button ui-button--primary ui-button--sm" type="submit">{{ streamSettings.enabled ? 'Webradio deaktivieren' : 'Webradio aktivieren' }}</button>
-                            </form>
-                            <form method="post" action="{{ path('customer_musicbot_stream_rotate_token', {id: instance.id}) }}">
-                                <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Token rotieren</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    {# ── 2-column: Plugins + Logs ── #}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-
-        {# Plugins #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(100,116,139,.10);flex-shrink:0;">
-                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                    </span>
-                    <div>
-                        <h2 class="ng-data-card__title">Plugins</h2>
-                        <p class="ng-data-card__sub">{{ plugins|length }} zugewiesene Plugins</p>
-                    </div>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                <form method="post" action="{{ path('customer_musicbot_plugin_assign', {id: instance.id}) }}" style="display:flex;gap:8px;margin-bottom:14px;">
-                    <select name="identifier" class="form-input" style="flex:1;">
-                        {% for manifest in pluginManifests %}
-                            <option value="{{ manifest.identifier }}">{{ manifest.name }} {{ manifest.version }}</option>
-                        {% endfor %}
-                    </select>
-                    <button class="ui-button ui-button--ghost ui-button--sm" type="submit" {% if pluginManifests is empty %}disabled{% endif %}>Zuweisen</button>
-                </form>
-                {% if plugins is empty %}
-                    <p style="margin:0;font-size:13px;color:var(--ng-text-muted);">Keine Plugins zugewiesen.</p>
-                {% else %}
-                    <div style="display:flex;flex-direction:column;gap:10px;">
-                        {% for plugin in plugins %}
-                            <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
-                                <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;">
-                                    <div>
-                                        <strong style="font-size:13px;">{{ plugin.name }} {{ plugin.version }}</strong>
-                                        <div style="font-size:11px;color:var(--ng-text-muted);font-family:monospace;">{{ plugin.identifier }}</div>
-                                    </div>
-                                    <span class="ui-badge {{ plugin.enabled ? 'ui-badge--success' : 'ui-badge--neutral' }}" style="font-size:10px;">{{ plugin.enabled ? 'aktiv' : 'inaktiv' }}</span>
-                                </div>
-                                {% if plugin.permissions|length > 0 %}
-                                    <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:8px;">Permissions: {{ plugin.permissions|join(', ') }}</div>
-                                {% endif %}
-                                <form method="post" action="{{ path('customer_musicbot_plugin_toggle', {id: instance.id, pluginId: plugin.id}) }}" style="display:inline-block;">
-                                    <input type="hidden" name="enabled" value="{{ plugin.enabled ? '0' : '1' }}">
-                                    <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ plugin.enabled ? 'Deaktivieren' : 'Aktivieren' }}</button>
+                                    <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;" {% if tracks is empty %}disabled{% endif %}>Track hinzufügen</button>
                                 </form>
-                                <details style="margin-top:8px;">
-                                    <summary style="cursor:pointer;font-size:12px;color:var(--ng-text-muted);">Konfiguration</summary>
-                                    <form method="post" action="{{ path('customer_musicbot_plugin_config', {id: instance.id, pluginId: plugin.id}) }}" style="margin-top:8px;">
-                                        <textarea class="form-input" name="config_json" rows="3" style="font-family:monospace;font-size:11px;width:100%;">{{ plugin.config|json_encode(constant('JSON_PRETTY_PRINT')) }}</textarea>
-                                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit" style="margin-top:6px;">Speichern</button>
-                                    </form>
-                                </details>
                             </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-        {# Logs #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(100,116,139,.10);flex-shrink:0;">
-                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                    </span>
-                    <div>
-                        <h2 class="ng-data-card__title">Logs & Monitoring</h2>
-                        <p class="ng-data-card__sub">Queue: {{ monitoring.queueLength|default(0) }} · CPU: {{ monitoring.cpu is not null ? monitoring.cpu : '—' }} · RAM: {{ monitoring.ram is not null ? monitoring.ram : '—' }}</p>
-                    </div>
-                </div>
-            </div>
-            <div class="ng-data-card__body">
-                {% if logs is empty %}
-                    <div style="text-align:center;padding:24px;color:var(--ng-text-muted);font-size:13px;">
-                        Noch keine Runtime-Events vorhanden.
-                    </div>
-                {% else %}
-                    <div style="display:flex;flex-direction:column;gap:8px;">
-                        {% for event in logs %}
-                            <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:10px 12px;">
-                                <div style="display:flex;gap:8px;align-items:center;margin-bottom:{% if event.message %}4px{% else %}0{% endif %};">
-                                    <span class="ui-badge ui-badge--neutral" style="font-size:10px;">{{ event.level }}</span>
-                                    <span style="font-size:12px;font-weight:600;color:var(--ng-text);">{{ event.type }}</span>
-                                    <span style="font-size:11px;color:var(--ng-text-muted);">{{ event.createdAt|date('Y-m-d H:i:s') }}</span>
+                            {% set pItems = playlistItems[playlist.id]|default([]) %}
+                            {% if pItems is empty %}
+                                <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">Keine Tracks in dieser Playlist.</p>
+                            {% else %}
+                                <div style="display:flex;flex-direction:column;gap:4px;">
+                                    {% for item in pItems %}
+                                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;">
+                                            <span>{{ loop.index }}. {{ item.track.title }}</span>
+                                            <form method="post" action="{{ path('customer_musicbot_playlist_track_remove', {id: instance.id, itemId: item.id}) }}" style="display:contents;">
+                                                <button class="ui-btn" type="submit" style="font-size:11px;padding:2px 8px;color:var(--ng-danger);">entfernen</button>
+                                            </form>
+                                        </div>
+                                    {% endfor %}
                                 </div>
-                                {% if event.message %}
-                                    <div style="font-size:12px;color:var(--ng-text-muted);">{{ event.message }}</div>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
+                            {% endif %}
+                        </div>
                     </div>
-                {% endif %}
+                {% endfor %}
             </div>
-        </div>
-
+        {% endif %}
     </div>
 
-    {# ── Scheduler & Workflows ── #}
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(100,116,139,.10);flex-shrink:0;">
-                    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                </span>
-                <div>
-                    <h2 class="ng-data-card__title">Scheduler & Workflows</h2>
-                    <p class="ng-data-card__sub">Zeitpläne und automatisierte Aktionen</p>
+    {# ══════════════════════════════════════════════════════
+       VERBINDUNGEN
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-verbindungen" style="display:none;">
+
+        {# TeamSpeak form #}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2 style="font-size:14px;font-weight:600;margin:0;">TeamSpeak</h2>
+                    <span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--neutral') }}">{{ capabilityLabels[tsCap]|default('—') }}</span>
                 </div>
+                <form method="post" action="{{ path('customer_musicbot_connection_test', {id: instance.id}) }}" style="display:contents;">
+                    <button type="submit" class="ui-btn" style="font-size:12px;padding:4px 10px;">Verbindung testen</button>
+                </form>
+            </div>
+            <form method="post" action="{{ path('customer_musicbot_settings_update', {id: instance.id}) }}" style="padding:16px;display:grid;gap:14px;">
+                <input type="hidden" name="_section" value="connections">
+
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <input type="checkbox" id="ts_enabled_conn" name="ts_enabled" value="1" {% if tsConnectionEnabled %}checked{% endif %}
+                           style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                    <label for="ts_enabled_conn" style="font-size:13px;cursor:pointer;font-weight:500;">TeamSpeak aktivieren</label>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Host / IP</label>
+                        <input type="text" name="ts_host" value="{{ tsConnectionConfig.host|default('') }}" maxlength="255"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Port</label>
+                        <input type="number" name="ts_port" value="{{ tsConnectionConfig.port|default(9987) }}" min="1" max="65535"
+                               style="width:100px;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Nickname</label>
+                    <input type="text" name="ts_nickname" value="{{ tsConnectionConfig.nickname|default('Musicbot') }}" maxlength="30"
+                           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                </div>
+
+                <div>
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Channel-ID <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                    <input type="text" name="ts_channel_id" value="{{ tsConnectionConfig.channel_id|default('') }}" placeholder="z. B. 42"
+                           style="width:50%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                </div>
+
+                {# Password replace fields – never show actual secrets #}
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Server-Passwort</label>
+                        <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:6px;">
+                            Gesetzt: <strong>{{ maskedTsSecrets.server_password|default('') ? 'Ja' : 'Nein' }}</strong>
+                            {% if maskedTsSecrets.server_password|default('') %} &middot; Leer lassen = beibehalten{% endif %}
+                        </div>
+                        <input type="password" name="ts_server_password" autocomplete="new-password"
+                               placeholder="Neues Passwort eingeben"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Channel-Passwort</label>
+                        <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:6px;">
+                            Gesetzt: <strong>{{ maskedTsSecrets.channel_password|default('') ? 'Ja' : 'Nein' }}</strong>
+                            {% if maskedTsSecrets.channel_password|default('') %} &middot; Leer lassen = beibehalten{% endif %}
+                        </div>
+                        <input type="password" name="ts_channel_password" autocomplete="new-password"
+                               placeholder="Neues Passwort eingeben"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <button type="submit" name="_action" value="save" class="ui-btn ui-btn--primary">Speichern</button>
+                    <button type="submit" name="_action" value="save_restart" class="ui-btn">Speichern &amp; Neustarten</button>
+                </div>
+            </form>
+
+            {% if tsCap != 'ready' %}
+                <div style="padding:0 16px 14px;">
+                    <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-warning);color:var(--ng-text-muted);">
+                        TeamSpeak Client Backend ist noch nicht vom Administrator eingerichtet.
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        {# Discord placeholder #}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;opacity:.6;">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;">
+                <h2 style="font-size:14px;font-weight:600;margin:0;">Discord</h2>
+                <span class="ui-badge ui-badge--neutral" style="font-size:11px;">Bald verfügbar</span>
+            </div>
+            <div style="padding:14px 16px;font-size:13px;color:var(--ng-text-muted);">
+                Discord Voice-Integration wird in einem zukünftigen Update freigeschaltet.
             </div>
         </div>
-        <div class="ng-data-card__body">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
-                    <strong style="font-size:13px;">Scheduler</strong>
-                    <p style="margin:6px 0 0;font-size:12px;color:var(--ng-text-muted);">Zeitpläne sind vorbereitet und über API/Admin sichtbar. Für Live-Ausführung bitte Staging-E2E prüfen.</p>
+
+        {# Webradio output #}
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <h2 style="font-size:14px;font-weight:600;margin:0;">Webradio-Ausgabe</h2>
+                    <span class="ui-badge ui-badge--neutral" style="font-size:11px;">Placeholder</span>
                 </div>
-                <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
-                    <strong style="font-size:13px;">Workflows</strong>
-                    <p style="margin:6px 0 0;font-size:12px;color:var(--ng-text-muted);">Workflow-Trigger sind vorbereitet. TeamSpeak-Events lösen erst mit echter Bridge produktiv aus.</p>
+                <div style="display:flex;gap:8px;">
+                    <form method="post" action="{{ path('customer_musicbot_stream_toggle', {id: instance.id}) }}" style="display:contents;">
+                        <input type="hidden" name="enabled" value="{{ streamSettings.enabled ? '0' : '1' }}">
+                        <button class="ui-btn {% if streamSettings.enabled %}ui-btn--primary{% endif %}" type="submit" style="font-size:12px;padding:4px 10px;">
+                            {{ streamSettings.enabled ? 'Deaktivieren' : 'Aktivieren' }}
+                        </button>
+                    </form>
+                    <form method="post" action="{{ path('customer_musicbot_stream_rotate_token', {id: instance.id}) }}" style="display:contents;">
+                        <button class="ui-btn" type="submit" style="font-size:12px;padding:4px 10px;">Token rotieren</button>
+                    </form>
                 </div>
             </div>
+            <form method="post" action="{{ path('customer_musicbot_settings_update', {id: instance.id}) }}" style="padding:16px;display:grid;gap:12px;">
+                <input type="hidden" name="_section" value="connections">
+                <input type="hidden" name="ts_enabled" value="{{ tsConnectionEnabled ? '1' : '0' }}">
+                <input type="hidden" name="webradio_enabled" value="{{ streamSettings.enabled ? '1' : '0' }}">
+
+                <div>
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Stream-Titel</label>
+                    <input name="webradio_stream_title" value="{{ streamSettings.streamTitle ?: instance.name }}"
+                           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Zugriff</label>
+                        <select name="webradio_access_mode"
+                                style="width:100%;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                            <option value="private" {% if streamSettings.accessMode.value == 'private' %}selected{% endif %}>Privat</option>
+                            <option value="public"  {% if streamSettings.accessMode.value == 'public'  %}selected{% endif %}>Öffentlich</option>
+                            <option value="token"   {% if streamSettings.accessMode.value == 'token'   %}selected{% endif %}>Token</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Bitrate</label>
+                        <input type="number" name="webradio_bitrate" min="32" max="320" value="{{ streamSettings.bitrate }}"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Format</label>
+                        <select name="webradio_format"
+                                style="width:100%;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                            <option value="mp3"  {% if streamSettings.format == 'mp3'  %}selected{% endif %}>MP3</option>
+                            <option value="ogg"  {% if streamSettings.format == 'ogg'  %}selected{% endif %}>OGG</option>
+                            <option value="aac"  {% if streamSettings.format == 'aac'  %}selected{% endif %}>AAC</option>
+                            <option value="opus" {% if streamSettings.format == 'opus' %}selected{% endif %}>Opus</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <button type="submit" name="_action" value="save" class="ui-btn">Webradio-Einstellungen speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {# ══════════════════════════════════════════════════════
+       EINSTELLUNGEN
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-einstellungen" style="display:none;">
+        <form method="post" action="{{ path('customer_musicbot_settings_update', {id: instance.id}) }}">
+            <input type="hidden" name="_section" value="general">
+
+            {# General #}
+            <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+                <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);">
+                    <h2 style="font-size:14px;font-weight:600;margin:0;">Allgemein</h2>
+                </div>
+                <div style="padding:16px;display:grid;gap:14px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Bot-Name</label>
+                        <input type="text" name="name" value="{{ instance.name }}" maxlength="60"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                        <div style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">Maximal 60 Zeichen. Nur zur Anzeige im Panel.</div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div>
+                            <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Command-Prefix</label>
+                            <input type="text" name="command_prefix" value="{{ cfg_prefix }}" maxlength="5" placeholder="!"
+                                   style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                            <div style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">Max. 5 Zeichen, z. B. ! oder .</div>
+                        </div>
+                        <div>
+                            <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Standard-Lautstärke</label>
+                            <input type="number" name="default_volume" value="{{ cfg_volume }}" min="0" max="100"
+                                   style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div>
+                            <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Repeat-Standard</label>
+                            <select name="repeat_default"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                                <option value="off" {% if cfg_repeat == 'off' %}selected{% endif %}>Off</option>
+                                <option value="one" {% if cfg_repeat == 'one' %}selected{% endif %}>One</option>
+                                <option value="all" {% if cfg_repeat == 'all' %}selected{% endif %}>All</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:10px;justify-content:flex-end;padding-bottom:2px;">
+                            <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;">
+                                <input type="checkbox" name="autostart" value="1" {% if cfg_autostart %}checked{% endif %}
+                                       style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                                Autostart
+                            </label>
+                            <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;">
+                                <input type="checkbox" name="shuffle_default" value="1" {% if cfg_shuffle %}checked{% endif %}
+                                       style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                                Shuffle als Standard
+                            </label>
+                            <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;">
+                                <input type="checkbox" name="auto_dj" value="1" {% if cfg_auto_dj %}checked{% endif %}
+                                       style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                                Auto-DJ aktivieren
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                <button type="submit" name="_action" value="save" class="ui-btn ui-btn--primary">Speichern</button>
+                <button type="submit" name="_action" value="save_restart" class="ui-btn">Speichern &amp; Neustarten</button>
+                <a href="{{ path('customer_musicbot_show', {id: instance.id}) }}" class="ui-btn">Abbrechen</a>
+            </div>
+        </form>
+
+        {# Danger zone #}
+        <div class="ng-card" style="overflow:hidden;margin-top:32px;">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);">
+                <h2 style="font-size:14px;font-weight:600;margin:0;color:var(--ng-danger);">Gefahrenzone</h2>
+            </div>
+            <div style="padding:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:13px;font-weight:600;">Musicbot löschen</div>
+                    <div style="font-size:12px;color:var(--ng-text-muted);margin-top:2px;">Löscht die Instanz unwiderruflich. Alle Daten gehen verloren.</div>
+                </div>
+                <form method="post" action="{{ path('customer_musicbot_delete', {id: instance.id}) }}"
+                      onsubmit="return confirm('Musicbot „{{ instance.name }}" wirklich löschen?\nDiese Aktion kann nicht rückgängig gemacht werden.');">
+                    <button type="submit" class="ui-btn" style="color:var(--ng-danger);border-color:var(--ng-danger);">Musicbot löschen</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {# ══════════════════════════════════════════════════════
+       LOGS
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-logs" style="display:none;">
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Runtime-Ereignisse <span style="font-weight:400;color:var(--ng-text-muted);font-size:12px;">({{ logs|length }})</span></h3>
+            </div>
+            {% if logs is empty %}
+                <div style="text-align:center;padding:48px 20px;color:var(--ng-text-muted);font-size:13px;">
+                    Noch keine Runtime-Ereignisse vorhanden.
+                </div>
+            {% else %}
+                <div style="padding:12px 16px;display:flex;flex-direction:column;gap:6px;">
+                    {% for event in logs %}
+                        <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:6px;padding:10px 12px;">
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:{% if event.message %}4px{% else %}0{% endif %};">
+                                <span class="ui-badge ui-badge--neutral" style="font-size:10px;">{{ event.level }}</span>
+                                <span style="font-size:12px;font-weight:600;color:var(--ng-text);">{{ event.type }}</span>
+                                <span style="font-size:11px;color:var(--ng-text-muted);">{{ event.createdAt|date('Y-m-d H:i:s') }}</span>
+                            </div>
+                            {% if event.message %}
+                                <div style="font-size:12px;color:var(--ng-text-muted);">{{ event.message }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
         </div>
     </div>
 
 </div>
+
+<script>
+var MB_TABS = ['dashboard','musik','queue','playlists','verbindungen','einstellungen','logs'];
+
+function mbTab(name) {
+    MB_TABS.forEach(function(t) {
+        var panel = document.getElementById('panel-' + t);
+        var btn   = document.getElementById('tab-' + t);
+        if (!panel || !btn) return;
+        var active = (t === name);
+        panel.style.display = active ? '' : 'none';
+        btn.style.borderBottomColor = active ? 'var(--ng-primary)' : 'transparent';
+        btn.style.color = active ? 'var(--ng-primary)' : 'var(--ng-text-muted)';
+    });
+    try { history.replaceState(null, '', '#tab-' + name); } catch(e) {}
+}
+
+function musicTab(name) {
+    ['upload','webradio','youtube'].forEach(function(t) {
+        var p = document.getElementById('mpanel-' + t);
+        var b = document.getElementById('mtab-' + t);
+        if (!p || !b) return;
+        var active = (t === name);
+        p.style.display = active ? '' : 'none';
+        b.style.borderBottomColor = active ? 'var(--ng-primary)' : 'transparent';
+        b.style.color = active ? 'var(--ng-primary)' : 'var(--ng-text-muted)';
+    });
+}
+
+(function() {
+    var hash = window.location.hash.replace('#tab-', '');
+    mbTab(MB_TABS.indexOf(hash) !== -1 ? hash : 'dashboard');
+})();
+</script>
 {% endblock %}

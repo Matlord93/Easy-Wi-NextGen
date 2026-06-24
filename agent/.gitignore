@@ -4,6 +4,7 @@
 /gamesvc
 /easywi-teamspeak-bridge
 /easywi-teamspeak-client
+/easywi-musicbot
 *.exe
 
 # Test binaries

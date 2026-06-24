@@ -47,11 +47,56 @@ const (
 	teamspeakBackendStatusOfficialInvalid        = "official_client_invalid"
 	teamspeakBackendStatusOfficialReady          = "official_client_ready"
 
-	teamspeakBackendStatusExternalBridgeReady = "external_bridge_ready"
-	teamspeakBackendStatusXvfbMissing         = "xvfb_missing"
-	teamspeakBackendStatusAudioBackendMissing = "audio_backend_missing"
-	teamspeakBackendStatusClientBinaryMissing = "client_binary_missing"
+	teamspeakBackendStatusExternalBridgeReady    = "external_bridge_ready"
+	teamspeakBackendStatusXvfbMissing            = "xvfb_missing"
+	teamspeakBackendStatusAudioBackendMissing    = "audio_backend_missing"
+	teamspeakBackendStatusClientBinaryMissing    = "client_binary_missing"
+	teamspeakBackendStatusClientQueryPluginMissing = "clientquery_plugin_missing"
 )
+
+const clientQueryPluginFilename = "libclientquery_plugin_linux_amd64.so"
+
+// teamspeakExternalBridgePackages is the set of system packages that must be
+// installed for the external_client_bridge backend (Xvfb + Qt/XCB + PulseAudio).
+// Packages with Ubuntu 24.04 renames are handled by teamspeakExternalBridgePackageAlternatives.
+var teamspeakExternalBridgePackages = []string{
+	"xvfb",
+	"x11-utils",
+	"dbus-x11",
+	"libxcb-xinerama0",
+	"libxkbcommon-x11-0",
+	"libxcb-cursor0",
+	"libxcb-render0",
+	"libxcb-shape0",
+	"libxcb-shm0",
+	"libxcb1",
+	"libxcb-glx0",
+	"libx11-6",
+	"libxext6",
+	"libxrender1",
+	"libnss3",
+	"libxcomposite1",
+	"libxcursor1",
+	"libxi6",
+	"libxtst6",
+	"libxrandr2",
+	"libatk1.0-0",
+	"libatk-bridge2.0-0",
+	"libgtk-3-0",
+	"libpulse0",
+	"libasound2-plugins",
+	"pulseaudio",
+}
+
+// teamspeakExternalBridgePackageAlternatives lists packages that were renamed
+// between Ubuntu releases. Each pair is [preferred (Ubuntu 24.04+), fallback
+// (Ubuntu 22.04 and earlier)]. The installer tries the preferred name first and
+// falls back to the second when apt-cache cannot locate the preferred package.
+var teamspeakExternalBridgePackageAlternatives = [][2]string{
+	{"libasound2t64", "libasound2"},  // Ubuntu 24.04 transition package rename
+	{"libc++1-18", "libc++1"},        // LLVM versioned vs. unversioned
+	{"libc++abi1-18", "libc++abi1"},  // LLVM versioned vs. unversioned
+}
 
 const teamspeakBackendDefaultTimeout = 8 * time.Second
 const teamspeakOfficialClientDownloadTimeout = 90 * time.Second
@@ -107,6 +152,9 @@ type teamspeakBackendConfig struct {
 	ClientRunscriptPath string
 	AudioBackend        string
 	InstallDependencies bool
+	InstancePath        string // base path for persistent runtime dirs
+	ClientQueryHost     string
+	ClientQueryPort     int
 }
 
 type teamspeakBackendValidation struct {
@@ -134,8 +182,10 @@ type teamspeakBackendValidation struct {
 	BridgePath            string
 	ClientBinaryPath      string
 	ClientRunscriptPath   string
-	XvfbAvailable         bool
-	AudioBackendAvailable bool
+	XvfbAvailable              bool
+	AudioBackendAvailable      bool
+	ClientQueryPluginAvailable bool
+	OfficialClientDir          string
 }
 
 type teamspeakBackendProcessResponse struct {
@@ -168,13 +218,89 @@ func handleMusicbotTeamspeakBackendInstall(job jobs.Job) orchestratorResult {
 }
 
 func handleMusicbotTeamspeakBackendRepair(job jobs.Job) orchestratorResult {
-	// Repair is intentionally local-only: it validates paths and permissions but never downloads proprietary files.
+	// Repair is intentionally local-only: it validates paths and permissions,
+	// and for external_client_bridge tries to migrate a missing ClientQuery
+	// plugin from known ts3home locations without downloading proprietary files.
 	cfg := teamspeakBackendConfigFromJob(job)
+	if cfg.BackendType == "external_client_bridge" {
+		_ = repairTeamspeakClientQueryPlugin(cfg) // best-effort; validation reports final status
+	}
 	validation := validateTeamspeakBackendConfig(cfg, true)
-	if validation.Status != teamspeakBackendStatusReady {
+	readyStatuses := map[string]bool{
+		teamspeakBackendStatusReady:              true,
+		teamspeakBackendStatusExternalBridgeReady: true,
+		teamspeakBackendStatusConnected:           true,
+	}
+	if !readyStatuses[validation.Status] {
 		return teamspeakBackendResult("failed", validation)
 	}
 	return teamspeakBackendResult("success", validation)
+}
+
+// officialClientDirFrom returns the directory of the official TS3 client
+// installation, preferring the runscript path directory over the binary path.
+func officialClientDirFrom(clientBinaryPath, clientRunscriptPath string) string {
+	if d := filepath.Dir(strings.TrimSpace(clientRunscriptPath)); d != "" && d != "." {
+		return d
+	}
+	if d := filepath.Dir(strings.TrimSpace(clientBinaryPath)); d != "" && d != "." {
+		return d
+	}
+	return ""
+}
+
+// repairTeamspeakClientQueryPlugin attempts to fix a missing ClientQuery plugin
+// by migrating it from known ts3home paths. No proprietary files are downloaded.
+func repairTeamspeakClientQueryPlugin(cfg teamspeakBackendConfig) error {
+	officialClientDir := officialClientDirFrom(cfg.ClientBinaryPath, cfg.ClientRunscriptPath)
+	if officialClientDir == "" {
+		return fmt.Errorf("cannot determine official client dir from client_binary_path / client_runscript_path")
+	}
+
+	pluginDir := filepath.Join(officialClientDir, "plugins")
+	pluginDst := filepath.Join(pluginDir, clientQueryPluginFilename)
+
+	if info, err := os.Stat(pluginDst); err == nil && info.Mode().IsRegular() {
+		return nil // already present
+	}
+
+	// Collect migration-source candidates (ts3home directories left by previous runs).
+	var sources []string
+	if cfg.InstancePath != "" {
+		sources = append(sources,
+			filepath.Join(cfg.InstancePath, "runtime", "teamspeak-bridge", "ts3home", ".ts3client", "plugins", clientQueryPluginFilename),
+			filepath.Join(cfg.InstancePath, "ts3home", ".ts3client", "plugins", clientQueryPluginFilename),
+		)
+	}
+	// Also check sibling directories of the official-client dir (e.g. /opt/easywi/musicbot/teamspeak-client/<instance>/ts3home/…).
+	if parentDir := filepath.Dir(officialClientDir); parentDir != "" && parentDir != "." {
+		if entries, err := os.ReadDir(parentDir); err == nil {
+			for _, e := range entries {
+				if !e.IsDir() {
+					continue
+				}
+				sources = append(sources,
+					filepath.Join(parentDir, e.Name(), "ts3home", ".ts3client", "plugins", clientQueryPluginFilename),
+				)
+			}
+		}
+	}
+
+	for _, src := range sources {
+		info, err := os.Stat(src)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+			return fmt.Errorf("create plugins dir %s: %w", pluginDir, err)
+		}
+		if err := copyFile(src, pluginDst, 0o755); err != nil {
+			return fmt.Errorf("copy %s → %s: %w", filepath.Base(src), pluginDst, err)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("clientquery_plugin_missing: %s not found in official-client dir or any ts3home migration path", clientQueryPluginFilename)
 }
 
 func handleMusicbotTeamspeakBackendStatus(job jobs.Job) orchestratorResult {
@@ -229,6 +355,9 @@ func handleMusicbotTeamspeakBackendTestConnection(job jobs.Job) orchestratorResu
 		"client_binary_path":    cfg.ClientBinaryPath,
 		"client_runscript_path": cfg.ClientRunscriptPath,
 		"audio_backend":         cfg.AudioBackend,
+		"instance_path":         cfg.InstancePath,
+		"client_query_host":     cfg.ClientQueryHost,
+		"client_query_port":     cfg.ClientQueryPort,
 	}
 	resp, err := teamspeakBackendCommandSequence(cfg, []map[string]any{connect})
 	if err != nil {
@@ -324,6 +453,7 @@ func handleMusicbotTeamspeakBackendInstallOfficialClient(job jobs.Job) orchestra
 	installedFiles := collectTeamspeakOfficialInstalledFiles(installPath, 200)
 	libraryPath := findFirstExistingFile(installPath, []string{"libts3client.so"})
 	opusPath := findFirstExistingFile(installPath, []string{"libopus.so", "libopus.so.0"})
+	clientQueryPluginPath := findFirstExistingFile(installPath, []string{clientQueryPluginFilename})
 	result["installed_files"] = installedFiles
 	result["official_client_last_installed_at"] = time.Now().UTC().Format(time.RFC3339)
 	result["official_client_install_path"] = installPath
@@ -334,8 +464,21 @@ func handleMusicbotTeamspeakBackendInstallOfficialClient(job jobs.Job) orchestra
 	if opusPath != "" {
 		result["opus_library_path"] = opusPath
 	}
+	if clientQueryPluginPath != "" {
+		result["client_query_plugin_path"] = clientQueryPluginPath
+	}
 	if err := chmodTeamspeakOfficialTree(installPath); err != nil {
 		result["last_error"] = sanitizeTeamspeakOfficialClientText(err.Error())
+	}
+	if clientQueryPluginPath == "" {
+		// Plugin missing after extraction; this is required for external_client_bridge mode.
+		// Warn in last_error but do not fail the install – the plugin may arrive via repair.
+		warn := fmt.Sprintf("%s not found in %s/plugins/ after installation; run 'repair' if using external_client_bridge", clientQueryPluginFilename, installPath)
+		if existing, _ := result["last_error"].(string); existing != "" {
+			result["last_error"] = existing + "; " + warn
+		} else {
+			result["last_error"] = warn
+		}
 	}
 	if libraryPath == "" {
 		msg := "Offizieller TeamSpeak Client wurde installiert, aber keine ladbare libts3client.so gefunden. Bitte TS3 Client SDK/Library oder kompatiblen Client-Layer bereitstellen."
@@ -399,6 +542,17 @@ func teamspeakBackendConfigFromJob(job jobs.Job) teamspeakBackendConfig {
 		ClientRunscriptPath: strings.TrimSpace(payloadValue(job.Payload, "client_runscript_path")),
 		AudioBackend:        strings.TrimSpace(payloadValue(job.Payload, "audio_backend")),
 		InstallDependencies: payloadBool(job.Payload, "install_dependencies"),
+		InstancePath:        strings.TrimSpace(payloadValue(job.Payload, "instance_path")),
+		ClientQueryHost:     strings.TrimSpace(payloadValue(job.Payload, "client_query_host")),
+		ClientQueryPort: func() int {
+			raw := strings.TrimSpace(payloadValue(job.Payload, "client_query_port"))
+			if raw == "" {
+				return 0
+			}
+			var p int
+			_, _ = fmt.Sscanf(raw, "%d", &p)
+			return p
+		}(),
 	}
 }
 
@@ -648,8 +802,17 @@ func chmodTeamspeakOfficialTree(root string) error {
 		if d.IsDir() {
 			return os.Chmod(path, 0o755)
 		}
+		base := strings.ToLower(filepath.Base(path))
 		mode := os.FileMode(0o644)
-		if strings.Contains(strings.ToLower(filepath.Base(path)), "teamspeak") {
+		// Shell scripts, TS3 client binaries, and shared libraries need to be
+		// executable (or at least readable) for the TS3 client to load them.
+		// ts3client_runscript.sh and ts3client_linux_amd64 do not contain
+		// "teamspeak" in their name, so we match by prefix/extension as well.
+		if strings.HasSuffix(base, ".sh") ||
+			strings.HasPrefix(base, "ts3client") ||
+			strings.Contains(base, "teamspeak") ||
+			strings.HasSuffix(base, ".so") ||
+			strings.Contains(base, ".so.") {
 			mode = 0o755
 		}
 		return os.Chmod(path, mode)
@@ -815,6 +978,24 @@ func validateTeamspeakExternalClientBridgeConfig(cfg teamspeakBackendConfig) tea
 		}
 	}
 
+	// Validate that the ClientQuery plugin exists in official-client/plugins/.
+	// Without it the TS3 client cannot expose its local control interface and
+	// the bridge will fail at Connect() time with clientquery_plugin_missing.
+	officialClientDir := officialClientDirFrom(clientBinaryPath, cfg.ClientRunscriptPath)
+	if officialClientDir != "" {
+		result.OfficialClientDir = officialClientDir
+		pluginPath := filepath.Join(officialClientDir, "plugins", clientQueryPluginFilename)
+		if info, err := os.Stat(pluginPath); err != nil || !info.Mode().IsRegular() {
+			result.Status = teamspeakBackendStatusClientQueryPluginMissing
+			result.LastError = fmt.Sprintf(
+				"clientquery_plugin_missing: %s not found in %s/plugins/; run 'repair' or reinstall the official TeamSpeak client",
+				clientQueryPluginFilename, officialClientDir,
+			)
+			return result
+		}
+		result.ClientQueryPluginAvailable = true
+	}
+
 	if _, err := exec.LookPath("Xvfb"); err != nil {
 		result.Status = teamspeakBackendStatusXvfbMissing
 		result.LastError = "Xvfb not found in PATH; install the xvfb package (e.g. apt-get install xvfb)"
@@ -841,6 +1022,17 @@ func validateTeamspeakExternalClientBridgeConfig(cfg teamspeakBackendConfig) tea
 	return result
 }
 
+// resolvePackageAlternative returns preferred when apt-cache can find it,
+// otherwise returns fallback. This handles packages renamed between Ubuntu releases
+// (e.g. libasound2 → libasound2t64 in Ubuntu 24.04).
+func resolvePackageAlternative(preferred, fallback string) string {
+	cmd := exec.Command("apt-cache", "show", preferred)
+	if cmd.Run() == nil {
+		return preferred
+	}
+	return fallback
+}
+
 func handleMusicbotTeamspeakBackendInstallDependencies(job jobs.Job) orchestratorResult {
 	if !payloadBool(job.Payload, "install_dependencies") {
 		return orchestratorResult{
@@ -853,9 +1045,14 @@ func handleMusicbotTeamspeakBackendInstallDependencies(job jobs.Job) orchestrato
 		}
 	}
 
-	packages := []string{"xvfb", "dbus-x11", "libpulse0", "libglib2.0-0", "libx11-6", "libnss3", "libgtk-3-0"}
+	packages := append([]string(nil), teamspeakExternalBridgePackages...)
 
 	aptPath, aptErr := exec.LookPath("apt-get")
+	if aptErr == nil {
+		for _, pair := range teamspeakExternalBridgePackageAlternatives {
+			packages = append(packages, resolvePackageAlternative(pair[0], pair[1]))
+		}
+	}
 	if aptErr == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
@@ -1241,8 +1438,10 @@ func teamspeakBackendResult(status string, validation teamspeakBackendValidation
 		"bridge_path":             validation.BridgePath,
 		"client_binary_path":      validation.ClientBinaryPath,
 		"client_runscript_path":   validation.ClientRunscriptPath,
-		"xvfb_available":          validation.XvfbAvailable,
-		"audio_backend_available": validation.AudioBackendAvailable,
+		"xvfb_available":                validation.XvfbAvailable,
+		"audio_backend_available":       validation.AudioBackendAvailable,
+		"client_query_plugin_available": validation.ClientQueryPluginAvailable,
+		"official_client_dir":           validation.OfficialClientDir,
 	}
 	return orchestratorResult{status: status, errorText: validation.LastError, resultPayload: payload}
 }

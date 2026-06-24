@@ -11,7 +11,7 @@ STEP_COUNTER=0
 DEFAULT_PHP_VERSION="8.4"
 MIN_PANEL_PHP_VERSION="8.4"
 APT_UPDATED=0
-EASYWI_GITHUB_REPO="Matlord93/Easy-Wi-NextGen"
+EASYWI_GITHUB_REPO="Matlord93/webinterface"
 EASYWI_GITHUB_RELEASE_BASE="https://github.com/${EASYWI_GITHUB_REPO}/releases"
 LOG_FILE="${EASYWI_INSTALLER_LOG_FILE:-/var/log/easywi-installer.log}"
 DIAG_LOG_FILE="${EASYWI_INSTALLER_DIAG_LOG_FILE:-/var/log/easywi-installer-diagnostics.log}"
@@ -2378,6 +2378,57 @@ install_agent_binaries() {
   ok "easywi-agent installiert: /usr/local/bin/easywi-agent"
 
   command -v easywi-agent >/dev/null || fatal "easywi-agent nicht im PATH nach Installation."
+
+  if [[ "${arch}" == "amd64" ]]; then
+    local github_token_inner="${EASYWI_APP_GITHUB_TOKEN:-}"
+    install_optional_agent_binary "easywi-musicbot-linux-amd64"        /usr/local/bin/easywi-musicbot        "${resolved_version}" "${github_token_inner}"
+    install_optional_agent_binary "easywi-teamspeak-bridge-linux-amd64" /usr/local/bin/easywi-teamspeak-bridge "${resolved_version}" "${github_token_inner}"
+  fi
+}
+
+# install_optional_agent_binary downloads a single named agent binary from the
+# release (tries <name>.zip first, then bare binary), verifies its SHA256
+# checksum when available, and installs it atomically with mode 0755.
+# Non-fatal: a missing or unverifiable asset only prints a warning.
+install_optional_agent_binary() {
+  local asset_name="$1" target_path="$2" version="${3:-latest}" github_token="${4:-}"
+  local tmp; tmp="$(mktemp -d)"
+  local tmp_zip="${tmp}/${asset_name}.zip"
+  local tmp_bin="${tmp}/${asset_name}"
+  local resolved_bin=""
+
+  if download_optional_asset "${asset_name}.zip" "${tmp_zip}" "${version}" "${github_token}"; then
+    command -v unzip >/dev/null 2>&1 || { warn "unzip fehlt – überspringe ${asset_name}.zip"; rm -rf "${tmp}"; return 0; }
+    if ! unzip -oq "${tmp_zip}" -d "${tmp}" 2>/dev/null; then
+      warn "Entpacken von ${asset_name}.zip fehlgeschlagen – überspringe."
+      rm -rf "${tmp}"; return 0
+    fi
+    if [[ ! -f "${tmp}/${asset_name}" ]]; then
+      warn "${asset_name} nicht in .zip gefunden – überspringe."
+      rm -rf "${tmp}"; return 0
+    fi
+    resolved_bin="${tmp}/${asset_name}"
+    verify_release_checksum_candidates "${tmp_zip}" "${asset_name}.zip" "${version}" "${github_token}" \
+      checksums-agent.txt checksums-agent-linux.txt checksums.txt checksums.sha256 2>/dev/null \
+      || verify_release_checksum_candidates "${resolved_bin}" "${asset_name}" "${version}" "${github_token}" \
+        checksums-agent.txt checksums-agent-linux.txt checksums.txt checksums.sha256 2>/dev/null \
+      || warn "Keine Prüfsumme für ${asset_name} gefunden – Checksum-Prüfung übersprungen."
+  elif download_optional_asset "${asset_name}" "${tmp_bin}" "${version}" "${github_token}"; then
+    resolved_bin="${tmp_bin}"
+    verify_release_checksum_candidates "${resolved_bin}" "${asset_name}" "${version}" "${github_token}" \
+      checksums-agent.txt checksums-agent-linux.txt checksums.txt checksums.sha256 2>/dev/null \
+      || warn "Keine Prüfsumme für ${asset_name} gefunden – Checksum-Prüfung übersprungen."
+  else
+    warn "${asset_name} nicht im Release gefunden – überspringe."
+    rm -rf "${tmp}"; return 0
+  fi
+
+  if [[ -n "${resolved_bin}" && -f "${resolved_bin}" ]]; then
+    install -m 0755 "${resolved_bin}" "${target_path}"
+    ok "${asset_name} installiert: ${target_path}"
+  fi
+
+  rm -rf "${tmp}"
 }
 
 # ---------------------------------------------------------------------------
@@ -2920,6 +2971,12 @@ update_agent() {
 
   cleanup_old_easywi_agent_processes
   install_agent_binaries "${arch}" "${agent_version}"
+
+  if [[ "${arch}" == "amd64" ]]; then
+    local github_token_upd="${EASYWI_APP_GITHUB_TOKEN:-}"
+    install_optional_agent_binary "easywi-musicbot-linux-amd64"         /usr/local/bin/easywi-musicbot         "${agent_version}" "${github_token_upd}"
+    install_optional_agent_binary "easywi-teamspeak-bridge-linux-amd64" /usr/local/bin/easywi-teamspeak-bridge "${agent_version}" "${github_token_upd}"
+  fi
 
   if has_systemctl; then
     ensure_agent_service_interval_environment

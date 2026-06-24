@@ -317,6 +317,134 @@ func TestExternalBridgeTeamspeakBackendJoinAndSendErrors(t *testing.T) {
 	_ = client.Disconnect(context.Background())
 }
 
+// TestTeamspeakConfigStringInstancePathAndRuntimeDir verifies that teamspeakConfigString
+// returns instance_path and runtime_dir from the direct struct fields.
+func TestTeamspeakConfigStringInstancePathAndRuntimeDir(t *testing.T) {
+	t.Parallel()
+	cfg := TeamSpeakConnectorConfig{
+		InstancePath: "/var/lib/easywi/musicbot/musicbot-test-33a166",
+		RuntimeDir:   "/var/lib/easywi/musicbot/musicbot-test-33a166/runtime/teamspeak-bridge",
+	}
+	if got := teamspeakConfigString(cfg, "instance_path"); got != cfg.InstancePath {
+		t.Errorf("teamspeakConfigString(instance_path) = %q, want %q", got, cfg.InstancePath)
+	}
+	if got := teamspeakConfigString(cfg, "runtime_dir"); got != cfg.RuntimeDir {
+		t.Errorf("teamspeakConfigString(runtime_dir) = %q, want %q", got, cfg.RuntimeDir)
+	}
+}
+
+// TestTeamspeakConfigStringInstancePathFallsBackToConfigMap verifies that when
+// InstancePath is not set in the struct, it is read from Config map.
+func TestTeamspeakConfigStringInstancePathFallsBackToConfigMap(t *testing.T) {
+	t.Parallel()
+	cfg := TeamSpeakConnectorConfig{
+		Config: map[string]any{
+			"instance_path": "/from/map",
+			"runtime_dir":   "/from/map/runtime",
+		},
+	}
+	if got := teamspeakConfigString(cfg, "instance_path"); got != "/from/map" {
+		t.Errorf("teamspeakConfigString(instance_path) = %q, want /from/map", got)
+	}
+	if got := teamspeakConfigString(cfg, "runtime_dir"); got != "/from/map/runtime" {
+		t.Errorf("teamspeakConfigString(runtime_dir) = %q, want /from/map/runtime", got)
+	}
+}
+
+// TestTeamspeakConfigClientQueryPortFromStructField verifies that
+// teamspeakConfigClientQueryPort returns ClientQueryPort from the struct field.
+func TestTeamspeakConfigClientQueryPortFromStructField(t *testing.T) {
+	t.Parallel()
+	cfg := TeamSpeakConnectorConfig{ClientQueryPort: 25641}
+	if got := teamspeakConfigClientQueryPort(cfg); got != 25641 {
+		t.Errorf("teamspeakConfigClientQueryPort() = %d, want 25641", got)
+	}
+}
+
+// TestTeamspeakConfigClientQueryPortFallsBackToConfigMap verifies that when
+// ClientQueryPort is not set in the struct, it is read from the Config map.
+func TestTeamspeakConfigClientQueryPortFallsBackToConfigMap(t *testing.T) {
+	t.Parallel()
+	cfg := TeamSpeakConnectorConfig{
+		Config: map[string]any{"client_query_port": float64(25642)},
+	}
+	if got := teamspeakConfigClientQueryPort(cfg); got != 25642 {
+		t.Errorf("teamspeakConfigClientQueryPort() = %d, want 25642", got)
+	}
+}
+
+// TestTeamspeakConfigClientQueryPortZeroWhenUnset verifies that
+// teamspeakConfigClientQueryPort returns 0 when not configured (no default).
+func TestTeamspeakConfigClientQueryPortZeroWhenUnset(t *testing.T) {
+	t.Parallel()
+	if got := teamspeakConfigClientQueryPort(TeamSpeakConnectorConfig{}); got != 0 {
+		t.Errorf("teamspeakConfigClientQueryPort() = %d, want 0", got)
+	}
+}
+
+// TestTeamspeakConfigStringClientQueryHostFromStructField verifies that
+// teamspeakConfigString returns ClientQueryHost from the struct field.
+func TestTeamspeakConfigStringClientQueryHostFromStructField(t *testing.T) {
+	t.Parallel()
+	cfg := TeamSpeakConnectorConfig{ClientQueryHost: "127.0.0.1"}
+	if got := teamspeakConfigString(cfg, "client_query_host"); got != "127.0.0.1" {
+		t.Errorf("teamspeakConfigString(client_query_host) = %q, want 127.0.0.1", got)
+	}
+}
+
+// TestTeamspeakConfigStringClientQueryHostFallsBackToConfigMap verifies that
+// when ClientQueryHost is not set in the struct, it is read from Config map.
+func TestTeamspeakConfigStringClientQueryHostFallsBackToConfigMap(t *testing.T) {
+	t.Parallel()
+	cfg := TeamSpeakConnectorConfig{
+		Config: map[string]any{"client_query_host": "192.168.1.5"},
+	}
+	if got := teamspeakConfigString(cfg, "client_query_host"); got != "192.168.1.5" {
+		t.Errorf("teamspeakConfigString(client_query_host) = %q, want 192.168.1.5", got)
+	}
+}
+
+// TestExternalBridgeConnectPassesInstancePathAndRuntimeDir verifies that
+// ExternalBridgeTeamspeakVoiceClient.Connect sends instance_path and runtime_dir
+// to the bridge subprocess in the connect request.
+func TestExternalBridgeConnectPassesInstancePathAndRuntimeDir(t *testing.T) {
+	t.Parallel()
+	captureFile := filepath.Join(t.TempDir(), "captured.json")
+	path := filepath.Join(t.TempDir(), "mock-bridge-capture")
+	script := "#!/bin/sh\nwhile IFS= read -r line; do\n  case \"$line\" in\n    *disconnect*) echo '{\"ok\":true}' ; exit 0 ;;\n    *connect*) echo \"$line\" > " + captureFile + " ; echo '{\"ok\":true,\"state\":\"connected\",\"client_id\":\"c1\"}' ;;\n    *) echo '{\"ok\":true}' ;;\n  esac\ndone\n"
+	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewExternalBridgeTeamspeakVoiceClient()
+	cfg := TeamSpeakConnectorConfig{
+		Enabled:         true,
+		Profile:         "ts3",
+		Backend:         "ts3_client_compatible",
+		BackendType:     TeamSpeakBackendTypeExternalClientBridge,
+		BackendPath:     path,
+		Host:            "127.0.0.1",
+		InstancePath:    "/var/lib/easywi/musicbot/musicbot-test-33a166",
+		RuntimeDir:      "/var/lib/easywi/musicbot/musicbot-test-33a166/runtime/teamspeak-bridge",
+		ClientQueryHost: "127.0.0.1",
+		ClientQueryPort: 25641,
+	}
+	if err := client.Connect(context.Background(), cfg); err != nil {
+		t.Fatalf("Connect() = %v", err)
+	}
+	_ = client.Disconnect(context.Background())
+
+	captured, err := os.ReadFile(captureFile)
+	if err != nil {
+		t.Fatalf("captured request not written: %v", err)
+	}
+	for _, want := range []string{`"instance_path":`, `"runtime_dir":`, `"client_query_host":`, `"client_query_port":`} {
+		if !strings.Contains(string(captured), want) {
+			t.Errorf("connect request missing %s; got: %s", want, captured)
+		}
+	}
+}
+
 func writeMockTeamspeakBridge(t *testing.T, fail bool) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "mock-ts-bridge")

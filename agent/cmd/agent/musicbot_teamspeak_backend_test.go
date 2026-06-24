@@ -545,6 +545,37 @@ func (t rewriteHostTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	return t.base.RoundTrip(clone)
 }
 
+// TestTeamspeakExternalBridgePackagesComplete verifies that all packages required
+// for Xvfb + Qt/XCB + PulseAudio are included in the dependency installer list.
+func TestTeamspeakExternalBridgePackagesComplete(t *testing.T) {
+	t.Parallel()
+	required := []string{
+		"xvfb",
+		"x11-utils",
+		"dbus-x11",
+		"libxcb-xinerama0",
+		"libxkbcommon-x11-0",
+		"libgtk-3-0",
+		"libpulse0",
+		"pulseaudio",
+	}
+	if len(teamspeakExternalBridgePackages) == 0 {
+		t.Fatal("teamspeakExternalBridgePackages is empty")
+	}
+	for _, pkg := range required {
+		found := false
+		for _, p := range teamspeakExternalBridgePackages {
+			if p == pkg {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("required package %q not in teamspeakExternalBridgePackages", pkg)
+		}
+	}
+}
+
 func mockTeamspeakClientScript(mode string) string {
 	return fmt.Sprintf(`#!/bin/sh
 mode=%q
@@ -563,4 +594,346 @@ while IFS= read -r line; do
   esac
 done
 `, mode)
+}
+
+// teamspeakExternalBridgeDir creates a minimal external_client_bridge directory
+// layout in a temp dir. When withPlugin=true the ClientQuery plugin file is
+// also created so validation advances past the plugin check.
+func teamspeakExternalBridgeDir(t *testing.T, withPlugin bool) (bridgePath, officialClientDir string) {
+	t.Helper()
+	dir := t.TempDir()
+
+	// Bridge binary
+	bridgePath = filepath.Join(dir, "easywi-teamspeak-bridge")
+	if err := os.WriteFile(bridgePath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Official client dir with executable client binary and runscript
+	officialClientDir = filepath.Join(dir, "official-client")
+	if err := os.MkdirAll(officialClientDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	clientBin := filepath.Join(officialClientDir, "ts3client_linux_amd64")
+	if err := os.WriteFile(clientBin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runscript := filepath.Join(officialClientDir, "ts3client_runscript.sh")
+	if err := os.WriteFile(runscript, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if withPlugin {
+		pluginDir := filepath.Join(officialClientDir, "plugins")
+		if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		pluginFile := filepath.Join(pluginDir, clientQueryPluginFilename)
+		if err := os.WriteFile(pluginFile, []byte("mock plugin so"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return bridgePath, officialClientDir
+}
+
+// TestExternalBridgeValidateClientQueryPluginMissing verifies that validation
+// returns clientquery_plugin_missing when the plugin file is absent from
+// official-client/plugins/.
+func TestExternalBridgeValidateClientQueryPluginMissing(t *testing.T) {
+	t.Parallel()
+	bridgePath, officialClientDir := teamspeakExternalBridgeDir(t, false /* withPlugin=false */)
+	clientBin := filepath.Join(officialClientDir, "ts3client_linux_amd64")
+	runscript := filepath.Join(officialClientDir, "ts3client_runscript.sh")
+
+	cfg := teamspeakBackendConfig{
+		BackendType:         "external_client_bridge",
+		BridgePath:          bridgePath,
+		ClientBinaryPath:    clientBin,
+		ClientRunscriptPath: runscript,
+	}
+	result := validateTeamspeakExternalClientBridgeConfig(cfg)
+	if result.Status != teamspeakBackendStatusClientQueryPluginMissing {
+		t.Fatalf("status=%s, want %s", result.Status, teamspeakBackendStatusClientQueryPluginMissing)
+	}
+	if !strings.Contains(result.LastError, clientQueryPluginFilename) {
+		t.Fatalf("last_error %q does not mention plugin filename", result.LastError)
+	}
+}
+
+// TestExternalBridgeValidatePluginPresent verifies that when the ClientQuery
+// plugin file exists validation proceeds past the plugin check (even if it
+// fails later at Xvfb/audio which are not available in CI).
+func TestExternalBridgeValidatePluginPresent(t *testing.T) {
+	t.Parallel()
+	bridgePath, officialClientDir := teamspeakExternalBridgeDir(t, true /* withPlugin=true */)
+	clientBin := filepath.Join(officialClientDir, "ts3client_linux_amd64")
+	runscript := filepath.Join(officialClientDir, "ts3client_runscript.sh")
+
+	cfg := teamspeakBackendConfig{
+		BackendType:         "external_client_bridge",
+		BridgePath:          bridgePath,
+		ClientBinaryPath:    clientBin,
+		ClientRunscriptPath: runscript,
+	}
+	result := validateTeamspeakExternalClientBridgeConfig(cfg)
+	if result.Status == teamspeakBackendStatusClientQueryPluginMissing {
+		t.Fatalf("plugin is present but status is still %s", teamspeakBackendStatusClientQueryPluginMissing)
+	}
+	if !result.ClientQueryPluginAvailable {
+		t.Fatalf("ClientQueryPluginAvailable should be true when plugin file exists")
+	}
+}
+
+// TestRepairTeamspeakClientQueryPluginAlreadyPresent verifies that repair is a
+// no-op when the plugin already exists in official-client/plugins/.
+func TestRepairTeamspeakClientQueryPluginAlreadyPresent(t *testing.T) {
+	t.Parallel()
+	_, officialClientDir := teamspeakExternalBridgeDir(t, true /* withPlugin=true */)
+	clientBin := filepath.Join(officialClientDir, "ts3client_linux_amd64")
+	runscript := filepath.Join(officialClientDir, "ts3client_runscript.sh")
+	pluginDst := filepath.Join(officialClientDir, "plugins", clientQueryPluginFilename)
+
+	// Capture the original mtime so we can confirm nothing was rewritten.
+	infoOrig, err := os.Stat(pluginDst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := teamspeakBackendConfig{
+		BackendType:         "external_client_bridge",
+		ClientBinaryPath:    clientBin,
+		ClientRunscriptPath: runscript,
+	}
+	if err := repairTeamspeakClientQueryPlugin(cfg); err != nil {
+		t.Fatalf("repair returned error for already-present plugin: %v", err)
+	}
+
+	infoAfter, err := os.Stat(pluginDst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !infoAfter.ModTime().Equal(infoOrig.ModTime()) {
+		t.Fatalf("plugin file was modified by no-op repair")
+	}
+}
+
+// TestRepairTeamspeakClientQueryPluginFromInstancePath verifies that repair
+// copies the plugin from instancePath/runtime/teamspeak-bridge/ts3home/… when
+// the plugin is absent from official-client/plugins/.
+func TestRepairTeamspeakClientQueryPluginFromInstancePath(t *testing.T) {
+	t.Parallel()
+	_, officialClientDir := teamspeakExternalBridgeDir(t, false /* withPlugin=false */)
+	clientBin := filepath.Join(officialClientDir, "ts3client_linux_amd64")
+	runscript := filepath.Join(officialClientDir, "ts3client_runscript.sh")
+
+	// Create the migration source in instancePath/runtime/teamspeak-bridge/ts3home/...
+	instancePath := t.TempDir()
+	sourceDir := filepath.Join(instancePath, "runtime", "teamspeak-bridge", "ts3home", ".ts3client", "plugins")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(sourceDir, clientQueryPluginFilename)
+	if err := os.WriteFile(sourcePath, []byte("migrated plugin so"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := teamspeakBackendConfig{
+		BackendType:         "external_client_bridge",
+		ClientBinaryPath:    clientBin,
+		ClientRunscriptPath: runscript,
+		InstancePath:        instancePath,
+	}
+	if err := repairTeamspeakClientQueryPlugin(cfg); err != nil {
+		t.Fatalf("repair failed: %v", err)
+	}
+
+	pluginDst := filepath.Join(officialClientDir, "plugins", clientQueryPluginFilename)
+	if _, err := os.Stat(pluginDst); err != nil {
+		t.Fatalf("plugin was not copied to official-client/plugins/: %v", err)
+	}
+	content, _ := os.ReadFile(pluginDst)
+	if string(content) != "migrated plugin so" {
+		t.Fatalf("copied plugin content mismatch: %q", content)
+	}
+}
+
+// TestChmodOfficialTreeMakesRunscriptExecutable verifies that
+// chmodTeamspeakOfficialTree sets ts3client_runscript.sh to 0o755.
+func TestChmodOfficialTreeMakesRunscriptExecutable(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	runscript := filepath.Join(dir, "ts3client_runscript.sh")
+	if err := os.WriteFile(runscript, []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := chmodTeamspeakOfficialTree(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Stat(runscript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("ts3client_runscript.sh mode %04o is not executable", info.Mode().Perm())
+	}
+}
+
+// TestChmodOfficialTreeMakesTs3clientExecutable verifies that
+// chmodTeamspeakOfficialTree sets ts3client_linux_amd64 to 0o755.
+func TestChmodOfficialTreeMakesTs3clientExecutable(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	clientBin := filepath.Join(dir, "ts3client_linux_amd64")
+	if err := os.WriteFile(clientBin, []byte("ELF stub"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A data file that must NOT become executable.
+	dataFile := filepath.Join(dir, "readme.txt")
+	if err := os.WriteFile(dataFile, []byte("readme"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := chmodTeamspeakOfficialTree(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Stat(clientBin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("ts3client_linux_amd64 mode %04o is not executable", info.Mode().Perm())
+	}
+
+	infoTxt, err := os.Stat(dataFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if infoTxt.Mode().Perm()&0o111 != 0 {
+		t.Fatalf("readme.txt mode %04o should not be executable", infoTxt.Mode().Perm())
+	}
+}
+
+// TestOfficialClientInstallWarnsOnMissingPlugin verifies that when the TS3
+// installer runs successfully but the ClientQuery plugin is absent from the
+// extracted tree, last_error contains a repair hint.
+func TestOfficialClientInstallWarnsOnMissingPlugin(t *testing.T) {
+	// No t.Parallel(): patches teamspeakOfficialHTTPClient global (shared with other install tests).
+	// Build a fake installer that creates library files but NOT the plugin.
+	installer := []byte(`#!/bin/sh
+TARGET=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target) TARGET="$2"; shift 2;;
+    --noexec) shift;;
+    *) shift;;
+  esac
+done
+if [ -n "$TARGET" ]; then
+  mkdir -p "$TARGET"
+  printf 'mock ts3 library\n' > "$TARGET/libts3client.so"
+  printf 'mock opus\n' > "$TARGET/libopus.so"
+  printf '#!/bin/sh\n' > "$TARGET/ts3client_runscript.sh"
+  printf 'ELF stub\n' > "$TARGET/ts3client_linux_amd64"
+fi
+exit 0
+`)
+	sum := sha256.Sum256(installer)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(installer)
+	}))
+	defer server.Close()
+	restore := mockOfficialClientDownload(t, server.URL, "files.teamspeak-services.com")
+	defer restore()
+
+	// Use a short timeout for the fake installer.
+	origTimeout := teamspeakOfficialClientInstallerTimeout
+	teamspeakOfficialClientInstallerTimeout = 10 * time.Second
+	defer func() { teamspeakOfficialClientInstallerTimeout = origTimeout }()
+
+	job := teamspeakOfficialClientJob(t, "https://files.teamspeak-services.com/client.run", hex.EncodeToString(sum[:]))
+	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+
+	lastErr, _ := result.resultPayload["last_error"].(string)
+	if !strings.Contains(lastErr, clientQueryPluginFilename) {
+		t.Fatalf("expected last_error to mention %s when plugin is missing; got: %q", clientQueryPluginFilename, lastErr)
+	}
+	if !strings.Contains(lastErr, "repair") {
+		t.Fatalf("expected last_error to mention 'repair'; got: %q", lastErr)
+	}
+}
+
+// TestOfficialClientInstallReportsPluginPath verifies that when the TS3
+// installer creates the ClientQuery plugin, client_query_plugin_path is present
+// in the result payload.
+func TestOfficialClientInstallReportsPluginPath(t *testing.T) {
+	// No t.Parallel(): patches teamspeakOfficialHTTPClient global (shared with other install tests).
+	// Build a fake installer that creates the full expected layout including plugin.
+	installer := []byte(`#!/bin/sh
+TARGET=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target) TARGET="$2"; shift 2;;
+    --noexec) shift;;
+    *) shift;;
+  esac
+done
+if [ -n "$TARGET" ]; then
+  mkdir -p "$TARGET/plugins"
+  printf 'mock ts3 library\n' > "$TARGET/libts3client.so"
+  printf 'mock opus\n' > "$TARGET/libopus.so"
+  printf '#!/bin/sh\n' > "$TARGET/ts3client_runscript.sh"
+  printf 'ELF stub\n' > "$TARGET/ts3client_linux_amd64"
+  printf 'mock clientquery plugin\n' > "$TARGET/plugins/libclientquery_plugin_linux_amd64.so"
+fi
+exit 0
+`)
+	sum := sha256.Sum256(installer)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(installer)
+	}))
+	defer server.Close()
+	restore := mockOfficialClientDownload(t, server.URL, "files.teamspeak-services.com")
+	defer restore()
+
+	origTimeout := teamspeakOfficialClientInstallerTimeout
+	teamspeakOfficialClientInstallerTimeout = 10 * time.Second
+	defer func() { teamspeakOfficialClientInstallerTimeout = origTimeout }()
+
+	job := teamspeakOfficialClientJob(t, "https://files.teamspeak-services.com/client.run", hex.EncodeToString(sum[:]))
+	result := handleMusicbotTeamspeakBackendInstallOfficialClient(job)
+
+	if result.status != "success" {
+		t.Fatalf("install failed: status=%s error=%s payload=%#v", result.status, result.errorText, result.resultPayload)
+	}
+	pluginPath, _ := result.resultPayload["client_query_plugin_path"].(string)
+	if pluginPath == "" {
+		t.Fatalf("client_query_plugin_path missing from result payload; got=%#v", result.resultPayload)
+	}
+	if !strings.Contains(pluginPath, clientQueryPluginFilename) {
+		t.Fatalf("client_query_plugin_path %q does not contain expected filename", pluginPath)
+	}
+}
+
+// TestUbuntu2404DepsIncludeLibasound2t64 verifies that libasound2t64 appears
+// as the preferred alternative for the Ubuntu 24.04 package rename
+// (libasound2 → libasound2t64).
+func TestUbuntu2404DepsIncludeLibasound2t64(t *testing.T) {
+	t.Parallel()
+	found := false
+	for _, pair := range teamspeakExternalBridgePackageAlternatives {
+		if pair[0] == "libasound2t64" {
+			found = true
+			if pair[1] != "libasound2" {
+				t.Fatalf("libasound2t64 fallback should be libasound2, got %q", pair[1])
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatal("libasound2t64 not found in teamspeakExternalBridgePackageAlternatives as preferred package")
+	}
 }

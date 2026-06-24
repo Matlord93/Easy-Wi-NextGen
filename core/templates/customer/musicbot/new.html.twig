@@ -1,0 +1,157 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set pageTitle = 'Musicbot erstellen' %}
+{% set activeNav = 'musicbots' %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:20px;max-width:720px;margin:0 auto;">
+
+    {# Header #}
+    <div class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div class="tkt-hero__pill">
+                        <span class="tkt-hero__pill-dot"></span>
+                        <a href="{{ path('customer_musicbot_index') }}" style="color:inherit;text-decoration:none;">Musicbots</a>
+                        &rsaquo; Neu
+                    </div>
+                    <h1 class="tkt-hero__title">Musicbot erstellen</h1>
+                    <p class="tkt-hero__sub">Richte deinen neuen Musicbot ein. Die Installation startet automatisch nach dem Speichern.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Flash messages #}
+    {% for type, msgs in app.flashes(['success','error','warning','info']) %}
+        {% for msg in msgs %}
+            <div class="ng-card" style="padding:12px 16px;border-left:3px solid {% if type=='success' %}var(--ng-success){% elseif type=='error' %}var(--ng-danger){% else %}var(--ng-primary){% endif %};">
+                <span style="font-size:13px;">{{ msg }}</span>
+            </div>
+        {% endfor %}
+    {% endfor %}
+
+    <form method="post" action="{{ path('customer_musicbot_create') }}">
+        {# ── Allgemein ── #}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);">
+                <h2 style="font-size:14px;font-weight:600;margin:0;">Allgemein</h2>
+            </div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:14px;">
+                <div>
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Name *</label>
+                    <input type="text" name="name" required maxlength="60" placeholder="Mein Musicbot"
+                           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    <div style="font-size:11px;color:var(--ng-text-muted);margin-top:4px;">Maximal 60 Zeichen. Nur zur Anzeige.</div>
+                </div>
+
+                {% if nodes|length > 1 %}
+                <div>
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Node</label>
+                    <select name="node_id" style="width:100%;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                        <option value="">Automatisch auswählen</option>
+                        {% for node in nodes %}
+                            <option value="{{ node.id }}">{{ node.name ?: node.id }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% else %}
+                    <input type="hidden" name="node_id" value="">
+                {% endif %}
+
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <input type="checkbox" id="autostart" name="autostart" value="1" style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                    <label for="autostart" style="font-size:13px;cursor:pointer;">Autostart aktivieren (Bot startet automatisch nach Serverstart)</label>
+                </div>
+            </div>
+        </div>
+
+        {# ── TeamSpeak ── #}
+        {% if limits.allow_teamspeak is not defined or limits.allow_teamspeak %}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;">
+                <h2 style="font-size:14px;font-weight:600;margin:0;">TeamSpeak</h2>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                    <input type="checkbox" name="ts_enabled" value="1" checked id="ts_enabled_toggle"
+                           onchange="document.getElementById('ts_fields').style.display=this.checked?'flex':'none'"
+                           style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                    TeamSpeak aktivieren
+                </label>
+            </div>
+            <div id="ts_fields" style="padding:16px;display:flex;flex-direction:column;gap:14px;">
+                <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Host / IP *</label>
+                        <input type="text" name="ts_host" placeholder="ts.example.com" maxlength="255"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Port</label>
+                        <input type="number" name="ts_port" value="9987" min="1" max="65535"
+                               style="width:100px;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Nickname</label>
+                    <input type="text" name="ts_nickname" value="Musicbot" maxlength="30"
+                           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Server-Passwort <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                        <input type="password" name="ts_server_password" autocomplete="new-password"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Channel-ID <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                        <input type="text" name="ts_channel_id" placeholder="z. B. 42"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Channel-Passwort <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                    <input type="password" name="ts_channel_password" autocomplete="new-password"
+                           style="width:50%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Webradio ── #}
+        {% if limits.allow_webradio is defined and limits.allow_webradio %}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;">
+                <h2 style="font-size:14px;font-weight:600;margin:0;">Webradio</h2>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                    <input type="checkbox" name="webradio_enabled" value="1"
+                           style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                    Webradio aktivieren
+                </label>
+            </div>
+            <div style="padding:14px 16px;">
+                <p style="margin:0;font-size:13px;color:var(--ng-text-muted);">Webradio-Einstellungen können nach der Erstellung unter „Verbindungen" angepasst werden.</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Discord (vorbereitet) ── #}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;opacity:.6;">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;">
+                <h2 style="font-size:14px;font-weight:600;margin:0;">Discord</h2>
+                <span class="ui-badge ui-badge--neutral" style="font-size:11px;">Bald verfügbar</span>
+            </div>
+            <div style="padding:14px 16px;">
+                <p style="margin:0;font-size:13px;color:var(--ng-text-muted);">Discord-Integration wird in einem zukünftigen Update freigeschaltet.</p>
+            </div>
+        </div>
+
+        {# ── Actions ── #}
+        <div style="display:flex;gap:12px;align-items:center;">
+            <button type="submit" class="ui-btn ui-btn--primary">Musicbot erstellen</button>
+            <a href="{{ path('customer_musicbot_index') }}" class="ui-btn">Abbrechen</a>
+        </div>
+    </form>
+
+</div>
+{% endblock %}

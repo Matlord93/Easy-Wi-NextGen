@@ -7,7 +7,7 @@ namespace App\Module\Musicbot\Application;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
-use App\Repository\MusicbotTrackRepository;
+use App\Repository\MusicbotTrackRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
@@ -25,13 +25,16 @@ final class MusicbotTrackService
         'audio/wave' => 'wav',
         'audio/flac' => 'flac',
         'audio/x-flac' => 'flac',
+        'audio/mp4' => 'm4a',
+        'audio/x-m4a' => 'm4a',
     ];
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly MusicbotTrackRepository $trackRepository,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotTrackRepositoryInterface $trackRepository,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly string $projectDir,
+        private readonly MusicbotWebradioUrlValidator $webradioValidator = new MusicbotWebradioUrlValidator(),
     ) {
     }
 
@@ -46,12 +49,16 @@ final class MusicbotTrackService
         if (!$file->isValid()) {
             throw new \InvalidArgumentException('Upload failed.');
         }
-        if ($file->getSize() === null || $file->getSize() <= 0) {
+        $fileSize = (int) $file->getSize();
+        if ($fileSize <= 0) {
             throw new \InvalidArgumentException('Track file size is invalid.');
         }
-        $this->quotaService->assertCanUploadTrack($customer, (int) $file->getSize());
+        $this->quotaService->assertCanUploadTrack($customer, $fileSize);
 
-        $mimeType = (string) ($file->getMimeType() ?: $file->getClientMimeType());
+        $serverMimeType = (string) $file->getMimeType();
+        $clientMimeType = (string) $file->getClientMimeType();
+        // Prefer server-detected type; fall back to client-claimed type when server detection is inconclusive.
+        $mimeType = isset(self::MIME_TO_EXTENSION[$serverMimeType]) ? $serverMimeType : $clientMimeType;
         $extension = self::MIME_TO_EXTENSION[$mimeType] ?? null;
         if ($extension === null) {
             throw new \InvalidArgumentException('Unsupported track file type.');
@@ -79,7 +86,7 @@ final class MusicbotTrackService
             $mimeType,
             $sha256,
             0,
-            ['original_name' => $file->getClientOriginalName(), 'size_bytes' => $file->getSize()]
+            ['original_name' => $file->getClientOriginalName(), 'size_bytes' => $fileSize]
         );
         $track->setArtist($artist !== null && trim($artist) !== '' ? trim($artist) : null);
         $track->setFilePath('var/' . $relativePath);
@@ -103,6 +110,95 @@ final class MusicbotTrackService
                 @unlink($absolutePath);
             }
         }
+    }
+
+    public function addWebradioTrack(User $customer, string $title, string $streamUrl): MusicbotTrack
+    {
+        $title = trim($title);
+        if ($title === '') {
+            throw new \InvalidArgumentException('Webradio track title must not be empty.');
+        }
+
+        $this->webradioValidator->validate($streamUrl);
+
+        // Count against track quota (webradio entries don't take storage but count as tracks).
+        $this->quotaService->assertCanUploadTrack($customer, 0);
+
+        $track = new MusicbotTrack(
+            $customer,
+            $title,
+            MusicbotTrackSourceType::Webradio,
+            'audio/mpeg',
+            hash('sha256', 'webradio:' . $streamUrl),
+            0,
+            ['stream_url' => $streamUrl],
+        );
+
+        $this->entityManager->persist($track);
+        $this->entityManager->flush();
+
+        return $track;
+    }
+
+    public function addYoutubeTrack(User $customer, string $youtubeUrl, ?string $title = null): MusicbotTrack
+    {
+        $youtubeUrl = trim($youtubeUrl);
+        if ($youtubeUrl === '') {
+            throw new \InvalidArgumentException('YouTube URL must not be empty.');
+        }
+
+        // Validates scheme and host against allowed YouTube domains.
+        $this->assertValidYoutubeUrl($youtubeUrl);
+
+        // Count against track quota.
+        $this->quotaService->assertCanUploadTrack($customer, 0);
+
+        $resolvedTitle = trim((string) $title) !== '' ? trim((string) $title) : 'YouTube – ' . $this->extractYoutubeVideoId($youtubeUrl);
+
+        $track = new MusicbotTrack(
+            $customer,
+            $resolvedTitle,
+            MusicbotTrackSourceType::Youtube,
+            'audio/mpeg',
+            hash('sha256', 'youtube:' . $youtubeUrl),
+            0,
+            ['youtube_url' => $youtubeUrl],
+        );
+
+        $this->entityManager->persist($track);
+        $this->entityManager->flush();
+
+        return $track;
+    }
+
+    private function assertValidYoutubeUrl(string $url): void
+    {
+        $parsed = parse_url($url);
+        if ($parsed === false || !isset($parsed['scheme'], $parsed['host'])) {
+            throw new \InvalidArgumentException('YouTube URL is not a valid URL.');
+        }
+        $scheme = strtolower($parsed['scheme']);
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            throw new \InvalidArgumentException('YouTube URL must use http or https.');
+        }
+        $host = strtolower(trim($parsed['host'], '[]'));
+        $allowed = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'music.youtube.com'];
+        if (!in_array($host, $allowed, true)) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a recognized YouTube domain.', $host));
+        }
+    }
+
+    private function extractYoutubeVideoId(string $url): string
+    {
+        // youtu.be/<id>
+        if (str_contains($url, 'youtu.be/')) {
+            $path = parse_url($url, PHP_URL_PATH) ?? '';
+            return ltrim($path, '/');
+        }
+        // youtube.com/watch?v=<id>
+        parse_str(parse_url($url, PHP_URL_QUERY) ?? '', $query);
+
+        return isset($query['v']) && is_string($query['v']) ? $query['v'] : 'unknown';
     }
 
     public function findTrackForCustomer(int $trackId, User $customer): ?MusicbotTrack

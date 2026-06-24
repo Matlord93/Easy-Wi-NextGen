@@ -376,7 +376,11 @@ func teamspeakBackendType(config TeamSpeakConnectorConfig) string {
 }
 
 func isTeamSpeakBackendRequiredError(err error) bool {
-	return errors.Is(err, ErrTeamSpeakVoiceBackendNotConfigured) || errors.Is(err, ErrTeamSpeakNativeSDKNotInstalled) || errors.Is(err, ErrTeamSpeakExternalBridgeNotConfigured)
+	return errors.Is(err, ErrTeamSpeakVoiceBackendNotConfigured) ||
+		errors.Is(err, ErrTeamSpeakNativeSDKNotInstalled) ||
+		errors.Is(err, ErrTeamSpeakExternalBridgeNotConfigured) ||
+		errors.Is(err, ErrTeamSpeakBridgeMissingBridgeBinary) ||
+		errors.Is(err, ErrTeamSpeakBridgeMissingClientBinary)
 }
 
 func teamspeakOutputBackend(status CapabilityStatus) string {
@@ -458,11 +462,35 @@ func teamspeakConfigString(config TeamSpeakConnectorConfig, key string) string {
 		if config.AudioBackend != "" {
 			return config.AudioBackend
 		}
+	case "instance_path":
+		if config.InstancePath != "" {
+			return config.InstancePath
+		}
+	case "runtime_dir":
+		if config.RuntimeDir != "" {
+			return config.RuntimeDir
+		}
+	case "client_query_host":
+		if config.ClientQueryHost != "" {
+			return config.ClientQueryHost
+		}
 	}
 	if config.Config == nil {
 		return ""
 	}
 	return asString(config.Config[key])
+}
+
+func teamspeakConfigClientQueryPort(config TeamSpeakConnectorConfig) int {
+	if config.ClientQueryPort > 0 {
+		return config.ClientQueryPort
+	}
+	if config.Config != nil {
+		if p := asInt(config.Config["client_query_port"]); p > 0 {
+			return p
+		}
+	}
+	return 0
 }
 
 func normalizeTeamspeakProfile(profile string) string {

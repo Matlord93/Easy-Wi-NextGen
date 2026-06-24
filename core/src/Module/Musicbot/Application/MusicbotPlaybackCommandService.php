@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
-use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -16,7 +16,7 @@ final class MusicbotPlaybackCommandService
     private const PLAYBACK_ACTIONS = ['play', 'pause', 'resume', 'stop', 'skip', 'volume', 'shuffle', 'repeat'];
 
     public function __construct(
-        private readonly AgentJobDispatcher $jobDispatcher,
+        private readonly AgentJobDispatcherInterface $jobDispatcher,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

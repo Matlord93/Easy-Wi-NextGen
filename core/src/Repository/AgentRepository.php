@@ -14,4 +14,10 @@ class AgentRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Agent::class);
     }
+
+    /** @return Agent[] */
+    public function findActive(): array
+    {
+        return $this->findBy(['status' => Agent::STATUS_ACTIVE], ['name' => 'ASC']);
+    }
 }

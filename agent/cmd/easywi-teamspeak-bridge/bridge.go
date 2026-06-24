@@ -38,17 +38,25 @@ type bridgeRequest struct {
 	ClientBinaryPath    string `json:"client_binary_path,omitempty"`
 	ClientRunscriptPath string `json:"client_runscript_path,omitempty"`
 	AudioBackend        string `json:"audio_backend,omitempty"`
+	InstancePath        string `json:"instance_path,omitempty"`
+	RuntimeDir          string `json:"runtime_dir,omitempty"`
+	ClientQueryHost     string `json:"client_query_host,omitempty"`
+	ClientQueryPort     int    `json:"client_query_port,omitempty"`
 }
 
 // bridgeResponse is the JSON object the bridge writes to stdout after each request.
 type bridgeResponse struct {
-	OK          bool   `json:"ok"`
-	Error       string `json:"error,omitempty"`
-	BackendType string `json:"backend_type,omitempty"`
-	Ready       bool   `json:"ready,omitempty"`
-	State       string `json:"state,omitempty"`
-	ClientID    string `json:"client_id,omitempty"`
-	ChannelID   string `json:"channel_id,omitempty"`
+	OK                    bool   `json:"ok"`
+	Error                 string `json:"error,omitempty"`
+	BackendType           string `json:"backend_type,omitempty"`
+	Ready                 bool   `json:"ready,omitempty"`
+	State                 string `json:"state,omitempty"`
+	ClientID              string `json:"client_id,omitempty"`
+	ChannelID             string `json:"channel_id,omitempty"`
+	Ts3LogPath            string `json:"ts3_log_path,omitempty"`
+	CrashdumpPath         string `json:"crashdump_path,omitempty"`
+	ClientQueryPort       int    `json:"client_query_port,omitempty"`
+	LicenseAcceptRequired bool   `json:"license_accept_required,omitempty"`
 }
 
 // bridge is the protocol engine. It owns the adapter, tracks connection state,
@@ -141,6 +149,10 @@ func (b *bridge) handleConnect(ctx context.Context, req bridgeRequest) bridgeRes
 		ClientBinaryPath:    req.ClientBinaryPath,
 		ClientRunscriptPath: req.ClientRunscriptPath,
 		AudioBackend:        req.AudioBackend,
+		InstancePath:        req.InstancePath,
+		RuntimeDir:          req.RuntimeDir,
+		ClientQueryHost:     req.ClientQueryHost,
+		ClientQueryPort:     req.ClientQueryPort,
 	}
 
 	b.mu.Lock()
@@ -297,12 +309,16 @@ func (b *bridge) handleStatus() bridgeResponse {
 		channelID = status.ChannelID
 	}
 	return bridgeResponse{
-		OK:          true,
-		BackendType: status.BackendType,
-		Ready:       status.Ready && state == stateConnected,
-		State:       state,
-		ClientID:    clientID,
-		ChannelID:   channelID,
+		OK:                    true,
+		BackendType:           status.BackendType,
+		Ready:                 status.Ready && state == stateConnected,
+		State:                 state,
+		ClientID:              clientID,
+		ChannelID:             channelID,
+		Ts3LogPath:            status.Ts3LogPath,
+		CrashdumpPath:         status.CrashdumpPath,
+		ClientQueryPort:       status.ClientQueryPort,
+		LicenseAcceptRequired: status.LicenseAcceptRequired,
 	}
 }
 

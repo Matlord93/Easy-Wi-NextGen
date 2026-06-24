@@ -10,18 +10,25 @@ use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Domain\Enum\ModuleKey;
+use App\Module\Musicbot\Application\MusicbotInstanceService;
 use App\Module\Musicbot\Application\MusicbotPlaybackCommandService;
 use App\Module\Musicbot\Application\MusicbotPlaylistService;
 use App\Module\Musicbot\Application\MusicbotPluginService;
 use App\Module\Musicbot\Application\MusicbotQueueService;
+use App\Module\Musicbot\Application\MusicbotQuotaService;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
+use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Application\MusicbotStreamService;
 use App\Module\Musicbot\Application\MusicbotTrackService;
+use App\Module\Musicbot\Application\MusicbotYoutubeResolverService;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
+use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlaylistVisibility;
 use App\Module\Musicbot\Domain\Enum\MusicbotRepeatMode;
 use App\Module\Musicbot\Domain\Entity\MusicbotQueueItem;
+use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
+use App\Repository\AgentRepository;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPlaylistRepository;
@@ -55,11 +62,16 @@ final class CustomerMusicbotController
         private readonly MusicbotPlaybackCommandService $playbackCommandService,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly MusicbotStreamService $streamService,
+        private readonly MusicbotYoutubeResolverService $youtubeResolver,
         private readonly AgentJobDispatcher $jobDispatcher,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly MusicbotInstanceService $instanceService,
+        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotSecretConfigService $secretConfigService,
+        private readonly AgentRepository $agentRepository,
     ) {
     }
 
@@ -68,11 +80,85 @@ final class CustomerMusicbotController
     {
         $customer = $this->requireCustomer($request);
         $instances = $this->instanceRepository->findByCustomer($customer);
+        $usage = $this->quotaService->usageForCustomer($customer);
 
         return new Response($this->twig->render('customer/musicbot/index.html.twig', [
             'activeNav' => 'musicbots',
             'instances' => $this->buildIndexRows($instances),
+            'usage' => $usage,
+            'canCreate' => ($usage['musicbots']['used'] < $usage['musicbots']['max']),
         ]));
+    }
+
+    #[Route(path: '/new', name: 'customer_musicbot_new', methods: ['GET'])]
+    public function newForm(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $usage = $this->quotaService->usageForCustomer($customer);
+
+        if ($usage['musicbots']['used'] >= $usage['musicbots']['max']) {
+            $this->flash($request, 'error', sprintf(
+                'Musicbot-Limit erreicht (%d/%d). Bitte Paket upgraden oder einen bestehenden Bot löschen.',
+                $usage['musicbots']['used'],
+                $usage['musicbots']['max'],
+            ));
+            return new Response('', Response::HTTP_FOUND, ['Location' => '/musicbots']);
+        }
+
+        $limits = $usage['limits'] ?? [];
+
+        return new Response($this->twig->render('customer/musicbot/new.html.twig', [
+            'activeNav' => 'musicbots',
+            'nodes' => $this->agentRepository->findActive(),
+            'limits' => $limits,
+        ]));
+    }
+
+    #[Route(path: '', name: 'customer_musicbot_create', methods: ['POST'])]
+    public function create(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+
+        try {
+            $nodeId = (string) $request->request->get('node_id', '');
+            $node = $nodeId !== '' ? $this->agentRepository->find($nodeId) : null;
+            if ($node === null) {
+                $active = $this->agentRepository->findActive();
+                $node = $active[0] ?? null;
+            }
+            if ($node === null) {
+                throw new \RuntimeException('Kein aktiver Agent-Node verfügbar. Bitte Anbieter kontaktieren.');
+            }
+
+            $instance = $this->instanceService->createInstance(
+                customer: $customer,
+                node: $node,
+                name: (string) $request->request->get('name', ''),
+                tsEnabled: $request->request->getBoolean('ts_enabled'),
+                tsConfig: [
+                    'host' => (string) $request->request->get('ts_host', ''),
+                    'port' => (int) $request->request->get('ts_port', 9987),
+                    'nickname' => (string) $request->request->get('ts_nickname', 'Musicbot'),
+                    'channel_id' => (string) $request->request->get('ts_channel_id', ''),
+                ],
+                tsSecrets: [
+                    'server_password' => (string) $request->request->get('ts_server_password', ''),
+                    'channel_password' => (string) $request->request->get('ts_channel_password', ''),
+                ],
+                autostart: $request->request->getBoolean('autostart'),
+                webradioEnabled: $request->request->getBoolean('webradio_enabled'),
+            );
+        } catch (MusicbotQuotaExceededException $e) {
+            $this->flash($request, 'error', $e->getMessage());
+            return new Response('', Response::HTTP_FOUND, ['Location' => '/musicbots/new']);
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+            return new Response('', Response::HTTP_FOUND, ['Location' => '/musicbots/new']);
+        }
+
+        $this->flash($request, 'success', sprintf('Musicbot „%s" wird jetzt eingerichtet.', $instance->getName()));
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $instance->getId())]);
     }
 
     #[Route(path: '/{id}', name: 'customer_musicbot_show', requirements: ['id' => '\\d+'], methods: ['GET'])]
@@ -81,13 +167,17 @@ final class CustomerMusicbotController
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstanceForCustomer($id, $customer);
         $queue = $this->queueItemRepository->findQueueForInstanceOrdered($instance);
-
+        $connections = $this->connectionRepository->findBy(['musicbotInstance' => $instance], ['id' => 'ASC']);
         $streamSettings = $this->streamService->getOrCreateSettings($instance);
+
+        $tsConnection = $this->findTsConnection($connections);
+        $tsConnectionConfig = $tsConnection?->getConnectionConfig() ?? [];
+        $maskedTsSecrets = $this->secretConfigService->mask($tsConnection?->getSecretConfig() ?? []);
 
         return new Response($this->twig->render('customer/musicbot/show.html.twig', [
             'activeNav' => 'musicbots',
             'instance' => $instance,
-            'connections' => $this->connectionRepository->findBy(['musicbotInstance' => $instance], ['id' => 'ASC']),
+            'connections' => $connections,
             'platformStatus' => $this->buildPlatformStatus($instance),
             'runtimeStatus' => $this->buildRuntimeStatus($instance, $queue),
             'queue' => $queue,
@@ -102,7 +192,134 @@ final class CustomerMusicbotController
             'streamSettings' => $streamSettings,
             'streamStatus' => $this->streamService->getStatus($instance),
             'actions' => self::ACTIONS,
+            'youtubeResolverAvailable' => $this->youtubeResolver->isAvailable(),
+            'instanceConfig' => $instance->getInstanceConfig(),
+            'tsConnectionConfig' => $tsConnectionConfig,
+            'maskedTsSecrets' => $maskedTsSecrets,
+            'tsConnectionEnabled' => $tsConnection?->isEnabled() ?? false,
         ]));
+    }
+
+    #[Route(path: '/{id}/settings', name: 'customer_musicbot_settings_update', requirements: ['id' => '\\d+'], methods: ['POST'])]
+    public function updateSettings(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        $section = (string) $request->request->get('_section', 'all');
+
+        try {
+            $general = [];
+            $tsConfig = [];
+            $tsSecrets = [];
+
+            if ($section === 'all' || $section === 'general') {
+                $general = [
+                    'name' => (string) $request->request->get('name', ''),
+                    'autostart' => $request->request->getBoolean('autostart'),
+                    'command_prefix' => (string) $request->request->get('command_prefix', '!'),
+                    'default_volume' => (int) $request->request->get('default_volume', 50),
+                    'auto_dj' => $request->request->getBoolean('auto_dj'),
+                    'repeat_default' => (string) $request->request->get('repeat_default', 'off'),
+                    'shuffle_default' => $request->request->getBoolean('shuffle_default'),
+                ];
+            }
+
+            if ($section === 'all' || $section === 'connections') {
+                $tsConfig = [
+                    'enabled' => $request->request->getBoolean('ts_enabled'),
+                    'host' => (string) $request->request->get('ts_host', ''),
+                    'port' => (int) $request->request->get('ts_port', 9987),
+                    'nickname' => (string) $request->request->get('ts_nickname', ''),
+                    'channel_id' => (string) $request->request->get('ts_channel_id', ''),
+                ];
+                $tsSecrets = [
+                    'server_password' => (string) $request->request->get('ts_server_password', ''),
+                    'channel_password' => (string) $request->request->get('ts_channel_password', ''),
+                ];
+
+                $this->streamService->saveSettings($customer, $instance, [
+                    'access_mode' => (string) $request->request->get('webradio_access_mode', 'private'),
+                    'stream_title' => (string) $request->request->get('webradio_stream_title', ''),
+                    'bitrate' => (int) $request->request->get('webradio_bitrate', 128),
+                    'format' => (string) $request->request->get('webradio_format', 'mp3'),
+                ]);
+
+                if ($request->request->has('webradio_enabled')) {
+                    if ($request->request->getBoolean('webradio_enabled')) {
+                        $this->streamService->enable($customer, $instance);
+                    } else {
+                        $this->streamService->disable($customer, $instance);
+                    }
+                }
+            }
+
+            $this->instanceService->updateSettings(
+                customer: $customer,
+                instance: $instance,
+                general: $general,
+                tsConfig: $tsConfig,
+                tsSecrets: $tsSecrets,
+            );
+
+            $this->flash($request, 'success', 'Einstellungen wurden gespeichert.');
+
+            if ($request->request->get('_action') === 'save_restart') {
+                $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.service.action', [
+                    'instance_id' => (string) $instance->getId(),
+                    'service_name' => $instance->getServiceName(),
+                    'install_path' => $instance->getInstallPath(),
+                    'action' => 'restart',
+                ]);
+                $this->auditLogger->log($customer, 'musicbot.settings_save_restart', ['instance_id' => $id, 'job_id' => $job->getId()]);
+                $this->entityManager->flush();
+                $this->flash($request, 'success', 'Neustart wurde angefordert.');
+            }
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+        }
+
+        $redirectTab = $section === 'connections' ? 'verbindungen' : 'einstellungen';
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d#tab-%s', $id, $redirectTab)]);
+    }
+
+    #[Route(path: '/{id}/connections/test', name: 'customer_musicbot_connection_test', requirements: ['id' => '\\d+'], methods: ['POST'])]
+    public function testConnection(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+
+        try {
+            $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.connection.test', [
+                'instance_id' => (string) $instance->getId(),
+                'service_name' => $instance->getServiceName(),
+            ]);
+            $this->auditLogger->log($customer, 'musicbot.connection_test', ['instance_id' => $id, 'job_id' => $job->getId()]);
+            $this->entityManager->flush();
+            $this->flash($request, 'info', 'Verbindungstest gestartet – Ergebnis erscheint in den Logs.');
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+        }
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d#tab-verbindungen', $id)]);
+    }
+
+    #[Route(path: '/{id}/delete', name: 'customer_musicbot_delete', requirements: ['id' => '\\d+'], methods: ['POST'])]
+    public function deleteInstance(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+
+        try {
+            $name = $instance->getName();
+            $this->instanceService->deleteInstance($customer, $instance);
+            $this->flash($request, 'success', sprintf('Musicbot „%s" wurde gelöscht.', $name));
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+            return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+        }
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => '/musicbots']);
     }
 
 
@@ -266,17 +483,65 @@ final class CustomerMusicbotController
         $instance = $this->findInstanceForCustomer($id, $customer);
         $file = $request->files->get('track_file');
         if (!$file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
-            return new Response('Track file is required.', Response::HTTP_BAD_REQUEST);
+            $this->flash($request, 'error', 'Bitte eine Audiodatei auswählen.');
+            return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
         }
         try {
             $track = $this->trackService->uploadTrack($customer, $file, (string) $request->request->get('title', ''), (string) $request->request->get('artist', ''));
         } catch (\Throwable $e) {
-            return new Response($e->getMessage(), Response::HTTP_BAD_REQUEST);
+            $this->flash($request, 'error', $e->getMessage());
+            return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
         }
         $this->runtimeEventService->record($instance, 'track.uploaded', 'info', 'Track uploaded.', ['track_id' => $track->getId(), 'sha256' => $track->getSha256()]);
         $this->auditLogger->log($customer, 'musicbot.track_uploaded', ['track_id' => $track->getId(), 'instance_id' => $id]);
         $this->entityManager->flush();
-        $this->flash($request, 'success', 'Aktion erfolgreich ausgeführt.');
+        $this->flash($request, 'success', sprintf('Track „%s" wurde erfolgreich hochgeladen.', $track->getTitle()));
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
+
+    #[Route(path: '/{id}/tracks/webradio', name: 'customer_musicbot_track_webradio', requirements: ['id' => '\\d+'], methods: ['POST'])]
+    public function addWebradioTrack(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        try {
+            $track = $this->trackService->addWebradioTrack(
+                $customer,
+                (string) $request->request->get('title', ''),
+                (string) $request->request->get('stream_url', ''),
+            );
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+            return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+        }
+        $this->runtimeEventService->record($instance, 'track.added', 'info', 'Webradio track added.', ['track_id' => $track->getId()]);
+        $this->auditLogger->log($customer, 'musicbot.webradio_track_added', ['track_id' => $track->getId(), 'instance_id' => $id]);
+        $this->entityManager->flush();
+        $this->flash($request, 'success', sprintf('Webradio-Track „%s" wurde hinzugefügt.', $track->getTitle()));
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
+
+    #[Route(path: '/{id}/tracks/youtube', name: 'customer_musicbot_track_youtube', requirements: ['id' => '\\d+'], methods: ['POST'])]
+    public function addYoutubeTrack(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        try {
+            $track = $this->trackService->addYoutubeTrack(
+                $customer,
+                (string) $request->request->get('youtube_url', ''),
+                (string) $request->request->get('title', '') ?: null,
+            );
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+            return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+        }
+        $this->runtimeEventService->record($instance, 'track.added', 'info', 'YouTube track added.', ['track_id' => $track->getId()]);
+        $this->auditLogger->log($customer, 'musicbot.youtube_track_added', ['track_id' => $track->getId(), 'instance_id' => $id]);
+        $this->entityManager->flush();
+        $this->flash($request, 'success', sprintf('YouTube-Track „%s" wurde hinzugefügt.', $track->getTitle()));
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
     }
@@ -311,6 +576,31 @@ final class CustomerMusicbotController
         $this->runtimeEventService->record($instance, 'queue.updated', 'info', 'Queue updated.');
         $this->auditLogger->log($customer, 'musicbot.track_queued', ['track_id' => $trackId, 'queue_item_id' => $queueItem->getId(), 'instance_id' => $id]);
         $this->entityManager->flush();
+        $this->flash($request, 'success', sprintf('„%s" wurde zur Queue hinzugefügt.', $track->getTitle()));
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
+
+    #[Route(path: '/{id}/tracks/{trackId}/play', name: 'customer_musicbot_track_play_now', requirements: ['id' => '\\d+', 'trackId' => '\\d+'], methods: ['POST'])]
+    public function playTrackNow(Request $request, int $id, int $trackId): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        $track = $this->trackService->findTrackForCustomer($trackId, $customer);
+        if (!$track instanceof \App\Module\Musicbot\Domain\Entity\MusicbotTrack) {
+            throw new NotFoundHttpException($this->translator->trans('error_not_found'));
+        }
+        try {
+            $queueItem = $this->queueService->prependTrackToQueue($customer, $instance, $track, $customer);
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+            return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+        }
+        $job = $this->playbackCommandService->dispatchPlaybackAction($customer, $instance, 'play');
+        $this->runtimeEventService->record($instance, 'queue.updated', 'info', 'Track prepended for play-now.', ['track_id' => $trackId, 'queue_item_id' => $queueItem->getId()]);
+        $this->auditLogger->log($customer, 'musicbot.track_play_now', ['track_id' => $trackId, 'queue_item_id' => $queueItem->getId(), 'instance_id' => $id, 'job_id' => $job->getId()]);
+        $this->entityManager->flush();
+        $this->flash($request, 'success', sprintf('„%s" wird jetzt abgespielt.', $track->getTitle()));
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
     }
@@ -474,6 +764,18 @@ final class CustomerMusicbotController
         $this->flash($request, 'success', 'Plugin-Konfiguration wurde gespeichert.');
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
+
+    /** @param MusicbotConnection[] $connections */
+    private function findTsConnection(array $connections): ?MusicbotConnection
+    {
+        foreach ($connections as $connection) {
+            if ($connection->getPlatform() === MusicbotPlatform::Teamspeak) {
+                return $connection;
+            }
+        }
+
+        return null;
     }
 
     private function requireCustomer(Request $request): User
