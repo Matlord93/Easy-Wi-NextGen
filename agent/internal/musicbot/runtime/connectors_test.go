@@ -445,18 +445,28 @@ func TestExternalBridgeConnectPassesInstancePathAndRuntimeDir(t *testing.T) {
 	}
 }
 
+// writeMockTeamspeakBridge returns a path to a mock bridge executable by
+// symlinking the test binary itself. TestMain detects the "mock-ts-bridge"
+// base name and runs runMockBridgeProtocol instead of the test suite.
+// A "mock-ts-bridge.fail" marker file in the same directory enables fail mode.
+// Using a symlink to a compiled binary avoids the ETXTBSY race that occurs on
+// Linux when parallel goroutines fork while another OS thread holds an
+// O_WRONLY fd to a freshly-written shell script at the same path.
 func writeMockTeamspeakBridge(t *testing.T, fail bool) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "mock-ts-bridge")
-	joinResponse := `{"ok":true,"channel_id":"123"}`
-	sendResponse := `{"ok":true}`
-	if fail {
-		joinResponse = `{"ok":false,"error":"join failed with super-secret"}`
-		sendResponse = `{"ok":false,"error":"send failed"}`
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable: %v", err)
 	}
-	script := "#!/bin/sh\nwhile IFS= read -r line; do\ncase \"$line\" in\n*disconnect*) echo '{\"ok\":true}' ; exit 0 ;;\n*reconnect*) echo '{\"ok\":true,\"state\":\"connected\",\"client_id\":\"mock-client\"}' ;;\n*connect*) echo '{\"ok\":true,\"state\":\"connected\",\"client_id\":\"mock-client\"}' ;;\n*join_channel*) echo '" + joinResponse + "' ;;\n*send_opus_frame*) echo '" + sendResponse + "' ;;\n*status*) echo '{\"ok\":true,\"state\":\"connected\",\"client_id\":\"mock-client\"}' ;;\n*) echo '{\"ok\":true}' ;;\nesac\ndone\n"
-	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mock-ts-bridge")
+	if err := os.Symlink(exe, path); err != nil {
+		t.Fatalf("symlink mock bridge: %v", err)
+	}
+	if fail {
+		if err := os.WriteFile(filepath.Join(dir, "mock-ts-bridge.fail"), nil, 0o600); err != nil {
+			t.Fatalf("write fail marker: %v", err)
+		}
 	}
 	return path
 }

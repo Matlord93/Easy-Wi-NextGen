@@ -178,8 +178,8 @@ func (c *NativeSdkTeamspeakVoiceClient) SendOpusFrame(ctx context.Context, frame
 // shell and refuses known third-party musicbot binaries.
 type ExternalBridgeTeamspeakVoiceClient struct {
 	teamspeakBackendBase
-	mu          sync.Mutex    // protects cmd, stdin, scanner, state fields
-	roundTripMu sync.Mutex    // serializes bridgeRoundTrip calls
+	mu          sync.Mutex // protects cmd, stdin, scanner, state fields
+	roundTripMu sync.Mutex // serializes bridgeRoundTrip calls
 	cmd         *exec.Cmd
 	stdin       io.WriteCloser
 	scanner     *bufio.Scanner

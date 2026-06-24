@@ -47,10 +47,10 @@ const (
 	teamspeakBackendStatusOfficialInvalid        = "official_client_invalid"
 	teamspeakBackendStatusOfficialReady          = "official_client_ready"
 
-	teamspeakBackendStatusExternalBridgeReady    = "external_bridge_ready"
-	teamspeakBackendStatusXvfbMissing            = "xvfb_missing"
-	teamspeakBackendStatusAudioBackendMissing    = "audio_backend_missing"
-	teamspeakBackendStatusClientBinaryMissing    = "client_binary_missing"
+	teamspeakBackendStatusExternalBridgeReady      = "external_bridge_ready"
+	teamspeakBackendStatusXvfbMissing              = "xvfb_missing"
+	teamspeakBackendStatusAudioBackendMissing      = "audio_backend_missing"
+	teamspeakBackendStatusClientBinaryMissing      = "client_binary_missing"
 	teamspeakBackendStatusClientQueryPluginMissing = "clientquery_plugin_missing"
 )
 
@@ -93,9 +93,9 @@ var teamspeakExternalBridgePackages = []string{
 // (Ubuntu 22.04 and earlier)]. The installer tries the preferred name first and
 // falls back to the second when apt-cache cannot locate the preferred package.
 var teamspeakExternalBridgePackageAlternatives = [][2]string{
-	{"libasound2t64", "libasound2"},  // Ubuntu 24.04 transition package rename
-	{"libc++1-18", "libc++1"},        // LLVM versioned vs. unversioned
-	{"libc++abi1-18", "libc++abi1"},  // LLVM versioned vs. unversioned
+	{"libasound2t64", "libasound2"}, // Ubuntu 24.04 transition package rename
+	{"libc++1-18", "libc++1"},       // LLVM versioned vs. unversioned
+	{"libc++abi1-18", "libc++abi1"}, // LLVM versioned vs. unversioned
 }
 
 const teamspeakBackendDefaultTimeout = 8 * time.Second
@@ -158,30 +158,30 @@ type teamspeakBackendConfig struct {
 }
 
 type teamspeakBackendValidation struct {
-	Status                string
-	BackendType           string
-	BackendPath           string
-	LibraryPath           string
-	OpusLibraryPath       string
-	IdentityPath          string
-	InstallPath           string
-	BinaryPath            string
-	Version               string
-	Checksum              string
-	AutoInstall           bool
-	BinaryFound           bool
-	BinaryExec            bool
-	LibraryFound          bool
-	OpusFound             bool
-	IdentityFound         bool
-	BuildMode             string
-	Ready                 bool
-	Connected             bool
-	LastError             string
-	LastCheckedAt         string
-	BridgePath            string
-	ClientBinaryPath      string
-	ClientRunscriptPath   string
+	Status                     string
+	BackendType                string
+	BackendPath                string
+	LibraryPath                string
+	OpusLibraryPath            string
+	IdentityPath               string
+	InstallPath                string
+	BinaryPath                 string
+	Version                    string
+	Checksum                   string
+	AutoInstall                bool
+	BinaryFound                bool
+	BinaryExec                 bool
+	LibraryFound               bool
+	OpusFound                  bool
+	IdentityFound              bool
+	BuildMode                  string
+	Ready                      bool
+	Connected                  bool
+	LastError                  string
+	LastCheckedAt              string
+	BridgePath                 string
+	ClientBinaryPath           string
+	ClientRunscriptPath        string
 	XvfbAvailable              bool
 	AudioBackendAvailable      bool
 	ClientQueryPluginAvailable bool
@@ -227,7 +227,7 @@ func handleMusicbotTeamspeakBackendRepair(job jobs.Job) orchestratorResult {
 	}
 	validation := validateTeamspeakBackendConfig(cfg, true)
 	readyStatuses := map[string]bool{
-		teamspeakBackendStatusReady:              true,
+		teamspeakBackendStatusReady:               true,
 		teamspeakBackendStatusExternalBridgeReady: true,
 		teamspeakBackendStatusConnected:           true,
 	}
@@ -1414,30 +1414,30 @@ func sanitizeTeamspeakBackendError(value string, cfg teamspeakBackendConfig) str
 
 func teamspeakBackendResult(status string, validation teamspeakBackendValidation) orchestratorResult {
 	payload := map[string]any{
-		"backend_type":            validation.BackendType,
-		"backend_path":            validation.BackendPath,
-		"library_path":            validation.LibraryPath,
-		"opus_library_path":       validation.OpusLibraryPath,
-		"identity_path":           validation.IdentityPath,
-		"install_path":            validation.InstallPath,
-		"binary_path":             validation.BinaryPath,
-		"version":                 validation.Version,
-		"checksum":                validation.Checksum,
-		"auto_install_enabled":    validation.AutoInstall,
-		"status":                  validation.Status,
-		"binary_found":            validation.BinaryFound,
-		"binary_executable":       validation.BinaryExec,
-		"library_found":           validation.LibraryFound,
-		"opus_found":              validation.OpusFound,
-		"identity_found":          validation.IdentityFound,
-		"build_mode":              validation.BuildMode,
-		"ready":                   validation.Ready,
-		"connected":               validation.Connected,
-		"last_error":              validation.LastError,
-		"last_checked_at":         validation.LastCheckedAt,
-		"bridge_path":             validation.BridgePath,
-		"client_binary_path":      validation.ClientBinaryPath,
-		"client_runscript_path":   validation.ClientRunscriptPath,
+		"backend_type":                  validation.BackendType,
+		"backend_path":                  validation.BackendPath,
+		"library_path":                  validation.LibraryPath,
+		"opus_library_path":             validation.OpusLibraryPath,
+		"identity_path":                 validation.IdentityPath,
+		"install_path":                  validation.InstallPath,
+		"binary_path":                   validation.BinaryPath,
+		"version":                       validation.Version,
+		"checksum":                      validation.Checksum,
+		"auto_install_enabled":          validation.AutoInstall,
+		"status":                        validation.Status,
+		"binary_found":                  validation.BinaryFound,
+		"binary_executable":             validation.BinaryExec,
+		"library_found":                 validation.LibraryFound,
+		"opus_found":                    validation.OpusFound,
+		"identity_found":                validation.IdentityFound,
+		"build_mode":                    validation.BuildMode,
+		"ready":                         validation.Ready,
+		"connected":                     validation.Connected,
+		"last_error":                    validation.LastError,
+		"last_checked_at":               validation.LastCheckedAt,
+		"bridge_path":                   validation.BridgePath,
+		"client_binary_path":            validation.ClientBinaryPath,
+		"client_runscript_path":         validation.ClientRunscriptPath,
 		"xvfb_available":                validation.XvfbAvailable,
 		"audio_backend_available":       validation.AudioBackendAvailable,
 		"client_query_plugin_available": validation.ClientQueryPluginAvailable,

@@ -79,24 +79,24 @@ func (p pulseAudioState) envSocket() string {
 // client subprocess. Stored in the adapter so crash diagnostics can include
 // full launch context. No secrets are included.
 type ts3DiagContext struct {
-	mode              string // "runscript" or "binary"
-	execPath          string
-	args              []string
-	cmdDir            string
-	display           string
-	runtimeDir        string
-	ts3Home           string // persistent ts3home (settings.db, license state)
-	xdgRuntimeDir     string
-	tmpDir            string
-	cqHost            string
-	cqPort            int
-	officialDir       string
-	pluginPath        string
-	pluginExists      bool
-	runscriptExst     bool
-	binaryPath        string
-	binaryExists      bool
-	env               []string
+	mode          string // "runscript" or "binary"
+	execPath      string
+	args          []string
+	cmdDir        string
+	display       string
+	runtimeDir    string
+	ts3Home       string // persistent ts3home (settings.db, license state)
+	xdgRuntimeDir string
+	tmpDir        string
+	cqHost        string
+	cqPort        int
+	officialDir   string
+	pluginPath    string
+	pluginExists  bool
+	runscriptExst bool
+	binaryPath    string
+	binaryExists  bool
+	env           []string
 	// persistent ts3home diagnostics
 	settingsDbPath        string
 	settingsDbExists      bool
@@ -145,31 +145,31 @@ func buildLDLibraryPath(clientDir string) string {
 type ExternalClientBridgeAdapter struct {
 	mu sync.Mutex
 
-	xvfbCmd              *exec.Cmd
-	pulseCmd             *exec.Cmd
-	ts3Cmd               *exec.Cmd
-	ffmpegCmd            *exec.Cmd
-	ts3Stderr            *bytes.Buffer
-	display              string
-	pulseSocket          string
-	sinkName             string
-	sourceName           string
-	runtimeDir           string // root of runtime dirs (volatile; may be removed on cleanup)
-	persistentTs3Home    string // persistent ts3home; never removed on cleanup
-	tmpHome              string // non-empty only when using os.MkdirTemp (non-persistent)
-	ts3LogPath           string
-	crashdumpPath        string
-	clientQueryHost      string
-	clientQueryPort      int
-	state                string
-	clientID             string
-	lastError            string
-	licenseAcceptRequired bool   // preserved across cleanup so Status() can report it
-	serverPW             string
-	channelPW            string
-	lastParams           connectParams
-	connectCancel        context.CancelFunc
-	ts3DiagCtx           *ts3DiagContext // pre-launch snapshot; nil until first start attempt
+	xvfbCmd               *exec.Cmd
+	pulseCmd              *exec.Cmd
+	ts3Cmd                *exec.Cmd
+	ffmpegCmd             *exec.Cmd
+	ts3Stderr             *bytes.Buffer
+	display               string
+	pulseSocket           string
+	sinkName              string
+	sourceName            string
+	runtimeDir            string // root of runtime dirs (volatile; may be removed on cleanup)
+	persistentTs3Home     string // persistent ts3home; never removed on cleanup
+	tmpHome               string // non-empty only when using os.MkdirTemp (non-persistent)
+	ts3LogPath            string
+	crashdumpPath         string
+	clientQueryHost       string
+	clientQueryPort       int
+	state                 string
+	clientID              string
+	lastError             string
+	licenseAcceptRequired bool // preserved across cleanup so Status() can report it
+	serverPW              string
+	channelPW             string
+	lastParams            connectParams
+	connectCancel         context.CancelFunc
+	ts3DiagCtx            *ts3DiagContext // pre-launch snapshot; nil until first start attempt
 }
 
 func NewExternalClientBridgeAdapter() *ExternalClientBridgeAdapter {
@@ -1196,7 +1196,6 @@ func startTS3Client(ctx context.Context, params connectParams, clientBinary, run
 	}
 	return cmd, &stderrBuf, diagCtx, nil
 }
-
 
 // injectOpusViaPulse decodes an Opus frame via ffmpeg and writes the PCM output
 // to the PulseAudio null sink. Secrets never appear here.

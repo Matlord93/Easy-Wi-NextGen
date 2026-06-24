@@ -254,11 +254,11 @@ func TestRuntimeStaysActiveWhenBridgeMissing(t *testing.T) {
 		LogDir:      filepath.Join(dir, "logs"),
 		PluginDir:   filepath.Join(dir, "plugins"),
 		TeamSpeak: TeamSpeakConnectorConfig{
-			Enabled:          true,
-			Autoconnect:      true,
-			BackendType:      TeamSpeakBackendTypeExternalClientBridge,
-			BridgePath:       "/nonexistent/easywi-teamspeak-bridge",
-			Host:             "ts.example.com",
+			Enabled:     true,
+			Autoconnect: true,
+			BackendType: TeamSpeakBackendTypeExternalClientBridge,
+			BridgePath:  "/nonexistent/easywi-teamspeak-bridge",
+			Host:        "ts.example.com",
 		},
 	}, &logBuf)
 	if err != nil {

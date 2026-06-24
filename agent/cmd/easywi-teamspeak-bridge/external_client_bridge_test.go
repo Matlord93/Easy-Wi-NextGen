@@ -747,14 +747,14 @@ func TestStartTS3ClientEnvContainsRequiredVars(t *testing.T) {
 
 	checks := map[string]string{
 		"HOME":             persistentTs3Home,
-		"XDG_CONFIG_HOME": filepath.Join(persistentTs3Home, ".config"),
-		"XDG_DATA_HOME":   filepath.Join(persistentTs3Home, ".local", "share"),
-		"XDG_CACHE_HOME":  filepath.Join(runtimeDir, "cache"),
-		"XDG_RUNTIME_DIR": filepath.Join(runtimeDir, "xdg-runtime"),
-		"QT_QPA_PLATFORM": "xcb",
-		"DISPLAY":         ":201",
+		"XDG_CONFIG_HOME":  filepath.Join(persistentTs3Home, ".config"),
+		"XDG_DATA_HOME":    filepath.Join(persistentTs3Home, ".local", "share"),
+		"XDG_CACHE_HOME":   filepath.Join(runtimeDir, "cache"),
+		"XDG_RUNTIME_DIR":  filepath.Join(runtimeDir, "xdg-runtime"),
+		"QT_QPA_PLATFORM":  "xcb",
+		"DISPLAY":          ":201",
 		"EASYWI_TS_BRIDGE": "1",
-		"TMPDIR":          filepath.Join(instancePath, "runtime", "tmp"),
+		"TMPDIR":           filepath.Join(instancePath, "runtime", "tmp"),
 	}
 	for k, want := range checks {
 		if got := m[k]; got != want {

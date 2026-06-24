@@ -50,6 +50,11 @@ final class MusicbotQueueServiceSyncTest extends TestCase
             {
                 return null;
             }
+
+            public function findByCustomer(User $customer): array
+            {
+                return [];
+            }
         };
 
         $quotaService = new class implements MusicbotQuotaServiceInterface {
