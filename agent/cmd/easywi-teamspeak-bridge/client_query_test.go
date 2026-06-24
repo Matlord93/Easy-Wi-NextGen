@@ -609,7 +609,7 @@ func TestWaitForTSServerConnectedRetry1796(t *testing.T) {
 func TestWaitForTSServerConnectedRequiresCID(t *testing.T) {
 	// First response has clid but no cid; second response has both.
 	responses := []string{
-		"clid=29\nerror id=0 msg=ok\n",   // clid only — not enough
+		"clid=29\nerror id=0 msg=ok\n",       // clid only — not enough
 		"clid=29 cid=1\nerror id=0 msg=ok\n", // full success
 	}
 	idx := 0
