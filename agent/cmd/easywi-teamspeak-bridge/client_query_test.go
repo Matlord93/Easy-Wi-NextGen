@@ -359,7 +359,7 @@ func mockCQServer(t *testing.T, handler func(net.Conn)) (net.Listener, int) {
 // via the provided map (prefix → response line(s)). This avoids pre-buffering
 // responses ahead of the client's requests.
 func lineDispatcher(conn net.Conn, responses map[string]string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_, _ = conn.Write([]byte("TS3 Client\n"))
 	sc := bufio.NewScanner(conn)
 	for sc.Scan() {
