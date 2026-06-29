@@ -46,8 +46,9 @@ final class MusicbotLimitRegressionTest extends TestCase
             self::assertStringContainsString($field, $template);
         }
 
-        $migration = file_get_contents(__DIR__.'/../../../Migrations.php');
-        self::assertIsString($migration);
+        $migrationPath = __DIR__.'/../../migrations/Version20260629120000.php';
+        $migration = file_get_contents($migrationPath);
+        self::assertIsString($migration, sprintf('Unable to read migration file: %s', $migrationPath));
         self::assertStringContainsString('max_playlist_items', $migration);
         self::assertStringContainsString('allow_stream', $migration);
         self::assertStringContainsString('allow_api', $migration);
