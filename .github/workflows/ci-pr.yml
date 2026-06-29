@@ -48,7 +48,7 @@ jobs:
           required-extensions: mbstring,intl,pdo,pdo_mysql,pdo_pgsql,openssl
 
       - name: Cache Composer
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.composer/cache/files
@@ -155,7 +155,7 @@ jobs:
         uses: ./.github/actions/configure-go-build-cache
 
       - name: Cache Go module downloads
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-gomod-${{ hashFiles('agent/go.sum') }}
