@@ -149,11 +149,16 @@ final class MusicbotRuntimeStatusNormalizer
             return $payload[$key] ?? $status[$key] ?? $pipeline[$key] ?? $playback[$key] ?? null;
         };
 
-        $stateConnected = $this->truthy($read('state_connected'));
-        $tsServerConnected = $this->truthy($read('ts_server_connected'));
-        $voiceClientAvailable = $this->truthy($read('voice_client_available'));
-        $audioInjectionReady = $this->truthy($read('audio_injection_ready'));
-        $capability = strtolower((string) ($read('capability_status') ?? ''));
+        // Runtime readiness must come from the current runtime payload (or promoted
+        // connector fields), not from stale legacy playback_status snapshots. A
+        // persisted playback_status alone may describe an older ready state and
+        // must not make a fresh payload ready without the canonical runtime
+        // readiness fields.
+        $stateConnected = $this->truthy($payload['state_connected'] ?? $pipeline['state_connected'] ?? $playback['state_connected'] ?? null);
+        $tsServerConnected = $this->truthy($payload['ts_server_connected'] ?? $pipeline['ts_server_connected'] ?? $playback['ts_server_connected'] ?? null);
+        $voiceClientAvailable = $this->truthy($payload['voice_client_available'] ?? $pipeline['voice_client_available'] ?? $playback['voice_client_available'] ?? null);
+        $audioInjectionReady = $this->truthy($payload['audio_injection_ready'] ?? $pipeline['audio_injection_ready'] ?? $playback['audio_injection_ready'] ?? null);
+        $capability = strtolower((string) ($payload['capability_status'] ?? $pipeline['capability_status'] ?? $playback['capability_status'] ?? ''));
         $runtimeReady = $stateConnected
             && $tsServerConnected
             && $voiceClientAvailable
@@ -171,7 +176,7 @@ final class MusicbotRuntimeStatusNormalizer
         } else {
             $teamspeakConnected = false;
             $audioReady = false;
-            $audioBackendStatus = $audioBackendStatus !== '' ? $audioBackendStatus : 'not_ready';
+            $audioBackendStatus = $audioBackendStatus !== '' && $audioBackendStatus !== 'ready' ? $audioBackendStatus : 'not_ready';
             $audioMessage = (string) ($read('audio_backend_message') ?? '');
             $diagnostic = (string) ($read('diagnostic') ?? 'Wartet auf Runtime');
             $capability = $capability !== '' ? $capability : 'client_backend_required';
