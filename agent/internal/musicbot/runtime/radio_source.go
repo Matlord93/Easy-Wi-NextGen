@@ -12,9 +12,9 @@ import (
 
 // RadioReconnectPolicy configures automatic reconnect behaviour for radio streams.
 type RadioReconnectPolicy struct {
-	MaxRetries         int           `json:"max_retries"`
-	RetryDelaySeconds  int           `json:"retry_delay_seconds"`
-	BackoffMultiplier  float64       `json:"backoff_multiplier"`
+	MaxRetries        int     `json:"max_retries"`
+	RetryDelaySeconds int     `json:"retry_delay_seconds"`
+	BackoffMultiplier float64 `json:"backoff_multiplier"`
 }
 
 func defaultRadioReconnectPolicy() RadioReconnectPolicy {

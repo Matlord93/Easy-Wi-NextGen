@@ -20,12 +20,12 @@ func TestExistingTeamSpeakConfigProducesIdenticalRuntimeFunction(t *testing.T) {
 		LogDir:      filepath.Join(dir, "logs"),
 		PluginDir:   filepath.Join(dir, "plugins"),
 		TeamSpeak: TeamSpeakConnectorConfig{
-			Enabled:  true,
-			Profile:  "ts3",
-			Backend:  "ts3_client_compatible",
-			Host:     "ts.example.com",
-			Port:     9987,
-			Nickname: "MusicBot",
+			Enabled:   true,
+			Profile:   "ts3",
+			Backend:   "ts3_client_compatible",
+			Host:      "ts.example.com",
+			Port:      9987,
+			Nickname:  "MusicBot",
 			ChannelID: "42",
 		},
 	}
@@ -58,10 +58,10 @@ func TestConnectorsTeamspeakIsBuiltCorrectly(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	connector := NewTeamSpeakConnector(TeamSpeakConnectorConfig{
-		Enabled:  true,
-		Profile:  "ts3",
-		Backend:  "ts3_client_compatible",
-		Host:     "ts.example.com",
+		Enabled: true,
+		Profile: "ts3",
+		Backend: "ts3_client_compatible",
+		Host:    "ts.example.com",
 	})
 	if got := connector.Platform(); got != "teamspeak" {
 		t.Errorf("Platform() = %q, want %q", got, "teamspeak")
@@ -108,10 +108,10 @@ func TestOutputBackendTeamspeakVoiceRemains(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	connector := NewTeamSpeakVoiceConnector(TeamSpeakConnectorConfig{
-		Enabled:  true,
-		Profile:  "ts3",
-		Backend:  "ts3_client_compatible",
-		Host:     "127.0.0.1",
+		Enabled: true,
+		Profile: "ts3",
+		Backend: "ts3_client_compatible",
+		Host:    "127.0.0.1",
 	})
 	status := connector.GetStatus(ctx)
 	// With placeholder backend the output_backend starts as "null"; when ready it

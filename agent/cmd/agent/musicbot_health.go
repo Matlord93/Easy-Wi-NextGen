@@ -130,15 +130,15 @@ func handleMusicbotHealthCheck(job jobs.Job) orchestratorResult {
 	}
 
 	payload := map[string]any{
-		"health":           health,
-		"running":          running,
-		"service_exists":   serviceExists,
-		"systemd_status":   systemdStatus,
-		"journal_excerpt":  journalExcerpt,
-		"last_error":       lastError,
+		"health":            health,
+		"running":           running,
+		"service_exists":    serviceExists,
+		"systemd_status":    systemdStatus,
+		"journal_excerpt":   journalExcerpt,
+		"last_error":        lastError,
 		"last_agent_job_at": time.Now().UTC().Format(time.RFC3339),
-		"runtime":          runtimePayload,
-		"status":           mapMusicbotRunningStatus(running),
+		"runtime":           runtimePayload,
+		"status":            mapMusicbotRunningStatus(running),
 	}
 
 	// Merge live runtime payload fields at the top level
@@ -498,4 +498,3 @@ func sockResponsive(sockPath string) bool {
 	stat, err := os.Stat(sockPath)
 	return err == nil && stat.Mode()&os.ModeSocket != 0
 }
-

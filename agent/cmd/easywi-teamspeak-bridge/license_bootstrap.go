@@ -15,9 +15,9 @@ import (
 
 // licenseAcceptanceStatus values written to license_acceptance.json.
 const (
-	licenseBootstrapStatusReady         = "ready"
+	licenseBootstrapStatusReady          = "ready"
 	licenseBootstrapStatusRequiresManual = "requires_manual"
-	licenseBootstrapStatusFailed        = "failed"
+	licenseBootstrapStatusFailed         = "failed"
 )
 
 // LicenseAcceptance is the structure written to
@@ -78,10 +78,10 @@ func writeLicenseAcceptanceJSON(instancePath string, la LicenseAcceptance) error
 
 // bootstrapParams holds the parsed CLI flags for the bootstrap mode.
 type bootstrapParams struct {
-	instancePath    string
-	runscriptPath   string
-	clientBinary    string
-	timeoutSeconds  int
+	instancePath   string
+	runscriptPath  string
+	clientBinary   string
+	timeoutSeconds int
 }
 
 // parseBootstrapFlags parses --instance-path, --client-runscript, --client-binary,
