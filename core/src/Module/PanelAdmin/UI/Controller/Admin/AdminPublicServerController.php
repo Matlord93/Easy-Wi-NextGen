@@ -6,10 +6,10 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\PublicServerValidator;
+use App\Module\Core\Application\PublicServerStatusService;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\JobRepository;
 use App\Repository\PublicServerRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,9 +23,9 @@ final class AdminPublicServerController
 {
     public function __construct(
         private readonly PublicServerRepository $publicServerRepository,
-        private readonly JobRepository $jobRepository,
         private readonly SiteResolver $siteResolver,
         private readonly PublicServerValidator $serverValidator,
+        private readonly PublicServerStatusService $statusService,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
@@ -147,6 +147,8 @@ final class AdminPublicServerController
 
         $this->entityManager->persist($server);
         $this->entityManager->flush();
+        $this->statusService->queueCheck($server, force: true);
+        $this->entityManager->flush();
 
         $this->auditLogger->log($actor, 'public_server.created', [
             'server_id' => $server->getId(),
@@ -227,6 +229,8 @@ final class AdminPublicServerController
             'previous' => $previous,
         ]);
 
+        $this->entityManager->flush();
+        $this->statusService->queueCheck($server, force: true);
         $this->entityManager->flush();
 
         $response = new Response($this->twig->render('admin/servers/_form.html.twig', [
@@ -459,50 +463,7 @@ final class AdminPublicServerController
      */
     private function queueDueStatusChecks(array $servers): void
     {
-        $now = new \DateTimeImmutable();
-        $queued = 0;
-
-        foreach ($servers as $server) {
-            if ($queued >= 25) {
-                break;
-            }
-
-            $next = $server->getNextCheckAt();
-            if ($next instanceof \DateTimeImmutable && $next > $now) {
-                continue;
-            }
-
-            $serverId = (string) ($server->getId() ?? '');
-            if ($serverId === '') {
-                continue;
-            }
-
-            $existing = $this->jobRepository->findActiveByTypeAndPayloadField('server.status.check', 'server_id', $serverId);
-            if ($existing !== null) {
-                continue;
-            }
-
-            $payload = [
-                'server_id' => $serverId,
-                'ip' => $server->getIp(),
-                'port' => (string) $server->getPort(),
-                'query_type' => $server->getQueryType(),
-                'game_key' => $server->getGameKey(),
-            ];
-
-            if ($server->getQueryPort() !== null) {
-                $payload['query_port'] = (string) $server->getQueryPort();
-            }
-
-            $this->entityManager->persist(new \App\Module\Core\Domain\Entity\Job('server.status.check', $payload));
-            $server->setNextCheckAt($now->modify(sprintf('+%d seconds', $server->getCheckIntervalSeconds())));
-            $this->entityManager->persist($server);
-            $queued++;
-        }
-
-        if ($queued > 0) {
-            $this->entityManager->flush();
-        }
+        $this->statusService->queueDueChecks($servers, 25);
     }
 
     private function toInt(mixed $value): ?int

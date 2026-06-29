@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Command;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Application\PublicServerStatusService;
 use App\Repository\PublicServerRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -14,8 +14,9 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(
-    name: 'server:status:reconcile',
-    description: 'Queue public server status checks for due servers.',
+    name: 'app:gameserver-status:refresh',
+    description: 'Queue public gameserver status checks for due public server-directory entries.',
+    aliases: ['server:status:reconcile'],
 )]
 final class ServerStatusReconcileCommand extends Command
 {
@@ -25,6 +26,7 @@ final class ServerStatusReconcileCommand extends Command
         private readonly PublicServerRepository $publicServerRepository,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
+        private readonly PublicServerStatusService $statusService,
     ) {
         parent::__construct();
     }
@@ -33,40 +35,18 @@ final class ServerStatusReconcileCommand extends Command
     {
         $now = new \DateTimeImmutable();
         $servers = $this->publicServerRepository->findDueForCheck($now, self::DEFAULT_BATCH_SIZE);
-        $queued = 0;
+        $queued = $this->statusService->queueDueChecks($servers, self::DEFAULT_BATCH_SIZE, $now);
 
         foreach ($servers as $server) {
-            $payload = [
-                'server_id' => (string) ($server->getId() ?? ''),
-                'ip' => $server->getIp(),
-                'port' => (string) $server->getPort(),
-                'query_type' => $server->getQueryType(),
-                'game_key' => $server->getGameKey(),
-            ];
-
-            if ($server->getQueryPort() !== null) {
-                $payload['query_port'] = (string) $server->getQueryPort();
-            }
-
-            $job = new Job('server.status.check', $payload);
-            $this->entityManager->persist($job);
-
-            $nextCheckAt = $now->modify(sprintf('+%d seconds', $server->getCheckIntervalSeconds()));
-            $server->setNextCheckAt($nextCheckAt);
-            $this->entityManager->persist($server);
-
             $this->auditLogger->log(null, 'public_server.status_check_queued', [
                 'server_id' => $server->getId(),
-                'job_id' => $job->getId(),
-                'next_check_at' => $nextCheckAt->format(DATE_RFC3339),
+                'next_check_at' => $server->getNextCheckAt()?->format(DATE_RFC3339),
             ]);
-
-            $queued++;
         }
 
         $this->entityManager->flush();
 
-        $output->writeln(sprintf('Queued %d server status check(s).', $queued));
+        $output->writeln(sprintf('Queued %d gameserver status check(s).', $queued));
 
         return Command::SUCCESS;
     }

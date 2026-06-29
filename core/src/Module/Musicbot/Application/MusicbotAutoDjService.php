@@ -82,7 +82,7 @@ final class MusicbotAutoDjService
         if (array_key_exists('avoid_repeats', $data)) {
             $settings->setAvoidRepeats((bool) $data['avoid_repeats']);
         }
-        foreach (['shuffle' => 'setShuffle', 'repeat' => 'setRepeat', 'allow_youtube' => 'setAllowYoutube', 'allow_uploads' => 'setAllowUploads', 'avoid_same_artist' => 'setAvoidSameArtist'] as $key => $setter) {
+        foreach (['shuffle' => 'setShuffle', 'repeat' => 'setRepeat', 'allow_youtube' => 'setAllowYoutube', 'allow_uploads' => 'setAllowUploads', 'avoid_same_artist' => 'setAvoidSameArtist', 'avoidSameArtist' => 'setAvoidSameArtist'] as $key => $setter) {
             if (array_key_exists($key, $data)) {
                 if ($key === 'allow_youtube' && (bool) $data[$key]) {
                     $this->quotaService->assertYoutubeAllowed($customer);

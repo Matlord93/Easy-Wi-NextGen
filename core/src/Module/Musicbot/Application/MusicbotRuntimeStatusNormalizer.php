@@ -58,6 +58,13 @@ final class MusicbotRuntimeStatusNormalizer
         if ($hasReadiness) {
             return 'complete_runtime';
         }
+        if (array_key_exists('playback_status', $runtime) && is_array($runtime['playback_status'])) {
+            foreach (['audio_backend_ready', 'audio_backend_status', 'audio_backend_message', 'audio_injection_ready', 'runtime_ready'] as $key) {
+                if (array_key_exists($key, $runtime['playback_status'])) {
+                    return 'complete_runtime';
+                }
+            }
+        }
         if (array_key_exists('playback', $runtime) || array_key_exists('playback_status', $runtime) || array_key_exists('playback_state', $runtime)) {
             return 'partial_playback';
         }

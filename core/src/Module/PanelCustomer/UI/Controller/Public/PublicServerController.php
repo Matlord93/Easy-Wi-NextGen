@@ -7,9 +7,11 @@ namespace App\Module\PanelCustomer\UI\Controller\Public;
 use App\Module\Cms\Application\CmsFeatureToggle;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\SiteResolver;
+use App\Module\Core\Application\PublicServerStatusService;
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Repository\PublicServerRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
@@ -24,6 +26,7 @@ final class PublicServerController
         private readonly SiteResolver $siteResolver,
         private readonly CmsFeatureToggle $featureToggle,
         private readonly ThemeResolver $themeResolver,
+        private readonly PublicServerStatusService $statusService,
         #[Autowire(service: 'limiter.public_servers')]
         private readonly RateLimiterFactory $publicServersLimiter,
         private readonly Environment $twig,
@@ -64,6 +67,7 @@ final class PublicServerController
         $search = $this->normalizeFilter($request->query->get('search'));
 
         $servers = $this->publicServerRepository->findVisiblePublicBySite($site->getId() ?? 0, $gameFilter, $search);
+        $this->statusService->queueDueChecks($servers, 25);
         $normalizedServers = $this->normalizeServers($servers);
 
         if ($statusFilter !== null) {
@@ -84,12 +88,44 @@ final class PublicServerController
                 'search' => $search,
             ],
             'active_theme' => $templateKey,
+            'status_endpoint' => '/server-directory/status',
         ]));
 
         $response->setPublic();
         $response->setMaxAge(30);
         $response->headers->addCacheControlDirective('s-maxage', '30');
         $response->headers->addCacheControlDirective('stale-while-revalidate', '30');
+
+        return $response;
+    }
+
+
+    #[Route(path: '/server-directory/status', name: 'public_servers_status', methods: ['GET'])]
+    public function status(Request $request): JsonResponse
+    {
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null || !$this->featureToggle->isEnabled($site, 'gameserver')) {
+            return new JsonResponse(['servers' => []], Response::HTTP_NOT_FOUND);
+        }
+
+        $ids = array_values(array_filter(array_map(
+            static fn (string $id): int => (int) $id,
+            explode(',', (string) $request->query->get('ids', ''))
+        )));
+
+        $servers = $this->publicServerRepository->findVisiblePublicBySite($site->getId() ?? 0);
+        if ($ids !== []) {
+            $allowed = array_flip($ids);
+            $servers = array_values(array_filter($servers, static fn (PublicServer $server): bool => isset($allowed[(int) ($server->getId() ?? 0)])));
+        }
+
+        $this->statusService->queueDueChecks($servers, 25);
+
+        $response = new JsonResponse([
+            'servers' => array_map(fn (PublicServer $server): array => $this->statusService->toStatusPayload($server), $servers),
+        ]);
+        $response->setPublic();
+        $response->setMaxAge(10);
 
         return $response;
     }
@@ -106,7 +142,9 @@ final class PublicServerController
 
             return [
                 'id' => $server->getId(),
-                'name' => $server->getName(),
+                'name' => is_string($statusCache['name'] ?? null) && $statusCache['name'] !== '' ? $statusCache['name'] : $server->getName(),
+                'display_name' => is_string($statusCache['name'] ?? null) && $statusCache['name'] !== '' ? $statusCache['name'] : $server->getName(),
+                'last_error' => is_string($statusCache['last_error'] ?? null) ? $statusCache['last_error'] : null,
                 'game_key' => $server->getGameKey(),
                 'address' => sprintf('%s:%d', $server->getIp(), $server->getPort()),
                 'status' => $status,

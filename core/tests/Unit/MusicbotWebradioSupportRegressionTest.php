@@ -252,7 +252,8 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
         $source = file_get_contents(__DIR__ . '/../../src/Module/Musicbot/Application/MusicbotRadioService.php');
         self::assertIsString($source);
         self::assertStringContainsString('assertCustomerOwnsInstance', $source);
-        self::assertStringContainsString('assertStationBelongsToCustomer', $source);
+        self::assertStringContainsString('assertAccessible', $source);
+        self::assertStringContainsString('Radio station not found.', $source);
     }
 
     public function testReconnectPolicyIsReturnedByService(): void
@@ -313,7 +314,7 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $source = file_get_contents(__DIR__ . '/../../templates/customer/musicbot/radio.html.twig');
         self::assertIsString($source);
-        foreach (['Senderverwaltung', 'Favoriten', 'Zuletzt gespielt', 'M3U', 'PLS', 'XSPF', 'resolveRadioUrl', 'playStation', 'queueStation', 'playlistStation', 'toggleFavorite', 'deleteStation'] as $needle) {
+        foreach (['Webradio', 'Katalog', 'Favoriten', 'Verlauf', 'Eigene Sender', 'Eigenen Sender hinzufügen', 'Stream-URL testen / auflösen', 'btn-resolve', 'btn-play', 'btn-queue', 'btn-playlist', '/favorites/', '/delete/'] as $needle) {
             self::assertStringContainsString($needle, $source, "Missing '{$needle}' in radio template");
         }
     }

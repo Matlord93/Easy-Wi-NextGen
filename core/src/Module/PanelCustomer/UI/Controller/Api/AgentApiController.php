@@ -2759,16 +2759,22 @@ final class AgentApiController
 
         $status = match ($resultStatus) {
             JobResultStatus::Succeeded => is_string($output['status'] ?? null) ? strtolower((string) $output['status']) : 'online',
-            JobResultStatus::Failed => 'error',
+            JobResultStatus::Failed => 'offline',
             JobResultStatus::Cancelled => 'unknown',
         };
+        $online = in_array($status, ['running', 'up', 'alive', 'ok', 'online', 'success', 'reachable'], true);
 
         $statusCache = $server->getStatusCache();
-        $statusCache['status'] = $status;
+        $statusCache['online'] = $online;
+        $statusCache['status'] = $online ? 'online' : 'offline';
         $statusCache['players'] = is_numeric($output['players'] ?? null) ? (int) $output['players'] : null;
         $statusCache['max_players'] = is_numeric($output['max_players'] ?? null) ? (int) $output['max_players'] : null;
         $statusCache['map'] = is_string($output['map'] ?? null) ? $output['map'] : null;
-        $statusCache['checked_at'] = $completedAt->format(DATE_RFC3339);
+        $statusCache['name'] = is_string($output['name'] ?? null) ? $output['name'] : null;
+        $statusCache['last_error'] = $online ? null : $this->normalizePublicServerStatusError($output);
+        $statusCache['query_duration_ms'] = is_numeric($output['query_duration_ms'] ?? $output['duration_ms'] ?? null) ? (int) ($output['query_duration_ms'] ?? $output['duration_ms']) : null;
+        $statusCache['last_checked_at'] = $completedAt->format(DATE_RFC3339);
+        $statusCache['checked_at'] = $statusCache['last_checked_at'];
 
         $server->setStatusCache($statusCache);
         $server->setLastCheckedAt($completedAt);
@@ -2780,6 +2786,18 @@ final class AgentApiController
             'agent_id' => $agentId,
             'status' => $status,
         ]);
+    }
+
+
+    private function normalizePublicServerStatusError(array $output): ?string
+    {
+        foreach (['last_error', 'error', 'message', 'reason'] as $key) {
+            if (is_string($output[$key] ?? null) && trim($output[$key]) !== '') {
+                return mb_substr(trim($output[$key]), 0, 240);
+            }
+        }
+
+        return 'Query fehlgeschlagen oder Server nicht erreichbar.';
     }
 
     private function applyInstanceQueryUpdatesFromJob(

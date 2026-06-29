@@ -57,17 +57,17 @@
 
     {# ── Server cards ── #}
     {% if servers|length > 0 %}
-    <div class="ng-srv-grid">
+    <div class="ng-srv-grid" data-server-directory data-status-url="{{ status_endpoint|default(path('public_servers_status')) }}">
         {% for server in servers %}
         {% set isOnline = server.status == 'online' %}
-        <div class="ng-srv-card {% if isOnline %}ng-srv-card--online{% endif %}">
+        <div class="ng-srv-card {% if isOnline %}ng-srv-card--online{% endif %}" data-server-id="{{ server.id }}">
             <div class="ng-srv-card__head">
                 <div class="ng-srv-card__dot {% if isOnline %}ng-srv-card__dot--online{% elseif server.status == 'error' %}ng-srv-card__dot--error{% else %}ng-srv-card__dot--offline{% endif %}"></div>
                 <div class="ng-srv-card__meta">
-                    <p class="ng-srv-card__name">{{ server.name }}</p>
+                    <p class="ng-srv-card__name" data-status-field="name">{{ server.name }}</p>
                     <p class="ng-srv-card__game">{{ server.game_key }}</p>
                 </div>
-                <span class="ng-srv-card__badge ng-srv-card__badge--{{ server.status == 'online' ? 'online' : (server.status == 'error' ? 'error' : 'offline') }}">
+                <span class="ng-srv-card__badge ng-srv-card__badge--{{ server.status == 'online' ? 'online' : (server.status == 'error' ? 'error' : 'offline') }}" data-status-field="badge">
                     {% if isOnline %}{{ t('status_online', page_locale()) }}{% elseif server.status == 'error' %}{{ t('status_error', page_locale()) }}{% else %}{{ t('status_offline', page_locale()) }}{% endif %}
                 </span>
             </div>
@@ -80,10 +80,10 @@
                 <div class="ng-srv-card__row">
                     <span class="ng-srv-card__key">{{ t('players', page_locale()) }}</span>
                     <span class="ng-srv-card__val">
-                        <span class="ng-srv-card__players">{{ server.players }}</span>
+                        <span class="ng-srv-card__players" data-status-field="players">{{ server.players }}</span>
                         {% if server.max_players is not null %}
                         <span class="ng-srv-card__players-sep">/</span>
-                        <span class="ng-srv-card__players-max">{{ server.max_players }}</span>
+                        <span class="ng-srv-card__players-max" data-status-field="max_players">{{ server.max_players }}</span>
                         {% endif %}
                     </span>
                 </div>
@@ -91,12 +91,16 @@
                 {% if isOnline and server.map %}
                 <div class="ng-srv-card__row">
                     <span class="ng-srv-card__key">{{ t('map', page_locale()) }}</span>
-                    <span class="ng-srv-card__val">{{ server.map }}</span>
+                    <span class="ng-srv-card__val" data-status-field="map">{{ server.map }}</span>
                 </div>
                 {% endif %}
+                <div class="ng-srv-card__row" data-status-field="last_error" {% if not server.last_error %}hidden{% endif %}>
+                    <span class="ng-srv-card__key">Fehler</span>
+                    <span class="ng-srv-card__val">{{ server.last_error ?? '' }}</span>
+                </div>
                 <div class="ng-srv-card__row ng-srv-card__row--footer">
                     <span class="ng-srv-card__key">{{ t('last_update', page_locale()) }}</span>
-                    <span class="ng-srv-card__val ng-srv-card__ts">{{ server.last_checked_at ? server.last_checked_at|date('d.m.Y H:i') : '—' }}</span>
+                    <span class="ng-srv-card__val ng-srv-card__ts" data-status-field="last_checked_at">{{ server.last_checked_at ? server.last_checked_at|date('d.m.Y H:i') : '—' }}</span>
                 </div>
             </div>
         </div>
@@ -316,9 +320,47 @@
     </div>
 
     <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
-        {% include 'public/servers/_server_list.html.twig' with { servers: servers, show_players: true, show_join_button: false } %}
+        <div data-server-directory data-status-url="{{ status_endpoint|default(path('public_servers_status')) }}">
+            {% include 'public/servers/_server_list.html.twig' with { servers: servers, show_players: true, show_join_button: false } %}
+        </div>
     </div>
 </div>
 {% endif %}
+
+
+<script>
+(function () {
+    var roots = document.querySelectorAll('[data-server-directory]');
+    if (!roots.length) { return; }
+    var labels = { online: '{{ t('status_online', page_locale())|e('js') }}', offline: '{{ t('status_offline', page_locale())|e('js') }}', checking: 'Prüfe …' };
+    function ids(root) { return Array.from(root.querySelectorAll('[data-server-id]')).map(function (el) { return el.getAttribute('data-server-id'); }).filter(Boolean); }
+    function text(el, value) { if (el) { el.textContent = value || '—'; } }
+    function formatDate(value) { if (!value) { return '—'; } var d = new Date(value); return isNaN(d.getTime()) ? value : d.toLocaleString(); }
+    function apply(root, server) {
+        var row = root.querySelector('[data-server-id="' + server.id + '"]');
+        if (!row) { return; }
+        var status = server.status || (server.online ? 'online' : 'offline');
+        text(row.querySelector('[data-status-field="name"]'), server.name || row.querySelector('[data-status-field="name"]')?.textContent);
+        text(row.querySelector('[data-status-field="badge"]'), labels[status] || labels.offline);
+        text(row.querySelector('[data-status-field="players"]'), server.players === null || server.players === undefined ? '—' : String(server.players));
+        text(row.querySelector('[data-status-field="max_players"]'), server.max_players === null || server.max_players === undefined ? '' : String(server.max_players));
+        text(row.querySelector('[data-status-field="map"]'), server.map || '—');
+        text(row.querySelector('[data-status-field="last_checked_at"]'), formatDate(server.last_checked_at));
+        var error = row.querySelector('[data-status-field="last_error"]');
+        if (error) { var target = error.querySelector('.ng-srv-card__val') || error; target.textContent = server.last_error || ''; error.hidden = !server.last_error; }
+        row.dataset.status = status;
+    }
+    function refresh(root) {
+        var list = ids(root); if (!list.length) { return; }
+        var url = new URL(root.getAttribute('data-status-url'), window.location.origin);
+        url.searchParams.set('ids', list.join(','));
+        fetch(url.toString(), { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (payload) { (payload && payload.servers || []).forEach(function (server) { apply(root, server); }); })
+            .catch(function () {});
+    }
+    roots.forEach(function (root) { refresh(root); window.setInterval(function () { refresh(root); }, 20000); });
+}());
+</script>
 
 {% endblock %}

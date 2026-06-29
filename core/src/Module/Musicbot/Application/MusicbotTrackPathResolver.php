@@ -80,6 +80,25 @@ final class MusicbotTrackPathResolver
         ];
     }
 
+    private function normalizeLexicalPath(string $path): string
+    {
+        $path = str_replace('\\', '/', $path);
+        $absolute = str_starts_with($path, '/');
+        $parts = [];
+        foreach (explode('/', $path) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        return ($absolute ? '/' : '') . implode('/', $parts);
+    }
+
     private function canonicalizeAllowedPath(string $path, MusicbotInstance $instance, bool $mustExist): ?string
     {
         $existing = realpath($path);
@@ -87,11 +106,7 @@ final class MusicbotTrackPathResolver
             if ($mustExist) {
                 return null;
             }
-            $parent = realpath(dirname($path));
-            if ($parent === false) {
-                return null;
-            }
-            $existing = rtrim($parent, '/\\') . '/' . basename($path);
+            $existing = $this->normalizeLexicalPath($path);
         }
 
         $existing = str_replace('\\', '/', $existing);

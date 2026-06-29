@@ -192,12 +192,17 @@ final class MusicbotQueueService
                 continue;
             }
             $serialized[] = [
+                'id' => (string) $item->getId(),
                 'queue_item_id' => (string) $item->getId(),
                 'track_id' => (string) $track->getId(),
                 'title' => $track->getTitle(),
                 'artist' => $track->getArtist() ?? '',
+                'duration' => $track->getDurationSeconds(),
                 'duration_seconds' => $track->getDurationSeconds(),
+                'position' => $item->getPosition(),
                 'source' => $sourceEntry,
+                'path' => $sourceEntry['type'] === MusicbotTrackSourceType::Upload->value ? $sourceEntry['uri'] : null,
+                'url' => $sourceEntry['type'] !== MusicbotTrackSourceType::Upload->value ? $sourceEntry['uri'] : null,
                 'metadata' => $track->getMetadata(),
             ];
         }
@@ -229,12 +234,26 @@ final class MusicbotQueueService
     /** @return array<string, string>|null */
     private function buildUploadSource(MusicbotTrack $track, MusicbotInstance $instance): ?array
     {
-        $uri = $this->trackPathResolver->resolveTrackFile($track, $instance);
+        $uri = $this->trackPathResolver->resolveTrackFile($track, $instance, false);
         if ($uri === null || $uri === '') {
             return null;
         }
 
-        return ['type' => MusicbotTrackSourceType::Upload->value, 'uri' => $uri, 'mime_type' => $track->getMimeType()];
+        return ['type' => MusicbotTrackSourceType::Upload->value, 'uri' => $this->runtimeRelativeTrackPath($uri, $instance), 'mime_type' => $track->getMimeType()];
+    }
+
+    private function runtimeRelativeTrackPath(string $resolvedPath, MusicbotInstance $instance): string
+    {
+        $resolvedPath = str_replace('\\', '/', $resolvedPath);
+        $trackRoot = rtrim(str_replace('\\', '/', $this->trackPathResolver->instanceTrackRoot($instance)), '/');
+        if ($resolvedPath === $trackRoot) {
+            return 'tracks';
+        }
+        if (str_starts_with($resolvedPath, $trackRoot . '/')) {
+            return 'tracks/' . ltrim(substr($resolvedPath, strlen($trackRoot) + 1), '/');
+        }
+
+        return ltrim($resolvedPath, '/');
     }
 
     /** @return array<string, string>|null */
