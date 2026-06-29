@@ -430,11 +430,7 @@ func TestTeamspeakConfigStringClientQueryHostFallsBackToConfigMap(t *testing.T) 
 func TestExternalBridgeConnectPassesInstancePathAndRuntimeDir(t *testing.T) {
 	t.Parallel()
 	captureFile := filepath.Join(t.TempDir(), "captured.json")
-	path := filepath.Join(t.TempDir(), "mock-bridge-capture")
-	script := "#!/bin/sh\nwhile IFS= read -r line; do\n  case \"$line\" in\n    *disconnect*) echo '{\"ok\":true}' ; exit 0 ;;\n    *connect*) echo \"$line\" > " + captureFile + " ; echo '{\"ok\":true,\"state\":\"connected\",\"client_id\":\"c1\"}' ;;\n    *) echo '{\"ok\":true}' ;;\n  esac\ndone\n"
-	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	path := writeCapturingMockTeamspeakBridge(t, captureFile)
 
 	client := NewExternalBridgeTeamspeakVoiceClient()
 	cfg := TeamSpeakConnectorConfig{
@@ -492,6 +488,23 @@ func TestRuntimeSelectAudioOutputPicksTeamSpeakWhenReady(t *testing.T) {
 		t.Fatalf("OutputBackendName() = %q, want teamspeak_voice (TeamSpeak ready)", got)
 	}
 	_ = connector.Disconnect(context.Background())
+}
+
+func writeCapturingMockTeamspeakBridge(t *testing.T, captureFile string) string {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable: %v", err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mock-ts-bridge")
+	if err := os.Symlink(exe, path); err != nil {
+		t.Fatalf("symlink mock bridge: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "mock-ts-bridge.capturepath"), []byte(captureFile), 0o600); err != nil {
+		t.Fatalf("write capture marker: %v", err)
+	}
+	return path
 }
 
 // writeMockTeamspeakBridge returns a path to a mock bridge executable by

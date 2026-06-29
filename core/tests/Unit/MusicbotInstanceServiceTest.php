@@ -29,6 +29,7 @@ final class MusicbotInstanceServiceTest extends TestCase
     protected function setUp(): void
     {
         $this->em = $this->createStub(EntityManagerInterface::class);
+        $this->em->method('wrapInTransaction')->willReturnCallback(static fn (callable $callback): mixed => $callback());
         $this->quota = $this->createStub(MusicbotQuotaServiceInterface::class);
         $this->secretConfig = $this->createStub(MusicbotSecretConfigServiceInterface::class);
         $this->dispatcher = $this->createStub(AgentJobDispatcherInterface::class);

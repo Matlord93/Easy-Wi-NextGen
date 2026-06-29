@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
-final class MusicbotWebradioUrlValidator
+class MusicbotWebradioUrlValidator
 {
     private const BLOCKED_SCHEMES = ['file', 'ftp', 'ftps', 'data', 'javascript'];
     private const ALLOWED_SCHEMES = ['http', 'https'];

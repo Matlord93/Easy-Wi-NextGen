@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Application\MusicbotQueueService;
 use App\Module\Musicbot\Application\MusicbotQuotaServiceInterface;
+use App\Module\Musicbot\Application\MusicbotTrackPathResolver;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlaylist;
 use App\Module\Musicbot\Domain\Entity\MusicbotQueueItem;
@@ -92,6 +93,7 @@ final class MusicbotQueueServiceSyncTest extends TestCase
             $trackRepo,
             $quotaService,
             $jobDispatcher,
+            new MusicbotTrackPathResolver(dirname(__DIR__, 2)),
         );
     }
 

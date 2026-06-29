@@ -14,7 +14,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<MusicbotRadioStation>
  */
-final class MusicbotRadioStationRepository extends ServiceEntityRepository
+class MusicbotRadioStationRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

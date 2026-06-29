@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Module\Musicbot\Application\MusicbotRuntimeStatusNormalizer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class MusicbotRuntimeReadinessRegressionTest extends TestCase
@@ -127,10 +128,8 @@ final class MusicbotRuntimeReadinessRegressionTest extends TestCase
     }
 
 
-    /**
-     * @dataProvider runtimeReadinessScenarioProvider
-     * @param array<string, mixed> $payload
-     */
+    /** @param array<string, mixed> $payload */
+    #[DataProvider('runtimeReadinessScenarioProvider')]
     public function testRuntimeReadinessScenarios(string $scenario, array $payload, bool $ready): void
     {
         $normalized = (new MusicbotRuntimeStatusNormalizer())->normalizePayload($payload);

@@ -2176,9 +2176,12 @@ func TestInjectPCMViaPulseReusesPersistentPacatProcess(t *testing.T) {
 			readDone <- nil
 			return
 		}
-		defer f.Close()
 		buf := make([]byte, 8)
 		_, _ = io.ReadFull(f, buf)
+		if err := f.Close(); err != nil {
+			readDone <- nil
+			return
+		}
 		readDone <- buf
 	}()
 

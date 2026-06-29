@@ -120,7 +120,7 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         self::assertSame('easywi.teamspeak.integration', $config['teamspeak']['plugin_api']['provider']);
         self::assertArrayHasKey('play', $config['teamspeak']['command_catalog']);
         self::assertArrayHasKey('help', $config['teamspeak']['command_catalog']);
-        self::assertSame('playback.control', $config['teamspeak']['command_catalog']['play']['permission']);
+        self::assertSame('musicbot.playback.control', $config['teamspeak']['command_catalog']['play']['permission']);
         self::assertSame(['private'], $config['teamspeak']['command_catalog']['volume']['chat_scopes']);
         self::assertSame(['dj'], $config['teamspeak']['command_catalog']['volume']['roles']);
     }

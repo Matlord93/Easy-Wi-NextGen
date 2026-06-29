@@ -8,7 +8,7 @@ namespace App\Module\Musicbot\Application;
  * Resolves playlist file formats (M3U, PLS, XSPF) to direct stream URLs.
  * Follows HTTP redirects and selects the first reachable stream URL.
  */
-final class MusicbotRadioPlaylistResolver
+class MusicbotRadioPlaylistResolver
 {
     private const MAX_REDIRECTS = 5;
     private const CONNECT_TIMEOUT = 8;

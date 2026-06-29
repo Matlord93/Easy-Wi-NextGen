@@ -187,7 +187,7 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testM3uPlaylistResolved(): void
     {
-        $resolver = new MusicbotRadioPlaylistResolver();
+        $resolver = new MusicbotRadioPlaylistResolver(new MusicbotWebradioUrlValidator());
         $m3u = "#EXTM3U\n#EXTINF:-1,Test FM\nhttps://stream.test/live.mp3\n";
         $result = $this->callResolveBody($resolver, $m3u, 'audio/x-mpegurl');
         $this->assertSame('https://stream.test/live.mp3', $result);
@@ -195,7 +195,7 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testPlsPlaylistResolved(): void
     {
-        $resolver = new MusicbotRadioPlaylistResolver();
+        $resolver = new MusicbotRadioPlaylistResolver(new MusicbotWebradioUrlValidator());
         $pls = "[playlist]\nFile1=https://stream.test/live.mp3\nTitle1=Test FM\nLength1=-1\nNumberOfEntries=1\n";
         $result = $this->callResolveBody($resolver, $pls, 'audio/x-scpls');
         $this->assertSame('https://stream.test/live.mp3', $result);
@@ -203,7 +203,7 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testXspfPlaylistResolved(): void
     {
-        $resolver = new MusicbotRadioPlaylistResolver();
+        $resolver = new MusicbotRadioPlaylistResolver(new MusicbotWebradioUrlValidator());
         $xspf = '<?xml version="1.0"?><playlist xmlns="http://xspf.org/ns/0/"><trackList><track><location>https://stream.test/live.mp3</location></track></trackList></playlist>';
         $result = $this->callResolveBody($resolver, $xspf, 'application/xspf+xml');
         $this->assertSame('https://stream.test/live.mp3', $result);
@@ -442,7 +442,11 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
         };
         $ref = new \ReflectionMethod($resolver, $method);
         $ref->setAccessible(true);
-        return $ref->invoke($resolver, $body);
+        $urls = $ref->invoke($resolver, $body);
+        self::assertIsArray($urls);
+        self::assertNotEmpty($urls);
+
+        return (string) $urls[0];
     }
 
     private function buildCatalogService(): MusicbotRadioCatalogService

@@ -17,7 +17,7 @@ use Doctrine\ORM\EntityManagerInterface;
 /**
  * Manages the global webradio catalog, favorites and play history.
  */
-final class MusicbotRadioCatalogService
+class MusicbotRadioCatalogService
 {
     private const HISTORY_KEEP_ROWS = 100;
 

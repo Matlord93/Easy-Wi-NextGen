@@ -19,6 +19,10 @@ func TestMain(m *testing.M) {
 	if strings.HasSuffix(filepath.Base(os.Args[0]), "mock-ts-bridge") {
 		dir := filepath.Dir(os.Args[0])
 		_, err := os.Stat(filepath.Join(dir, "mock-ts-bridge.fail"))
+		capturePath := ""
+		if data, readErr := os.ReadFile(filepath.Join(dir, "mock-ts-bridge.capturepath")); readErr == nil {
+			capturePath = strings.TrimSpace(string(data))
+		}
 		_, crashErr := os.Stat(filepath.Join(dir, "mock-ts-bridge.crash"))
 		if crashErr == nil {
 			// crash mode: write diagnostic to stderr and exit immediately
@@ -31,7 +35,7 @@ func TestMain(m *testing.M) {
 			}
 			os.Exit(2)
 		}
-		runMockBridgeProtocol(err == nil)
+		runMockBridgeProtocol(err == nil, capturePath)
 		return
 	}
 	os.Exit(m.Run())
@@ -40,7 +44,7 @@ func TestMain(m *testing.M) {
 // runMockBridgeProtocol implements the bridge NDJSON protocol used by
 // ExternalBridgeTeamspeakVoiceClient. It reads action lines from stdin and
 // writes JSON responses to stdout until a "disconnect" action is received.
-func runMockBridgeProtocol(fail bool) {
+func runMockBridgeProtocol(fail bool, capturePath string) {
 	joinResp := `{"ok":true,"channel_id":"123"}`
 	sendResp := `{"ok":true}`
 	if fail {
@@ -61,6 +65,9 @@ func runMockBridgeProtocol(fail bool) {
 		case strings.Contains(line, "reconnect"):
 			resp = `{"ok":true,"state":"connected","client_id":"mock-client"}`
 		case strings.Contains(line, "connect"):
+			if capturePath != "" {
+				_ = os.WriteFile(capturePath, []byte(line), 0o600)
+			}
 			resp = `{"ok":true,"state":"connected","client_id":"mock-client"}`
 		case strings.Contains(line, "join_channel"):
 			resp = joinResp

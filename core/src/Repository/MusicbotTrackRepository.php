@@ -10,7 +10,7 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<MusicbotTrack> */
-final class MusicbotTrackRepository extends ServiceEntityRepository implements MusicbotTrackRepositoryInterface
+class MusicbotTrackRepository extends ServiceEntityRepository implements MusicbotTrackRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {

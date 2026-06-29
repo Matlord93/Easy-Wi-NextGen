@@ -31,8 +31,9 @@ final class CustomerMusicbotControllerRegressionTest extends TestCase
         self::assertStringContainsString('dispatchConfigApplyJob($instance)', $source);
         self::assertStringContainsString('queueStatusRefresh($customer, $instance)', $source);
         self::assertStringContainsString('queueLiveReconnect($customer, $instance)', $source);
-        self::assertStringContainsString("'action' => 'reconnect'", $source);
-        self::assertStringContainsString("'command' => 'reconnect'", $source);
+        self::assertStringContainsString("'action' => 'reload_config'", $source);
+        self::assertStringContainsString("'command' => 'reload_config'", $source);
+        self::assertStringContainsString("'reconnect_if_required' => true", $source);
     }
 
     public function testCustomerActionsQueueRuntimeStatusRefreshAfterControlJobs(): void

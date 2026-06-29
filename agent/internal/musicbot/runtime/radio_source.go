@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -54,8 +55,6 @@ type RadioStreamSource struct {
 	config RadioSourceConfig
 	status RadioSourceStatus
 	mu     sync.Mutex
-
-	cancel context.CancelFunc
 }
 
 // NewRadioStreamSource creates a configured RadioStreamSource. If ReconnectPolicy
@@ -170,7 +169,10 @@ func (r *RadioStreamSource) streamOnce(ctx context.Context, url string, w io.Wri
 	r.status.StreamName = r.cleanICYHeader(resp.Header.Get("icy-name"))
 	r.status.Genre = r.cleanICYHeader(resp.Header.Get("icy-genre"))
 	if br := resp.Header.Get("icy-br"); br != "" {
-		fmt.Sscanf(br, "%d", &r.status.BitrateKbps)
+		bitrateKbps, err := strconv.Atoi(strings.TrimSpace(br))
+		if err == nil {
+			r.status.BitrateKbps = bitrateKbps
+		}
 	}
 	r.mu.Unlock()
 
