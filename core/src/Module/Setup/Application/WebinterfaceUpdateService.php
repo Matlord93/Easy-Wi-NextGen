@@ -114,6 +114,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     public function applyUpdate(): UpdateResult
     {
         $logPath = $this->resolveLogPath($this->installDir);
+        $this->disableExecutionTimeLimit($logPath);
         $lockHandle = $this->acquireLock();
         if ($lockHandle === null) {
             return new UpdateResult(
@@ -296,6 +297,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     public function applyMigrations(): UpdateResult
     {
         $logPath = $this->resolveLogPath($this->installDir);
+        $this->disableExecutionTimeLimit($logPath);
         $lockHandle = $this->acquireLock();
         if ($lockHandle === null) {
             return new UpdateResult(
@@ -1152,14 +1154,22 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function extractTarArchive(string $archivePath, string $stagingDir, bool $gzipCompressed, string $logPath): bool
     {
+        if ($this->commandExists('tar')) {
+            return $this->extractTarArchiveWithCommand($archivePath, $stagingDir, $gzipCompressed, $logPath);
+        }
+
         try {
             $phar = $this->openTarArchive($archivePath, $gzipCompressed);
-            if ($this->validatePharArchivePaths($phar, $logPath)) {
-                $phar->extractTo($stagingDir, null, true);
-                return true;
+            $entries = $this->getSafePharArchiveEntries($phar, $logPath);
+            if ($entries === null) {
+                return false;
+            }
+            if ($entries === []) {
+                throw new \RuntimeException('TAR-Archiv enthält keine extrahierbaren Einträge.');
             }
 
-            return false;
+            $phar->extractTo($stagingDir, $entries, true);
+            return true;
         } catch (\Throwable $exception) {
             $this->log($logPath, 'TAR-Archiv konnte nicht mit PharData entpackt werden: ' . $exception->getMessage());
         }
@@ -1357,17 +1367,28 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return true;
     }
 
-    private function validatePharArchivePaths(\PharData $phar, string $logPath): bool
+    /**
+     * @return list<string>|null
+     */
+    private function getSafePharArchiveEntries(\PharData $phar, string $logPath): ?array
     {
+        $entries = [];
         foreach (new \RecursiveIteratorIterator($phar) as $entry) {
             $path = method_exists($entry, 'getRelativePathname') ? $entry->getRelativePathname() : $entry->getPathName();
-            if (!$entry instanceof \SplFileInfo || !$this->isSafeArchivePath($path)) {
+            if (!$entry instanceof \SplFileInfo || !is_string($path) || !$this->isSafeArchivePath($path)) {
                 $this->log($logPath, 'Archiv enthält einen unsicheren Pfad.');
-                return false;
+                return null;
             }
+
+            $normalizedPath = str_replace('\\', '/', $path);
+            if ($normalizedPath === '.' || $normalizedPath === './') {
+                continue;
+            }
+
+            $entries[] = $path;
         }
 
-        return true;
+        return $entries;
     }
 
     private function isSafeArchivePath(string $path): bool
@@ -1686,6 +1707,18 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
     }
 
+    private function disableExecutionTimeLimit(string $logPath): void
+    {
+        if (!function_exists('set_time_limit')) {
+            $this->log($logPath, 'PHP-Ausführungszeitlimit konnte nicht angepasst werden: set_time_limit ist nicht verfügbar.');
+            return;
+        }
+
+        if (@set_time_limit(0) === false) {
+            $this->log($logPath, 'PHP-Ausführungszeitlimit konnte nicht deaktiviert werden. Update kann bei großen Installationen abbrechen.');
+        }
+    }
+
     private function isInitialInstall(): bool
     {
         if (!is_dir($this->installDir)) {
@@ -1703,8 +1736,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $envFlag = sprintf('--env=%s', $this->kernelEnvironment);
 
         if ($this->commandExists('composer') && is_file($appRoot . '/composer.json')) {
-            $result = $this->runCommand('composer install --no-dev --optimize-autoloader --no-interaction --no-scripts', $appRoot);
-            $this->logCommandResult($logPath, 'composer install', $result);
+            $this->ensureWritableComposerEnvironment($appRoot, $logPath);
+            $result = $this->runComposerInstall($appRoot, $logPath);
             if ($result['exitCode'] !== 0) {
                 return false;
             }
@@ -1717,6 +1750,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         } else {
             $this->log($logPath, 'Composer nicht gefunden oder composer.json fehlt. Schritt übersprungen.');
         }
+
+        $this->removeStaleSymfonyCache($appRoot, $logPath);
 
         $phpCliBinary = $this->resolvePhpCliBinary();
         if ($phpCliBinary === null) {
@@ -1774,6 +1809,91 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return true;
     }
 
+
+
+    /**
+     * @return array{exitCode: int, stdout: string, stderr: string, output: string, command: string}
+     */
+    private function runComposerInstall(string $appRoot, string $logPath): array
+    {
+        $install = $this->runCommand('composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --prefer-dist', $appRoot);
+        $this->logCommandResult($logPath, 'composer install', $install);
+        if ($install['exitCode'] === 0 || !$this->shouldRetryComposerInstallFromSource($install)) {
+            return $install;
+        }
+
+        $this->log($logPath, 'composer install dist fehlgeschlagen. Wiederhole mit --prefer-source.');
+        $sourceInstall = $this->runCommand('composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --prefer-source', $appRoot);
+        $this->logCommandResult($logPath, 'composer install --prefer-source', $sourceInstall);
+
+        return $sourceInstall;
+    }
+
+    /**
+     * @param array{exitCode: int, stdout?: string, stderr?: string, output: string, command?: string} $result
+     */
+    private function shouldRetryComposerInstallFromSource(array $result): bool
+    {
+        if ($result['exitCode'] === 0) {
+            return false;
+        }
+
+        $output = strtolower(($result['stderr'] ?? '') . "\n" . $result['output']);
+
+        return str_contains($output, 'codeload.github.com')
+            || str_contains($output, 'could not be downloaded')
+            || str_contains($output, 'zip files are being unpacked using the php zip extension')
+            || str_contains($output, 'source fallback is disabled');
+    }
+
+    private function ensureWritableComposerEnvironment(string $appRoot, string $logPath): void
+    {
+        $baseCacheDir = rtrim($appRoot, '/\\') . '/var/cache/composer';
+        $paths = [
+            'COMPOSER_HOME' => $baseCacheDir . '/home',
+            'COMPOSER_CACHE_DIR' => $baseCacheDir . '/cache',
+        ];
+
+        foreach ($paths as $name => $path) {
+            $current = trim((string) (getenv($name) ?: ''));
+            if ($current !== '' && is_dir($current) && is_writable($current)) {
+                continue;
+            }
+
+            if (!is_dir($path) && !@mkdir($path, 0775, true) && !is_dir($path)) {
+                $this->log($logPath, sprintf('%s konnte nicht auf ein beschreibbares Composer-Verzeichnis gesetzt werden: %s', $name, $path));
+                continue;
+            }
+
+            putenv($name . '=' . $path);
+            $_ENV[$name] = $path;
+            $_SERVER[$name] = $path;
+        }
+    }
+
+    private function removeStaleSymfonyCache(string $appRoot, string $logPath): void
+    {
+        $cacheDir = rtrim($appRoot, '/\\') . '/var/cache';
+        if (!is_dir($cacheDir)) {
+            return;
+        }
+
+        $environmentCacheDir = $cacheDir . '/' . $this->kernelEnvironment;
+        if (is_dir($environmentCacheDir)) {
+            $this->removeDirectory($environmentCacheDir);
+            $this->log($logPath, 'Symfony-Cache für Umgebung "' . $this->kernelEnvironment . '" vor Post-Deploy entfernt.');
+            return;
+        }
+
+        foreach (glob($cacheDir . '/' . $this->kernelEnvironment . '*', GLOB_ONLYDIR) ?: [] as $staleCacheDir) {
+            if (basename($staleCacheDir) === 'composer') {
+                continue;
+            }
+
+            $this->removeDirectory($staleCacheDir);
+            $this->log($logPath, 'Stalen Symfony-Cache vor Post-Deploy entfernt: ' . basename($staleCacheDir));
+        }
+    }
 
     private function logMissingEnvSecretsHint(string $appRoot, string $logPath): void
     {
@@ -1892,6 +2012,29 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function copyExcludedPaths(string $sourceDir, string $targetDir, array $excludes): void
     {
+        $wildcardExcludes = [];
+        foreach ($excludes as $exclude) {
+            $relativePath = ltrim(rtrim(str_replace('\\', '/', trim((string) $exclude)), '/'), '/');
+            if ($relativePath === '') {
+                continue;
+            }
+            if (strpbrk($relativePath, '*?[') !== false) {
+                $wildcardExcludes[] = $exclude;
+                continue;
+            }
+
+            $sourcePath = rtrim($sourceDir, '/\\') . '/' . $relativePath;
+            if (!file_exists($sourcePath) && !is_link($sourcePath)) {
+                continue;
+            }
+
+            $this->copyPath($sourcePath, rtrim($targetDir, '/\\') . '/' . $relativePath);
+        }
+
+        if ($wildcardExcludes === []) {
+            return;
+        }
+
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($sourceDir, \FilesystemIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::SELF_FIRST,
@@ -1899,22 +2042,38 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         foreach ($iterator as $item) {
             $relativePath = ltrim(str_replace('\\', '/', $iterator->getSubPathname()), '/');
-            if (!$this->matchesExclude($relativePath, $excludes)) {
+            if (!$this->matchesExclude($relativePath, $wildcardExcludes)) {
                 continue;
             }
 
-            $destination = rtrim($targetDir, '/\\') . '/' . $relativePath;
-            if ($item->isDir()) {
-                if (!is_dir($destination)) {
-                    mkdir($destination, 0775, true);
-                }
-            } else {
-                if (!is_dir(dirname($destination))) {
-                    mkdir(dirname($destination), 0775, true);
-                }
-                copy($item->getPathname(), $destination);
-            }
+            $this->copyPath($item->getPathname(), rtrim($targetDir, '/\\') . '/' . $relativePath);
         }
+    }
+
+    private function copyPath(string $sourcePath, string $destinationPath): void
+    {
+        if (is_dir($sourcePath) && !is_link($sourcePath)) {
+            if (!is_dir($destinationPath)) {
+                mkdir($destinationPath, 0775, true);
+            }
+            if ($this->commandExists('rsync')) {
+                $this->runCommand(['rsync', '-a', rtrim($sourcePath, '/\\') . '/', rtrim($destinationPath, '/\\') . '/'], $this->installDir);
+                return;
+            }
+
+            $this->copyDirectory($sourcePath, $destinationPath, []);
+            return;
+        }
+
+        if (!is_dir(dirname($destinationPath))) {
+            mkdir(dirname($destinationPath), 0775, true);
+        }
+        if ($this->commandExists('rsync')) {
+            $this->runCommand(['rsync', '-a', $sourcePath, $destinationPath], $this->installDir);
+            return;
+        }
+
+        copy($sourcePath, $destinationPath);
     }
 
     private function matchesExclude(string $relativePath, array $excludes): bool
