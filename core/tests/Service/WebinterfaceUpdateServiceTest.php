@@ -417,6 +417,44 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         self::assertFileExists($stagingDir . '/core/VERSION');
     }
 
+    public function testTarGzExtractionSkipsRootDotEntryForPharData(): void
+    {
+        if (!class_exists(\PharData::class)) {
+            self::markTestSkipped('PharData is not available.');
+        }
+        if (!function_exists('shell_exec') || trim((string) shell_exec('command -v tar')) === '') {
+            self::markTestSkipped('tar command is not available to create fixtures.');
+        }
+
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
+            'manifestUrl' => '',
+            'installDir' => sys_get_temp_dir(),
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => sys_get_temp_dir() . '/update.lock',
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
+        ]);
+
+        $tarGzPath = $this->createTarGz(['core/VERSION' => '2.0.0']);
+        $workDir = sys_get_temp_dir() . '/easywi-phar-targz-' . bin2hex(random_bytes(4));
+        mkdir($workDir, 0770, true);
+        $logPath = tempnam(sys_get_temp_dir(), 'easywi-log-');
+
+        $extract = new \ReflectionMethod($service, 'extractArchive');
+        $staging = $extract->invoke($service, $tarGzPath, $workDir, $logPath);
+
+        self::assertIsString($staging);
+        self::assertFileExists($staging . '/core/VERSION');
+        self::assertStringNotContainsString('PharData entpackt', (string) file_get_contents($logPath));
+    }
+
     public function testDownloadFallsBackToContentDispositionFilename(): void
     {
         if (!class_exists(\ZipArchive::class)) {
@@ -458,6 +496,101 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         self::assertSame($workDir . '/easywi-webinterface-from-header.zip', $archivePath);
         self::assertFileExists($archivePath);
+    }
+
+
+
+    public function testPostDeployRemovesStaleSymfonyEnvironmentCache(): void
+    {
+        $appRoot = sys_get_temp_dir() . '/easywi-cache-clear-' . bin2hex(random_bytes(4));
+        $cacheDir = $appRoot . '/var/cache/test/ContainerOld';
+        $composerCacheDir = $appRoot . '/var/cache/composer/cache';
+        mkdir($cacheDir, 0770, true);
+        mkdir($composerCacheDir, 0770, true);
+        file_put_contents($cacheDir . '/getTwigService.php', 'stale');
+        file_put_contents($composerCacheDir . '/packages.json', '{}');
+
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
+            'manifestUrl' => '',
+            'installDir' => sys_get_temp_dir(),
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => sys_get_temp_dir() . '/update.lock',
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'dev',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
+        ]);
+
+        $removeCache = new \ReflectionMethod($service, 'removeStaleSymfonyCache');
+        $logPath = tempnam(sys_get_temp_dir(), 'easywi-log-');
+        $removeCache->invoke($service, $appRoot, $logPath);
+
+        self::assertDirectoryDoesNotExist($appRoot . '/var/cache/test');
+        self::assertFileExists($composerCacheDir . '/packages.json');
+        self::assertStringContainsString('Symfony-Cache für Umgebung "test" vor Post-Deploy entfernt.', (string) file_get_contents($logPath));
+    }
+
+    public function testComposerInstallRetriesFromSourceForCodeloadDistFailures(): void
+    {
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
+            'manifestUrl' => '',
+            'installDir' => sys_get_temp_dir(),
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => sys_get_temp_dir() . '/update.lock',
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'dev',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
+        ]);
+
+        $shouldRetry = new \ReflectionMethod($service, 'shouldRetryComposerInstallFromSource');
+
+        self::assertTrue($shouldRetry->invoke($service, [
+            'exitCode' => 100,
+            'stdout' => '',
+            'stderr' => 'The "https://codeload.github.com/symfony/event-dispatcher/legacy.zip/abd6c11" file could not be downloaded (HTTP/2 400). Source fallback is disabled.',
+            'output' => '',
+            'command' => 'composer install',
+        ]));
+    }
+
+    public function testComposerInstallDoesNotRetryUnrelatedFailures(): void
+    {
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => new MockHttpClient(),
+            'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
+            'manifestUrl' => '',
+            'installDir' => sys_get_temp_dir(),
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => sys_get_temp_dir() . '/update.lock',
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'dev',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
+        ]);
+
+        $shouldRetry = new \ReflectionMethod($service, 'shouldRetryComposerInstallFromSource');
+
+        self::assertFalse($shouldRetry->invoke($service, [
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'Your lock file does not contain a compatible set of packages.',
+            'output' => '',
+            'command' => 'composer install',
+        ]));
     }
 
     /** @param array<string, string> $entries */
