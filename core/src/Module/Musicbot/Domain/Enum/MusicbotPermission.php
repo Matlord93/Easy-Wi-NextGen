@@ -24,6 +24,9 @@ enum MusicbotPermission: string
     case SchedulesManage = 'musicbot.schedules.manage';
     case WorkflowsManage = 'musicbot.workflows.manage';
     case WebradioManage = 'musicbot.webradio.manage';
+    case YoutubeManage = 'musicbot.youtube.manage';
+    case TeamspeakCommandsManage = 'musicbot.teamspeak.commands.manage';
+    case AutoDjManage = 'musicbot.autodj.manage';
 
     /** @return self[] */
     public static function customerDefaults(): array

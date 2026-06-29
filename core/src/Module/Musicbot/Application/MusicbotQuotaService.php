@@ -10,6 +10,7 @@ use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPlaylistRepository;
+use App\Repository\MusicbotPlaylistItemRepository;
 use App\Repository\MusicbotPluginRepository;
 use App\Repository\MusicbotQueueItemRepository;
 use App\Repository\MusicbotTrackRepository;
@@ -21,6 +22,7 @@ final class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         private readonly MusicbotInstanceRepository $instanceRepository,
         private readonly MusicbotTrackRepository $trackRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
+        private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
         private readonly MusicbotPluginRepository $pluginRepository,
         private readonly MusicbotQueueItemRepository $queueItemRepository,
         private readonly MusicbotConnectionRepository $connectionRepository,
@@ -69,10 +71,27 @@ final class MusicbotQuotaService implements MusicbotQuotaServiceInterface
     public function assertCanCreatePlaylist(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
+        if (!$limits->allowPlaylists) {
+            throw new MusicbotQuotaExceededException('Playlists are not available in your current plan.');
+        }
         $count = count($this->playlistRepository->findByCustomer($customer));
         if ($count >= $limits->maxPlaylists) {
             throw new MusicbotQuotaExceededException(
                 sprintf('Playlist limit reached (%d/%d). Delete some playlists to create more.', $count, $limits->maxPlaylists),
+            );
+        }
+    }
+
+    public function assertCanAddPlaylistItem(User $customer, \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist $playlist): void
+    {
+        $limits = $this->limitResolver->resolve($customer);
+        if (!$limits->allowPlaylists) {
+            throw new MusicbotQuotaExceededException('Playlists are not available in your current plan.');
+        }
+        $count = count($this->playlistItemRepository->findByPlaylistOrdered($playlist));
+        if ($count >= $limits->maxPlaylistItems) {
+            throw new MusicbotQuotaExceededException(
+                sprintf('Playlist item limit reached (%d/%d). Remove tracks from the playlist first.', $count, $limits->maxPlaylistItems),
             );
         }
     }
@@ -110,6 +129,14 @@ final class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    public function assertTeamspeakCommandsAllowed(User $customer): void
+    {
+        $limits = $this->limitResolver->resolve($customer);
+        if (!$limits->allowTeamspeakCommands) {
+            throw new MusicbotQuotaExceededException('TeamSpeak commands are not available in your current plan.');
+        }
+    }
+
     public function assertCanUseTeamspeak6Profile(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -142,6 +169,38 @@ final class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         $limits = $this->limitResolver->resolve($customer);
         if (!$limits->allowWebradio) {
             throw new MusicbotQuotaExceededException('Web radio is not available in your current plan.');
+        }
+    }
+
+    public function assertYoutubeAllowed(User $customer): void
+    {
+        $limits = $this->limitResolver->resolve($customer);
+        if (!$limits->allowYoutube) {
+            throw new MusicbotQuotaExceededException('YouTube playback is not available in your current plan.');
+        }
+    }
+
+    public function assertAutoDjAllowed(User $customer): void
+    {
+        $limits = $this->limitResolver->resolve($customer);
+        if (!$limits->allowAutoDj) {
+            throw new MusicbotQuotaExceededException('Auto-DJ is not available in your current plan.');
+        }
+    }
+
+    public function assertStreamAllowed(User $customer): void
+    {
+        $limits = $this->limitResolver->resolve($customer);
+        if (!$limits->allowStream) {
+            throw new MusicbotQuotaExceededException('Streaming is not available in your current plan.');
+        }
+    }
+
+    public function assertApiAllowed(User $customer): void
+    {
+        $limits = $this->limitResolver->resolve($customer);
+        if (!$limits->allowApi) {
+            throw new MusicbotQuotaExceededException('Musicbot API access is not available in your current plan.');
         }
     }
 
@@ -185,6 +244,10 @@ final class MusicbotQuotaService implements MusicbotQuotaServiceInterface
                 'used' => count($this->playlistRepository->findByCustomer($customer)),
                 'max' => $limits->maxPlaylists,
             ],
+            'playlist_items' => [
+                'used' => array_sum(array_map(fn ($playlist): int => count($this->playlistItemRepository->findByPlaylistOrdered($playlist)), $this->playlistRepository->findByCustomer($customer))),
+                'max' => $limits->maxPlaylistItems,
+            ],
             'plugins' => [
                 'used' => count($this->pluginRepository->findByCustomer($customer)),
                 'max' => $limits->maxPlugins,
@@ -198,11 +261,9 @@ final class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         $bytes = 0;
         foreach ($this->trackRepository->findByCustomer($customer) as $track) {
             $filePath = $track->getFilePath();
-            if ($filePath !== null) {
-                $absPath = $this->projectDir . '/' . $filePath;
-                if (is_file($absPath)) {
-                    $bytes += (int) filesize($absPath);
-                }
+            // filePath is stored as an absolute path by MusicbotTrackService::uploadTrack.
+            if ($filePath !== null && $filePath !== '' && is_file($filePath)) {
+                $bytes += (int) filesize($filePath);
             }
         }
 

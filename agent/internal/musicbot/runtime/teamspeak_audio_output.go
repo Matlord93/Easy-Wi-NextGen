@@ -3,6 +3,7 @@ package musicbotruntime
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 var ErrTeamSpeakVoiceNotReady = errors.New("teamspeak voice backend is not ready")
@@ -35,7 +36,7 @@ func NewTeamspeakAudioOutputFromConnector(connector *TeamSpeakVoiceConnector) *T
 }
 
 func (o *TeamspeakAudioOutput) SendAudioFrame(ctx context.Context, frame AudioFrame) error {
-	if err := validateTeamspeakOpusFrame(frame); err != nil {
+	if err := validateAudioFrame(frame); err != nil {
 		return err
 	}
 	if err := ctx.Err(); err != nil {
@@ -44,7 +45,8 @@ func (o *TeamspeakAudioOutput) SendAudioFrame(ctx context.Context, frame AudioFr
 	if o == nil || o.voiceClient == nil || !o.isReady(ctx) {
 		return ErrTeamSpeakVoiceNotReady
 	}
-	if err := o.voiceClient.SendOpusFrame(ctx, frame); err != nil {
+	frame = normalizeTeamspeakAudioFrame(frame)
+	if err := o.voiceClient.SendAudioFrame(ctx, frame); err != nil {
 		masked := maskTeamspeakSecretError(err.Error(), o.config)
 		if masked == err.Error() {
 			return err
@@ -62,3 +64,38 @@ func (o *TeamspeakAudioOutput) isReady(ctx context.Context) bool {
 }
 
 func (o *TeamspeakAudioOutput) OutputName() string { return "teamspeak_voice" }
+
+func normalizeTeamspeakAudioFrame(frame AudioFrame) AudioFrame {
+	format := strings.ToLower(strings.TrimSpace(frame.Format))
+	if isPCMFrame(frame) || (format == "opus" && opusPayloadLooksLikePCM(frame)) {
+		frame.Format = "pcm_s16le"
+		if len(frame.PCM) == 0 {
+			frame.PCM = append([]byte(nil), frame.Payload...)
+		}
+		if len(frame.Payload) == 0 {
+			frame.Payload = append([]byte(nil), frame.PCM...)
+		}
+	}
+	return frame
+}
+
+func isPCMFrame(frame AudioFrame) bool {
+	format := strings.ToLower(strings.TrimSpace(frame.Format))
+	return format == "pcm" || format == "pcm_s16le" || len(frame.PCM) > 0
+}
+
+func opusPayloadLooksLikePCM(frame AudioFrame) bool {
+	sampleRate := frame.SampleRateHz
+	if sampleRate == 0 {
+		sampleRate = frame.SampleRate
+	}
+	durationMs := frame.DurationMs
+	if durationMs == 0 && frame.Duration > 0 {
+		durationMs = int(frame.Duration / 1000000)
+	}
+	if sampleRate <= 0 || frame.Channels <= 0 || durationMs <= 0 {
+		return false
+	}
+	want := sampleRate * durationMs * frame.Channels * 2 / 1000
+	return want > 0 && len(frame.Payload) == want
+}

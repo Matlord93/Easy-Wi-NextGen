@@ -73,6 +73,7 @@ class MusicbotPlugin
     public function getInstance(): ?MusicbotInstance { return $this->instance; }
     public function setInstance(?MusicbotInstance $instance): void { $this->instance = $instance; $this->touch(); }
     public function getIdentifier(): string { return $this->identifier; }
+    public function getPluginId(): string { return $this->identifier; }
     public function setIdentifier(string $identifier): void { $this->identifier = $identifier; $this->touch(); }
     public function getName(): string { return $this->name; }
     public function setName(string $name): void { $this->name = $name; $this->touch(); }
@@ -81,7 +82,9 @@ class MusicbotPlugin
     public function isEnabled(): bool { return $this->enabled; }
     public function setEnabled(bool $enabled): void { $this->enabled = $enabled; $this->touch(); }
     /** @return array<string, mixed> */ public function getConfig(): array { return $this->config; }
+    /** @return array<string, mixed> */ public function getSettings(): array { return $this->config; }
     /** @param array<string, mixed> $config */ public function setConfig(array $config): void { $this->config = $config; $this->touch(); }
+    /** @param array<string, mixed> $settings */ public function setSettings(array $settings): void { $this->setConfig($settings); }
     /** @return array<string, mixed> */ public function getPermissions(): array { return $this->permissions; }
     /** @param array<string, mixed> $permissions */ public function setPermissions(array $permissions): void { $this->permissions = $permissions; $this->touch(); }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }

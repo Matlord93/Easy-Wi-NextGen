@@ -9,7 +9,15 @@ import (
 )
 
 func main() {
+	// Bootstrap mode: accept-ts3-client-license must be the first argument so it
+	// cannot be confused with a regular bridge flag.
+	if len(os.Args) >= 2 && os.Args[1] == "--accept-ts3-client-license" {
+		// RunLicenseBootstrap calls os.Exit; it never returns.
+		RunLicenseBootstrap(os.Args[2:])
+	}
+
 	logger := log.New(os.Stderr, "easywi-teamspeak-bridge: ", 0)
+	logger.Printf("bridge_main_started=true")
 
 	if os.Getenv("EASYWI_TS_BRIDGE") != "1" {
 		logger.Println("warning: EASYWI_TS_BRIDGE=1 not set; expected to be launched by the Musicbot runtime")

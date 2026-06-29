@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Musicbot\Application;
 
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Repository\MusicbotTrackRepositoryInterface;
@@ -33,6 +34,7 @@ final class MusicbotTrackService
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotTrackRepositoryInterface $trackRepository,
         private readonly MusicbotQuotaServiceInterface $quotaService,
+        private readonly MusicbotTrackPathResolver $pathResolver,
         private readonly string $projectDir,
         private readonly MusicbotWebradioUrlValidator $webradioValidator = new MusicbotWebradioUrlValidator(),
     ) {
@@ -44,7 +46,7 @@ final class MusicbotTrackService
         return $this->trackRepository->findByCustomer($customer);
     }
 
-    public function uploadTrack(User $customer, UploadedFile $file, ?string $title = null, ?string $artist = null): MusicbotTrack
+    public function uploadTrack(User $customer, UploadedFile $file, ?string $title = null, ?string $artist = null, ?MusicbotInstance $instance = null): MusicbotTrack
     {
         if (!$file->isValid()) {
             throw new \InvalidArgumentException('Upload failed.');
@@ -71,13 +73,24 @@ final class MusicbotTrackService
         }
 
         $safeBaseName = $this->normalizeBaseName($title ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-        $relativePath = sprintf('musicbot/tracks/customer-%d/%s-%s.%s', $customer->getId() ?? 0, substr($sha256, 0, 16), $safeBaseName, $extension);
-        $targetPath = $this->projectDir . '/var/' . $relativePath;
+        $relativePath = sprintf('customer-%d/%s-%s.%s', $customer->getId() ?? 0, substr($sha256, 0, 16), $safeBaseName, $extension);
+        $targetPath = $instance instanceof MusicbotInstance
+            ? $this->pathResolver->instanceTrackRoot($instance) . '/' . $relativePath
+            : $this->projectDir . '/var/musicbot/tracks/' . $relativePath;
         $targetDir = dirname($targetPath);
-        if (!is_dir($targetDir) && !mkdir($targetDir, 0770, true) && !is_dir($targetDir)) {
-            throw new \RuntimeException('Could not create customer track storage directory.');
+        if (!$this->ensureWritableDirectory($targetDir)) {
+            $message = sprintf('Could not create customer track storage directory at %s: %s', $targetDir, error_get_last()['message'] ?? 'directory is not writable');
+            error_log($message);
+            throw new \RuntimeException('Speicherverzeichnis nicht beschreibbar.');
         }
-        $file->move($targetDir, basename($targetPath));
+
+        try {
+            $file->move($targetDir, basename($targetPath));
+        } catch (\Throwable $exception) {
+            error_log(sprintf('Could not store customer track upload at %s: %s', $targetPath, $exception->getMessage()));
+            throw new \RuntimeException('Speicherverzeichnis nicht beschreibbar.', 0, $exception);
+        }
+        @chmod($targetPath, 0660);
 
         $track = new MusicbotTrack(
             $customer,
@@ -88,13 +101,29 @@ final class MusicbotTrackService
             0,
             ['original_name' => $file->getClientOriginalName(), 'size_bytes' => $fileSize]
         );
+        $track->setInstance($instance);
         $track->setArtist($artist !== null && trim($artist) !== '' ? trim($artist) : null);
-        $track->setFilePath('var/' . $relativePath);
+        $track->setFilePath($targetPath);
+
+        if (!is_file($targetPath)) {
+            throw new \RuntimeException('Uploaded track file could not be verified in storage.');
+        }
 
         $this->entityManager->persist($track);
         $this->entityManager->flush();
 
         return $track;
+    }
+
+
+    private function ensureWritableDirectory(string $directory): bool
+    {
+        if (!is_dir($directory) && !@mkdir($directory, 0770, true) && !is_dir($directory)) {
+            return false;
+        }
+        @chmod($directory, 0770);
+
+        return is_writable($directory);
     }
 
     public function deleteTrack(User $customer, MusicbotTrack $track): void
@@ -104,9 +133,11 @@ final class MusicbotTrackService
         $this->entityManager->remove($track);
         $this->entityManager->flush();
 
-        if ($filePath !== null && str_starts_with($filePath, 'var/musicbot/tracks/customer-')) {
-            $absolutePath = $this->projectDir . '/' . $filePath;
-            if (is_file($absolutePath)) {
+        if ($filePath !== null) {
+            $absolutePath = $track->getInstance() instanceof MusicbotInstance
+                ? $this->pathResolver->resolveTrackFile($track, $track->getInstance())
+                : (str_starts_with($filePath, 'var/musicbot/tracks/customer-') ? $this->projectDir . '/' . $filePath : null);
+            if ($absolutePath !== null && is_file($absolutePath)) {
                 @unlink($absolutePath);
             }
         }
@@ -164,6 +195,39 @@ final class MusicbotTrackService
             0,
             ['youtube_url' => $youtubeUrl],
         );
+
+        $this->entityManager->persist($track);
+        $this->entityManager->flush();
+
+        return $track;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function createYoutubeTrack(User $customer, string $youtubeUrl, string $title, ?string $artist = null, int $durationSeconds = 0, array $metadata = [], ?MusicbotInstance $instance = null): MusicbotTrack
+    {
+        $youtubeUrl = trim($youtubeUrl);
+        if ($youtubeUrl === '') {
+            throw new \InvalidArgumentException('YouTube URL must not be empty.');
+        }
+        $this->assertValidYoutubeUrl($youtubeUrl);
+        if ($instance instanceof MusicbotInstance && $instance->getCustomer()->getId() !== $customer->getId()) {
+            throw new \RuntimeException('Musicbot instance does not belong to the current customer.');
+        }
+        $this->quotaService->assertCanUploadTrack($customer, 0);
+
+        $track = new MusicbotTrack(
+            $customer,
+            trim($title) !== '' ? trim($title) : 'YouTube – ' . $this->extractYoutubeVideoId($youtubeUrl),
+            MusicbotTrackSourceType::Youtube,
+            'audio/mpeg',
+            hash('sha256', 'youtube:' . $youtubeUrl),
+            $durationSeconds,
+            array_merge($metadata, ['youtube_url' => $youtubeUrl]),
+        );
+        $track->setArtist($artist !== null && trim($artist) !== '' ? trim($artist) : null);
+        $track->setInstance($instance);
 
         $this->entityManager->persist($track);
         $this->entityManager->flush();

@@ -14,11 +14,12 @@ var ErrTeamSpeakVoiceBackendNotConfigured = errors.New(teamSpeakVoiceBackendNotC
 type CapabilityStatus string
 
 const (
-	CapabilityStatusPlaceholder           CapabilityStatus = "placeholder"
-	CapabilityStatusClientBackendRequired CapabilityStatus = "client_backend_required"
-	CapabilityStatusVoiceBackendRequired  CapabilityStatus = "voice_backend_required"
-	CapabilityStatusReady                 CapabilityStatus = "ready"
-	CapabilityStatusError                 CapabilityStatus = "error"
+	CapabilityStatusPlaceholder               CapabilityStatus = "placeholder"
+	CapabilityStatusClientBackendRequired     CapabilityStatus = "client_backend_required"
+	CapabilityStatusVoiceBackendRequired      CapabilityStatus = "voice_backend_required"
+	CapabilityStatusLicenseAcceptanceRequired CapabilityStatus = "license_acceptance_required"
+	CapabilityStatusReady                     CapabilityStatus = "ready"
+	CapabilityStatusError                     CapabilityStatus = "error"
 )
 
 type NativeTeamspeakVoiceClient interface {
@@ -30,6 +31,7 @@ type NativeTeamspeakVoiceClient interface {
 	JoinChannel(ctx context.Context, channelID string, password string) error
 	LeaveChannel(ctx context.Context) error
 	SendOpusFrame(ctx context.Context, frame AudioFrame) error
+	SendAudioFrame(ctx context.Context, frame AudioFrame) error
 	GetClientID(ctx context.Context) (string, error)
 	GetConnectionState(ctx context.Context) ConnectionState
 	GetLastError() string
@@ -105,6 +107,16 @@ func (c *PlaceholderTeamspeakVoiceClient) SendOpusFrame(ctx context.Context, fra
 	}
 	if !strings.EqualFold(frame.Format, "opus") {
 		return c.recordError(fmt.Errorf("teamspeak opus frame format is required, got %q", frame.Format))
+	}
+	return c.backendRequired(ctx)
+}
+
+func (c *PlaceholderTeamspeakVoiceClient) SendAudioFrame(ctx context.Context, frame AudioFrame) error {
+	if strings.EqualFold(frame.Format, "opus") {
+		return c.SendOpusFrame(ctx, frame)
+	}
+	if err := validateAudioFrame(frame); err != nil {
+		return c.recordError(err)
 	}
 	return c.backendRequired(ctx)
 }

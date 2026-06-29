@@ -21,7 +21,7 @@ final class PluginRegistryService
     /** @return PluginManifest[] */
     public function listManifests(): array
     {
-        $manifests = [];
+        $manifests = $this->builtInManifests();
         foreach ($this->manifestPaths() as $path) {
             try {
                 $manifest = $this->loadManifest($path);
@@ -79,8 +79,11 @@ final class PluginRegistryService
     {
         $identifier = strtolower(trim((string) ($data['identifier'] ?? '')));
         $this->assertValidIdentifier($identifier);
-        $permissions = $this->validateStringList($data['permissions'] ?? [], MusicbotPluginPermission::values(), 'permission');
-        $platforms = $this->validateStringList($data['supported_platforms'] ?? [], ['teamspeak', 'discord'], 'platform');
+        $permissions = $this->validateStringList($data['permissions'] ?? $data['required_permissions'] ?? [], MusicbotPluginPermission::values(), 'permission');
+        $platforms = $this->validateStringList($data['supported_platforms'] ?? [], ['teamspeak', 'discord', 'both'], 'platform');
+        $events = $this->validateStringList($data['events'] ?? $data['plugin_api']['hooks'] ?? [], $this->supportedEvents(), 'event');
+        $actions = $this->validateStringList($data['actions'] ?? [], $this->supportedActions(), 'action');
+        $settingsSchema = is_array($data['settings_schema'] ?? null) ? $data['settings_schema'] : (is_array($data['config_schema'] ?? null) ? $data['config_schema'] : []);
 
         return new PluginManifest(
             $identifier,
@@ -90,8 +93,15 @@ final class PluginRegistryService
             trim((string) ($data['description'] ?? '')),
             $permissions,
             $platforms,
-            is_array($data['config_schema'] ?? null) ? $data['config_schema'] : [],
+            is_array($data['config_schema'] ?? null) ? $data['config_schema'] : $settingsSchema,
             is_array($data['panel_extensions'] ?? null) ? $data['panel_extensions'] : [],
+            $this->validateStringList($data['required_features'] ?? [], ['playlists', 'webradio', 'youtube', 'uploads', 'autodj', 'plugins'], 'feature'),
+            $permissions,
+            $settingsSchema,
+            $events,
+            $actions,
+            (bool) ($data['enabled_by_default'] ?? false),
+            (bool) ($data['first_party'] ?? true),
         );
     }
 
@@ -127,6 +137,63 @@ final class PluginRegistryService
         ];
     }
 
+    /** @return array<string, PluginManifest> */
+    private function builtInManifests(): array
+    {
+        $commonEvents = $this->supportedEvents();
+
+        return [
+            'easywi.welcome_song' => new PluginManifest(
+                'easywi.welcome_song',
+                'Welcome Song',
+                '1.0.0',
+                'Easy-Wi',
+                'Plays a configured welcome track, playlist, or radio stream when a user joins the bot channel.',
+                [MusicbotPluginPermission::PlaybackControl->value, MusicbotPluginPermission::QueueManage->value, MusicbotPluginPermission::PlaylistManage->value, MusicbotPluginPermission::EventsSubscribe->value],
+                ['teamspeak'],
+                [],
+                [],
+                ['playlists', 'uploads'],
+                [MusicbotPluginPermission::PlaybackControl->value, MusicbotPluginPermission::QueueManage->value],
+                ['type' => 'object', 'properties' => ['enabled' => ['type' => 'boolean'], 'track_id' => ['type' => 'integer'], 'playlist_id' => ['type' => 'integer'], 'radio_url' => ['type' => 'string'], 'only_when_idle' => ['type' => 'boolean'], 'cooldown_seconds' => ['type' => 'integer'], 'max_plays_per_user_per_day' => ['type' => 'integer'], 'allowed_channels' => ['type' => 'array'], 'ignored_server_groups' => ['type' => 'array'], 'volume_override' => ['type' => 'integer'], 'send_chat_message' => ['type' => 'boolean'], 'chat_message_text' => ['type' => 'string'], 'resume_previous_playback' => ['type' => 'boolean']]],
+                ['user_joined_channel'],
+                ['play_track', 'play_playlist', 'play_radio', 'set_volume', 'send_chat_message'],
+                false,
+                true,
+            ),
+            'easywi.idle_playlist' => new PluginManifest(
+                'easywi.idle_playlist',
+                'Idle Playlist',
+                '1.0.0',
+                'Easy-Wi',
+                'Starts a playlist or Webradio stream after the queue is empty and playback is idle.',
+                [MusicbotPluginPermission::PlaybackControl->value, MusicbotPluginPermission::QueueManage->value, MusicbotPluginPermission::PlaylistManage->value, MusicbotPluginPermission::EventsSubscribe->value],
+                ['teamspeak', 'discord'],
+                [],
+                [],
+                ['playlists'],
+                [MusicbotPluginPermission::PlaybackControl->value, MusicbotPluginPermission::QueueManage->value],
+                ['type' => 'object', 'properties' => ['enabled' => ['type' => 'boolean'], 'idle_seconds' => ['type' => 'integer'], 'playlist_id' => ['type' => 'integer'], 'radio_url' => ['type' => 'string'], 'shuffle' => ['type' => 'boolean'], 'repeat' => ['type' => 'boolean'], 'volume' => ['type' => 'integer'], 'allowed_time_window' => ['type' => 'string']]],
+                ['queue_empty', 'playback_stopped', 'scheduled_tick'],
+                ['play_playlist', 'play_radio', 'set_volume'],
+                false,
+                true,
+            ),
+        ];
+    }
+
+    /** @return string[] */
+    public function supportedEvents(): array
+    {
+        return ['bot_started', 'bot_stopped', 'runtime_ready', 'user_joined_channel', 'user_left_channel', 'channel_empty', 'channel_not_empty', 'playback_started', 'playback_stopped', 'track_started', 'track_finished', 'queue_empty', 'queue_changed', 'chat_command_received', 'playback_action_requested', 'queue_action_requested', 'error_occurred', 'scheduled_tick'];
+    }
+
+    /** @return string[] */
+    public function supportedActions(): array
+    {
+        return ['play_track', 'play_playlist', 'play_radio', 'play_youtube', 'queue_track', 'clear_queue', 'set_volume', 'send_chat_message', 'reconnect', 'trigger_autodj'];
+    }
+
     /** @param mixed $value @param string[] $allowed @return string[] */
     private function validateStringList(mixed $value, array $allowed, string $label): array
     {
@@ -136,6 +203,7 @@ final class PluginRegistryService
         $result = [];
         foreach ($value as $item) {
             $item = strtolower(trim((string) $item));
+            if ($label === 'event') { $item = str_replace('.', '_', $item); }
             if ($item === '') {
                 continue;
             }

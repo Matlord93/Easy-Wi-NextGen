@@ -17,10 +17,12 @@ import (
 type TrackSourceType string
 
 const (
-	TrackSourceUpload TrackSourceType = "upload"
-	TrackSourceStream TrackSourceType = "stream"
-	TrackSourceURL    TrackSourceType = "url"
-	TrackSourcePlugin TrackSourceType = "plugin"
+	TrackSourceUpload  TrackSourceType = "upload"
+	TrackSourceStream  TrackSourceType = "stream"
+	TrackSourceRadio   TrackSourceType = "radio"
+	TrackSourceYouTube TrackSourceType = "youtube"
+	TrackSourceURL     TrackSourceType = "url"
+	TrackSourcePlugin  TrackSourceType = "plugin"
 )
 
 type CurrentTrack struct {
@@ -112,6 +114,19 @@ type AudioPipelineStatus struct {
 	PlaybackPositionMs uint64 `json:"playback_position_ms"`
 	LastError          string `json:"last_error,omitempty"`
 	LastOutputError    string `json:"last_output_error,omitempty"`
+	SourceType         string `json:"source_type,omitempty"`
+	FilePath           string `json:"file_path,omitempty"`
+	URL                string `json:"url,omitempty"`
+	MimeType           string `json:"mime_type,omitempty"`
+	DetectedExtension  string `json:"detected_extension,omitempty"`
+	FFmpegPath         string `json:"ffmpeg_path,omitempty"`
+	FFmpegCommand      string `json:"ffmpeg_command_without_sensitive_data,omitempty"`
+	FFmpegExitError    string `json:"ffmpeg_exit_error,omitempty"`
+	FFmpegStderr       string `json:"stderr_summary,omitempty"`
+	BytesRead          uint64 `json:"bytes_read,omitempty"`
+	FrameIntervalMs    int64  `json:"frame_interval_ms,omitempty"`
+	LateFrames         uint64 `json:"late_frames,omitempty"`
+	WriteLatencyMs     int64  `json:"write_latency_ms,omitempty"`
 	UpdatedAt          string `json:"updated_at"`
 }
 
@@ -157,6 +172,16 @@ func (p *AudioPipeline) LoadSource(ctx context.Context, source AudioSource) (Res
 	}
 	p.mu.Lock()
 	p.status.CurrentSource = resolved.Source.URI
+	p.status.SourceType = string(resolved.Source.Type)
+	p.status.MimeType = resolved.Source.MimeType
+	p.status.DetectedExtension = strings.ToLower(filepath.Ext(resolved.Source.URI))
+	if isRemoteAudioSource(resolved.Source) {
+		p.status.URL = abbreviateDiagnosticValue(resolved.Source.URI)
+		p.status.FilePath = ""
+	} else {
+		p.status.FilePath = abbreviateDiagnosticValue(resolved.Source.URI)
+		p.status.URL = ""
+	}
 	p.status.DecoderBackend = decoderBackendName(p.decoder)
 	p.status.DecoderStatus = "source_loaded"
 	p.status.FramesProcessed = 0
@@ -180,7 +205,14 @@ func (p *AudioPipeline) Decode(ctx context.Context, source AudioSource) (Decoded
 		p.setError(err)
 		return nil, err
 	}
-	p.setDecoderStatus("decoding")
+	p.mu.Lock()
+	if ff, ok := stream.(*ffmpegDecodedAudioStream); ok {
+		p.status.FFmpegPath = ff.ffmpegPath
+		p.status.FFmpegCommand = ff.command
+	}
+	p.status.DecoderStatus = "decoding"
+	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	p.mu.Unlock()
 	return stream, nil
 }
 
@@ -219,7 +251,7 @@ func (p *AudioPipeline) Output(ctx context.Context, frame AudioFrame) error {
 	output := p.output
 	p.mu.Unlock()
 	if err := output.SendAudioFrame(ctx, frame); err != nil {
-		p.setError(err)
+		p.setOutputError(err)
 		return err
 	}
 	p.mu.Lock()
@@ -249,6 +281,7 @@ func (p *AudioPipeline) ProcessWithVolume(ctx context.Context, source AudioSourc
 		return err
 	}
 	defer func() { _ = stream.Close() }()
+	nextOutputAt := time.Now()
 	for {
 		frame, err := stream.NextFrame(ctx)
 		if errors.Is(err, io.EOF) {
@@ -271,12 +304,16 @@ func (p *AudioPipeline) ProcessWithVolume(ctx context.Context, source AudioSourc
 		if err != nil {
 			return err
 		}
-		if err := p.Output(ctx, frame); err != nil {
-			return err
-		}
 		d := audioFrameDuration(frame)
-		if d > 0 {
-			timer := time.NewTimer(d)
+		if d <= 0 {
+			d = 20 * time.Millisecond
+		}
+		now := time.Now()
+		if nextOutputAt.IsZero() || now.Sub(nextOutputAt) > 5*d || nextOutputAt.Sub(now) > 5*d {
+			nextOutputAt = now
+		}
+		if wait := nextOutputAt.Sub(now); wait > 0 {
+			timer := time.NewTimer(wait)
 			select {
 			case <-ctx.Done():
 				timer.Stop()
@@ -284,8 +321,33 @@ func (p *AudioPipeline) ProcessWithVolume(ctx context.Context, source AudioSourc
 				return ctx.Err()
 			case <-timer.C:
 			}
+		} else if -wait > d/2 {
+			p.recordLateFrame(d, -wait)
 		}
+		writeStart := time.Now()
+		if err := p.Output(ctx, frame); err != nil {
+			return err
+		}
+		p.recordFrameTiming(d, time.Since(writeStart))
+		nextOutputAt = nextOutputAt.Add(d)
 	}
+}
+
+func (p *AudioPipeline) recordFrameTiming(interval time.Duration, writeLatency time.Duration) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.status.FrameIntervalMs = interval.Milliseconds()
+	p.status.WriteLatencyMs = writeLatency.Milliseconds()
+	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+}
+
+func (p *AudioPipeline) recordLateFrame(interval time.Duration, lateBy time.Duration) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.status.FrameIntervalMs = interval.Milliseconds()
+	p.status.LateFrames++
+	p.status.LastOutputError = fmt.Sprintf("audio pacing late by %dms", lateBy.Milliseconds())
+	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 }
 
 func (p *AudioPipeline) Snapshot() AudioPipelineStatus {
@@ -307,6 +369,22 @@ func (p *AudioPipeline) setError(err error) {
 	p.status.DecoderStatus = "error"
 	p.status.OutputStatus = "error"
 	p.status.LastError = err.Error()
+	p.status.LastOutputError = err.Error()
+	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+}
+
+// setOutputError records an output-layer failure without touching DecoderStatus.
+// When the audio output is unavailable (e.g. PulseAudio not ready) but the
+// decoder was running fine, DecoderStatus should be "blocked" rather than
+// "error" so the connector stays in a ready state and can resume once audio
+// becomes available.
+func (p *AudioPipeline) setOutputError(err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.status.DecoderStatus == "decoding" {
+		p.status.DecoderStatus = "blocked"
+	}
+	p.status.OutputStatus = "error"
 	p.status.LastOutputError = err.Error()
 	p.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 }
@@ -335,6 +413,9 @@ func (r FileAudioSourceResolver) Resolve(ctx context.Context, source AudioSource
 	default:
 	}
 	if source.Type != "" && source.Type != TrackSourceUpload {
+		if source.Type == TrackSourceRadio || source.Type == TrackSourceStream || source.Type == TrackSourceURL {
+			return ResolvedAudioSource{Source: source, Path: source.URI, Reader: io.NopCloser(bytes.NewReader(nil))}, nil
+		}
 		return ResolvedAudioSource{}, fmt.Errorf("unsupported audio source type: %s", source.Type)
 	}
 	path := source.URI
@@ -366,9 +447,6 @@ func (r FileAudioSourceResolver) Resolve(ctx context.Context, source AudioSource
 	}
 	if !allowed {
 		return ResolvedAudioSource{}, errors.New("audio source path is outside allowed runtime data directories")
-	}
-	if !isSupportedAudioPath(cleanPath) && !isSupportedAudioMime(source.MimeType) {
-		return ResolvedAudioSource{}, fmt.Errorf("unsupported audio format: %s", filepath.Ext(cleanPath))
 	}
 	file, err := os.Open(cleanPath)
 	if err != nil {
@@ -425,12 +503,12 @@ type FFmpegDecoder struct {
 func (d FFmpegDecoder) BackendName() string { return "ffmpeg" }
 
 func (d FFmpegDecoder) Supports(source AudioSource) bool {
-	return isSupportedAudioMime(source.MimeType) || isSupportedAudioPath(source.URI) || isSupportedCodec(source.Codec)
+	return strings.TrimSpace(source.URI) != ""
 }
 
 func (d FFmpegDecoder) Open(ctx context.Context, source AudioSource) (DecodedAudioStream, error) {
 	if !d.Supports(source) {
-		return nil, fmt.Errorf("unsupported audio format: %s", firstNonEmpty(source.MimeType, source.Codec, filepath.Ext(source.URI)))
+		return nil, fmt.Errorf("unsupported audio format: missing input uri (source_type=%s mime_type=%s extension=%s)", source.Type, source.MimeType, filepath.Ext(source.URI))
 	}
 	bin := strings.TrimSpace(d.BinaryPath)
 	if bin == "" {
@@ -445,7 +523,8 @@ func (d FFmpegDecoder) Open(ctx context.Context, source AudioSource) (DecodedAud
 	}
 	frameSize := 48000 * 2 * 2 * frameMs / 1000
 	cmdCtx, cancel := context.WithCancel(ctx)
-	cmd := exec.CommandContext(cmdCtx, bin, "-hide_banner", "-nostdin", "-loglevel", "error", "-i", source.URI, "-vn", "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "2", "-ar", "48000", "pipe:1")
+	args := []string{"-hide_banner", "-loglevel", "error", "-i", source.URI, "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "48000", "-ac", "2", "pipe:1"}
+	cmd := exec.CommandContext(cmdCtx, bin, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
@@ -455,20 +534,23 @@ func (d FFmpegDecoder) Open(ctx context.Context, source AudioSource) (DecodedAud
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("start ffmpeg decoder: %w", err)
+		return nil, fmt.Errorf("start ffmpeg decoder (%s): %w", commandString(bin, args), err)
 	}
-	return &ffmpegDecodedAudioStream{cmd: cmd, cancel: cancel, stdout: stdout, stderr: stderr, frameSize: frameSize, frameMs: frameMs}, nil
+	return &ffmpegDecodedAudioStream{cmd: cmd, cancel: cancel, stdout: stdout, stderr: stderr, frameSize: frameSize, frameMs: frameMs, command: commandString(bin, args), ffmpegPath: bin}, nil
 }
 
 type ffmpegDecodedAudioStream struct {
-	cmd       *exec.Cmd
-	cancel    context.CancelFunc
-	stdout    io.ReadCloser
-	stderr    *bytes.Buffer
-	frameSize int
-	frameMs   int
-	sequence  uint64
-	closed    bool
+	cmd        *exec.Cmd
+	cancel     context.CancelFunc
+	stdout     io.ReadCloser
+	stderr     *bytes.Buffer
+	frameSize  int
+	frameMs    int
+	command    string
+	ffmpegPath string
+	bytesRead  uint64
+	sequence   uint64
+	closed     bool
 }
 
 func (s *ffmpegDecodedAudioStream) NextFrame(ctx context.Context) (AudioFrame, error) {
@@ -497,6 +579,7 @@ func (s *ffmpegDecodedAudioStream) NextFrame(ctx context.Context) (AudioFrame, e
 		}
 	}
 	s.sequence++
+	s.bytesRead += uint64(len(buf))
 	pcm := append([]byte(nil), buf...)
 	return AudioFrame{Format: "pcm_s16le", SampleRateHz: 48000, SampleRate: 48000, Channels: 2, Sequence: s.sequence, PCM: pcm, Payload: pcm, DurationMs: s.frameMs, Duration: time.Duration(s.frameMs) * time.Millisecond, Timestamp: time.Now().UTC()}, nil
 }
@@ -607,6 +690,16 @@ func (DummyOpusEncoder) EncodeOpus(ctx context.Context, frame AudioFrame) (Audio
 		return AudioFrame{}, ctx.Err()
 	default:
 	}
+	if isPCMFrame(frame) {
+		frame.Format = "pcm_s16le"
+		if len(frame.PCM) == 0 {
+			frame.PCM = append([]byte(nil), frame.Payload...)
+		}
+		if len(frame.Payload) == 0 {
+			frame.Payload = append([]byte(nil), frame.PCM...)
+		}
+		return frame, nil
+	}
 	frame.Format = "opus"
 	if len(frame.Payload) == 0 && len(frame.PCM) > 0 {
 		frame.Payload = append([]byte(nil), frame.PCM...)
@@ -635,7 +728,7 @@ func (o NullAudioOutput) OutputName() string { return "null" }
 
 func isSupportedAudioPath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".mp3", ".ogg", ".wav", ".flac":
+	case ".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".flac":
 		return true
 	default:
 		return false
@@ -644,7 +737,7 @@ func isSupportedAudioPath(path string) bool {
 
 func isSupportedAudioMime(mimeType string) bool {
 	switch strings.ToLower(strings.TrimSpace(mimeType)) {
-	case "audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav", "audio/x-wav", "audio/flac", "audio/x-flac":
+	case "audio/mpeg", "audio/mp3", "audio/aac", "audio/mp4", "audio/m4a", "audio/ogg", "audio/opus", "audio/wav", "audio/x-wav", "audio/flac", "audio/x-flac":
 		return true
 	default:
 		return false
@@ -653,7 +746,7 @@ func isSupportedAudioMime(mimeType string) bool {
 
 func isSupportedCodec(codec string) bool {
 	switch strings.ToLower(strings.TrimSpace(codec)) {
-	case "mp3", "ogg", "wav", "flac":
+	case "mp3", "m4a", "aac", "ogg", "opus", "wav", "flac":
 		return true
 	default:
 		return false
@@ -678,4 +771,27 @@ type DummyAudioPipeline interface {
 	SetRepeat(ctx context.Context, repeat string) error
 	SetShuffle(ctx context.Context, shuffle bool) error
 	Snapshot(ctx context.Context) QueueSnapshot
+}
+
+func isRemoteAudioSource(source AudioSource) bool {
+	uri := strings.ToLower(strings.TrimSpace(source.URI))
+	return source.Type == TrackSourceRadio || source.Type == TrackSourceStream || source.Type == TrackSourceURL || strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
+}
+
+func abbreviateDiagnosticValue(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) <= 240 {
+		return value
+	}
+	return value[:120] + "…" + value[len(value)-100:]
+}
+
+func commandString(bin string, args []string) string {
+	parts := append([]string{bin}, args...)
+	for i := range parts {
+		if strings.HasPrefix(parts[i], "http://") || strings.HasPrefix(parts[i], "https://") {
+			parts[i] = abbreviateDiagnosticValue(parts[i])
+		}
+	}
+	return strings.Join(parts, " ")
 }

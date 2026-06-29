@@ -194,11 +194,11 @@ final class MusicbotScheduleService
             'enabled' => $schedule->isEnabled(),
             'action' => $schedule->getAction()->value,
             'payload' => $schedule->getPayload() ?? [],
-            'last_run_at' => $schedule->getLastRunAt()?->format(DATE_ATOM),
-            'next_run_at' => $schedule->getNextRunAt()?->format(DATE_ATOM),
+            'last_run_at' => $schedule->getLastRunAt()?->format(\DateTimeInterface::ATOM),
+            'next_run_at' => $schedule->getNextRunAt()?->format(\DateTimeInterface::ATOM),
             'last_error' => $schedule->getLastError(),
-            'created_at' => $schedule->getCreatedAt()->format(DATE_ATOM),
-            'updated_at' => $schedule->getUpdatedAt()->format(DATE_ATOM),
+            'created_at' => $schedule->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'updated_at' => $schedule->getUpdatedAt()->format(\DateTimeInterface::ATOM),
             'instance_id' => $schedule->getInstance()->getId(),
         ];
     }

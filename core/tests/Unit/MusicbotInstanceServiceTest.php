@@ -250,6 +250,67 @@ final class MusicbotInstanceServiceTest extends TestCase
         );
     }
 
+
+    public function testUpdateSettings_PersistsLiveTeamspeakFieldsAndAllowsClearingChannel(): void
+    {
+        $this->secretConfig->method('mergeSecretUpdates')->willReturnArgument(0);
+
+        $connection = $this->createMock(MusicbotConnection::class);
+        $connection->method('isEnabled')->willReturn(true);
+        $connection->method('getConnectionConfig')->willReturn([
+            'host' => 'ts.example.com',
+            'port' => 9987,
+            'nickname' => 'Bot',
+            'channel_id' => '42',
+            'channel_name' => 'Old channel',
+        ]);
+        $connection->method('getSecretConfig')->willReturn([]);
+        $connection->expects($this->once())->method('setConnectionConfig')
+            ->with($this->callback(function (array $config): bool {
+                return $config['channel_id'] === ''
+                    && $config['channel_name'] === ''
+                    && $config['channel_description'] === 'Live description'
+                    && $config['avatar'] === 'avatar.png'
+                    && $config['badges'] === 'badge-1,badge-2'
+                    && $config['away_status'] === 'Streaming'
+                    && $config['default_recording_mode'] === 'manual'
+                    && $config['voice_quality'] === 'high'
+                    && $config['codec'] === 'opus_music'
+                    && $config['codec_bitrate'] === 128;
+            }));
+
+        $repo = $this->createStub(\Doctrine\ORM\EntityRepository::class);
+        $repo->method('findOneBy')->willReturn($connection);
+        $this->em->method('getRepository')->willReturn($repo);
+
+        $customer = $this->makeUser();
+        $node = $this->makeNode();
+        $instance = new MusicbotInstance($customer, $node, 'Bot', 'mb-1-abc', '/opt/mb');
+
+        $this->makeService()->updateSettings(
+            customer: $customer,
+            instance: $instance,
+            general: [],
+            tsConfig: [
+                'enabled' => true,
+                'host' => 'ts.example.com',
+                'port' => 9987,
+                'nickname' => 'Bot',
+                'channel_id' => '',
+                'channel_name' => '',
+                'channel_description' => 'Live description',
+                'avatar' => 'avatar.png',
+                'badges' => 'badge-1,badge-2',
+                'away_status' => 'Streaming',
+                'default_recording_mode' => 'manual',
+                'voice_quality' => 'high',
+                'codec' => 'opus_music',
+                'codec_bitrate' => '128',
+            ],
+            tsSecrets: [],
+        );
+    }
+
     public function testDeleteInstance_DispatchesUninstallJobAndRemovesRecord(): void
     {
         $customer = $this->makeUser();

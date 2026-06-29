@@ -79,6 +79,7 @@ type TeamspeakClientAdapter interface {
 	JoinChannel(ctx context.Context, channelID, password string) (actualChannelID string, err error)
 	LeaveChannel(ctx context.Context) error
 	SendOpusFrame(ctx context.Context, frame []byte, durationMs int) error
+	SendAudioFrame(ctx context.Context, format string, frame []byte, durationMs int) error
 	Status(ctx context.Context) (adapterStatus, error)
 	Shutdown(ctx context.Context) error
 }
@@ -155,6 +156,10 @@ func (a *SelectingAdapter) LeaveChannel(ctx context.Context) error {
 func (a *SelectingAdapter) SendOpusFrame(ctx context.Context, frame []byte, durationMs int) error {
 	return a.current.SendOpusFrame(ctx, frame, durationMs)
 }
+
+func (a *SelectingAdapter) SendAudioFrame(ctx context.Context, format string, frame []byte, durationMs int) error {
+	return a.current.SendAudioFrame(ctx, format, frame, durationMs)
+}
 func (a *SelectingAdapter) Status(ctx context.Context) (adapterStatus, error) {
 	return a.current.Status(ctx)
 }
@@ -182,6 +187,10 @@ func (*PlaceholderAdapter) JoinChannel(_ context.Context, _ string, _ string) (s
 }
 func (*PlaceholderAdapter) LeaveChannel(_ context.Context) error          { return nil }
 func (*PlaceholderAdapter) SetNickname(_ context.Context, _ string) error { return nil }
+func (*PlaceholderAdapter) SendAudioFrame(_ context.Context, _ string, _ []byte, _ int) error {
+	return ErrClientBackendNotAvailable
+}
+
 func (*PlaceholderAdapter) SendOpusFrame(_ context.Context, _ []byte, _ int) error {
 	return ErrClientBackendNotAvailable
 }
@@ -208,6 +217,10 @@ func (*DisabledAdapter) LeaveChannel(_ context.Context) error { return nil }
 func (*DisabledAdapter) SetNickname(_ context.Context, _ string) error {
 	return ErrClientBackendDisabled
 }
+func (*DisabledAdapter) SendAudioFrame(_ context.Context, _ string, _ []byte, _ int) error {
+	return ErrClientBackendNotAvailable
+}
+
 func (*DisabledAdapter) SendOpusFrame(_ context.Context, _ []byte, _ int) error {
 	return ErrClientBackendDisabled
 }
@@ -381,9 +394,13 @@ func (a *processBackedAdapter) LeaveChannel(ctx context.Context) error {
 }
 
 func (a *processBackedAdapter) SendOpusFrame(ctx context.Context, frame []byte, durationMs int) error {
+	return a.SendAudioFrame(ctx, "opus", frame, durationMs)
+}
+
+func (a *processBackedAdapter) SendAudioFrame(ctx context.Context, format string, frame []byte, durationMs int) error {
 	_, err := a.roundTrip(ctx, bridgeRequest{
-		Action:     "send_opus_frame",
-		Format:     "opus",
+		Action:     "send_audio_frame",
+		Format:     format,
 		Payload:    base64.StdEncoding.EncodeToString(frame),
 		DurationMs: durationMs,
 	})
@@ -547,6 +564,10 @@ func (a *NativeSDKAdapter) LeaveChannel(ctx context.Context) error { return a.pr
 func (a *NativeSDKAdapter) SendOpusFrame(ctx context.Context, frame []byte, durationMs int) error {
 	return a.proc.SendOpusFrame(ctx, frame, durationMs)
 }
+
+func (a *NativeSDKAdapter) SendAudioFrame(ctx context.Context, format string, frame []byte, durationMs int) error {
+	return a.proc.SendAudioFrame(ctx, format, frame, durationMs)
+}
 func (a *NativeSDKAdapter) Status(ctx context.Context) (adapterStatus, error) {
 	return a.proc.Status(ctx)
 }
@@ -590,6 +611,10 @@ func (a *ClientLibraryAdapter) LeaveChannel(ctx context.Context) error {
 }
 func (a *ClientLibraryAdapter) SendOpusFrame(ctx context.Context, frame []byte, durationMs int) error {
 	return a.proc.SendOpusFrame(ctx, frame, durationMs)
+}
+
+func (a *ClientLibraryAdapter) SendAudioFrame(ctx context.Context, format string, frame []byte, durationMs int) error {
+	return a.proc.SendAudioFrame(ctx, format, frame, durationMs)
 }
 func (a *ClientLibraryAdapter) Status(ctx context.Context) (adapterStatus, error) {
 	return a.proc.Status(ctx)

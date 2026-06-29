@@ -117,6 +117,10 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleMusicbotTeamspeakBackendInstallDependencies(job)
 	case "musicbot.config.apply":
 		return handleMusicbotConfigApply(job)
+	case "musicbot.health.check":
+		return handleMusicbotHealthCheck(job)
+	case "musicbot.health.repair":
+		return handleMusicbotHealthRepair(job)
 	case "ts3.virtual.create":
 		return handleTs3VirtualCreate(job)
 	case "ts3.virtual.action":

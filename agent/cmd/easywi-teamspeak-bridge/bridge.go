@@ -91,6 +91,7 @@ func newBridge(adapter TeamspeakClientAdapter, w io.Writer, logger *log.Logger) 
 // It returns nil on clean EOF (stdin closed by the runtime) and a non-nil error
 // only on scanner I/O failure.
 func (b *bridge) run(ctx context.Context, r io.Reader) error {
+	b.logger.Printf("protocol_ready=true")
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		if ctx.Err() != nil {
@@ -121,8 +122,8 @@ func (b *bridge) dispatch(ctx context.Context, req bridgeRequest) bridgeResponse
 		return b.handleLeaveChannel(ctx)
 	case "set_nickname":
 		return b.handleSetNickname(ctx, req)
-	case "send_opus_frame":
-		return b.handleSendOpusFrame(ctx, req)
+	case "send_opus_frame", "send_audio_frame":
+		return b.handleSendAudioFrame(ctx, req)
 	case "status":
 		return b.handleStatus()
 	default:
@@ -261,7 +262,7 @@ func (b *bridge) handleSetNickname(ctx context.Context, req bridgeRequest) bridg
 	return bridgeResponse{OK: true}
 }
 
-func (b *bridge) handleSendOpusFrame(ctx context.Context, req bridgeRequest) bridgeResponse {
+func (b *bridge) handleSendAudioFrame(ctx context.Context, req bridgeRequest) bridgeResponse {
 	b.mu.Lock()
 	connected := b.state == stateConnected
 	b.mu.Unlock()
@@ -269,8 +270,12 @@ func (b *bridge) handleSendOpusFrame(ctx context.Context, req bridgeRequest) bri
 	if !connected {
 		return bridgeResponse{OK: false, Error: "not connected to TeamSpeak server"}
 	}
-	if !strings.EqualFold(req.Format, "opus") {
+	format := strings.ToLower(strings.TrimSpace(req.Format))
+	if req.Action == "send_opus_frame" && format != "opus" {
 		return bridgeResponse{OK: false, Error: fmt.Sprintf("unsupported frame format %q, expected opus", req.Format)}
+	}
+	if format != "opus" && format != "pcm" && format != "pcm_s16le" {
+		return bridgeResponse{OK: false, Error: fmt.Sprintf("unsupported frame format %q, expected opus or pcm_s16le", req.Format)}
 	}
 	if req.Payload == "" {
 		return bridgeResponse{OK: false, Error: "payload is required"}
@@ -283,7 +288,10 @@ func (b *bridge) handleSendOpusFrame(ctx context.Context, req bridgeRequest) bri
 	if durationMs <= 0 {
 		durationMs = 20
 	}
-	if err := b.adapter.SendOpusFrame(ctx, frame, durationMs); err != nil {
+	if format == "opus" && payloadLooksLikePCM(frame, 48000, 2, durationMs) {
+		format = "pcm_s16le"
+	}
+	if err := b.adapter.SendAudioFrame(ctx, format, frame, durationMs); err != nil {
 		return bridgeResponse{OK: false, Error: err.Error()}
 	}
 	return bridgeResponse{OK: true}
@@ -350,4 +358,12 @@ func normalizeProfile(profile string) string {
 		return "ts6"
 	}
 	return "ts3"
+}
+
+func payloadLooksLikePCM(payload []byte, sampleRate, channels, durationMs int) bool {
+	if sampleRate <= 0 || channels <= 0 || durationMs <= 0 {
+		return false
+	}
+	want := sampleRate * durationMs * channels * 2 / 1000
+	return want > 0 && len(payload) == want
 }

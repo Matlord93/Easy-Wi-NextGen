@@ -8,6 +8,7 @@ use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Musicbot\Application\MusicbotConfigApplyPayloadBuilder;
 use App\Module\Musicbot\Application\MusicbotRuntimeConfigBuilder;
 use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
@@ -461,6 +462,78 @@ final class MusicbotConfigPersistenceTest extends TestCase
         self::assertSame($payload, $sanitized, 'Non-secret fields must pass through sanitizePayload unchanged.');
     }
 
+    public function testConfigApplyPayloadContainsRequiredFieldsForCustomerSettingsSave(): void
+    {
+        $tsConn = new MusicbotConnection($this->instance, MusicbotPlatform::Teamspeak, [
+            'host' => 'ts.settings.test',
+            'port' => 9988,
+            'nickname' => 'SettingsBot',
+            'profile' => 'ts3',
+            'backend_type' => 'placeholder',
+            'command_prefix' => '?',
+        ]);
+        $tsConn->setEnabled(true);
+
+        $payload = $this->buildConfigApplyPayload([$tsConn]);
+
+        foreach (['platform', 'profile', 'backend_type', 'host', 'port', 'nickname', 'command_prefix', 'audio_backend', 'backend_path', 'install_path'] as $field) {
+            self::assertArrayHasKey($field, $payload);
+        }
+        self::assertSame('teamspeak', $payload['platform']);
+        self::assertSame('ts3', $payload['profile']);
+        self::assertSame('placeholder', $payload['backend_type']);
+        self::assertSame('ts.settings.test', $payload['host']);
+        self::assertSame(9988, $payload['port']);
+        self::assertSame('SettingsBot', $payload['nickname']);
+        self::assertSame('?', $payload['command_prefix']);
+        self::assertSame('ts.settings.test', $payload['config']['teamspeak']['host']);
+    }
+
+    public function testConfigApplyPayloadContainsRequiredFieldsForCustomerConnectionsSave(): void
+    {
+        $payload = $this->buildConfigApplyPayload([]);
+
+        self::assertSame('teamspeak', $payload['platform']);
+        self::assertSame('ts3', $payload['profile']);
+        self::assertSame('placeholder', $payload['backend_type']);
+        self::assertSame('localhost', $payload['host']);
+        self::assertSame(9987, $payload['port']);
+        self::assertSame('Musicbot', $payload['nickname']);
+        self::assertSame($this->instance->getInstallPath(), $payload['install_path']);
+    }
+
+    public function testConfigApplyPayloadKeepsAdminOnlyPathsFromStoredConfig(): void
+    {
+        $tsConn = new MusicbotConnection($this->instance, MusicbotPlatform::Teamspeak, [
+            'host' => 'ts.paths.test',
+            'port' => 9987,
+            'nickname' => 'PathBot',
+            'profile' => 'ts3',
+            'backend_type' => 'client_library',
+            'backend_path' => '/secure/backend',
+            'binary_path' => '/secure/ts3client',
+        ]);
+        $tsConn->setEnabled(true);
+
+        $payload = $this->buildConfigApplyPayload([$tsConn]);
+
+        self::assertSame('/secure/backend', $payload['backend_path']);
+        self::assertSame('/secure/ts3client', $payload['ts3_client_binary_path']);
+        self::assertSame('/secure/backend', $payload['config']['teamspeak']['backend_path']);
+    }
+
+    public function testCustomerSettingsControllerPlansConfigApplyAndStatusRefresh(): void
+    {
+        $source = file_get_contents(__DIR__.'/../../src/Module/Musicbot/UI/Controller/Customer/CustomerMusicbotController.php');
+        self::assertIsString($source);
+
+        self::assertStringContainsString('dispatchConfigApplyJob($instance)', $source);
+        self::assertStringContainsString('queueStatusRefresh($customer, $instance)', $source);
+        self::assertStringContainsString("'musicbot.config.apply'", $source);
+        self::assertStringContainsString("'platform' => 'teamspeak'", $source);
+        self::assertStringContainsString('findInstanceForCustomer($id, $customer)', $source);
+    }
+
     /**
      * @param MusicbotConnection[] $connections
      * @param MusicbotPlugin[] $plugins
@@ -477,5 +550,11 @@ final class MusicbotConfigPersistenceTest extends TestCase
         $pluginRepo->method('findBy')->willReturn($plugins);
 
         return new MusicbotRuntimeConfigBuilder($connectionRepo, $streamRepo, $pluginRepo, $this->secretService);
+    }
+
+    /** @param MusicbotConnection[] $connections */
+    private function buildConfigApplyPayload(array $connections): array
+    {
+        return (new MusicbotConfigApplyPayloadBuilder($this->buildRuntimeConfigBuilder($connections, null, [])))->build($this->instance);
     }
 }

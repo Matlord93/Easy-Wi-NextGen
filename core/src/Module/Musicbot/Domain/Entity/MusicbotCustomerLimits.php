@@ -35,6 +35,9 @@ class MusicbotCustomerLimits
     private ?int $maxPlaylists = null;
 
     #[ORM\Column(nullable: true)]
+    private ?int $maxPlaylistItems = null;
+
+    #[ORM\Column(nullable: true)]
     private ?int $maxPlugins = null;
 
     #[ORM\Column(nullable: true)]
@@ -51,6 +54,12 @@ class MusicbotCustomerLimits
 
     #[ORM\Column(nullable: true)]
     private ?bool $allowDiscord = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?bool $allowStream = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?bool $allowApi = null;
 
     #[ORM\Column(nullable: true)]
     private ?bool $allowTeamspeak6Profile = null;
@@ -84,34 +93,43 @@ class MusicbotCustomerLimits
     public function getCustomer(): User { return $this->customer; }
 
     public function getMaxMusicbots(): ?int { return $this->maxMusicbots; }
-    public function setMaxMusicbots(?int $v): void { $this->maxMusicbots = $v !== null ? max(0, $v) : null; $this->touch(); }
+    public function setMaxMusicbots(?int $v): void { $this->maxMusicbots = $this->normalizeLimit($v); $this->touch(); }
 
     public function getMaxTracks(): ?int { return $this->maxTracks; }
-    public function setMaxTracks(?int $v): void { $this->maxTracks = $v !== null ? max(0, $v) : null; $this->touch(); }
+    public function setMaxTracks(?int $v): void { $this->maxTracks = $this->normalizeLimit($v); $this->touch(); }
 
     public function getMaxStorageMb(): ?int { return $this->maxStorageMb; }
-    public function setMaxStorageMb(?int $v): void { $this->maxStorageMb = $v !== null ? max(0, $v) : null; $this->touch(); }
+    public function setMaxStorageMb(?int $v): void { $this->maxStorageMb = $this->normalizeLimit($v); $this->touch(); }
 
     public function getMaxPlaylists(): ?int { return $this->maxPlaylists; }
-    public function setMaxPlaylists(?int $v): void { $this->maxPlaylists = $v !== null ? max(0, $v) : null; $this->touch(); }
+    public function setMaxPlaylists(?int $v): void { $this->maxPlaylists = $this->normalizeLimit($v); $this->touch(); }
+
+    public function getMaxPlaylistItems(): ?int { return $this->maxPlaylistItems; }
+    public function setMaxPlaylistItems(?int $v): void { $this->maxPlaylistItems = $this->normalizeLimit($v); $this->touch(); }
 
     public function getMaxPlugins(): ?int { return $this->maxPlugins; }
-    public function setMaxPlugins(?int $v): void { $this->maxPlugins = $v !== null ? max(0, $v) : null; $this->touch(); }
+    public function setMaxPlugins(?int $v): void { $this->maxPlugins = $this->normalizeLimit($v); $this->touch(); }
 
     public function getMaxQueueItems(): ?int { return $this->maxQueueItems; }
-    public function setMaxQueueItems(?int $v): void { $this->maxQueueItems = $v !== null ? max(0, $v) : null; $this->touch(); }
+    public function setMaxQueueItems(?int $v): void { $this->maxQueueItems = $this->normalizeLimit($v); $this->touch(); }
 
     public function getMaxConnections(): ?int { return $this->maxConnections; }
-    public function setMaxConnections(?int $v): void { $this->maxConnections = $v !== null ? max(0, $v) : null; $this->touch(); }
+    public function setMaxConnections(?int $v): void { $this->maxConnections = $this->normalizeLimit($v); $this->touch(); }
 
     public function getMaxUploadSizeMb(): ?int { return $this->maxUploadSizeMb; }
-    public function setMaxUploadSizeMb(?int $v): void { $this->maxUploadSizeMb = $v !== null ? max(1, $v) : null; $this->touch(); }
+    public function setMaxUploadSizeMb(?int $v): void { $this->maxUploadSizeMb = $this->normalizeLimit($v); $this->touch(); }
 
     public function getAllowTeamspeak(): ?bool { return $this->allowTeamspeak; }
     public function setAllowTeamspeak(?bool $v): void { $this->allowTeamspeak = $v; $this->touch(); }
 
     public function getAllowDiscord(): ?bool { return $this->allowDiscord; }
     public function setAllowDiscord(?bool $v): void { $this->allowDiscord = $v; $this->touch(); }
+
+    public function getAllowStream(): ?bool { return $this->allowStream; }
+    public function setAllowStream(?bool $v): void { $this->allowStream = $v; $this->touch(); }
+
+    public function getAllowApi(): ?bool { return $this->allowApi; }
+    public function setAllowApi(?bool $v): void { $this->allowApi = $v; $this->touch(); }
 
     public function getAllowTeamspeak6Profile(): ?bool { return $this->allowTeamspeak6Profile; }
     public function setAllowTeamspeak6Profile(?bool $v): void { $this->allowTeamspeak6Profile = $v; $this->touch(); }
@@ -135,6 +153,15 @@ class MusicbotCustomerLimits
     public function setGrantedPermissions(?array $permissions): void { $this->grantedPermissions = $permissions; $this->touch(); }
 
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+
+    private function normalizeLimit(?int $v): ?int
+    {
+        if ($v === null) {
+            return null;
+        }
+
+        return $v < 0 ? -1 : $v;
+    }
 
     private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
 }

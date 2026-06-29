@@ -2,6 +2,7 @@ package musicbotruntime
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -173,16 +175,28 @@ func (c *NativeSdkTeamspeakVoiceClient) SendOpusFrame(ctx context.Context, frame
 	return nil
 }
 
+func (c *NativeSdkTeamspeakVoiceClient) SendAudioFrame(ctx context.Context, frame AudioFrame) error {
+	if strings.EqualFold(frame.Format, "opus") {
+		return c.SendOpusFrame(ctx, frame)
+	}
+	if err := validateAudioFrame(frame); err != nil {
+		return c.recordError(err)
+	}
+	return c.recordError(ErrTeamSpeakNativeSDKNotInstalled)
+}
+
 // ExternalBridgeTeamspeakVoiceClient speaks a small newline-delimited JSON
 // protocol to an explicitly configured local bridge process. It does not use a
 // shell and refuses known third-party musicbot binaries.
 type ExternalBridgeTeamspeakVoiceClient struct {
 	teamspeakBackendBase
-	mu          sync.Mutex // protects cmd, stdin, scanner, state fields
+	mu          sync.Mutex // protects cmd, stdin, scanner, stderrBuf, state fields
 	roundTripMu sync.Mutex // serializes bridgeRoundTrip calls
 	cmd         *exec.Cmd
 	stdin       io.WriteCloser
 	scanner     *bufio.Scanner
+	stderrBuf   *bytes.Buffer // captures bridge diagnostic logs (written to stderr by bridge)
+	logger      interface{ Printf(string, ...any) }
 	channel     string
 }
 
@@ -211,18 +225,25 @@ type teamspeakBridgeRequest struct {
 }
 
 type teamspeakBridgeResponse struct {
-	OK          bool   `json:"ok"`
-	Error       string `json:"error,omitempty"`
-	ErrorCode   string `json:"error_code,omitempty"`
-	BackendType string `json:"backend_type,omitempty"`
-	Ready       bool   `json:"ready,omitempty"`
-	State       string `json:"state,omitempty"`
-	ClientID    string `json:"client_id,omitempty"`
-	ChannelID   string `json:"channel_id,omitempty"`
+	OK                    bool   `json:"ok"`
+	Error                 string `json:"error,omitempty"`
+	ErrorCode             string `json:"error_code,omitempty"`
+	BackendType           string `json:"backend_type,omitempty"`
+	Ready                 bool   `json:"ready,omitempty"`
+	State                 string `json:"state,omitempty"`
+	ClientID              string `json:"client_id,omitempty"`
+	ChannelID             string `json:"channel_id,omitempty"`
+	LicenseAcceptRequired bool   `json:"license_accept_required,omitempty"`
 }
 
 func NewExternalBridgeTeamspeakVoiceClient() *ExternalBridgeTeamspeakVoiceClient {
 	return &ExternalBridgeTeamspeakVoiceClient{}
+}
+
+func (c *ExternalBridgeTeamspeakVoiceClient) SetLogger(logger interface{ Printf(string, ...any) }) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.logger = logger
 }
 
 func (c *ExternalBridgeTeamspeakVoiceClient) ValidateConfig(config TeamSpeakConnectorConfig) error {
@@ -257,8 +278,10 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 	if path == "" {
 		path = teamspeakConfigString(config, "backend_path")
 	}
+	var stderrBuf bytes.Buffer
 	cmd := exec.Command(path)
 	cmd.Env = append(os.Environ(), "EASYWI_TS_BRIDGE=1")
+	cmd.Stderr = io.MultiWriter(&stderrBuf, os.Stderr, c.bridgeEventLogWriter())
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return c.recordError(fmt.Errorf("teamspeak bridge stdin: %w", err))
@@ -277,9 +300,13 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 	c.cmd = cmd
 	c.stdin = stdin
 	c.scanner = bufio.NewScanner(stdout)
+	c.stderrBuf = &stderrBuf
 	c.mu.Unlock()
 
-	resp, err := c.bridgeRoundTrip(ctx, teamspeakBridgeRequest{
+	connectCtx, cancelConnect := context.WithTimeout(ctx, 90*time.Second)
+	defer cancelConnect()
+
+	resp, err := c.bridgeRoundTrip(connectCtx, teamspeakBridgeRequest{
 		Action:              "connect",
 		BackendType:         teamspeakBridgeAdapterType(config),
 		BackendPath:         teamspeakBridgeAdapterPath(config),
@@ -300,7 +327,7 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 		ClientQueryPort:     teamspeakConfigClientQueryPort(config),
 	})
 	if err != nil {
-		_ = c.Disconnect(context.Background())
+		c.stopBridgeProcess()
 		return c.recordError(err)
 	}
 	c.state = ConnectionStateConnected
@@ -310,13 +337,21 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 
 func (c *ExternalBridgeTeamspeakVoiceClient) Disconnect(ctx context.Context) error {
 	_ = ctx.Err()
-	_, _ = c.bridgeRoundTrip(context.Background(), teamspeakBridgeRequest{Action: "disconnect"})
+	disconnectCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	_, _ = c.bridgeRoundTrip(disconnectCtx, teamspeakBridgeRequest{Action: "disconnect"})
+	cancel()
+	c.stopBridgeProcess()
+	return nil
+}
+
+func (c *ExternalBridgeTeamspeakVoiceClient) stopBridgeProcess() {
 	c.mu.Lock()
 	cmd := c.cmd
 	stdin := c.stdin
 	c.cmd = nil
 	c.stdin = nil
 	c.scanner = nil
+	c.stderrBuf = nil
 	c.mu.Unlock()
 	if stdin != nil {
 		_ = stdin.Close()
@@ -328,7 +363,6 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Disconnect(ctx context.Context) err
 	c.state = ConnectionStateDisconnected
 	c.clientID = ""
 	c.channel = ""
-	return nil
 }
 
 func (c *ExternalBridgeTeamspeakVoiceClient) Reconnect(ctx context.Context) error {
@@ -372,7 +406,10 @@ func (c *ExternalBridgeTeamspeakVoiceClient) JoinChannel(ctx context.Context, ch
 	if strings.TrimSpace(channelID) == "" {
 		return c.recordError(errors.New("channel_id is required"))
 	}
-	resp, err := c.bridgeRoundTrip(ctx, teamspeakBridgeRequest{Action: "join_channel", ChannelID: channelID, ChannelPassword: password})
+	connectCtx, cancelConnect := context.WithTimeout(ctx, 90*time.Second)
+	defer cancelConnect()
+
+	resp, err := c.bridgeRoundTrip(connectCtx, teamspeakBridgeRequest{Action: "join_channel", ChannelID: channelID, ChannelPassword: password})
 	if err != nil {
 		return c.recordError(err)
 	}
@@ -390,17 +427,29 @@ func (c *ExternalBridgeTeamspeakVoiceClient) LeaveChannel(ctx context.Context) e
 }
 
 func (c *ExternalBridgeTeamspeakVoiceClient) SendOpusFrame(ctx context.Context, frame AudioFrame) error {
-	if err := validateTeamspeakOpusFrame(frame); err != nil {
+	return c.SendAudioFrame(ctx, frame)
+}
+
+func (c *ExternalBridgeTeamspeakVoiceClient) SendAudioFrame(ctx context.Context, frame AudioFrame) error {
+	if err := validateAudioFrame(frame); err != nil {
 		return c.recordError(err)
 	}
 	if c.state != ConnectionStateConnected {
 		return c.recordError(ErrTeamSpeakExternalBridgeNotConfigured)
 	}
+	frame = normalizeTeamspeakAudioFrame(frame)
+	format := strings.ToLower(strings.TrimSpace(frame.Format))
 	payload := frame.Payload
+	if format == "pcm" || format == "pcm_s16le" {
+		payload = frame.PCM
+	}
 	if len(payload) == 0 {
 		payload = frame.PCM
 	}
-	_, err := c.bridgeRoundTrip(ctx, teamspeakBridgeRequest{Action: "send_opus_frame", Format: "opus", Payload: base64.StdEncoding.EncodeToString(payload), DurationMs: frame.DurationMs})
+	if len(payload) == 0 {
+		return c.recordError(errors.New("teamspeak audio frame payload is empty"))
+	}
+	_, err := c.bridgeRoundTrip(ctx, teamspeakBridgeRequest{Action: "send_audio_frame", Format: format, Payload: base64.StdEncoding.EncodeToString(payload), DurationMs: frame.DurationMs})
 	if err != nil {
 		return c.recordError(err)
 	}
@@ -417,6 +466,7 @@ func (c *ExternalBridgeTeamspeakVoiceClient) bridgeRoundTrip(ctx context.Context
 	c.mu.Lock()
 	stdin := c.stdin
 	scanner := c.scanner
+	cmd := c.cmd
 	c.mu.Unlock()
 
 	if stdin == nil || scanner == nil {
@@ -440,7 +490,24 @@ func (c *ExternalBridgeTeamspeakVoiceClient) bridgeRoundTrip(ctx context.Context
 			if scanErr := scanner.Err(); scanErr != nil {
 				result <- scanResult{err: fmt.Errorf("teamspeak bridge read: %w", scanErr)}
 			} else {
-				result <- scanResult{err: errors.New("teamspeak bridge closed")}
+				// Bridge stdout closed (process exited). Call Wait() to populate
+				// ProcessState so the exit code is available for diagnostics.
+				if cmd != nil {
+					_ = cmd.Wait()
+				}
+				stderrSnippet := c.bridgeStderrSnippet()
+				exitCode := ""
+				if cmd != nil && cmd.ProcessState != nil {
+					exitCode = fmt.Sprintf("%d", cmd.ProcessState.ExitCode())
+				}
+				msg := "teamspeak bridge closed"
+				if exitCode != "" {
+					msg += "; exit_code=" + exitCode
+				}
+				if stderrSnippet != "" {
+					msg += "; bridge_stderr: " + stderrSnippet
+				}
+				result <- scanResult{err: errors.New(msg)}
 			}
 			return
 		}
@@ -474,6 +541,109 @@ func (c *ExternalBridgeTeamspeakVoiceClient) bridgeRoundTrip(ctx context.Context
 		c.mu.Unlock()
 		return resp, nil
 	}
+}
+
+// bridgeStderrSnippet returns the last 2000 bytes of the bridge's stderr output,
+// trimmed and with newlines collapsed to spaces for inline logging. Safe to call
+// after the bridge process has exited (stdout EOF). Returns "" if no stderr was
+// captured or the buffer is empty.
+
+func (c *ExternalBridgeTeamspeakVoiceClient) bridgeEventLogWriter() io.Writer {
+	c.mu.Lock()
+	logger := c.logger
+	c.mu.Unlock()
+	if logger == nil {
+		return io.Discard
+	}
+	return &lineLogWriter{logger: logger, prefix: "bridge_event"}
+}
+
+type lineLogWriter struct {
+	mu     sync.Mutex
+	buf    bytes.Buffer
+	logger interface{ Printf(string, ...any) }
+	prefix string
+}
+
+func (w *lineLogWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, b := range p {
+		if b == '\n' {
+			w.flushLocked()
+			continue
+		}
+		_ = w.buf.WriteByte(b)
+	}
+	return len(p), nil
+}
+
+func (w *lineLogWriter) flushLocked() {
+	line := strings.TrimSpace(w.buf.String())
+	w.buf.Reset()
+	if line == "" {
+		return
+	}
+	if event := classifyBridgeLogEvent(line); event != "" {
+		w.logger.Printf("%s=%s %s", w.prefix, event, line)
+	}
+}
+
+func classifyBridgeLogEvent(line string) string {
+	switch {
+	case strings.Contains(line, "protocol_ready=true") || strings.Contains(line, "connect_step=start"):
+		return "BridgeStarted"
+	case strings.Contains(line, "connect_step=wait_clientquery_done") || strings.Contains(line, "clientquery_listening=true"):
+		return "ClientQueryReady"
+	case strings.Contains(line, "connect_sent=true"):
+		return "ClientConnected"
+	case strings.Contains(line, "ts_server_connected=true"):
+		return "ServerConnected"
+	case strings.Contains(line, "audio_injection_ready=true") || strings.Contains(line, "audio_injection_ready=false"):
+		return "AudioInjectionReady"
+	case strings.Contains(line, "state_connected=true") || strings.Contains(line, "capability_status=ready"):
+		return "RuntimeStatusPublished"
+	default:
+		return ""
+	}
+}
+
+func (c *ExternalBridgeTeamspeakVoiceClient) bridgeStderrSnippet() string {
+	c.mu.Lock()
+	buf := c.stderrBuf
+	c.mu.Unlock()
+	if buf == nil {
+		return ""
+	}
+	raw := buf.String()
+	if len(raw) > 2000 {
+		raw = raw[len(raw)-2000:]
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	return strings.ReplaceAll(raw, "\n", " | ")
+}
+
+func (c *ExternalBridgeTeamspeakVoiceClient) pulseAudioStateFromBridgeLogs() (sink, source, pulseSocket string) {
+	raw := c.bridgeStderrSnippet()
+	for _, line := range strings.Split(raw, "|") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		for _, field := range fields {
+			switch {
+			case strings.HasPrefix(field, "sink="):
+				sink = strings.Trim(strings.TrimPrefix(field, "sink="), `"'`)
+			case strings.HasPrefix(field, "source="):
+				source = strings.Trim(strings.TrimPrefix(field, "source="), `"'`)
+			case strings.HasPrefix(field, "pulse_socket="):
+				pulseSocket = strings.Trim(strings.TrimPrefix(field, "pulse_socket="), `"'`)
+			case strings.HasPrefix(field, "pulse_server="):
+				pulseSocket = strings.Trim(strings.TrimPrefix(field, "pulse_server="), `"'`)
+			}
+		}
+	}
+	return sink, source, pulseSocket
 }
 
 func bridgeErrorFromCode(code, message string) error {

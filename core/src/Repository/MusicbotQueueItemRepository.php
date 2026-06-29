@@ -22,8 +22,8 @@ final class MusicbotQueueItemRepository extends ServiceEntityRepository implemen
     public function findByCustomer(User $customer): array
     {
         return $this->createQueryBuilder('queueItem')
-            ->innerJoin('queueItem.instance', 'instance')
-            ->andWhere('instance.customer = :customer')
+            ->innerJoin('queueItem.instance', 'musicbotInstance')
+            ->andWhere('musicbotInstance.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('queueItem.createdAt', 'DESC')
             ->getQuery()
@@ -33,9 +33,9 @@ final class MusicbotQueueItemRepository extends ServiceEntityRepository implemen
     public function findOneForCustomer(int $id, User $customer): ?MusicbotQueueItem
     {
         return $this->createQueryBuilder('queueItem')
-            ->innerJoin('queueItem.instance', 'instance')
+            ->innerJoin('queueItem.instance', 'musicbotInstance')
             ->andWhere('queueItem.id = :id')
-            ->andWhere('instance.customer = :customer')
+            ->andWhere('musicbotInstance.customer = :customer')
             ->setParameter('id', $id)
             ->setParameter('customer', $customer)
             ->getQuery()

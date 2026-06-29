@@ -12,7 +12,15 @@
         <div class="ng-card" style="padding:12px;margin-top:10px;">
             <strong>{{ manifest.name }} {{ manifest.version }}</strong> <span style="color:var(--ng-text-muted);">{{ manifest.identifier }}</span>
             <div style="color:var(--ng-text-muted);font-size:13px;">{{ manifest.description ?: 'Keine Beschreibung' }}</div>
-            <div style="margin-top:6px;color:var(--ng-text-muted);font-size:12px;">Permissions: {{ manifest.permissions|join(', ') ?: 'keine' }} · Plattformen: {{ manifest.supportedPlatforms|join(', ') ?: 'alle' }}</div>
+            <div style="margin-top:6px;color:var(--ng-text-muted);font-size:12px;">
+                Permissions: {{ manifest.permissions|join(', ') ?: 'keine' }} · Plattformen: {{ manifest.supportedPlatforms|join(', ') ?: 'alle' }} · First-Party: {{ manifest.firstParty ? 'ja' : 'nein' }}
+            </div>
+            <div style="margin-top:4px;color:var(--ng-text-muted);font-size:12px;">
+                Events: {{ manifest.events|join(', ') ?: '—' }} · Actions: {{ manifest.actions|join(', ') ?: '—' }}
+            </div>
+            <div style="margin-top:4px;color:var(--ng-text-muted);font-size:12px;">
+                Gefährliche Aktionen können über Plan-/Feature-Limits (Plugins, Webradio, YouTube, Playlists) deaktiviert werden.
+            </div>
         </div>
     {% else %}
         <p style="color:var(--ng-text-muted);">Keine Plugin-Manifeste gefunden.</p>

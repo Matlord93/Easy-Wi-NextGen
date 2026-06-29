@@ -73,6 +73,32 @@ func TestDummyDecoderProducesControlledFrames(t *testing.T) {
 	}
 }
 
+func TestFFmpegDecoderProducesPCMFrameMetadata(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	ffmpeg := filepath.Join(dir, "ffmpeg")
+	script := "#!/bin/sh\npython3 - <<'PY'\nimport sys\nsys.stdout.buffer.write(b'\\x01' * 3840)\nPY\n"
+	if err := os.WriteFile(ffmpeg, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	track := filepath.Join(dir, "track.mp3")
+	if err := os.WriteFile(track, []byte("dummy"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stream, err := (FFmpegDecoder{BinaryPath: ffmpeg}).Open(context.Background(), AudioSource{URI: track, MimeType: "audio/mpeg"})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer func() { _ = stream.Close() }()
+	frame, err := stream.NextFrame(context.Background())
+	if err != nil {
+		t.Fatalf("NextFrame() error = %v", err)
+	}
+	if frame.Format != "pcm_s16le" || frame.SampleRateHz != 48000 || frame.Channels != 2 || frame.DurationMs != 20 || len(frame.PCM) != 3840 {
+		t.Fatalf("frame = %#v pcm_len=%d, want pcm_s16le 48k stereo 20ms", frame, len(frame.PCM))
+	}
+}
+
 func TestAudioPipelineDoesNotSwallowOutputErrors(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -87,8 +113,20 @@ func TestAudioPipelineDoesNotSwallowOutputErrors(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Process() error = %v, want %v", err, wantErr)
 	}
-	if status := pipeline.Snapshot(); status.LastError != wantErr.Error() || status.FramesProcessed != 0 {
-		t.Fatalf("status after output error = %#v", status)
+	status := pipeline.Snapshot()
+	// Output errors set LastOutputError and OutputStatus but must NOT set
+	// DecoderStatus=error (the decoder was working fine before the output failed).
+	if status.LastOutputError != wantErr.Error() {
+		t.Errorf("LastOutputError = %q, want %q", status.LastOutputError, wantErr.Error())
+	}
+	if status.OutputStatus != "error" {
+		t.Errorf("OutputStatus = %q, want error", status.OutputStatus)
+	}
+	if status.DecoderStatus == "error" {
+		t.Errorf("DecoderStatus = %q; output error must not mark decoder as errored", status.DecoderStatus)
+	}
+	if status.FramesProcessed != 0 {
+		t.Errorf("FramesProcessed = %d, want 0", status.FramesProcessed)
 	}
 }
 
@@ -167,3 +205,156 @@ func (blockingStream) NextFrame(ctx context.Context) (AudioFrame, error) {
 	return AudioFrame{}, ctx.Err()
 }
 func (blockingStream) Close() error { return nil }
+
+// TestOutputErrorSetsOutputStatusNotDecoderStatus verifies that when the audio
+// output layer fails (e.g. PulseAudio not ready), the pipeline sets
+// OutputStatus=error and LastOutputError but leaves DecoderStatus unchanged
+// so the connector can remain in a ready state.
+func TestOutputErrorSetsOutputStatusNotDecoderStatus(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "track.ogg")
+	if err := os.WriteFile(path, []byte("dummy"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	outputErr := errors.New("external_client_bridge audio not ready")
+	pipeline := NewAudioPipeline(
+		NewFileAudioSourceResolver(dir),
+		DummyDecoder{FrameCount: 1},
+		DummyResampler{},
+		DummyOpusEncoder{},
+		failingAudioOutput{err: outputErr},
+	)
+
+	_ = pipeline.Process(context.Background(), AudioSource{Type: TrackSourceUpload, URI: "track.ogg", MimeType: "audio/ogg"})
+
+	snap := pipeline.Snapshot()
+	if snap.OutputStatus != "error" {
+		t.Errorf("OutputStatus = %q, want error", snap.OutputStatus)
+	}
+	if snap.LastOutputError != outputErr.Error() {
+		t.Errorf("LastOutputError = %q, want %q", snap.LastOutputError, outputErr.Error())
+	}
+	if snap.DecoderStatus == "error" {
+		t.Errorf("DecoderStatus = %q; output failure must not mark decoder as errored", snap.DecoderStatus)
+	}
+	// LastError must not be set for a pure output failure.
+	if snap.LastError != "" {
+		t.Errorf("LastError = %q; should be empty for output-only failure", snap.LastError)
+	}
+}
+
+// TestDecoderErrorStillSetsDecoderStatus verifies that genuine decoder failures
+// continue to set DecoderStatus=error (the setError path is untouched).
+func TestDecoderErrorStillSetsDecoderStatus(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "track.ogg")
+	if err := os.WriteFile(path, []byte("dummy"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	decodeErr := errors.New("decoder failure")
+	pipeline := NewAudioPipeline(
+		NewFileAudioSourceResolver(dir),
+		errDecoder{err: decodeErr},
+		DummyResampler{},
+		DummyOpusEncoder{},
+		NullAudioOutput{},
+	)
+
+	err := pipeline.Process(context.Background(), AudioSource{Type: TrackSourceUpload, URI: "track.ogg", MimeType: "audio/ogg"})
+	if err == nil {
+		t.Fatal("expected error from Process()")
+	}
+
+	snap := pipeline.Snapshot()
+	if snap.DecoderStatus != "error" {
+		t.Errorf("DecoderStatus = %q, want error for decoder failure", snap.DecoderStatus)
+	}
+	if snap.LastError == "" {
+		t.Error("LastError should be set for decoder failure")
+	}
+}
+
+// errDecoder is a decoder that always fails on Open.
+type errDecoder struct{ err error }
+
+func (d errDecoder) Supports(AudioSource) bool { return true }
+func (d errDecoder) Open(_ context.Context, _ AudioSource) (DecodedAudioStream, error) {
+	return nil, d.err
+}
+
+func TestFFmpegDecoderAcceptsUnknownExtensionAndBuildsPCMCommand(t *testing.T) {
+	dir := t.TempDir()
+	ffmpeg := filepath.Join(dir, "ffmpeg")
+	script := "#!/bin/sh\nprintf '%s\n' \"$@\" > \"$FFMPEG_ARGS_FILE\"\npython3 - <<'PY'\nimport sys\nsys.stdout.buffer.write(b'\\x01' * 3840)\nPY\n"
+	if err := os.WriteFile(ffmpeg, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	argsFile := filepath.Join(dir, "args.txt")
+	t.Setenv("FFMPEG_ARGS_FILE", argsFile)
+	track := filepath.Join(dir, "track.weird")
+	if err := os.WriteFile(track, []byte("dummy"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stream, err := (FFmpegDecoder{BinaryPath: ffmpeg}).Open(context.Background(), AudioSource{Type: TrackSourceUpload, URI: track, MimeType: "application/octet-stream"})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer func() { _ = stream.Close() }()
+	if _, err := stream.NextFrame(context.Background()); err != nil {
+		t.Fatalf("NextFrame() error = %v", err)
+	}
+	got, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := string(got)
+	for _, want := range []string{"-f\ns16le", "-acodec\npcm_s16le", "-ar\n48000", "-ac\n2", "pipe:1"} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("ffmpeg args = %q, missing %q", args, want)
+		}
+	}
+}
+
+func TestFileResolverAllowsUnknownExtensionForFFmpeg(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "track.unknown")
+	if err := os.WriteFile(path, []byte("dummy"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := NewFileAudioSourceResolver(dir).Resolve(context.Background(), AudioSource{Type: TrackSourceUpload, URI: "track.unknown"})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	_ = resolved.Reader.Close()
+}
+
+func TestFFmpegDecoderAcceptsRadioURL(t *testing.T) {
+	dir := t.TempDir()
+	ffmpeg := filepath.Join(dir, "ffmpeg")
+	script := "#!/bin/sh\nprintf '%s\n' \"$@\" > \"$FFMPEG_ARGS_FILE\"\npython3 - <<'PY'\nimport sys\nsys.stdout.buffer.write(b'\\x01' * 3840)\nPY\n"
+	if err := os.WriteFile(ffmpeg, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	argsFile := filepath.Join(dir, "radio_args.txt")
+	t.Setenv("FFMPEG_ARGS_FILE", argsFile)
+	stream, err := (FFmpegDecoder{BinaryPath: ffmpeg}).Open(context.Background(), AudioSource{Type: TrackSourceRadio, URI: "https://stream.example.com/live.mp3"})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer func() { _ = stream.Close() }()
+	if _, err := stream.NextFrame(context.Background()); err != nil {
+		t.Fatalf("NextFrame() error = %v", err)
+	}
+	got, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "https://stream.example.com/live.mp3") {
+		t.Fatalf("ffmpeg args = %q, want radio URL", string(got))
+	}
+}

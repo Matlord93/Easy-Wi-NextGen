@@ -10,17 +10,23 @@ use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Domain\Enum\ModuleKey;
+use App\Module\Musicbot\Application\MusicbotAutoDjService;
+use App\Module\Musicbot\Application\MusicbotConfigApplyPayloadBuilder;
 use App\Module\Musicbot\Application\MusicbotInstanceService;
 use App\Module\Musicbot\Application\MusicbotPlaybackCommandService;
 use App\Module\Musicbot\Application\MusicbotPlaylistService;
+use App\Module\Musicbot\Application\MusicbotPluginLogService;
 use App\Module\Musicbot\Application\MusicbotPluginService;
 use App\Module\Musicbot\Application\MusicbotQueueService;
 use App\Module\Musicbot\Application\MusicbotQuotaService;
+use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
+use App\Module\Musicbot\Application\MusicbotRuntimeStatusNormalizer;
 use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Application\MusicbotStreamService;
 use App\Module\Musicbot\Application\MusicbotTrackService;
 use App\Module\Musicbot\Application\MusicbotYoutubeResolverService;
+use App\Module\Musicbot\Application\MusicbotYoutubeService;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
@@ -57,12 +63,15 @@ final class CustomerMusicbotController
         private readonly MusicbotPluginRepository $pluginRepository,
         private readonly MusicbotTrackService $trackService,
         private readonly MusicbotPlaylistService $playlistService,
+        private readonly MusicbotAutoDjService $autoDjService,
         private readonly MusicbotPluginService $pluginService,
+        private readonly MusicbotPluginLogService $pluginLogService,
         private readonly MusicbotQueueService $queueService,
         private readonly MusicbotPlaybackCommandService $playbackCommandService,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly MusicbotStreamService $streamService,
         private readonly MusicbotYoutubeResolverService $youtubeResolver,
+        private readonly MusicbotYoutubeService $youtubeService,
         private readonly AgentJobDispatcher $jobDispatcher,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
@@ -71,6 +80,8 @@ final class CustomerMusicbotController
         private readonly MusicbotInstanceService $instanceService,
         private readonly MusicbotQuotaService $quotaService,
         private readonly MusicbotSecretConfigService $secretConfigService,
+        private readonly MusicbotRuntimeStatusNormalizer $runtimeStatusNormalizer,
+        private readonly MusicbotConfigApplyPayloadBuilder $configApplyPayloadBuilder,
         private readonly AgentRepository $agentRepository,
     ) {
     }
@@ -185,14 +196,20 @@ final class CustomerMusicbotController
             'tracks' => $this->trackService->libraryForCustomer($customer),
             'playlists' => $this->loadPlaylists($customer, $instance),
             'playlistItems' => $this->buildPlaylistItems($customer, $instance),
+            'autoDjSettings' => $this->autoDjService->getOrCreateSettings($instance),
+            'autoDjStatus' => $this->autoDjService->normalize($this->autoDjService->getOrCreateSettings($instance)),
             'plugins' => $this->pluginService->pluginsForInstance($customer, $instance),
+            'pluginLogs' => $this->pluginLogService->forInstance($instance, 20),
             'pluginManifests' => $this->pluginService->availableManifests(),
             'logs' => $this->runtimeEventService->latestForInstance($instance, 30),
             'monitoring' => $this->buildMonitoring($instance, $queue),
             'streamSettings' => $streamSettings,
             'streamStatus' => $this->streamService->getStatus($instance),
+            'limits' => $this->quotaService->usageForCustomer($customer)['limits'] ?? [],
             'actions' => self::ACTIONS,
             'youtubeResolverAvailable' => $this->youtubeResolver->isAvailable(),
+            'youtubeDiagnostics' => $this->youtubeService->diagnostics($instance),
+            'youtubeHistory' => $this->youtubeService->history($instance),
             'instanceConfig' => $instance->getInstanceConfig(),
             'tsConnectionConfig' => $tsConnectionConfig,
             'maskedTsSecrets' => $maskedTsSecrets,
@@ -228,9 +245,22 @@ final class CustomerMusicbotController
                 $tsConfig = [
                     'enabled' => $request->request->getBoolean('ts_enabled'),
                     'host' => (string) $request->request->get('ts_host', ''),
-                    'port' => (int) $request->request->get('ts_port', 9987),
+                    'port' => (string) $request->request->get('ts_port', '9987'),
                     'nickname' => (string) $request->request->get('ts_nickname', ''),
                     'channel_id' => (string) $request->request->get('ts_channel_id', ''),
+                    'channel_name' => (string) $request->request->get('ts_channel_name', ''),
+                    'channel_description' => (string) $request->request->get('ts_channel_description', ''),
+                    'avatar' => (string) $request->request->get('ts_avatar', ''),
+                    'badges' => (string) $request->request->get('ts_badges', ''),
+                    'away_status' => (string) $request->request->get('ts_away_status', ''),
+                    'default_recording_mode' => (string) $request->request->get('ts_default_recording_mode', ''),
+                    'voice_quality' => (string) $request->request->get('ts_voice_quality', ''),
+                    'codec' => (string) $request->request->get('ts_codec', ''),
+                    'codec_bitrate' => (string) $request->request->get('ts_codec_bitrate', ''),
+                    'commands_enabled' => $request->request->getBoolean('ts_commands_enabled'),
+                    'chat_scopes' => $request->request->all('ts_chat_scopes'),
+                    'command_config' => $this->parseTeamspeakCommandConfig((string) $request->request->get('ts_command_config', '')),
+                    'command_prefix' => (string) $request->request->get('command_prefix', ''),
                 ];
                 $tsSecrets = [
                     'server_password' => (string) $request->request->get('ts_server_password', ''),
@@ -261,7 +291,12 @@ final class CustomerMusicbotController
                 tsSecrets: $tsSecrets,
             );
 
-            $this->flash($request, 'success', 'Einstellungen wurden gespeichert.');
+            $applyJob = $this->dispatchConfigApplyJob($instance);
+            $statusJob = $this->queueStatusRefresh($customer, $instance);
+            $this->auditLogger->log($customer, 'musicbot.config_apply_requested', ['instance_id' => $id, 'job_id' => $applyJob->getId(), 'status_job_id' => $statusJob->getId(), 'section' => $section, 'live_reconnect' => 'queued']);
+            $this->entityManager->flush();
+            $reconnectJob = $this->queueLiveReconnect($customer, $instance);
+            $this->flash($request, 'success', $reconnectJob !== null ? 'Einstellungen wurden gespeichert. Live-Übernahme wurde angefordert; falls nötig führt die Runtime automatisch einen Reconnect aus.' : 'Einstellungen wurden gespeichert. Status wird aktualisiert. Diese Änderung wird nach einem Neustart des Bots übernommen, falls die Runtime kein Live-Apply unterstützt.');
 
             if ($request->request->get('_action') === 'save_restart') {
                 $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.service.action', [
@@ -293,6 +328,7 @@ final class CustomerMusicbotController
             $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.connection.test', [
                 'instance_id' => (string) $instance->getId(),
                 'service_name' => $instance->getServiceName(),
+                'platform' => 'teamspeak',
             ]);
             $this->auditLogger->log($customer, 'musicbot.connection_test', ['instance_id' => $id, 'job_id' => $job->getId()]);
             $this->entityManager->flush();
@@ -321,7 +357,6 @@ final class CustomerMusicbotController
 
         return new Response('', Response::HTTP_FOUND, ['Location' => '/musicbots']);
     }
-
 
     #[Route(path: '/{id}/stream', name: 'customer_musicbot_stream_update', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function updateStream(Request $request, int $id): Response
@@ -373,7 +408,7 @@ final class CustomerMusicbotController
 
         try {
             $result = $this->streamService->rotateToken($customer, $instance);
-            $this->flash($request, 'success', sprintf('Neues Stream-Token: %s (wird nur einmal angezeigt).', $result['token']));
+            $this->flash($request, 'success', 'Stream-Token wurde erfolgreich rotiert. Das neue Token ist auf der Einstellungsseite sichtbar.');
         } catch (\Throwable $e) {
             $this->flash($request, 'error', $e->getMessage());
         }
@@ -400,18 +435,18 @@ final class CustomerMusicbotController
             'install_path' => $instance->getInstallPath(),
             'action' => $action,
         ]);
+        $statusJob = $this->queueStatusRefresh($customer, $instance);
         $this->auditLogger->log($customer, sprintf('musicbot.customer_%s', $action), [
             'instance_id' => $instance->getId(),
             'customer_id' => $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
             'job_id' => $job->getId(),
+            'status_job_id' => $statusJob->getId(),
         ]);
         $this->entityManager->flush();
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $instance->getId())]);
     }
-
-
 
     #[Route(path: '/{id}/queue/{queueItemId}/delete', name: 'customer_musicbot_queue_item_delete', requirements: ['id' => '\d+', 'queueItemId' => '\d+'], methods: ['POST'])]
     public function deleteQueueItem(Request $request, int $id, int $queueItemId): Response
@@ -421,7 +456,8 @@ final class CustomerMusicbotController
         $queueItem = $this->queueItemRepository->findOneForCustomer($queueItemId, $customer);
         if (!$queueItem instanceof MusicbotQueueItem) { throw new NotFoundHttpException($this->translator->trans('error_not_found')); }
         $this->queueService->removeQueueItem($customer, $queueItem);
-        $this->flash($request, 'success', 'Track wurde aus der Queue entfernt.');
+        $this->queueStatusRefresh($customer, $queueItem->getInstance());
+        $this->flash($request, 'success', 'Track wurde aus der Queue entfernt. Status wird aktualisiert.');
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
     }
@@ -432,7 +468,8 @@ final class CustomerMusicbotController
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstanceForCustomer($id, $customer);
         $this->queueService->clearQueue($customer, $instance);
-        $this->flash($request, 'success', 'Queue wurde geleert.');
+        $this->queueStatusRefresh($customer, $instance);
+        $this->flash($request, 'success', 'Queue wurde geleert. Status wird aktualisiert.');
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
     }
@@ -444,7 +481,8 @@ final class CustomerMusicbotController
         $instance = $this->findInstanceForCustomer($id, $customer);
         $rawIds = array_filter(array_map('trim', explode(',', (string) $request->request->get('queue_item_ids', ''))));
         $this->queueService->sortQueue($customer, $instance, array_map('intval', $rawIds));
-        $this->flash($request, 'success', 'Queue wurde neu sortiert.');
+        $this->queueStatusRefresh($customer, $instance);
+        $this->flash($request, 'success', 'Queue wurde neu sortiert. Status wird aktualisiert.');
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
     }
@@ -456,22 +494,49 @@ final class CustomerMusicbotController
         $instance = $this->findInstanceForCustomer($id, $customer);
         $action = strtolower(trim((string) $request->request->get('action', '')));
         $options = [];
-        if ($action === 'volume') { $options['volume'] = max(0, min(100, (int) $request->request->get('volume', 50))); }
-        if ($action === 'shuffle') {
-            $shuffle = $request->request->getBoolean('shuffle');
-            $this->playbackCommandService->storeShuffle($customer, $instance, $shuffle);
-            $options['shuffle'] = $shuffle;
+
+        try {
+            if ($action === 'play' && $this->queueItemRepository->findQueueForInstanceOrdered($instance) === []) {
+                throw new \InvalidArgumentException('Kein Track oder Webradio ausgewählt.');
+            }
+            if ($action === 'volume') {
+                $rawVolume = trim((string) $request->request->get('volume', ''));
+                if ($rawVolume === '' || !is_numeric($rawVolume)) {
+                    throw new \InvalidArgumentException('Die Lautstärke muss eine Zahl zwischen 0 und 100 sein.');
+                }
+                $volume = (int) $rawVolume;
+                if ($volume < 0 || $volume > 100) {
+                    throw new \InvalidArgumentException('Die Lautstärke muss eine Zahl zwischen 0 und 100 sein.');
+                }
+                $options['volume'] = $volume;
+                $this->playbackCommandService->storeVolume($customer, $instance, $volume);
+            }
+            if ($action === 'seek') {
+                $rawPosition = trim((string) ($request->request->get('position_ms', $request->request->get('seek_ms', ''))));
+                if ($rawPosition === '' || !is_numeric($rawPosition)) {
+                    throw new \InvalidArgumentException('Die Seek-Position muss numerisch sein.');
+                }
+                $options['position_ms'] = max(0, (int) $rawPosition);
+            }
+            if ($action === 'shuffle') {
+                $shuffle = $request->request->getBoolean('shuffle');
+                $this->playbackCommandService->storeShuffle($customer, $instance, $shuffle);
+                $options['shuffle'] = $shuffle;
+            }
+            if ($action === 'repeat') {
+                $repeat = MusicbotRepeatMode::tryFrom((string) $request->request->get('repeat', 'off')) ?? MusicbotRepeatMode::Off;
+                $this->playbackCommandService->storeRepeatMode($customer, $instance, $repeat);
+                $options['repeat'] = $repeat->value;
+            }
+            $job = $this->playbackCommandService->dispatchPlaybackAction($customer, $instance, $action, $options);
+            $statusJob = $this->queueStatusRefresh($customer, $instance);
+            $this->runtimeEventService->record($instance, 'playback.command', 'info', $action, ['options' => $options]);
+            $this->auditLogger->log($customer, sprintf('musicbot.playback_%s', $action), ['instance_id' => $id, 'job_id' => $job->getId(), 'status_job_id' => $statusJob->getId(), 'options' => $options]);
+            $this->entityManager->flush();
+            $this->flash($request, 'success', $action === 'play' ? 'Playback gestartet. Status wird aktualisiert.' : sprintf('Playback-Aktion %s wurde gesendet; der Runtime-Status wird aktualisiert.', $action));
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
         }
-        if ($action === 'repeat') {
-            $repeat = MusicbotRepeatMode::tryFrom((string) $request->request->get('repeat', 'off')) ?? MusicbotRepeatMode::Off;
-            $this->playbackCommandService->storeRepeatMode($customer, $instance, $repeat);
-            $options['repeat'] = $repeat->value;
-        }
-        $job = $this->playbackCommandService->dispatchPlaybackAction($customer, $instance, $action, $options);
-        $this->runtimeEventService->record($instance, 'playback.command', 'info', $action, ['options' => $options]);
-        $this->auditLogger->log($customer, sprintf('musicbot.playback_%s', $action), ['instance_id' => $id, 'job_id' => $job->getId(), 'options' => $options]);
-        $this->entityManager->flush();
-        $this->flash($request, 'success', sprintf('Playback-Aktion %s wurde gesendet.', $action));
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
     }
@@ -487,7 +552,7 @@ final class CustomerMusicbotController
             return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
         }
         try {
-            $track = $this->trackService->uploadTrack($customer, $file, (string) $request->request->get('title', ''), (string) $request->request->get('artist', ''));
+            $track = $this->trackService->uploadTrack($customer, $file, (string) $request->request->get('title', ''), (string) $request->request->get('artist', ''), $instance);
         } catch (\Throwable $e) {
             $this->flash($request, 'error', $e->getMessage());
             return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
@@ -506,6 +571,7 @@ final class CustomerMusicbotController
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstanceForCustomer($id, $customer);
         try {
+            $this->quotaService->assertWebradioAllowed($customer);
             $track = $this->trackService->addWebradioTrack(
                 $customer,
                 (string) $request->request->get('title', ''),
@@ -518,9 +584,76 @@ final class CustomerMusicbotController
         $this->runtimeEventService->record($instance, 'track.added', 'info', 'Webradio track added.', ['track_id' => $track->getId()]);
         $this->auditLogger->log($customer, 'musicbot.webradio_track_added', ['track_id' => $track->getId(), 'instance_id' => $id]);
         $this->entityManager->flush();
+        $action = (string) $request->request->get('_webradio_action', 'add');
+        if (in_array($action, ['add_queue', 'play_now'], true)) {
+            $this->queueService->addTrackToQueue($customer, $instance, $track, $customer);
+            if ($action === 'play_now') {
+                $this->queueStatusRefresh($customer, $instance);
+                $this->playbackCommandService->dispatchPlaybackAction($customer, $instance, 'play');
+            }
+        }
         $this->flash($request, 'success', sprintf('Webradio-Track „%s" wurde hinzugefügt.', $track->getTitle()));
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
+
+
+    #[Route(path: '/{id}/youtube/search', name: 'customer_musicbot_youtube_search', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function youtubeSearch(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        try {
+            $results = $this->youtubeService->search($customer, $instance, (string) $request->request->get('q', ''), (string) $request->request->get('type', 'song'));
+            $payload = $instance->getRuntimePayload() ?? [];
+            $payload['youtube_search_results'] = $results;
+            $instance->setRuntimePayload($payload);
+            $this->entityManager->flush();
+            $this->flash($request, 'success', sprintf('%d YouTube-Ergebnis(se) gefunden.', count($results)));
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+        }
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d#youtube', $id)]);
+    }
+
+    #[Route(path: '/{id}/youtube/import', name: 'customer_musicbot_youtube_import', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function youtubeImport(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        $action = (string) $request->request->get('_youtube_import_action', 'queue');
+        try {
+            $url = (string) $request->request->get('url', '');
+            if ($action === 'play') {
+                $result = $this->youtubeService->playUrl($customer, $instance, $url);
+            } elseif ($action === 'playlist') {
+                $result = $this->youtubeService->importUrl($customer, $instance, $url, ['playlist' => true, 'create_playlist' => true, 'playlist_name' => (string) $request->request->get('playlist_name', 'YouTube Import'), 'shuffle' => $request->request->getBoolean('shuffle')]);
+            } else {
+                $result = $this->youtubeService->importUrl($customer, $instance, $url, ['playlist' => $request->request->getBoolean('playlist'), 'queue' => true, 'shuffle' => $request->request->getBoolean('shuffle')]);
+            }
+            $this->queueStatusRefresh($customer, $instance);
+            $this->flash($request, 'success', sprintf('YouTube-Import abgeschlossen (%d Track(s)).', $result['tracks_imported'] ?? 1));
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+        }
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d#youtube', $id)]);
+    }
+
+    #[Route(path: '/{id}/youtube/cookies', name: 'customer_musicbot_youtube_cookies', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function saveYoutubeCookies(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        try {
+            $this->youtubeService->saveCookies($customer, $instance, (string) $request->request->get('cookies', ''));
+            $this->flash($request, 'success', 'YouTube-Cookies wurden sicher für diese Instanz gespeichert.');
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+        }
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d#youtube', $id)]);
     }
 
     #[Route(path: '/{id}/tracks/youtube', name: 'customer_musicbot_track_youtube', requirements: ['id' => '\\d+'], methods: ['POST'])]
@@ -528,7 +661,12 @@ final class CustomerMusicbotController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstanceForCustomer($id, $customer);
+        $action = (string) $request->request->get('_youtube_action', 'add');
         try {
+            $this->quotaService->assertYoutubeAllowed($customer);
+            if (!$this->youtubeResolver->isAvailable()) {
+                throw new \RuntimeException('YouTube playback requires yt-dlp on the host. Please run Musicbot repair or install yt-dlp.');
+            }
             $track = $this->trackService->addYoutubeTrack(
                 $customer,
                 (string) $request->request->get('youtube_url', ''),
@@ -541,6 +679,13 @@ final class CustomerMusicbotController
         $this->runtimeEventService->record($instance, 'track.added', 'info', 'YouTube track added.', ['track_id' => $track->getId()]);
         $this->auditLogger->log($customer, 'musicbot.youtube_track_added', ['track_id' => $track->getId(), 'instance_id' => $id]);
         $this->entityManager->flush();
+        if (in_array($action, ['add_queue', 'play_now'], true)) {
+            $this->queueService->addTrackToQueue($customer, $instance, $track, $customer);
+            if ($action === 'play_now') {
+                $this->queueStatusRefresh($customer, $instance);
+                $this->playbackCommandService->dispatchPlaybackAction($customer, $instance, 'play');
+            }
+        }
         $this->flash($request, 'success', sprintf('YouTube-Track „%s" wurde hinzugefügt.', $track->getTitle()));
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
@@ -598,7 +743,8 @@ final class CustomerMusicbotController
         }
         $job = $this->playbackCommandService->dispatchPlaybackAction($customer, $instance, 'play');
         $this->runtimeEventService->record($instance, 'queue.updated', 'info', 'Track prepended for play-now.', ['track_id' => $trackId, 'queue_item_id' => $queueItem->getId()]);
-        $this->auditLogger->log($customer, 'musicbot.track_play_now', ['track_id' => $trackId, 'queue_item_id' => $queueItem->getId(), 'instance_id' => $id, 'job_id' => $job->getId()]);
+        $statusJob = $this->queueStatusRefresh($customer, $instance);
+        $this->auditLogger->log($customer, 'musicbot.track_play_now', ['track_id' => $trackId, 'queue_item_id' => $queueItem->getId(), 'instance_id' => $id, 'job_id' => $job->getId(), 'status_job_id' => $statusJob->getId()]);
         $this->entityManager->flush();
         $this->flash($request, 'success', sprintf('„%s" wird jetzt abgespielt.', $track->getTitle()));
 
@@ -611,7 +757,7 @@ final class CustomerMusicbotController
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstanceForCustomer($id, $customer);
         $visibility = MusicbotPlaylistVisibility::tryFrom((string) $request->request->get('visibility', 'private')) ?? MusicbotPlaylistVisibility::Private;
-        $playlist = $this->playlistService->createPlaylist($customer, (string) $request->request->get('name', ''), $instance, $visibility);
+        $playlist = $this->playlistService->createPlaylist($customer, (string) $request->request->get('name', ''), $instance, $visibility, (string) $request->request->get('description', ''));
         $this->runtimeEventService->record($instance, 'playlist.created', 'info', 'Playlist created.', ['playlist_id' => $playlist->getId()]);
         $this->auditLogger->log($customer, 'musicbot.playlist_created', ['playlist_id' => $playlist->getId(), 'instance_id' => $id]);
         $this->entityManager->flush();
@@ -627,7 +773,7 @@ final class CustomerMusicbotController
         $playlist = $this->playlistService->findPlaylistForCustomer($playlistId, $customer);
         if (!$playlist instanceof \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist) { throw new NotFoundHttpException($this->translator->trans('error_not_found')); }
         $visibility = MusicbotPlaylistVisibility::tryFrom((string) $request->request->get('visibility', 'private')) ?? MusicbotPlaylistVisibility::Private;
-        $this->playlistService->updatePlaylist($customer, $playlist, (string) $request->request->get('name', ''), $visibility);
+        $this->playlistService->updatePlaylist($customer, $playlist, (string) $request->request->get('name', ''), $visibility, (string) $request->request->get('description', ''));
         $this->runtimeEventService->record($instance, 'playlist.updated', 'info', 'Playlist updated.', ['playlist_id' => $playlistId]);
         $this->auditLogger->log($customer, 'musicbot.playlist_updated', ['playlist_id' => $playlistId, 'instance_id' => $id]);
         $this->entityManager->flush();
@@ -689,14 +835,97 @@ final class CustomerMusicbotController
         $instance = $this->findInstanceForCustomer($id, $customer);
         $playlist = $this->playlistService->findPlaylistForCustomer($playlistId, $customer);
         if (!$playlist instanceof \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist) { throw new NotFoundHttpException($this->translator->trans('error_not_found')); }
-        $queueItems = $this->playlistService->loadPlaylistToQueue($customer, $playlist, $instance);
-        $this->runtimeEventService->record($instance, 'queue.updated', 'info', 'Playlist loaded into queue.', ['playlist_id' => $playlistId, 'queued_tracks' => count($queueItems)]);
-        $this->auditLogger->log($customer, 'musicbot.playlist_queued', ['playlist_id' => $playlistId, 'queued_tracks' => count($queueItems), 'instance_id' => $id]);
+        $mode = (string) $request->request->get('mode', 'add');
+        $queueItems = $this->playlistService->loadPlaylistToQueueMode($customer, $playlist, $instance, $mode);
+        $job = null;
+        if (in_array($mode, ['play_now', 'clear_play', 'shuffle_play'], true) && $queueItems !== []) {
+            $job = $this->playbackCommandService->dispatchPlaybackAction($customer, $instance, 'play');
+        }
+        $statusJob = $this->queueStatusRefresh($customer, $instance);
+        $this->runtimeEventService->record($instance, 'queue.updated', 'info', 'Playlist loaded into queue.', ['playlist_id' => $playlistId, 'queued_tracks' => count($queueItems), 'mode' => $mode]);
+        $this->auditLogger->log($customer, 'musicbot.playlist_queued', ['playlist_id' => $playlistId, 'queued_tracks' => count($queueItems), 'instance_id' => $id, 'mode' => $mode, 'job_id' => $job?->getId(), 'status_job_id' => $statusJob->getId()]);
         $this->entityManager->flush();
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
     }
 
+    #[Route(path: '/{id}/playlists/{playlistId}/reorder', name: 'customer_musicbot_playlist_reorder', requirements: ['id' => '\\d+', 'playlistId' => '\\d+'], methods: ['POST'])]
+    public function reorderPlaylist(Request $request, int $id, int $playlistId): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $this->findInstanceForCustomer($id, $customer);
+        $playlist = $this->playlistService->findPlaylistForCustomer($playlistId, $customer);
+        if (!$playlist instanceof \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist) { throw new NotFoundHttpException($this->translator->trans('error_not_found')); }
+        $rawIds = array_filter(array_map('trim', explode(',', (string) $request->request->get('playlist_item_ids', ''))));
+        $this->playlistService->reorderItems($customer, $playlist, array_map('intval', $rawIds));
+        $this->flash($request, 'success', 'Playlist-Reihenfolge wurde gespeichert.');
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
+
+
+    #[Route(path: '/{id}/autodj', name: 'customer_musicbot_autodj_save', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function saveAutoDj(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        $playlistIds = array_filter(array_map('intval', (array) $request->request->all('playlist_ids')));
+        $data = [
+            'enabled' => $request->request->getBoolean('enabled'),
+            'fallback_playlist_id' => $request->request->get('fallback_playlist_id') !== '' ? (int) $request->request->get('fallback_playlist_id') : null,
+            'playlist_ids' => $playlistIds,
+            'mode' => (string) $request->request->get('mode', 'random'),
+            'shuffle' => $request->request->getBoolean('shuffle'),
+            'repeat' => $request->request->getBoolean('repeat'),
+            'avoid_repeats' => $request->request->getBoolean('avoid_repeats'),
+            'avoid_same_artist' => $request->request->getBoolean('avoid_same_artist'),
+            'min_queue_size' => (int) $request->request->get('min_queue_size', 2),
+            'idle_seconds' => (int) $request->request->get('idle_seconds', 60),
+            'volume_override' => $request->request->get('volume_override') !== '' ? (int) $request->request->get('volume_override') : null,
+            'time_window_start' => (string) $request->request->get('time_window_start', ''),
+            'time_window_end' => (string) $request->request->get('time_window_end', ''),
+            'webradio_fallback_url' => (string) $request->request->get('webradio_fallback_url', ''),
+            'allow_youtube' => $request->request->getBoolean('allow_youtube'),
+            'allow_uploads' => $request->request->getBoolean('allow_uploads'),
+            'repeat_protection_window' => (int) $request->request->get('repeat_protection_window', 5),
+            'genre_filter' => (string) $request->request->get('genre_filter', ''),
+        ];
+        try {
+            $settings = $this->autoDjService->saveSettings($customer, $instance, $data);
+            $this->flash($request, 'success', $settings->isEnabled() ? 'AutoDJ wurde gespeichert und aktiviert.' : 'AutoDJ wurde gespeichert und deaktiviert.');
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+        }
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
+
+    #[Route(path: '/{id}/autodj/trigger', name: 'customer_musicbot_autodj_trigger', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function triggerAutoDj(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        try {
+            $added = $this->autoDjService->trigger($customer, $instance);
+            $this->queueStatusRefresh($customer, $instance);
+            $this->flash($request, 'success', sprintf('AutoDJ hat %d Track(s) in die Queue geladen. Status wird aktualisiert.', $added));
+        } catch (\Throwable $e) {
+            $this->flash($request, 'error', $e->getMessage());
+        }
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
+
+    #[Route(path: '/{id}/autodj/disable', name: 'customer_musicbot_autodj_disable', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function disableAutoDj(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        $this->autoDjService->disable($customer, $instance);
+        $this->flash($request, 'success', 'AutoDJ wurde deaktiviert.');
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
+    }
 
     #[Route(path: '/{id}/plugins', name: 'customer_musicbot_plugin_assign', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function assignPlugin(Request $request, int $id): Response
@@ -812,7 +1041,10 @@ final class CustomerMusicbotController
                 'instance' => $instance,
                 'teamspeakActive' => $this->isPlatformEnabled($connections, 'teamspeak'),
                 'discordActive' => $this->isPlatformEnabled($connections, 'discord'),
-                'currentTrack' => $this->resolveCurrentTrack($queue),
+                'nowPlaying' => $this->runtimeStatusNormalizer->buildNowPlaying(
+                    $this->runtimeStatusNormalizer->normalizePayload($instance->getRuntimePayload() ?? []),
+                    $this->queueItemForNowPlaying($queue),
+                ),
                 'queueLength' => count($queue),
             ];
         }, $instances);
@@ -855,15 +1087,6 @@ final class CustomerMusicbotController
         ));
     }
 
-    /** @return array<int, \App\Module\Musicbot\Domain\Entity\MusicbotPlugin> */
-    private function loadPlugins(User $customer, MusicbotInstance $instance): array
-    {
-        return array_values(array_filter(
-            $this->pluginRepository->findByCustomer($customer),
-            static fn ($plugin): bool => $plugin->getInstance() === null || $plugin->getInstance() === $instance,
-        ));
-    }
-
     /** @return array<int, array<int, \App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem>> */
     private function buildPlaylistItems(User $customer, MusicbotInstance $instance): array
     {
@@ -878,36 +1101,76 @@ final class CustomerMusicbotController
         return $items;
     }
 
+    /** @param MusicbotQueueItem[] $queue @return array<string, mixed>|null */
+    private function queueItemForNowPlaying(array $queue): ?array
+    {
+        $item = null;
+        foreach ($queue as $candidate) {
+            if (in_array($candidate->getStatus(), ['playing', 'current'], true)) {
+                $item = $candidate;
+                break;
+            }
+        }
+        $item ??= $queue[0] ?? null;
+        if (!$item instanceof MusicbotQueueItem) {
+            return null;
+        }
+
+        $track = $item->getTrack();
+        $metadata = $track->getMetadata();
+
+        return [
+            'title' => $track->getTitle(),
+            'artist' => $track->getArtist(),
+            'source_type' => $track->getSourceType()->value,
+            'url' => $metadata['stream_url'] ?? $metadata['youtube_url'] ?? $metadata['url'] ?? null,
+            'thumbnail' => $metadata['thumbnail'] ?? $metadata['thumbnail_url'] ?? $metadata['cover_url'] ?? null,
+            'queue_item_id' => $item->getId(),
+            'track_id' => $track->getId(),
+        ];
+    }
 
     /** @param MusicbotQueueItem[] $queue */
     private function buildRuntimeStatus(MusicbotInstance $instance, array $queue): array
     {
-        $payload = $this->sanitizeForTemplate($instance->getRuntimePayload() ?? []);
+        $payload = $this->sanitizeForTemplate($this->runtimeStatusNormalizer->normalizePayload($instance->getRuntimePayload() ?? []));
+        if ((string) ($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') === '1') {
+            error_log('[musicbot-status-flow] '.json_encode(['stage' => 'customer.controller.payload.normalized', 'instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        }
         $playback = is_array($payload['playback'] ?? null) ? $payload['playback'] : [];
+        $instanceConfig = $instance->getInstanceConfig();
+        $volume = (int) ($playback['volume'] ?? $instanceConfig['live_volume'] ?? 50);
+        if (isset($instanceConfig['live_volume']) && is_numeric($instanceConfig['live_volume'])) {
+            $volume = max(0, min(100, (int) $instanceConfig['live_volume']));
+        }
         $ps = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : [];
+        $pipeline = is_array($payload['audio_pipeline'] ?? null) ? $payload['audio_pipeline'] : [];
+        $normal = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : $this->runtimeStatusNormalizer->buildPlaybackStatus($payload);
+        $audioReady = (bool) $normal['audio_backend_ready'];
+        $nowPlaying = $this->runtimeStatusNormalizer->buildNowPlaying($payload, $this->queueItemForNowPlaying($queue));
 
         return [
             'state' => $instance->getStatus()->value,
-            'lastError' => $payload['last_error'] ?? $payload['error'] ?? (is_string($ps['last_error'] ?? null) && $ps['last_error'] !== '' ? $ps['last_error'] : null),
+            'lastError' => $this->runtimeStatusNormalizer->resolveActiveLastError($payload, $normal),
             'runtimePayload' => $payload,
-            'currentTrack' => $this->resolveCurrentTrack($queue),
+            'nowPlaying' => $nowPlaying,
             'queueLength' => count($queue),
             'repeatMode' => (string) ($ps['repeat_mode'] ?? $playback['repeat_mode'] ?? $playback['repeat'] ?? 'off'),
             'shuffle' => (bool) ($ps['shuffle'] ?? $playback['shuffle'] ?? false),
-            'volume' => (int) ($playback['volume'] ?? 50),
+            'volume' => $volume,
             'playbackState' => (string) ($ps['playback_state'] ?? $instance->getStatus()->value),
-            'currentTrackId' => (string) ($ps['current_track_id'] ?? ''),
-            'currentTitle' => (string) ($ps['current_title'] ?? ''),
-            'currentArtist' => (string) ($ps['current_artist'] ?? ''),
-            'currentSource' => (string) ($ps['current_source'] ?? ''),
             'playbackPositionMs' => (int) ($ps['playback_position_ms'] ?? 0),
             'durationMs' => (int) ($ps['duration_ms'] ?? 0),
             'decoderBackend' => (string) ($ps['decoder_backend'] ?? ''),
             'decoderStatus' => (string) ($ps['decoder_status'] ?? ''),
-            'outputBackend' => (string) ($ps['output_backend'] ?? ''),
-            'outputStatus' => (string) ($ps['output_status'] ?? ''),
+            'outputBackend' => (string) ($normal['output_backend'] ?? ''),
+            'outputStatus' => (string) ($normal['output_status'] ?? ''),
             'framesProcessed' => (int) ($ps['frames_processed'] ?? 0),
             'lastStateChangeAt' => (string) ($ps['last_state_change_at'] ?? ''),
+            'audioBackendReady' => $audioReady,
+            'audioBackendStatus' => (string) $normal['audio_backend_status'],
+            'audioBackendMessage' => (string) $normal['audio_backend_message'],
+            'teamspeakConnected' => (bool) $normal['teamspeak_connected'],
         ];
     }
 
@@ -937,13 +1200,15 @@ final class CustomerMusicbotController
         return $status;
     }
 
-
     /**
      * @param mixed $value
      * @return mixed
      */
-    private function sanitizeForTemplate(mixed $value): mixed
+    private function sanitizeForTemplate(mixed $value, int $depth = 0): mixed
     {
+        if ($depth > 20) {
+            return '[truncated]';
+        }
         if (!is_array($value)) {
             return is_string($value) ? $this->sanitizeTextForTemplate($value) : $value;
         }
@@ -955,12 +1220,11 @@ final class CustomerMusicbotController
                 $sanitized[$key] = $item === null || $item === '' ? $item : '[redacted]';
                 continue;
             }
-            $sanitized[$key] = $this->sanitizeForTemplate($item);
+            $sanitized[$key] = $this->sanitizeForTemplate($item, $depth + 1);
         }
 
         return $sanitized;
     }
-
 
     private function sanitizeTextForTemplate(?string $value): ?string
     {
@@ -978,11 +1242,13 @@ final class CustomerMusicbotController
         }
     }
 
-
     /** @param MusicbotQueueItem[] $queue @return array<string, mixed> */
     private function buildMonitoring(MusicbotInstance $instance, array $queue): array
     {
-        $payload = $this->sanitizeForTemplate($instance->getRuntimePayload() ?? []);
+        $payload = $this->sanitizeForTemplate($this->runtimeStatusNormalizer->normalizePayload($instance->getRuntimePayload() ?? []));
+        if ((string) ($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') === '1') {
+            error_log('[musicbot-status-flow] '.json_encode(['stage' => 'customer.controller.payload.normalized', 'instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        }
         $playback = is_array($payload['playback'] ?? null) ? $payload['playback'] : [];
         return [
             'cpu' => $payload['cpu'] ?? $payload['metrics']['cpu'] ?? null,
@@ -992,6 +1258,55 @@ final class CustomerMusicbotController
             'lastPlaybackAction' => $playback['last_command'] ?? $payload['last_playback_action'] ?? null,
             'lastRuntimeHeartbeat' => $payload['heartbeat_at'] ?? $payload['updated_at'] ?? null,
         ];
+    }
+
+
+    /** @return array<string, mixed> */
+    private function parseTeamspeakCommandConfig(string $json): array
+    {
+        $json = trim($json);
+        if ($json === '') {
+            return [];
+        }
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+
+    private function queueLiveReconnect(User $customer, MusicbotInstance $instance): ?\App\Module\AgentOrchestrator\Domain\Entity\AgentJob
+    {
+        $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.playback.action', [
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $customer->getId(),
+            'service_name' => $instance->getServiceName(),
+            'install_path' => $instance->getInstallPath(),
+            'action' => 'reload_config',
+            'command' => 'reload_config',
+            'reconnect_if_required' => true,
+            'fallback_hint' => 'Diese Änderung wird nach einem Neustart des Bots übernommen, falls Live-Apply oder Reconnect von der Runtime nicht unterstützt wird.',
+        ]);
+        $this->auditLogger->log($customer, 'musicbot.live_reconnect_requested', ['instance_id' => $instance->getId(), 'job_id' => $job->getId()]);
+
+        return $job;
+    }
+
+    private function dispatchConfigApplyJob(MusicbotInstance $instance): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob
+    {
+        return $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.config.apply', $this->configApplyPayloadBuilder->build($instance));
+    }
+
+    private function queueStatusRefresh(User $customer, MusicbotInstance $instance): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob
+    {
+        return $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.status', [
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $customer->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'service_name' => $instance->getServiceName(),
+            'install_dir' => $instance->getInstallPath(),
+            'install_path' => $instance->getInstallPath(),
+            'action' => 'status',
+        ]);
     }
 
     private function jobTypeForAction(string $action): string

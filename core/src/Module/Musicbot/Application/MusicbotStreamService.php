@@ -44,6 +44,7 @@ final class MusicbotStreamService
     {
         $this->assertOwnership($customer, $instance);
         $this->quotaService->assertWebradioAllowed($customer);
+        $this->quotaService->assertStreamAllowed($customer);
 
         $settings = $this->settingsRepository->findByInstance($instance);
         if ($settings === null) {
@@ -81,6 +82,7 @@ final class MusicbotStreamService
     {
         $this->assertOwnership($customer, $instance);
         $this->quotaService->assertWebradioAllowed($customer);
+        $this->quotaService->assertStreamAllowed($customer);
 
         $settings = $this->settingsRepository->findByInstance($instance);
         if ($settings === null) {
@@ -139,6 +141,7 @@ final class MusicbotStreamService
     {
         $this->assertOwnership($customer, $instance);
         $this->quotaService->assertWebradioAllowed($customer);
+        $this->quotaService->assertStreamAllowed($customer);
 
         $settings = $this->settingsRepository->findByInstance($instance);
         if ($settings === null) {
@@ -194,8 +197,8 @@ final class MusicbotStreamService
             'placeholder_notice' => 'Streaming support is prepared, but no real stream backend is active yet.',
             'backend' => 'placeholder',
             'backend_available' => $this->streamOutput->isAvailable(),
-            'created_at' => $settings->getCreatedAt()->format(DATE_ATOM),
-            'updated_at' => $settings->getUpdatedAt()->format(DATE_ATOM),
+            'created_at' => $settings->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'updated_at' => $settings->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }
 

@@ -107,14 +107,22 @@ func findFreeClientQueryPort(host string) (int, error) {
 
 // writeClientQueryPluginConfig writes the ClientQuery INI to all locations
 // the TS3 client may read it from. Directories are created with mode 0700; files
-// are written with mode 0600. No secrets are included.
+// are written with mode 0600.
+//
+// Plugin subdirectory files (plugins/clientquery.ini) are always overwritten with a
+// minimal [ClientQuery] section containing only Port= and Host=.
+//
+// Primary INI files (.ts3client/clientquery.ini, clientquery.ini) are merged via
+// mergeClientQueryPortHost so that [General] — where the TS3 ClientQuery plugin
+// stores api_key — is preserved verbatim. Erasing [General] causes the plugin to
+// regenerate a new api_key, breaking auth on every restart.
 func writeClientQueryPluginConfig(ts3Home, host string, port int) error {
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	content := fmt.Sprintf("[ClientQuery]\nPort=%d\nHost=%s\n", port, host)
 
-	// Subdirectory locations (write clientquery.ini inside the dir)
+	// Plugin subdirectory locations: fresh overwrite (no api_key stored here).
+	pluginContent := fmt.Sprintf("[ClientQuery]\nPort=%d\nHost=%s\n", port, host)
 	dirs := []string{
 		filepath.Join(ts3Home, ".ts3client", "plugins"),
 		filepath.Join(ts3Home, ".config", "plugins"),
@@ -125,13 +133,12 @@ func writeClientQueryPluginConfig(ts3Home, host string, port int) error {
 			return fmt.Errorf("clientquery config dir %s: %w", dir, err)
 		}
 		iniPath := filepath.Join(dir, "clientquery.ini")
-		if err := os.WriteFile(iniPath, []byte(content), 0o600); err != nil {
+		if err := os.WriteFile(iniPath, []byte(pluginContent), 0o600); err != nil {
 			return fmt.Errorf("write clientquery.ini to %s: %w", iniPath, err)
 		}
 	}
 
-	// Also write directly to ts3Home/.ts3client/ and ts3Home/ for installations
-	// that look for the file in non-standard locations.
+	// Primary INI locations: merge Port/Host so [General] (with api_key) survives.
 	rootDirs := []string{
 		filepath.Join(ts3Home, ".ts3client"),
 		ts3Home,
@@ -141,12 +148,101 @@ func writeClientQueryPluginConfig(ts3Home, host string, port int) error {
 			return fmt.Errorf("clientquery config dir %s: %w", dir, err)
 		}
 		iniPath := filepath.Join(dir, "clientquery.ini")
-		if err := os.WriteFile(iniPath, []byte(content), 0o600); err != nil {
+		if err := mergeClientQueryPortHost(iniPath, host, port); err != nil {
 			return fmt.Errorf("write clientquery.ini to %s: %w", iniPath, err)
 		}
 	}
 
 	return nil
+}
+
+// mergeClientQueryPortHost reads iniPath, updates Port= and Host= inside the
+// [ClientQuery] section, and writes the result back. Every other section
+// (including [General] where the TS3 plugin stores api_key) and every other
+// key=value pair is preserved verbatim. If iniPath does not yet exist, a minimal
+// [ClientQuery] section is created. File mode is always 0600.
+func mergeClientQueryPortHost(iniPath, host string, port int) error {
+	existing, readErr := os.ReadFile(iniPath)
+	if readErr != nil {
+		content := fmt.Sprintf("[ClientQuery]\nPort=%d\nHost=%s\n", port, host)
+		return os.WriteFile(iniPath, []byte(content), 0o600)
+	}
+
+	lines := strings.Split(string(existing), "\n")
+	out := make([]string, 0, len(lines)+2)
+	inClientQuery := false
+	portSet := false
+	hostSet := false
+
+	for _, rawLine := range lines {
+		trimmed := strings.TrimSpace(rawLine)
+
+		// Section header.
+		if len(trimmed) >= 2 && trimmed[0] == '[' && trimmed[len(trimmed)-1] == ']' {
+			// Leaving [ClientQuery]: flush any missing Port/Host before next section.
+			if inClientQuery {
+				if !portSet {
+					out = append(out, fmt.Sprintf("Port=%d", port))
+					portSet = true
+				}
+				if !hostSet {
+					out = append(out, fmt.Sprintf("Host=%s", host))
+					hostSet = true
+				}
+			}
+			inClientQuery = strings.EqualFold(trimmed, "[ClientQuery]")
+			out = append(out, rawLine)
+			continue
+		}
+
+		// Key=value inside [ClientQuery]: replace Port= and Host=, keep everything else.
+		if inClientQuery && trimmed != "" {
+			eqIdx := strings.IndexByte(trimmed, '=')
+			if eqIdx > 0 {
+				key := strings.ToLower(strings.TrimSpace(trimmed[:eqIdx]))
+				switch key {
+				case "port":
+					out = append(out, fmt.Sprintf("Port=%d", port))
+					portSet = true
+					continue
+				case "host":
+					out = append(out, fmt.Sprintf("Host=%s", host))
+					hostSet = true
+					continue
+				}
+			}
+		}
+
+		out = append(out, rawLine)
+	}
+
+	// [ClientQuery] was the last section — flush missing keys now.
+	if inClientQuery {
+		if !portSet {
+			out = append(out, fmt.Sprintf("Port=%d", port))
+		}
+		if !hostSet {
+			out = append(out, fmt.Sprintf("Host=%s", host))
+		}
+	} else if !portSet || !hostSet {
+		// No [ClientQuery] section found; append one.
+		if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+			out = append(out, "")
+		}
+		out = append(out, "[ClientQuery]")
+		if !portSet {
+			out = append(out, fmt.Sprintf("Port=%d", port))
+		}
+		if !hostSet {
+			out = append(out, fmt.Sprintf("Host=%s", host))
+		}
+	}
+
+	result := strings.Join(out, "\n")
+	if !strings.HasSuffix(result, "\n") {
+		result += "\n"
+	}
+	return os.WriteFile(iniPath, []byte(result), 0o600)
 }
 
 // readClientQueryApiKey reads the ApiKey value from the TS3 client's ClientQuery
@@ -196,6 +292,36 @@ func maskApiKey(apiKey string) string {
 // persistentTs3Home, for logging purposes.
 func clientQueryApiKeyIniPath(persistentTs3Home string) string {
 	return filepath.Join(persistentTs3Home, ".ts3client", "clientquery.ini")
+}
+
+// readClientQueryApiKeyWithRetry polls the clientquery.ini until an api_key
+// appears or the deadline passes (or ctx is cancelled). This is needed because
+// the TS3 ClientQuery plugin writes the api_key asynchronously during plugin
+// initialisation, which happens shortly after the "Query listening" log line.
+//
+// Each poll attempt is logged:
+//
+//	external_client_bridge clientquery_api_key_wait_attempt=<n> clientquery_ini_exists=<bool> clientquery_api_key_present=<bool>
+//
+// Returns ("", false) when the timeout expires without finding a key.
+func readClientQueryApiKeyWithRetry(ctx context.Context, persistentTs3Home string, timeout time.Duration) (string, bool) {
+	iniPath := clientQueryApiKeyIniPath(persistentTs3Home)
+	deadline := time.Now().Add(timeout)
+	for attempt := 1; ; attempt++ {
+		_, statErr := os.Stat(iniPath)
+		iniExists := statErr == nil
+		key := readClientQueryApiKey(persistentTs3Home)
+		keyPresent := key != ""
+		log.Printf("external_client_bridge clientquery_api_key_wait_attempt=%d clientquery_ini_exists=%v clientquery_api_key_present=%v",
+			attempt, iniExists, keyPresent)
+		if keyPresent {
+			return key, true
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			return "", false
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 // ts3Escape encodes a string value for use as a parameter in the TeamSpeak 3
@@ -516,6 +642,11 @@ func waitForClientQueryReady(ctx context.Context, host string, port int, apiKey 
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
+	attempt := 0
+	// earlyMismatchChecked tracks whether we've already done the early port mismatch
+	// probe (after ~10 seconds). This avoids waiting the full 45s timeout in the
+	// common case where the plugin ignored the INI and bound to the default port.
+	earlyMismatchChecked := false
 	for {
 		select {
 		case <-ctx.Done():
@@ -536,8 +667,25 @@ func waitForClientQueryReady(ctx context.Context, host string, port int, apiKey 
 			}
 			return fmt.Errorf("clientquery_not_ready: ClientQuery port %s not ready after timeout", addr)
 		case <-ticker.C:
+			attempt++
 			if probeClientQueryControlReady(host, port, apiKey) {
 				return nil
+			}
+			// After ~10 seconds (20 polls × 500ms), check whether the plugin has
+			// bound to the default port instead of the configured port. This detects
+			// the "plugin ignored INI" scenario early, avoiding a full 45s wait.
+			if !earlyMismatchChecked && attempt >= 20 && port != clientQueryDefaultPort {
+				earlyMismatchChecked = true
+				defAddr := net.JoinHostPort(host, fmt.Sprintf("%d", clientQueryDefaultPort))
+				conn, dialErr := net.DialTimeout("tcp", defAddr, clientQueryDialTimeout)
+				if dialErr == nil && probeClientQueryBanner(conn) {
+					log.Printf("external_client_bridge clientquery_port_mismatch_detected_early=true configured_port=%d default_port=%d", port, clientQueryDefaultPort)
+					return fmt.Errorf(
+						"clientquery_port_mismatch: ClientQuery plugin is listening on default port %d, not configured port %d; "+
+							"the plugin may have ignored its INI configuration. "+
+							"Tip: set client_query_port=0 or client_query_port=%d to use the default",
+						clientQueryDefaultPort, port, clientQueryDefaultPort)
+				}
 			}
 		}
 	}

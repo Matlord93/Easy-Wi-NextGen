@@ -179,7 +179,7 @@ final class MusicbotWorkflowService
             'trigger_config' => $workflow->getTriggerConfig(),
             'enabled' => $workflow->isEnabled(),
             'execution_count' => $workflow->getExecutionCount(),
-            'last_triggered_at' => $workflow->getLastTriggeredAt()?->format(DATE_ATOM),
+            'last_triggered_at' => $workflow->getLastTriggeredAt()?->format(\DateTimeInterface::ATOM),
             'conditions' => array_values(array_map(
                 fn (MusicbotWorkflowCondition $c): array => [
                     'id' => $c->getId(),
@@ -199,8 +199,8 @@ final class MusicbotWorkflowService
                 $workflow->getActions()->toArray(),
             )),
             'instance_id' => $workflow->getInstance()->getId(),
-            'created_at' => $workflow->getCreatedAt()->format(DATE_ATOM),
-            'updated_at' => $workflow->getUpdatedAt()->format(DATE_ATOM),
+            'created_at' => $workflow->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'updated_at' => $workflow->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }
 
@@ -211,8 +211,8 @@ final class MusicbotWorkflowService
             'id' => $execution->getId(),
             'workflow_id' => $execution->getWorkflow()->getId(),
             'status' => $execution->getStatus()->value,
-            'triggered_at' => $execution->getTriggeredAt()->format(DATE_ATOM),
-            'completed_at' => $execution->getCompletedAt()?->format(DATE_ATOM),
+            'triggered_at' => $execution->getTriggeredAt()->format(\DateTimeInterface::ATOM),
+            'completed_at' => $execution->getCompletedAt()?->format(\DateTimeInterface::ATOM),
             'duration_ms' => $execution->getDurationMs(),
             'log' => $execution->getLog(),
             'error' => $execution->getError(),

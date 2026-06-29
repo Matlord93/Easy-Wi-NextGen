@@ -10,6 +10,7 @@ use App\Module\Musicbot\Domain\Entity\MusicbotPlaylist;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlaylistVisibility;
+use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Repository\MusicbotPlaylistItemRepository;
 use App\Repository\MusicbotPlaylistRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -31,7 +32,7 @@ final class MusicbotPlaylistService
         return $this->playlistRepository->findByCustomer($customer);
     }
 
-    public function createPlaylist(User $customer, string $name, ?MusicbotInstance $instance = null, MusicbotPlaylistVisibility $visibility = MusicbotPlaylistVisibility::Private): MusicbotPlaylist
+    public function createPlaylist(User $customer, string $name, ?MusicbotInstance $instance = null, MusicbotPlaylistVisibility $visibility = MusicbotPlaylistVisibility::Private, ?string $description = null): MusicbotPlaylist
     {
         if ($instance instanceof MusicbotInstance) {
             $this->assertCustomerOwnsInstance($customer, $instance);
@@ -44,13 +45,14 @@ final class MusicbotPlaylistService
 
         $playlist = new MusicbotPlaylist($customer, $name, $instance);
         $playlist->setVisibility($visibility);
+        $playlist->setDescription($description);
         $this->entityManager->persist($playlist);
         $this->entityManager->flush();
 
         return $playlist;
     }
 
-    public function updatePlaylist(User $customer, MusicbotPlaylist $playlist, string $name, MusicbotPlaylistVisibility $visibility): MusicbotPlaylist
+    public function updatePlaylist(User $customer, MusicbotPlaylist $playlist, string $name, MusicbotPlaylistVisibility $visibility, ?string $description = null): MusicbotPlaylist
     {
         $this->assertCustomerOwnsPlaylist($customer, $playlist);
         $name = trim($name);
@@ -59,6 +61,7 @@ final class MusicbotPlaylistService
         }
         $playlist->setName($name);
         $playlist->setVisibility($visibility);
+        $playlist->setDescription($description);
         $this->entityManager->flush();
 
         return $playlist;
@@ -75,6 +78,9 @@ final class MusicbotPlaylistService
     {
         $this->assertCustomerOwnsPlaylist($customer, $playlist);
         $this->assertCustomerOwnsTrack($customer, $track);
+        $this->assertTrackAllowedByPlan($customer, $track);
+        $this->assertTrackMatchesPlaylistInstance($playlist, $track);
+        $this->quotaService->assertCanAddPlaylistItem($customer, $playlist);
         $position = count($this->playlistItemRepository->findByPlaylistOrdered($playlist));
         $item = new MusicbotPlaylistItem($playlist, $track, $position);
         $this->entityManager->persist($item);
@@ -99,6 +105,51 @@ final class MusicbotPlaylistService
         $this->assertCustomerOwnsInstance($customer, $instance);
         $queueItems = [];
         foreach ($this->playlistItemRepository->findByPlaylistOrdered($playlist) as $playlistItem) {
+            $queueItems[] = $this->queueService->addTrackToQueue($customer, $instance, $playlistItem->getTrack(), $customer);
+        }
+
+        return $queueItems;
+    }
+
+
+    /** @param list<int> $playlistItemIds */
+    public function reorderItems(User $customer, MusicbotPlaylist $playlist, array $playlistItemIds): void
+    {
+        $this->assertCustomerOwnsPlaylist($customer, $playlist);
+        $itemsById = [];
+        foreach ($this->playlistItemRepository->findByPlaylistOrdered($playlist) as $item) {
+            if ($item->getId() !== null) {
+                $itemsById[$item->getId()] = $item;
+            }
+        }
+        $position = 0;
+        foreach ($playlistItemIds as $itemId) {
+            if (!isset($itemsById[$itemId])) {
+                throw new \InvalidArgumentException('Playlist item does not belong to this playlist.');
+            }
+            $itemsById[$itemId]->setPosition($position++);
+            unset($itemsById[$itemId]);
+        }
+        foreach ($itemsById as $item) {
+            $item->setPosition($position++);
+        }
+        $this->entityManager->flush();
+    }
+
+    /** @return \App\Module\Musicbot\Domain\Entity\MusicbotQueueItem[] */
+    public function loadPlaylistToQueueMode(User $customer, MusicbotPlaylist $playlist, MusicbotInstance $instance, string $mode = 'add'): array
+    {
+        $this->assertCustomerOwnsPlaylist($customer, $playlist);
+        $this->assertCustomerOwnsInstance($customer, $instance);
+        $items = $this->playlistItemRepository->findByPlaylistOrdered($playlist);
+        if ($mode === 'shuffle_add' || $mode === 'shuffle_play') {
+            shuffle($items);
+        }
+        if (in_array($mode, ['play_now', 'clear_play', 'shuffle_play'], true)) {
+            $this->queueService->clearQueue($customer, $instance);
+        }
+        $queueItems = [];
+        foreach ($items as $playlistItem) {
             $queueItems[] = $this->queueService->addTrackToQueue($customer, $instance, $playlistItem->getTrack(), $customer);
         }
 
@@ -130,6 +181,23 @@ final class MusicbotPlaylistService
             $item->setPosition($position++);
         }
         $this->entityManager->flush();
+    }
+
+    private function assertTrackAllowedByPlan(User $customer, MusicbotTrack $track): void
+    {
+        if ($track->getSourceType() === MusicbotTrackSourceType::Webradio) {
+            $this->quotaService->assertWebradioAllowed($customer);
+        }
+        if ($track->getSourceType() === MusicbotTrackSourceType::Youtube) {
+            $this->quotaService->assertYoutubeAllowed($customer);
+        }
+    }
+
+    private function assertTrackMatchesPlaylistInstance(MusicbotPlaylist $playlist, MusicbotTrack $track): void
+    {
+        if ($playlist->getInstance() instanceof MusicbotInstance && $track->getInstance() instanceof MusicbotInstance && $playlist->getInstance()->getId() !== $track->getInstance()->getId()) {
+            throw new \InvalidArgumentException('Track belongs to another musicbot instance.');
+        }
     }
 
     private function assertCustomerOwnsPlaylist(User $customer, MusicbotPlaylist $playlist): void

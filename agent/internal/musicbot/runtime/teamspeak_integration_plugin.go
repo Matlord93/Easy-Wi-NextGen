@@ -2,6 +2,7 @@ package musicbotruntime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,9 +15,10 @@ const TeamSpeakIntegrationPluginIdentifier = "easywi.teamspeak.integration"
 var supportedTeamspeakCommands = map[string]string{
 	"help": "musicbot.status.read", "play": "musicbot.playback.control", "pause": "musicbot.playback.control",
 	"resume": "musicbot.playback.control", "stop": "musicbot.playback.control", "skip": "musicbot.playback.control",
-	"queue": "musicbot.queue.read", "volume": "musicbot.playback.control", "shuffle": "musicbot.playback.control",
+	"next": "musicbot.playback.control", "queue": "musicbot.queue.read", "volume": "musicbot.playback.control", "shuffle": "musicbot.playback.control",
 	"repeat": "musicbot.playback.control", "playlist": "musicbot.playlist.manage", "autodj": "musicbot.autodj.manage",
-	"status": "musicbot.status.read",
+	"status": "musicbot.status.read", "song": "musicbot.status.read", "radio": "musicbot.playback.control",
+	"yt": "musicbot.playback.control", "seek": "musicbot.playback.control",
 }
 
 type TeamSpeakIntegrationConfig struct {
@@ -277,21 +279,44 @@ func (p *TeamSpeakIntegrationPlugin) HandleEvent(ctx context.Context, event Team
 
 func (p *TeamSpeakIntegrationPlugin) forwardCommand(cmd TeamSpeakCommand) string {
 	if cmd.Name == "help" {
-		return "Commands: !help !play !pause !resume !stop !skip !queue !volume !shuffle !repeat !playlist !autodj !status"
+		return "Commands: !help !play !pause !resume !stop !skip/!next !volume 0-100 !queue !radio <url> !yt <url> !song !repeat !shuffle !seek <seconds>"
 	}
 	if cmd.Name == "queue" {
 		return "Queue status requested."
+	}
+	if cmd.Name == "song" {
+		return "Song/status requested."
 	}
 	if p.control == nil {
 		return "Command accepted."
 	}
 	line := cmd.Name
+	if cmd.Name == "next" {
+		line = "skip"
+	}
+	if cmd.Name == "radio" && len(cmd.Args) > 0 {
+		line = jsonCommand("play", map[string]any{"source_type": "radio", "radio_url": cmd.Args[0], "source": map[string]any{"type": "radio", "uri": cmd.Args[0]}})
+	} else if cmd.Name == "yt" && len(cmd.Args) > 0 {
+		line = jsonCommand("play", map[string]any{"source_type": "youtube", "youtube_url": cmd.Args[0], "source": map[string]any{"type": "youtube", "youtube_url": cmd.Args[0]}})
+	} else if cmd.Name == "seek" && len(cmd.Args) > 0 {
+		line = jsonCommand("seek", map[string]any{"position_ms": cmd.Args[0]})
+	}
 	if len(cmd.Args) > 0 {
-		line += " " + strings.Join(cmd.Args, " ")
+		if cmd.Name != "radio" && cmd.Name != "yt" && cmd.Name != "seek" {
+			line += " " + strings.Join(cmd.Args, " ")
+		}
 	}
 	response := p.control.HandleCommand(line)
 	if !response.OK {
 		return response.Error
 	}
 	return fmt.Sprintf("%s ausgeführt", cmd.Name)
+}
+
+func jsonCommand(command string, args map[string]any) string {
+	payload, err := json.Marshal(commandRequest{Command: command, Args: args})
+	if err != nil {
+		return command
+	}
+	return string(payload)
 }

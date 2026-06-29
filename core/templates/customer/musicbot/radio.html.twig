@@ -1,0 +1,525 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set pageTitle = 'Webradio – ' ~ instance.name %}
+{% set activeNav = 'musicbots' %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:20px;" id="radio-app">
+
+    <div class="ui-card">
+        <div class="ui-card__header">
+            <h2 class="ui-card__title">📻 Webradio</h2>
+            <a href="{{ path('customer_musicbot_show', {id: instance.id}) }}" class="ui-btn ui-btn--sm ui-btn--neutral">← Zurück zum Bot</a>
+        </div>
+        <div class="ui-card__body" style="padding-bottom:0;">
+            <nav style="display:flex;gap:4px;border-bottom:2px solid var(--color-border,#e0e0e0);margin-bottom:-1px;">
+                <button class="radio-tab-btn active" data-tab="catalog">🌐 Katalog</button>
+                <button class="radio-tab-btn" data-tab="favorites">⭐ Favoriten</button>
+                <button class="radio-tab-btn" data-tab="history">🕐 Verlauf</button>
+                <button class="radio-tab-btn" data-tab="own">🎙 Eigene Sender</button>
+            </nav>
+        </div>
+    </div>
+
+    {# Global flash / error #}
+    <div id="radio-flash" style="display:none;" class="ui-alert"></div>
+
+    {# ── CATALOG TAB ─────────────────────────────────────────────────────────── #}
+    <div id="tab-catalog">
+        <div class="ui-card">
+            <div class="ui-card__body">
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
+                    <div style="flex:1;min-width:180px;">
+                        <label class="ui-label">Suche</label>
+                        <input class="ui-input" type="text" id="catalog-query" placeholder="Sendername, Genre …">
+                    </div>
+                    <div style="min-width:140px;">
+                        <label class="ui-label">Genre</label>
+                        <select class="ui-input" id="catalog-genre"><option value="">Alle Genres</option></select>
+                    </div>
+                    <div style="min-width:120px;">
+                        <label class="ui-label">Land</label>
+                        <select class="ui-input" id="catalog-country"><option value="">Alle Länder</option></select>
+                    </div>
+                    <div style="min-width:120px;">
+                        <label class="ui-label">Format</label>
+                        <select class="ui-input" id="catalog-format">
+                            <option value="">Alle</option>
+                            <option>mp3</option><option>aac</option><option>ogg</option><option>flac</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button class="ui-btn ui-btn--primary" id="catalog-search-btn">🔍 Suchen</button>
+                    </div>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+                    <button class="ui-btn ui-btn--sm ui-btn--neutral" id="btn-popular">🔥 Beliebt</button>
+                    <button class="ui-btn ui-btn--sm ui-btn--neutral" id="btn-newest">🆕 Neueste</button>
+                    <span id="catalog-count" style="margin-left:auto;font-size:0.85em;color:var(--color-text-muted,#888);"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="catalog-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;"></div>
+        <div style="text-align:center;margin-top:12px;" id="catalog-load-more-wrap" style="display:none;">
+            <button class="ui-btn ui-btn--neutral" id="catalog-more-btn">Weitere laden …</button>
+        </div>
+    </div>
+
+    {# ── FAVORITES TAB ───────────────────────────────────────────────────────── #}
+    <div id="tab-favorites" style="display:none;">
+        <div id="favorites-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">
+            <p style="color:var(--color-text-muted,#888);">Lade Favoriten …</p>
+        </div>
+    </div>
+
+    {# ── HISTORY TAB ─────────────────────────────────────────────────────────── #}
+    <div id="tab-history" style="display:none;">
+        <div id="history-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">
+            <p style="color:var(--color-text-muted,#888);">Lade Verlauf …</p>
+        </div>
+    </div>
+
+    {# ── OWN STATIONS TAB ────────────────────────────────────────────────────── #}
+    <div id="tab-own" style="display:none;">
+
+        {# URL resolver #}
+        <div class="ui-card">
+            <div class="ui-card__header"><h4 class="ui-card__title">Stream-URL testen / auflösen</h4></div>
+            <div class="ui-card__body">
+                <div style="display:flex;gap:8px;">
+                    <input class="ui-input" type="url" id="resolve-url-input" placeholder="https://stream.example.com/live.m3u" style="flex:1;">
+                    <button class="ui-btn ui-btn--neutral" id="btn-resolve">Auflösen</button>
+                </div>
+                <div id="resolve-result" style="margin-top:8px;font-size:0.85em;"></div>
+            </div>
+        </div>
+
+        {# Add own station #}
+        <div class="ui-card">
+            <div class="ui-card__header">
+                <h4 class="ui-card__title">Eigenen Sender hinzufügen</h4>
+                <button class="ui-btn ui-btn--sm ui-btn--primary" id="toggle-add-form">+ Formular öffnen</button>
+            </div>
+            <div id="add-station-form" style="display:none;padding:16px;border-top:1px solid var(--color-border,#ddd);">
+                <form id="form-radio-add">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div><label class="ui-label">Name *</label><input class="ui-input" type="text" name="name" required></div>
+                        <div><label class="ui-label">Stream-URL *</label><input class="ui-input" type="url" name="stream_url" required></div>
+                        <div><label class="ui-label">Genre</label><input class="ui-input" type="text" name="genre"></div>
+                        <div><label class="ui-label">Land</label><input class="ui-input" type="text" name="country" placeholder="DE"></div>
+                        <div><label class="ui-label">Sprache</label><input class="ui-input" type="text" name="language" placeholder="de"></div>
+                        <div><label class="ui-label">Homepage</label><input class="ui-input" type="url" name="homepage"></div>
+                        <div><label class="ui-label">Logo-URL</label><input class="ui-input" type="url" name="logo_url"></div>
+                        <div><label class="ui-label">Beschreibung</label><input class="ui-input" type="text" name="description"></div>
+                        <div style="grid-column:span 2;"><label class="ui-label">Tags (kommagetrennt)</label><input class="ui-input" type="text" name="tags" placeholder="rock, live, hd"></div>
+                    </div>
+                    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+                        <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm">Sender speichern</button>
+                        <button type="button" class="ui-btn ui-btn--neutral ui-btn--sm" id="btn-cancel-add">Abbrechen</button>
+                        <span id="add-station-error" style="color:red;font-size:0.9em;"></span>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {# Own station list #}
+        <div id="own-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">
+            <p style="color:var(--color-text-muted,#888);">Lade eigene Sender …</p>
+        </div>
+    </div>
+
+</div>{# /radio-app #}
+
+{# ── Edit modal ──────────────────────────────────────────────────────────────── #}
+<div id="radio-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:var(--color-surface,#fff);border-radius:8px;padding:24px;min-width:480px;max-width:620px;max-height:90vh;overflow-y:auto;">
+        <h3>Sender bearbeiten</h3>
+        <form id="form-radio-edit">
+            <input type="hidden" name="station_id" id="edit-station-id">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+                <div><label class="ui-label">Name *</label><input class="ui-input" type="text" name="name" id="edit-name" required></div>
+                <div><label class="ui-label">Stream-URL *</label><input class="ui-input" type="url" name="stream_url" id="edit-stream-url" required></div>
+                <div><label class="ui-label">Genre</label><input class="ui-input" type="text" name="genre" id="edit-genre"></div>
+                <div><label class="ui-label">Land</label><input class="ui-input" type="text" name="country" id="edit-country"></div>
+                <div><label class="ui-label">Sprache</label><input class="ui-input" type="text" name="language" id="edit-language"></div>
+                <div><label class="ui-label">Homepage</label><input class="ui-input" type="url" name="homepage" id="edit-homepage"></div>
+                <div><label class="ui-label">Logo-URL</label><input class="ui-input" type="url" name="logo_url" id="edit-logo-url"></div>
+                <div><label class="ui-label">Beschreibung</label><input class="ui-input" type="text" name="description" id="edit-description"></div>
+                <div style="grid-column:span 2;"><label class="ui-label">Tags</label><input class="ui-input" type="text" name="tags" id="edit-tags"></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+                <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm">Speichern</button>
+                <button type="button" class="ui-btn ui-btn--neutral ui-btn--sm" id="btn-close-edit">Abbrechen</button>
+            </div>
+            <div id="radio-edit-msg" style="margin-top:8px;color:red;font-size:0.9em;"></div>
+        </form>
+    </div>
+</div>
+
+<style>
+.radio-tab-btn {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-size: 0.9em;
+    color: var(--color-text-muted, #666);
+    transition: color .15s, border-color .15s;
+}
+.radio-tab-btn.active {
+    color: var(--color-primary, #2563eb);
+    border-bottom-color: var(--color-primary, #2563eb);
+    font-weight: 600;
+}
+.station-card {
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.station-card__header { display: flex; align-items: center; gap: 10px; }
+.station-card__logo { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.station-card__logo-placeholder { width: 40px; height: 40px; border-radius: 6px; background: var(--color-surface-alt, #f3f4f6); display: flex; align-items: center; justify-content: center; font-size: 1.2em; flex-shrink: 0; }
+.station-card__name { font-weight: 600; font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.station-card__badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: var(--color-surface-alt, #f0f0f0); color: var(--color-text-muted, #555); }
+.station-card__desc { font-size: 0.82em; color: var(--color-text-muted, #666); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.station-card__actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
+</style>
+
+<script>
+(function () {
+'use strict';
+
+const INSTANCE_ID = {{ instance.id }};
+const BASE = `/api/v1/customer/musicbots/${INSTANCE_ID}/radio`;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function flash(msg, type = 'success') {
+    const el = document.getElementById('radio-flash');
+    el.className = `ui-alert ui-alert--${type}`;
+    el.textContent = msg;
+    el.style.display = '';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+async function apiCall(method, url, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    return data;
+}
+
+function stationCard(s, extraBtns = '') {
+    const logo = s.logo_url
+        ? `<img class="station-card__logo" src="${esc(s.logo_url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'station-card__logo-placeholder',textContent:'📻'}))">`
+        : `<div class="station-card__logo-placeholder">📻</div>`;
+    const badges = [s.genre, s.country, s.format ? s.format.toUpperCase() : null, s.bitrate ? s.bitrate + ' kbps' : null, s.language]
+        .filter(Boolean).map(b => `<span class="badge">${esc(b)}</span>`).join('');
+    const favBtn = s.is_favorite
+        ? `<button class="ui-btn ui-btn--sm ui-btn--warning btn-fav-remove" data-id="${s.id}" title="Favorit entfernen">⭐</button>`
+        : `<button class="ui-btn ui-btn--sm ui-btn--neutral btn-fav-add" data-id="${s.id}" title="Als Favorit">☆</button>`;
+    return `
+    <div class="station-card">
+        <div class="station-card__header">
+            ${logo}
+            <div style="min-width:0;">
+                <div class="station-card__name" title="${esc(s.name)}">${esc(s.name)}</div>
+                <div class="station-card__badges">${badges}</div>
+            </div>
+        </div>
+        ${s.description ? `<div class="station-card__desc">${esc(s.description)}</div>` : ''}
+        <div class="station-card__actions">
+            <button class="ui-btn ui-btn--sm ui-btn--success btn-play" data-id="${s.id}" title="Jetzt abspielen">▶ Play</button>
+            <button class="ui-btn ui-btn--sm ui-btn--primary btn-queue" data-id="${s.id}" title="Zur Warteschlange">+ Queue</button>
+            <button class="ui-btn ui-btn--sm ui-btn--neutral btn-playlist" data-id="${s.id}" title="Zur Playlist">+ Playlist</button>
+            ${favBtn}
+            ${extraBtns}
+        </div>
+        ${s.played_at ? `<div style="font-size:0.78em;color:var(--color-text-muted,#888);">Gespielt: ${new Date(s.played_at).toLocaleString('de-DE')}</div>` : ''}
+    </div>`;
+}
+
+function renderGrid(container, stations, ownMode = false) {
+    if (!stations.length) {
+        container.innerHTML = '<p style="color:var(--color-text-muted,#888);">Keine Sender gefunden.</p>';
+        return;
+    }
+    container.innerHTML = stations.map(s => {
+        const extra = ownMode
+            ? `<button class="ui-btn ui-btn--sm ui-btn--neutral btn-edit-own" data-station='${esc(JSON.stringify(s))}' title="Bearbeiten">✏</button>
+               <button class="ui-btn ui-btn--sm ui-btn--danger btn-delete-own" data-id="${s.id}" title="Löschen">🗑</button>`
+            : '';
+        return stationCard(s, extra);
+    }).join('');
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+
+const tabPanels = { catalog: document.getElementById('tab-catalog'), favorites: document.getElementById('tab-favorites'), history: document.getElementById('tab-history'), own: document.getElementById('tab-own') };
+let activeTab = 'catalog';
+
+document.querySelectorAll('.radio-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.radio-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        Object.values(tabPanels).forEach(p => p.style.display = 'none');
+        tabPanels[tab].style.display = '';
+        if (tab !== activeTab) { activeTab = tab; onTabSwitch(tab); }
+    });
+});
+
+function onTabSwitch(tab) {
+    if (tab === 'favorites') loadFavorites();
+    else if (tab === 'history') loadHistory();
+    else if (tab === 'own') loadOwn();
+}
+
+// ── Catalog ────────────────────────────────────────────────────────────────────
+
+let catalogOffset = 0;
+const LIMIT = 24;
+let lastFilters = {};
+
+async function loadCatalog(filters, append = false) {
+    try {
+        if (!append) { catalogOffset = 0; lastFilters = filters; }
+        const params = new URLSearchParams({ limit: LIMIT, offset: catalogOffset, ...filters });
+        const data = await apiCall('GET', `${BASE}/catalog?${params}`);
+        const grid = document.getElementById('catalog-grid');
+        if (!append) grid.innerHTML = '';
+        const stations = data.data?.stations ?? data.stations ?? [];
+        const total = data.data?.total ?? data.total ?? 0;
+        stations.forEach(s => { grid.insertAdjacentHTML('beforeend', stationCard(s)); });
+        if (!append) {
+            const genres = data.data?.genres ?? data.genres ?? [];
+            const countries = data.data?.countries ?? data.countries ?? [];
+            const gs = document.getElementById('catalog-genre');
+            gs.innerHTML = '<option value="">Alle Genres</option>' + genres.map(g => `<option>${esc(g)}</option>`).join('');
+            const cs = document.getElementById('catalog-country');
+            cs.innerHTML = '<option value="">Alle Länder</option>' + countries.map(c => `<option>${esc(c)}</option>`).join('');
+        }
+        document.getElementById('catalog-count').textContent = `${total} Sender`;
+        catalogOffset += stations.length;
+        const moreWrap = document.getElementById('catalog-load-more-wrap');
+        moreWrap.style.display = catalogOffset < total ? '' : 'none';
+    } catch (err) { flash(err.message, 'danger'); }
+}
+
+document.getElementById('catalog-search-btn').addEventListener('click', () => {
+    loadCatalog({ query: document.getElementById('catalog-query').value, genre: document.getElementById('catalog-genre').value, country: document.getElementById('catalog-country').value, format: document.getElementById('catalog-format').value });
+});
+
+document.getElementById('catalog-query').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('catalog-search-btn').click();
+});
+
+document.getElementById('catalog-more-btn').addEventListener('click', () => loadCatalog(lastFilters, true));
+
+document.getElementById('btn-popular').addEventListener('click', async () => {
+    try {
+        const data = await apiCall('GET', `${BASE}/popular?limit=24`);
+        const stations = data.data ?? data;
+        const grid = document.getElementById('catalog-grid');
+        grid.innerHTML = stations.map(s => stationCard(s)).join('');
+        document.getElementById('catalog-load-more-wrap').style.display = 'none';
+        document.getElementById('catalog-count').textContent = `${stations.length} beliebte Sender`;
+    } catch (err) { flash(err.message, 'danger'); }
+});
+
+document.getElementById('btn-newest').addEventListener('click', async () => {
+    try {
+        const data = await apiCall('GET', `${BASE}/newest?limit=24`);
+        const stations = data.data ?? data;
+        const grid = document.getElementById('catalog-grid');
+        grid.innerHTML = stations.map(s => stationCard(s)).join('');
+        document.getElementById('catalog-load-more-wrap').style.display = 'none';
+        document.getElementById('catalog-count').textContent = `${stations.length} neueste Sender`;
+    } catch (err) { flash(err.message, 'danger'); }
+});
+
+// ── Favorites ──────────────────────────────────────────────────────────────────
+
+async function loadFavorites() {
+    try {
+        const data = await apiCall('GET', `${BASE}/favorites`);
+        const stations = data.data ?? data;
+        renderGrid(document.getElementById('favorites-grid'), stations);
+    } catch (err) { flash(err.message, 'danger'); }
+}
+
+// ── History ────────────────────────────────────────────────────────────────────
+
+async function loadHistory() {
+    try {
+        const data = await apiCall('GET', `${BASE}/history`);
+        const stations = data.data ?? data;
+        renderGrid(document.getElementById('history-grid'), stations);
+    } catch (err) { flash(err.message, 'danger'); }
+}
+
+// ── Own stations ───────────────────────────────────────────────────────────────
+
+async function loadOwn() {
+    try {
+        const data = await apiCall('GET', `${BASE}/list`);
+        const stations = data.data ?? data;
+        renderGrid(document.getElementById('own-grid'), stations, true);
+    } catch (err) { flash(err.message, 'danger'); }
+}
+
+document.getElementById('toggle-add-form').addEventListener('click', () => {
+    const f = document.getElementById('add-station-form');
+    f.style.display = f.style.display === 'none' ? '' : 'none';
+});
+document.getElementById('btn-cancel-add').addEventListener('click', () => {
+    document.getElementById('add-station-form').style.display = 'none';
+});
+
+document.getElementById('form-radio-add').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = { name: fd.get('name'), stream_url: fd.get('stream_url'), genre: fd.get('genre') || null, country: fd.get('country') || null, language: fd.get('language') || null, homepage: fd.get('homepage') || null, logo_url: fd.get('logo_url') || null, description: fd.get('description') || null };
+    const tags = fd.get('tags'); if (tags) body.tags = tags.split(',').map(t => t.trim()).filter(Boolean);
+    const errEl = document.getElementById('add-station-error');
+    errEl.textContent = '';
+    try {
+        await apiCall('POST', `${BASE}/create`, body);
+        flash('Sender gespeichert.', 'success');
+        e.target.reset();
+        document.getElementById('add-station-form').style.display = 'none';
+        loadOwn();
+    } catch (err) { errEl.textContent = err.message; }
+});
+
+// ── URL resolver ───────────────────────────────────────────────────────────────
+
+document.getElementById('btn-resolve').addEventListener('click', async () => {
+    const url = document.getElementById('resolve-url-input').value.trim();
+    const out = document.getElementById('resolve-result');
+    if (!url) { out.innerHTML = '<span style="color:red;">Bitte URL eingeben.</span>'; return; }
+    out.textContent = 'Wird aufgelöst …';
+    try {
+        const data = await apiCall('POST', `${BASE}/resolve`, { url });
+        const r = data.data ?? data;
+        out.innerHTML = `<strong>✓ Aufgelöst:</strong> <code>${esc(r.url)}</code>`
+            + (r.content_type ? ` · <em>${esc(r.content_type)}</em>` : '')
+            + (r.stream_name ? ` · <strong>${esc(r.stream_name)}</strong>` : '')
+            + (r.bitrate ? ` · ${r.bitrate} kbps` : '');
+    } catch (err) { out.innerHTML = `<span style="color:red;">✗ ${esc(err.message)}</span>`; }
+});
+
+// ── Edit modal ─────────────────────────────────────────────────────────────────
+
+function openEditModal(s) {
+    document.getElementById('edit-station-id').value = s.id;
+    document.getElementById('edit-name').value = s.name ?? '';
+    document.getElementById('edit-stream-url').value = s.stream_url ?? '';
+    document.getElementById('edit-genre').value = s.genre ?? '';
+    document.getElementById('edit-country').value = s.country ?? '';
+    document.getElementById('edit-language').value = s.language ?? '';
+    document.getElementById('edit-homepage').value = s.homepage ?? '';
+    document.getElementById('edit-logo-url').value = s.logo_url ?? '';
+    document.getElementById('edit-description').value = s.description ?? '';
+    document.getElementById('edit-tags').value = (s.tags ?? []).join(', ');
+    document.getElementById('radio-edit-msg').textContent = '';
+    document.getElementById('radio-edit-modal').style.display = 'flex';
+}
+
+document.getElementById('btn-close-edit').addEventListener('click', () => {
+    document.getElementById('radio-edit-modal').style.display = 'none';
+});
+
+document.getElementById('form-radio-edit').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const id = fd.get('station_id');
+    const body = { name: fd.get('name'), stream_url: fd.get('stream_url'), genre: fd.get('genre') || null, country: fd.get('country') || null, language: fd.get('language') || null, homepage: fd.get('homepage') || null, logo_url: fd.get('logo_url') || null, description: fd.get('description') || null };
+    const tags = fd.get('tags'); if (tags) body.tags = tags.split(',').map(t => t.trim()).filter(Boolean);
+    try {
+        await apiCall('PATCH', `${BASE}/update/${id}`, body);
+        document.getElementById('radio-edit-modal').style.display = 'none';
+        flash('Sender gespeichert.', 'success');
+        loadOwn();
+    } catch (err) { document.getElementById('radio-edit-msg').textContent = err.message; }
+});
+
+// ── Event delegation: play / queue / playlist / fav / edit / delete ────────────
+
+document.getElementById('radio-app').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-id],[data-station]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+
+    if (btn.classList.contains('btn-fav-add')) {
+        try {
+            await apiCall('POST', `${BASE}/favorites/${id}`);
+            flash('Favorit hinzugefügt.', 'success');
+            btn.className = 'ui-btn ui-btn--sm ui-btn--warning btn-fav-remove';
+            btn.textContent = '⭐';
+            btn.title = 'Favorit entfernen';
+        } catch (err) { flash(err.message, 'danger'); }
+
+    } else if (btn.classList.contains('btn-fav-remove')) {
+        try {
+            await apiCall('DELETE', `${BASE}/favorites/${id}`);
+            flash('Favorit entfernt.', 'success');
+            btn.className = 'ui-btn ui-btn--sm ui-btn--neutral btn-fav-add';
+            btn.textContent = '☆';
+            btn.title = 'Als Favorit';
+        } catch (err) { flash(err.message, 'danger'); }
+
+    } else if (btn.classList.contains('btn-play')) {
+        try {
+            await apiCall('POST', `${BASE}/play/${id}`);
+            flash('▶ Sender wird abgespielt.', 'success');
+        } catch (err) { flash(err.message, 'danger'); }
+
+    } else if (btn.classList.contains('btn-queue')) {
+        try {
+            await apiCall('POST', `${BASE}/queue/${id}`);
+            flash('Zur Warteschlange hinzugefügt.', 'success');
+        } catch (err) { flash(err.message, 'danger'); }
+
+    } else if (btn.classList.contains('btn-playlist')) {
+        const pid = prompt('Playlist-ID eingeben:');
+        if (!pid || isNaN(parseInt(pid))) return;
+        try {
+            await apiCall('POST', `${BASE}/playlist/${id}`, { playlist_id: parseInt(pid) });
+            flash('Zur Playlist hinzugefügt.', 'success');
+        } catch (err) { flash(err.message, 'danger'); }
+
+    } else if (btn.classList.contains('btn-edit-own')) {
+        openEditModal(JSON.parse(btn.dataset.station));
+
+    } else if (btn.classList.contains('btn-delete-own')) {
+        if (!confirm('Sender wirklich löschen?')) return;
+        try {
+            await apiCall('DELETE', `${BASE}/delete/${id}`);
+            flash('Sender gelöscht.', 'success');
+            loadOwn();
+        } catch (err) { flash(err.message, 'danger'); }
+    }
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => loadCatalog({}));
+
+})();
+</script>
+{% endblock %}

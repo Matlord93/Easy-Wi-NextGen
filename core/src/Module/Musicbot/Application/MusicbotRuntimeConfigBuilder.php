@@ -124,8 +124,33 @@ final class MusicbotRuntimeConfigBuilder
             'port' => (int) ($config['port'] ?? 9987),
             'nickname' => (string) ($config['nickname'] ?? ''),
             'channel_id' => (string) ($config['channel_id'] ?? ''),
+            'channel_name' => (string) ($config['channel_name'] ?? ''),
+            'channel_description' => (string) ($config['channel_description'] ?? ''),
+            'avatar' => (string) ($config['avatar'] ?? ''),
+            'badges' => (string) ($config['badges'] ?? ''),
+            'away_status' => (string) ($config['away_status'] ?? ''),
+            'default_recording_mode' => (string) ($config['default_recording_mode'] ?? ''),
+            'voice_quality' => (string) ($config['voice_quality'] ?? ''),
+            'codec' => (string) ($config['codec'] ?? ''),
+            'codec_bitrate' => $config['codec_bitrate'] ?? '',
+            'live_apply_policy' => [
+                'runtime_reload' => ['nickname', 'channel_description', 'avatar', 'badges', 'away_status', 'default_recording_mode', 'voice_quality', 'codec', 'codec_bitrate'],
+                'reconnect' => ['host', 'port', 'server_password', 'channel_id', 'channel_name', 'channel_password'],
+                'restart_message' => 'Diese Änderung wird nach einem Neustart des Bots übernommen.',
+            ],
             'command_prefix' => (string) ($config['command_prefix'] ?? '!'),
             'commands_enabled' => (bool) ($config['commands_enabled'] ?? true),
+            'command_catalog' => TeamspeakCommandCatalog::build(is_array($config['command_config'] ?? null) ? $config['command_config'] : []),
+            'chat_scopes' => $this->normalizeChatScopes($config['chat_scopes'] ?? ['channel', 'private']),
+            'role_bindings' => [
+                'user' => (array) ($config['allowed_server_groups'] ?? []),
+                'dj' => (array) ($config['dj_server_groups'] ?? []),
+                'admin' => (array) ($config['admin_server_groups'] ?? []),
+            ],
+            'plugin_api' => [
+                'provider' => TeamspeakCommandCatalog::PLUGIN_IDENTIFIER,
+                'hooks' => ['chat.command.received', 'playback.action.requested', 'queue.action.requested'],
+            ],
             'events_enabled' => (bool) ($config['events_enabled'] ?? true),
             'allowed_server_groups' => (array) ($config['allowed_server_groups'] ?? []),
             'dj_server_groups' => (array) ($config['dj_server_groups'] ?? []),
@@ -270,6 +295,23 @@ final class MusicbotRuntimeConfigBuilder
         ];
     }
 
+    /** @return list<string> */
+    private function normalizeChatScopes(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return ['channel', 'private'];
+        }
+        $scopes = [];
+        foreach ($value as $scope) {
+            $scope = strtolower(trim((string) $scope));
+            if (in_array($scope, ['channel', 'private'], true)) {
+                $scopes[] = $scope;
+            }
+        }
+
+        return array_values(array_unique($scopes)) ?: ['channel', 'private'];
+    }
+
     /** @return list<array<string, mixed>> */
     private function buildPluginConfigs(MusicbotInstance $instance): array
     {
@@ -284,6 +326,11 @@ final class MusicbotRuntimeConfigBuilder
                 'identifier' => $plugin->getIdentifier(),
                 'version' => $plugin->getVersion(),
                 'config' => $plugin->getConfig(),
+                'permissions' => $plugin->getPermissions(),
+                'api' => [
+                    'commands' => $plugin->getIdentifier() === TeamspeakCommandCatalog::PLUGIN_IDENTIFIER ? TeamspeakCommandCatalog::SUPPORTED_COMMANDS : [],
+                    'hooks' => $plugin->getIdentifier() === TeamspeakCommandCatalog::PLUGIN_IDENTIFIER ? ['chat.command.received', 'playback.action.requested', 'queue.action.requested'] : [],
+                ],
             ];
         }
 

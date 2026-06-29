@@ -45,6 +45,7 @@ type ConnectionStatus struct {
 	BackendPath          string           `json:"backend_path,omitempty"`
 	ClientID             string           `json:"client_id,omitempty"`
 	OutputBackend        string           `json:"output_backend,omitempty"`
+	StatusMessage        string           `json:"status_message,omitempty"`
 	UpdatedAt            string           `json:"updated_at"`
 }
 
@@ -75,15 +76,65 @@ type ListenerProvider interface {
 	Listeners(ctx context.Context) ([]Listener, error)
 }
 
+// Channel represents a voice or text channel on any platform.
+type Channel struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type,omitempty"` // "voice", "text", "category"
+}
+
+// ConnectorEvent is a platform-neutral event emitted by any connector.
+type ConnectorEvent struct {
+	Name          string         `json:"name"`
+	ConnectorType string         `json:"connector_type"` // "teamspeak", "discord"
+	Platform      string         `json:"platform"`       // same value, alias for template compat
+	InstanceID    string         `json:"instance_id"`
+	ChannelID     string         `json:"channel_id,omitempty"`
+	UserID        string         `json:"user_id,omitempty"`
+	Username      string         `json:"username,omitempty"`
+	Payload       map[string]any `json:"payload,omitempty"`
+	At            string         `json:"at"`
+}
+
+// Connector is the general interface every platform connector must satisfy.
+// TeamSpeak is the reference implementation; Discord is the first extension.
 type Connector interface {
 	AudioOutput
 	ListenerProvider
+
+	// Platform identification
+	Platform() string
+
+	// Lifecycle
 	ValidateConfig() error
 	Connect(ctx context.Context) error
 	Disconnect(ctx context.Context) error
 	Reconnect(ctx context.Context) error
+	ReloadConfig(ctx context.Context) error
+
+	// Channel management
 	JoinChannel(ctx context.Context, channelID string) error
+	MoveToChannel(ctx context.Context, channelID string) error
+	GetCurrentChannel(ctx context.Context) string
+	GetChannels(ctx context.Context) ([]Channel, error)
+
+	// Messaging
+	SendMessage(ctx context.Context, channelID, text string) error
+
+	// Status & users
 	GetStatus(ctx context.Context) ConnectionStatus
+	GetUsers(ctx context.Context) ([]Listener, error)
+	GetDiagnostics(ctx context.Context) map[string]any
+
+	// Capabilities
+	SupportsFeature(feature string) bool
+
+	// Auto-connect hints used by the runtime loop
+	ShouldAutoconnect() bool
+	InitialChannelID() string
+
+	// Audio
+	CreateAudioOutput(ctx context.Context) AudioOutput
 }
 
 type TeamSpeakVoiceConnector struct {
@@ -269,7 +320,7 @@ func (c *TeamSpeakVoiceConnector) SendAudioFrame(ctx context.Context, frame Audi
 		c.setBackendRequired(err)
 		return err
 	}
-	if err := c.voiceClient.SendOpusFrame(ctx, frame); err != nil {
+	if err := c.voiceClient.SendAudioFrame(ctx, frame); err != nil {
 		c.setBackendRequired(err)
 		return err
 	}
@@ -299,6 +350,72 @@ func (c *TeamSpeakVoiceConnector) Listeners(ctx context.Context) ([]Listener, er
 	return listeners, nil
 }
 
+func (c *TeamSpeakVoiceConnector) Platform() string { return "teamspeak" }
+
+func (c *TeamSpeakVoiceConnector) ShouldAutoconnect() bool { return c.config.Autoconnect }
+
+func (c *TeamSpeakVoiceConnector) InitialChannelID() string {
+	return teamspeakConfigString(c.config, "channel_id")
+}
+
+func (c *TeamSpeakVoiceConnector) ReloadConfig(ctx context.Context) error {
+	return c.Reconnect(ctx)
+}
+
+func (c *TeamSpeakVoiceConnector) MoveToChannel(ctx context.Context, channelID string) error {
+	return c.JoinChannel(ctx, channelID)
+}
+
+func (c *TeamSpeakVoiceConnector) GetCurrentChannel(ctx context.Context) string {
+	return c.GetStatus(ctx).ChannelID
+}
+
+func (c *TeamSpeakVoiceConnector) GetChannels(ctx context.Context) ([]Channel, error) {
+	return []Channel{}, nil
+}
+
+func (c *TeamSpeakVoiceConnector) SendMessage(ctx context.Context, channelID, text string) error {
+	return errors.New("SendMessage not yet implemented for TeamSpeak connector")
+}
+
+func (c *TeamSpeakVoiceConnector) GetUsers(ctx context.Context) ([]Listener, error) {
+	return c.Listeners(ctx)
+}
+
+func (c *TeamSpeakVoiceConnector) SupportsFeature(feature string) bool {
+	switch feature {
+	case "voice", "chat_commands", "channel_join":
+		return true
+	case "slash_commands", "guild_events":
+		return false
+	default:
+		return false
+	}
+}
+
+func (c *TeamSpeakVoiceConnector) GetDiagnostics(ctx context.Context) map[string]any {
+	status := c.GetStatus(ctx)
+	return map[string]any{
+		"platform":               "teamspeak",
+		"state":                  string(status.State),
+		"connected":              status.Connected,
+		"voice_client_available": status.VoiceClientAvailable,
+		"capability_status":      string(status.CapabilityStatus),
+		"output_backend":         status.OutputBackend,
+		"backend_type":           status.BackendType,
+		"last_error":             status.LastError,
+		"status_message":         status.StatusMessage,
+	}
+}
+
+func (c *TeamSpeakVoiceConnector) CreateAudioOutput(ctx context.Context) AudioOutput {
+	status := c.GetStatus(ctx)
+	if status.VoiceClientAvailable && status.CapabilityStatus == CapabilityStatusReady {
+		return NewTeamspeakAudioOutputFromConnector(c)
+	}
+	return NullAudioOutput{}
+}
+
 func (c *TeamSpeakVoiceConnector) setError(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -311,6 +428,10 @@ func (c *TeamSpeakVoiceConnector) setError(err error) {
 }
 
 func (c *TeamSpeakVoiceConnector) setBackendRequired(err error) {
+	if isLicenseAcceptanceRequiredError(err) {
+		c.setLicenseAcceptanceRequired(err)
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.status.State = ConnectionStateDisconnected
@@ -320,6 +441,25 @@ func (c *TeamSpeakVoiceConnector) setBackendRequired(err error) {
 	c.status.OutputBackend = "null"
 	c.status.LastError = maskTeamspeakSecretError(err.Error(), c.config)
 	c.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+}
+
+func (c *TeamSpeakVoiceConnector) setLicenseAcceptanceRequired(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.status.State = ConnectionStateDisconnected
+	c.status.Connected = false
+	c.status.VoiceClientAvailable = false
+	c.status.CapabilityStatus = CapabilityStatusLicenseAcceptanceRequired
+	c.status.OutputBackend = "null"
+	c.status.StatusMessage = "TeamSpeak client license must be accepted once by an administrator"
+	c.status.LastError = maskTeamspeakSecretError(err.Error(), c.config)
+	c.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+}
+
+// isLicenseAcceptanceRequiredError returns true when err carries the bridge
+// sentinel "license_accept_required: ..." produced by the license_check step.
+func isLicenseAcceptanceRequiredError(err error) bool {
+	return err != nil && strings.HasPrefix(err.Error(), "license_accept_required")
 }
 
 func (c *TeamSpeakVoiceConnector) isVoiceClientAvailable() bool {
@@ -809,6 +949,73 @@ func (c *DiscordConnector) refreshStatusFromVoiceState(ctx context.Context) {
 		c.status.LastError = maskSensitiveError(firstNonEmpty(voiceState.LastError, c.voiceClient.GetLastError()), c.config.Config)
 	}
 	c.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+}
+
+func (c *DiscordConnector) Platform() string { return "discord" }
+
+func (c *DiscordConnector) ShouldAutoconnect() bool { return c.config.Enabled }
+
+func (c *DiscordConnector) InitialChannelID() string {
+	return discordConfigString(c.config, "voice_channel_id")
+}
+
+func (c *DiscordConnector) ReloadConfig(ctx context.Context) error {
+	return c.Reconnect(ctx)
+}
+
+func (c *DiscordConnector) MoveToChannel(ctx context.Context, channelID string) error {
+	return c.JoinVoiceChannel(ctx, channelID)
+}
+
+func (c *DiscordConnector) GetCurrentChannel(ctx context.Context) string {
+	return c.GetStatus(ctx).ChannelID
+}
+
+func (c *DiscordConnector) GetChannels(ctx context.Context) ([]Channel, error) {
+	return []Channel{}, nil
+}
+
+func (c *DiscordConnector) SendMessage(ctx context.Context, channelID, text string) error {
+	return errors.New("SendMessage not yet implemented for Discord connector")
+}
+
+func (c *DiscordConnector) GetUsers(ctx context.Context) ([]Listener, error) {
+	return c.Listeners(ctx)
+}
+
+func (c *DiscordConnector) SupportsFeature(feature string) bool {
+	switch feature {
+	case "voice", "guild_events", "slash_commands":
+		return true
+	case "chat_commands":
+		return false
+	default:
+		return false
+	}
+}
+
+func (c *DiscordConnector) GetDiagnostics(ctx context.Context) map[string]any {
+	status := c.GetStatus(ctx)
+	return map[string]any{
+		"platform":               "discord",
+		"state":                  string(status.State),
+		"connected":              status.Connected,
+		"voice_client_available": status.VoiceClientAvailable,
+		"capability_status":      string(status.CapabilityStatus),
+		"output_backend":         status.OutputBackend,
+		"voice_gateway_state":    status.VoiceGatewayState,
+		"voice_udp_state":        status.VoiceUDPState,
+		"last_error":             status.LastError,
+		"reconnect_count":        status.ReconnectCount,
+	}
+}
+
+func (c *DiscordConnector) CreateAudioOutput(ctx context.Context) AudioOutput {
+	status := c.GetStatus(ctx)
+	if status.VoiceClientAvailable && status.CapabilityStatus == CapabilityStatusReady {
+		return NewDiscordAudioOutputWithConfig(c.voiceClient, c.config.Config)
+	}
+	return NullAudioOutput{}
 }
 
 func (c *DiscordConnector) setError(err error) {

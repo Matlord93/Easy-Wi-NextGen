@@ -5,9 +5,9 @@
 {% set activeNav = 'musicbots' %}
 
 {% set capabilityLabels = {
-    'ready': 'Bereit',
-    'client_backend_required': 'Backend fehlt',
-    'voice_backend_required': 'Backend fehlt',
+    'ready': 'Verbunden/Bereit',
+    'client_backend_required': 'Wartet auf Runtime',
+    'voice_backend_required': 'Wartet auf Runtime',
     'placeholder': 'Placeholder',
     'error': 'Fehler'
 } %}
@@ -26,7 +26,7 @@
 } %}
 
 {% set playback = runtimePayload.playback|default({}) %}
-{% set playbackStatus = runtimePayload.playback_status|default({}) %}
+{% set playbackStatus = playbackStatus|default(runtimePayload.playback_status|default({})) %}
 {% set audioPipeline = runtimePayload.audio_pipeline|default({}) %}
 {% set outputBackend = playbackStatus.output_backend|default(audioPipeline.output_backend|default('null')) ?: 'null' %}
 {% set outputStatus = playbackStatus.output_status|default(audioPipeline.output_status|default('idle')) ?: 'idle' %}
@@ -36,7 +36,12 @@
 {% set dcConfig = dc ? dc.config : {} %}
 {% set tsEntity = ts ? ts.entity : null %}
 {% set dcEntity = dc ? dc.entity : null %}
-{% set tsCap = ts ? ts.capability_status : 'client_backend_required' %}
+{% set runtimeAudioReady = playbackStatus.audio_backend_ready|default(playbackStatus.audio_injection_ready|default(false)) %}
+{% set runtimeAudioStatus = playbackStatus.audio_backend_status|default(runtimeAudioReady ? 'ready' : 'not_ready') %}
+{% set runtimeAudioMessage = playbackStatus.diagnostic|default(playbackStatus.audio_backend_message|default('')) %}
+{% set runtimeTsConnected = playbackStatus.teamspeak_connected|default(false) %}
+{% set tsCapRaw = ts ? ts.capability_status : 'client_backend_required' %}
+{% set tsCap = (runtimeTsConnected or runtimeAudioReady) ? 'ready' : tsCapRaw %}
 {% set dcCap = dc ? dc.capability_status : 'voice_backend_required' %}
 {% set instStatusClass = statusMap[instance.status.value] ?? 'neutral' %}
 
@@ -62,8 +67,8 @@
                             Musicbot
                         </div>
                         <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:11px;">{{ instance.status.value|title }}</span>
-                        {% if outputBackend != 'null' %}
-                            <span class="ui-badge ui-badge--success" style="font-size:11px;">Audio aktiv</span>
+                        {% if runtimeAudioReady or outputBackend != 'null' %}
+                            <span class="ui-badge ui-badge--success" style="font-size:11px;">Audio aktiv/bereit</span>
                         {% else %}
                             <span class="ui-badge ui-badge--neutral" style="font-size:11px;">Kein Audio-Output</span>
                         {% endif %}
@@ -81,7 +86,7 @@
             </div>
             <div class="tkt-kpi">
                 <div class="tkt-kpi__label">Runtime</div>
-                <div class="tkt-kpi__value" style="font-size:16px;">{{ runtimePayload.running|default(false) ? 'Bereit' : 'Nicht verbunden' }}</div>
+                <div class="tkt-kpi__value" style="font-size:16px;">{{ runtimeAudioReady ? 'Bereit' : 'Wartet' }}</div>
             </div>
             <div class="tkt-kpi">
                 <div class="tkt-kpi__label">Output Backend</div>
@@ -170,25 +175,41 @@
                             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:4px;">Queue</div>
                             <div style="font-size:14px;font-weight:600;color:var(--ng-text);">{{ queueSummary.length }} Einträge</div>
                         </div>
+                        <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
+                            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:4px;">TeamSpeak</div>
+                            <div style="font-size:14px;font-weight:600;color:var(--ng-text);">{{ (runtimeTsConnected or runtimeAudioReady) ? 'Verbunden' : 'Nicht verbunden' }}</div>
+                        </div>
+                        <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
+                            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:4px;">Audio Backend</div>
+                            <div style="font-size:14px;font-weight:600;color:var(--ng-text);">{{ runtimeAudioReady ? 'Bereit' : (runtimeAudioStatus|replace({'_': ' '})|title) }}</div>
+                        </div>
+                        <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
+                            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:4px;">Diagnose</div>
+                            <div style="font-size:14px;font-weight:600;color:var(--ng-text);">{{ runtimeAudioReady ? 'TeamSpeak Client Backend ist bereit' : ((runtimeTsConnected) ? 'TeamSpeak verbunden, Audio wird vorbereitet' : 'Wartet auf Audio') }}</div>
+                        </div>
                     </div>
                     <div style="display:grid;gap:8px;">
                         {% if instance.status.value != 'running' %}
                             <div class="ng-alert ng-alert--warning">Runtime läuft nicht oder wurde vom Agent noch nicht als running bestätigt.</div>
                         {% endif %}
                         {% if queueSummary.length == 0 and playback.current_track|default(null) is empty %}
-                            <div class="ng-alert ng-alert--warning">Queue leer: Der Bot hat nichts abzuspielen.</div>
+                            <div class="ng-alert ng-alert--warning">Queue leer. Der Bot hat nichts abzuspielen.</div>
                         {% endif %}
                         {% if playbackStatus.decoder_status|default(audioPipeline.decoder_status|default('')) == 'error' %}
                             <div class="ng-alert ng-alert--danger">Decoder-Fehler: Dateiformat, Decoder-Konfiguration und FFmpeg prüfen.</div>
                         {% endif %}
-                        {% if outputBackend == 'null' %}
-                            <div class="ng-alert ng-alert--warning">Kein Output Backend ready: Discord/TeamSpeak sind nicht verbunden oder laufen als Placeholder.</div>
+                        {% if runtimeAudioReady %}
+                            <div class="ng-alert ng-alert--success">{{ runtimeAudioMessage ?: 'TeamSpeak Client Backend ist bereit' }}</div>
+                        {% elseif runtimeTsConnected %}
+                            <div class="ng-alert ng-alert--info">TeamSpeak verbunden, Audio wird vorbereitet.</div>
+                        {% else %}
+                            <div class="ng-alert ng-alert--warning">Wartet auf TeamSpeak Runtime-Status.</div>
                         {% endif %}
                         {% if dcCap != 'ready' %}
                             <div class="ng-alert ng-alert--info">Discord Voice nicht verbunden: {{ capabilityLabels[dcCap]|default('Nicht verbunden') }}.</div>
                         {% endif %}
                         {% if tsCap != 'ready' %}
-                            <div class="ng-alert ng-alert--info">TeamSpeak Client Backend fehlt oder nicht verbunden: {{ capabilityLabels[tsCap]|default('Backend fehlt') }}.</div>
+                            <div class="ng-alert ng-alert--info">TeamSpeak Runtime noch nicht bereit: {{ capabilityLabels[tsCap]|default('Wartet auf Runtime') }}.</div>
                         {% endif %}
                         {% if errors is empty and not lastError %}
                             <div class="ng-alert ng-alert--success">Keine aktuellen Fehler erfasst.</div>
@@ -224,6 +245,14 @@
                     </div>
                     <details>
                         <summary style="cursor:pointer;font-size:12px;color:var(--ng-text-muted);user-select:none;">RuntimePayload anzeigen (diagnostisch)</summary>
+                        <div style="font-size:11px;color:var(--ng-text-muted);margin-top:8px;">
+                            Normalisiert: TS={{ playbackStatus.teamspeak_connected|default(false) ? 'connected' : 'not connected' }},
+                            Audio={{ playbackStatus.audio_backend_ready|default(false) ? 'ready' : 'not ready' }},
+                            Playback={{ playbackStatus.playback_state|default('unknown') }},
+                            Queue={{ playbackStatus.queue_count|default(queueSummary.length) }},
+                            Quelle={{ runtimePayload.source_flags|default({})|json_encode }},
+                            Sync={{ runtimePayload.last_runtime_sync|default(runtimePayload.updated_at|default('—')) }}
+                        </div>
                         <pre style="white-space:pre-wrap;max-height:320px;overflow:auto;background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:6px;padding:12px;font-size:11px;margin-top:8px;">{{ runtimePayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
                     </details>
                 </div>

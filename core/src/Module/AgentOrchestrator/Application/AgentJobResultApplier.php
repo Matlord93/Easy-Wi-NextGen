@@ -18,6 +18,8 @@ use App\Module\Core\Domain\Enum\Ts3InstanceStatus;
 use App\Module\Core\Domain\Enum\Ts6InstanceStatus;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventServiceInterface;
 use App\Module\Musicbot\Application\MusicbotSecretConfigService;
+use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
+use App\Module\Musicbot\Application\MusicbotRuntimeStatusNormalizer;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig;
@@ -56,6 +58,7 @@ final class AgentJobResultApplier
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotRuntimeEventServiceInterface $musicbotRuntimeEventService,
         private readonly MusicbotSecretConfigService $musicbotSecretConfigService,
+        private readonly MusicbotRuntimeStatusNormalizer $musicbotRuntimeStatusNormalizer,
     ) {
     }
 
@@ -95,6 +98,7 @@ final class AgentJobResultApplier
         }
 
         if (str_starts_with($type, 'musicbot.')) {
+            $this->debugMusicbotStatus('agent.result.received', $job, $payload);
             $this->applyMusicbotResult($job, $status, $payload);
         }
 
@@ -162,7 +166,7 @@ final class AgentJobResultApplier
             if ($status === AgentJobStatus::Success) {
                 $instance->setLastError(null);
                 if (is_array($payload)) {
-                    $instance->setRuntimePayload($this->musicbotSecretConfigService->sanitizePayload($payload));
+                    $this->mergeRuntimePayload($instance, $payload);
                 }
                 $this->musicbotRuntimeEventService->record($instance, $operation === 'repair' ? 'instance.repaired' : 'instance.updated', 'info', sprintf('Musicbot %s completed.', $operation), ['job_id' => $job->getId()]);
             } elseif ($status === AgentJobStatus::Failed) {
@@ -185,6 +189,9 @@ final class AgentJobResultApplier
             if ($status === AgentJobStatus::Success) {
                 $instance->setStatus($action === 'stop' ? MusicbotInstanceStatus::Stopped : MusicbotInstanceStatus::Running);
                 $instance->setLastError(null);
+                if (is_array($payload)) {
+                    $this->mergeRuntimePayload($instance, $payload);
+                }
                 $eventType = match ($action) {
                     'start' => 'instance.started',
                     'stop' => 'instance.stopped',
@@ -214,14 +221,8 @@ final class AgentJobResultApplier
                 } elseif (array_key_exists('running', $payload)) {
                     $instance->setStatus((bool) $payload['running'] ? MusicbotInstanceStatus::Running : MusicbotInstanceStatus::Stopped);
                 }
-                $lastError = is_string($payload['last_error'] ?? null) ? $payload['last_error'] : null;
-                if ($lastError === null) {
-                    $playbackStatus = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : [];
-                    $lastError = is_string($playbackStatus['last_error'] ?? null) && $playbackStatus['last_error'] !== '' ? $playbackStatus['last_error'] : null;
-                }
-                $instance->setLastError($lastError);
-                $runtimePayload = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
-                $instance->setRuntimePayload($this->musicbotSecretConfigService->sanitizePayload($runtimePayload));
+                $runtimePayload = $this->mergeRuntimePayload($instance, $payload);
+                $instance->setLastError($this->musicbotRuntimeStatusNormalizer->resolveActiveLastError($runtimePayload));
 
                 $this->recordPlaybackStateTransition($instance, $previousState, $runtimePayload, $job->getId());
 
@@ -238,9 +239,75 @@ final class AgentJobResultApplier
                 $instance->setLastError($error);
                 $this->musicbotRuntimeEventService->record($instance, 'runtime.error', 'error', sprintf('Playback command "%s" failed.', $action), ['job_id' => $job->getId(), 'action' => $action, 'error' => $error]);
             } elseif ($status === AgentJobStatus::Success) {
+                if (is_array($payload)) {
+                    $this->mergeRuntimePayload($instance, $payload);
+                }
                 $this->musicbotRuntimeEventService->record($instance, 'playback.command', 'info', sprintf('Playback command "%s" accepted.', $action), ['job_id' => $job->getId(), 'action' => $action]);
             }
         }
+
+        if ($job->getType() === 'musicbot.queue.sync' && $status === AgentJobStatus::Success && is_array($payload)) {
+            $this->mergeRuntimePayload($instance, $payload);
+            $this->musicbotRuntimeEventService->record($instance, 'queue.synced', 'info', 'Musicbot queue synchronized.', ['job_id' => $job->getId()]);
+        }
+    }
+
+    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    private function mergeRuntimePayload(MusicbotInstance $instance, array $payload): array
+    {
+        $existing = $instance->getRuntimePayload() ?? [];
+        $incoming = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
+        $payloadKind = $this->musicbotRuntimeStatusNormalizer->classifyPayload($payload);
+        $this->debugMusicbotPayload('agent.payload.parsed', ['instance_id' => $instance->getId(), 'payload_kind' => $payloadKind] + MusicbotPayloadLogSummarizer::summarizeJobPayload($payload));
+        $merged = $this->mergeArraysPreservingExisting($existing, $incoming);
+        $normalized = $this->musicbotRuntimeStatusNormalizer->normalizePayload($merged);
+        $stored = $this->musicbotSecretConfigService->sanitizePayload($normalized);
+        $this->debugMusicbotPayload('database.payload.before_persist', ['instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($stored));
+        $instance->setRuntimePayload($stored);
+        $this->debugMusicbotPayload('database.payload.after_persist', ['instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($instance->getRuntimePayload() ?? []));
+
+        return $normalized;
+    }
+
+    /** @param array<string, mixed> $existing @param array<string, mixed> $incoming @return array<string, mixed> */
+    private function mergeArraysPreservingExisting(array $existing, array $incoming): array
+    {
+        foreach ($incoming as $key => $value) {
+            if (is_array($value) && is_array($existing[$key] ?? null)) {
+                $existing[$key] = $this->mergeArraysPreservingExisting($existing[$key], $value);
+                continue;
+            }
+            // Explicit null from the runtime clears the field; empty string is treated as "no update".
+            if (array_key_exists($key, $incoming) && $value === null) {
+                $existing[$key] = null;
+                continue;
+            }
+            if ($value !== null && $value !== '') {
+                $existing[$key] = $value;
+            }
+        }
+
+        return $existing;
+    }
+
+
+    /** @param array<string, mixed>|null $payload */
+    private function debugMusicbotStatus(string $stage, AgentJob $job, ?array $payload): void
+    {
+        $this->debugMusicbotPayload($stage, [
+            'job_id' => $job->getId(),
+            'job_type' => $job->getType(),
+        ] + MusicbotPayloadLogSummarizer::summarizeJobPayload($payload));
+    }
+
+    /** @param array<string, mixed> $context */
+    private function debugMusicbotPayload(string $stage, array $context): void
+    {
+        if ((string) ($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') !== '1') {
+            return;
+        }
+
+        error_log('[musicbot-status-flow] '.json_encode(['stage' => $stage] + $context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
     }
 
     private function applyMusicbotTeamspeakBackendResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
@@ -326,7 +393,7 @@ final class AgentJobResultApplier
         }
 
         if (in_array($previousState, ['playing', 'paused'], true) && $newState === 'stopped') {
-            $queueLength = (int) ($playbackStatus['queue_length'] ?? 0);
+            $queueLength = (int) ($playbackStatus['queue_count'] ?? $playbackStatus['queue_length'] ?? 0);
             if ($queueLength === 0) {
                 $this->musicbotRuntimeEventService->record($instance, 'queue.empty', 'info', 'Queue became empty after playback stopped.', $context);
             }

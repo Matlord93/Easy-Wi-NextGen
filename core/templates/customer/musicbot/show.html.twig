@@ -11,9 +11,9 @@
     'installing':   'info'
 } %}
 {% set capabilityLabels = {
-    'ready':                  'Verbunden',
-    'client_backend_required':'Backend fehlt',
-    'voice_backend_required': 'Backend fehlt',
+    'ready':                  'Verbunden/Bereit',
+    'client_backend_required':'Wartet auf Runtime',
+    'voice_backend_required': 'Wartet auf Runtime',
     'placeholder':            'Placeholder',
     'error':                  'Fehler'
 } %}
@@ -30,9 +30,17 @@
 {% set outputStatus    = runtimeStatus.outputStatus|default('idle') ?: 'idle' %}
 {% set ts              = platformStatus.teamspeak|default({}) %}
 {% set dc              = platformStatus.discord|default({}) %}
-{% set tsCap           = ts.capability_status|default('client_backend_required') %}
+{% set runtimeAudioReady = runtimeStatus.audioBackendReady|default(runtimeStatus.audio_injection_ready|default(false)) %}
+{% set runtimeAudioStatus = runtimeStatus.audioBackendStatus|default('not_ready') %}
+{% set runtimeAudioMessage = runtimeStatus.runtimePayload.diagnostic|default(runtimeStatus.audioBackendMessage|default('')) %}
+{% set tsCapRaw        = ts.capability_status|default('client_backend_required') %}
+{% set tsCap           = (runtimeStatus.teamspeakConnected|default(false) or runtimeAudioReady) ? 'ready' : tsCapRaw %}
+{% set tsConnected     = ts.connected|default(false) or runtimeStatus.teamspeakConnected|default(false) or runtimeAudioReady %}
+{% set tsVoiceReady    = ts.voice_client_available|default(false) or runtimeAudioReady %}
+{% set audioReady      = runtimeAudioReady or (tsConnected and tsVoiceReady and tsCap == 'ready') %}
+{% set audioMessage    = runtimeAudioMessage ?: (audioReady ? 'TeamSpeak Client Backend ist bereit' : (tsConnected ? 'TeamSpeak verbunden, Audio wird vorbereitet' : 'Wartet auf TeamSpeak Runtime-Status')) %}
 {% set dcCap           = dc.capability_status|default('voice_backend_required') %}
-{% set currentTitle    = runtimeStatus.currentTitle|default('') %}
+{% set nowPlaying      = runtimeStatus.nowPlaying|default({}) %}
 {% set instStatusClass = statusMap[instance.status.value] ?? 'neutral' %}
 
 {# resolved instanceConfig defaults #}
@@ -42,9 +50,42 @@
 {% set cfg_auto_dj         = instanceConfig.auto_dj|default(false) %}
 {% set cfg_repeat          = instanceConfig.repeat_default|default('off') %}
 {% set cfg_shuffle         = instanceConfig.shuffle_default|default(false) %}
+{% set canWebradio         = limits.web_radio_allowed|default(limits.allow_webradio|default(false)) %}
+{% set canYoutube          = limits.youtube_allowed|default(false) %}
+{% set canPlaylists        = limits.playlists_allowed|default(true) %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+<style>
+.musicbot-experience{--mb-radius:22px;--mb-shadow:0 24px 60px rgba(15,23,42,.18);}
+.musicbot-experience .ng-card{border-radius:var(--mb-radius);box-shadow:0 10px 30px rgba(15,23,42,.08);}
+.mb-hero-player{display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:24px;align-items:center;padding:22px;background:radial-gradient(circle at top left,rgba(29,185,84,.22),transparent 34%),linear-gradient(135deg,rgba(15,23,42,.96),rgba(88,28,135,.88));color:#fff;}
+.mb-cover{aspect-ratio:1;border-radius:26px;background:linear-gradient(135deg,#1db954,#8b5cf6);display:grid;place-items:center;font-size:58px;box-shadow:var(--mb-shadow);overflow:hidden;}
+.mb-cover img{width:100%;height:100%;object-fit:cover;}
+.mb-player-title{font-size:clamp(24px,4vw,44px);font-weight:800;letter-spacing:-.04em;margin:8px 0 4px;}
+.mb-progress{height:9px;border-radius:999px;background:rgba(255,255,255,.22);overflow:hidden;margin:18px 0 8px;}
+.mb-progress span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#1db954,#38bdf8);}
+.mb-waveform{display:grid;grid-template-columns:repeat(36,1fr);gap:3px;height:42px;align-items:end;margin:14px 0;}
+.mb-waveform i{display:block;border-radius:999px;background:linear-gradient(180deg,#38bdf8,#8b5cf6);opacity:.85;min-height:7px;}
+.mb-source-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:5px 10px;font-size:12px;background:rgba(15,23,42,.35);color:#fff;}
+.mb-live-badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;background:#ef4444;color:#fff;letter-spacing:.06em;}
+.mb-live-badge:before{content:"";width:7px;height:7px;border-radius:999px;background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.18);}
+.mb-stat-card{padding:14px 16px;border:1px solid var(--ng-border);border-radius:18px;background:linear-gradient(180deg,var(--ng-surface),var(--ng-surface-soft));}
+.mb-stat-card__icon{font-size:18px;margin-bottom:8px;}
+.mb-queue-card{display:none;}
+.mb-control-ring{width:48px;height:48px;border-radius:999px;display:inline-grid;place-items:center;}
+.mb-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--ng-border);}
+.mb-filterbar{display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--ng-border);background:var(--ng-surface-soft);}
+.mb-chip{border:1px solid var(--ng-border);border-radius:999px;padding:6px 10px;font-size:12px;background:var(--ng-surface);color:var(--ng-text-muted);}
+.mb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
+.mb-media-row{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--ng-border);border-radius:14px;background:var(--ng-surface);}
+.mb-thumb{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,rgba(29,185,84,.25),rgba(59,130,246,.25));display:grid;place-items:center;}
+.mb-health{display:flex;align-items:center;gap:8px;font-weight:700;}
+.mb-health[data-state=healthy]::before{content:'🟢';}.mb-health[data-state=warning]::before{content:'🟡';}.mb-health[data-state=degraded]::before{content:'🟠';}.mb-health[data-state=failed]::before{content:'🔴';}
+.mb-permission-matrix{width:100%;border-collapse:separate;border-spacing:0 6px;min-width:640px;}
+.mb-permission-matrix th,.mb-permission-matrix td{padding:8px 10px;background:var(--ng-surface-soft);font-size:12px;text-align:left;}
+@media (max-width:760px){.mb-hero-player{grid-template-columns:1fr;text-align:center}.mb-cover{max-width:220px;margin:auto}.mb-media-row{grid-template-columns:40px 1fr}.mb-media-row form,.mb-media-row>div:last-child{grid-column:1/-1}.musicbot-experience{gap:14px!important}.musicbot-experience table{font-size:12px}.mb-control-ring{width:44px;height:44px}}
+</style>
+<div class="musicbot-experience" style="display:flex;flex-direction:column;gap:20px;">
 
     {# Flash messages #}
     {% for type, msgs in app.flashes(['success','error','warning','info']) %}
@@ -98,6 +139,15 @@
                 'musik':        'Musik',
                 'queue':        'Queue',
                 'playlists':    'Playlists',
+                'autodj':       'AutoDJ',
+                'plugins':      'Plugins',
+                'webradio':     'Webradio',
+                'youtube':      'YouTube',
+                'teamspeak':    'TeamSpeak',
+                'discord':      'Discord',
+                'monitoring':   'Monitoring',
+                'backup':       'Backup',
+                'rollen':       'Rollen',
                 'verbindungen': 'Verbindungen',
                 'einstellungen':'Einstellungen',
                 'logs':         'Logs'
@@ -114,6 +164,24 @@
        DASHBOARD
     ══════════════════════════════════════════════════════ #}
     <div id="panel-dashboard">
+        {% set progressPercent = runtimeStatus.durationMs|default(0) > 0 ? ((runtimeStatus.playbackPositionMs|default(0) / runtimeStatus.durationMs) * 100)|round : 0 %}
+        <section class="ng-card mb-hero-player" data-live-region="now-playing" aria-label="Musicbot Dashboard">
+            <div class="mb-cover">{% if nowPlaying.thumbnail|default('') %}<img src="{{ nowPlaying.thumbnail }}" alt="Cover">{% elseif nowPlaying.source_type|default('') == 'radio' %}📻{% elseif nowPlaying.source_type|default('') == 'youtube' %}▶{% else %}♪{% endif %}</div>
+            <div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><span class="ui-badge ui-badge--{{ instStatusClass }}" data-live-field="status">{{ nowPlaying.playback_state|default(playbackState)|title }}</span><span class="mb-source-pill" data-live-field="source">{{ nowPlaying.source_label|default(nowPlaying.source_type|default('Quelle')) }}</span>{% if nowPlaying.is_live|default(false) %}<span class="mb-live-badge" data-live-field="live">LIVE</span>{% endif %}</div>
+                <div style="margin-top:10px;opacity:.72;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Jetzt läuft</div>
+                <div class="mb-player-title" data-live-field="title">{{ nowPlaying.title|default('Kein Track aktiv') ?: 'Kein Track aktiv' }}</div>
+                <div style="opacity:.82;font-size:15px;" data-live-field="artist">{{ nowPlaying.artist|default('') ?: 'Unbekannter Künstler / Sender' }}</div>
+                {% if nowPlaying.url|default('') %}<div style="opacity:.7;font-size:12px;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" data-live-field="url">{{ nowPlaying.url }}</div>{% endif %}
+                <div style="opacity:.7;font-size:12px;margin-top:6px;">Queue-ID: {{ nowPlaying.queue_item_id|default('—') }} · Track-ID: {{ nowPlaying.track_id|default('—') }} · Restlaufzeit: <span data-live-field="remaining">{% if runtimeStatus.durationMs|default(0) > 0 and not nowPlaying.is_live|default(false) %}{{ ((runtimeStatus.durationMs - runtimeStatus.playbackPositionMs|default(0)) / 1000)|round }}s{% else %}LIVE{% endif %}</span></div>
+                {% if nowPlaying.is_live|default(false) %}<div class="mb-waveform" aria-label="Live Waveform">{% for h in [18,34,12,28,40,20,32,15,36,24,42,17,29,38,21,33,14,31,44,23,35,16,30,41,22,37,19,27,39,25,43,18,34,13,28,36] %}<i style="height:{{ h }}px"></i>{% endfor %}</div>{% else %}<div class="mb-progress" aria-label="Fortschritt"><span data-live-field="progress" style="width:{{ progressPercent }}%"></span></div>{% endif %}
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center;">
+                    <button type="button" class="ui-btn mb-chip" onclick="mbTab('queue')">Live Queue ({{ queue|length }})</button>
+                    <button type="button" class="ui-btn mb-chip" onclick="mbTab('musik')">Bibliothek</button>
+                    <button type="button" class="ui-btn mb-chip" onclick="mbTab('monitoring')">Monitoring</button>
+                </div>
+            </div>
+        </section>
 
         {# ── Player card ── #}
         <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
@@ -130,23 +198,19 @@
 
             {# Now playing display #}
             <div style="padding:20px 20px 16px;text-align:center;background:linear-gradient(180deg,var(--ng-surface-soft) 0%,var(--ng-surface) 100%);min-height:80px;display:flex;align-items:center;justify-content:center;">
-                {% if currentTitle %}
+                {% if nowPlaying.title|default('') %}
                     <div>
-                        <div style="font-size:17px;font-weight:700;color:var(--ng-text);">{{ currentTitle }}</div>
-                        {% if runtimeStatus.currentArtist|default('') %}
-                            <div style="font-size:13px;color:var(--ng-text-muted);margin-top:3px;">{{ runtimeStatus.currentArtist }}</div>
+                        <div style="font-size:17px;font-weight:700;color:var(--ng-text);">{{ nowPlaying.title }}</div>
+                        {% if nowPlaying.artist|default('') %}
+                            <div style="font-size:13px;color:var(--ng-text-muted);margin-top:3px;">{{ nowPlaying.artist }}</div>
                         {% endif %}
-                        {% if runtimeStatus.durationMs|default(0) > 0 %}
+                        {% if nowPlaying.source_label|default('') %}
+                            <div style="font-size:12px;color:var(--ng-text-muted);margin-top:4px;">Quelle: {{ nowPlaying.source_label }}{% if nowPlaying.url|default('') %} · {{ nowPlaying.url }}{% endif %}</div>
+                        {% endif %}
+                        {% if runtimeStatus.durationMs|default(0) > 0 and not nowPlaying.is_live|default(false) %}
                             <div style="font-size:11px;color:var(--ng-text-muted);margin-top:6px;">
                                 {{ (runtimeStatus.playbackPositionMs|default(0) / 1000)|round }}s / {{ (runtimeStatus.durationMs / 1000)|round }}s
                             </div>
-                        {% endif %}
-                    </div>
-                {% elseif runtimeStatus.currentTrack is defined and runtimeStatus.currentTrack %}
-                    <div>
-                        <div style="font-size:17px;font-weight:700;">{{ runtimeStatus.currentTrack.title }}</div>
-                        {% if runtimeStatus.currentTrack.artist %}
-                            <div style="font-size:13px;color:var(--ng-text-muted);margin-top:3px;">{{ runtimeStatus.currentTrack.artist }}</div>
                         {% endif %}
                     </div>
                 {% else %}
@@ -180,15 +244,16 @@
                 <div style="width:1px;height:24px;background:var(--ng-border);margin:0 4px;"></div>
 
                 {# Volume slider #}
-                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:flex;align-items:center;gap:8px;">
+                <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" data-volume-form data-api-url="{{ path('api_v1_customer_musicbots_playback', {id: instance.id}) }}" style="display:flex;align-items:center;gap:8px;">
                     <input type="hidden" name="action" value="volume">
                     <span style="font-size:13px;">🔊</span>
-                    <input type="range" name="volume" min="0" max="100" value="{{ runtimeStatus.volume|default(cfg_volume) }}"
+                    <input type="range" name="volume" min="0" max="100" value="{{ runtimeStatus.volume|default(cfg_volume) }}" data-volume-slider
                            style="width:100px;accent-color:var(--ng-primary);"
                            oninput="this.nextElementSibling.textContent=this.value+'%'">
-                    <span style="font-size:12px;color:var(--ng-text-muted);min-width:32px;">{{ runtimeStatus.volume|default(cfg_volume) }}%</span>
+                    <span data-volume-label style="font-size:12px;color:var(--ng-text-muted);min-width:32px;">{{ runtimeStatus.volume|default(cfg_volume) }}%</span>
                     <button type="submit" class="ui-btn" style="font-size:12px;padding:4px 10px;">Set</button>
                 </form>
+                <div data-volume-error style="display:none;font-size:12px;color:var(--ng-danger);width:100%;text-align:center;"></div>
 
                 <div style="width:1px;height:24px;background:var(--ng-border);margin:0 4px;"></div>
 
@@ -213,45 +278,48 @@
         </div>
 
         {# ── KPI row ── #}
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
-            <div class="ng-card" style="padding:12px 14px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px;" data-dashboard-status-cards>
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🤖</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Bot-Status</div>
                 <div style="font-size:14px;font-weight:700;">
                     <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:12px;">{{ instance.status.value|title }}</span>
                 </div>
             </div>
-            <div class="ng-card" style="padding:12px 14px;">
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🎙️</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">TeamSpeak</div>
                 <div style="font-size:14px;font-weight:700;">
-                    <span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--neutral') }}" style="font-size:11px;">{{ capabilityLabels[tsCap]|default('—') }}</span>
+                    <span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--neutral') }}" style="font-size:11px;">{{ tsConnected ? 'Verbunden' : capabilityLabels[tsCap]|default('—') }}</span>
                 </div>
             </div>
-            <div class="ng-card" style="padding:12px 14px;">
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🔊</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Audio-Backend</div>
                 <div style="font-size:14px;font-weight:700;">
-                    {% if outputBackend != 'null' %}
-                        <span class="ui-badge ui-badge--success" style="font-size:11px;">Aktiv</span>
+                    {% if audioReady or outputBackend != 'null' %}
+                        <span class="ui-badge ui-badge--success" style="font-size:11px;">Bereit</span>
                     {% else %}
                         <span class="ui-badge ui-badge--neutral" style="font-size:11px;">Inaktiv</span>
                     {% endif %}
                 </div>
             </div>
-            <div class="ng-card" style="padding:12px 14px;">
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">📋</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Queue</div>
                 <div style="font-size:20px;font-weight:700;">{{ queue|length }}</div>
             </div>
-            <div class="ng-card" style="padding:12px 14px;">
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🎵</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Tracks</div>
                 <div style="font-size:20px;font-weight:700;">{{ tracks|length }}</div>
             </div>
-            <div class="ng-card" style="padding:12px 14px;">
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🎚️</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Volume</div>
-                <div style="font-size:20px;font-weight:700;">{{ runtimeStatus.volume|default(cfg_volume) }}%</div>
+                <div data-volume-kpi style="font-size:20px;font-weight:700;">{{ runtimeStatus.volume|default(cfg_volume) }}%</div>
             </div>
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🟢</div><div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Live Queue</div><div style="font-size:20px;font-weight:700;">{{ runtimeStatus.queueLength|default(queue|length) }}</div></div>
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">💿</div><div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Bibliothek</div><div style="font-size:20px;font-weight:700;">{{ tracks|length }}</div></div>
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">📈</div><div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Monitoring</div><div><span class="ui-badge ui-badge--success" style="font-size:11px;">{{ monitoring.overall|default('OK')|title }}</span></div></div>
         </div>
 
         {# ── Diagnose ── #}
-        {% set hasIssue = instance.status.value != 'running' or outputBackend == 'null' or runtimeStatus.lastError|default('') %}
+        {% set hasIssue = instance.status.value != 'running' or not audioReady or runtimeStatus.lastError|default('') or runtimeStatus.queueLength|default(0) == 0 %}
         {% if hasIssue %}
         <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
             <div style="padding:11px 16px;border-bottom:1px solid var(--ng-border);">
@@ -263,9 +331,18 @@
                         Bot läuft nicht (Status: <strong>{{ instance.status.value }}</strong>). Über Start-Button oben starten.
                     </div>
                 {% endif %}
-                {% if outputBackend == 'null' %}
+                {% if audioReady %}
+                    <div style="font-size:13px;padding:8px 12px;background:rgba(34,197,94,.08);border-left:3px solid var(--ng-success);border-radius:4px;">
+                        {{ audioMessage }}
+                    </div>
+                {% elseif not audioReady %}
                     <div style="font-size:13px;padding:8px 12px;background:rgba(245,158,11,.08);border-left:3px solid var(--ng-warning);border-radius:4px;">
-                        Kein Audio-Backend aktiv — TeamSpeak muss verbunden und Backend eingerichtet sein.
+                        {{ audioMessage }}
+                    </div>
+                {% endif %}
+                {% if runtimeStatus.queueLength|default(0) == 0 %}
+                    <div style="font-size:13px;padding:8px 12px;background:rgba(59,130,246,.08);border-left:3px solid var(--ng-primary);border-radius:4px;">
+                        Queue leer. Der Bot hat nichts abzuspielen.
                     </div>
                 {% endif %}
                 {% if runtimeStatus.lastError|default('') %}
@@ -316,14 +393,18 @@
                     style="padding:9px 16px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--ng-primary);color:var(--ng-primary);">
                     ⬆ Upload
                 </button>
+                {% if canWebradio %}
                 <button type="button" onclick="musicTab('webradio')" id="mtab-webradio"
                     style="padding:9px 16px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--ng-text-muted);">
                     📻 Webradio
                 </button>
+                {% endif %}
+                {% if canYoutube %}
                 <button type="button" onclick="musicTab('youtube')" id="mtab-youtube"
                     style="padding:9px 16px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--ng-text-muted);">
                     ▶ YouTube
                 </button>
+                {% endif %}
             </div>
 
             {# Upload #}
@@ -354,6 +435,9 @@
 
             {# Webradio #}
             <div id="mpanel-webradio" style="display:none;padding:16px;">
+                {% if not canWebradio %}
+                    <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-warning);margin-bottom:14px;color:var(--ng-text-muted);">Webradio ist in deinem aktuellen Plan nicht verfügbar.</div>
+                {% else %}
                 <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-primary);margin-bottom:14px;color:var(--ng-text-muted);">
                     Webradio-Streams werden per URL direkt abgespielt (http/https). Localhost und private IPs sind nicht erlaubt.
                 </div>
@@ -374,41 +458,89 @@
                         <button class="ui-btn" type="submit" name="_webradio_action" value="play_now">▶ Play now</button>
                     </div>
                 </form>
+                {% endif %}
             </div>
 
             {# YouTube #}
             <div id="mpanel-youtube" style="display:none;padding:16px;">
+                {% if not canYoutube %}
+                    <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-warning);margin-bottom:14px;color:var(--ng-text-muted);">YouTube ist in deinem aktuellen Plan nicht verfügbar.</div>
+                {% else %}
+                {% set ytDiag = youtubeDiagnostics|default({}) %}
                 {% if not youtubeResolverAvailable|default(false) %}
                     <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-warning);margin-bottom:14px;color:var(--ng-text-muted);">
-                        yt-dlp ist auf dem Server nicht installiert. YouTube-URLs werden gespeichert, die Wiedergabe hängt vom Agent ab.
+                        yt-dlp fehlt. Bitte Musicbot-Repair ausführen oder yt-dlp installieren.
                     </div>
                 {% else %}
                     <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-success);margin-bottom:14px;color:var(--ng-text-muted);">
-                        yt-dlp verfügbar – YouTube-URLs werden beim Abspielen automatisch aufgelöst.
+                        yt-dlp verfügbar{% if ytDiag.version|default(null) %} ({{ ytDiag.version }}){% endif %} – YouTube, YouTube Music, Playlists, Mixes, Shorts und Live-Streams werden über die Queue integriert.
                     </div>
                 {% endif %}
-                <form method="post" action="{{ path('customer_musicbot_track_youtube', {id: instance.id}) }}" style="display:grid;gap:12px;">
+                <div class="ng-card" style="padding:12px;margin-bottom:12px;">
+                    <h4 style="margin:0 0 8px;font-size:13px;">YouTube Suche</h4>
+                    <form method="post" action="{{ path('customer_musicbot_youtube_search', {id: instance.id}) }}" style="display:grid;grid-template-columns:1fr 140px auto;gap:8px;">
+                        <input name="q" placeholder="Song, Künstler, Album, Playlist suchen" required style="padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);">
+                        <select name="type" style="padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);">
+                            <option value="song">Song</option><option value="artist">Künstler</option><option value="album">Album</option><option value="playlist">Playlist</option>
+                        </select>
+                        <button class="ui-btn ui-btn--primary" type="submit">Suchen</button>
+                    </form>
+                    {% set ytResults = instance.runtimePayload.youtube_search_results|default([]) %}
+                    {% if ytResults %}
+                        <div style="display:grid;gap:8px;margin-top:10px;">
+                            {% for result in ytResults %}
+                                <div style="display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;border:1px solid var(--ng-border);border-radius:8px;padding:8px;">
+                                    {% if result.thumbnail %}<img src="{{ result.thumbnail }}" alt="" style="width:64px;height:36px;object-fit:cover;border-radius:4px;">{% else %}<div></div>{% endif %}
+                                    <div>
+                                        <div style="font-size:13px;font-weight:600;">{{ result.title }}</div>
+                                        <div style="font-size:11px;color:var(--ng-text-muted);">{{ result.artist }} · {{ result.duration }}s · {{ result.source }}</div>
+                                    </div>
+                                    <form method="post" action="{{ path('customer_musicbot_youtube_import', {id: instance.id}) }}" style="display:flex;gap:4px;flex-wrap:wrap;">
+                                        <input type="hidden" name="url" value="{{ result.source_url }}">
+                                        <button class="ui-btn" name="_youtube_import_action" value="play" type="submit">▶</button>
+                                        <button class="ui-btn" name="_youtube_import_action" value="queue" type="submit">Queue</button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <form method="post" action="{{ path('customer_musicbot_youtube_import', {id: instance.id}) }}" style="display:grid;gap:12px;">
                     <div>
-                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">YouTube-URL</label>
-                        <input name="youtube_url" type="url" placeholder="https://www.youtube.com/watch?v=..." required
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">YouTube / YouTube Music URL Import</label>
+                        <input name="url" type="url" placeholder="Video, Playlist, Mix, Short, Live, Album, Artist, Podcast" required
                                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                     </div>
-                    <div>
-                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Titel <span style="font-weight:400;opacity:.6;">(optional)</span></label>
-                        <input name="title" placeholder="Leer = aus URL ermitteln"
-                               style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
-                    </div>
+                    <label style="font-size:12px;"><input type="checkbox" name="playlist" value="1"> Playlist/Mix/Album komplett importieren</label>
+                    <label style="font-size:12px;"><input type="checkbox" name="shuffle" value="1"> Shuffle beim Import</label>
+                    <input name="playlist_name" placeholder="Name für neue Easy-Wi Playlist" style="padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button class="ui-btn ui-btn--primary" type="submit">Hinzufügen</button>
+                        <button class="ui-btn ui-btn--primary" type="submit" name="_youtube_import_action" value="queue">Zur Queue</button>
+                        <button class="ui-btn" type="submit" name="_youtube_import_action" value="play">Jetzt abspielen</button>
+                        <button class="ui-btn" type="submit" name="_youtube_import_action" value="playlist">Eigene Playlist erstellen</button>
                     </div>
                 </form>
+                <details style="margin-top:12px;">
+                    <summary style="cursor:pointer;font-size:12px;color:var(--ng-text-muted);">Cookies pro Musicbot hinterlegen</summary>
+                    <form method="post" action="{{ path('customer_musicbot_youtube_cookies', {id: instance.id}) }}" style="display:grid;gap:8px;margin-top:8px;">
+                        <textarea name="cookies" rows="4" placeholder="Netscape cookies.txt Inhalt (optional, verschlüsselt pro Instanz gespeichert)" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></textarea>
+                        <button class="ui-btn" type="submit" style="justify-self:start;">Cookies speichern</button>
+                    </form>
+                </details>
+                {% if youtubeHistory|default([]) %}
+                    <h4 style="font-size:13px;margin:14px 0 6px;">YouTube Verlauf</h4>
+                    {% for item in youtubeHistory|slice(0,5) %}
+                        <div style="font-size:11px;color:var(--ng-text-muted);">{{ item.at|default('') }} · {{ item.type|default('') }} · {{ item.query|default(item.url|default('')) }}</div>
+                    {% endfor %}
+                {% endif %}
+                {% endif %}
             </div>
         </div>
 
         {# Track library #}
         <div class="ng-card" style="overflow:hidden;">
             <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);">
-                <h3 style="margin:0;font-size:13px;font-weight:700;">Bibliothek <span style="font-weight:400;color:var(--ng-text-muted);font-size:12px;">({{ tracks|length }} Tracks)</span></h3>
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Bibliothek <span class="mb-chip">Kartenansicht</span> <span class="mb-chip">Tabellenansicht</span> <span style="font-weight:400;color:var(--ng-text-muted);font-size:12px;">({{ tracks|length }} Tracks)</span></h3>
             </div>
             {% if tracks is empty %}
                 <div style="text-align:center;padding:48px 20px;color:var(--ng-text-muted);font-size:13px;">
@@ -463,6 +595,22 @@
                 </table>
             {% endif %}
         </div>
+
+        <div class="ng-card" style="overflow:hidden;margin-top:16px;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Plugin-Logs</h3>
+            </div>
+            <div style="padding:14px 16px;display:flex;flex-direction:column;gap:6px;">
+                {% for log in pluginLogs|default([]) %}
+                    <div style="font-size:12px;border-bottom:1px solid var(--ng-border);padding-bottom:6px;">
+                        <strong>{{ log.pluginId }}</strong> · {{ log.event }} · {{ log.status }} · {{ log.message }}
+                        <span style="color:var(--ng-text-muted);">{{ log.createdAt|date('Y-m-d H:i:s') }}</span>
+                    </div>
+                {% else %}
+                    <p style="margin:0;color:var(--ng-text-muted);font-size:12px;">Noch keine Plugin-Logs.</p>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 
     {# ══════════════════════════════════════════════════════
@@ -471,7 +619,7 @@
     <div id="panel-queue" style="display:none;">
         <div class="ng-card" style="overflow:hidden;">
             <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);display:flex;justify-content:space-between;align-items:center;">
-                <h3 style="margin:0;font-size:13px;font-weight:700;">Queue <span style="font-weight:400;color:var(--ng-text-muted);font-size:12px;">({{ queue|length }} Einträge)</span></h3>
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Queue <span class="mb-chip">Drag & Drop</span> <span class="mb-chip">Mehrfach markieren</span> <span style="font-weight:400;color:var(--ng-text-muted);font-size:12px;">({{ queue|length }} Einträge)</span></h3>
                 {% if queue is not empty %}
                     <form method="post" action="{{ path('customer_musicbot_queue_clear', {id: instance.id}) }}" onsubmit="return confirm('Queue leeren?');" style="display:contents;">
                         <button class="ui-btn" type="submit" style="font-size:12px;padding:4px 10px;color:var(--ng-danger);">Queue leeren</button>
@@ -492,9 +640,11 @@
                 <thead>
                     <tr>
                         <th style="font-size:11px;width:40px;">#</th>
+                        <th style="font-size:11px;">Quelle</th>
                         <th style="font-size:11px;">Titel</th>
-                        <th style="font-size:11px;width:80px;">Status</th>
-                        <th style="font-size:11px;">Angefragt</th>
+                        <th style="font-size:11px;">Künstler</th>
+                        <th style="font-size:11px;">Dauer</th>
+                        <th style="font-size:11px;">Hinzugefügt von</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -502,11 +652,13 @@
                 {% for item in queue %}
                     <tr>
                         <td style="font-size:12px;color:var(--ng-text-muted);">{{ item.position }}</td>
+                        <td><span class="ui-badge ui-badge--neutral" style="font-size:10px;">{{ item.track.sourceType.value|default('upload')|title }}</span>{% if item.track.sourceType.value|default('') == 'webradio' %} <span class="mb-live-badge" style="font-size:9px;padding:3px 7px;">LIVE</span>{% endif %}</td>
                         <td>
                             <div style="font-size:13px;font-weight:600;">{{ item.track.title }}</div>
-                            {% if item.track.artist %}<div style="font-size:11px;color:var(--ng-text-muted);">{{ item.track.artist }}</div>{% endif %}
+                            {% if item.track.sourceUrl|default('') %}<div style="font-size:11px;color:var(--ng-text-muted);">{{ item.track.sourceUrl }}</div>{% endif %}
                         </td>
-                        <td><span class="ui-badge ui-badge--neutral" style="font-size:10px;">{{ item.status }}</span></td>
+                        <td style="font-size:12px;color:var(--ng-text-muted);">{{ item.track.artist ?: '—' }}</td>
+                        <td style="font-size:12px;color:var(--ng-text-muted);">{% if item.track.durationSeconds|default(0) > 0 %}{{ (item.track.durationSeconds / 60)|round(0, 'floor') }}:{{ '%02d'|format(item.track.durationSeconds % 60) }}{% else %}Live{% endif %}</td>
                         <td style="font-size:12px;color:var(--ng-text-muted);">{% if item.requestedBy %}{{ item.requestedBy.email }}{% else %}—{% endif %}</td>
                         <td style="text-align:right;">
                             <form method="post" action="{{ path('customer_musicbot_queue_item_delete', {id: instance.id, queueItemId: item.id}) }}" style="display:contents;">
@@ -516,7 +668,7 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="5" style="text-align:center;padding:40px 20px;color:var(--ng-text-muted);font-size:13px;">
+                        <td colspan="7" style="text-align:center;padding:40px 20px;color:var(--ng-text-muted);font-size:13px;">
                             Queue ist leer — Track aus Bibliothek hinzufügen oder Playlist starten.
                         </td>
                     </tr>
@@ -538,6 +690,8 @@
                 <form method="post" action="{{ path('customer_musicbot_playlist_create', {id: instance.id}) }}" style="display:flex;gap:10px;flex-wrap:wrap;">
                     <input name="name" placeholder="Playlist-Name" required
                            style="flex:1;min-width:160px;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    <input name="description" placeholder="Beschreibung (optional)"
+                           style="flex:2;min-width:180px;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                     <select name="visibility"
                             style="padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                         <option value="private">Privat</option>
@@ -560,6 +714,8 @@
                             <form method="post" action="{{ path('customer_musicbot_playlist_update', {id: instance.id, playlistId: playlist.id}) }}" style="display:flex;gap:8px;flex:1;align-items:center;flex-wrap:wrap;min-width:200px;">
                                 <input name="name" value="{{ playlist.name }}" required
                                        style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                                <input name="description" value="{{ playlist.description|default('') }}" placeholder="Beschreibung"
+                                       style="flex:2;min-width:160px;padding:6px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                                 <select name="visibility"
                                         style="padding:6px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                                     <option value="private" {% if playlist.visibility.value == 'private' %}selected{% endif %}>Privat</option>
@@ -569,7 +725,16 @@
                                 <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;">Speichern</button>
                             </form>
                             <form method="post" action="{{ path('customer_musicbot_playlist_queue', {id: instance.id, playlistId: playlist.id}) }}" style="display:contents;">
-                                <button class="ui-btn ui-btn--primary" type="submit" style="font-size:12px;padding:5px 10px;">▶ Starten</button>
+                                <input type="hidden" name="mode" value="clear_play">
+                                <button class="ui-btn ui-btn--primary" type="submit" style="font-size:12px;padding:5px 10px;">▶ Play</button>
+                            </form>
+                            <form method="post" action="{{ path('customer_musicbot_playlist_queue', {id: instance.id, playlistId: playlist.id}) }}" style="display:contents;">
+                                <input type="hidden" name="mode" value="add">
+                                <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;">Queue</button>
+                            </form>
+                            <form method="post" action="{{ path('customer_musicbot_playlist_queue', {id: instance.id, playlistId: playlist.id}) }}" style="display:contents;">
+                                <input type="hidden" name="mode" value="shuffle_play">
+                                <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;">Shuffle</button>
                             </form>
                             <form method="post" action="{{ path('customer_musicbot_playlist_delete', {id: instance.id, playlistId: playlist.id}) }}" style="display:contents;" onsubmit="return confirm('Playlist löschen?');">
                                 <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;color:var(--ng-danger);">Löschen</button>
@@ -588,25 +753,182 @@
                                 </form>
                             </div>
                             {% set pItems = playlistItems[playlist.id]|default([]) %}
+                            {% set totalDuration = 0 %}
+                            {% for item in pItems %}{% set totalDuration = totalDuration + item.track.durationSeconds %}{% endfor %}
+                            <div style="margin-bottom:8px;font-size:12px;color:var(--ng-text-muted);">
+                                {{ pItems|length }} Tracks{% if totalDuration > 0 %} · {{ (totalDuration / 60)|round(0, 'floor') }} min{% endif %}
+                                {% if playlist.description %} · {{ playlist.description }}{% endif %}
+                            </div>
                             {% if pItems is empty %}
                                 <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">Keine Tracks in dieser Playlist.</p>
                             {% else %}
                                 <div style="display:flex;flex-direction:column;gap:4px;">
                                     {% for item in pItems %}
                                         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;">
-                                            <span>{{ loop.index }}. {{ item.track.title }}</span>
+                                            <span>{{ loop.index }}. {{ item.track.title }} <span style="color:var(--ng-text-muted);">({{ item.track.sourceType.value }})</span></span>
                                             <form method="post" action="{{ path('customer_musicbot_playlist_track_remove', {id: instance.id, itemId: item.id}) }}" style="display:contents;">
                                                 <button class="ui-btn" type="submit" style="font-size:11px;padding:2px 8px;color:var(--ng-danger);">entfernen</button>
                                             </form>
                                         </div>
                                     {% endfor %}
                                 </div>
+                                {% set playlistItemIds = [] %}
+                                {% for item in pItems %}{% set playlistItemIds = playlistItemIds|merge([item.id]) %}{% endfor %}
+                                <form method="post" action="{{ path('customer_musicbot_playlist_reorder', {id: instance.id, playlistId: playlist.id}) }}" style="display:flex;gap:6px;margin-top:10px;">
+                                    <input name="playlist_item_ids" value="{{ playlistItemIds|join(',') }}" title="Item-IDs in gewünschter Reihenfolge"
+                                           style="flex:1;font-size:12px;padding:5px 8px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);">
+                                    <button class="ui-btn" type="submit" style="font-size:12px;padding:5px 10px;">Reihenfolge speichern</button>
+                                </form>
                             {% endif %}
                         </div>
                     </div>
                 {% endfor %}
             </div>
         {% endif %}
+    </div>
+
+    {# ══════════════════════════════════════════════════════
+       AUTODJ
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-autodj" style="display:none;">
+        {% set ad = autoDjStatus|default({}) %}
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+                <div>
+                    <h3 style="margin:0;font-size:13px;font-weight:700;">AutoDJ Einstellungen</h3>
+                    <div style="font-size:12px;color:var(--ng-text-muted);margin-top:3px;">
+                        Status: {{ ad.enabled|default(false) ? 'aktiv' : 'deaktiviert' }}
+                        {% if ad.next_trigger_hint|default(null) %} · Nächster Trigger: {{ ad.next_trigger_hint }}{% endif %}
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <form method="post" action="{{ path('customer_musicbot_autodj_trigger', {id: instance.id}) }}" style="display:contents;">
+                        <button class="ui-btn ui-btn--primary" type="submit">AutoDJ jetzt testen</button>
+                    </form>
+                    <form method="post" action="{{ path('customer_musicbot_autodj_disable', {id: instance.id}) }}" style="display:contents;">
+                        <button class="ui-btn" type="submit">Deaktivieren</button>
+                    </form>
+                </div>
+            </div>
+            <form method="post" action="{{ path('customer_musicbot_autodj_save', {id: instance.id}) }}" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" name="enabled" value="1" {% if ad.enabled|default(false) %}checked{% endif %}> AutoDJ aktivieren
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" name="shuffle" value="1" {% if ad.shuffle|default(true) %}checked{% endif %}> Shuffle
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" name="repeat" value="1" {% if ad.repeat|default(false) %}checked{% endif %}> Repeat
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" name="avoid_repeats" value="1" {% if ad.avoid_repeats|default(true) %}checked{% endif %}> Wiederholungen vermeiden
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" name="avoid_same_artist" value="1" {% if ad.avoid_same_artist|default(false) %}checked{% endif %}> Gleiche Künstler vermeiden
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" name="allow_uploads" value="1" {% if ad.allow_uploads|default(true) %}checked{% endif %}> Upload-Tracks erlauben
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" name="allow_youtube" value="1" {% if ad.allow_youtube|default(false) %}checked{% endif %} {% if not limits.youtube_allowed|default(true) %}disabled{% endif %}> YouTube erlauben
+                </label>
+                <div>
+                    <label style="font-size:12px;color:var(--ng-text-muted);">Playlist</label>
+                    <select name="fallback_playlist_id" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                        <option value="">Alle erlaubten Tracks</option>
+                        {% for playlist in playlists %}
+                            <option value="{{ playlist.id }}" {% if ad.fallback_playlist_id|default(null) == playlist.id %}selected{% endif %}>{{ playlist.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:12px;color:var(--ng-text-muted);">Mehrere Playlists</label>
+                    <select name="playlist_ids[]" multiple size="4" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                        {% for playlist in playlists %}
+                            <option value="{{ playlist.id }}" {% if playlist.id in ad.playlist_ids|default([]) %}selected{% endif %}>{{ playlist.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div><label style="font-size:12px;color:var(--ng-text-muted);">Mindest-Queue</label><input type="number" name="min_queue_size" min="1" max="50" value="{{ ad.min_queue_size|default(2) }}" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></div>
+                <div><label style="font-size:12px;color:var(--ng-text-muted);">Idle-Zeit (Sek.)</label><input type="number" name="idle_seconds" min="0" value="{{ ad.idle_seconds|default(60) }}" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></div>
+                <div><label style="font-size:12px;color:var(--ng-text-muted);">Lautstärke überschreiben</label><input type="number" name="volume_override" min="0" max="100" value="{{ ad.volume_override|default('') }}" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></div>
+                <div><label style="font-size:12px;color:var(--ng-text-muted);">Zeitfenster Start</label><input type="time" name="time_window_start" value="{{ ad.time_window_start|default('') }}" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></div>
+                <div><label style="font-size:12px;color:var(--ng-text-muted);">Zeitfenster Ende</label><input type="time" name="time_window_end" value="{{ ad.time_window_end|default('') }}" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></div>
+                <div><label style="font-size:12px;color:var(--ng-text-muted);">Webradio-Fallback</label><input name="webradio_fallback_url" value="{{ ad.webradio_fallback_url|default('') }}" placeholder="https://…" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></div>
+                <div><label style="font-size:12px;color:var(--ng-text-muted);">Wiederholschutz (Songs)</label><input type="number" name="repeat_protection_window" min="0" max="100" value="{{ ad.repeat_protection_window|default(5) }}" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></div>
+                <div><label style="font-size:12px;color:var(--ng-text-muted);">Genre-Filter</label><input name="genre_filter" value="{{ ad.genre_filter|default('') }}" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);"></div>
+                <div>
+                    <label style="font-size:12px;color:var(--ng-text-muted);">Modus</label>
+                    <select name="mode" style="width:100%;padding:7px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);">
+                        {% for mode in ['random','sequential','shuffle_playlist','playlist_order'] %}
+                            <option value="{{ mode }}" {% if ad.mode|default('random') == mode %}selected{% endif %}>{{ mode }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="grid-column:1/-1;display:flex;gap:8px;align-items:center;">
+                    <button class="ui-btn ui-btn--primary" type="submit">Speichern</button>
+                    <span style="font-size:12px;color:var(--ng-text-muted);">Letzte Aktion: {{ ad.last_action|default('—') }} · Recent: {{ ad.recent_track_count|default(0) }}</span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    {# ══════════════════════════════════════════════════════
+       PLUGINS
+    ══════════════════════════════════════════════════════ #}
+    <div id="panel-plugins" style="display:none;">
+        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Marketplace · Verfügbare First-Party-Plugins</h3>
+                <div style="font-size:12px;color:var(--ng-text-muted);margin-top:3px;">Nur registrierte interne Plugin-Definitionen. Kein Upload oder Ausführen von Kundenskripten.</div>
+            </div>
+            <div style="padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
+                {% for manifest in pluginManifests %}
+                    <div style="border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
+                        <strong>{{ manifest.name }}</strong> <span style="color:var(--ng-text-muted);font-size:12px;">{{ manifest.version }}</span>
+                        <div style="font-size:12px;color:var(--ng-text-muted);margin-top:4px;">{{ manifest.description }}</div>
+                        <div style="font-size:11px;color:var(--ng-text-muted);margin-top:6px;">Events: {{ manifest.events|join(', ') ?: '—' }}</div>
+                        <div style="font-size:11px;color:var(--ng-text-muted);">Actions: {{ manifest.actions|join(', ') ?: '—' }}</div>
+                        <form method="post" action="{{ path('customer_musicbot_plugin_assign', {id: instance.id}) }}" style="margin-top:8px;">
+                            <input type="hidden" name="identifier" value="{{ manifest.identifier }}">
+                            <button class="ui-btn ui-btn--primary" type="submit" style="font-size:12px;padding:5px 10px;" {% if not limits.plugins_allowed|default(true) %}disabled{% endif %}>Aktivieren / zuweisen</button>
+                        </form>
+                    </div>
+                {% else %}
+                    <p style="color:var(--ng-text-muted);">Keine Plugins registriert.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;">Instanz-Plugins</h3>
+            </div>
+            <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                {% for plugin in plugins %}
+                    <div style="border:1px solid var(--ng-border);border-radius:8px;padding:12px;display:grid;gap:8px;">
+                        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                            <div>
+                                <strong>{{ plugin.name }}</strong> <span style="font-size:12px;color:var(--ng-text-muted);">{{ plugin.identifier }} · {{ plugin.enabled ? 'aktiv' : 'inaktiv' }}</span>
+                                <div style="font-size:11px;color:var(--ng-text-muted);">Berechtigungen: {{ plugin.permissions|join(', ') }}</div>
+                                <div style="font-size:11px;color:var(--ng-text-muted);">Letzter Trigger: {{ plugin.config._last_trigger|default('—') }} · Letzter Fehler: {{ plugin.config._last_error|default('—') }}</div>
+                            </div>
+                            <form method="post" action="{{ path('customer_musicbot_plugin_toggle', {id: instance.id, pluginId: plugin.id}) }}">
+                                <input type="hidden" name="enabled" value="{{ plugin.enabled ? '0' : '1' }}">
+                                <button class="ui-btn" type="submit">{{ plugin.enabled ? 'Deaktivieren' : 'Aktivieren' }}</button>
+                            </form>
+                        </div>
+                        <form method="post" action="{{ path('customer_musicbot_plugin_config', {id: instance.id, pluginId: plugin.id}) }}" style="display:grid;gap:6px;">
+                            <textarea name="config_json" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);">{{ plugin.config|json_encode(constant('JSON_PRETTY_PRINT')) }}</textarea>
+                            <button class="ui-btn" type="submit" style="justify-self:start;">Einstellungen speichern</button>
+                        </form>
+                    </div>
+                {% else %}
+                    <p style="color:var(--ng-text-muted);">Noch keine Plugins für diese Instanz aktiviert.</p>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 
     {# ══════════════════════════════════════════════════════
@@ -653,10 +975,91 @@
                            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                 </div>
 
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Channel-ID <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                        <input type="text" name="ts_channel_id" value="{{ tsConnectionConfig.channel_id|default('') }}" placeholder="z. B. 42"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Channel-Name <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                        <input type="text" name="ts_channel_name" value="{{ tsConnectionConfig.channel_name|default('') }}" placeholder="Musik"
+                               style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                </div>
+
+
                 <div>
-                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Channel-ID <span style="font-weight:400;opacity:.6;">(optional)</span></label>
-                    <input type="text" name="ts_channel_id" value="{{ tsConnectionConfig.channel_id|default('') }}" placeholder="z. B. 42"
-                           style="width:50%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Channel-Beschreibung <span style="font-weight:400;opacity:.6;">(live)</span></label>
+                    <textarea name="ts_channel_description" rows="2" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">{{ tsConnectionConfig.channel_description|default('') }}</textarea>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Avatar <span style="font-weight:400;opacity:.6;">(Pfad/URL/Base64)</span></label>
+                        <input type="text" name="ts_avatar" value="{{ tsConnectionConfig.avatar|default('') }}" placeholder="avatar.png oder https://..." style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Badges</label>
+                        <input type="text" name="ts_badges" value="{{ tsConnectionConfig.badges|default('') }}" placeholder="Badge-IDs" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Away-Status</label>
+                        <input type="text" name="ts_away_status" value="{{ tsConnectionConfig.away_status|default('') }}" placeholder="Leer = nicht abwesend" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Default Recording Mode</label>
+                        <input type="text" name="ts_default_recording_mode" value="{{ tsConnectionConfig.default_recording_mode|default('') }}" placeholder="z. B. manual / automatic" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr 120px;gap:12px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Voice Quality</label>
+                        <input type="text" name="ts_voice_quality" value="{{ tsConnectionConfig.voice_quality|default('') }}" placeholder="balanced / high" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Codec</label>
+                        <input type="text" name="ts_codec" value="{{ tsConnectionConfig.codec|default('') }}" placeholder="opus_voice / opus_music" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Bitrate</label>
+                        <input type="number" name="ts_codec_bitrate" value="{{ tsConnectionConfig.codec_bitrate|default('') }}" min="1" max="512" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
+                    </div>
+                </div>
+
+                <div style="font-size:12px;padding:8px 12px;border-left:3px solid var(--ng-info);color:var(--ng-text-muted);">
+                    Live-Übernahme: Nickname, Channelbeschreibung, Avatar, Badges, Away-Status, Recording Mode, Voice Quality und Codec werden sofort angewendet, sofern die Runtime dies unterstützt. Server, Port und Passwörter lösen automatisch einen Reconnect aus. Diese Änderung wird nach einem Neustart des Bots übernommen, falls die laufende Runtime kein Live-Apply unterstützt.
+                </div>
+
+
+                <div style="display:grid;gap:10px;padding:12px;border:1px solid var(--ng-border);border-radius:8px;background:rgba(148,163,184,.06);">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="checkbox" id="ts_commands_enabled" name="ts_commands_enabled" value="1" {% if tsConnectionConfig.commands_enabled|default(true) %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--ng-primary);">
+                        <label for="ts_commands_enabled" style="font-size:13px;cursor:pointer;font-weight:500;">TeamSpeak Chat Commands aktivieren</label>
+                    </div>
+                    <div style="font-size:12px;color:var(--ng-text-muted);">
+                        Unterstützt: !play, !pause, !resume, !stop, !skip/!next, !volume, !queue, !clear, !shuffle, !repeat, !radio, !yt/!youtube, !song/!np und !help. Das konfigurierte Präfix ersetzt <code>!</code> zur Laufzeit.
+                    </div>
+                    <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;">
+                        {% set chatScopes = tsConnectionConfig.chat_scopes|default(['channel','private']) %}
+                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" name="ts_chat_scopes[]" value="channel" {% if 'channel' in chatScopes %}checked{% endif %}> Channel-Chat</label>
+                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" name="ts_chat_scopes[]" value="private" {% if 'private' in chatScopes %}checked{% endif %}> Private-Chat</label>
+                    </div>
+                    <div>
+                        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Command-Konfiguration JSON <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                        <textarea name="ts_command_config" rows="4" placeholder='{"play":{"enabled":true,"roles":["dj","admin"],"chat_scopes":["channel","private"]}}' style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:12px;font-family:monospace;">{{ tsConnectionConfig.command_config|default({})|json_encode(constant('JSON_PRETTY_PRINT')) }}</textarea>
+                    </div>
+                    <div style="font-size:12px;color:var(--ng-text-muted);">Rollen: <code>user</code>, <code>dj</code>, <code>admin</code>. Rechte werden über erlaubte, DJ- und Admin-Servergruppen abgebildet und durch das Plugin <code>easywi.teamspeak.integration</code> ausgewertet.</div>
+                </div>
+
+                <div>
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px;">Command-Prefix</label>
+                    <input type="text" name="command_prefix" value="{{ tsConnectionConfig.command_prefix|default(cfg_prefix) }}" maxlength="5" placeholder="!"
+                           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--ng-border);border-radius:6px;background:var(--ng-surface);color:var(--ng-text);font-size:13px;">
                 </div>
 
                 {# Password replace fields – never show actual secrets #}
@@ -771,6 +1174,34 @@
         </div>
     </div>
 
+    <div id="panel-webradio" style="display:none;">
+        <div class="ng-card" style="overflow:hidden;">
+            <div class="mb-section-title"><h3 style="margin:0;">📻 Radio-App</h3><input data-mb-filter="radio" placeholder="Sender live filtern" style="padding:8px 10px;border:1px solid var(--ng-border);border-radius:999px;background:var(--ng-surface);color:var(--ng-text);"></div>
+            <div class="mb-filterbar"><span class="mb-chip">Länder</span><span class="mb-chip">Genres</span><span class="mb-chip">Sprache</span><span class="mb-chip">Trending</span><span class="mb-chip">Neu</span><span class="mb-chip">Favoriten</span><span class="mb-chip">Verlauf</span><span class="mb-chip">Eigene Sender</span></div>
+            <div class="mb-grid" style="padding:16px;">
+                {% for track in tracks|filter(t => t.sourceType.value|default('') == 'webradio') %}
+                    <div class="ng-card" data-filter-item="radio" data-filter-text="{{ (track.title ~ ' ' ~ track.artist)|lower }}" style="padding:14px;"><div class="mb-thumb">📻</div><h4>{{ track.title }}</h4><p style="color:var(--ng-text-muted);font-size:12px;">Land — · Genre — · Bitrate —<br>{{ track.sourceUrl|default('Eigener Sender') }}</p><form method="post" action="{{ path('customer_musicbot_track_queue', {id: instance.id, trackId: track.id}) }}"><button class="ui-btn ui-btn--primary">Abspielen / Zur Queue</button></form></div>
+                {% else %}<div style="color:var(--ng-text-muted);">Noch keine Sender. Eigene Sender im Musik-Tab hinzufügen.</div>{% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div id="panel-youtube" style="display:none;">
+        <div class="ng-card" style="overflow:hidden;"><div class="mb-section-title"><h3 style="margin:0;">▶ YouTube Music</h3><button class="ui-btn" onclick="musicTab('youtube');mbTab('musik')">Suche öffnen</button></div><div class="mb-filterbar"><span class="mb-chip">Videos</span><span class="mb-chip">Playlist</span><span class="mb-chip">Shorts</span><span class="mb-chip">Podcasts</span><span class="mb-chip">Live</span></div><div style="padding:16px;display:grid;gap:10px;">{% for item in youtubeHistory|default([])|slice(0,8) %}<div class="mb-media-row"><div class="mb-thumb">▶</div><div><strong>{{ item.title|default(item.query|default(item.url|default('YouTube'))) }}</strong><div style="font-size:12px;color:var(--ng-text-muted);">Kanal — · Dauer — · Views — · {{ item.type|default('Import') }}</div></div><form method="post" action="{{ path('customer_musicbot_youtube_import', {id: instance.id}) }}"><input type="hidden" name="url" value="{{ item.url|default(item.query|default('')) }}"><button class="ui-btn" name="_youtube_import_action" value="queue">Zur Queue</button></form></div>{% else %}<div style="color:var(--ng-text-muted);">Keine leeren Platzhalter: Nutze die integrierte YouTube-Suche im Musik-Tab.</div>{% endfor %}</div></div>
+    </div>
+
+    <div id="panel-teamspeak" style="display:none;">
+        <div class="ng-card" style="padding:16px;"><div class="mb-section-title" style="padding:0 0 12px;"><h3 style="margin:0;">TeamSpeak Live</h3><span class="ui-badge {{ capabilityBadges[tsCap]|default('ui-badge--neutral') }}">{{ tsConnected ? 'Verbunden' : 'Nicht verbunden' }}</span></div><div class="mb-grid"><div><h4>Serverstatus</h4><p>{{ tsConnectionConfig.host|default('—') }}:{{ tsConnectionConfig.port|default(9987) }}</p></div><div><h4>Botposition</h4><p>Channel {{ tsConnectionConfig.channel_id|default('—') }} · {{ tsConnectionConfig.nickname|default('Musicbot') }}</p></div><div><h4>Avatar & Badges</h4><p>{{ tsConnectionConfig.avatar|default('—') }} · {{ tsConnectionConfig.badges|default('—') }}</p></div></div><div class="mb-filterbar" style="margin:14px -16px -16px;"><button class="ui-btn" onclick="mbTab('verbindungen')">Channel/Nickname ändern</button><button class="ui-btn" onclick="mbTab('dashboard')">Lautstärke</button><button class="ui-btn" onclick="mbTab('verbindungen')">Reconnect / Audiostatus</button></div></div>
+    </div>
+
+    <div id="panel-discord" style="display:none;"><div class="ng-card" style="padding:20px;"><h3>Discord</h3><p><strong>Status:</strong> {{ dc.connected|default(false) ? 'Verbunden' : 'Nicht verbunden' }} · Guild {{ dc.guild|default('—') }} · Voice Channel {{ dc.voice_channel|default('—') }} · Text Channel {{ dc.text_channel|default('—') }}</p><p style="color:var(--ng-text-muted);">Discord-Unterstützung folgt.</p></div></div>
+
+    <div id="panel-monitoring" style="display:none;"><div class="ng-card" style="overflow:hidden;"><div class="mb-section-title"><h3 style="margin:0;">Monitoring</h3><span class="mb-health" data-state="{{ monitoring.overall|default('healthy') }}">{{ monitoring.overall|default('healthy')|title }}</span></div><div class="mb-grid" style="padding:16px;">{% for key,label in {'runtime':'Runtime','audio':'Audio','pulseaudio':'PulseAudio','queue':'Queue','connector':'Connector','plugins':'Plugins','autodj':'AutoDJ'} %}<div class="ng-card" style="padding:14px;"><div class="mb-health" data-state="{{ monitoring[key].status|default(key == 'queue' and queue|length == 0 ? 'warning' : 'healthy') }}">{{ label }}</div><div style="font-size:12px;color:var(--ng-text-muted);margin-top:6px;">{{ monitoring[key].message|default('Live status ready') }}</div></div>{% endfor %}</div></div></div>
+
+    <div id="panel-backup" style="display:none;"><div class="ng-card" style="padding:16px;"><h3>Backup</h3><div class="mb-media-row"><div class="mb-thumb">💾</div><div><strong>Konfigurations-Backup</strong><div style="font-size:12px;color:var(--ng-text-muted);">Größe — · Datum — · Typ: Musicbot</div></div><div><button class="ui-btn">Download</button> <button class="ui-btn">Restore</button> <button class="ui-btn">Löschen</button> <button class="ui-btn">Migration vorbereiten</button></div></div></div></div>
+
+    <div id="panel-rollen" style="display:none;"><div class="ng-card" style="overflow:auto;padding:16px;"><h3>Grafischer Rolleneditor</h3><table class="mb-permission-matrix"><thead><tr><th>Recht</th><th>Benutzer</th><th>TeamSpeak Gruppen</th><th>Discord Rollen</th><th>DJ</th><th>Admin</th></tr></thead><tbody>{% for perm in ['Status lesen','Playback steuern','Queue verwalten','Playlists verwalten','AutoDJ verwalten','Plugins verwalten','Monitoring lesen'] %}<tr><td>{{ perm }}</td><td><input type="checkbox"></td><td><input type="checkbox"></td><td><input type="checkbox"></td><td><input type="checkbox"></td><td><input type="checkbox" checked></td></tr>{% endfor %}</tbody></table></div></div>
+
     {# ══════════════════════════════════════════════════════
        EINSTELLUNGEN
     ══════════════════════════════════════════════════════ #}
@@ -781,7 +1212,7 @@
             {# General #}
             <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
                 <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);">
-                    <h2 style="font-size:14px;font-weight:600;margin:0;">Allgemein</h2>
+                    <h2 style="font-size:14px;font-weight:600;margin:0;">Allgemein</h2><div class="mb-filterbar" style="margin:12px -16px -14px;"><span class="mb-chip">Allgemein</span><span class="mb-chip">Wiedergabe</span><span class="mb-chip">TeamSpeak</span><span class="mb-chip">Discord</span><span class="mb-chip">Audio</span><span class="mb-chip">AutoDJ</span><span class="mb-chip">Plugins</span><span class="mb-chip">YouTube</span><span class="mb-chip">Webradio</span><span class="mb-chip">API</span><span class="mb-chip">Backup</span><span class="mb-chip">Monitoring</span></div>
                 </div>
                 <div style="padding:16px;display:grid;gap:14px;">
                     <div>
@@ -895,7 +1326,7 @@
 </div>
 
 <script>
-var MB_TABS = ['dashboard','musik','queue','playlists','verbindungen','einstellungen','logs'];
+var MB_TABS = ['dashboard','musik','queue','playlists','autodj','plugins','webradio','youtube','teamspeak','discord','monitoring','backup','rollen','verbindungen','einstellungen','logs'];
 
 function mbTab(name) {
     MB_TABS.forEach(function(t) {
@@ -925,6 +1356,81 @@ function musicTab(name) {
 (function() {
     var hash = window.location.hash.replace('#tab-', '');
     mbTab(MB_TABS.indexOf(hash) !== -1 ? hash : 'dashboard');
+
+    document.querySelectorAll('[data-mb-filter]').forEach(function(input){input.addEventListener('input',function(){var q=input.value.toLowerCase();document.querySelectorAll('[data-filter-item=\"'+input.dataset.mbFilter+'\"]').forEach(function(el){el.style.display=(el.dataset.filterText||'').indexOf(q)!==-1?'':'none';});});});
+
+    if (window.EventSource) {
+        try {
+            var live = new EventSource('{{ path('api_v1_customer_musicbots_show', {id: instance.id}) }}');
+            live.onmessage = function(ev) {
+                try {
+                    var payload = JSON.parse(ev.data);
+                    var data = payload.data || payload;
+                    var setText = function(name, value){var el=document.querySelector('[data-live-field=\"'+name+'\"]'); if(el && value !== undefined && value !== null) el.textContent=value;};
+                    var np = data.nowPlaying || data.now_playing || {};
+                    setText('title', np.title || 'Kein Track aktiv');
+                    setText('artist', np.artist || 'Unbekannter Künstler / Sender');
+                    setText('status', np.playback_state || data.playbackState || data.state);
+                    setText('source', np.source_label || np.source_type || 'Quelle');
+                    setText('url', np.url || '');
+                    if (data.durationMs > 0) {
+                        var pct = Math.max(0, Math.min(100, ((data.playbackPositionMs || 0) / data.durationMs) * 100));
+                        var bar = document.querySelector('[data-live-field=\"progress\"]'); if (bar) bar.style.width = pct + '%';
+                        setText('remaining', Math.round((data.durationMs - (data.playbackPositionMs || 0)) / 1000) + 's');
+                    }
+                } catch(e) {}
+            };
+        } catch(e) {}
+    }
+
+    var volumeForm = document.querySelector('[data-volume-form]');
+    if (!volumeForm) return;
+    var slider = volumeForm.querySelector('[data-volume-slider]');
+    var label = volumeForm.querySelector('[data-volume-label]');
+    var kpi = document.querySelector('[data-volume-kpi]');
+    var errorBox = document.querySelector('[data-volume-error]');
+    var pendingVolume = null;
+    var applyVolume = function(value) {
+        value = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
+        if (slider) slider.value = String(value);
+        if (label) label.textContent = value + '%';
+        if (kpi) kpi.textContent = value + '%';
+    };
+    if (slider) {
+        slider.addEventListener('input', function() { applyVolume(slider.value); });
+    }
+    volumeForm.addEventListener('submit', function(ev) {
+        if (!window.fetch || !volumeForm.dataset.apiUrl) return;
+        ev.preventDefault();
+        var volume = Math.max(0, Math.min(100, parseInt(slider.value, 10) || 0));
+        pendingVolume = volume;
+        applyVolume(volume);
+        if (errorBox) {
+            errorBox.style.display = 'none';
+            errorBox.textContent = '';
+        }
+        fetch(volumeForm.dataset.apiUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({action: 'volume', volume: volume})
+        }).then(function(resp) {
+            return resp.json().then(function(json) { return {ok: resp.ok, json: json}; });
+        }).then(function(result) {
+            if (!result.ok) {
+                throw new Error(result.json && result.json.error ? result.json.error : 'Volume konnte nicht gesetzt werden.');
+            }
+            var returned = result.json && result.json.data ? result.json.data.volume : volume;
+            pendingVolume = null;
+            applyVolume(returned);
+        }).catch(function(err) {
+            applyVolume(pendingVolume !== null ? pendingVolume : volume);
+            if (errorBox) {
+                errorBox.textContent = err.message || String(err);
+                errorBox.style.display = '';
+            }
+        });
+    });
 })();
 </script>
 {% endblock %}

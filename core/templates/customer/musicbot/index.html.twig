@@ -132,7 +132,7 @@
                         <div>
                             <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:3px;">Aktueller Track</div>
                             <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                {% if row.currentTrack %}{{ row.currentTrack.title }}{% else %}<span style="color:var(--ng-text-muted);">—</span>{% endif %}
+                                {% if row.nowPlaying.title|default('') %}{{ row.nowPlaying.title }}{% else %}<span style="color:var(--ng-text-muted);">—</span>{% endif %}
                             </div>
                         </div>
                         <div>

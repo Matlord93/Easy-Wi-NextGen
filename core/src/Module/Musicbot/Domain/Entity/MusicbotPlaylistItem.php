@@ -29,6 +29,10 @@ class MusicbotPlaylistItem
     #[ORM\Column]
     private int $position;
 
+    /** @var array<string, mixed> */
+    #[ORM\Column(type: 'json')]
+    private array $metadata = [];
+
     public function __construct(MusicbotPlaylist $playlist, MusicbotTrack $track, int $position)
     {
         $this->playlist = $playlist;
@@ -41,4 +45,6 @@ class MusicbotPlaylistItem
     public function getTrack(): MusicbotTrack { return $this->track; }
     public function getPosition(): int { return $this->position; }
     public function setPosition(int $position): void { $this->position = max(0, $position); }
+    /** @return array<string, mixed> */ public function getMetadata(): array { return $this->metadata; }
+    /** @param array<string, mixed> $metadata */ public function setMetadata(array $metadata): void { $this->metadata = $metadata; }
 }

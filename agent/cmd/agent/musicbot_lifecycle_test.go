@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -140,4 +141,58 @@ func fileMode(t *testing.T, path string) os.FileMode {
 		t.Fatal(err)
 	}
 	return stat.Mode()
+}
+
+func TestMusicbotInstallCreatesPerInstanceIsolationLayout(t *testing.T) {
+	t.Parallel()
+	jobA, installPathA, _ := musicbotLifecycleJob(t)
+	jobB, installPathB, _ := musicbotLifecycleJob(t)
+	jobA.Payload["instance_id"] = "bot-a"
+	jobA.Payload["service_name"] = "musicbot-alpha"
+	jobB.Payload["instance_id"] = "bot-b"
+	jobB.Payload["service_name"] = "musicbot-beta"
+
+	if result := handleMusicbotInstall(jobA); result.status != "success" {
+		t.Fatalf("install A failed: %s", result.errorText)
+	}
+	if result := handleMusicbotInstall(jobB); result.status != "success" {
+		t.Fatalf("install B failed: %s", result.errorText)
+	}
+	if installPathA == installPathB {
+		t.Fatal("install paths must differ")
+	}
+	configA := readJSONFile(t, filepath.Join(installPathA, "config.json"))
+	configB := readJSONFile(t, filepath.Join(installPathB, "config.json"))
+	controlA := configA["control"].(map[string]any)["unix_socket"]
+	controlB := configB["control"].(map[string]any)["unix_socket"]
+	if controlA == controlB || controlA != filepath.Join(installPathA, "control.sock") || controlB != filepath.Join(installPathB, "control.sock") {
+		t.Fatalf("control sockets not isolated: %#v %#v", controlA, controlB)
+	}
+	pulseA := configA["pulse"].(map[string]any)
+	pulseB := configB["pulse"].(map[string]any)
+	if pulseA["sink"] == pulseB["sink"] || pulseA["source"] == pulseB["source"] || pulseA["socket"] == pulseB["socket"] {
+		t.Fatalf("pulse resources not isolated: %#v %#v", pulseA, pulseB)
+	}
+	tsA := configA["teamspeak"].(map[string]any)
+	tsB := configB["teamspeak"].(map[string]any)
+	if tsA["identity_path"] == tsB["identity_path"] || tsA["runtime_dir"] == tsB["runtime_dir"] {
+		t.Fatalf("teamspeak resources not isolated: %#v %#v", tsA, tsB)
+	}
+	for _, path := range []string{"data/tracks", "data/queue", "data/playlists", "runtime/tmp", "runtime/pulse", "data/teamspeak-client/ts3home"} {
+		assertFileExists(t, filepath.Join(installPathA, filepath.FromSlash(path)))
+		assertFileExists(t, filepath.Join(installPathB, filepath.FromSlash(path)))
+	}
+}
+
+func readJSONFile(t *testing.T, path string) map[string]any {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(content, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	return decoded
 }

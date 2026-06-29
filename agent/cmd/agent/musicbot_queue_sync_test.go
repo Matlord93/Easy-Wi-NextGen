@@ -1,9 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"easywi/agent/internal/jobs"
@@ -43,7 +43,7 @@ func musicbotQueueSyncJob(t *testing.T, queueItems []map[string]any) (jobs.Job, 
 	}, installPath
 }
 
-func TestHandleMusicbotQueueSyncFallsBackToStateFile(t *testing.T) {
+func TestHandleMusicbotQueueSyncFailsWithoutInstanceControlSocket(t *testing.T) {
 	t.Parallel()
 	job, installPath := musicbotQueueSyncJob(t, []map[string]any{
 		{"queue_item_id": "1", "track_id": "101", "title": "Song A", "artist": "Artist", "duration_seconds": 180,
@@ -67,34 +67,11 @@ func TestHandleMusicbotQueueSyncFallsBackToStateFile(t *testing.T) {
 	}
 
 	result := handleMusicbotQueueSync(job)
-	if result.status != "success" {
+	if result.status != "failed" {
 		t.Fatalf("queue.sync status=%s error=%s", result.status, result.errorText)
 	}
-	if result.resultPayload["synced"] != true {
-		t.Fatalf("result = %#v, want synced=true", result.resultPayload)
-	}
-
-	// Verify state file was written in control-state dir
-	stateDir := filepath.Join(installPath, "control-state")
-	entries, err := os.ReadDir(stateDir)
-	if err != nil {
-		t.Fatalf("control-state dir: %v", err)
-	}
-	if len(entries) == 0 {
-		t.Fatal("expected at least one state file in control-state")
-	}
-
-	// Validate state file contains the queue command
-	content, err := os.ReadFile(filepath.Join(stateDir, entries[0].Name()))
-	if err != nil {
-		t.Fatalf("read state file: %v", err)
-	}
-	var statePayload map[string]any
-	if err := json.Unmarshal(content, &statePayload); err != nil {
-		t.Fatalf("parse state file: %v", err)
-	}
-	if statePayload["command"] != "queue.sync" {
-		t.Fatalf("command = %v, want queue.sync", statePayload["command"])
+	if !strings.Contains(result.errorText, filepath.Join(installPath, "control.sock")) {
+		t.Fatalf("error = %q, want instance control.sock", result.errorText)
 	}
 }
 
@@ -139,7 +116,7 @@ func TestHandleMusicbotQueueSyncRejectsMissingQueue(t *testing.T) {
 	}
 }
 
-func TestHandleMusicbotQueueSyncEmptyQueueStateFile(t *testing.T) {
+func TestHandleMusicbotQueueSyncEmptyQueueRequiresInstanceControlSocket(t *testing.T) {
 	t.Parallel()
 	job, installPath := musicbotQueueSyncJob(t, nil)
 
@@ -159,10 +136,7 @@ func TestHandleMusicbotQueueSyncEmptyQueueStateFile(t *testing.T) {
 	}
 
 	result := handleMusicbotQueueSync(job)
-	if result.status != "success" {
+	if result.status != "failed" {
 		t.Fatalf("empty queue.sync status=%s error=%s", result.status, result.errorText)
-	}
-	if result.resultPayload["synced"] != true {
-		t.Fatalf("result = %#v", result.resultPayload)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestMusicbotStatusUsesRuntimeControlFallback(t *testing.T) {
+func TestMusicbotStatusReportsMissingInstanceControlSocket(t *testing.T) {
 	t.Parallel()
 	job, _, _ := musicbotLifecycleJob(t)
 	if result := handleMusicbotInstall(job); result.status != "success" {
@@ -16,12 +16,12 @@ func TestMusicbotStatusUsesRuntimeControlFallback(t *testing.T) {
 	if result.status != "success" {
 		t.Fatalf("status result=%s error=%s", result.status, result.errorText)
 	}
-	if result.resultPayload["accepted"] != true || result.resultPayload["transport"] != "state_file" {
-		t.Fatalf("status payload = %#v, want state_file fallback", result.resultPayload)
+	if !strings.Contains(result.resultPayload["last_error"].(string), installPathOrService(job.Payload)) {
+		t.Fatalf("status payload = %#v, want missing control socket with instance path", result.resultPayload)
 	}
 }
 
-func TestMusicbotPlaybackActionQueuesStateFileWithoutSecrets(t *testing.T) {
+func TestMusicbotPlaybackActionFailsWithoutInstanceControlSocketAndNoSecrets(t *testing.T) {
 	t.Parallel()
 	job, _, _ := musicbotLifecycleJob(t)
 	job.Payload["bot_token"] = "super-secret-token"
@@ -31,10 +31,10 @@ func TestMusicbotPlaybackActionQueuesStateFileWithoutSecrets(t *testing.T) {
 	job.Payload["action"] = "pause"
 
 	result := handleMusicbotPlaybackAction(job)
-	if result.status != "success" {
+	if result.status != "failed" {
 		t.Fatalf("playback result=%s error=%s", result.status, result.errorText)
 	}
-	if result.resultPayload["action"] != "pause" || result.resultPayload["accepted"] != true {
+	if result.resultPayload["last_error"] == "" {
 		t.Fatalf("playback payload = %#v", result.resultPayload)
 	}
 	if strings.Contains(result.errorText, "super-secret-token") || strings.Contains(result.logText, "super-secret-token") {
@@ -55,4 +55,11 @@ func TestMusicbotConnectionTestReturnsPlaceholderForInvalidInstallPath(t *testin
 	if result.resultPayload["status"] != "placeholder" || result.resultPayload["platform"] != "teamspeak" {
 		t.Fatalf("connection payload = %#v, want teamspeak placeholder", result.resultPayload)
 	}
+}
+
+func installPathOrService(payload map[string]any) string {
+	if v, ok := payload["install_path"].(string); ok {
+		return v
+	}
+	return payload["service_name"].(string)
 }

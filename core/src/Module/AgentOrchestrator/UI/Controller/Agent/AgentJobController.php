@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\AgentOrchestrator\UI\Controller\Agent;
 
 use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
+use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
 use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentSignatureVerifier;
@@ -13,6 +14,7 @@ use App\Repository\AgentJobRepository;
 use App\Repository\AgentRepository;
 use DateInterval;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -33,6 +35,7 @@ final class AgentJobController
         private readonly EntityManagerInterface $entityManager,
         private readonly CacheInterface $cache,
         private readonly AgentJobResultApplier $resultApplier,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -117,18 +120,25 @@ final class AgentJobController
             $snapshotContent = null;
         }
         $snapshotLength = $snapshotContent !== null ? strlen(trim($snapshotContent)) : 0;
-        error_log(sprintf(
-            '[agent-job-finish] job_id=%s job_type=%s status=%s payload_keys=%s result_payload_top_keys=%s payload_payload_keys=%s snapshot_present=%s snapshot_length=%d error_text=%s',
-            $job->getId(),
-            $job->getType(),
-            $statusRaw,
-            implode(',', array_keys($payload)),
-            is_array($resultPayload) ? implode(',', array_keys($resultPayload)) : '',
-            is_array($resultPayload['payload'] ?? null) ? implode(',', array_keys($resultPayload['payload'])) : '',
-            $snapshotLength > 0 ? 'yes' : 'no',
-            $snapshotLength,
-            (string) ($payload['error_text'] ?? $payload['errorText'] ?? $payload['message'] ?? '')
-        ));
+        $resultSummary = MusicbotPayloadLogSummarizer::summarizeJobPayload($resultPayload);
+        $finishLogContext = [
+            'stage' => 'finish',
+            'job_id' => $job->getId(),
+            'job_type' => $job->getType(),
+            'runtime_ready' => $this->formatReadinessLogValue($resultSummary['runtime_ready'] ?? null, $job->getType()),
+            'teamspeak_connected' => $this->formatReadinessLogValue($resultSummary['teamspeak_connected'] ?? null, $job->getType()),
+            'audio_backend_ready' => $this->formatReadinessLogValue($resultSummary['audio_backend_ready'] ?? null, $job->getType()),
+            'audio_backend_status' => $resultSummary['audio_backend_status'] ?? null,
+            'playback_state' => $resultSummary['playback_state'] ?? null,
+            'queue_count' => $resultSummary['queue_count'] ?? null,
+            'output_backend' => $resultSummary['output_backend'] ?? null,
+            'updated_at' => $resultSummary['updated_at'] ?? null,
+        ];
+        if ($status === AgentJobStatus::Success) {
+            $this->logger->debug('Agent job finished successfully.', $finishLogContext);
+        } else {
+            $this->logger->warning('Agent job finished with failure status.', $finishLogContext);
+        }
 
         $job->setLogText(is_string($payload['log_text'] ?? null) ? $payload['log_text'] : null);
         $job->setErrorText(is_string($payload['error_text'] ?? null) ? $payload['error_text'] : null);
@@ -142,6 +152,23 @@ final class AgentJobController
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'ok']);
+    }
+
+    private function formatReadinessLogValue(mixed $value, string $jobType): string
+    {
+        unset($jobType);
+
+        if ($value === true) {
+            return 'yes';
+        }
+        if ($value === false) {
+            return 'no';
+        }
+        if ($value === 'preserved' || $value === 'unknown') {
+            return $value;
+        }
+
+        return 'unknown';
     }
 
     private function requireAgent(Request $request, string $nodeId): \App\Module\Core\Domain\Entity\Agent

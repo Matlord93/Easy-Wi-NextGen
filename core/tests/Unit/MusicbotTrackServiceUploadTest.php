@@ -6,6 +6,7 @@ namespace App\Tests\Unit;
 
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Application\MusicbotQuotaServiceInterface;
+use App\Module\Musicbot\Application\MusicbotTrackPathResolver;
 use App\Module\Musicbot\Application\MusicbotTrackService;
 use App\Module\Musicbot\Application\MusicbotWebradioUrlValidator;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
@@ -35,6 +36,7 @@ final class MusicbotTrackServiceUploadTest extends TestCase
             $this->em,
             $this->trackRepo,
             $quota ?? $this->quota,
+            new MusicbotTrackPathResolver($this->projectDir),
             $this->projectDir,
             new MusicbotWebradioUrlValidator(),
         );
@@ -73,6 +75,19 @@ final class MusicbotTrackServiceUploadTest extends TestCase
         if (is_file($tmpPath)) {
             @unlink($tmpPath);
         }
+    }
+
+
+    public function testUploadCreatesCustomerTrackDirectoryRecursively(): void
+    {
+        $this->projectDir = sys_get_temp_dir() . '/musicbot_upload_' . bin2hex(random_bytes(6));
+        $tmpPath = $this->makeTempAudioFile('mp3');
+        $file = new UploadedFile($tmpPath, 'song.mp3', 'audio/mpeg', null, true);
+
+        $track = $this->buildService()->uploadTrack($this->fakeCustomer(), $file, 'Nested Song');
+
+        self::assertDirectoryExists($this->projectDir . '/var/musicbot/tracks/customer-42');
+        self::assertFileExists((string) $track->getFilePath());
     }
 
     public function testUploadAcceptsOgg(): void

@@ -19,22 +19,28 @@ use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
 use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakBackendStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakProfile;
+use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
 use App\Module\Musicbot\Application\MusicbotAutoDjService;
 use App\Module\Musicbot\Application\MusicbotScheduleService;
 use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Application\MusicbotStreamService;
-use App\Module\Musicbot\Application\MusicbotRuntimeConfigBuilder;
+use App\Module\Musicbot\Application\MusicbotConfigApplyPayloadBuilder;
+use App\Module\Musicbot\Application\MusicbotRuntimeStatusNormalizer;
+use App\Module\Musicbot\Application\MusicbotQuotaService;
 use App\Module\Musicbot\Application\MusicbotWorkflowService;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflow;
 use App\Repository\MusicbotAutoDjSettingsRepository;
 use App\Repository\MusicbotStreamSettingsRepository;
 use App\Repository\MusicbotWorkflowRepository;
 use App\Module\Musicbot\Application\PluginRegistryService;
+use App\Module\Musicbot\Application\MusicbotPlanLimitResolver;
+use App\Module\Musicbot\Domain\Entity\MusicbotCustomerLimits;
 use App\Repository\AgentRepository;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPluginRepository;
+use App\Repository\MusicbotCustomerLimitsRepository;
 use App\Repository\MusicbotQueueItemRepository;
 use App\Repository\MusicbotScheduleRepository;
 use App\Repository\MusicbotTeamspeakBackendConfigRepository;
@@ -67,9 +73,13 @@ final class AdminMusicbotController
         private readonly MusicbotWorkflowService $workflowService,
         private readonly MusicbotWorkflowRepository $workflowRepository,
         private readonly MusicbotSecretConfigService $secretConfigService,
-        private readonly MusicbotRuntimeConfigBuilder $runtimeConfigBuilder,
+        private readonly MusicbotConfigApplyPayloadBuilder $configApplyPayloadBuilder,
+        private readonly MusicbotRuntimeStatusNormalizer $runtimeStatusNormalizer,
         private readonly PluginRegistryService $pluginRegistryService,
         private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotCustomerLimitsRepository $customerLimitsRepository,
+        private readonly MusicbotPlanLimitResolver $planLimitResolver,
+        private readonly MusicbotQuotaService $quotaService,
         private readonly UserRepository $userRepository,
         private readonly AgentRepository $agentRepository,
         private readonly EntityManagerInterface $entityManager,
@@ -95,6 +105,88 @@ final class AdminMusicbotController
         ]));
     }
 
+
+
+    #[Route(path: '/limits', name: 'admin_musicbot_limits', methods: ['GET'])]
+    public function limits(Request $request): Response
+    {
+        $this->requireAdmin($request);
+        $customers = $this->userRepository->findCustomers();
+        $rows = [];
+        foreach ($customers as $customer) {
+            $override = $this->customerLimitsRepository->findByCustomer($customer);
+            $rows[] = [
+                'customer' => $customer,
+                'resolved' => $this->planLimitResolver->resolve($customer)->toArray(),
+                'override' => $override,
+            ];
+        }
+
+        return new Response($this->twig->render('admin/musicbot/limits.html.twig', [
+            'activeNav' => 'musicbots',
+            'rows' => $rows,
+            'defaults' => MusicbotPlanLimitResolver::planDefaults(),
+        ]));
+    }
+
+    #[Route(path: '/limits/{customerId}', name: 'admin_musicbot_limits_save', requirements: ['customerId' => '\\d+'], methods: ['POST'])]
+    public function saveLimits(Request $request, int $customerId): Response
+    {
+        $actor = $this->requireAdmin($request);
+        $customer = $this->userRepository->find($customerId);
+        if (!$customer instanceof User || $customer->getType() !== UserType::Customer) {
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException('Customer not found.');
+        }
+
+        $limits = $this->customerLimitsRepository->findByCustomer($customer) ?? new MusicbotCustomerLimits($customer);
+        $this->entityManager->persist($limits);
+
+        foreach ([
+            'max_musicbots' => 'setMaxMusicbots',
+            'max_tracks' => 'setMaxTracks',
+            'max_storage_mb' => 'setMaxStorageMb',
+            'max_upload_size_mb' => 'setMaxUploadSizeMb',
+            'max_queue_items' => 'setMaxQueueItems',
+            'max_playlists' => 'setMaxPlaylists',
+            'max_playlist_items' => 'setMaxPlaylistItems',
+            'max_plugins' => 'setMaxPlugins',
+        ] as $field => $setter) {
+            $raw = trim((string) $request->request->get($field, ''));
+            $limits->{$setter}($raw === '' ? null : (int) $raw);
+        }
+
+        foreach ([
+            'web_radio_allowed' => 'setAllowWebradio',
+            'discord_allowed' => 'setAllowDiscord',
+            'stream_allowed' => 'setAllowStream',
+            'api_allowed' => 'setAllowApi',
+            'plugins_allowed' => 'setAllowPlugins',
+        ] as $field => $setter) {
+            $limits->{$setter}($request->request->has($field));
+        }
+
+        $permissions = array_map(static fn (\App\Module\Musicbot\Domain\Enum\MusicbotPermission $p): string => $p->value, \App\Module\Musicbot\Domain\Enum\MusicbotPermission::customerDefaults());
+        $permissions = array_values(array_filter($permissions, static fn (string $permission): bool => !in_array($permission, [\App\Module\Musicbot\Domain\Enum\MusicbotPermission::YoutubeManage->value, \App\Module\Musicbot\Domain\Enum\MusicbotPermission::TeamspeakCommandsManage->value, \App\Module\Musicbot\Domain\Enum\MusicbotPermission::AutoDjManage->value], true)));
+        foreach ([
+            'youtube_allowed' => \App\Module\Musicbot\Domain\Enum\MusicbotPermission::YoutubeManage->value,
+            'teamspeak_commands_allowed' => \App\Module\Musicbot\Domain\Enum\MusicbotPermission::TeamspeakCommandsManage->value,
+            'autodj_allowed' => \App\Module\Musicbot\Domain\Enum\MusicbotPermission::AutoDjManage->value,
+        ] as $field => $permission) {
+            if ($request->request->has($field)) {
+                $permissions[] = $permission;
+            }
+        }
+        $limits->setGrantedPermissions($permissions);
+        if (!$request->request->has('playlists_allowed')) {
+            $limits->setMaxPlaylists(0);
+        }
+
+        $this->entityManager->flush();
+        $this->auditLogger->log($actor, 'musicbot.admin_limits_updated', ['customer_id' => $customer->getId()]);
+        $this->flash($request, 'success', 'Musicbot-Kundenlimits wurden gespeichert.');
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => '/admin/musicbots/limits']);
+    }
 
     #[Route(path: '/plugins', name: 'admin_musicbot_plugins', methods: ['GET'])]
     public function plugins(Request $request): Response
@@ -228,6 +320,18 @@ final class AdminMusicbotController
         $customer = $form['customer'];
         /** @var Agent $node */
         $node = $form['node'];
+        try {
+            $this->quotaService->assertCanCreateMusicbot($customer);
+            if ($form['teamspeak_enabled']) {
+                $this->quotaService->assertCanManageTeamspeakConnection($customer);
+            }
+            if ($form['discord_enabled']) {
+                $this->quotaService->assertCanManageDiscordConnection($customer);
+            }
+        } catch (\App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException $exception) {
+            $form['errors'][] = $exception->getMessage();
+            return $this->renderCreateForm($form, Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
         $serviceName = $this->buildServiceName($form['name']);
         $installPath = sprintf('/var/lib/easywi/musicbot/%s', $serviceName);
         $instance = new MusicbotInstance(
@@ -275,14 +379,21 @@ final class AdminMusicbotController
         $this->requireAdmin($request);
         $instance = $this->findInstance($id);
 
+        $runtimePayload = $this->runtimeStatusNormalizer->normalizePayload($this->sanitizeForTemplate($instance->getRuntimePayload() ?? []));
+        $playbackStatus = $runtimePayload['playback_status'] ?? $this->runtimeStatusNormalizer->buildPlaybackStatus($runtimePayload);
+        if ((string) ($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') === '1') {
+            error_log('[musicbot-status-flow] '.json_encode(['stage' => 'admin.controller.payload.passed_to_twig', 'instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($runtimePayload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        }
+
         return new Response($this->twig->render('admin/musicbot/show.html.twig', [
             'activeNav' => 'musicbots',
             'instance' => $instance,
             'connections' => $this->buildConnectionRows($this->connectionRepository->findBy(['musicbotInstance' => $instance], ['id' => 'ASC'])),
             'rawConnections' => $this->connectionRepository->findBy(['musicbotInstance' => $instance], ['id' => 'ASC']),
             'queueSummary' => $this->buildQueueSummary($instance),
-            'runtimePayload' => $this->sanitizeForTemplate($instance->getRuntimePayload() ?? []),
-            'lastError' => $this->resolveLastError($instance),
+            'runtimePayload' => $runtimePayload,
+            'playbackStatus' => $playbackStatus,
+            'lastError' => $this->resolveLastError($runtimePayload),
             'logs' => $this->runtimeEventService->latestForInstance($instance, 50),
             'errors' => $this->runtimeEventService->errorsForInstance($instance, 10),
             'teamspeakProfiles' => MusicbotTeamspeakProfile::cases(),
@@ -747,10 +858,10 @@ final class AdminMusicbotController
         return ['length' => count($queue), 'currentTrack' => $current, 'items' => array_slice($queue, 0, 10)];
     }
 
-    private function resolveLastError(MusicbotInstance $instance): ?string
+    /** @param array<string, mixed> $runtimePayload */
+    private function resolveLastError(array $runtimePayload): ?string
     {
-        $payload = $this->sanitizeForTemplate($instance->getRuntimePayload() ?? []);
-        return isset($payload['last_error']) ? (string) $payload['last_error'] : (isset($payload['error']) ? (string) $payload['error'] : null);
+        return $this->runtimeStatusNormalizer->resolveActiveLastError($runtimePayload);
     }
 
     /** @param MusicbotConnection[] $connections */
@@ -826,6 +937,7 @@ final class AdminMusicbotController
 
         return $summary;
     }
+
 
     /** @param array<string, mixed>|null $override @return array<string, mixed> */
     private function buildFormContext(?array $override = null): array
@@ -1003,13 +1115,7 @@ final class AdminMusicbotController
             return;
         }
 
-        $runtimeConfig = $this->runtimeConfigBuilder->build($instance);
-        $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.config.apply', array_merge([
-            'instance_id' => (string) $instance->getId(),
-            'service_name' => $instance->getServiceName(),
-            'install_path' => $instance->getInstallPath(),
-            'config_file_permissions' => '0600',
-        ], ['config' => $runtimeConfig]));
+        $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.config.apply', $this->configApplyPayloadBuilder->build($instance));
     }
 
     private function jobTypeForAction(string $action): string

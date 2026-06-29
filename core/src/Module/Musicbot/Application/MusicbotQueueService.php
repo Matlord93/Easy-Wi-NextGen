@@ -22,6 +22,7 @@ final class MusicbotQueueService
         private readonly MusicbotTrackRepositoryInterface $trackRepository,
         private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly AgentJobDispatcherInterface $jobDispatcher,
+        private readonly MusicbotTrackPathResolver $trackPathResolver,
     ) {
     }
 
@@ -186,7 +187,7 @@ final class MusicbotQueueService
         $serialized = [];
         foreach ($items as $item) {
             $track = $item->getTrack();
-            $sourceEntry = $this->buildSourceEntry($track, $instance->getInstallPath());
+            $sourceEntry = $this->buildSourceEntry($track, $instance);
             if ($sourceEntry === null) {
                 continue;
             }
@@ -215,10 +216,10 @@ final class MusicbotQueueService
      *
      * @return array<string, string>|null
      */
-    private function buildSourceEntry(MusicbotTrack $track, string $installPath): ?array
+    private function buildSourceEntry(MusicbotTrack $track, MusicbotInstance $instance): ?array
     {
         return match ($track->getSourceType()) {
-            MusicbotTrackSourceType::Upload => $this->buildUploadSource($track, $installPath),
+            MusicbotTrackSourceType::Upload => $this->buildUploadSource($track, $instance),
             MusicbotTrackSourceType::Webradio => $this->buildWebradioSource($track),
             MusicbotTrackSourceType::Youtube => $this->buildYoutubeSource($track),
             default => null,
@@ -226,10 +227,10 @@ final class MusicbotQueueService
     }
 
     /** @return array<string, string>|null */
-    private function buildUploadSource(MusicbotTrack $track, string $installPath): ?array
+    private function buildUploadSource(MusicbotTrack $track, MusicbotInstance $instance): ?array
     {
-        $uri = $this->runtimeSafeFilePath($track, $installPath);
-        if ($uri === '') {
+        $uri = $this->trackPathResolver->resolveTrackFile($track, $instance);
+        if ($uri === null || $uri === '') {
             return null;
         }
 
@@ -264,28 +265,6 @@ final class MusicbotQueueService
 
         // Pass the YouTube URL to the runtime. The agent resolves it via yt-dlp on its side.
         return ['type' => MusicbotTrackSourceType::Youtube->value, 'uri' => $youtubeUrl, 'mime_type' => 'audio/mpeg'];
-    }
-
-    private function runtimeSafeFilePath(MusicbotTrack $track, string $installPath): string
-    {
-        $filePath = $track->getFilePath();
-        if ($filePath === null || trim($filePath) === '') {
-            return '';
-        }
-        $filePath = trim($filePath);
-
-        // Strip absolute data-dir prefix so the runtime receives a relative path
-        $dataDir = rtrim($installPath, '/') . '/data/';
-        if (str_starts_with($filePath, $dataDir)) {
-            $filePath = substr($filePath, strlen($dataDir));
-        }
-
-        // Reject absolute paths and traversal attempts
-        if (str_starts_with($filePath, '/') || str_contains($filePath, '..')) {
-            return '';
-        }
-
-        return $filePath;
     }
 
     private function dispatchQueueSync(MusicbotInstance $instance): void

@@ -853,3 +853,314 @@ func TestParseWhoamiResponseClidWithoutCid(t *testing.T) {
 		t.Errorf("state=%q but cid is empty; should not be connected", r.state)
 	}
 }
+
+// ── writeClientQueryPluginConfig api_key preservation ────────────────────────
+
+// TestWriteClientQueryPluginConfigPreservesApiKey verifies that an existing api_key
+// in the clientquery.ini is preserved when the port/host config is rewritten.
+// This is critical: without preservation the bridge would erase the key on every
+// restart, causing the plugin to generate a new one and breaking auth.
+func TestWriteClientQueryPluginConfigPreservesApiKey(t *testing.T) {
+	ts3Home := t.TempDir()
+
+	// Simulate the plugin having written an api_key on a previous run.
+	ts3ClientDir := filepath.Join(ts3Home, ".ts3client")
+	if err := os.MkdirAll(ts3ClientDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	existingKey := "ABCD-1234-EFGH-5678"
+	iniPath := filepath.Join(ts3ClientDir, "clientquery.ini")
+	if err := os.WriteFile(iniPath, []byte("[ClientQuery]\nPort=25639\nHost=127.0.0.1\napi_key="+existingKey+"\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	// Now call writeClientQueryPluginConfig (as done on every bridge start).
+	if err := writeClientQueryPluginConfig(ts3Home, "127.0.0.1", 25640); err != nil {
+		t.Fatalf("writeClientQueryPluginConfig: %v", err)
+	}
+
+	// The api_key must survive in the primary INI location.
+	got := readClientQueryApiKey(ts3Home)
+	if got != existingKey {
+		t.Errorf("api_key after writeClientQueryPluginConfig = %q, want %q; key was erased", got, existingKey)
+	}
+
+	// Port must also be updated.
+	data, err := os.ReadFile(iniPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if !strings.Contains(string(data), "Port=25640") {
+		t.Errorf("clientquery.ini missing updated Port=25640:\n%s", data)
+	}
+}
+
+// TestWriteClientQueryPluginConfigNoExistingKeyOmitsApiKeyLine verifies that when
+// there is no pre-existing api_key the written INI does not contain an api_key
+// line. The plugin will generate and write one on first run.
+func TestWriteClientQueryPluginConfigNoExistingKeyOmitsApiKeyLine(t *testing.T) {
+	ts3Home := t.TempDir()
+
+	if err := writeClientQueryPluginConfig(ts3Home, "127.0.0.1", 25641); err != nil {
+		t.Fatalf("writeClientQueryPluginConfig: %v", err)
+	}
+
+	iniPath := filepath.Join(ts3Home, ".ts3client", "clientquery.ini")
+	data, err := os.ReadFile(iniPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "api_key=") {
+		t.Errorf("INI should not contain api_key when none existed before:\n%s", content)
+	}
+	if !strings.Contains(content, "Port=25641") {
+		t.Errorf("INI missing Port=25641:\n%s", content)
+	}
+}
+
+// ── readClientQueryApiKeyWithRetry ────────────────────────────────────────────
+
+// TestReadClientQueryApiKeyWithRetryImmediateSuccess verifies that when the api_key
+// is already present, the function returns on the first attempt.
+func TestReadClientQueryApiKeyWithRetryImmediateSuccess(t *testing.T) {
+	ts3Home := t.TempDir()
+	ts3ClientDir := filepath.Join(ts3Home, ".ts3client")
+	if err := os.MkdirAll(ts3ClientDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(ts3ClientDir, "clientquery.ini"),
+		[]byte("[ClientQuery]\napi_key=MY-SECRET-KEY\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	ctx := context.Background()
+	key, ok := readClientQueryApiKeyWithRetry(ctx, ts3Home, 5*time.Second)
+	if !ok {
+		t.Fatal("readClientQueryApiKeyWithRetry returned not-ok when key was immediately available")
+	}
+	if key != "MY-SECRET-KEY" {
+		t.Errorf("key = %q, want MY-SECRET-KEY", key)
+	}
+}
+
+// TestReadClientQueryApiKeyWithRetryTimeout verifies that the function returns
+// ("", false) when no key appears within the timeout.
+func TestReadClientQueryApiKeyWithRetryTimeout(t *testing.T) {
+	ts3Home := t.TempDir()
+	// Don't create the INI file — simulate first run before plugin writes it.
+
+	ctx := context.Background()
+	key, ok := readClientQueryApiKeyWithRetry(ctx, ts3Home, 300*time.Millisecond)
+	if ok {
+		t.Errorf("expected timeout (ok=false), got ok=true key=%q", key)
+	}
+	if key != "" {
+		t.Errorf("key = %q, want empty on timeout", key)
+	}
+}
+
+// TestReadClientQueryApiKeyWithRetryLateWrite verifies the retry-until-written
+// path: the key is absent initially, written during polling, then returned.
+func TestReadClientQueryApiKeyWithRetryLateWrite(t *testing.T) {
+	ts3Home := t.TempDir()
+	ts3ClientDir := filepath.Join(ts3Home, ".ts3client")
+	if err := os.MkdirAll(ts3ClientDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	iniPath := filepath.Join(ts3ClientDir, "clientquery.ini")
+
+	// Write the key after a short delay, simulating the plugin initialising.
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		_ = os.WriteFile(iniPath, []byte("[ClientQuery]\napi_key=LATE-KEY\n"), 0o600)
+	}()
+
+	ctx := context.Background()
+	key, ok := readClientQueryApiKeyWithRetry(ctx, ts3Home, 3*time.Second)
+	if !ok {
+		t.Fatal("readClientQueryApiKeyWithRetry did not find key written during polling")
+	}
+	if key != "LATE-KEY" {
+		t.Errorf("key = %q, want LATE-KEY", key)
+	}
+}
+
+// TestReadClientQueryApiKeyWithRetryContextCancel verifies that the function
+// respects ctx cancellation and returns early.
+func TestReadClientQueryApiKeyWithRetryContextCancel(t *testing.T) {
+	ts3Home := t.TempDir()
+	// No INI file.
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	key, ok := readClientQueryApiKeyWithRetry(ctx, ts3Home, 5*time.Second)
+	elapsed := time.Since(start)
+
+	if ok {
+		t.Errorf("expected ok=false on context cancel, got key=%q", key)
+	}
+	if elapsed > 2*time.Second {
+		t.Errorf("readClientQueryApiKeyWithRetry took %s after ctx cancel, expected < 2s", elapsed)
+	}
+}
+
+// TestWaitForTSServerConnectedTimeoutIncludesApiKeyState verifies that the timeout
+// error from waitForTSServerConnected includes state useful for diagnosis.
+func TestWaitForTSServerConnectedTimeoutIncludesAttempts(t *testing.T) {
+	ln, port := mockCQServer(t, func(conn net.Conn) {
+		lineDispatcher(conn, map[string]string{
+			"whoami": "error id=1794 msg=not\\sconnected\n",
+		})
+	})
+	defer func() { _ = ln.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	_, _, err := waitForTSServerConnected(ctx, "127.0.0.1", port, "")
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	msg := err.Error()
+	for _, want := range []string{"ts3_connect_timeout", "attempts=", "last_state="} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("timeout error %q missing %q", msg, want)
+		}
+	}
+}
+
+// ── mergeClientQueryPortHost ──────────────────────────────────────────────────
+
+// TestMergeClientQueryPortHostPreservesGeneralSection verifies that the [General]
+// section (where the TS3 ClientQuery plugin stores api_key) is preserved verbatim
+// when mergeClientQueryPortHost updates Port= and Host= in [ClientQuery].
+// This is the root-cause fix for the api_key erasure bug.
+func TestMergeClientQueryPortHostPreservesGeneralSection(t *testing.T) {
+	dir := t.TempDir()
+	iniPath := filepath.Join(dir, "clientquery.ini")
+	original := "[General]\napi_key=PROD-KEY-ABCD\nlogging_enabled=false\nopen_remote=false\n\n[ClientQuery]\nHost=127.0.0.1\nPort=25639\n"
+	if err := os.WriteFile(iniPath, []byte(original), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if err := mergeClientQueryPortHost(iniPath, "127.0.0.1", 25640); err != nil {
+		t.Fatalf("mergeClientQueryPortHost: %v", err)
+	}
+
+	data, readErr := os.ReadFile(iniPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile: %v", readErr)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "[General]") {
+		t.Errorf("[General] section was erased:\n%s", content)
+	}
+	if !strings.Contains(content, "api_key=PROD-KEY-ABCD") {
+		t.Errorf("api_key in [General] was erased:\n%s", content)
+	}
+	if !strings.Contains(content, "logging_enabled=false") {
+		t.Errorf("logging_enabled key was erased:\n%s", content)
+	}
+	if !strings.Contains(content, "Port=25640") {
+		t.Errorf("Port not updated to 25640:\n%s", content)
+	}
+	if !strings.Contains(content, "Host=127.0.0.1") {
+		t.Errorf("Host missing:\n%s", content)
+	}
+}
+
+// TestMergeClientQueryPortHostNoExistingFile verifies that a missing file is
+// created with a minimal [ClientQuery] section.
+func TestMergeClientQueryPortHostNoExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	iniPath := filepath.Join(dir, "clientquery.ini")
+
+	if err := mergeClientQueryPortHost(iniPath, "127.0.0.1", 25641); err != nil {
+		t.Fatalf("mergeClientQueryPortHost: %v", err)
+	}
+
+	data, readErr := os.ReadFile(iniPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile: %v", readErr)
+	}
+	content := string(data)
+	if !strings.Contains(content, "[ClientQuery]") {
+		t.Errorf("[ClientQuery] section missing:\n%s", content)
+	}
+	if !strings.Contains(content, "Port=25641") {
+		t.Errorf("Port=25641 missing:\n%s", content)
+	}
+}
+
+// TestMergeClientQueryPortHostNoClientQuerySection verifies that [ClientQuery]
+// is appended when the file exists but has no [ClientQuery] section.
+func TestMergeClientQueryPortHostNoClientQuerySection(t *testing.T) {
+	dir := t.TempDir()
+	iniPath := filepath.Join(dir, "clientquery.ini")
+	if err := os.WriteFile(iniPath, []byte("[General]\napi_key=MYKEY\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if err := mergeClientQueryPortHost(iniPath, "127.0.0.1", 25642); err != nil {
+		t.Fatalf("mergeClientQueryPortHost: %v", err)
+	}
+
+	data, _ := os.ReadFile(iniPath)
+	content := string(data)
+	if !strings.Contains(content, "api_key=MYKEY") {
+		t.Errorf("api_key erased:\n%s", content)
+	}
+	if !strings.Contains(content, "[ClientQuery]") {
+		t.Errorf("[ClientQuery] not appended:\n%s", content)
+	}
+	if !strings.Contains(content, "Port=25642") {
+		t.Errorf("Port=25642 not appended:\n%s", content)
+	}
+}
+
+// TestWriteClientQueryPluginConfigPreservesGeneralSectionApiKey verifies the
+// production scenario: the TS3 ClientQuery plugin stores api_key in [General],
+// and writeClientQueryPluginConfig must not erase that section.
+func TestWriteClientQueryPluginConfigPreservesGeneralSectionApiKey(t *testing.T) {
+	ts3Home := t.TempDir()
+	ts3ClientDir := filepath.Join(ts3Home, ".ts3client")
+	if err := os.MkdirAll(ts3ClientDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	// Production-format clientquery.ini with api_key in [General].
+	productionIni := "[General]\napi_key=PROD-SECRET-KEY\nlogging_enabled=false\nopen_remote=false\n\n[ClientQuery]\nHost=127.0.0.1\nPort=25639\n"
+	iniPath := filepath.Join(ts3ClientDir, "clientquery.ini")
+	if err := os.WriteFile(iniPath, []byte(productionIni), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if err := writeClientQueryPluginConfig(ts3Home, "127.0.0.1", 25640); err != nil {
+		t.Fatalf("writeClientQueryPluginConfig: %v", err)
+	}
+
+	data, readErr := os.ReadFile(iniPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile: %v", readErr)
+	}
+	content := string(data)
+	if !strings.Contains(content, "api_key=PROD-SECRET-KEY") {
+		t.Errorf("api_key in [General] was erased by writeClientQueryPluginConfig:\n%s", content)
+	}
+	if !strings.Contains(content, "[General]") {
+		t.Errorf("[General] section was erased:\n%s", content)
+	}
+	if !strings.Contains(content, "Port=25640") {
+		t.Errorf("Port not updated to 25640:\n%s", content)
+	}
+	// api_key must still be readable via readClientQueryApiKey.
+	got := readClientQueryApiKey(ts3Home)
+	if got != "PROD-SECRET-KEY" {
+		t.Errorf("readClientQueryApiKey = %q, want PROD-SECRET-KEY", got)
+	}
+}

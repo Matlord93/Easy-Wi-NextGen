@@ -184,6 +184,8 @@ func handleMusicbotStatus(job jobs.Job) orchestratorResult {
 	if pathErr == nil {
 		if response, err := NewRuntimeControlClient(installPath).Command("status", nil); err == nil {
 			return orchestratorResult{status: "success", resultPayload: response.Payload}
+		} else {
+			lastError = err.Error()
 		}
 	}
 
@@ -228,6 +230,13 @@ func handleMusicbotPlaybackAction(job jobs.Job) orchestratorResult {
 	response, err := NewRuntimeControlClient(installPath).Command(action, args)
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error(), resultPayload: map[string]any{"last_error": err.Error()}}
+	}
+	if !response.OK {
+		lastError := response.Error
+		if lastError == "" {
+			lastError = "runtime rejected playback command"
+		}
+		return orchestratorResult{status: "failed", errorText: lastError, resultPayload: map[string]any{"accepted": false, "action": action, "runtime": response.Payload, "last_error": lastError}}
 	}
 	return orchestratorResult{status: "success", resultPayload: map[string]any{"accepted": true, "action": action, "runtime": response.Payload}}
 }
@@ -277,7 +286,8 @@ func handleMusicbotQueueSync(job jobs.Job) orchestratorResult {
 
 var allowedMusicbotPlaybackActions = map[string]bool{
 	"play": true, "pause": true, "resume": true, "stop": true,
-	"skip": true, "volume": true, "shuffle": true, "repeat": true,
+	"skip": true, "volume": true, "shuffle": true, "repeat": true, "seek": true,
+	"reconnect": true, "reload_config": true,
 }
 
 func validateMusicbotServiceName(serviceName string) error {
@@ -330,10 +340,25 @@ func mapMusicbotRunningStatus(running bool) string {
 }
 
 type musicbotLayout struct {
+	instanceID   string
+	customerID   string
+	nodeID       string
 	installPath  string
 	dataDir      string
+	tracksDir    string
+	queueDir     string
+	playlistsDir string
 	logDir       string
 	pluginDir    string
+	runtimeDir   string
+	tmpDir       string
+	controlSock  string
+	pulseSock    string
+	tsHome       string
+	tsProfile    string
+	pulseSink    string
+	pulseSource  string
+	xvfbDisplay  string
 	binDir       string
 	binaryPath   string
 	configPath   string
@@ -351,12 +376,36 @@ func resolveMusicbotLayout(job jobs.Job) (musicbotLayout, error) {
 	if err := validateMusicbotServiceName(serviceName); err != nil {
 		return musicbotLayout{}, err
 	}
+	instanceID := strings.TrimSpace(payloadValue(job.Payload, "instance_id"))
+	customerID := strings.TrimSpace(payloadValue(job.Payload, "customer_id"))
+	nodeID := strings.TrimSpace(payloadValue(job.Payload, "node_id"))
+	if instanceID == "" || customerID == "" || nodeID == "" {
+		return musicbotLayout{}, fmt.Errorf("musicbot job must include instance_id, customer_id, node_id, service_name and install_path")
+	}
+	slug := safeMusicbotSlug(fmt.Sprintf("customer_%s_instance_%s_%s", customerID, instanceID, serviceName))
 	binDir := filepath.Join(installPath, "bin")
+	runtimeDir := filepath.Join(installPath, "runtime")
+	dataDir := filepath.Join(installPath, "data")
 	return musicbotLayout{
+		instanceID:   instanceID,
+		customerID:   customerID,
+		nodeID:       nodeID,
 		installPath:  installPath,
-		dataDir:      filepath.Join(installPath, "data"),
+		dataDir:      dataDir,
+		tracksDir:    filepath.Join(dataDir, "tracks"),
+		queueDir:     filepath.Join(dataDir, "queue"),
+		playlistsDir: filepath.Join(dataDir, "playlists"),
 		logDir:       filepath.Join(installPath, "logs"),
 		pluginDir:    filepath.Join(installPath, "plugins"),
+		runtimeDir:   runtimeDir,
+		tmpDir:       filepath.Join(runtimeDir, "tmp"),
+		controlSock:  filepath.Join(installPath, "control.sock"),
+		pulseSock:    filepath.Join(runtimeDir, "pulse", "pulse.sock"),
+		tsHome:       filepath.Join(dataDir, "teamspeak-client", "ts3home"),
+		tsProfile:    filepath.Join(dataDir, "teamspeak-client", "profile"),
+		pulseSink:    "easywi_sink_" + slug,
+		pulseSource:  "easywi_source_" + slug,
+		xvfbDisplay:  musicbotDisplayForSlug(slug),
 		binDir:       binDir,
 		binaryPath:   filepath.Join(binDir, "easywi-musicbot"),
 		configPath:   filepath.Join(installPath, "config.json"),
@@ -364,6 +413,19 @@ func resolveMusicbotLayout(job jobs.Job) (musicbotLayout, error) {
 		unitPath:     filepath.Join(musicbotSystemdUnitDir(job), fmt.Sprintf("%s.service", serviceName)),
 		useSystemctl: musicbotUseSystemctl(job),
 	}, nil
+}
+
+func safeMusicbotSlug(value string) string {
+	replacer := strings.NewReplacer(".", "_", "-", "_", "@", "_")
+	return strings.Trim(replacer.Replace(value), "_")
+}
+
+func musicbotDisplayForSlug(slug string) string {
+	sum := 0
+	for _, ch := range slug {
+		sum += int(ch)
+	}
+	return fmt.Sprintf(":%d", 200+(sum%10000))
 }
 
 func musicbotSystemdUnitDir(job jobs.Job) string {
@@ -402,10 +464,12 @@ func resolveMusicbotRuntimeBinary(job jobs.Job) (string, error) {
 }
 
 func ensureMusicbotDirectories(layout musicbotLayout) error {
-	dirs := []string{layout.installPath, layout.dataDir, layout.logDir, layout.pluginDir, layout.binDir, filepath.Dir(layout.unitPath)}
-	if layout.installPath != "" {
-		dirs = append(dirs, filepath.Join(layout.installPath, "runtime", "tmp"))
+	for _, stale := range []string{layout.controlSock, layout.pulseSock} {
+		if stale != "" {
+			_ = os.Remove(stale)
+		}
 	}
+	dirs := []string{layout.installPath, layout.dataDir, layout.tracksDir, layout.queueDir, layout.playlistsDir, layout.logDir, layout.pluginDir, layout.runtimeDir, layout.tmpDir, filepath.Dir(layout.pulseSock), layout.tsHome, layout.tsProfile, layout.binDir, filepath.Dir(layout.unitPath)}
 	for _, dir := range dirs {
 		if dir == "" || dir == "." {
 			continue
@@ -432,11 +496,29 @@ func writeMusicbotConfig(job jobs.Job, layout musicbotLayout) error {
 		"service_name": layout.serviceName,
 		"install_path": layout.installPath,
 		"data_dir":     layout.dataDir,
+		"tracks_dir":   layout.tracksDir,
+		"queue_dir":    layout.queueDir,
 		"log_dir":      layout.logDir,
 		"plugin_dir":   layout.pluginDir,
+		"runtime_dir":  layout.runtimeDir,
+		"tmp_dir":      layout.tmpDir,
+		"control": map[string]any{
+			"unix_socket": layout.controlSock,
+		},
+		"pulse": map[string]any{
+			"socket": layout.pulseSock, "sink": layout.pulseSink, "source": layout.pulseSource, "blackhole_sink": "easywi_ts3_playback_blackhole_" + safeMusicbotSlug(fmt.Sprintf("customer_%s_instance_%s_%s", layout.customerID, layout.instanceID, layout.serviceName)),
+		},
+		"xvfb": map[string]any{
+			"display": layout.xvfbDisplay,
+		},
 		"teamspeak": map[string]any{
-			"enabled": payloadBool(job.Payload, "teamspeak_enabled"),
-			"config":  map[string]any{"mode": "placeholder"},
+			"enabled":       payloadBool(job.Payload, "teamspeak_enabled"),
+			"instance_path": layout.installPath,
+			"runtime_dir":   layout.runtimeDir,
+			"identity_path": filepath.Join(layout.tsHome, "identity.ini"),
+			"profile":       "ts3",
+			"nickname":      fmt.Sprintf("Easy-Wi Bot %s", layout.instanceID),
+			"config":        map[string]any{"mode": "placeholder", "ts3_home": layout.tsHome, "ts3_profile": layout.tsProfile, "pulse_socket": layout.pulseSock, "playback_device": layout.pulseSink, "capture_device": layout.pulseSource},
 		},
 		"discord": map[string]any{
 			"enabled": payloadBool(job.Payload, "discord_enabled"),
@@ -471,7 +553,12 @@ func musicbotInstallPayload(layout musicbotLayout, binaryPath string) map[string
 	return map[string]any{
 		"installed":      true,
 		"running":        false,
+		"instance_id":    layout.instanceID,
+		"customer_id":    layout.customerID,
+		"node_id":        layout.nodeID,
+		"service_name":   layout.serviceName,
 		"install_path":   layout.installPath,
+		"control_socket": layout.controlSock,
 		"runtime_binary": binaryPath,
 		"config_path":    layout.configPath,
 		"config_mode":    "0600",
@@ -506,6 +593,8 @@ Environment=HOME=%s
 Environment=XDG_CONFIG_HOME=%s/.config
 Environment=XDG_DATA_HOME=%s/.local/share
 Environment=TMPDIR=%s/runtime/tmp
+Environment=PULSE_SERVER=unix:%s/runtime/pulse/pulse.sock
+Environment=EASYWI_MUSICBOT_INSTANCE=%s
 ExecStartPre=/usr/bin/test -d %s
 ExecStart=%s
 StandardOutput=journal
@@ -519,12 +608,12 @@ PrivateTmp=false
 PrivateDevices=false
 ProtectSystem=strict
 ProtectHome=false
-ReadWritePaths=%s /tmp
+ReadWritePaths=%s
 %s
 
 [Install]
 WantedBy=multi-user.target
-`, serviceName, installPath, installPath, installPath, installPath, installPath, installPath, command, installPath, limits)
+`, serviceName, installPath, installPath, installPath, installPath, installPath, installPath, serviceName, installPath, command, installPath, limits)
 }
 
 // handleMusicbotServiceAction wraps handleServiceAction with pre-flight ownership

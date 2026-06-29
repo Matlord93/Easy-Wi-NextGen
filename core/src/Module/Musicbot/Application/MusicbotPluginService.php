@@ -54,7 +54,7 @@ final class MusicbotPluginService
             'identifier' => $manifest->identifier,
         ]);
         if (!$plugin instanceof MusicbotPlugin) {
-            $plugin = new MusicbotPlugin($manifest->identifier, $manifest->name, $manifest->version, $customer, $instance, [], $manifest->permissions);
+            $plugin = new MusicbotPlugin($manifest->identifier, $manifest->name, $manifest->version, $customer, $instance, $this->defaultConfig($manifest), $manifest->permissions);
             $this->entityManager->persist($plugin);
         }
         $plugin->setName($manifest->name);
@@ -69,6 +69,9 @@ final class MusicbotPluginService
     public function setEnabled(User $customer, MusicbotPlugin $plugin, bool $enabled): void
     {
         $this->assertPluginCustomer($customer, $plugin);
+        if ($enabled) {
+            $this->quotaService->assertCanAssignPlugin($customer);
+        }
         $plugin->setEnabled($enabled);
     }
 
@@ -100,5 +103,18 @@ final class MusicbotPluginService
         if ($plugin->getCustomer() !== $customer) {
             throw new \InvalidArgumentException('Plugin does not belong to this customer.');
         }
+    }
+
+    /** @return array<string, mixed> */
+    private function defaultConfig(PluginManifest $manifest): array
+    {
+        $config = ['enabled' => $manifest->enabledByDefault];
+        foreach (($manifest->settingsSchema['properties'] ?? []) as $key => $schema) {
+            if (is_array($schema) && array_key_exists('default', $schema)) {
+                $config[(string) $key] = $schema['default'];
+            }
+        }
+
+        return $config;
     }
 }

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -79,15 +80,24 @@ type LimitsConfig struct {
 }
 
 type PlaybackState struct {
-	State        string        `json:"state"`
-	Current      string        `json:"current,omitempty"`
-	CurrentTrack *CurrentTrack `json:"current_track,omitempty"`
-	Queue        QueueSnapshot `json:"queue"`
-	Volume       int           `json:"volume"`
-	Shuffle      bool          `json:"shuffle"`
-	Repeat       string        `json:"repeat"`
-	UpdatedAt    string        `json:"updated_at"`
-	LastCommand  string        `json:"last_command,omitempty"`
+	State                string        `json:"state"`
+	Current              string        `json:"current,omitempty"`
+	CurrentTrack         *CurrentTrack `json:"current_track,omitempty"`
+	Queue                QueueSnapshot `json:"queue"`
+	Volume               int           `json:"volume"`
+	EffectivePulseVolume int           `json:"effective_pulse_volume,omitempty"`
+	ActualPulseVolume    int           `json:"actual_pulse_volume,omitempty"`
+	PulseSink            string        `json:"pulse_sink,omitempty"`
+	PulseServer          string        `json:"pulse_server,omitempty"`
+	PulseSource          string        `json:"pulse_source,omitempty"`
+	VolumeMapping        string        `json:"volume_mapping,omitempty"`
+	LastVolumeChangeAt   string        `json:"last_volume_change_at,omitempty"`
+	LastVolumeError      string        `json:"last_volume_error,omitempty"`
+	Shuffle              bool          `json:"shuffle"`
+	Repeat               string        `json:"repeat"`
+	UpdatedAt            string        `json:"updated_at"`
+	LastCommand          string        `json:"last_command,omitempty"`
+	LastError            string        `json:"last_error,omitempty"`
 }
 
 type Runtime struct {
@@ -102,6 +112,8 @@ type Runtime struct {
 	mu           sync.Mutex
 	started      time.Time
 }
+
+var execCommandContext = exec.CommandContext
 
 type commandRequest struct {
 	Command string         `json:"command"`
@@ -173,8 +185,10 @@ func New(config Config, console io.Writer) (*Runtime, error) {
 		connectors: connectors,
 		pipeline:   NewAudioPipeline(NewFileAudioSourceResolver(config.DataDir), FFmpegDecoder{}, DummyResampler{}, DummyOpusEncoder{}, NullAudioOutput{}),
 		playback: PlaybackState{
-			State:  "stopped",
-			Volume: 100,
+			State:                "stopped",
+			Volume:               100,
+			EffectivePulseVolume: mapPanelVolumeToPulseVolume(100),
+			VolumeMapping:        volumeMappingDescription,
 			Queue: QueueSnapshot{
 				InstanceID:  config.InstanceID,
 				Items:       []QueueTrack{},
@@ -263,9 +277,9 @@ func (r *Runtime) Run(ctx context.Context, input io.Reader, output io.Writer) er
 	}
 }
 
-// autoConnectAll connects all enabled connectors and auto-joins the configured
-// TeamSpeak channel. Context cancellation (e.g. from a racing shutdown) is
-// treated as a clean exit, not a logged error.
+// autoConnectAll connects all enabled connectors and auto-joins configured
+// channels. Context cancellation (e.g. from a racing shutdown) is treated as
+// a clean exit, not a logged error.
 func (r *Runtime) autoConnectAll(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
@@ -274,11 +288,15 @@ func (r *Runtime) autoConnectAll(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		if platform == "teamspeak" && !r.config.TeamSpeak.Autoconnect {
+		if !connector.ShouldAutoconnect() {
 			continue
 		}
-		if platform == "teamspeak" && teamspeakBackendType(r.config.TeamSpeak) == TeamSpeakBackendTypeExternalClientBridge {
-			r.logger.Printf("external client bridge starting")
+		// TeamSpeak external-client-bridge requires logger attachment before Connect.
+		if ts, ok := connector.(*TeamSpeakVoiceConnector); ok {
+			if teamspeakBackendType(ts.config) == TeamSpeakBackendTypeExternalClientBridge {
+				r.attachTeamspeakBridgeLogger(connector)
+				r.logger.Printf("event=BridgeStarted phase=runtime_start external_client_bridge starting")
+			}
 		}
 		if err := connector.Connect(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -287,26 +305,44 @@ func (r *Runtime) autoConnectAll(ctx context.Context) {
 			r.logger.Printf("auto-connect %s: %v", platform, err)
 			continue
 		}
-		if platform == "teamspeak" && teamspeakBackendType(r.config.TeamSpeak) == TeamSpeakBackendTypeExternalClientBridge {
+		if ts, ok := connector.(*TeamSpeakVoiceConnector); ok && teamspeakBackendType(ts.config) == TeamSpeakBackendTypeExternalClientBridge {
+			r.logTeamspeakRuntimeStatus("ClientConnected", connector.GetStatus(context.Background()))
 			r.logger.Printf("teamspeak auto-connect started")
 		} else {
 			r.logger.Printf("auto-connect %s: ok", platform)
 		}
-		if platform == "teamspeak" {
-			channelID := teamspeakConfigString(r.config.TeamSpeak, "channel_id")
-			if channelID == "" {
-				continue
+		channelID := connector.InitialChannelID()
+		if channelID == "" {
+			continue
+		}
+		if err := connector.JoinChannel(ctx, channelID); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
 			}
-			if err := connector.JoinChannel(ctx, channelID); err != nil {
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				r.logger.Printf("auto-join teamspeak channel %s: %v", channelID, err)
-			} else {
-				r.logger.Printf("auto-join teamspeak channel %s: ok", channelID)
+			r.logger.Printf("auto-join %s channel %s: %v", platform, channelID, err)
+		} else {
+			r.logger.Printf("auto-join %s channel %s: ok", platform, channelID)
+			if ts, ok := connector.(*TeamSpeakVoiceConnector); ok && teamspeakBackendType(ts.config) == TeamSpeakBackendTypeExternalClientBridge {
+				r.logTeamspeakRuntimeStatus("RuntimeStatusPublished", connector.GetStatus(context.Background()))
 			}
 		}
 	}
+}
+
+func (r *Runtime) attachTeamspeakBridgeLogger(connector Connector) {
+	ts, ok := connector.(*TeamSpeakVoiceConnector)
+	if !ok {
+		return
+	}
+	if external, ok := ts.voiceClient.(*ExternalBridgeTeamspeakVoiceClient); ok {
+		external.SetLogger(r.logger)
+	}
+}
+
+func (r *Runtime) logTeamspeakRuntimeStatus(event string, status ConnectionStatus) {
+	audioReady := status.Connected && status.VoiceClientAvailable && status.CapabilityStatus == CapabilityStatusReady && status.OutputBackend == "teamspeak_voice"
+	r.logger.Printf("event=%s platform=teamspeak state_connected=%v server_connected=%v voice_client_available=%v audio_injection_ready=%v capability_status=%s output_backend=%s connected_clid=%s connected_cid=%s",
+		event, status.Connected, status.Connected, status.VoiceClientAvailable, audioReady, status.CapabilityStatus, status.OutputBackend, status.ClientID, status.ChannelID)
 }
 
 func (r *Runtime) HandleCommand(line string) commandResponse {
@@ -323,13 +359,33 @@ func (r *Runtime) HandleCommand(line string) commandResponse {
 		return commandResponse{OK: true, Command: command, Payload: r.statusPayload()}
 	case "connection_status":
 		return r.handleConnectionStatus(request.Args)
-	case "play", "pause", "resume", "stop", "skip", "volume", "shuffle", "repeat":
+	case "reconnect", "reload_config":
+		return r.handleReconnect(command)
+	case "play", "pause", "resume", "stop", "skip", "volume", "seek", "shuffle", "repeat":
 		return r.handlePlayback(command, request.Args)
 	case "queue.sync":
 		return r.handleQueueSync(request.Args)
 	default:
 		return commandResponse{OK: false, Command: command, Error: "unsupported command"}
 	}
+}
+
+func (r *Runtime) handleReconnect(command string) commandResponse {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	reconnected := []string{}
+	for platform, connector := range r.connectors {
+		if err := connector.Reconnect(ctx); err != nil {
+			return commandResponse{OK: false, Command: command, Error: fmt.Sprintf("%s reconnect failed: %v", platform, err)}
+		}
+		reconnected = append(reconnected, platform)
+	}
+
+	return commandResponse{OK: true, Command: command, Payload: map[string]any{
+		"reconnected": reconnected,
+		"connectors":  r.connectorStatuses(),
+	}}
 }
 
 func parseCommand(line string) commandRequest {
@@ -385,14 +441,33 @@ func (r *Runtime) connectorStatuses() map[string]any {
 	return statuses
 }
 
+// primaryConnectorStatus returns the status of the primary active connector.
+// TeamSpeak is preferred for backward compat; falls back to any other connector.
+func (r *Runtime) primaryConnectorStatus(ctx context.Context) ConnectionStatus {
+	if connector, ok := r.connectors["teamspeak"]; ok {
+		return connector.GetStatus(ctx)
+	}
+	for _, connector := range r.connectors {
+		return connector.GetStatus(ctx)
+	}
+	return ConnectionStatus{}
+}
+
 func (r *Runtime) statusPayload() map[string]any {
 	r.mu.Lock()
 	snap := r.pipeline.Snapshot()
 	snap.CurrentSource = "" // strip absolute path — must not leak
 	playbackStatus := r.buildPlaybackStatusLocked(snap)
 	safePlayback := r.buildSafePlaybackLocked()
+	primaryStatus := r.primaryConnectorStatus(context.Background())
+	stateConnected := primaryStatus.Connected
+	tsServerConnected := primaryStatus.Connected // backward compat alias
+	voiceClientAvailable := primaryStatus.VoiceClientAvailable
+	capabilityStatus := string(primaryStatus.CapabilityStatus)
+	audioInjectionReady := playbackStatus["audio_injection_ready"] == true
+	runtimeReady := stateConnected && tsServerConnected && voiceClientAvailable && audioInjectionReady && capabilityStatus == string(CapabilityStatusReady)
 	r.mu.Unlock()
-	return map[string]any{
+	payload := map[string]any{
 		"installed":  true,
 		"running":    true,
 		"version":    Version,
@@ -412,7 +487,23 @@ func (r *Runtime) statusPayload() map[string]any {
 			"manifests":         r.pluginManifestSummaries(),
 			"execution_enabled": false,
 		},
+		"state_connected":        stateConnected,
+		"ts_server_connected":    tsServerConnected,
+		"voice_client_available": voiceClientAvailable,
+		"audio_injection_ready":  audioInjectionReady,
+		"capability_status":      capabilityStatus,
+		"runtime_ready":          runtimeReady,
 	}
+	r.logger.Printf("event=RuntimeStatusPublished payload=%s", mustJSON(payload))
+	return payload
+}
+
+func mustJSON(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf(`{"error":%q}`, err.Error())
+	}
+	return string(b)
 }
 
 // buildPlaybackStatusLocked returns a flat map with all playback telemetry fields.
@@ -435,29 +526,97 @@ func (r *Runtime) buildPlaybackStatusLocked(snap AudioPipelineStatus) map[string
 			}
 		}
 	}
+	audioReady, audioBackendStatus, audioBackendMessage := r.audioBackendStatusLocked()
 	return map[string]any{
-		"playback_state":        r.playback.State,
-		"current_queue_item_id": currentQueueItemID,
-		"current_track_id":      currentTrackID,
-		"current_title":         currentTitle,
-		"current_artist":        currentArtist,
-		"current_source":        currentSource,
-		"playback_position_ms":  snap.PlaybackPositionMs,
-		"duration_ms":           durationMs,
-		"queue_length":          len(r.playback.Queue.Items),
-		"repeat_mode":           r.playback.Repeat,
-		"shuffle":               r.playback.Shuffle,
-		"decoder_backend":       snap.DecoderBackend,
-		"decoder_status":        snap.DecoderStatus,
-		"output_backend":        r.pipeline.OutputBackendName(),
-		"output_status":         snap.OutputStatus,
-		"frames_processed":      snap.FramesProcessed,
-		"frames_sent":           snap.FramesSent,
-		"last_error":            snap.LastError,
-		"last_output_error":     snap.LastOutputError,
-		"teamspeak_profile":     r.teamspeakProfileForStatus(),
-		"last_state_change_at":  r.playback.UpdatedAt,
+		"playback_state":                        r.playback.State,
+		"current_queue_item_id":                 currentQueueItemID,
+		"current_track_id":                      currentTrackID,
+		"current_title":                         currentTitle,
+		"current_artist":                        currentArtist,
+		"current_source":                        currentSource,
+		"playback_position_ms":                  snap.PlaybackPositionMs,
+		"duration_ms":                           durationMs,
+		"queue_length":                          len(r.playback.Queue.Items),
+		"repeat_mode":                           r.playback.Repeat,
+		"shuffle":                               r.playback.Shuffle,
+		"decoder_backend":                       snap.DecoderBackend,
+		"decoder_status":                        snap.DecoderStatus,
+		"output_backend":                        r.pipeline.OutputBackendName(),
+		"output_status":                         snap.OutputStatus,
+		"frames_processed":                      snap.FramesProcessed,
+		"frames_sent":                           snap.FramesSent,
+		"frame_interval_ms":                     snap.FrameIntervalMs,
+		"late_frames":                           snap.LateFrames,
+		"write_latency_ms":                      snap.WriteLatencyMs,
+		"last_error":                            firstNonEmpty(r.playback.LastVolumeError, r.playback.LastError, snap.LastError),
+		"last_output_error":                     snap.LastOutputError,
+		"source_type":                           snap.SourceType,
+		"mime_type":                             snap.MimeType,
+		"detected_extension":                    snap.DetectedExtension,
+		"ffmpeg_path":                           snap.FFmpegPath,
+		"ffmpeg_command_without_sensitive_data": snap.FFmpegCommand,
+		"ffmpeg_exit_error":                     snap.FFmpegExitError,
+		"stderr_summary":                        snap.FFmpegStderr,
+		"bytes_read":                            snap.BytesRead,
+		"audio_injection_ready":                 audioReady,
+		"audio_backend_ready":                   audioReady,
+		"audio_backend_status":                  audioBackendStatus,
+		"audio_backend_message":                 audioBackendMessage,
+		"pcm_writer_mode":                       pcmWriterModeForStatus(audioReady, r.pipeline.OutputBackendName()),
+		"frame_duration_ms":                     20,
+		"frame_size_bytes":                      3840,
+		"output_sample_rate":                    48000,
+		"output_channels":                       2,
+		"teamspeak_profile":                     r.teamspeakProfileForStatus(),
+		"last_state_change_at":                  r.playback.UpdatedAt,
+		"panel_volume":                          r.playback.Volume,
+		"effective_pulse_volume":                r.playback.EffectivePulseVolume,
+		"actual_pulse_volume":                   r.playback.ActualPulseVolume,
+		"pulse_sink":                            r.playback.PulseSink,
+		"pulse_server":                          r.playback.PulseServer,
+		"pulse_source":                          r.playback.PulseSource,
+		"volume_mapping":                        r.playback.VolumeMapping,
+		"last_volume_change_at":                 r.playback.LastVolumeChangeAt,
+		"last_volume_error":                     r.playback.LastVolumeError,
 	}
+}
+
+func (r *Runtime) audioBackendStatusLocked() (bool, string, string) {
+	for _, platform := range []string{"teamspeak", "discord"} {
+		connector, ok := r.connectors[platform]
+		if !ok {
+			continue
+		}
+		status := connector.GetStatus(context.Background())
+		if status.Connected && status.VoiceClientAvailable && status.CapabilityStatus == CapabilityStatusReady {
+			return true, "ready", connector.Platform() + " Audio bereit"
+		}
+		if status.Connected {
+			reason := status.StatusMessage
+			if reason == "" {
+				reason = status.LastError
+			}
+			if reason == "" {
+				reason = "Audio wird vorbereitet"
+			}
+			return false, "not_ready", connector.Platform() + " verbunden, Audio nicht bereit: " + reason
+		}
+	}
+	// Derive a helpful message based on what is configured.
+	if r.config.TeamSpeak.Enabled {
+		return false, "not_ready", "TeamSpeak muss verbunden und Backend eingerichtet sein"
+	}
+	if r.config.Discord.Enabled {
+		return false, "not_ready", "Discord muss verbunden und Voice-Backend eingerichtet sein"
+	}
+	return false, "not_ready", "Kein Connector verbunden"
+}
+
+func pcmWriterModeForStatus(audioReady bool, outputBackend string) string {
+	if audioReady && (outputBackend == "teamspeak_voice" || outputBackend == "discord_voice") {
+		return "persistent"
+	}
+	return ""
 }
 
 func (r *Runtime) teamspeakProfileForStatus() string {
@@ -512,11 +671,19 @@ func (r *Runtime) buildSafePlaybackLocked() map[string]any {
 			"revision":     r.playback.Queue.Revision,
 			"generated_at": r.playback.Queue.GeneratedAt,
 		},
-		"volume":       r.playback.Volume,
-		"shuffle":      r.playback.Shuffle,
-		"repeat":       r.playback.Repeat,
-		"updated_at":   r.playback.UpdatedAt,
-		"last_command": r.playback.LastCommand,
+		"volume":                 r.playback.Volume,
+		"effective_pulse_volume": r.playback.EffectivePulseVolume,
+		"actual_pulse_volume":    r.playback.ActualPulseVolume,
+		"pulse_sink":             r.playback.PulseSink,
+		"pulse_server":           r.playback.PulseServer,
+		"pulse_source":           r.playback.PulseSource,
+		"volume_mapping":         r.playback.VolumeMapping,
+		"last_volume_change_at":  r.playback.LastVolumeChangeAt,
+		"last_volume_error":      r.playback.LastVolumeError,
+		"shuffle":                r.playback.Shuffle,
+		"repeat":                 r.playback.Repeat,
+		"updated_at":             r.playback.UpdatedAt,
+		"last_command":           r.playback.LastCommand,
 	}
 }
 
@@ -582,11 +749,42 @@ func (r *Runtime) handlePlayback(command string, args map[string]any) commandRes
 	case "play":
 		source, track, err := r.sourceFromPlaybackArgsLocked(args)
 		if err != nil {
-			r.playback.State = "playing"
+			r.playback.State = "stopped"
+			r.playback.LastError = err.Error()
 			playback := r.playback
 			r.mu.Unlock()
 			r.logger.Printf("playback command=%s state=%s without source: %v", command, playback.State, err)
-			return commandResponse{OK: true, Command: command, Payload: map[string]any{"playback": playback}}
+			return commandResponse{OK: false, Command: command, Error: err.Error(), Payload: map[string]any{"playback": playback}}
+		}
+		if source.Type == TrackSourceYouTube && strings.TrimSpace(source.URI) != "" && !strings.Contains(source.URI, "googlevideo.com") {
+			resolved, resolveErr := resolveYouTubeAudioURL(context.Background(), source.URI)
+			if resolveErr != nil {
+				r.playback.State = "error"
+				r.playback.LastError = resolveErr.Error()
+				playback := r.playback
+				r.mu.Unlock()
+				return commandResponse{OK: false, Command: command, Error: resolveErr.Error(), Payload: map[string]any{"playback": playback}}
+			}
+			if source.Metadata == nil {
+				source.Metadata = map[string]any{}
+			}
+			source.Metadata["youtube_url"] = source.URI
+			source.URI = resolved
+		}
+		explicitSource := hasExplicitPlaybackSource(args)
+		if explicitSource && !isRemoteAudioSource(source) {
+			resolved, prepErr := r.pipeline.LoadSource(context.Background(), source)
+			if resolved.Reader != nil {
+				_ = resolved.Reader.Close()
+			}
+			if prepErr != nil {
+				r.playback.State = "error"
+				r.playback.LastError = prepErr.Error()
+				playback := r.playback
+				r.mu.Unlock()
+				r.logger.Printf("playback command=%s state=%s source_error=%v", command, playback.State, prepErr)
+				return commandResponse{OK: false, Command: command, Error: prepErr.Error(), Payload: map[string]any{"accepted": false, "playback": playback}}
+			}
 		}
 		if r.playCancel != nil {
 			r.playCancel()
@@ -594,6 +792,7 @@ func (r *Runtime) handlePlayback(command string, args map[string]any) commandRes
 		ctx, cancel := context.WithCancel(context.Background())
 		r.playCancel = cancel
 		r.playback.State = "playing"
+		r.playback.LastError = ""
 		r.playback.Current = source.URI
 		if track != nil {
 			copy := *track
@@ -669,8 +868,37 @@ func (r *Runtime) handlePlayback(command string, args map[string]any) commandRes
 		}
 		r.playback.State = "stopped"
 	case "volume":
-		if value, ok := args["value"]; ok {
-			r.playback.Volume = clampVolume(value)
+		panelVolume := r.playback.Volume
+		if value, ok := args["volume"]; ok {
+			panelVolume = clampVolume(value)
+		} else if value, ok := args["value"]; ok {
+			panelVolume = clampVolume(value)
+		}
+		pulseVolume := mapPanelVolumeToPulseVolume(panelVolume)
+		r.playback.Volume = panelVolume
+		r.playback.EffectivePulseVolume = pulseVolume
+		r.playback.VolumeMapping = volumeMappingDescription
+		result, err := r.setPulseSinkVolume(context.Background(), pulseVolume)
+		r.playback.PulseSink = result.Sink
+		r.playback.PulseServer = result.PulseServer
+		r.playback.ActualPulseVolume = result.ActualVolume
+		if err != nil {
+			r.playback.LastError = err.Error()
+			r.playback.LastVolumeError = err.Error()
+			r.logger.Printf("musicbot-runtime volume_apply_failed panel_volume=%d effective_pulse_volume=%d pulse_sink=%s pulse_server=%s error=%q", panelVolume, pulseVolume, result.Sink, result.PulseServer, err.Error())
+		} else {
+			r.playback.LastVolumeError = ""
+			r.playback.LastVolumeChangeAt = time.Now().UTC().Format(time.RFC3339)
+			r.logger.Printf("musicbot-runtime volume_apply panel_volume=%d effective_pulse_volume=%d pulse_sink=%s pulse_server=%s pactl_exit=0 actual_pulse_volume=%d", panelVolume, pulseVolume, result.Sink, result.PulseServer, result.ActualVolume)
+		}
+	case "seek":
+		// The current pipeline is streaming-only; keep the command accepted and
+		// reflected in playback state so status refreshes show the live control.
+		if position, ok := args["position_ms"]; ok && r.playback.CurrentTrack != nil {
+			if r.playback.CurrentTrack.Metadata == nil {
+				r.playback.CurrentTrack.Metadata = map[string]any{}
+			}
+			r.playback.CurrentTrack.Metadata["position_ms"] = asString(position)
 		}
 	case "shuffle":
 		r.playback.Shuffle = !r.playback.Shuffle
@@ -687,12 +915,47 @@ func (r *Runtime) handlePlayback(command string, args map[string]any) commandRes
 	playback := r.playback
 	r.mu.Unlock()
 	r.logger.Printf("playback command=%s state=%s", command, playback.State)
-	return commandResponse{OK: true, Command: command, Payload: map[string]any{"playback": playback}}
+	payload := map[string]any{"playback": playback}
+	if command == "volume" {
+		payload["panel_volume"] = playback.Volume
+		payload["pulse_volume"] = playback.EffectivePulseVolume
+		payload["effective_pulse_volume"] = playback.EffectivePulseVolume
+		payload["actual_pulse_volume"] = playback.ActualPulseVolume
+		payload["pulse_sink"] = playback.PulseSink
+		payload["pulse_server"] = playback.PulseServer
+		payload["pulse_source"] = playback.PulseSource
+		payload["volume_mapping"] = playback.VolumeMapping
+		payload["last_volume_change_at"] = playback.LastVolumeChangeAt
+		payload["last_volume_error"] = playback.LastVolumeError
+	}
+	return commandResponse{OK: true, Command: command, Payload: payload}
 }
 
 func (r *Runtime) sourceFromPlaybackArgsLocked(args map[string]any) (AudioSource, *CurrentTrack, error) {
-	if raw := asString(args["path"]); raw != "" {
-		return AudioSource{Type: TrackSourceUpload, URI: raw}, nil, nil
+	sourceType := TrackSourceType(strings.TrimSpace(asString(args["source_type"])))
+	var sourceRaw map[string]any
+	if raw, ok := args["source"].(map[string]any); ok {
+		sourceRaw = raw
+		if sourceType == "" {
+			sourceType = TrackSourceType(strings.TrimSpace(asString(raw["type"])))
+		}
+	}
+	mimeType := firstNonEmpty(asString(args["mime_type"]), asString(sourceRaw["mime_type"]))
+	if raw := firstNonEmpty(asString(args["youtube_url"]), asString(sourceRaw["youtube_url"])); raw != "" && sourceType == TrackSourceYouTube {
+		resolved, err := resolveYouTubeAudioURL(context.Background(), raw)
+		if err != nil {
+			return AudioSource{}, nil, err
+		}
+		return AudioSource{Type: TrackSourceYouTube, URI: resolved, MimeType: mimeType, Metadata: map[string]any{"youtube_url": raw, "resolved_by": "yt-dlp"}}, nil, nil
+	}
+	if raw := firstNonEmpty(asString(args["radio_url"]), asString(args["url"]), asString(args["youtube_url"]), asString(sourceRaw["url"]), asString(sourceRaw["uri"])); raw != "" && (sourceType == TrackSourceRadio || sourceType == TrackSourceStream || sourceType == TrackSourceURL || sourceType == TrackSourceYouTube || strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://")) {
+		if sourceType == "" {
+			sourceType = TrackSourceRadio
+		}
+		return AudioSource{Type: sourceType, URI: raw, MimeType: mimeType}, nil, nil
+	}
+	if raw := firstNonEmpty(asString(args["file_path"]), asString(args["path"]), asString(sourceRaw["file_path"]), asString(sourceRaw["path"]), asString(sourceRaw["uri"])); raw != "" && (sourceType == "" || sourceType == TrackSourceUpload || sourceType == "local_file") {
+		return AudioSource{Type: TrackSourceUpload, URI: raw, MimeType: mimeType}, nil, nil
 	}
 	if raw := asString(args["file"]); raw != "" {
 		return AudioSource{Type: TrackSourceUpload, URI: raw}, nil, nil
@@ -709,6 +972,28 @@ func (r *Runtime) sourceFromPlaybackArgsLocked(args map[string]any) (AudioSource
 		return item.Source, track, nil
 	}
 	return AudioSource{}, nil, errors.New("play requires a local track/file path or a queue item")
+}
+
+func resolveYouTubeAudioURL(ctx context.Context, youtubeURL string) (string, error) {
+	if _, err := exec.LookPath("yt-dlp"); err != nil {
+		return "", fmt.Errorf("youtube playback unavailable: install yt-dlp and ensure it is in PATH: %w", err)
+	}
+	cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(cmdCtx, "yt-dlp", "--get-url", "--format", "bestaudio/best", "--no-playlist", "--no-warnings", "--quiet", youtubeURL).CombinedOutput()
+	if cmdCtx.Err() != nil {
+		return "", fmt.Errorf("youtube playback unavailable: yt-dlp timed out")
+	}
+	if err != nil {
+		return "", fmt.Errorf("youtube playback unavailable: yt-dlp failed: %s", strings.TrimSpace(string(out)))
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://") {
+			return line, nil
+		}
+	}
+	return "", errors.New("youtube playback unavailable: yt-dlp returned no audio stream URL")
 }
 
 // StartStreamServer starts the webradio HTTP stream server if configured and enabled.
@@ -729,17 +1014,16 @@ func (r *Runtime) StartStreamServer(ctx context.Context) error {
 
 func (r *Runtime) selectAudioOutput(ctx context.Context) {
 	var primary AudioOutput = NullAudioOutput{}
-	if connector, ok := r.connectors["teamspeak"].(*TeamSpeakVoiceConnector); ok {
-		status := connector.GetStatus(ctx)
-		if status.VoiceClientAvailable && status.CapabilityStatus == CapabilityStatusReady {
-			primary = NewTeamspeakAudioOutputFromConnector(connector)
+	// Iterate in priority order: TeamSpeak first (default), Discord as fallback.
+	for _, platform := range []string{"teamspeak", "discord"} {
+		connector, ok := r.connectors[platform]
+		if !ok {
+			continue
 		}
-	}
-	if _, isNull := primary.(NullAudioOutput); isNull {
-		if connector, ok := r.connectors["discord"].(*DiscordConnector); ok {
-			status := connector.GetStatus(ctx)
-			if status.VoiceClientAvailable && status.CapabilityStatus == CapabilityStatusReady {
-				primary = NewDiscordAudioOutputWithConfig(connector.voiceClient, connector.config.Config)
+		if out := connector.CreateAudioOutput(ctx); out != nil {
+			if _, isNull := out.(NullAudioOutput); !isNull {
+				primary = out
+				break
 			}
 		}
 	}
@@ -763,6 +1047,7 @@ func (r *Runtime) runPipelineTrack(ctx context.Context, source AudioSource, volu
 	}
 	if err != nil {
 		r.playback.State = "error"
+		r.playback.LastError = err.Error()
 		r.logger.Printf("audio pipeline error: %v", err)
 		r.mu.Unlock()
 		return
@@ -826,9 +1111,8 @@ func (r *Runtime) handleQueueSync(args map[string]any) commandResponse {
 		}
 		sourceRaw, _ := item["source"].(map[string]any)
 		sourceType := TrackSourceType(strings.TrimSpace(asString(sourceRaw["type"])))
-		uri := strings.TrimSpace(asString(sourceRaw["uri"]))
-		// Only accept local upload tracks — no external sources
-		if sourceType != TrackSourceUpload || uri == "" {
+		uri := strings.TrimSpace(firstNonEmpty(asString(sourceRaw["uri"]), asString(sourceRaw["url"]), asString(sourceRaw["youtube_url"])))
+		if uri == "" || (sourceType != TrackSourceUpload && sourceType != TrackSourceRadio && sourceType != TrackSourceYouTube) {
 			continue
 		}
 		metadata, _ := item["metadata"].(map[string]any)
@@ -885,6 +1169,219 @@ func (r *Runtime) handleQueueSync(args map[string]any) commandResponse {
 	}}
 }
 
+const volumeMappingDescription = "0=>0, 1=>15, 100=>115"
+
+func mapPanelVolumeToPulseVolume(panelVolume int) int {
+	if panelVolume < 0 {
+		panelVolume = 0
+	}
+	if panelVolume > 100 {
+		panelVolume = 100
+	}
+	if panelVolume == 0 {
+		return 0
+	}
+	pulseVolume := 15 + ((panelVolume - 1) * 100 / 99)
+	if pulseVolume < 0 {
+		return 0
+	}
+	if pulseVolume > 115 {
+		return 115
+	}
+	return pulseVolume
+}
+
+type pulseVolumeApplyResult struct {
+	Sink         string
+	PulseServer  string
+	ActualVolume int
+}
+
+func (r *Runtime) setPulseSinkVolume(ctx context.Context, pulseVolume int) (pulseVolumeApplyResult, error) {
+	result := pulseVolumeApplyResult{PulseServer: r.instancePulseServer()}
+	sink, discoveryOutput, discoveryErr := r.activeMusicPulseSink(ctx, result.PulseServer)
+	result.Sink = sink
+	if strings.Contains(sink, "blackhole") {
+		return result, fmt.Errorf("PulseAudio sink volume unavailable: refusing blackhole sink %s", sink)
+	}
+	if sink == "" {
+		details := strings.TrimSpace(discoveryOutput)
+		if details == "" {
+			details = "<empty>"
+		}
+		if discoveryErr != nil {
+			return result, fmt.Errorf("PulseAudio sink volume unavailable: no active easywi_sink_* sink found (blackhole ignored); pulse_server=%s; pactl list short sinks error=%v; output=%s", result.PulseServer, discoveryErr, details)
+		}
+		return result, fmt.Errorf("PulseAudio sink volume unavailable: no active easywi_sink_* sink found (blackhole ignored); pulse_server=%s; pactl list short sinks output=%s", result.PulseServer, details)
+	}
+	if result.PulseServer == "" {
+		return result, errors.New("PulseAudio sink volume unavailable: no instance PulseAudio socket configured")
+	}
+	if pulseVolume < 0 {
+		pulseVolume = 0
+	}
+	if pulseVolume > 115 {
+		pulseVolume = 115
+	}
+	env := append(os.Environ(), "PULSE_SERVER="+result.PulseServer)
+	cmd := execCommandContext(ctx, "pactl", "set-sink-volume", sink, fmt.Sprintf("%d%%", pulseVolume))
+	cmd.Env = env
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(output))
+		if msg != "" {
+			return result, fmt.Errorf("set PulseAudio sink volume %s to %d%%: %w: %s", sink, pulseVolume, err, msg)
+		}
+		return result, fmt.Errorf("set PulseAudio sink volume %s to %d%%: %w", sink, pulseVolume, err)
+	}
+	result.ActualVolume = pulseVolume
+	if actual, err := r.readPulseSinkVolume(ctx, env, sink); err == nil && actual >= 0 {
+		result.ActualVolume = actual
+	}
+	return result, nil
+}
+
+func (r *Runtime) activeMusicPulseSink(ctx context.Context, pulseServer string) (string, string, error) {
+	if connector, ok := r.connectors["teamspeak"].(*TeamSpeakVoiceConnector); ok {
+		if external, ok := connector.voiceClient.(*ExternalBridgeTeamspeakVoiceClient); ok {
+			if sink, source, pulseSocket := external.pulseAudioStateFromBridgeLogs(); strings.TrimSpace(sink) != "" {
+				r.playback.PulseSink = strings.TrimSpace(sink)
+				r.playback.PulseSource = strings.TrimSpace(source)
+				if strings.TrimSpace(pulseSocket) != "" {
+					r.playback.PulseServer = resolvePulseServer(r.installPathForPulseServer(), pulseSocket)
+				}
+				return strings.TrimSpace(sink), "", nil
+			}
+		}
+	}
+	cached := strings.TrimSpace(firstNonEmpty(
+		r.playback.PulseSink,
+		teamspeakConfigString(r.config.TeamSpeak, "playback_device"),
+		teamspeakConfigString(r.config.TeamSpeak, "pulse_sink"),
+		teamspeakConfigString(r.config.TeamSpeak, "sink"),
+	))
+	if cached != "" {
+		return cached, "", nil
+	}
+	if pulseServer == "" {
+		return "", "", nil
+	}
+	output, err := r.listPulseSinks(ctx, pulseServer)
+	if sink := findMusicSink(output); sink != "" {
+		r.playback.PulseSink = sink
+		return sink, output, nil
+	}
+	return "", output, err
+}
+
+func (r *Runtime) instancePulseServer() string {
+	if connector, ok := r.connectors["teamspeak"].(*TeamSpeakVoiceConnector); ok {
+		if external, ok := connector.voiceClient.(*ExternalBridgeTeamspeakVoiceClient); ok {
+			if sink, source, pulseSocket := external.pulseAudioStateFromBridgeLogs(); strings.TrimSpace(pulseSocket) != "" {
+				r.playback.PulseSink = strings.TrimSpace(sink)
+				r.playback.PulseSource = strings.TrimSpace(source)
+				r.playback.PulseServer = resolvePulseServer(r.installPathForPulseServer(), pulseSocket)
+				return r.playback.PulseServer
+			}
+		}
+	}
+	return resolvePulseServer(r.installPathForPulseServer(), teamspeakConfigString(r.config.TeamSpeak, "pulse_socket"))
+}
+
+func (r *Runtime) installPathForPulseServer() string {
+	return strings.TrimSpace(firstNonEmpty(
+		teamspeakConfigString(r.config.TeamSpeak, "runtime_dir"),
+		r.config.TeamSpeak.RuntimeDir,
+		r.config.InstallPath,
+		teamspeakConfigString(r.config.TeamSpeak, "instance_path"),
+		r.config.TeamSpeak.InstancePath,
+	))
+}
+
+func resolvePulseServer(installPath, configuredPulseSocket string) string {
+	socket := strings.TrimSpace(configuredPulseSocket)
+	if strings.HasPrefix(socket, "unix:") {
+		return socket
+	}
+	if socket == "" {
+		if strings.TrimSpace(installPath) == "" {
+			return ""
+		}
+		return "unix:" + filepath.Join(trimBridgeRuntimeSuffix(installPath), "runtime", "teamspeak-bridge", "pulse", "pulse.sock")
+	}
+	if filepath.IsAbs(socket) {
+		return "unix:" + removeDuplicateBridgeRuntime(filepath.Clean(socket))
+	}
+	return "unix:" + removeDuplicateBridgeRuntime(filepath.Join(trimBridgeRuntimeSuffix(installPath), socket))
+}
+
+func trimBridgeRuntimeSuffix(path string) string {
+	path = filepath.Clean(strings.TrimSpace(path))
+	suffix := filepath.Join("runtime", "teamspeak-bridge")
+	if strings.HasSuffix(path, suffix) {
+		return strings.TrimSuffix(path, suffix)
+	}
+	return path
+}
+
+func removeDuplicateBridgeRuntime(path string) string {
+	dup := filepath.Join("runtime", "teamspeak-bridge", "runtime", "teamspeak-bridge")
+	for strings.Contains(path, dup) {
+		path = strings.ReplaceAll(path, dup, filepath.Join("runtime", "teamspeak-bridge"))
+	}
+	return path
+}
+
+func (r *Runtime) listPulseSinks(ctx context.Context, pulseServer string) (string, error) {
+	cmd := execCommandContext(ctx, "pactl", "list", "short", "sinks")
+	cmd.Env = append(os.Environ(), "PULSE_SERVER="+pulseServer)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
+func findMusicSink(output string) string {
+	var first string
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		name := fields[1]
+		if !strings.HasPrefix(name, "easywi_sink_") || strings.HasPrefix(name, "easywi_ts3_playback_blackhole_") || strings.Contains(name, "blackhole") {
+			continue
+		}
+		if first == "" {
+			first = name
+		}
+		for _, field := range fields[2:] {
+			if field == "RUNNING" {
+				return name
+			}
+		}
+	}
+	return first
+}
+
+func (r *Runtime) readPulseSinkVolume(ctx context.Context, env []string, sink string) (int, error) {
+	cmd := execCommandContext(ctx, "pactl", "get-sink-volume", sink)
+	cmd.Env = env
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return -1, err
+	}
+	fields := strings.Fields(string(output))
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if strings.HasSuffix(field, "%") {
+			var value int
+			if _, scanErr := fmt.Sscanf(field, "%d%%", &value); scanErr == nil {
+				return value, nil
+			}
+		}
+	}
+	return -1, errors.New("PulseAudio sink volume unavailable: pactl get-sink-volume returned no percentage")
+}
+
 func clampVolume(value any) int {
 	volume := 100
 	switch typed := value.(type) {
@@ -902,4 +1399,16 @@ func clampVolume(value any) int {
 		return 100
 	}
 	return volume
+}
+
+func hasExplicitPlaybackSource(args map[string]any) bool {
+	if args == nil {
+		return false
+	}
+	for _, key := range []string{"radio_url", "url", "path", "file_path", "file", "track", "source"} {
+		if _, ok := args[key]; ok {
+			return true
+		}
+	}
+	return false
 }

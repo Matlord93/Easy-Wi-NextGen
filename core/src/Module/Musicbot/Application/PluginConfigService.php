@@ -41,13 +41,17 @@ final class PluginConfigService
     {
         $sanitized = [];
         foreach ($config as $key => $value) {
-            if (!is_string($key) || str_contains($key, '..') || str_contains($key, '/') || str_contains($key, '\\')) {
+            if (is_int($key)) {
+                $safeKey = $key;
+            } elseif (is_string($key) && !str_contains($key, '..') && !str_contains($key, '/') && !str_contains($key, '\\')) {
+                $safeKey = $key;
+            } else {
                 continue;
             }
             if (is_scalar($value) || $value === null) {
-                $sanitized[$key] = $value;
+                $sanitized[$safeKey] = $value;
             } elseif (is_array($value)) {
-                $sanitized[$key] = $this->sanitizeScalarConfig($value);
+                $sanitized[$safeKey] = $this->sanitizeScalarConfig($value);
             }
         }
 

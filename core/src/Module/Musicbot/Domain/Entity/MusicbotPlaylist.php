@@ -34,6 +34,12 @@ class MusicbotPlaylist
     #[ORM\Column(enumType: MusicbotPlaylistVisibility::class)]
     private MusicbotPlaylistVisibility $visibility = MusicbotPlaylistVisibility::Private;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $description = null;
+
+    #[ORM\Column(name: 'sort_order')]
+    private int $sortOrder = 0;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -57,6 +63,10 @@ class MusicbotPlaylist
     public function setName(string $name): void { $this->name = $name; $this->touch(); }
     public function getVisibility(): MusicbotPlaylistVisibility { return $this->visibility; }
     public function setVisibility(MusicbotPlaylistVisibility $visibility): void { $this->visibility = $visibility; $this->touch(); }
+    public function getDescription(): ?string { return $this->description; }
+    public function setDescription(?string $description): void { $this->description = $description !== null && trim($description) !== '' ? trim($description) : null; $this->touch(); }
+    public function getSortOrder(): int { return $this->sortOrder; }
+    public function setSortOrder(int $sortOrder): void { $this->sortOrder = max(0, $sortOrder); $this->touch(); }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
     private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }

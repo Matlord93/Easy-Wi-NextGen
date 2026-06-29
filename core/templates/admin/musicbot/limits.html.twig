@@ -1,0 +1,60 @@
+{% extends 'admin/base.html.twig' %}
+{% set pageTitle = 'Musicbot Kundenlimits' %}
+{% set pageSubtitle = 'Tarife, Quotas und Feature-Flags pro Kunde verwalten.' %}
+{% set activeNav = 'musicbots' %}
+{% block content %}
+<div class="ng-card" style="padding:18px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px;">
+        <div>
+            <h1 style="margin:0 0 6px;">Musicbot Kundenlimits</h1>
+            <p style="margin:0;color:var(--ng-text-muted);">Leere Felder verwenden den sicheren Standard. Der Wert <code>-1</code> bedeutet unbegrenzt.</p>
+        </div>
+        <a class="ui-button ui-button--ghost" href="/admin/musicbots">Zurück</a>
+    </div>
+
+    <div class="ng-alert ng-alert--info" style="margin-bottom:16px;">
+        Standard: {{ defaults.max_musicbots }} Bot, {{ defaults.max_tracks }} Tracks, {{ defaults.max_storage_mb }} MB Speicher,
+        {{ defaults.max_queue_items }} Queue-Items, {{ defaults.max_playlists }} Playlists, {{ defaults.max_playlist_items }} Playlist-Items.
+        Webradio/YouTube/TeamSpeak-Commands/Playlists/AutoDJ/Plugins/API sind standardmäßig erlaubt; Discord ist standardmäßig gesperrt.
+    </div>
+
+    {% for row in rows %}
+        {% set customer = row.customer %}
+        {% set resolved = row.resolved %}
+        {% set override = row.override %}
+        <form method="post" action="/admin/musicbots/limits/{{ customer.id }}" class="ng-card" style="padding:14px;margin-bottom:14px;">
+            <h2 style="margin:0 0 10px;font-size:18px;">{{ customer.email }}</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
+                {% set numbers = {
+                    max_musicbots: 'max_musicbots', max_tracks: 'max_tracks', max_storage_mb: 'max_storage_mb',
+                    max_upload_size_mb: 'max_upload_size_mb', max_queue_items: 'max_queue_items', max_playlists: 'max_playlists',
+                    max_playlist_items: 'max_playlist_items', max_plugins: 'max_plugins'
+                } %}
+                {% for field,label in numbers %}
+                    <label class="form-label">{{ label }}
+                        <input class="form-input" type="number" name="{{ field }}" value="{{ attribute(resolved, field) == 9223372036854775807 ? -1 : attribute(resolved, field) }}">
+                    </label>
+                {% endfor %}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-top:12px;">
+                {% for field,label in {
+                    web_radio_allowed: 'Webradio erlaubt', youtube_allowed: 'YouTube erlaubt', teamspeak_commands_allowed: 'TeamSpeak Commands erlaubt',
+                    playlists_allowed: 'Playlists erlaubt', autodj_allowed: 'AutoDJ erlaubt', plugins_allowed: 'Plugins erlaubt',
+                    discord_allowed: 'Discord erlaubt', stream_allowed: 'Stream erlaubt', api_allowed: 'API erlaubt'
+                } %}
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" name="{{ field }}" value="1" {% if attribute(resolved, field) %}checked{% endif %}>
+                        <span>{{ label }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+            <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+                <button class="ui-button ui-button--primary" type="submit">Limits speichern</button>
+                <span style="color:var(--ng-text-muted);font-size:12px;">Aktive Overrides: {{ override ? 'gesetzt' : 'keine' }}</span>
+            </div>
+        </form>
+    {% else %}
+        <p>Keine Kunden vorhanden.</p>
+    {% endfor %}
+</div>
+{% endblock %}

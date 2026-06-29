@@ -28,10 +28,12 @@ type mockAdapter struct {
 	joinChannelID  string
 	joinChannelErr error
 
-	leaveChannelErr error
-	setNicknameErr  error
-	sendFrameErr    error
-	shutdownCalls   int
+	leaveChannelErr  error
+	setNicknameErr   error
+	sendFrameErr     error
+	sendFrameFormat  string
+	sendFramePayload []byte
+	shutdownCalls    int
 }
 
 func (m *mockAdapter) Connect(_ context.Context, _ connectParams) (string, error) {
@@ -89,9 +91,15 @@ func (m *mockAdapter) SetNickname(_ context.Context, _ string) error {
 	return m.setNicknameErr
 }
 
-func (m *mockAdapter) SendOpusFrame(_ context.Context, _ []byte, _ int) error {
+func (m *mockAdapter) SendOpusFrame(ctx context.Context, frame []byte, durationMs int) error {
+	return m.SendAudioFrame(ctx, "opus", frame, durationMs)
+}
+
+func (m *mockAdapter) SendAudioFrame(_ context.Context, format string, frame []byte, _ int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.sendFrameFormat = format
+	m.sendFramePayload = append([]byte(nil), frame...)
 	return m.sendFrameErr
 }
 
@@ -562,6 +570,44 @@ func TestBridgeSendOpusFrameFormatCaseInsensitive(t *testing.T) {
 	}
 	if !resps[1].OK {
 		t.Fatalf("send_opus_frame Format=Opus (case): %v", resps[1].Error)
+	}
+}
+
+func TestBridgeSendAudioFramePCMUsesGenericAudioPath(t *testing.T) {
+	adapter := &mockAdapter{connectID: "42"}
+	pcm := []byte{0x01, 0x00, 0x02, 0x00}
+	payload := base64.StdEncoding.EncodeToString(pcm)
+	resps := runRequests(t, adapter,
+		bridgeRequest{Action: "connect", Host: "ts.example.com"},
+		bridgeRequest{Action: "send_audio_frame", Format: "pcm_s16le", Payload: payload, DurationMs: 20},
+	)
+	if !resps[0].OK {
+		t.Fatalf("connect failed: %v", resps[0].Error)
+	}
+	if !resps[1].OK {
+		t.Fatalf("send_audio_frame pcm_s16le failed: %v", resps[1].Error)
+	}
+	if adapter.sendFrameFormat != "pcm_s16le" {
+		t.Fatalf("send format = %q, want pcm_s16le", adapter.sendFrameFormat)
+	}
+	if string(adapter.sendFramePayload) != string(pcm) {
+		t.Fatalf("payload = %v, want %v", adapter.sendFramePayload, pcm)
+	}
+}
+
+func TestBridgeRoutesOpusSizedPCMToPCMPath(t *testing.T) {
+	adapter := &mockAdapter{connectID: "42"}
+	pcm := make([]byte, 3840)
+	payload := base64.StdEncoding.EncodeToString(pcm)
+	resps := runRequests(t, adapter,
+		bridgeRequest{Action: "connect", Host: "ts.example.com"},
+		bridgeRequest{Action: "send_audio_frame", Format: "opus", Payload: payload, DurationMs: 20},
+	)
+	if !resps[1].OK {
+		t.Fatalf("send_audio_frame opus-sized pcm failed: %v", resps[1].Error)
+	}
+	if adapter.sendFrameFormat != "pcm_s16le" {
+		t.Fatalf("send format = %q, want pcm_s16le", adapter.sendFrameFormat)
 	}
 }
 

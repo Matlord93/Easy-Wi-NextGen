@@ -39,8 +39,16 @@ func TestDiscordAudioOutputVoiceClientErrorLandsInPipelineLastOutputError(t *tes
 		t.Fatalf("Output() = %v, want %v", err, wantErr)
 	}
 	status := pipeline.Snapshot()
-	if status.LastOutputError != wantErr.Error() || status.LastError != wantErr.Error() || status.FramesSent != 0 {
-		t.Fatalf("status = %#v", status)
+	// Output errors set LastOutputError and OutputStatus; LastError and
+	// DecoderStatus must remain unset/unchanged so the connector stays ready.
+	if status.LastOutputError != wantErr.Error() {
+		t.Fatalf("LastOutputError = %q, want %q; status = %#v", status.LastOutputError, wantErr.Error(), status)
+	}
+	if status.LastError != "" {
+		t.Fatalf("LastError = %q, want empty for output-only error; status = %#v", status.LastError, status)
+	}
+	if status.FramesSent != 0 {
+		t.Fatalf("FramesSent = %d, want 0; status = %#v", status.FramesSent, status)
 	}
 }
 

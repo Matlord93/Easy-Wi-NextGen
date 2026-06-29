@@ -91,6 +91,10 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
             'events_enabled' => true,
             'allowed_server_groups' => ['10', '11'],
             'dj_server_groups' => ['20'],
+            'admin_server_groups' => ['30'],
+            'chat_scopes' => ['channel'],
+            'command_config' => ['volume' => ['enabled' => true, 'roles' => ['dj'], 'chat_scopes' => ['private']]],
+            'dj_server_groups' => ['20'],
             'admin_server_groups' => ['3'],
         ], $this->secretService->encrypt([
             'server_password' => 'srv-pw',
@@ -111,6 +115,14 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         self::assertSame('srv-pw', $config['teamspeak']['server_password']);
         self::assertSame('chan-pw', $config['teamspeak']['channel_password']);
         self::assertSame(['10', '11'], $config['teamspeak']['allowed_server_groups']);
+        self::assertSame(['channel'], $config['teamspeak']['chat_scopes']);
+        self::assertSame(['20'], $config['teamspeak']['role_bindings']['dj']);
+        self::assertSame('easywi.teamspeak.integration', $config['teamspeak']['plugin_api']['provider']);
+        self::assertArrayHasKey('play', $config['teamspeak']['command_catalog']);
+        self::assertArrayHasKey('help', $config['teamspeak']['command_catalog']);
+        self::assertSame('playback.control', $config['teamspeak']['command_catalog']['play']['permission']);
+        self::assertSame(['private'], $config['teamspeak']['command_catalog']['volume']['chat_scopes']);
+        self::assertSame(['dj'], $config['teamspeak']['command_catalog']['volume']['roles']);
     }
 
 
@@ -307,6 +319,7 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         $plugin = new MusicbotPlugin('nowplaying', 'Now Playing', '1.0.0', $customer, $this->instance);
         $plugin->setEnabled(true);
         $plugin->setConfig(['format' => '{title} by {artist}']);
+        $plugin->setPermissions(['tracks.read']);
 
         $disabledPlugin = new MusicbotPlugin('disabled-plugin', 'Disabled', '1.0.0', $customer, $this->instance);
         $disabledPlugin->setEnabled(false);
@@ -317,6 +330,24 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         self::assertCount(1, $config['plugins'], 'Disabled plugins must not appear in runtime config.');
         self::assertSame('nowplaying', $config['plugins'][0]['identifier']);
         self::assertSame(['format' => '{title} by {artist}'], $config['plugins'][0]['config']);
+        self::assertSame(['tracks.read'], $config['plugins'][0]['permissions']);
+    }
+
+
+    public function testFirstPartyTeamspeakPluginExposesCommandApi(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $plugin = new MusicbotPlugin('easywi.teamspeak.integration', 'Easy-Wi TeamSpeak Integration', '0.2.0', $customer, $this->instance);
+        $plugin->setEnabled(true);
+        $plugin->setPermissions(['commands.register', 'events.subscribe', 'playback.control', 'queue.manage', 'playlist.manage']);
+
+        $builder = $this->buildService([], null, [$plugin]);
+        $config = $builder->build($this->instance);
+
+        self::assertSame('easywi.teamspeak.integration', $config['plugins'][0]['identifier']);
+        self::assertContains('play', $config['plugins'][0]['api']['commands']);
+        self::assertContains('help', $config['plugins'][0]['api']['commands']);
+        self::assertContains('chat.command.received', $config['plugins'][0]['api']['hooks']);
     }
 
     public function testBuildSanitizedStripsAllSecretFields(): void

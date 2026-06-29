@@ -19,6 +19,18 @@ func TestMain(m *testing.M) {
 	if strings.HasSuffix(filepath.Base(os.Args[0]), "mock-ts-bridge") {
 		dir := filepath.Dir(os.Args[0])
 		_, err := os.Stat(filepath.Join(dir, "mock-ts-bridge.fail"))
+		_, crashErr := os.Stat(filepath.Join(dir, "mock-ts-bridge.crash"))
+		if crashErr == nil {
+			// crash mode: write diagnostic to stderr and exit immediately
+			// without sending any stdout NDJSON (simulates a bridge crash).
+			// The crashmsg file (if present) controls what goes to stderr;
+			// an absent crashmsg file means no stderr output.
+			data, readErr := os.ReadFile(filepath.Join(dir, "mock-ts-bridge.crashmsg"))
+			if readErr == nil && len(data) > 0 {
+				_, _ = fmt.Fprint(os.Stderr, string(data))
+			}
+			os.Exit(2)
+		}
 		runMockBridgeProtocol(err == nil)
 		return
 	}

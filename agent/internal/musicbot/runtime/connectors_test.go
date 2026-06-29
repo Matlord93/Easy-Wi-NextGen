@@ -181,6 +181,20 @@ func TestTeamspeakAudioOutputSendsOnlyWhenVoiceReady(t *testing.T) {
 	}
 }
 
+func TestTeamspeakAudioOutputRoutesPCMAsPCM(t *testing.T) {
+	t.Parallel()
+	client := &mockReadyTeamspeakVoiceClient{state: ConnectionStateConnected}
+	output := NewTeamspeakAudioOutputWithReadiness(client, func(context.Context) bool { return true }, TeamSpeakConnectorConfig{})
+	pcm := make([]byte, 3840)
+	frame := AudioFrame{Format: "opus", SampleRateHz: 48000, Channels: 2, DurationMs: 20, Payload: pcm}
+	if err := output.SendAudioFrame(context.Background(), frame); err != nil {
+		t.Fatalf("SendAudioFrame() = %v", err)
+	}
+	if client.lastFrame.Format != "pcm_s16le" || len(client.lastFrame.PCM) != 3840 {
+		t.Fatalf("sent frame = %#v pcm_len=%d, want pcm_s16le PCM", client.lastFrame, len(client.lastFrame.PCM))
+	}
+}
+
 func TestTeamspeakAudioOutputErrorLandsInPipelineLastOutputErrorAndMasksSecrets(t *testing.T) {
 	t.Parallel()
 	secret := "secret-server-password"
@@ -221,9 +235,10 @@ func TestTeamSpeakProfilesRemainInPlaybackStatus(t *testing.T) {
 }
 
 type mockReadyTeamspeakVoiceClient struct {
-	state   ConnectionState
-	sendErr error
-	sent    int
+	state     ConnectionState
+	sendErr   error
+	sent      int
+	lastFrame AudioFrame
 }
 
 func (m *mockReadyTeamspeakVoiceClient) Connect(ctx context.Context, config TeamSpeakConnectorConfig) error {
@@ -242,11 +257,16 @@ func (m *mockReadyTeamspeakVoiceClient) JoinChannel(ctx context.Context, channel
 	return nil
 }
 func (m *mockReadyTeamspeakVoiceClient) LeaveChannel(ctx context.Context) error { return nil }
+func (m *mockReadyTeamspeakVoiceClient) SendAudioFrame(ctx context.Context, frame AudioFrame) error {
+	return m.SendOpusFrame(ctx, frame)
+}
+
 func (m *mockReadyTeamspeakVoiceClient) SendOpusFrame(ctx context.Context, frame AudioFrame) error {
 	if m.sendErr != nil {
 		return m.sendErr
 	}
 	m.sent++
+	m.lastFrame = frame
 	return nil
 }
 func (m *mockReadyTeamspeakVoiceClient) GetClientID(ctx context.Context) (string, error) {
@@ -498,4 +518,117 @@ func writeMockTeamspeakBridge(t *testing.T, fail bool) string {
 		}
 	}
 	return path
+}
+
+// writeCrashingMockBridge returns a path to a mock bridge that writes a
+// diagnostic message to stderr and exits without producing any NDJSON on
+// stdout. This simulates a bridge that crashes during startup before it can
+// process any request (e.g. TS3 client XCB error, XvFB not found, etc.).
+// When stderrMsg is "" the bridge exits without writing anything to stderr.
+func writeCrashingMockBridge(t *testing.T, stderrMsg string) string {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable: %v", err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mock-ts-bridge")
+	if err := os.Symlink(exe, path); err != nil {
+		t.Fatalf("symlink mock bridge: %v", err)
+	}
+	// crash mode: presence of mock-ts-bridge.crash causes the mock to exit immediately.
+	if err := os.WriteFile(filepath.Join(dir, "mock-ts-bridge.crash"), nil, 0o600); err != nil {
+		t.Fatalf("write crash marker: %v", err)
+	}
+	// Always write crashmsg file; only non-empty content appears on stderr.
+	if err := os.WriteFile(filepath.Join(dir, "mock-ts-bridge.crashmsg"), []byte(stderrMsg), 0o600); err != nil {
+		t.Fatalf("write crashmsg: %v", err)
+	}
+	return path
+}
+
+// TestBridgeClosedErrorIncludesStderr verifies that when the bridge process exits
+// without responding (crash), the error from bridgeRoundTrip includes the bridge's
+// stderr output in the error message rather than just "teamspeak bridge closed".
+func TestBridgeClosedErrorIncludesStderr(t *testing.T) {
+	t.Parallel()
+	stderrDiag := "ts3client_start_failed exit_code=1 xvfb_not_found=true"
+	bridge := writeCrashingMockBridge(t, stderrDiag)
+	client := NewExternalBridgeTeamspeakVoiceClient()
+
+	cfg := TeamSpeakConnectorConfig{
+		Enabled:     true,
+		BackendType: TeamSpeakBackendTypeExternalClientBridge,
+		Config: map[string]any{
+			"bridge_path": bridge,
+			"host":        "127.0.0.1",
+			"profile":     "ts3",
+		},
+	}
+	err := client.Connect(context.Background(), cfg)
+	if err == nil {
+		_ = client.Disconnect(context.Background())
+		t.Fatal("Connect() should fail when bridge crashes immediately")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, stderrDiag) {
+		t.Errorf("error %q does not contain bridge stderr %q", msg, stderrDiag)
+	}
+}
+
+// TestBridgeClosedErrorIncludesExitCode verifies that the bridge exit code
+// appears in the error message when the bridge crashes.
+func TestBridgeClosedErrorIncludesExitCode(t *testing.T) {
+	t.Parallel()
+	bridge := writeCrashingMockBridge(t, "crash diagnostic")
+	client := NewExternalBridgeTeamspeakVoiceClient()
+
+	cfg := TeamSpeakConnectorConfig{
+		Enabled:     true,
+		BackendType: TeamSpeakBackendTypeExternalClientBridge,
+		Config: map[string]any{
+			"bridge_path": bridge,
+			"host":        "127.0.0.1",
+			"profile":     "ts3",
+		},
+	}
+	err := client.Connect(context.Background(), cfg)
+	if err == nil {
+		_ = client.Disconnect(context.Background())
+		t.Fatal("Connect() should fail when bridge crashes immediately")
+	}
+	msg := err.Error()
+	// The crashing mock exits with code 2.
+	if !strings.Contains(msg, "exit_code=2") {
+		t.Errorf("error %q does not contain exit_code=2", msg)
+	}
+}
+
+// TestBridgeClosedErrorWithoutStderr verifies that when the bridge exits cleanly
+// but with no stderr output, the error still mentions "teamspeak bridge closed"
+// without a bridge_stderr field.
+func TestBridgeStderrEmptyErrorHasNoStderrField(t *testing.T) {
+	t.Parallel()
+	// Use a crashing bridge but with empty stderr message.
+	bridge := writeCrashingMockBridge(t, "")
+	client := NewExternalBridgeTeamspeakVoiceClient()
+
+	cfg := TeamSpeakConnectorConfig{
+		Enabled:     true,
+		BackendType: TeamSpeakBackendTypeExternalClientBridge,
+		Config: map[string]any{
+			"bridge_path": bridge,
+			"host":        "127.0.0.1",
+			"profile":     "ts3",
+		},
+	}
+	err := client.Connect(context.Background(), cfg)
+	if err == nil {
+		_ = client.Disconnect(context.Background())
+		t.Fatal("Connect() should fail when bridge crashes")
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "bridge_stderr:") {
+		t.Errorf("error %q contains bridge_stderr field when no stderr was written", msg)
+	}
 }

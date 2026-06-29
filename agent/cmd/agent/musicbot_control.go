@@ -43,9 +43,17 @@ func NewRuntimeControlClient(installPath string) RuntimeControlClient {
 		}
 		if json.Unmarshal(content, &config) == nil {
 			if config.Control.UnixSocket != "" {
-				client.UnixSocket = config.Control.UnixSocket
+				configured := filepath.Clean(config.Control.UnixSocket)
+				expected := filepath.Join(installPath, "control.sock")
+				if configured == expected {
+					client.UnixSocket = configured
+				}
 			}
-			client.TCPAddr = config.Control.TCPAddr
+			// Per-instance Unix sockets are mandatory on Unix so jobs cannot silently
+			// fall back to another runtime listener. TCP control is only a Windows fallback.
+			if runtime.GOOS == "windows" {
+				client.TCPAddr = config.Control.TCPAddr
+			}
 			client.AuthToken = config.Control.AuthToken
 		}
 	}
@@ -59,19 +67,23 @@ func (c RuntimeControlClient) Command(command string, args map[string]any) (runt
 	}
 	encoded, _ := json.Marshal(request)
 	if c.UnixSocket != "" {
-		if response, err := c.roundTrip("unix", c.UnixSocket, encoded); err == nil {
-			return response, nil
+		response, err := c.roundTrip("unix", c.UnixSocket, encoded)
+		if err != nil {
+			return runtimeControlResponse{}, fmt.Errorf("runtime control socket unavailable for install_path %s at %s: %w", c.InstallPath, c.UnixSocket, err)
 		}
+		return response, nil
 	}
 	if c.TCPAddr != "" {
 		if !strings.HasPrefix(c.TCPAddr, "127.0.0.1:") && !strings.HasPrefix(c.TCPAddr, "localhost:") && !strings.HasPrefix(c.TCPAddr, "[::1]:") {
 			return runtimeControlResponse{}, fmt.Errorf("runtime control tcp address must be local")
 		}
-		if response, err := c.roundTrip("tcp", c.TCPAddr, encoded); err == nil {
-			return response, nil
+		response, err := c.roundTrip("tcp", c.TCPAddr, encoded)
+		if err != nil {
+			return runtimeControlResponse{}, fmt.Errorf("runtime control tcp unavailable for install_path %s at %s: %w", c.InstallPath, c.TCPAddr, err)
 		}
+		return response, nil
 	}
-	return c.writeStateFile(command, args)
+	return runtimeControlResponse{}, fmt.Errorf("runtime control socket missing for install_path %s", c.InstallPath)
 }
 
 func (c RuntimeControlClient) roundTrip(network, address string, payload []byte) (runtimeControlResponse, error) {
@@ -96,21 +108,4 @@ func (c RuntimeControlClient) roundTrip(network, address string, payload []byte)
 		return response, errors.New(response.Error)
 	}
 	return response, nil
-}
-
-func (c RuntimeControlClient) writeStateFile(command string, args map[string]any) (runtimeControlResponse, error) {
-	if c.InstallPath == "" {
-		return runtimeControlResponse{}, fmt.Errorf("missing install_path for runtime control fallback")
-	}
-	stateDir := filepath.Join(c.InstallPath, "control-state")
-	if err := os.MkdirAll(stateDir, 0o750); err != nil {
-		return runtimeControlResponse{}, err
-	}
-	payload := map[string]any{"command": command, "args": args, "queued_at": time.Now().UTC().Format(time.RFC3339), "transport": "state_file"}
-	encoded, _ := json.MarshalIndent(payload, "", "  ")
-	path := filepath.Join(stateDir, fmt.Sprintf("%d-%s.json", time.Now().UnixNano(), command))
-	if err := os.WriteFile(path, append(encoded, '\n'), 0o640); err != nil {
-		return runtimeControlResponse{}, err
-	}
-	return runtimeControlResponse{OK: true, Command: command, Payload: map[string]any{"accepted": true, "transport": "state_file", "state_file": path, "last_error": "runtime control socket unavailable; command queued as state file"}}, nil
 }

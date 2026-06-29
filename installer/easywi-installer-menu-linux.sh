@@ -19,6 +19,12 @@ INSTALLER_WARNINGS=()
 INSTALLER_FAILURES=()
 INSTALLER_PASSES=()
 INSTALLER_MODE="menu"
+MUSICBOT_PACKAGES_INSTALLED=()
+MUSICBOT_PACKAGES_SKIPPED=()
+MUSICBOT_PHP_CONFIGURED=()
+MUSICBOT_NGINX_TEST_STATUS="nicht ausgeführt"
+MUSICBOT_NGINX_RELOAD_STATUS="nicht ausgeführt"
+MUSICBOT_PHP_FPM_RELOAD_STATUS="nicht ausgeführt"
 
 # ---------------------------------------------------------------------------
 # Logging helpers
@@ -701,9 +707,11 @@ service_enable_start() {
 service_reload() {
   local svc="$1"
   if has_systemctl; then
-    systemctl reload "${svc}" 2>/dev/null || systemctl restart "${svc}" 2>/dev/null || warn "Konnte ${svc} nicht neuladen."
+    systemctl reload "${svc}" 2>/dev/null || systemctl restart "${svc}" 2>/dev/null || { warn "Konnte ${svc} nicht neuladen."; return 1; }
   elif has_openrc; then
-    rc-service "${svc}" restart 2>/dev/null || warn "Konnte ${svc} nicht neustarten."
+    rc-service "${svc}" restart 2>/dev/null || { warn "Konnte ${svc} nicht neustarten."; return 1; }
+  else
+    return 1
   fi
 }
 
@@ -897,12 +905,14 @@ configure_nginx() {
 
   step "Konfiguriere Nginx (${conf_dir})."
   mkdir -p "${conf_dir}" "${enabled_dir}"
+  [[ -f "${config_file}" ]] && backup_file_once "${config_file}"
 
   cat > "${config_file}" <<NGINX
 ## EasyWI Panel – managed by easywi-installer
 server {
     listen 80;
     server_name ${server_name};
+    client_max_body_size 500M;
 
     root ${web_root};
     index index.php index.html;
@@ -935,11 +945,195 @@ NGINX
   fi
 
   if nginx -t 2>/dev/null; then
-    service_reload nginx
+    MUSICBOT_NGINX_TEST_STATUS="erfolgreich"
+    if service_reload nginx; then
+      MUSICBOT_NGINX_RELOAD_STATUS="erfolgreich"
+    else
+      MUSICBOT_NGINX_RELOAD_STATUS="fehlgeschlagen"
+    fi
   else
+    MUSICBOT_NGINX_TEST_STATUS="fehlgeschlagen"
     warn "nginx -t schlug fehl – Konfiguration prüfen."
   fi
   ok "Nginx konfiguriert: ${config_file}"
+}
+
+set_nginx_client_max_body_size() {
+  local config_file="$1" size="${2:-500M}"
+  [[ -f "${config_file}" ]] || return 0
+
+  backup_file_once "${config_file}"
+  if grep -Eq '^[[:space:]]*client_max_body_size[[:space:]]+' "${config_file}"; then
+    sed -i -E "0,/^[[:space:]]*client_max_body_size[[:space:]]+[^;]+;/{s//    client_max_body_size ${size};/}" "${config_file}"
+  else
+    awk -v line="    client_max_body_size ${size};" '
+      !inserted && /^[[:space:]]*server[[:space:]]*\{/ {
+        print
+        print line
+        inserted=1
+        next
+      }
+      { print }
+    ' "${config_file}" >"${config_file}.easywi.tmp"
+    mv "${config_file}.easywi.tmp" "${config_file}"
+  fi
+}
+
+detect_php_ini_versions() {
+  local ini version
+  shopt -s nullglob
+  for ini in /etc/php/*/fpm/php.ini /etc/php/*/cli/php.ini; do
+    version="${ini#/etc/php/}"
+    version="${version%%/*}"
+    [[ -n "${version}" ]] && printf '%s\n' "${version}"
+  done
+  shopt -u nullglob
+}
+
+reload_php_fpm_for_versions() {
+  local versions=("$@") version svc failed=0 attempted=0
+  for version in "${versions[@]}"; do
+    svc="php${version}-fpm"
+    if has_systemctl && systemctl list-unit-files "${svc}.service" >/dev/null 2>&1; then
+      attempted=1
+      systemctl reload "${svc}.service" 2>/dev/null || systemctl restart "${svc}.service" 2>/dev/null || failed=1
+    elif has_openrc; then
+      attempted=1
+      rc-service "${svc}" restart 2>/dev/null || failed=1
+    fi
+  done
+  if ((attempted == 0)); then
+    MUSICBOT_PHP_FPM_RELOAD_STATUS="kein PHP-FPM-Service gefunden"
+  elif ((failed == 0)); then
+    MUSICBOT_PHP_FPM_RELOAD_STATUS="erfolgreich"
+  else
+    MUSICBOT_PHP_FPM_RELOAD_STATUS="teilweise/fehlgeschlagen"
+  fi
+}
+
+configure_musicbot_panel_limits() {
+  local php_version="${1:-}" nginx_config="${2:-}" ini key value pair versions=()
+  local settings=(
+    'upload_max_filesize=500M'
+    'post_max_size=500M'
+    'max_file_uploads=50'
+    'max_execution_time=300'
+    'max_input_time=300'
+    'memory_limit=512M'
+  )
+
+  step "Setze Musicbot Upload-Limits für PHP und Nginx."
+
+  if [[ -n "${php_version}" ]]; then
+    versions+=("${php_version}")
+  fi
+  while IFS= read -r php_version; do
+    [[ -n "${php_version}" ]] && versions+=("${php_version}")
+  done < <(detect_php_ini_versions | awk 'NF && !seen[$0]++')
+
+  if ((${#versions[@]})); then
+    mapfile -t versions < <(printf '%s\n' "${versions[@]}" | awk 'NF && !seen[$0]++')
+  fi
+
+  for php_version in "${versions[@]}"; do
+    for ini in "/etc/php/${php_version}/fpm/php.ini" "/etc/php/${php_version}/cli/php.ini"; do
+      [[ -f "${ini}" ]] || continue
+      backup_file_once "${ini}"
+      for pair in "${settings[@]}"; do
+        key="${pair%%=*}"
+        value="${pair#*=}"
+        set_ini_value "${ini}" "${key}" "${value}"
+      done
+      MUSICBOT_PHP_CONFIGURED+=("${ini}")
+    done
+  done
+
+  if ((${#versions[@]})); then
+    reload_php_fpm_for_versions "${versions[@]}"
+  else
+    MUSICBOT_PHP_FPM_RELOAD_STATUS="keine PHP-Version erkannt"
+    warn "Keine PHP-FPM/CLI php.ini unter /etc/php erkannt."
+  fi
+
+  if [[ -z "${nginx_config}" ]]; then
+    nginx_config="/etc/nginx/sites-available/easywi.conf"
+    [[ -f "${nginx_config}" ]] || nginx_config="/etc/nginx/conf.d/easywi.conf"
+  fi
+  if [[ -f "${nginx_config}" ]]; then
+    set_nginx_client_max_body_size "${nginx_config}" "500M"
+    if nginx -t 2>/dev/null; then
+      MUSICBOT_NGINX_TEST_STATUS="erfolgreich"
+      if service_reload nginx; then
+        MUSICBOT_NGINX_RELOAD_STATUS="erfolgreich"
+      else
+        MUSICBOT_NGINX_RELOAD_STATUS="fehlgeschlagen"
+      fi
+    else
+      MUSICBOT_NGINX_TEST_STATUS="fehlgeschlagen"
+      warn "nginx -t schlug nach client_max_body_size-Anpassung fehl."
+    fi
+  else
+    warn "EasyWI nginx-Konfiguration nicht gefunden; client_max_body_size konnte nicht gesetzt werden."
+  fi
+
+  print_musicbot_validation "${versions[*]:-unbekannt}" "${nginx_config}"
+}
+
+install_musicbot_system_dependencies() {
+  local manager="${1:-$(detect_package_manager)}"
+  local packages=() optional=() pkg
+
+  step "Installiere Musicbot-/TeamSpeak-Bridge-Systemabhängigkeiten."
+  MUSICBOT_PACKAGES_INSTALLED=()
+  MUSICBOT_PACKAGES_SKIPPED=()
+
+  case "${manager}" in
+    apt)
+      apt_update_once
+      packages=(ffmpeg pulseaudio pulseaudio-utils xvfb libnss3 libxss1 libatk1.0-0
+        libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1
+        libxfixes3 libxrandr2 libgbm1 libgtk-3-0 libglib2.0-0 dbus-x11 ca-certificates
+        curl unzip tar jq psmisc procps alsa-utils yt-dlp)
+      optional=(x11vnc xauth)
+      if apt_package_exists libasound2t64; then
+        packages+=(libasound2t64)
+      elif apt_package_exists libasound2; then
+        packages+=(libasound2)
+      else
+        MUSICBOT_PACKAGES_SKIPPED+=(libasound2t64 libasound2)
+      fi
+      for pkg in "${packages[@]}" "${optional[@]}"; do
+        if apt_package_exists "${pkg}"; then
+          MUSICBOT_PACKAGES_INSTALLED+=("${pkg}")
+        else
+          MUSICBOT_PACKAGES_SKIPPED+=("${pkg}")
+        fi
+      done
+      if ((${#MUSICBOT_PACKAGES_INSTALLED[@]})); then
+        install_packages "${manager}" "${MUSICBOT_PACKAGES_INSTALLED[@]}"
+      fi
+      ;;
+    *)
+      warn "Musicbot-Systempakete werden derzeit nur für Debian/Ubuntu automatisch robust aufgelöst (Paketmanager: ${manager})."
+      MUSICBOT_PACKAGES_SKIPPED+=(ffmpeg yt-dlp pulseaudio pulseaudio-utils xvfb x11vnc xauth libnss3 libxss1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libgtk-3-0 libglib2.0-0 dbus-x11 ca-certificates curl unzip tar jq psmisc procps alsa-utils)
+      ;;
+  esac
+
+  ok "Musicbot-Paketprüfung abgeschlossen."
+}
+
+print_musicbot_validation() {
+  local php_versions="${1:-unbekannt}" nginx_config="${2:-}" size="unbekannt"
+  if [[ -f "${nginx_config}" ]]; then
+    size="$(awk '/^[[:space:]]*client_max_body_size[[:space:]]+/{gsub(/;/,"",$2); print $2; exit}' "${nginx_config}")"
+    [[ -n "${size}" ]] || size="nicht gesetzt"
+  fi
+  log "Musicbot-Validierung: PHP-Version(en): ${php_versions}"
+  log "Musicbot-Validierung: PHP-Werte: upload_max_filesize=500M, post_max_size=500M, max_file_uploads=50, max_execution_time=300, max_input_time=300, memory_limit=512M"
+  log "Musicbot-Validierung: nginx client_max_body_size=${size} (${nginx_config:-keine Konfiguration})"
+  log "Musicbot-Validierung: nginx -t=${MUSICBOT_NGINX_TEST_STATUS}; nginx reload=${MUSICBOT_NGINX_RELOAD_STATUS}; PHP-FPM reload/restart=${MUSICBOT_PHP_FPM_RELOAD_STATUS}"
+  log "Musicbot-Validierung: installierte/angeforderte Pakete: ${MUSICBOT_PACKAGES_INSTALLED[*]:-(keine)}"
+  log "Musicbot-Validierung: optionale/übersprungene Pakete: ${MUSICBOT_PACKAGES_SKIPPED[*]:-(keine)}"
 }
 
 detect_existing_php_fpm_socket() {
@@ -2657,6 +2851,7 @@ install_panel() {
   base_pkgs+=("$(nginx_packages "${manager}")")
 
   install_packages "${manager}" "${base_pkgs[@]}" "${PHP_BASE_PKGS[@]}" "${DB_PKGS[@]}" "${REDIS_SERVER_PKGS[@]}"
+  install_musicbot_system_dependencies "${manager}"
   if [[ "${manager}" == "apt" ]]; then
     set_php_alternatives_for_target "${php_version}"
     ensure_target_fpm_service "${php_version}"
@@ -2729,6 +2924,7 @@ install_panel() {
   configure_php_fpm_easywi_sandbox "${PHP_FPM_SERVICE}"
 
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
+  configure_musicbot_panel_limits "${php_version}" "$(detect_nginx_conf_dir "${family}")/easywi.conf"
 
   if [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]]; then
     if setup_certbot "${manager}" "${web_hostname}" "${ssl_email}"; then
@@ -3865,6 +4061,30 @@ INFO
   ok "Panel-SSL wurde nachträglich eingerichtet. DEFAULT_URI=https://${web_hostname}"
 }
 
+run_musicbot_prerequisites_repair() {
+  menu_output <<'INFO'
+
+  ╔══════════════════════════════════════════════════╗
+  ║  Musicbot Voraussetzungen reparieren/neu anwenden║
+  ║  Setzt PHP/Nginx Upload-Limits und installiert   ║
+  ║  Systempakete für Musicbot/TeamSpeak-Bridge.     ║
+  ╚══════════════════════════════════════════════════╝
+
+INFO
+  local family manager php_version nginx_config
+  family="$(detect_os_family)"
+  manager="$(detect_package_manager)"
+  php_version="${EASYWI_PHP_VERSION:-${DEFAULT_PHP_VERSION}}"
+  nginx_config="$(detect_nginx_conf_dir "${family}")/easywi.conf"
+  prompt_value php_version "PHP-Version für gezielte Prüfung (leer = automatisch erkannte Versionen zusätzlich)" "${php_version}"
+  prompt_value nginx_config "EasyWI nginx-vHost-Konfiguration" "${nginx_config}"
+
+  install_musicbot_system_dependencies "${manager}"
+  configure_musicbot_panel_limits "${php_version}" "${nginx_config}"
+  ok "Musicbot Voraussetzungen wurden neu angewendet."
+}
+
+
 
 # ---------------------------------------------------------------------------
 # Debian/Ubuntu robust preflight, fix and diagnostics modes
@@ -4953,16 +5173,17 @@ main_menu() {
   menu_output <<'MENU'
   Was möchten Sie tun?
 
-    1) Panel (Core) installieren
+    1) Panel (Core) installieren (inkl. Musicbot Upload-Limits & Systemabhängigkeiten)
     2) Agent installieren
-    3) Panel + Agent installieren
+    3) Panel + Agent installieren (inkl. Musicbot Upload-Limits & Systemabhängigkeiten)
     4) Agent aktualisieren
     5) CPU Performance-Modus (Intel/AMD · Governor + GRUB)
     6) Panel-SSL nachträglich einrichten
-    7) Beenden
+    7) Musicbot Voraussetzungen reparieren/neu anwenden
+    8) Beenden
 
 MENU
-  local choice; choice="$(menu_prompt "  Auswahl [1-7]: ")"
+  local choice; choice="$(menu_prompt "  Auswahl [1-8]: ")"
   case "${choice}" in
     1) run_panel_install    ;;
     2) run_agent_install    ;;
@@ -4970,6 +5191,7 @@ MENU
     4) run_agent_update     ;;
     5) run_cpu_performance  ;;
     6) run_panel_ssl_setup  ;;
+    7) run_musicbot_prerequisites_repair ;;
     *) log "Installation beendet."; exit 0 ;;
   esac
 }
