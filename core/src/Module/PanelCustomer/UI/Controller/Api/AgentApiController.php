@@ -54,6 +54,7 @@ use App\Repository\UserRepository;
 use App\Repository\VoiceInstanceRepository;
 use App\Repository\WebspaceRepository;
 use DateTimeImmutable;
+use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -357,10 +358,15 @@ final class AgentApiController
             ], JsonResponse::HTTP_FORBIDDEN);
         }
 
+        return $this->runJobDispatchWithDeadlockRetry($agent);
+    }
+
+    private function buildJobsResponse(Agent $agent): JsonResponse
+    {
         $now = new DateTimeImmutable();
         $this->expireStaleJobs($now);
 
-        $jobs = $this->jobRepository->findQueuedForDispatch(20);
+        $jobs = $this->jobRepository->findQueuedForDispatchForUpdate(20);
         $totalQueued = count($jobs);
         $jobPayloads = [];
         $updateJobTypes = ['sniper.update', 'agent.update', 'agent.self_update'];
@@ -480,6 +486,62 @@ final class AgentApiController
             'jobs' => $jobPayloads,
             'max_concurrency' => $maxConcurrency,
         ]);
+    }
+
+    private function runJobDispatchWithDeadlockRetry(Agent $agent): JsonResponse
+    {
+        $agentId = $agent->getId();
+        $attempts = 0;
+        $maxAttempts = 3;
+
+        do {
+            ++$attempts;
+            $connection = $this->entityManager->getConnection();
+            $connection->beginTransaction();
+
+            try {
+                $managedAgent = $this->agentRepository->find($agentId);
+                if (!$managedAgent instanceof Agent) {
+                    $connection->rollBack();
+
+                    return new JsonResponse(['error' => 'agent_not_found'], JsonResponse::HTTP_UNAUTHORIZED);
+                }
+
+                $response = $this->buildJobsResponse($managedAgent);
+                $connection->commit();
+
+                return $response;
+            } catch (RetryableException $exception) {
+                if ($connection->isTransactionActive()) {
+                    $connection->rollBack();
+                }
+
+                $this->entityManager->clear();
+
+                if ($attempts >= $maxAttempts) {
+                    $this->logger->warning('agent.jobs.deadlock_retry_exhausted', [
+                        'agent_id' => $agentId,
+                        'attempts' => $attempts,
+                        'exception' => $exception::class,
+                    ]);
+
+                    throw $exception;
+                }
+
+                $this->logger->notice('agent.jobs.deadlock_retry', [
+                    'agent_id' => $agentId,
+                    'attempt' => $attempts,
+                    'exception' => $exception::class,
+                ]);
+                usleep(50_000 * $attempts);
+            } catch (\Throwable $exception) {
+                if ($connection->isTransactionActive()) {
+                    $connection->rollBack();
+                }
+
+                throw $exception;
+            }
+        } while (true);
     }
 
     #[Route(path: '/agent/jobs/{id}/start', name: 'agent_job_start', methods: ['POST'])]

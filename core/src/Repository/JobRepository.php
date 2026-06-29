@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\LockMode;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -89,6 +90,23 @@ class JobRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * @return Job[]
+     */
+    public function findQueuedForDispatchForUpdate(int $limit = 20): array
+    {
+        $query = $this->createQueryBuilder('job')
+            ->andWhere('job.status = :status')
+            ->setParameter('status', JobStatus::Queued)
+            ->orderBy('job.createdAt', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery();
+
+        $query->setLockMode(LockMode::PESSIMISTIC_WRITE);
+
+        return $query->getResult();
     }
 
     /**
