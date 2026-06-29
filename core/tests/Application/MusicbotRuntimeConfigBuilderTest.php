@@ -94,8 +94,6 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
             'admin_server_groups' => ['30'],
             'chat_scopes' => ['channel'],
             'command_config' => ['volume' => ['enabled' => true, 'roles' => ['dj'], 'chat_scopes' => ['private']]],
-            'dj_server_groups' => ['20'],
-            'admin_server_groups' => ['3'],
         ], $this->secretService->encrypt([
             'server_password' => 'srv-pw',
             'channel_password' => 'chan-pw',

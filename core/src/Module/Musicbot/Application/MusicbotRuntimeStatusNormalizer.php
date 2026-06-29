@@ -379,7 +379,7 @@ final class MusicbotRuntimeStatusNormalizer
         $trackId = $this->firstNonEmptyString($this->stringValue($currentTrack['track_id'] ?? null), $this->stringValue($currentTrack['id'] ?? null), $this->stringValue($status['current_track_id'] ?? null));
 
         if ($title === null && $sourceType === '' && $queueItem !== null) {
-            $title ??= $this->stringValue($queueItem['title'] ?? null);
+            $title = $this->stringValue($queueItem['title'] ?? null);
             $artist ??= $this->stringValue($queueItem['artist'] ?? null);
             $sourceType = $sourceType !== '' ? $sourceType : $this->normalizeSourceType($this->stringValue($queueItem['source_type'] ?? null));
             $url ??= $this->stringValue($queueItem['url'] ?? null);
