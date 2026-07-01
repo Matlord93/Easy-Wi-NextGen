@@ -50,7 +50,10 @@ final class CustomerInstanceConsoleStreamController
             throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
 
-        $lastEventId = (int) $request->headers->get('Last-Event-ID', '0');
+        $lastEventId = max(
+            (int) $request->headers->get('Last-Event-ID', '0'),
+            (int) $request->query->get('last_event_id', '0'),
+        );
 
         $response = new StreamedResponse(function () use ($id, $lastEventId): void {
             try {

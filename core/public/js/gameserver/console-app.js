@@ -80,11 +80,11 @@
     let autoScroll = true;
     let source = null;
     let reconnectTimer = null;
+    let streamWatchdogTimer = null;
     let reconnectAttempt = 0;
     let reconnectFailures = 0;
     let pollTimer = null;
     let fallbackRetryTimer = null;
-    let logsCursor = null;
     let fallbackActive = false;
     let lines = [];
     let relayDisconnectNoticeShown = false;
@@ -92,12 +92,32 @@
     let lastSeqSeen = -1;
     let lastInstallStatusNotice = null;
     const seenChunkFingerprints = new Set();
+    const seenLogEntryKeys = new Set();
 
     const MAX_STREAM_FAILURES = 5;
     const HEALTHY_EVENT_GRACE_MS = 30000;
+    const STREAM_OPEN_GRACE_MS = 20000;
+
+    const clearStreamWatchdog = () => {
+        if (streamWatchdogTimer) {
+            window.clearTimeout(streamWatchdogTimer);
+            streamWatchdogTimer = null;
+        }
+    };
+
+    const startStreamWatchdog = () => {
+        clearStreamWatchdog();
+        streamWatchdogTimer = window.setTimeout(() => {
+            const hasHealthyEvent = lastHealthyEventAt > 0 && (Date.now() - lastHealthyEventAt) <= STREAM_OPEN_GRACE_MS;
+            if (!fallbackActive && source && source.readyState === EventSource.OPEN && !hasHealthyEvent) {
+                void activatePollingFallback(tr('streamUnavailable'), true);
+            }
+        }, STREAM_OPEN_GRACE_MS);
+    };
 
     const markStreamHealthy = () => {
         lastHealthyEventAt = Date.now();
+        clearStreamWatchdog();
         fallbackActive = false;
         if (pollTimer) {
             window.clearInterval(pollTimer);
@@ -164,6 +184,7 @@
             source.close();
             source = null;
         }
+        clearStreamWatchdog();
         if (softFallback) {
             errors.clearInline(inlineError);
         } else {
@@ -220,8 +241,11 @@
             return;
         }
 
-        const query = logsCursor ? `?cursor=${encodeURIComponent(logsCursor)}` : '';
-        const payload = await apiClient.request(`${root.dataset.urlLogs}${query}`);
+        // Polling intentionally requests the current log snapshot without a cursor.
+        // Some agents return empty cursor responses while a full snapshot still
+        // contains new install output; client-side deduplication below keeps this
+        // live without replaying old lines into the console.
+        const payload = await apiClient.request(root.dataset.urlLogs);
         const data = payload.data || {};
         const entries = Array.isArray(data.lines) ? data.lines : [];
         if (data.job_type && String(data.job_type).match(/install|reinstall/i) && healthEl) {
@@ -244,6 +268,17 @@
                 return;
             }
 
+            const entryKey = entry.id !== undefined && entry.id !== null
+                ? `id:${entry.id}`
+                : `msg:${entry.created_at || ''}:${message}`;
+            if (seenLogEntryKeys.has(entryKey)) {
+                return;
+            }
+            seenLogEntryKeys.add(entryKey);
+            if (seenLogEntryKeys.size > 4096) {
+                seenLogEntryKeys.clear();
+            }
+
             const normalized = normalizeRelayLine(message);
             if (relayTypeLinePattern.test(normalized)
                 || relayStatusLinePattern.test(normalized)
@@ -262,7 +297,6 @@
 
             appendLine(message);
         });
-        logsCursor = data.cursor || logsCursor;
     };
 
     const connect = () => {
@@ -281,6 +315,10 @@
         if (source) {
             source.close();
         }
+        clearStreamWatchdog();
+        if (lastSeqSeen >= 0) {
+            url.searchParams.set('last_event_id', String(lastSeqSeen));
+        }
         source = new EventSource(url.toString(), { withCredentials: true });
         source.onopen = () => {
             reconnectAttempt = 0;
@@ -293,6 +331,7 @@
             if (healthEl) {
                 healthEl.textContent = tr('streamReconnecting', { attempt: 0 });
             }
+            startStreamWatchdog();
         };
         const handleStreamEvent = (event) => {
             let payload = {};
@@ -303,6 +342,7 @@
             }
 
             if (payload.type === 'ping') {
+                markStreamHealthy();
                 return;
             }
 
@@ -360,6 +400,8 @@
             if (source && source.readyState === EventSource.CLOSED) {
                 if (shouldFallback) {
                     void activatePollingFallback(tr('streamUnavailable'));
+                } else {
+                    scheduleReconnect();
                 }
                 return;
             }
@@ -492,6 +534,7 @@
         if (source) {
             source.close();
         }
+        clearStreamWatchdog();
         if (pollTimer) {
             window.clearInterval(pollTimer);
         }

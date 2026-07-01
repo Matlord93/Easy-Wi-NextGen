@@ -116,6 +116,57 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
     }
 
 
+    public function testReplayAcceptsLastEventIdQueryParameterForManualReconnects(): void
+    {
+        $eventBus = new class () implements ConsoleEventBusInterface {
+            public int $lastReplaySeq = -1;
+            public function publishConsoleEvent(int $instanceId, array $payload): void
+            {
+            }
+            public function replayConsoleEvents(int $instanceId, int $lastSeq): array
+            {
+                $this->lastReplaySeq = $lastSeq;
+                return [];
+            }
+            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
+            {
+            }
+            public function incrementSubscriber(int $instanceId): void
+            {
+            }
+            public function refreshSubscriberTtl(int $instanceId): void
+            {
+            }
+            public function decrementSubscriber(int $instanceId): void
+            {
+            }
+            public function getSubscriberCount(int $instanceId): int
+            {
+                return 0;
+            }
+            public function getInstancesWithSubscribers(): array
+            {
+                return [];
+            }
+        };
+
+        $controller = $this->controllerWith($eventBus, true, 0);
+        $request = Request::create('/instances/1/console/stream?last_event_id=123', 'GET');
+        $user = new User('owner@example.test', UserType::Customer);
+        $this->setEntityId($user, 5);
+        $request->attributes->set('current_user', $user);
+
+        $response = $controller->stream($request, 1);
+        ob_start();
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+        ob_end_clean();
+
+        self::assertSame(123, $eventBus->lastReplaySeq);
+    }
+
+
     public function testReturnsBackendNotConfiguredStatusWhenNullClientActive(): void
     {
         $eventBus = new class () implements ConsoleEventBusInterface {

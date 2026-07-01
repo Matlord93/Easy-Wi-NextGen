@@ -23,6 +23,7 @@ final class WebspaceFileServiceClient
     private const HEADER_CUSTOMER_ID = 'X-Customer-ID';
     private const HEADER_TIMESTAMP = 'X-Timestamp';
     private const HEADER_SIGNATURE = 'X-Signature';
+    private const HEADER_BODY_SHA256 = 'X-Content-SHA256';
 
     /**
      * @var array<string, string>
@@ -283,10 +284,11 @@ final class WebspaceFileServiceClient
 
     private function requestMultipart(Webspace $webspace, string $endpoint, FormDataPart $formData): void
     {
-        $config = $this->buildRequestOptions($webspace, 'POST', $endpoint, []);
+        $body = $formData->bodyToString();
+        $config = $this->buildRequestOptions($webspace, 'POST', $endpoint, [], null, $body);
         $options = $config['options'];
         $options['headers'] = array_merge($options['headers'], $formData->getPreparedHeaders()->toArray());
-        $options['body'] = $formData->bodyToIterable();
+        $options['body'] = $body;
 
         $response = $this->httpClient->request('POST', $this->resolveBaseUrl($webspace->getNode()) . $config['endpoint'], $options);
         try {
@@ -420,7 +422,7 @@ final class WebspaceFileServiceClient
      *
      * @return array{endpoint: string, options: array<string, mixed>}
      */
-    private function buildRequestOptions(Webspace $webspace, string $method, string $endpoint, array $query = [], ?array $json = null): array
+    private function buildRequestOptions(Webspace $webspace, string $method, string $endpoint, array $query = [], ?array $json = null, ?string $body = null): array
     {
         $endpointWithQuery = $endpoint;
         if ($query !== []) {
@@ -428,7 +430,8 @@ final class WebspaceFileServiceClient
             $endpointWithQuery = $queryString !== '' ? $endpoint . '?' . $queryString : $endpoint;
         }
 
-        $headers = $this->buildAuthHeaders($webspace, $method, $endpointWithQuery);
+        $body ??= $json !== null ? json_encode($json, JSON_THROW_ON_ERROR) : '';
+        $headers = $this->buildAuthHeaders($webspace, $method, $endpointWithQuery, $body);
         $headers['Accept'] = 'application/json';
         try {
             $headers['X-Server-Root'] = $this->resolveServerRoot($webspace);
@@ -456,7 +459,8 @@ final class WebspaceFileServiceClient
         ];
 
         if ($json !== null) {
-            $options['json'] = $json;
+            $headers['Content-Type'] = 'application/json';
+            $options['body'] = $body;
         }
 
         $requestId = $this->requestStack->getCurrentRequest()?->headers->get('X-Request-ID');
@@ -475,7 +479,7 @@ final class WebspaceFileServiceClient
     /**
      * @return array<string, string>
      */
-    private function buildAuthHeaders(Webspace $webspace, string $method, string $endpointWithQuery): array
+    private function buildAuthHeaders(Webspace $webspace, string $method, string $endpointWithQuery, string $body = ''): array
     {
         $agent = $webspace->getNode();
         $agentId = $agent->getId();
@@ -483,13 +487,15 @@ final class WebspaceFileServiceClient
         $secret = $this->encryptionService->decrypt($agent->getSecretPayload());
         $timestamp = (new \DateTimeImmutable())->format(\DateTimeImmutable::RFC3339);
 
+        $bodyHash = hash('sha256', $body);
         $payload = sprintf(
-            "%s\n%s\n%s\n%s\n%s",
+            "%s\n%s\n%s\n%s\n%s\n%s",
             $agentId,
             $customerId,
             strtoupper($method),
             $endpointWithQuery,
             $timestamp,
+            $bodyHash,
         );
         $signature = hash_hmac('sha256', $payload, $secret);
 
@@ -498,6 +504,7 @@ final class WebspaceFileServiceClient
             self::HEADER_CUSTOMER_ID => $customerId,
             self::HEADER_TIMESTAMP => $timestamp,
             self::HEADER_SIGNATURE => $signature,
+            self::HEADER_BODY_SHA256 => $bodyHash,
         ];
     }
 

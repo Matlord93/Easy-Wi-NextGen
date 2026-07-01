@@ -31,6 +31,8 @@ const fs = require('fs');
     assert.ok(source.includes('source.onerror = async () =>'), 'stream errors should re-check health before fallback');
     assert.ok(source.includes('health.live_output_status === \'ok\''), 'fallback should be suppressed when health reports live_output_status ok');
     assert.ok(source.includes('markStreamHealthy();'), 'EventSource open and healthy events should clear fallback banner');
+    assert.ok(source.includes("url.searchParams.set('last_event_id', String(lastSeqSeen))"), 'manual EventSource reconnects should resume from the last seen event id');
+    assert.ok(source.includes('} else {\n                    scheduleReconnect();'), 'closed healthy streams should reconnect instead of getting stuck');
 })();
 
 console.log('gameserver-console-app smoke test passed');

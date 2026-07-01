@@ -1312,16 +1312,18 @@ final class CustomerInstanceActionApiController
                 $supportsLiveOutput = false;
                 $liveOutputStatus = 'backend_not_configured';
                 $liveOutputMessage = 'Console backend not configured.';
-            } elseif (!$this->consoleStreamDiagnostics->redisPingOk()) {
-                $supportsLiveOutput = false;
-                $liveOutputStatus = 'redis_unavailable';
-                $liveOutputMessage = 'Redis unavailable.';
-            } else {
-                $relayAge = $this->consoleStreamDiagnostics->relayHeartbeatAgeSeconds();
-                if ($relayAge === null || $relayAge > 20) {
+            } elseif ($this->consoleStreamDiagnostics->isRelayRequired()) {
+                if (!$this->consoleStreamDiagnostics->redisPingOk()) {
                     $supportsLiveOutput = false;
-                    $liveOutputStatus = 'relay_stale';
-                    $liveOutputMessage = 'Console relay offline.';
+                    $liveOutputStatus = 'redis_unavailable';
+                    $liveOutputMessage = 'Redis unavailable.';
+                } else {
+                    $relayAge = $this->consoleStreamDiagnostics->relayHeartbeatAgeSeconds();
+                    if ($relayAge === null || $relayAge > 20) {
+                        $supportsLiveOutput = false;
+                        $liveOutputStatus = 'relay_stale';
+                        $liveOutputMessage = 'Console relay offline.';
+                    }
                 }
             }
         }
