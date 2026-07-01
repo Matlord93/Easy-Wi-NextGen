@@ -11,7 +11,7 @@ STEP_COUNTER=0
 DEFAULT_PHP_VERSION="8.4"
 MIN_PANEL_PHP_VERSION="8.4"
 APT_UPDATED=0
-EASYWI_GITHUB_REPO="Matlord93/webinterface"
+EASYWI_GITHUB_REPO="Matlord93/Easy-Wi-NextGen"
 EASYWI_GITHUB_RELEASE_BASE="https://github.com/${EASYWI_GITHUB_REPO}/releases"
 LOG_FILE="${EASYWI_INSTALLER_LOG_FILE:-/var/log/easywi-installer.log}"
 DIAG_LOG_FILE="${EASYWI_INSTALLER_DIAG_LOG_FILE:-/var/log/easywi-installer-diagnostics.log}"
@@ -2222,39 +2222,32 @@ checksum_file_contains_asset() {
 }
 
 
+curl_github_page() {
+  local url="$1" dest="$2" token="${3:-}"
+  local -a args=(-fsSL --retry 3 --retry-delay 2 -L -H "User-Agent: easywi-installer/${VERSION}")
+  [[ -n "${token}" ]] && args+=(-H "Authorization: Bearer ${token}")
+  curl "${args[@]}" "${url}" -o "${dest}"
+}
 
-resolve_panel_release_tag() {
+resolve_panel_release_tag_from_html() {
   local version="${1:-latest}" token="${2:-}"
-  command -v jq >/dev/null 2>&1 || return 1
-
-  local tmp api_url tag_candidate resolved_tag
+  local tmp html_url tag_candidate resolved_tag
   tmp="$(mktemp)"
 
   if [[ -n "${version}" && "${version}" != "latest" ]]; then
     for tag_candidate in "${version}" "v${version}"; do
       [[ "${tag_candidate}" == "vv"* ]] && continue
-      api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases/tags/${tag_candidate}"
-      if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
-        resolved_tag="$(jq -r '.tag_name // empty' "${tmp}")"
+      html_url="https://github.com/${EASYWI_GITHUB_REPO}/releases/tag/${tag_candidate}"
+      if curl_github_page "${html_url}" "${tmp}" "${token}" 2>/dev/null; then
         rm -f "${tmp}"
-        [[ -n "${resolved_tag}" ]] || return 1
-        printf '%s\n' "${resolved_tag}"
+        printf '%s\n' "${tag_candidate}"
         return 0
       fi
     done
   else
-    api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases/latest"
-    if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
-      resolved_tag="$(jq -r '.tag_name // empty' "${tmp}")"
-      rm -f "${tmp}"
-      [[ -n "${resolved_tag}" ]] || return 1
-      printf '%s\n' "${resolved_tag}"
-      return 0
-    fi
-
-    api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases?per_page=1"
-    if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
-      resolved_tag="$(jq -r '.[0].tag_name // empty' "${tmp}")"
+    html_url="https://github.com/${EASYWI_GITHUB_REPO}/releases"
+    if curl_github_page "${html_url}" "${tmp}" "${token}" 2>/dev/null; then
+      resolved_tag="$(sed -n 's#.*href="/'"${EASYWI_GITHUB_REPO}"'/releases/tag/\([^"]*\)".*#\1#p' "${tmp}" | head -n1)"
       rm -f "${tmp}"
       [[ -n "${resolved_tag}" ]] || return 1
       printf '%s\n' "${resolved_tag}"
@@ -2266,9 +2259,93 @@ resolve_panel_release_tag() {
   return 1
 }
 
+list_panel_release_assets_from_html() {
+  local version="${1:-latest}" token="${2:-}"
+  local tmp tag html_url
+  tmp="$(mktemp)"
+
+  if ! tag="$(resolve_panel_release_tag_from_html "${version}" "${token}" 2>/dev/null)"; then
+    rm -f "${tmp}"
+    return 1
+  fi
+
+  html_url="https://github.com/${EASYWI_GITHUB_REPO}/releases/expanded_assets/${tag}"
+  if ! curl_github_page "${html_url}" "${tmp}" "${token}" 2>/dev/null; then
+    rm -f "${tmp}"
+    return 1
+  fi
+
+  sed -n 's#.*href="/'"${EASYWI_GITHUB_REPO}"'/releases/download/[^/]*/\([^"]*\)".*#\1#p' "${tmp}" \
+    | sed 's/&amp;/\&/g' \
+    | grep -E '^(easywi-|checksums-|checksums\.|manifest\.json$)' || true
+  rm -f "${tmp}"
+}
+
+github_json_first_tag_name() {
+  local json_file="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r 'if type == "array" then .[0].tag_name // empty else .tag_name // empty end' "${json_file}"
+    return 0
+  fi
+
+  sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${json_file}" | head -n1
+}
+
+github_json_asset_names() {
+  local json_file="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r 'if type == "array" then .[0].assets[]?.name // empty else .assets[]?.name // empty end' "${json_file}"
+    return 0
+  fi
+
+  sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${json_file}" \
+    | grep -E '^(easywi-|checksums-|checksums\.|manifest\.json$)' || true
+}
+
+resolve_panel_release_tag() {
+  local version="${1:-latest}" token="${2:-}"
+
+  local tmp api_url tag_candidate resolved_tag
+  tmp="$(mktemp)"
+
+  if [[ -n "${version}" && "${version}" != "latest" ]]; then
+    for tag_candidate in "${version}" "v${version}"; do
+      [[ "${tag_candidate}" == "vv"* ]] && continue
+      api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases/tags/${tag_candidate}"
+      if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
+        resolved_tag="$(github_json_first_tag_name "${tmp}")"
+        rm -f "${tmp}"
+        [[ -n "${resolved_tag}" ]] || return 1
+        printf '%s\n' "${resolved_tag}"
+        return 0
+      fi
+    done
+  else
+    api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases/latest"
+    if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
+      resolved_tag="$(github_json_first_tag_name "${tmp}")"
+      rm -f "${tmp}"
+      [[ -n "${resolved_tag}" ]] || return 1
+      printf '%s\n' "${resolved_tag}"
+      return 0
+    fi
+
+    api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases?per_page=1"
+    if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
+      resolved_tag="$(github_json_first_tag_name "${tmp}")"
+      rm -f "${tmp}"
+      [[ -n "${resolved_tag}" ]] || return 1
+      printf '%s\n' "${resolved_tag}"
+      return 0
+    fi
+  fi
+
+  rm -f "${tmp}"
+  resolve_panel_release_tag_from_html "${version}" "${token}"
+}
+
 list_panel_release_assets() {
   local version="${1:-latest}" token="${2:-}"
-  command -v jq >/dev/null 2>&1 || return 1
 
   local tmp api_url tag_candidate
   tmp="$(mktemp)"
@@ -2278,7 +2355,7 @@ list_panel_release_assets() {
       [[ "${tag_candidate}" == "vv"* ]] && continue
       api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases/tags/${tag_candidate}"
       if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
-        jq -r '.assets[]?.name // empty' "${tmp}"
+        github_json_asset_names "${tmp}"
         rm -f "${tmp}"
         return 0
       fi
@@ -2286,21 +2363,21 @@ list_panel_release_assets() {
   else
     api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases/latest"
     if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
-      jq -r '.assets[]?.name // empty' "${tmp}"
+      github_json_asset_names "${tmp}"
       rm -f "${tmp}"
       return 0
     fi
 
     api_url="https://api.github.com/repos/${EASYWI_GITHUB_REPO}/releases?per_page=1"
     if curl_github_api "${api_url}" "${tmp}" "${token}" 2>/dev/null; then
-      jq -r '.[0].assets[]?.name // empty' "${tmp}"
+      github_json_asset_names "${tmp}"
       rm -f "${tmp}"
       return 0
     fi
   fi
 
   rm -f "${tmp}"
-  return 1
+  list_panel_release_assets_from_html "${version}" "${token}"
 }
 
 asset_already_selected() {
@@ -2312,28 +2389,51 @@ asset_already_selected() {
   return 1
 }
 
+list_panel_checksum_assets() {
+  local version="${1:-latest}" token="${2:-}"
+  local tmp checksum_candidate
+  tmp="$(mktemp)"
+
+  for checksum_candidate in checksums-webinterface.txt checksums-core.txt checksums.txt checksums.sha256; do
+    if ! download_optional_asset "${checksum_candidate}" "${tmp}" "${version}" "${token}"; then
+      continue
+    fi
+
+    awk '{name=$2; sub(/^\*/, "", name); if (name ~ /^(easywi-webinterface-[^[:space:]\/]+\.zip|easywi-core(-[^[:space:]\/]+)?\.tar\.gz)$/) print name}' "${tmp}"
+  done
+
+  rm -f "${tmp}"
+}
+
 select_panel_asset_candidates() {
   local version="${1:-latest}" token="${2:-}" version_plain="$3"
-  local -a release_assets=() selected=()
+  local -a release_assets=() checksum_assets=() selected=()
   local asset candidate
 
   mapfile -t release_assets < <(list_panel_release_assets "${version}" "${token}" 2>/dev/null || true)
+  mapfile -t checksum_assets < <(list_panel_checksum_assets "${version}" "${token}" 2>/dev/null || true)
 
-  for asset in "${release_assets[@]}"; do
+  for asset in "${release_assets[@]}" "${checksum_assets[@]}"; do
     case "${asset}" in
       easywi-webinterface-update-*.zip) continue ;;
-      easywi-webinterface-*.zip) selected+=("${asset}") ;;
+      easywi-webinterface-*.zip)
+        asset_already_selected "${asset}" "${selected[@]}" || selected+=("${asset}")
+        ;;
     esac
   done
 
-  for asset in "${release_assets[@]}"; do
+  for asset in "${release_assets[@]}" "${checksum_assets[@]}"; do
     case "${asset}" in
-      easywi-core-*.tar.gz) selected+=("${asset}") ;;
+      easywi-core-*.tar.gz)
+        asset_already_selected "${asset}" "${selected[@]}" || selected+=("${asset}")
+        ;;
     esac
   done
 
-  for asset in "${release_assets[@]}"; do
-    [[ "${asset}" == "easywi-core.tar.gz" ]] && selected+=("${asset}")
+  for asset in "${release_assets[@]}" "${checksum_assets[@]}"; do
+    if [[ "${asset}" == "easywi-core.tar.gz" ]] && ! asset_already_selected "${asset}" "${selected[@]}"; then
+      selected+=("${asset}")
+    fi
   done
 
   if [[ -n "${version_plain}" && "${version_plain}" != "latest" ]]; then
@@ -2356,10 +2456,19 @@ select_panel_asset_candidates() {
 
 format_asset_list_for_error() {
   local version="${1:-latest}" token="${2:-}"
-  local -a release_assets=()
+  local -a release_assets=() checksum_assets=()
   mapfile -t release_assets < <(list_panel_release_assets "${version}" "${token}" 2>/dev/null || true)
+  mapfile -t checksum_assets < <(list_panel_checksum_assets "${version}" "${token}" 2>/dev/null || true)
+  if [[ "${#release_assets[@]}" -eq 0 && "${#checksum_assets[@]}" -eq 0 ]]; then
+    printf 'keine Assets per GitHub-API, Release-Seite oder Checksum-Dateien ermittelbar'
+    return 0
+  fi
   if [[ "${#release_assets[@]}" -eq 0 ]]; then
-    printf 'keine Assets per GitHub-API ermittelbar'
+    printf 'GitHub-API nicht verfügbar; aus Checksums: %s' "${checksum_assets[*]}"
+    return 0
+  fi
+  if [[ "${#checksum_assets[@]}" -gt 0 ]]; then
+    printf '%s; aus Checksums: %s' "${release_assets[*]}" "${checksum_assets[*]}"
     return 0
   fi
   printf '%s' "${release_assets[*]}"
@@ -2382,6 +2491,25 @@ validate_panel_archive() {
       fatal "Unbekanntes Panel-Archivformat: ${asset_name}"
       ;;
   esac
+}
+
+
+download_panel_source_archive() {
+  local dest="$1" version="$2" token="${3:-}"
+  local tag="${version}"
+  [[ -n "${tag}" && "${tag}" != "latest" ]] || return 1
+
+  local -a args=(-fsSL --retry 3 --retry-delay 2 -L -H "User-Agent: easywi-installer/${VERSION}")
+  [[ -n "${token}" ]] && args+=(-H "Authorization: Bearer ${token}")
+
+  local url="https://github.com/${EASYWI_GITHUB_REPO}/archive/refs/tags/${tag}.tar.gz"
+  log "Download: ${url}"
+  if curl "${args[@]}" "${url}" -o "${dest}"; then
+    return 0
+  fi
+
+  rm -f "${dest}"
+  return 1
 }
 
 download_checksums_for_asset() {
@@ -2486,7 +2614,14 @@ install_panel_release() {
   done
 
   if [[ -z "${asset_name:-}" || ! -f "${archive:-}" ]]; then
-    fatal "Kein passendes Panel/Webinterface-Release-Asset gefunden. Erwartet easywi-webinterface-*.zip (ohne easywi-webinterface-update-*.zip), optional easywi-core-*.tar.gz/easywi-core.tar.gz. Gefundene Release-Assets: ${found_assets}. Versuchte Kandidaten: ${candidates[*]:-(keine)}."
+    archive="${tmp}/easywi-panel-source.tar.gz"
+    asset_name="github-source-${download_version}.tar.gz"
+    if download_panel_source_archive "${archive}" "${download_version}" "${github_token}"; then
+      validate_panel_archive "${archive}" "${asset_name}"
+      warn "Kein passendes Release-Asset gefunden – nutze GitHub-Quellarchiv ${download_version} als Fallback."
+    else
+      fatal "Kein passendes Panel/Webinterface-Release-Asset gefunden. Erwartet easywi-webinterface-*.zip (ohne easywi-webinterface-update-*.zip), optional easywi-core-*.tar.gz/easywi-core.tar.gz. Gefundene Release-Assets: ${found_assets}. Versuchte Kandidaten: ${candidates[*]:-(keine)}. Fallback-Quellarchiv fehlgeschlagen: ${download_version}."
+    fi
   fi
 
   extract_panel_archive "${archive}" "${tmp}" "${asset_name}"
