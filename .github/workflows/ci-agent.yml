@@ -45,7 +45,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/docs/api/scripts/check_breaking_changes.py" /tmp/core-agent.base.yaml "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "1.25.11"
           cache: 'false'
@@ -95,7 +95,7 @@ jobs:
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "1.25.11"
           cache: 'false'

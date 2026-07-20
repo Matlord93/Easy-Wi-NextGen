@@ -36,7 +36,7 @@ jobs:
 
       - name: Setup Go for agent builds
         if: ${{ hashFiles('agent/go.mod') != '' }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum

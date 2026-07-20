@@ -92,7 +92,7 @@ jobs:
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "1.25.11"
           cache: 'false'
