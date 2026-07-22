@@ -8,6 +8,12 @@ use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 
 final class RedisConsoleEventBus implements ConsoleEventBusInterface
 {
+    /**
+     * Console replay data is useful only while a browser reconnects. Keeping it
+     * indefinitely turns every historical console into a permanent Redis key.
+     */
+    private const BUFFER_TTL_SECONDS = 900;
+
     public function __construct(private readonly \Redis $redis, private readonly int $bufferSize = 500)
     {
     }
@@ -18,6 +24,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
         $this->redis->multi();
         $this->redis->rPush($this->bufferKey($instanceId), $json);
         $this->redis->lTrim($this->bufferKey($instanceId), -1 * $this->bufferSize, -1);
+        $this->redis->expire($this->bufferKey($instanceId), self::BUFFER_TTL_SECONDS);
         $this->redis->publish($this->channel($instanceId), $json);
         $this->redis->exec();
     }

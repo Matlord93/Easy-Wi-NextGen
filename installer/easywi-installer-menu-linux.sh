@@ -2708,11 +2708,6 @@ install_agent_binaries() {
 
   command -v easywi-agent >/dev/null || fatal "easywi-agent nicht im PATH nach Installation."
 
-  if [[ "${arch}" == "amd64" ]]; then
-    local github_token_inner="${EASYWI_APP_GITHUB_TOKEN:-}"
-    install_optional_agent_binary "easywi-musicbot-linux-amd64"        /usr/local/bin/easywi-musicbot        "${resolved_version}" "${github_token_inner}"
-    install_optional_agent_binary "easywi-teamspeak-bridge-linux-amd64" /usr/local/bin/easywi-teamspeak-bridge "${resolved_version}" "${github_token_inner}"
-  fi
 }
 
 # install_optional_agent_binary downloads a single named agent binary from the
@@ -2758,6 +2753,20 @@ install_optional_agent_binary() {
   fi
 
   rm -rf "${tmp}"
+}
+
+install_musicbot_agent_binaries() {
+  local version="${1:-latest}" arch github_token
+  arch="$(detect_arch_suffix)"
+  if [[ "${arch}" != "amd64" ]]; then
+    warn "Musicbot-Runtime und TeamSpeak-Bridge sind nur für amd64 als Release-Assets verfügbar; überspringe Binary-Installation."
+    return 0
+  fi
+
+  github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
+  step "Installiere/aktualisiere Musicbot-Runtime und TeamSpeak-Bridge (${version})."
+  install_optional_agent_binary "easywi-musicbot-linux-amd64"         /usr/local/bin/easywi-musicbot        "${version}" "${github_token}"
+  install_optional_agent_binary "easywi-teamspeak-bridge-linux-amd64" /usr/local/bin/easywi-teamspeak-bridge "${version}" "${github_token}"
 }
 
 # ---------------------------------------------------------------------------
@@ -2986,7 +2995,6 @@ install_panel() {
   base_pkgs+=("$(nginx_packages "${manager}")")
 
   install_packages "${manager}" "${base_pkgs[@]}" "${PHP_BASE_PKGS[@]}" "${DB_PKGS[@]}" "${REDIS_SERVER_PKGS[@]}"
-  install_musicbot_system_dependencies "${manager}"
   if [[ "${manager}" == "apt" ]]; then
     set_php_alternatives_for_target "${php_version}"
     ensure_target_fpm_service "${php_version}"
@@ -3059,7 +3067,6 @@ install_panel() {
   configure_php_fpm_easywi_sandbox "${PHP_FPM_SERVICE}"
 
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
-  configure_musicbot_panel_limits "${php_version}" "$(detect_nginx_conf_dir "${family}")/easywi.conf"
 
   if [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]]; then
     if setup_certbot "${manager}" "${web_hostname}" "${ssl_email}"; then
@@ -3302,12 +3309,6 @@ update_agent() {
 
   cleanup_old_easywi_agent_processes
   install_agent_binaries "${arch}" "${agent_version}"
-
-  if [[ "${arch}" == "amd64" ]]; then
-    local github_token_upd="${EASYWI_APP_GITHUB_TOKEN:-}"
-    install_optional_agent_binary "easywi-musicbot-linux-amd64"         /usr/local/bin/easywi-musicbot         "${agent_version}" "${github_token_upd}"
-    install_optional_agent_binary "easywi-teamspeak-bridge-linux-amd64" /usr/local/bin/easywi-teamspeak-bridge "${agent_version}" "${github_token_upd}"
-  fi
 
   if has_systemctl; then
     ensure_agent_service_interval_environment
@@ -4196,27 +4197,30 @@ INFO
   ok "Panel-SSL wurde nachträglich eingerichtet. DEFAULT_URI=https://${web_hostname}"
 }
 
-run_musicbot_prerequisites_repair() {
+run_musicbot_install() {
   menu_output <<'INFO'
 
   ╔══════════════════════════════════════════════════╗
-  ║  Musicbot Voraussetzungen reparieren/neu anwenden║
-  ║  Setzt PHP/Nginx Upload-Limits und installiert   ║
-  ║  Systempakete für Musicbot/TeamSpeak-Bridge.     ║
+  ║  Musicbot installieren/aktualisieren             ║
+  ║  Installiert Runtime, TeamSpeak-Bridge sowie     ║
+  ║  eigene Systempakete und Upload-Limits.          ║
   ╚══════════════════════════════════════════════════╝
 
 INFO
-  local family manager php_version nginx_config
+  local family manager php_version nginx_config musicbot_version
   family="$(detect_os_family)"
   manager="$(detect_package_manager)"
   php_version="${EASYWI_PHP_VERSION:-${DEFAULT_PHP_VERSION}}"
   nginx_config="$(detect_nginx_conf_dir "${family}")/easywi.conf"
+  musicbot_version="${EASYWI_MUSICBOT_VERSION:-${EASYWI_AGENT_VERSION:-latest}}"
   prompt_value php_version "PHP-Version für gezielte Prüfung (leer = automatisch erkannte Versionen zusätzlich)" "${php_version}"
   prompt_value nginx_config "EasyWI nginx-vHost-Konfiguration" "${nginx_config}"
+  prompt_value musicbot_version "Musicbot-Release-Version (latest oder Tag)" "${musicbot_version}"
 
   install_musicbot_system_dependencies "${manager}"
   configure_musicbot_panel_limits "${php_version}" "${nginx_config}"
-  ok "Musicbot Voraussetzungen wurden neu angewendet."
+  install_musicbot_agent_binaries "${musicbot_version}"
+  ok "Musicbot-Komponenten wurden installiert/aktualisiert."
 }
 
 
@@ -5308,13 +5312,13 @@ main_menu() {
   menu_output <<'MENU'
   Was möchten Sie tun?
 
-    1) Panel (Core) installieren (inkl. Musicbot Upload-Limits & Systemabhängigkeiten)
+    1) Panel (Core) installieren
     2) Agent installieren
-    3) Panel + Agent installieren (inkl. Musicbot Upload-Limits & Systemabhängigkeiten)
+    3) Panel + Agent installieren
     4) Agent aktualisieren
     5) CPU Performance-Modus (Intel/AMD · Governor + GRUB)
     6) Panel-SSL nachträglich einrichten
-    7) Musicbot Voraussetzungen reparieren/neu anwenden
+    7) Musicbot installieren/aktualisieren (optional)
     8) Beenden
 
 MENU
@@ -5326,7 +5330,7 @@ MENU
     4) run_agent_update     ;;
     5) run_cpu_performance  ;;
     6) run_panel_ssl_setup  ;;
-    7) run_musicbot_prerequisites_repair ;;
+    7) run_musicbot_install ;;
     *) log "Installation beendet."; exit 0 ;;
   esac
 }

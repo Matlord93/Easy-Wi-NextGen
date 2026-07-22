@@ -30,6 +30,15 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             return [];
         }
 
+        // Do not hydrate the full metric history and then discard all but one
+        // row per instance in PHP. On customer dashboards that history can be
+        // large enough for ArrayHydrator to exhaust the PHP memory limit.
+        $latestSampleIds = $this->getEntityManager()->createQueryBuilder()
+            ->select('MAX(latest.id)')
+            ->from(InstanceMetricSample::class, 'latest')
+            ->andWhere('latest.instance IN (:instances)')
+            ->groupBy('latest.instance');
+
         $rows = $this->createQueryBuilder('sample')
             ->select(
                 'IDENTITY(sample.instance) AS instance_id',
@@ -39,17 +48,15 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
                 'sample.collectedAt AS collected_at',
                 'sample.errorCode AS error_code',
             )
-            ->andWhere('sample.instance IN (:instances)')
+            ->andWhere(sprintf('sample.id IN (%s)', $latestSampleIds->getDQL()))
             ->setParameter('instances', $instances)
-            ->orderBy('sample.collectedAt', 'DESC')
-            ->addOrderBy('sample.id', 'DESC')
             ->getQuery()
             ->getArrayResult();
 
         $latest = [];
         foreach ($rows as $row) {
             $instanceId = is_numeric($row['instance_id'] ?? null) ? (int) $row['instance_id'] : null;
-            if ($instanceId === null || isset($latest[$instanceId])) {
+            if ($instanceId === null) {
                 continue;
             }
 
@@ -281,6 +288,45 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->setParameter('threshold', $threshold)
             ->getQuery()
             ->execute();
+    }
+
+    /**
+     * Keep the per-instance history bounded even when an agent sends samples
+     * more frequently than expected. Deletes run in small batches so cleanup
+     * itself cannot create a large PHP result set.
+     */
+    public function deleteExcessForInstance(Instance $instance, int $maximumSamples, int $batchSize = 500): int
+    {
+        $maximumSamples = max(1, $maximumSamples);
+        $batchSize = max(1, min(1000, $batchSize));
+        $deleted = 0;
+
+        do {
+            $rows = $this->createQueryBuilder('sample')
+                ->select('sample.id AS id')
+                ->andWhere('sample.instance = :instance')
+                ->setParameter('instance', $instance)
+                ->orderBy('sample.collectedAt', 'DESC')
+                ->addOrderBy('sample.id', 'DESC')
+                ->setFirstResult($maximumSamples)
+                ->setMaxResults($batchSize)
+                ->getQuery()
+                ->getScalarResult();
+            $ids = array_values(array_filter(array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $rows)));
+
+            if ($ids === []) {
+                break;
+            }
+
+            $deleted += $this->createQueryBuilder('sample')
+                ->delete()
+                ->andWhere('sample.id IN (:ids)')
+                ->setParameter('ids', $ids)
+                ->getQuery()
+                ->execute();
+        } while (count($ids) === $batchSize);
+
+        return $deleted;
     }
 
     private function applyAdminBrowseFilters(QueryBuilder $qb, ?string $nodeId, ?string $customer, ?int $instanceId): void

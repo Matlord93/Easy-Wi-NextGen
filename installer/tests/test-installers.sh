@@ -108,6 +108,30 @@ if '/var/www/easywi/core/var' in data_area_body:
     raise SystemExit('core/var must not be part of customer data_area_paths')
 require(r'check_symfony_runtime_area', 'core/var must be handled as Symfony runtime area')
 require(r'SELinux: not installed/not available\.', 'missing getenforce must be reported cleanly')
+
+def function_body(name):
+    match = re.search(rf'^{name}\(\) \{{(?P<body>.*?)^\}}', script, re.M | re.S)
+    if not match:
+        raise SystemExit(f'{name} function missing')
+    return match.group('body')
+
+panel_install = function_body('install_panel')
+if 'install_musicbot_system_dependencies' in panel_install or 'configure_musicbot_panel_limits' in panel_install:
+    raise SystemExit('Panel installation must not install or configure optional Musicbot components')
+
+agent_binary_install = function_body('install_agent_binaries')
+agent_update = function_body('update_agent')
+for body, label in [(agent_binary_install, 'agent install'), (agent_update, 'agent update')]:
+    if 'easywi-musicbot-linux-amd64' in body or 'easywi-teamspeak-bridge-linux-amd64' in body:
+        raise SystemExit(f'{label} must not automatically install Musicbot binaries')
+
+musicbot_install = function_body('run_musicbot_install')
+for required in ['install_musicbot_system_dependencies', 'configure_musicbot_panel_limits', 'install_musicbot_agent_binaries']:
+    if required not in musicbot_install:
+        raise SystemExit(f'optional Musicbot menu must call {required}')
+
+require(r'7\) Musicbot installieren/aktualisieren \(optional\)', 'optional Musicbot menu entry missing')
+require(r'7\) run_musicbot_install', 'Musicbot menu dispatch missing')
 PY_PHP85_TESTS
 
 if command -v php >/dev/null 2>&1; then
@@ -139,7 +163,7 @@ proc = subprocess.Popen(
 os.close(slave)
 output = b""
 inputs = [
-    (b"3\n", b"Auswahl [1-7]:"),
+    (b"3\n", b"Auswahl [1-8]:"),
     (b"1\n", b"Auswahl [1-3]:"),
     (b"\n", b"DB-Root-Passwort"),
 ]
@@ -212,7 +236,7 @@ try:
             if not chunk:
                 break
             output += chunk
-        if not menu_sent and b"Auswahl [1-7]:" in output:
+        if not menu_sent and b"Auswahl [1-8]:" in output:
             os.write(master, b"2\n")
             menu_sent = True
             last_len = len(output)

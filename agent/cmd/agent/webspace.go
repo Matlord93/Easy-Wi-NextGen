@@ -20,6 +20,7 @@ const (
 	webspaceFileMode       = 0o644
 	phpFpmRuntimeDirMode   = 0o750
 	phpFpmTmpfilesRulePath = "/etc/tmpfiles.d/easywi-php-fpm.conf"
+	webspacePhpMemoryLimit = 256 * 1024 * 1024
 )
 
 func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
@@ -461,25 +462,74 @@ func phpFpmPoolTemplate(pool, user, group, listenUser, listenGroup, listen, webR
 	_, _ = fmt.Fprintf(&buffer, "listen.group = %s\n", listenGroup)
 	buffer.WriteString("listen.mode = 0660\n")
 	buffer.WriteString("pm = ondemand\n")
-	buffer.WriteString("pm.max_children = 10\n")
+	buffer.WriteString("pm.max_children = 4\n")
 	buffer.WriteString("pm.process_idle_timeout = 10s\n")
-	buffer.WriteString("pm.max_requests = 500\n")
+	buffer.WriteString("pm.max_requests = 250\n")
+	buffer.WriteString("request_terminate_timeout = 120s\n")
 	buffer.WriteString("catch_workers_output = yes\n")
 	_, _ = fmt.Fprintf(&buffer, "access.log = %s/php-fpm-access.log\n", logsDir)
 	_, _ = fmt.Fprintf(&buffer, "php_admin_value[open_basedir] = %s:/tmp\n", webRoot)
 	_, _ = fmt.Fprintf(&buffer, "php_admin_value[upload_tmp_dir] = %s\n", tmpDir)
 	_, _ = fmt.Fprintf(&buffer, "php_admin_value[session.save_path] = %s\n", tmpDir)
+	_, hasMemoryLimit := phpSettings["memory_limit"]
+	if !hasMemoryLimit {
+		buffer.WriteString("php_admin_value[memory_limit] = 256M\n")
+	}
 	if len(phpSettings) > 0 {
 		for _, key := range sortedPhpSettings(phpSettings) {
 			value := phpSettings[key]
 			if value == "" {
 				continue
 			}
+			if key == "memory_limit" {
+				value = cappedWebspaceMemoryLimit(value)
+			}
 			_, _ = fmt.Fprintf(&buffer, "php_admin_value[%s] = %s\n", key, value)
 		}
 	}
 	buffer.WriteString("security.limit_extensions = .php\n")
 	return buffer.String()
+}
+
+func cappedWebspaceMemoryLimit(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "-1" {
+		return "256M"
+	}
+
+	bytes, ok := phpMemoryLimitBytes(value)
+	if !ok || bytes > webspacePhpMemoryLimit {
+		return "256M"
+	}
+
+	return value
+}
+
+func phpMemoryLimitBytes(value string) (int, bool) {
+	value = strings.ToUpper(strings.TrimSpace(value))
+	if value == "" {
+		return 0, false
+	}
+
+	multiplier := 1
+	last := value[len(value)-1]
+	switch last {
+	case 'K':
+		multiplier = 1024
+		value = value[:len(value)-1]
+	case 'M':
+		multiplier = 1024 * 1024
+		value = value[:len(value)-1]
+	case 'G':
+		multiplier = 1024 * 1024 * 1024
+		value = value[:len(value)-1]
+	}
+
+	amount, err := strconv.Atoi(value)
+	if err != nil || amount < 0 || amount > webspacePhpMemoryLimit {
+		return 0, false
+	}
+	return amount * multiplier, true
 }
 
 func nginxIncludeTemplate(docroot, logsDir, phpFpmListen string) string {

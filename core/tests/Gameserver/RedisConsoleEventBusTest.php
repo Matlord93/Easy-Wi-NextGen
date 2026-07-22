@@ -16,6 +16,18 @@ final class RedisConsoleEventBusTest extends TestCase
         }
     }
 
+    public function testPublishedConsoleBufferExpiresAfterReconnectWindow(): void
+    {
+        $redis = $this->createMock(\Redis::class);
+        $redis->expects(self::once())->method('rPush')->with('consolebuf:42', self::isType('string'));
+        $redis->expects(self::once())->method('lTrim')->with('consolebuf:42', -500, -1);
+        $redis->expects(self::once())->method('expire')->with('consolebuf:42', 900);
+        $redis->expects(self::once())->method('publish')->with('console:42', self::isType('string'));
+
+        $bus = new RedisConsoleEventBus($redis);
+        $bus->publishConsoleEvent(42, ['seq' => 1, 'message' => 'hello']);
+    }
+
     public function testGetInstancesWithSubscribersFindsInstancesViaTtlKeys(): void
     {
         $redis = $this->createMock(\Redis::class);

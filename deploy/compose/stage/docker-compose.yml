@@ -76,7 +76,7 @@ services:
       - ../../shared/env/stage.env
     ports:
       - "${QUEUE_PORT:-16379}:6379"
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${QUEUE_PASSWORD:-replace-with-stage-secret}"]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "192mb", "--maxmemory-policy", "allkeys-lru", "--requirepass", "${QUEUE_PASSWORD:-replace-with-stage-secret}"]
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a ${QUEUE_PASSWORD:-replace-with-stage-secret} ping | grep -q PONG"]
       interval: 15s

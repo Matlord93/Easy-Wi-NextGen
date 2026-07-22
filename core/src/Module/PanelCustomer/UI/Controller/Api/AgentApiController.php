@@ -8,6 +8,7 @@ use App\Module\Core\Application\AgentMetricsIngestionService;
 use App\Module\Core\Application\AgentJwtVerifier;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\FirewallStateManager;
 use App\Module\Core\Application\GdprAnonymizer;
@@ -72,6 +73,7 @@ final class AgentApiController
 {
     private const DEFAULT_JOB_LOCK_TTL = '+10 minutes';
     private const BACKUP_JOB_LOCK_TTL = '+12 hours';
+    private const INSTANCE_METRIC_MAX_SAMPLES = 288;
 
     /**
      * Backup jobs create or apply external filesystem state and must not be
@@ -130,6 +132,7 @@ final class AgentApiController
         private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly SecurityPolicyRevisionRepository $policyRevisionRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly AppSettingsService $appSettingsService,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly AgentJwtVerifier $jwtVerifier,
@@ -1258,7 +1261,11 @@ final class AgentApiController
         }
 
         $samples = is_array($payload['samples'] ?? null) ? $payload['samples'] : [];
-        $retentionThreshold = new \DateTimeImmutable('-30 days');
+        $settings = $this->appSettingsService->getSettings();
+        $retentionDays = is_numeric($settings[AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS] ?? null)
+            ? max(1, min(7, (int) $settings[AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS]))
+            : 1;
+        $retentionThreshold = (new \DateTimeImmutable())->modify(sprintf('-%d days', $retentionDays));
         $resolvedInstances = [];
         $instanceIds = [];
 
@@ -1321,6 +1328,9 @@ final class AgentApiController
         }
 
         $this->instanceMetricSampleRepository->deleteOlderThan($retentionThreshold);
+        foreach ($resolvedInstances as $instance) {
+            $this->instanceMetricSampleRepository->deleteExcessForInstance($instance, self::INSTANCE_METRIC_MAX_SAMPLES);
+        }
     }
 
 

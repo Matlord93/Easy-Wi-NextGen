@@ -74,7 +74,7 @@ services:
     restart: unless-stopped
     ports:
       - "${QUEUE_PORT:-6379}:6379"
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${QUEUE_PASSWORD:-change-me-queue}"]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "192mb", "--maxmemory-policy", "allkeys-lru", "--requirepass", "${QUEUE_PASSWORD:-change-me-queue}"]
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a ${QUEUE_PASSWORD:-change-me-queue} ping | grep -q PONG"]
       interval: 10s
