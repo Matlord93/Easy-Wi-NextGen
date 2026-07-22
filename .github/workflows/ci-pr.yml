@@ -58,7 +58,7 @@ jobs:
             ${{ runner.os }}-php85-
 
       - name: Composer install
-        run: ../scripts/ci-dependency-bootstrap.sh composer
+        run: bash ../scripts/ci-dependency-bootstrap.sh composer
         env:
           COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
 
@@ -169,7 +169,7 @@ jobs:
             ${{ runner.os }}-gomod-
 
       - name: Download Go modules
-        run: ../scripts/ci-dependency-bootstrap.sh go
+        run: bash ../scripts/ci-dependency-bootstrap.sh go
         env:
           EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
 

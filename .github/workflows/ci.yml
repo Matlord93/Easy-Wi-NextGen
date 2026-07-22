@@ -22,7 +22,7 @@ jobs:
       - name: Verify PHP 8.5 environment
         uses: ./.github/actions/verify-php
       - run: composer validate --strict
-      - run: ../scripts/ci-dependency-bootstrap.sh composer --no-scripts
+      - run: bash ../scripts/ci-dependency-bootstrap.sh composer --no-scripts
         env:
           COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
           SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
@@ -58,7 +58,7 @@ jobs:
         run: go env GOPROXY
 
       - name: Download Go modules
-        run: ../scripts/ci-dependency-bootstrap.sh go
+        run: bash ../scripts/ci-dependency-bootstrap.sh go
         env:
           EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
 

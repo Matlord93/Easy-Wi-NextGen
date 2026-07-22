@@ -61,7 +61,7 @@ jobs:
             ${{ runner.os }}-gomod-
 
       - name: Download Go modules
-        run: ./scripts/ci-dependency-bootstrap.sh go
+        run: bash ./scripts/ci-dependency-bootstrap.sh go
         env:
           EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
 

@@ -39,7 +39,7 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Composer install
-        run: ../scripts/ci-dependency-bootstrap.sh composer
+        run: bash ../scripts/ci-dependency-bootstrap.sh composer
         env:
           COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
       - name: Prepare Python for OpenAPI checks
@@ -126,7 +126,7 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Composer install
-        run: ../scripts/ci-dependency-bootstrap.sh composer
+        run: bash ../scripts/ci-dependency-bootstrap.sh composer
         env:
           COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
           SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
@@ -173,7 +173,7 @@ jobs:
         uses: ./.github/actions/verify-php
 
       - name: Install deps (prod)
-        run: ../scripts/ci-dependency-bootstrap.sh composer --no-dev --optimize-autoloader
+        run: bash ../scripts/ci-dependency-bootstrap.sh composer --no-dev --optimize-autoloader
         env:
           COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
 
