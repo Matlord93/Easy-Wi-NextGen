@@ -22,8 +22,9 @@ jobs:
       - name: Verify PHP 8.5 environment
         uses: ./.github/actions/verify-php
       - run: composer validate --strict
-      - run: composer install --no-interaction --prefer-dist --no-scripts
+      - run: ../scripts/ci-dependency-bootstrap.sh composer --no-scripts
         env:
+          COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
           SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
       - run: php bin/phpunit --testsuite default
 
@@ -37,12 +38,38 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
           cache: 'false'
-      - run: go test ./...
-      - run: go vet ./...
+
+      - name: Configure isolated Go build cache
+        uses: ./.github/actions/configure-go-build-cache
+
+      - name: Cache Go module downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('agent/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
+
+      - name: Show Go module proxy
+        run: go env GOPROXY
+
+      - name: Download Go modules
+        run: ../scripts/ci-dependency-bootstrap.sh go
+        env:
+          EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
+
+      - name: Verify Go modules
+        run: go mod verify
+
+      - name: Test Go packages
+        run: go test ./...
+
+      - name: Vet Go packages
+        run: go vet ./...
 
   contract:
     runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}

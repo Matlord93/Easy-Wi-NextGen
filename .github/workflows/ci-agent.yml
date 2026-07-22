@@ -45,9 +45,9 @@ jobs:
           python3 "$GITHUB_WORKSPACE/docs/api/scripts/check_breaking_changes.py" /tmp/core-agent.base.yaml "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: "1.25.11"
+          go-version: "1.25.12"
           cache: 'false'
 
       - name: Configure isolated Go build cache
@@ -62,8 +62,9 @@ jobs:
             ${{ runner.os }}-gomod-
 
       - name: Download Go modules
-        run: go mod download
-        working-directory: agent
+        run: ./scripts/ci-dependency-bootstrap.sh go
+        env:
+          EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
 
       - name: Verify Go modules
         run: go mod verify
@@ -95,9 +96,9 @@ jobs:
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: "1.25.11"
+          go-version: "1.25.12"
           cache: 'false'
 
       - name: Configure isolated Go build cache
@@ -112,7 +113,9 @@ jobs:
             ${{ runner.os }}-gomod-
 
       - name: Download Go modules
-        run: go mod download
+        run: ../scripts/ci-dependency-bootstrap.sh go
+        env:
+          EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
 
       - name: Verify Go modules
         run: go mod verify
@@ -148,23 +151,37 @@ jobs:
           echo "commit=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "date=${build_date}" >> "$GITHUB_OUTPUT"
 
-      - name: Build agent
+      - name: Build agent runtimes
         shell: bash
         run: |
           mkdir -p ../dist/${{ matrix.target_os }}
           ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ steps.version.outputs.commit }} -X main.date=${{ steps.version.outputs.date }}"
           GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="${ldflags}" \
             -o ../dist/${{ matrix.target_os }}/easywi-agent${{ matrix.artifact_suffix }} ./cmd/agent
+          GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="${ldflags}" \
+            -o ../dist/${{ matrix.target_os }}/easywi-musicbot${{ matrix.artifact_suffix }} ./cmd/easywi-musicbot
+          for optional_cmd in easywi-teamspeak-bridge easywi-teamspeak-client; do
+            if [[ -d "cmd/${optional_cmd}" ]]; then
+              GOOS=${{ matrix.target_os }} GOARCH=amd64 go build -trimpath -ldflags="${ldflags}" \
+                -o "../dist/${{ matrix.target_os }}/${optional_cmd}${{ matrix.artifact_suffix }}" "./cmd/${optional_cmd}"
+            fi
+          done
 
-      - name: Package agent
+      - name: Package agent runtimes
         shell: bash
         run: |
           cd ../dist/${{ matrix.target_os }}
           if [[ "${{ matrix.target_os }}" == "windows" ]]; then
-            zip -q easywi-agent-windows-amd64.zip easywi-agent.exe
+            zip -q easywi-agent-windows-amd64.zip easywi-agent.exe easywi-musicbot.exe
+            zip -q easywi-musicbot-windows-amd64.zip easywi-musicbot.exe
           else
-            tar -czf easywi-agent-linux-amd64.tar.gz easywi-agent
-            zip -q easywi-agent-linux-amd64.zip easywi-agent
+            linux_bins=(easywi-agent easywi-musicbot)
+            [[ -f easywi-teamspeak-bridge ]] && linux_bins+=(easywi-teamspeak-bridge)
+            [[ -f easywi-teamspeak-client ]] && linux_bins+=(easywi-teamspeak-client)
+            tar -czf easywi-agent-linux-amd64.tar.gz "${linux_bins[@]}"
+            zip -q easywi-agent-linux-amd64.zip "${linux_bins[@]}"
+            tar -czf easywi-musicbot-linux-amd64.tar.gz easywi-musicbot
+            zip -q easywi-musicbot-linux-amd64.zip easywi-musicbot
           fi
 
       - name: Generate checksums
@@ -172,7 +189,7 @@ jobs:
         run: |
           cd ../dist/${{ matrix.target_os }}
           shopt -s nullglob
-          assets=(easywi-agent-*.zip easywi-agent-*.tar.gz)
+          assets=(easywi-agent-*.zip easywi-agent-*.tar.gz easywi-musicbot-*.zip easywi-musicbot-*.tar.gz)
           sha256sum "${assets[@]}" > checksums-agent-${{ matrix.target_os }}.txt
 
       - name: Upload build artifacts
@@ -182,6 +199,8 @@ jobs:
           path: |
             dist/${{ matrix.target_os }}/easywi-agent-*.zip
             dist/${{ matrix.target_os }}/easywi-agent-*.tar.gz
+            dist/${{ matrix.target_os }}/easywi-musicbot-*.zip
+            dist/${{ matrix.target_os }}/easywi-musicbot-*.tar.gz
             dist/${{ matrix.target_os }}/checksums-agent-*.txt
 
   release:
@@ -228,6 +247,8 @@ jobs:
           files: |
             dist/easywi-agent-*.zip
             dist/easywi-agent-*.tar.gz
+            dist/easywi-musicbot-*.zip
+            dist/easywi-musicbot-*.tar.gz
             dist/checksums-agent-*.txt
             dist/checksums-agent-*.txt.asc
           generate_release_notes: false

@@ -1,0 +1,117 @@
+# Musicbot TeamSpeak Live-E2E
+#
+# Triggered manually via workflow_dispatch.
+# Requires repository secrets to run the TeamSpeak section:
+#   MUSICBOT_E2E_TS_HOST            — isolated TS3/TS6 test server hostname/IP
+#   MUSICBOT_E2E_TS_PORT            — server voice port (default 9987)
+#   MUSICBOT_E2E_TS_CHANNEL_ID      — voice channel ID (numeric)
+#   MUSICBOT_E2E_TS_PASSWORD        — server/channel password (optional)
+#   MUSICBOT_E2E_TS_CLIENT_BACKEND_TYPE  — client_library | native_sdk
+#   MUSICBOT_E2E_TS_CLIENT_BACKEND_PATH  — absolute path to the allowed client binary
+#
+# Without those secrets the TeamSpeak section skips with WARN (exit 2 — not a failure).
+# The non-TeamSpeak sections (routes, runtime, bridge) always run.
+#
+# Uses the easywi-ts-e2e-helper binary (agent/cmd/easywi-ts-e2e-helper) as a
+# NDJSON protocol conformance fixture — no real TS3 UDP connection required.
+#
+# NEVER run against a production TeamSpeak server with real users.
+# NEVER commit secrets. Supply them via repository Secrets only.
+# Passwords are never written to any log output.
+
+name: Musicbot TeamSpeak Live-E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_teamspeak:
+        description: 'Run TeamSpeak E2E (requires TS_HOST, TS_CHANNEL_ID, TS_CLIENT_BACKEND_TYPE secrets)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  teamspeak-e2e:
+    name: Musicbot TeamSpeak Live-E2E
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.25.12"
+          cache: 'false'
+
+      - name: Configure isolated Go build cache
+        uses: ./.github/actions/configure-go-build-cache
+
+      - name: Cache Go module downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('agent/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
+
+      - name: Download Go modules
+        run: ./scripts/ci-dependency-bootstrap.sh go
+        env:
+          EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
+
+      - name: Verify Go modules
+        run: go mod verify
+        working-directory: agent
+
+      - name: Install dependencies (jq, ffmpeg)
+        run: |
+          missing=()
+          command -v jq    >/dev/null 2>&1 || missing+=(jq)
+          command -v ffmpeg >/dev/null 2>&1 || missing+=(ffmpeg)
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            sudo apt-get update -qq && sudo apt-get install -y "${missing[@]}"
+          fi
+
+      - name: Build TeamSpeak E2E helper
+        run: |
+          go build -o /tmp/easywi-ts-e2e-helper ./cmd/easywi-ts-e2e-helper
+        working-directory: agent
+        env:
+          GOTOOLCHAIN: auto
+
+      - name: Run Musicbot Live-E2E (TeamSpeak)
+        env:
+          GOTOOLCHAIN: auto
+          MUSICBOT_E2E_RUN_TEAMSPEAK: ${{ inputs.run_teamspeak == true && '1' || '0' }}
+          MUSICBOT_E2E_TS_HOST: ${{ secrets.MUSICBOT_E2E_TS_HOST }}
+          MUSICBOT_E2E_TS_PORT: ${{ secrets.MUSICBOT_E2E_TS_PORT || '9987' }}
+          MUSICBOT_E2E_TS_CHANNEL_ID: ${{ secrets.MUSICBOT_E2E_TS_CHANNEL_ID }}
+          MUSICBOT_E2E_TS_PASSWORD: ${{ secrets.MUSICBOT_E2E_TS_PASSWORD }}
+          MUSICBOT_E2E_TS_NICKNAME: EasyWi-E2E
+          MUSICBOT_E2E_TS_CLIENT_BACKEND_TYPE: ${{ secrets.MUSICBOT_E2E_TS_CLIENT_BACKEND_TYPE || 'client_library' }}
+          MUSICBOT_E2E_TS_CLIENT_BACKEND_PATH: ${{ secrets.MUSICBOT_E2E_TS_CLIENT_BACKEND_PATH || '/tmp/easywi-ts-e2e-helper' }}
+          # No MUSICBOT_E2E_AUDIO_FIXTURE — the script auto-generates a local WAV via Python.
+          # Never set this to a YouTube/Spotify/remote URL.
+        run: |
+          set -uo pipefail
+
+          # Mask password in the Actions log before the script runs.
+          if [[ -n "${MUSICBOT_E2E_TS_PASSWORD:-}" ]]; then
+            printf '::add-mask::%s\n' "$MUSICBOT_E2E_TS_PASSWORD"
+          fi
+
+          scripts/musicbot-live-e2e.sh
+        # exit 1 = at least one FAIL  → job fails
+        # exit 2 = warnings only      → treated as success (TS may skip if secrets missing)
+
+      - name: Interpret exit code
+        if: failure()
+        run: |
+          echo "::error::musicbot-live-e2e.sh exited with failures. Review the output above for [FAIL] lines."
+          exit 1

@@ -36,7 +36,7 @@ jobs:
 
       - name: Setup Go for agent builds
         if: ${{ hashFiles('agent/go.mod') != '' }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -89,10 +89,17 @@ jobs:
           if [[ -f agent/go.mod ]]; then
             (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
             (cd agent && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-agent-windows-amd64.exe ./cmd/agent)
+            (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-musicbot-linux-amd64 ./cmd/easywi-musicbot)
+            if [[ -d agent/cmd/easywi-teamspeak-bridge ]]; then
+              (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-teamspeak-bridge-linux-amd64 ./cmd/easywi-teamspeak-bridge)
+            fi
             (cd dist/release && tar -czf easywi-agent-linux-amd64.tar.gz easywi-agent-linux-amd64)
             (cd dist/release && zip -q easywi-agent-linux-amd64.zip easywi-agent-linux-amd64)
             (cd dist/release && zip -q easywi-agent-windows-amd64.zip easywi-agent-windows-amd64.exe)
-            rm -f dist/release/easywi-agent-linux-amd64 dist/release/easywi-agent-windows-amd64.exe
+            (cd dist/release && zip -q easywi-musicbot-linux-amd64.zip easywi-musicbot-linux-amd64)
+            [[ -f dist/release/easywi-teamspeak-bridge-linux-amd64 ]] && (cd dist/release && zip -q easywi-teamspeak-bridge-linux-amd64.zip easywi-teamspeak-bridge-linux-amd64) || true
+            rm -f dist/release/easywi-agent-linux-amd64 dist/release/easywi-agent-windows-amd64.exe \
+                  dist/release/easywi-musicbot-linux-amd64 dist/release/easywi-teamspeak-bridge-linux-amd64
           else
             # TODO: Keep the release structure ready if the agent source is moved out of this repository.
             echo "agent/go.mod not found; skipping agent binaries" >&2
@@ -104,8 +111,16 @@ jobs:
           set -euo pipefail
           (cd dist/release && sha256sum easywi-core.tar.gz > checksums-core.txt)
           (cd dist/release && sha256sum easywi-webinterface-*.zip > checksums-webinterface.txt)
-          if compgen -G "dist/release/easywi-agent-*.zip" > /dev/null || compgen -G "dist/release/easywi-agent-*.tar.gz" > /dev/null; then
-            (cd dist/release && sha256sum easywi-agent-*.zip easywi-agent-*.tar.gz 2>/dev/null > checksums-agent.txt || sha256sum easywi-agent-*.zip > checksums-agent.txt)
+          agent_files=()
+          shopt -s nullglob
+          agent_files+=(dist/release/easywi-agent-*.zip dist/release/easywi-agent-*.tar.gz)
+          agent_files+=(dist/release/easywi-musicbot-*.zip)
+          agent_files+=(dist/release/easywi-teamspeak-bridge-*.zip)
+          if [[ ${#agent_files[@]} -gt 0 ]]; then
+            (cd dist/release && sha256sum easywi-agent-*.zip easywi-agent-*.tar.gz \
+              $(compgen -G "easywi-musicbot-*.zip" || true) \
+              $(compgen -G "easywi-teamspeak-bridge-*.zip" || true) \
+              2>/dev/null > checksums-agent.txt)
           else
             : > dist/release/checksums-agent.txt
           fi
@@ -135,6 +150,7 @@ jobs:
           fail_on_unmatched_files: false
           body: |
             channel: ${{ steps.channel.outputs.channel }}
+            commit: ${{ github.sha }}
 
             Assets:
             - easywi-core.tar.gz
@@ -144,7 +160,9 @@ jobs:
             - easywi-agent-linux-amd64.tar.gz
             - easywi-agent-linux-amd64.zip
             - easywi-agent-windows-amd64.zip
-            - checksums-agent.txt
+            - easywi-musicbot-linux-amd64.zip
+            - easywi-teamspeak-bridge-linux-amd64.zip
+            - checksums-agent.txt (SHA256 for all agent/musicbot/bridge binaries)
           files: |
             dist/release/easywi-core.tar.gz
             dist/release/easywi-webinterface-*.zip
@@ -155,5 +173,7 @@ jobs:
             dist/release/easywi-agent-linux-amd64.tar.gz
             dist/release/easywi-agent-linux-amd64.zip
             dist/release/easywi-agent-windows-amd64.zip
+            dist/release/easywi-musicbot-linux-amd64.zip
+            dist/release/easywi-teamspeak-bridge-linux-amd64.zip
             dist/release/checksums-agent.txt
             dist/release/checksums-agent.txt.asc

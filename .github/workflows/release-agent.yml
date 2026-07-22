@@ -92,9 +92,9 @@ jobs:
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: "1.25.11"
+          go-version: "1.25.12"
           cache: 'false'
 
       - name: Configure isolated Go build cache
@@ -106,24 +106,28 @@ jobs:
           agent_targets=("linux amd64" "linux arm64" "windows amd64")
           for target in "${agent_targets[@]}"; do
             read -r goos goarch <<<"$target"
-            out="../dist/easywi-agent-${goos}-${goarch}"
-            [[ "$goos" == "windows" ]] && out+=".exe"
+            suffix=""
+            [[ "$goos" == "windows" ]] && suffix=".exe"
             build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.date=${build_date}"
-            GOOS="$goos" GOARCH="$goarch" go build -trimpath \
-              -ldflags "$ldflags" \
-              -o "$out" ./cmd/agent
+            for cmd in agent easywi-musicbot; do
+              out="../dist/${cmd}-${goos}-${goarch}${suffix}"
+              [[ "$cmd" == "agent" ]] && pkg="./cmd/agent" || pkg="./cmd/easywi-musicbot"
+              GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags "$ldflags" -o "$out" "$pkg"
+            done
           done
-
 
       - name: Package artifacts
         run: |
           cd ../dist
-          for bin in easywi-agent-linux-amd64 easywi-agent-linux-arm64; do
-            tar -czf "$bin.tar.gz" "$bin"
-            zip -q "$bin.zip" "$bin"
+          for arch in amd64 arm64; do
+            tar -czf "easywi-agent-linux-${arch}.tar.gz" "easywi-agent-linux-${arch}" "easywi-musicbot-linux-${arch}"
+            zip -q "easywi-agent-linux-${arch}.zip" "easywi-agent-linux-${arch}" "easywi-musicbot-linux-${arch}"
+            tar -czf "easywi-musicbot-linux-${arch}.tar.gz" "easywi-musicbot-linux-${arch}"
+            zip -q "easywi-musicbot-linux-${arch}.zip" "easywi-musicbot-linux-${arch}"
           done
-          zip -q easywi-agent-windows-amd64.zip easywi-agent-windows-amd64.exe
+          zip -q easywi-agent-windows-amd64.zip easywi-agent-windows-amd64.exe easywi-musicbot-windows-amd64.exe
+          zip -q easywi-musicbot-windows-amd64.zip easywi-musicbot-windows-amd64.exe
 
       - name: Generate checksums + manifest
         run: |
@@ -134,7 +138,7 @@ jobs:
             "version": "${{ steps.version.outputs.version }}",
             "commit": "${{ github.sha }}",
             "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "artifacts": ["easywi-agent-linux-amd64.tar.gz","easywi-agent-linux-amd64.zip","easywi-agent-linux-arm64.tar.gz","easywi-agent-linux-arm64.zip","easywi-agent-windows-amd64.zip"]
+            "artifacts": ["easywi-agent-linux-amd64.tar.gz","easywi-agent-linux-amd64.zip","easywi-agent-linux-arm64.tar.gz","easywi-agent-linux-arm64.zip","easywi-agent-windows-amd64.zip","easywi-musicbot-linux-amd64.tar.gz","easywi-musicbot-linux-amd64.zip","easywi-musicbot-linux-arm64.tar.gz","easywi-musicbot-linux-arm64.zip","easywi-musicbot-windows-amd64.zip"]
           }
           JSON
 
@@ -156,6 +160,8 @@ jobs:
           files: |
             dist/easywi-agent-*.zip
             dist/easywi-agent-*.tar.gz
+            dist/easywi-musicbot-*.zip
+            dist/easywi-musicbot-*.tar.gz
             dist/checksums.sha256
             dist/checksums.sha256.asc
             dist/manifest.json

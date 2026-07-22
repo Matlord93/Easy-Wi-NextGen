@@ -1,0 +1,101 @@
+# Musicbot Discord Live-E2E
+#
+# Triggered manually via workflow_dispatch.
+# Requires three repository secrets to run the Discord section:
+#   MUSICBOT_E2E_DISCORD_TOKEN        — test-bot token
+#   MUSICBOT_E2E_DISCORD_GUILD_ID     — test guild ID (numeric)
+#   MUSICBOT_E2E_DISCORD_VOICE_CHANNEL_ID — test voice channel ID (numeric)
+#
+# Without those secrets the Discord section skips with WARN (exit 2 — not a failure).
+# The non-Discord sections (routes, runtime, bridge) always run.
+#
+# NEVER run against a production guild or a guild with real users.
+# NEVER commit secrets. Supply them via repository Secrets only.
+
+name: Musicbot Discord Live-E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_discord:
+        description: 'Run Discord E2E (requires MUSICBOT_E2E_DISCORD_TOKEN, GUILD_ID, VOICE_CHANNEL_ID secrets)'
+        type: boolean
+        default: false
+      audio_fixture_size_ms:
+        description: 'Local audio fixture length in milliseconds (auto-generated; ignored when a fixture path is supplied)'
+        type: string
+        default: '500'
+
+permissions:
+  contents: read
+
+jobs:
+  discord-e2e:
+    name: Musicbot Discord Live-E2E
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Ensure non-root runner user
+        uses: ./.github/actions/ensure-runner-user
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.25.12"
+          cache: 'false'
+
+      - name: Configure isolated Go build cache
+        uses: ./.github/actions/configure-go-build-cache
+
+      - name: Cache Go module downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('agent/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
+
+      - name: Download Go modules
+        run: ./scripts/ci-dependency-bootstrap.sh go
+        env:
+          EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
+
+      - name: Verify Go modules
+        run: go mod verify
+        working-directory: agent
+
+      - name: Install jq (required by E2E script)
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y jq
+          fi
+
+      - name: Run Musicbot Live-E2E (Discord)
+        env:
+          GOTOOLCHAIN: auto
+          MUSICBOT_E2E_RUN_DISCORD: ${{ inputs.run_discord == true && '1' || '0' }}
+          MUSICBOT_E2E_DISCORD_TOKEN: ${{ secrets.MUSICBOT_E2E_DISCORD_TOKEN }}
+          MUSICBOT_E2E_DISCORD_GUILD_ID: ${{ secrets.MUSICBOT_E2E_DISCORD_GUILD_ID }}
+          MUSICBOT_E2E_DISCORD_VOICE_CHANNEL_ID: ${{ secrets.MUSICBOT_E2E_DISCORD_VOICE_CHANNEL_ID }}
+          MUSICBOT_E2E_DISCORD_TEXT_CHANNEL_ID: ${{ secrets.MUSICBOT_E2E_DISCORD_TEXT_CHANNEL_ID }}
+          # No MUSICBOT_E2E_AUDIO_FIXTURE — the script auto-generates a local WAV via Python.
+          # Never set this to a YouTube/Spotify/remote URL.
+        run: |
+          set -uo pipefail
+
+          # Mask secrets in the Actions log before the script runs.
+          if [[ -n "${MUSICBOT_E2E_DISCORD_TOKEN:-}" ]]; then
+            printf '::add-mask::%s\n' "$MUSICBOT_E2E_DISCORD_TOKEN"
+          fi
+
+          scripts/musicbot-live-e2e.sh
+        # exit 1 = at least one FAIL  → job fails
+        # exit 2 = warnings only      → treated as success (Discord may skip if secrets missing)
+
+      - name: Interpret exit code
+        if: failure()
+        run: |
+          echo "::error::musicbot-live-e2e.sh exited with failures. Review the output above for [FAIL] lines."
+          exit 1

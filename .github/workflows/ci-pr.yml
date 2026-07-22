@@ -52,12 +52,15 @@ jobs:
         with:
           path: |
             ~/.composer/cache/files
+            core/vendor
           key: ${{ runner.os }}-php85-${{ hashFiles('core/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-php85-
 
       - name: Composer install
-        run: composer install --no-interaction --no-progress
+        run: ../scripts/ci-dependency-bootstrap.sh composer
+        env:
+          COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
 
       - name: Sanity check vendor
         run: |
@@ -125,6 +128,9 @@ jobs:
       - name: Doctrine schema validation (CI safety)
         run: php bin/console doctrine:schema:validate --env=test --no-interaction
 
+      - name: Lint Twig templates
+        run: php bin/console lint:twig templates --no-interaction
+
       - name: Lint (optional)
         run: |
           if composer run --list -q | grep -q "lint"; then composer run lint; else echo "No lint script"; fi
@@ -146,9 +152,9 @@ jobs:
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: "1.25.11"
+          go-version: "1.25.12"
           cache: 'false'
 
       - name: Configure isolated Go build cache
@@ -163,13 +169,29 @@ jobs:
             ${{ runner.os }}-gomod-
 
       - name: Download Go modules
-        run: go mod download
+        run: ../scripts/ci-dependency-bootstrap.sh go
+        env:
+          EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
 
       - name: Verify Go modules
         run: go mod verify
 
       - name: Go test
         run: go test ./...
+
+      - name: Musicbot runtime tests
+        run: go test ./internal/musicbot/runtime
+
+      - name: TeamSpeak bridge tests
+        run: go test ./cmd/easywi-teamspeak-bridge
+
+      - name: Musicbot smoke script (no external services)
+        run: scripts/musicbot-smoke-test.sh
+        working-directory: .
+
+      - name: Musicbot live E2E (local mode, no external services)
+        run: scripts/musicbot-live-e2e.sh
+        working-directory: .
 
       - name: Smoke test (agent startup + core connectivity + dummy job)
         run: go test ./cmd/agent -run TestAgentCoreConnectivitySmoke

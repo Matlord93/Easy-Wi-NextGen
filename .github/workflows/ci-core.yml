@@ -32,12 +32,16 @@ jobs:
       - name: Cache Composer
         uses: actions/cache@v6
         with:
-          path: ~/.composer/cache/files
+          path: |
+            ~/.composer/cache/files
+            core/vendor
           key: ${{ runner.os }}-composer-${{ hashFiles('core/composer.lock') }}
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Composer install
-        run: composer install --no-interaction --no-progress
+        run: ../scripts/ci-dependency-bootstrap.sh composer
+        env:
+          COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
       - name: Prepare Python for OpenAPI checks
         run: |
           set -euo pipefail
@@ -63,6 +67,9 @@ jobs:
           git show origin/main:docs/api/core-agent.v1.openapi.yaml > /tmp/core-agent.base.yaml
           python3 "$GITHUB_WORKSPACE/docs/api/scripts/check_breaking_changes.py" /tmp/core-agent.base.yaml "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"
         working-directory: .
+
+      - name: Lint Twig templates
+        run: php bin/console lint:twig templates --no-interaction
 
       - name: Lint (optional)
         run: |
@@ -112,12 +119,17 @@ jobs:
       - name: Cache Composer
         uses: actions/cache@v6
         with:
-          path: ~/.composer/cache/files
+          path: |
+            ~/.composer/cache/files
+            core/vendor
           key: ${{ runner.os }}-composer-${{ hashFiles('core/composer.lock') }}
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Composer install
-        run: composer install --no-interaction --no-progress --no-scripts
+        run: ../scripts/ci-dependency-bootstrap.sh composer
+        env:
+          COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
+          SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
 
       - name: Doctrine mapping validation
         run: php bin/console doctrine:schema:validate --skip-sync --env=test --no-interaction
@@ -161,7 +173,9 @@ jobs:
         uses: ./.github/actions/verify-php
 
       - name: Install deps (prod)
-        run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+        run: ../scripts/ci-dependency-bootstrap.sh composer --no-dev --optimize-autoloader
+        env:
+          COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
 
       - name: Prepare bundle
         run: |

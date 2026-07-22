@@ -39,7 +39,7 @@ jobs:
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
           cache: 'false'
@@ -56,7 +56,9 @@ jobs:
             ${{ runner.os }}-gomod-
 
       - name: Download Go modules
-        run: go mod download
+        run: ../scripts/ci-dependency-bootstrap.sh go
+        env:
+          EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
 
       - name: Verify Go modules
         run: go mod verify
