@@ -31,9 +31,13 @@ require_cmd() {
 }
 
 network_probe() {
-  local label="$1" url="$2"
+  local label="$1" url="$2" method="${3:-HEAD}"
   require_cmd curl
-  if curl -fsSIL --connect-timeout 10 --max-time 30 "$url" >/dev/null; then
+  local curl_args=(-fsS --connect-timeout 10 --max-time 30 --output /dev/null)
+  if [[ "$method" == "HEAD" ]]; then
+    curl_args+=(--head)
+  fi
+  if curl "${curl_args[@]}" "$url"; then
     echo "OK: $label reachable"
   else
     local rc=$?
@@ -67,7 +71,8 @@ composer_bootstrap() {
 
   section "Composer network preflight"
   network_probe "Packagist metadata" "https://repo.packagist.org/packages.json"
-  network_probe "GitHub API" "https://api.github.com/rate_limit"
+  # GitHub's rate-limit endpoint returns 404 to HEAD requests, so probe it with GET.
+  network_probe "GitHub API" "https://api.github.com/rate_limit" "GET"
   network_probe "GitHub codeload" "https://codeload.github.com/symfony/console/zip/refs/tags/v8.0.0"
 
   section "Composer install"
