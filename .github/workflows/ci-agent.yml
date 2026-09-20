@@ -47,7 +47,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25.12"
+          go-version-file: agent/go.mod
           cache: 'false'
 
       - name: Configure isolated Go build cache
@@ -98,7 +98,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25.12"
+          go-version-file: agent/go.mod
           cache: 'false'
 
       - name: Configure isolated Go build cache
