@@ -29,7 +29,7 @@ final class ProxmoxApiClientTest extends TestCase
 
         self::assertSame([100, 101], array_column($guests, 'vmid'));
         self::assertStringContainsString('/nodes/pve%20node%2F1/qemu', $requests[0][1]);
-        self::assertSame('PVEAPIToken=panel@pve!easywi=secret', $requests[0][2]['normalized_headers']['authorization'][0]);
+        self::assertSame('Authorization: PVEAPIToken=panel@pve!easywi=secret', $requests[0][2]['normalized_headers']['authorization'][0]);
     }
 
     public function testStartsGuestAndReturnsTaskId(): void
@@ -52,8 +52,10 @@ final class ProxmoxApiClientTest extends TestCase
         $http = new MockHttpClient(function (string $method, string $url, array $options): MockResponse {
             self::assertSame('POST', $method);
             self::assertStringEndsWith('/nodes/pve1/lxc/200/snapshot', $url);
-            self::assertSame('release-1', $options['body']['snapname']);
-            self::assertSame('Before update', $options['body']['description']);
+            self::assertIsString($options['body']);
+            parse_str($options['body'], $body);
+            self::assertSame('release-1', $body['snapname']);
+            self::assertSame('Before update', $body['description']);
 
             return new MockResponse('{"data":"UPID:snapshot"}');
         });
