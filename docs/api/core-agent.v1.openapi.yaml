@@ -144,6 +144,75 @@ components:
         payload:
           type: object
           additionalProperties: true
+          description: Payload shape is selected by the job type. KVM and Docker contracts are listed in x-easywi-job-payloads.
+      x-easywi-job-payloads:
+        kvm.vm.status: '#/components/schemas/NamedResourcePayload'
+        kvm.vm.action: '#/components/schemas/ResourceActionPayload'
+        kvm.snapshot.create: '#/components/schemas/KvmSnapshotPayload'
+        kvm.snapshot.delete: '#/components/schemas/KvmSnapshotPayload'
+        kvm.snapshot.revert: '#/components/schemas/KvmSnapshotPayload'
+        kvm.vm.limits.apply: '#/components/schemas/KvmLimitsPayload'
+        kvm.network.action: '#/components/schemas/KvmNetworkActionPayload'
+        docker.container.action: '#/components/schemas/ResourceActionPayload'
+        docker.container.logs: '#/components/schemas/DockerLogsPayload'
+        docker.compose.action: '#/components/schemas/DockerComposeActionPayload'
+        docker.volume.restore: '#/components/schemas/DockerVolumeRestorePayload'
+    NamedResourcePayload:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$' }
+      additionalProperties: false
+    ResourceActionPayload:
+      type: object
+      required: [name, action]
+      properties:
+        name: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$' }
+        action: { type: string }
+      additionalProperties: false
+    KvmSnapshotPayload:
+      type: object
+      required: [name, snapshot]
+      properties:
+        name: { type: string }
+        snapshot: { type: string }
+      additionalProperties: false
+    KvmLimitsPayload:
+      type: object
+      required: [name, vcpus, memory_mib]
+      properties:
+        name: { type: string }
+        vcpus: { type: integer, minimum: 1, maximum: 1024 }
+        memory_mib: { type: integer, minimum: 128, maximum: 16777216 }
+      additionalProperties: false
+    KvmNetworkActionPayload:
+      type: object
+      required: [network, action]
+      properties:
+        network: { type: string }
+        action: { type: string, enum: [start, stop, autostart, autostart-disable] }
+      additionalProperties: false
+    DockerLogsPayload:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        tail: { type: integer, minimum: 1, maximum: 5000, default: 200 }
+      additionalProperties: false
+    DockerComposeActionPayload:
+      type: object
+      required: [project, action]
+      properties:
+        project: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$' }
+        action: { type: string, enum: [up, down, start, stop, restart, pull, update] }
+      additionalProperties: false
+    DockerVolumeRestorePayload:
+      type: object
+      required: [name, backup]
+      properties:
+        name: { type: string }
+        backup: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,180}\.tar\.gz$' }
+      additionalProperties: false
     JobsPollResponse:
       type: object
       required: [jobs, max_concurrency]

@@ -20,6 +20,7 @@ final class DunningWorkflow
         private readonly DunningReminderRepository $reminderRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly DunningNotificationSender $notificationSender,
         private readonly array $steps = [],
     ) {
     }
@@ -41,8 +42,6 @@ final class DunningWorkflow
         }
 
         $reminder = new DunningReminder($invoice, $step->level, $step->feeCents, $step->graceDays);
-        $reminder->markSent();
-
         if ($step->feeCents > 0) {
             $invoice->addFee($step->feeCents);
         }
@@ -55,11 +54,17 @@ final class DunningWorkflow
         $invoice->addReminder($reminder);
 
         $this->entityManager->persist($reminder);
-        $this->auditLogger->log($actor, 'billing.dunning.sent', [
+        $notificationQueued = $this->notificationSender->send($reminder);
+        if ($notificationQueued) {
+            $reminder->markSent();
+        }
+
+        $this->auditLogger->log($actor, $notificationQueued ? 'billing.dunning.sent' : 'billing.dunning.created', [
             'invoice_id' => $invoice->getId(),
             'level' => $step->level,
             'fee_cents' => $step->feeCents,
             'grace_days' => $step->graceDays,
+            'notification_queued' => $notificationQueued,
         ]);
 
         return $reminder;

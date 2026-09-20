@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Enum\InvoiceStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InvoiceRepository;
 use App\Repository\NotificationRepository;
+use App\Repository\NotificationPreferenceRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -20,11 +21,19 @@ final class NotificationService
         private readonly UserRepository $userRepository,
         private readonly InvoiceRepository $invoiceRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly NotificationPreferenceRepository $preferenceRepository,
     ) {
     }
 
     public function notify(User $recipient, string $eventKey, string $title, string $body, string $category, ?string $actionUrl = null): ?Notification
     {
+        $preference = $this->preferenceRepository->findFor($recipient, $category);
+        if ($preference !== null && !$preference->isInAppEnabled()) {
+            return null;
+        }
+        if ($actionUrl !== null && (!str_starts_with($actionUrl, '/') || str_starts_with($actionUrl, '//'))) {
+            throw new \InvalidArgumentException('Notification action URLs must be local absolute paths.');
+        }
         if ($this->notificationRepository->findOneByEventKey($recipient, $eventKey) !== null) {
             return null;
         }

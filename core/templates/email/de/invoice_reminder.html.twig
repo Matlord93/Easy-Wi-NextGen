@@ -1,0 +1,14 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Guten Tag,</p>
+  <p style="margin:0 0 16px 0;">
+    dies ist Zahlungserinnerung {{ reminder_level }} für die Rechnung {{ invoice_number }}.
+  </p>
+  <p style="margin:0 0 16px 0;">
+    Offener Betrag: {{ invoice_amount }} {{ invoice_currency }}<br>
+    Neues Zahlungsziel: {{ due_date|date('d.m.Y') }}
+  </p>
+  {% if reminder_fee != '0.00' %}<p style="margin:0 0 16px 0;">Im offenen Betrag ist eine Mahngebühr von {{ reminder_fee }} {{ invoice_currency }} enthalten.</p>{% endif %}
+  <p style="margin:0; font-size:14px; color:#6b7280;">Sie können die Rechnung im Kundenbereich prüfen und bezahlen.</p>
+{% endblock %}

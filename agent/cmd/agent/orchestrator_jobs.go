@@ -53,6 +53,13 @@ var teamspeakVersionRegex = regexp.MustCompile(`\d+\.\d+(?:\.\d+)*(?:[A-Za-z])?(
 const defaultSinusbotTs3ClientURL = "https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run"
 
 func handleOrchestratorJob(job jobs.Job) orchestratorResult {
+	if strings.HasPrefix(job.Type, "kvm.") {
+		return handleKVMJob(job)
+	}
+	if strings.HasPrefix(job.Type, "docker.") {
+		return handleDockerJob(job)
+	}
+
 	switch job.Type {
 	case "ts3.install":
 		return handleTs3NodeInstall(job)

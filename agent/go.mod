@@ -8,7 +8,7 @@ require (
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gorilla/websocket v1.5.3
-	github.com/jackc/pgx/v5 v5.10.0
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pkg/sftp v1.13.11
 	github.com/shirou/gopsutil/v4 v4.26.8
 	golang.org/x/crypto v0.57.0

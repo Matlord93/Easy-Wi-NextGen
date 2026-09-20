@@ -1,0 +1,14 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Hello,</p>
+  <p style="margin:0 0 16px 0;">
+    This is payment reminder {{ reminder_level }} for invoice {{ invoice_number }}.
+  </p>
+  <p style="margin:0 0 16px 0;">
+    Amount due: {{ invoice_amount }} {{ invoice_currency }}<br>
+    New due date: {{ due_date|date('Y-m-d') }}
+  </p>
+  {% if reminder_fee != '0.00' %}<p style="margin:0 0 16px 0;">The outstanding amount includes a reminder fee of {{ reminder_fee }} {{ invoice_currency }}.</p>{% endif %}
+  <p style="margin:0; font-size:14px; color:#6b7280;">You can review and pay the invoice in your customer portal.</p>
+{% endblock %}

@@ -9,3 +9,5 @@ mail.ticket_opened.subject: "Dein Support-Ticket wurde erstellt"
 mail.ticket_opened_admin.subject: "Neues Support-Ticket eingegangen"
 mail.ticket_reply_customer.subject: "Neue Antwort auf dein Support-Ticket"
 mail.ticket_reply_admin.subject: "Kunde hat auf ein Ticket geantwortet"
+
+mail.invoice_reminder.subject: "Zahlungserinnerung zu Ihrer Rechnung"

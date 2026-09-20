@@ -1,0 +1,12 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Guten Tag,
+
+dies ist Zahlungserinnerung {{ reminder_level }} für die Rechnung {{ invoice_number }}.
+Offener Betrag: {{ invoice_amount }} {{ invoice_currency }}
+Neues Zahlungsziel: {{ due_date|date('d.m.Y') }}
+{% if reminder_fee != '0.00' %}Enthaltene Mahngebühr: {{ reminder_fee }} {{ invoice_currency }}
+{% endif %}
+Sie können die Rechnung im Kundenbereich prüfen und bezahlen.
+{% endblock %}

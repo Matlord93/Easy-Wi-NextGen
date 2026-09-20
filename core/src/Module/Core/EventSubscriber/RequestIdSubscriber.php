@@ -8,6 +8,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
+use Symfony\Component\Uid\Uuid;
 
 final class RequestIdSubscriber implements EventSubscriberInterface
 {
@@ -30,8 +31,8 @@ final class RequestIdSubscriber implements EventSubscriberInterface
 
         $request = $event->getRequest();
         $requestId = $request->headers->get(self::HEADER_NAME);
-        if (!is_string($requestId) || $requestId === '') {
-            $requestId = bin2hex(random_bytes(16));
+        if (!is_string($requestId) || !Uuid::isValid(trim($requestId))) {
+            $requestId = Uuid::v4()->toRfc4122();
             $request->headers->set(self::HEADER_NAME, $requestId);
         }
 

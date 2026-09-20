@@ -40,6 +40,17 @@ final class UpdateDiagnoseCommand extends Command
         $this->renderDirStatus($io, 'Logs', $this->updateJobService->getLogsDir());
         $this->renderDirStatus($io, 'Backups', $this->updateJobService->getBackupsDir());
 
+        $io->section('Panel permissions and Git');
+        $projectDir = dirname(__DIR__, 4);
+        $this->renderDirStatus($io, 'Panel', $projectDir);
+        $io->text(sprintf('PHP/Composer user: %s', $this->effectiveUser()));
+        $mountOptions = trim((string) shell_exec('findmnt -T ' . escapeshellarg($projectDir) . ' -n -o OPTIONS 2>/dev/null'));
+        $io->text(sprintf('Mount options: %s', $mountOptions !== '' ? $mountOptions : 'unavailable'));
+        if (in_array('noexec', explode(',', $mountOptions), true)) {
+            $io->warning('Panel path is mounted noexec; updater/helper execution can be blocked by the image policy.');
+        }
+        $this->renderGitStatus($io, $projectDir);
+
         $io->section('Runner');
         $runnerCommand = trim((string) ($_SERVER['APP_CORE_UPDATE_RUNNER'] ?? $_ENV['APP_CORE_UPDATE_RUNNER'] ?? ''));
         if ($runnerCommand === '') {
@@ -141,5 +152,40 @@ final class UpdateDiagnoseCommand extends Command
 
         $resolved = trim((string) shell_exec('command -v ' . escapeshellarg($runnerCommand) . ' 2>/dev/null'));
         return $resolved !== '' ? $resolved : null;
+    }
+
+    private function effectiveUser(): string
+    {
+        if (function_exists('posix_geteuid') && function_exists('posix_getpwuid')) {
+            $account = posix_getpwuid(posix_geteuid());
+            if (is_array($account) && isset($account['name'])) {
+                return (string) $account['name'];
+            }
+        }
+
+        return get_current_user() ?: 'unknown';
+    }
+
+    private function renderGitStatus(SymfonyStyle $io, string $projectDir): void
+    {
+        $gitDir = $projectDir . '/.git';
+        if (!is_dir($gitDir)) {
+            $io->text('Git: release installation (no .git directory).');
+            return;
+        }
+
+        $owner = function_exists('posix_getpwuid') ? posix_getpwuid((int) fileowner($projectDir)) : false;
+        $io->text(sprintf('Repository owner: %s', is_array($owner) ? (string) ($owner['name'] ?? 'unknown') : (string) fileowner($projectDir)));
+        $safeDirectories = trim((string) shell_exec('git config --global --get-all safe.directory 2>/dev/null'));
+        $isSafe = in_array($projectDir, preg_split('/\R/', $safeDirectories) ?: [], true);
+        $io->text(sprintf('safe.directory: %s', $isSafe ? 'configured' : 'not configured for this user'));
+        $output = [];
+        $exitCode = 0;
+        exec('git -C ' . escapeshellarg($projectDir) . ' status --porcelain=v1 2>&1', $output, $exitCode);
+        if ($exitCode !== 0) {
+            $io->warning('Git status failed: ' . implode(' ', $output) . '. Check repository owner and safe.directory.');
+        } else {
+            $io->text(sprintf('Git worktree: %s', $output === [] ? 'clean' : 'modified'));
+        }
     }
 }

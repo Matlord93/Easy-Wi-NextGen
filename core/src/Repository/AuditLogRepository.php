@@ -85,6 +85,34 @@ class AuditLogRepository extends ServiceEntityRepository
         );
     }
 
+    /** @return array<int, array<string, mixed>> */
+    public function searchSummaries(?string $action, ?string $actorEmail, ?\DateTimeImmutable $since, int $limit = 100): array
+    {
+        $limit = max(1, min(10000, $limit));
+        $conditions = [];
+        $parameters = ['payloadLimit' => self::PAYLOAD_PREVIEW_LENGTH, 'limit' => $limit];
+        $types = ['payloadLimit' => ParameterType::INTEGER, 'limit' => ParameterType::INTEGER];
+        if (null !== $action && '' !== trim($action)) {
+            $conditions[] = 'audit.action LIKE :action';
+            $parameters['action'] = str_replace(['%', '_'], ['\\%', '\\_'], trim($action)).'%';
+        }
+        if (null !== $actorEmail && '' !== trim($actorEmail)) {
+            $conditions[] = 'LOWER(actor.email) = :actorEmail';
+            $parameters['actorEmail'] = strtolower(trim($actorEmail));
+        }
+        if (null !== $since) {
+            $conditions[] = 'audit.created_at >= :since';
+            $parameters['since'] = $since->format('Y-m-d H:i:s');
+        }
+        $where = [] === $conditions ? '' : 'WHERE '.implode(' AND ', $conditions);
+
+        return $this->getEntityManager()->getConnection()->fetchAllAssociative(
+            'SELECT audit.id, audit.action, audit.created_at, audit.hash_prev, audit.hash_current, SUBSTRING(audit.payload, 1, :payloadLimit) AS payload_preview, actor.email AS actor_email, actor.type AS actor_type FROM audit_logs audit LEFT JOIN users actor ON actor.id = audit.actor_id '.$where.' ORDER BY audit.id DESC LIMIT :limit',
+            $parameters,
+            $types,
+        );
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */

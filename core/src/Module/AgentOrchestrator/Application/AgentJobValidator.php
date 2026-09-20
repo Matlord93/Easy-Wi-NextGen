@@ -68,6 +68,18 @@ final class AgentJobValidator
             'firewall.open_ports', 'firewall.close_ports' => $this->requireKeys($payload, ['agent_id', 'ports']),
             'ddos.policy.apply' => $this->requireKeys($payload, ['agent_id', 'mode']),
             'ddos.status.check' => $this->requireKeys($payload, ['agent_id']),
+            'kvm.vm.list', 'kvm.network.list' => [],
+            'kvm.vm.status', 'kvm.snapshot.list' => $this->requireKeys($payload, ['name']),
+            'kvm.vm.action' => $this->requireKeys($payload, ['name', 'action']),
+            'kvm.snapshot.create', 'kvm.snapshot.delete', 'kvm.snapshot.revert' => $this->requireKeys($payload, ['name', 'snapshot']),
+            'kvm.vm.limits.apply' => $this->requireKeys($payload, ['name', 'vcpus', 'memory_mib']),
+            'kvm.network.action' => $this->requireKeys($payload, ['network', 'action']),
+            'docker.container.list', 'docker.image.list', 'docker.volume.list', 'docker.network.list' => [],
+            'docker.container.action', 'docker.container.logs', 'docker.container.update',
+            'docker.image.remove', 'docker.volume.remove', 'docker.network.remove' => $this->requireKeys($payload, ['name']),
+            'docker.volume.backup' => $this->requireKeys($payload, ['name']),
+            'docker.volume.restore' => $this->requireKeys($payload, ['name', 'backup']),
+            'docker.compose.action' => $this->requireKeys($payload, ['project', 'action']),
             default => [],
         };
     }

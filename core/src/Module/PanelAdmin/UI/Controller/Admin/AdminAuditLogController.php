@@ -6,6 +6,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AuditLogRepository;
+use App\Module\Core\Application\AuditLogCsvExporter;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -19,6 +20,7 @@ final class AdminAuditLogController
         private readonly AuditLogRepository $auditLogRepository,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly AuditLogCsvExporter $csvExporter,
     ) {
     }
 
@@ -29,7 +31,8 @@ final class AdminAuditLogController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $logs = $this->auditLogRepository->findRecentSummaries(50);
+        $filters = $this->filters($request);
+        $logs = $this->auditLogRepository->searchSummaries($filters['action'], $filters['actor'], $filters['since'], 50);
         $total = $this->auditLogRepository->count([]);
         $latest = $logs[0]['created_at'] ?? null;
 
@@ -41,6 +44,7 @@ final class AdminAuditLogController
                 'latest' => is_string($latest) ? new \DateTimeImmutable($latest) : null,
                 'showing' => count($logs),
             ],
+            'filters' => $filters,
         ]));
     }
 
@@ -51,11 +55,40 @@ final class AdminAuditLogController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $logs = $this->auditLogRepository->findRecentSummaries(50);
+        $filters = $this->filters($request);
+        $logs = $this->auditLogRepository->searchSummaries($filters['action'], $filters['actor'], $filters['since'], 50);
 
         return new Response($this->twig->render('admin/audit-logs/_table.html.twig', [
             'logs' => $this->normalizeLogs($logs),
         ]));
+    }
+
+    #[Route(path: '/export.csv', name: 'admin_audit_logs_export', methods: ['GET'])]
+    public function export(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        }
+        $filters = $this->filters($request);
+        $rows = $this->auditLogRepository->searchSummaries($filters['action'], $filters['actor'], $filters['since'], 10000);
+        return new Response($this->csvExporter->export($rows), Response::HTTP_OK, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="audit-logs-'.gmdate('Y-m-d').'.csv"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /** @return array{action: ?string, actor: ?string, since: ?\DateTimeImmutable} */
+    private function filters(Request $request): array
+    {
+        $action = trim((string) $request->query->get('action', '')) ?: null;
+        $actor = trim((string) $request->query->get('actor', '')) ?: null;
+        $since = null;
+        $sinceRaw = trim((string) $request->query->get('since', ''));
+        if ('' !== $sinceRaw) {
+            try { $since = new \DateTimeImmutable($sinceRaw); } catch (\Exception) { $since = null; }
+        }
+        return ['action' => $action, 'actor' => $actor, 'since' => $since];
     }
 
     private function isAdmin(Request $request): bool
