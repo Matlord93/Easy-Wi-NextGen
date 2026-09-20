@@ -85,8 +85,14 @@ composer_bootstrap() {
 go_bootstrap() {
   require_cmd go
   require_cmd curl
+  # The module's go directive is the source of truth. Some self-hosted runners
+  # configure GOTOOLCHAIN=local globally, which prevents Go from selecting the
+  # newer toolchain requested by go.mod even after actions/setup-go has run.
+  # Override that runner policy for this dependency bootstrap so Go can fetch
+  # the required toolchain through the configured module proxy.
+  export GOTOOLCHAIN="${EASYWI_GOTOOLCHAIN:-auto}"
   section "Go environment"
-  (cd "$REPO_ROOT/agent" && go env GOPROXY GOMODCACHE GOSUMDB)
+  (cd "$REPO_ROOT/agent" && go version && go env GOTOOLCHAIN GOPROXY GOMODCACHE GOSUMDB)
 
   section "Go module network preflight"
   local proxy_ok=0 direct_ok=0
