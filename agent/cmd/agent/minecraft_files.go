@@ -17,7 +17,7 @@ func readMinecraftConfig(dir, name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	return root.ReadFile(name)
 }
 
@@ -28,7 +28,7 @@ func publishMinecraftFile(dir, name string, reader io.Reader, mode os.FileMode) 
 	if err != nil {
 		return err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	parent := filepath.Dir(name)
 	if err := root.MkdirAll(parent, 0755); err != nil {
 		return err
@@ -42,29 +42,29 @@ func publishMinecraftFile(dir, name string, reader io.Reader, mode os.FileMode) 
 	if err != nil {
 		return err
 	}
-	defer root.Remove(temporary)
+	defer func() { _ = root.Remove(temporary) }()
 	if _, err := io.Copy(f, reader); err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	if err := f.Chmod(mode); err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	info, err := root.Stat(".")
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	uid, gid := fileOwnerIDs(info)
 	if uid >= 0 {
 		if err := f.Chown(uid, gid); err != nil {
-			f.Close()
+			_ = f.Close()
 			return err
 		}
 	}
 	if err := f.Sync(); err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	if err := f.Close(); err != nil {
@@ -78,7 +78,7 @@ func publishMinecraftArtifact(source, dir, name string, mode os.FileMode) error 
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return publishMinecraftFile(dir, name, f, mode)
 }
 

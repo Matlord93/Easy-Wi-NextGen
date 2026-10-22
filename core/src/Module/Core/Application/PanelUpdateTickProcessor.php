@@ -38,6 +38,7 @@ final class PanelUpdateTickProcessor
             return ['job' => $job, 'locked' => true, 'notFound' => false];
         }
 
+        $previousTimeLimit = (int) ini_get('max_execution_time');
         try {
             @set_time_limit(self::TICK_TIME_LIMIT_SECONDS);
 
@@ -48,6 +49,7 @@ final class PanelUpdateTickProcessor
 
             $jobPath = $this->jobPath($jobId);
             $steps = $this->stepsForType((string) ($job['type'] ?? 'update'));
+            if (!empty($job['payload']['reload_job_id']) && $steps !== []) { $steps[] = 'await_agent_reload'; }
             if ($steps === []) {
                 $job = $this->failJob($job, 'unknown_job_type', 'Unbekannter Job-Typ.');
                 $this->writeJob($jobPath, $job);
@@ -101,6 +103,7 @@ final class PanelUpdateTickProcessor
             if ($result->reloadJobId !== null) {
                 $payload['reload_job_id'] = $result->reloadJobId;
                 $job['payload'] = $payload;
+                if (!in_array('await_agent_reload',$steps,true)) { $steps[] = 'await_agent_reload'; }
             }
 
             if (!$result->success) {
@@ -137,6 +140,7 @@ final class PanelUpdateTickProcessor
 
             return ['job' => $job, 'locked' => false, 'notFound' => false];
         } finally {
+            @set_time_limit($previousTimeLimit);
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
         }

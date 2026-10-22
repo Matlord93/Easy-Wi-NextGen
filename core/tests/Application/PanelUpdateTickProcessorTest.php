@@ -23,7 +23,9 @@ final class PanelUpdateTickProcessorTest extends TestCase
         $updateService->expects(self::once())->method('applyUpdate')->willReturn(new UpdateResult(true, 'ok', null, $dir . '/job.log', '1', '2'));
         $updateService->expects(self::never())->method('applyMigrations');
 
+        $previousTimeLimit = ini_get('max_execution_time');
         $result = (new PanelUpdateTickProcessor($jobService, $updateService))->tick($jobId);
+        self::assertSame($previousTimeLimit, ini_get('max_execution_time'));
 
         self::assertFalse($result['locked']);
         $written = $this->readJob($dir, $jobId);
@@ -127,6 +129,39 @@ final class PanelUpdateTickProcessorTest extends TestCase
 
         flock($lockHandle, LOCK_UN);
         fclose($lockHandle);
+    }
+
+    public function testUpdateWaitsForReloadConfirmationAndPropagatesFailure(): void
+    {
+        $dir=$this->createTempDir();$id='job-reload';
+        $this->writeJob($dir,$id,['id'=>$id,'type'=>'update','status'=>'pending','nextStep'=>'apply_update','logPath'=>$dir.'/job.log']);
+        $jobs=$this->mockJobService($dir,$id);
+        $update=$this->createMock(WebinterfaceUpdateServiceInterface::class);
+        $update->expects(self::once())->method('applyUpdate')->willReturn(new UpdateResult(true,'installed',null,$dir.'/job.log','2','2',reloadJobId:'reload-123'));
+        (new PanelUpdateTickProcessor($jobs,$update))->tick($id);
+        $job=$this->readJob($dir,$id);self::assertSame('running',$job['status']);self::assertSame('await_agent_reload',$job['nextStep']);
+        $update=$this->createMock(WebinterfaceUpdateServiceInterface::class);
+        $update->expects(self::exactly(2))->method('awaitAgentReload')->with('reload-123')->willReturnOnConsecutiveCalls(
+            new UpdateResult(true,'waiting',null,null,'2','2',pending:true),
+            new UpdateResult(false,'failed','reload_failed',null,'2','2'),
+        );
+        $processor=new PanelUpdateTickProcessor($jobs,$update);$processor->tick($id);
+        self::assertSame('running',$this->readJob($dir,$id)['status']);
+        $processor->tick($id);$job=$this->readJob($dir,$id);
+        self::assertSame('failed',$job['status']);self::assertSame('reload_failed',$job['error']);
+    }
+
+    public function testBothWaitsForReloadAfterMigrationsBeforeReportingSuccess(): void
+    {
+        $dir=$this->createTempDir();$id='job-both-reload';
+        $this->writeJob($dir,$id,['id'=>$id,'type'=>'both','status'=>'pending','nextStep'=>'apply_update','logPath'=>$dir.'/job.log']);
+        $jobs=$this->mockJobService($dir,$id);$update=$this->createMock(WebinterfaceUpdateServiceInterface::class);
+        $update->expects(self::once())->method('applyUpdate')->willReturn(new UpdateResult(true,'installed',null,null,'2','2',reloadJobId:'reload-456'));
+        $update->expects(self::once())->method('applyMigrations')->willReturn(new UpdateResult(true,'migrated',null,null,'2','2'));
+        $update->expects(self::once())->method('awaitAgentReload')->with('reload-456')->willReturn(new UpdateResult(true,'activated',null,null,'2','2'));
+        $processor=new PanelUpdateTickProcessor($jobs,$update);$processor->tick($id);$processor->tick($id);
+        self::assertSame('await_agent_reload',$this->readJob($dir,$id)['nextStep']);self::assertSame('running',$this->readJob($dir,$id)['status']);
+        $processor->tick($id);self::assertSame('success',$this->readJob($dir,$id)['status']);
     }
 
     private function createTempDir(): string

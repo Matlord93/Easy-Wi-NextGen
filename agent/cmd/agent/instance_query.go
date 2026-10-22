@@ -751,9 +751,9 @@ func queryMinecraftBedrockNetherNet(host, port string) (map[string]string, error
 	if err != nil {
 		return nil, err
 	}
-	defer reply.Body.Close()
+	defer func() { _ = reply.Body.Close() }()
 	if reply.StatusCode != http.StatusOK || !strings.HasPrefix(strings.ToLower(reply.Header.Get("Content-Type")), "application/json") {
-		return nil, fmt.Errorf("Bedrock NetherNet signaling unavailable (HTTP %d)", reply.StatusCode)
+		return nil, fmt.Errorf("bedrock NetherNet signaling unavailable (HTTP %d)", reply.StatusCode)
 	}
 	// This signaling endpoint does not provide player/version counts. Leave
 	// those unknown instead of manufacturing a zero-player status.

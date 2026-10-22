@@ -8,12 +8,12 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"hash"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -50,14 +50,16 @@ func prepareManagedMinecraftInstall(dir, user string, payload map[string]any, ca
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(staging)
+	defer func() { _ = os.RemoveAll(staging) }()
 	tmp, err := os.CreateTemp(staging, ".minecraft-download-")
 	if err != nil {
 		return err
 	}
 	path := tmp.Name()
-	tmp.Close()
-	defer os.Remove(path)
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(path) }()
 	cache := spigotCachePath(payload)
 	cached := buildSpigot && restoreSpigotCache(cache, path, payload)
 	if cached {
@@ -83,7 +85,7 @@ func prepareManagedMinecraftInstall(dir, user string, payload map[string]any, ca
 	if buildSpigot && !cached {
 		progress("Minecraft: building selected Spigot version with BuildTools")
 		if _, err := exec.LookPath("git"); err != nil {
-			return fmt.Errorf("Spigot BuildTools requires Git on the node: %w", err)
+			return fmt.Errorf("spigot BuildTools requires Git on the node: %w", err)
 		}
 		builder, home, work, err := prepareSpigotWorkspace()
 		if err != nil {
@@ -107,8 +109,7 @@ func prepareManagedMinecraftInstall(dir, user string, payload map[string]any, ca
 		if minimum, err := minecraftJarRequiredJava(filepath.Join(work, "BuildTools.jar")); err != nil {
 			return err
 		} else {
-			var requested int
-			fmt.Sscanf(payloadValue(buildPayload, "minecraft_java_version"), "%d", &requested)
+			requested, _ := strconv.Atoi(payloadValue(buildPayload, "minecraft_java_version"))
 			if minimum > requested {
 				buildPayload["minecraft_java_version"] = fmt.Sprint(minimum)
 			}
@@ -120,11 +121,11 @@ func prepareManagedMinecraftInstall(dir, user string, payload map[string]any, ca
 		command := "cd " + shellEscape(work) + " && " + shellEscape(payloadValue(buildPayload, "java_bin")) + " " + shellEscape("-Duser.home="+home) + " -jar BuildTools.jar --rev " + shellEscape(version) + " --compile SPIGOT"
 		output, err := runMinecraftBuildTools(ctx, builder, home, command)
 		if err != nil {
-			return fmt.Errorf("Spigot BuildTools failed: %w: %s", err, trimOutput(output, 2000))
+			return fmt.Errorf("spigot BuildTools failed: %w: %s", err, trimOutput(output, 2000))
 		}
 		jar := filepath.Join(work, "spigot-"+version+".jar")
 		if _, err := os.Stat(jar); err != nil {
-			return fmt.Errorf("BuildTools did not produce the selected Spigot version: %w", err)
+			return fmt.Errorf("buildtools did not produce the selected Spigot version: %w", err)
 		}
 		if err := copyFile(jar, path, 0644); err != nil {
 			return err
@@ -135,8 +136,7 @@ func prepareManagedMinecraftInstall(dir, user string, payload map[string]any, ca
 	if err != nil {
 		return err
 	}
-	var selected int
-	fmt.Sscanf(payloadValue(payload, "minecraft_java_version"), "%d", &selected)
+	selected, _ := strconv.Atoi(payloadValue(payload, "minecraft_java_version"))
 	if required > selected {
 		selected = 0
 		for _, candidate := range []int{8, 16, 17, 21, 25} {
@@ -149,7 +149,7 @@ func prepareManagedMinecraftInstall(dir, user string, payload map[string]any, ca
 			selected = required
 		}
 		if selected == 0 {
-			return fmt.Errorf("Minecraft artifact requires unsupported Java %d", required)
+			return fmt.Errorf("minecraft artifact requires unsupported Java %d", required)
 		}
 		payload["minecraft_java_version"] = fmt.Sprint(selected)
 		if err := ensureManagedMinecraftJava(payload); err != nil {
@@ -161,7 +161,7 @@ func prepareManagedMinecraftInstall(dir, user string, payload map[string]any, ca
 	}
 	if buildSpigot && !cached {
 		if err := publishSpigotCache(cache, path); err != nil {
-			return fmt.Errorf("Spigot cache: %w", err)
+			return fmt.Errorf("spigot cache: %w", err)
 		}
 	}
 	if err := os.Chmod(path, 0644); err != nil {
@@ -180,7 +180,7 @@ func prepareManagedMinecraftInstall(dir, user string, payload map[string]any, ca
 
 func downloadMinecraftFile(ctx context.Context, client *http.Client, url, path, sha256sum, sha1sum string) error {
 	if !strings.HasPrefix(url, "https://") {
-		return fmt.Errorf("Minecraft downloads require HTTPS")
+		return fmt.Errorf("minecraft downloads require HTTPS")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -191,15 +191,15 @@ func downloadMinecraftFile(ctx context.Context, client *http.Client, url, path, 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("Minecraft artifact returned HTTP %d", resp.StatusCode)
+		return fmt.Errorf("minecraft artifact returned HTTP %d", resp.StatusCode)
 	}
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
-	var h hash.Hash = sha256.New()
+	h := sha256.New()
 	expected := sha256sum
 	if expected == "" && sha1sum != "" {
 		h = sha1.New()
@@ -208,7 +208,7 @@ func downloadMinecraftFile(ctx context.Context, client *http.Client, url, path, 
 	if expected != "" {
 		decoded, e := hex.DecodeString(expected)
 		if e != nil || len(decoded) != h.Size() {
-			f.Close()
+			_ = f.Close()
 			return fmt.Errorf("invalid upstream artifact checksum")
 		}
 	}
@@ -221,10 +221,10 @@ func downloadMinecraftFile(ctx context.Context, client *http.Client, url, path, 
 		return closeErr
 	}
 	if n > 1<<30 {
-		return fmt.Errorf("Minecraft artifact exceeds size limit")
+		return fmt.Errorf("minecraft artifact exceeds size limit")
 	}
 	if expected != "" && !strings.EqualFold(hex.EncodeToString(h.Sum(nil)), expected) {
-		return fmt.Errorf("Minecraft artifact checksum mismatch")
+		return fmt.Errorf("minecraft artifact checksum mismatch")
 	}
 	return nil
 }
@@ -234,12 +234,12 @@ func minecraftJarRequiredJava(path string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	file, err := root.Open(filepath.Base(path))
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
 		return 0, err
@@ -260,7 +260,7 @@ func minecraftJarRequiredJava(path string) (int, error) {
 		}
 		var header [8]byte
 		_, e = io.ReadFull(r, header[:])
-		r.Close()
+		_ = r.Close()
 		if e != nil || binary.BigEndian.Uint32(header[:4]) != 0xcafebabe {
 			return 0, fmt.Errorf("invalid Java class in Minecraft artifact")
 		}
@@ -271,7 +271,7 @@ func minecraftJarRequiredJava(path string) (int, error) {
 		classes++
 	}
 	if classes == 0 {
-		return 0, fmt.Errorf("Minecraft JAR has no Java classes")
+		return 0, fmt.Errorf("minecraft JAR has no Java classes")
 	}
 	return required, nil
 }
@@ -281,10 +281,9 @@ func validateMinecraftJar(path, javaMajor string) error {
 	if err != nil {
 		return err
 	}
-	var actual int
-	fmt.Sscanf(javaMajor, "%d", &actual)
+	actual, _ := strconv.Atoi(javaMajor)
 	if required > actual {
-		return fmt.Errorf("Minecraft artifact requires Java %d, selected Java %d", required, actual)
+		return fmt.Errorf("minecraft artifact requires Java %d, selected Java %d", required, actual)
 	}
 	return nil
 }
@@ -294,13 +293,13 @@ func installBedrockArchive(path, dir string, payloads ...map[string]any) error {
 	if err != nil {
 		return fmt.Errorf("invalid Bedrock ZIP: %w", err)
 	}
-	defer z.Close()
+	defer func() { _ = z.Close() }()
 	// Stage all entries first so malformed archives cannot partially overwrite an installation.
 	staging, err := os.MkdirTemp(filepath.Dir(path), ".bedrock-")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(staging)
+	defer func() { _ = os.RemoveAll(staging) }()
 	var total int64
 	for _, f := range z.File {
 		target, e := javaArchivePath(staging, f.Name)
@@ -308,7 +307,7 @@ func installBedrockArchive(path, dir string, payloads ...map[string]any) error {
 			return e
 		}
 		if f.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("Bedrock archive contains unsupported symlink")
+			return fmt.Errorf("bedrock archive contains unsupported symlink")
 		}
 		if f.FileInfo().IsDir() {
 			if e := os.MkdirAll(target, 0755); e != nil {
@@ -325,13 +324,13 @@ func installBedrockArchive(path, dir string, payloads ...map[string]any) error {
 		}
 		out, e := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 		if e != nil {
-			r.Close()
+			_ = r.Close()
 			return e
 		}
 		n, e := io.Copy(out, io.LimitReader(r, (2<<30)-total+1))
 		total += n
 		closeErr := out.Close()
-		r.Close()
+		_ = r.Close()
 		if e != nil {
 			return e
 		}
@@ -339,11 +338,11 @@ func installBedrockArchive(path, dir string, payloads ...map[string]any) error {
 			return closeErr
 		}
 		if total > 2<<30 {
-			return fmt.Errorf("Bedrock archive exceeds expanded size limit")
+			return fmt.Errorf("bedrock archive exceeds expanded size limit")
 		}
 	}
 	if _, err := os.Stat(filepath.Join(staging, "bedrock_server")); err != nil {
-		return fmt.Errorf("Bedrock server binary missing")
+		return fmt.Errorf("bedrock server binary missing")
 	}
 	// Upgrades must use the transport required by the newly installed binary,
 	// even when preserving an older customer's server.properties.
@@ -372,7 +371,7 @@ func installBedrockArchive(path, dir string, payloads ...map[string]any) error {
 			if err != nil {
 				return err
 			}
-			defer root.Close()
+			defer func() { _ = root.Close() }()
 			return root.MkdirAll(rel, 0755)
 		}
 		if rel == "server.properties" || rel == "permissions.json" || rel == "allowlist.json" {
@@ -388,7 +387,7 @@ func installBedrockArchive(path, dir string, payloads ...map[string]any) error {
 			if err != nil {
 				return err
 			}
-			defer root.Close()
+			defer func() { _ = root.Close() }()
 			return root.Chmod(rel, 0755)
 		}
 		return nil

@@ -56,6 +56,18 @@ final class UpdateRunCommand extends Command
         $result = $this->runJobByType($type, $job, $jobPath);
 
         $job = $this->updateJobService->getJob($jobId) ?? $job;
+        if ($result->success && $result->reloadJobId !== null) {
+            $job['status'] = 'running';
+            $job['currentStep'] = 'apply_update';
+            $job['nextStep'] = 'await_agent_reload';
+            $job['payload']['reload_job_id'] = $result->reloadJobId;
+            $job['logPath'] = $result->logPath ?? ($job['logPath'] ?? null);
+            $job['finishedAt'] = null;
+            $job['exitCode'] = null;
+            file_put_contents($jobPath,(string)json_encode($job,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n");
+            $output->writeln('Update installiert; Aktivierung durch den Reload-Agenten steht aus.');
+            return Command::SUCCESS;
+        }
         $job['status'] = $result->success ? 'success' : 'failed';
         $job['finishedAt'] = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
         $job['exitCode'] = $result->success ? 0 : 1;
@@ -87,10 +99,11 @@ final class UpdateRunCommand extends Command
     {
         $updateResult = $this->runStep($job, $jobPath, 'update', fn () => $this->updateService->applyUpdate());
         if (!$updateResult->success) {
-            return new \App\Module\Core\Update\UpdateResult(false, 'Update fehlgeschlagen, Migration wurde nicht gestartet.', $updateResult->error ?? 'update_failed', $updateResult->logPath, $updateResult->currentVersion, $updateResult->latestVersion);
+            return new \App\Module\Core\Update\UpdateResult(false, 'Update fehlgeschlagen, Migration wurde nicht gestartet.', $updateResult->error ?? 'update_failed', $updateResult->logPath, $updateResult->installedVersion, $updateResult->latestVersion);
         }
 
-        return $this->runStep($job, $jobPath, 'migrate', fn () => $this->updateService->applyMigrations());
+        $migrationResult = $this->runStep($job, $jobPath, 'migrate', fn () => $this->updateService->applyMigrations());
+        return new \App\Module\Core\Update\UpdateResult($migrationResult->success,$migrationResult->message,$migrationResult->error,$migrationResult->logPath,$migrationResult->installedVersion,$migrationResult->latestVersion,$migrationResult->pending,$updateResult->reloadJobId);
     }
 
     /**

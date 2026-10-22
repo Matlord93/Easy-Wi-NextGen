@@ -52,7 +52,7 @@ func ensureManagedMinecraftJava(payload map[string]any) error {
 	}
 	if err := validateManagedJava(binary, major); err != nil {
 		if err := installManagedJava(root, target, major); err != nil {
-			return fmt.Errorf("Java %d provisioning failed: %w", major, err)
+			return fmt.Errorf("java %d provisioning failed: %w", major, err)
 		}
 		if err := validateManagedJava(binary, major); err != nil {
 			return err
@@ -74,7 +74,7 @@ func validateManagedJava(binary string, major int) error {
 	}
 	match := javaVersionPattern.FindStringSubmatch(string(output))
 	if len(match) != 2 || match[1] != strconv.Itoa(major) {
-		return fmt.Errorf("Java runtime does not match required major %d", major)
+		return fmt.Errorf("java runtime does not match required major %d", major)
 	}
 	return nil
 }
@@ -99,9 +99,9 @@ func installManagedJava(root, target string, major int) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Adoptium metadata returned HTTP %d", resp.StatusCode)
+		return fmt.Errorf("adoptium metadata returned HTTP %d", resp.StatusCode)
 	}
 	var assets []struct {
 		Binary struct {
@@ -122,7 +122,7 @@ func installManagedJava(root, target string, major int) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(staging)
+	defer func() { _ = os.RemoveAll(staging) }()
 	archive := filepath.Join(staging, "runtime.archive")
 	if err := downloadVerifiedJava(ctx, client, pkg.Link, pkg.Checksum, archive); err != nil {
 		return err
@@ -170,7 +170,7 @@ func installManagedJava(root, target string, major int) error {
 
 func downloadVerifiedJava(ctx context.Context, client *http.Client, url, checksum, path string) error {
 	if !strings.HasPrefix(url, "https://") {
-		return fmt.Errorf("Java download requires HTTPS")
+		return fmt.Errorf("java download requires HTTPS")
 	}
 	expected, err := hex.DecodeString(checksum)
 	if err != nil || len(expected) != sha256.Size {
@@ -184,9 +184,9 @@ func downloadVerifiedJava(ctx context.Context, client *http.Client, url, checksu
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Java download returned HTTP %d", resp.StatusCode)
+		return fmt.Errorf("java download returned HTTP %d", resp.StatusCode)
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
@@ -202,10 +202,10 @@ func downloadVerifiedJava(ctx context.Context, client *http.Client, url, checksu
 		return closeErr
 	}
 	if n > 1<<30 {
-		return fmt.Errorf("Java archive exceeds size limit")
+		return fmt.Errorf("java archive exceeds size limit")
 	}
 	if !strings.EqualFold(hex.EncodeToString(hash.Sum(nil)), checksum) {
-		return fmt.Errorf("Java archive checksum mismatch")
+		return fmt.Errorf("java archive checksum mismatch")
 	}
 	return nil
 }
@@ -218,7 +218,7 @@ func javaArchivePath(root, name string) (string, error) {
 	path := filepath.Join(root, filepath.FromSlash(name))
 	rel, err := filepath.Rel(root, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", fmt.Errorf("JDK archive path escapes destination")
+		return "", fmt.Errorf("jdk archive path escapes destination")
 	}
 	return path, nil
 }
@@ -254,7 +254,7 @@ func unpackJavaArchive(archive, root string, zipped bool) error {
 		n, copyErr := io.Copy(file, io.LimitReader(reader, (2<<30)-total+1))
 		total += n
 		if err := file.Chmod(mode.Perm() & 0755); err != nil {
-			file.Close()
+			_ = file.Close()
 			return err
 		}
 		closeErr := file.Close()
@@ -271,7 +271,7 @@ func unpackJavaArchive(archive, root string, zipped bool) error {
 		if err != nil {
 			return err
 		}
-		defer z.Close()
+		defer func() { _ = z.Close() }()
 		for _, entry := range z.File {
 			path, err := javaArchivePath(root, entry.Name)
 			if err != nil {
@@ -291,7 +291,7 @@ func unpackJavaArchive(archive, root string, zipped bool) error {
 				return err
 			}
 			err = write(entry.Name, 0644, r)
-			r.Close()
+			_ = r.Close()
 			if err != nil {
 				return err
 			}
@@ -302,12 +302,12 @@ func unpackJavaArchive(archive, root string, zipped bool) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	gz, err := gzip.NewReader(file)
 	if err != nil {
 		return err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 	tr := tar.NewReader(gz)
 	for {
 		header, err := tr.Next()

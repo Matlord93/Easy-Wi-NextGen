@@ -15,8 +15,8 @@ interface WebinterfaceUpdateServiceInterface
     /**
      * Polls the status of the web.stack_reload agent job dispatched by applyUpdate().
      * Returns a pending result while the job is still queued/running, a success result
-     * once the agent confirms completion, and a non-fatal success with a warning when the
-     * job timed out or was not configured.
+     * once the agent confirms completion. Missing, failed and timed-out reload jobs
+     * fail activation; an unconfigured reload is skipped for browser OPcache resets.
      */
     public function awaitAgentReload(string $agentJobId): UpdateResult;
 }

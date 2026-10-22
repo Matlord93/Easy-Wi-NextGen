@@ -53,8 +53,10 @@ func publishSpigotCache(cache, source string) error {
 		return err
 	}
 	path := f.Name()
-	f.Close()
-	defer os.Remove(path)
+	if err := f.Close(); err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(path) }()
 	if err := copyFile(source, path, 0644); err != nil {
 		return err
 	}
@@ -86,7 +88,7 @@ func runMinecraftBuildTools(ctx context.Context, user, home, command string) (st
 	cmd.Env = append(os.Environ(), "MAVEN_OPTS="+os.Getenv("MAVEN_OPTS")+" -Dmaven.repo.local="+filepath.Join(home, "m2")+" -Duser.home="+home)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(output), fmt.Errorf("BuildTools command: %w", err)
+		return string(output), fmt.Errorf("buildTools command: %w", err)
 	}
 	return string(output), nil
 }

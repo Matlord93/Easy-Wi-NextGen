@@ -37,14 +37,14 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
      * finishes an in-place update, especially when release artifacts omit vendor/.
      */
     private const REQUIRED_RUNTIME_EXCLUDES = [
-        'vendor/',
+        'vendor/', '.env', 'config/local*', '.env.local', '.env.*.local', '.env.local.php', 'var/', 'srv/', 'storage/', 'uploads/', 'public/uploads/',
     ];
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly WebinterfaceUpdateSettingsService $settingsService,
         private readonly string $manifestUrl,
-        private readonly string $installDir,
+        string $installDir,
         private readonly string $releasesDir,
         private readonly string $currentSymlink,
         private readonly string $lockFile,
@@ -64,9 +64,15 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly ?AgentRepository $agentRepository = null,
         private readonly ?string $reloadAgentId = null,
         private readonly ?AgentJobRepository $agentJobRepository = null,
+        private readonly ?string $projectDir = null,
     ) {
+        // The running kernel, rather than a stale installer default or an unused
+        // current link, identifies the application that the web server serves.
+        $this->installDir = $projectDir !== null ? (realpath($projectDir) ?: $projectDir) : $installDir;
     }
 
+    private readonly string $installDir;
+    private ?string $activatedReleaseDir = null;
     private ?string $lastDispatchedReloadJobId = null;
 
     public function getKeepReleasesCount(): int
@@ -157,7 +163,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 );
             }
 
-            $useDelta = $this->shouldUseDelta($installedVersion, $manifest, $logPath);
+            $useDelta = !$this->canUseSymlinkStrategy() && $this->shouldUseDelta($installedVersion, $manifest, $logPath);
             $assetUrl = $useDelta ? $manifest->deltaAssetUrl : $manifest->assetUrl;
             if ($assetUrl === null || $assetUrl === '') {
                 $this->log($logPath, 'Update-Asset ist nicht verfügbar.');
@@ -171,6 +177,10 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 );
             }
 
+            if (in_array(PHP_SAPI,['cli','phpdbg'],true) && ($this->reloadAgentId ?? '') === '') {
+                $this->log($logPath,'CLI-Update ohne Reload-Agent abgebrochen: CLI-OPcache erreicht die laufenden Web-PHP-Prozesse nicht.');
+                return new UpdateResult(false,'Für CLI-Updates muss der Reload-Agent des Panel-Hosts konfiguriert sein.','web_reload_required',$logPath,$installedVersion,$manifest->latest);
+            }
             $workDir = $this->createWorkDir();
             $archivePath = $this->downloadAsset($assetUrl, $workDir, $logPath, $useDelta ? null : $manifest->assetName);
             if ($archivePath === null) {
@@ -239,7 +249,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 );
             }
 
-            $this->panelUpdateNewsPublisher?->publishSuccessfulUpdate($installedVersion, $manifest->latest, $manifest->notes);
+            if ($this->lastDispatchedReloadJobId === null) { $this->panelUpdateNewsPublisher?->publishSuccessfulUpdate($installedVersion, $manifest->latest, $manifest->notes); }
 
             return new UpdateResult(
                 true,
@@ -251,6 +261,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 false,
                 $this->lastDispatchedReloadJobId,
             );
+        } catch (\Throwable $error) {
+            $this->log($logPath,'Update abgebrochen: '.$error->getMessage());
+            return new UpdateResult(false,'Update abgebrochen.',$error->getMessage(),$logPath,$this->getInstalledVersion(),null);
         } finally {
             $this->releaseLock($lockHandle);
         }
@@ -260,14 +273,15 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     {
         $logPath = $this->resolveLogPath($this->installDir);
 
-        if ($agentJobId === '' || $this->agentJobRepository === null) {
+        if ($agentJobId === '') {
             return new UpdateResult(true, 'Web-Stack-Reload nicht konfiguriert – Update abgeschlossen.', null, $logPath, $this->getInstalledVersion(), null);
         }
 
+        if ($this->agentJobRepository === null) { return new UpdateResult(false,'Reload-Status nicht verfügbar.','reload_status_unavailable',$logPath,$this->getInstalledVersion(),null); }
         $agentJob = $this->agentJobRepository->find($agentJobId);
         if ($agentJob === null) {
-            $this->log($logPath, 'Reload-Job ' . $agentJobId . ' nicht gefunden – wird als abgeschlossen gewertet.');
-            return new UpdateResult(true, 'Update abgeschlossen (Reload-Job nicht auffindbar).', null, $logPath, $this->getInstalledVersion(), null);
+            $this->log($logPath, 'Reload-Job ' . $agentJobId . ' nicht gefunden – Aktivierung fehlgeschlagen.');
+            return new UpdateResult(false, 'Reload-Job nicht auffindbar.', 'reload_job_missing', $logPath, $this->getInstalledVersion(), null);
         }
 
         $status = $agentJob->getStatus();
@@ -276,7 +290,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $ageSeconds = (new \DateTimeImmutable())->getTimestamp() - $agentJob->getCreatedAt()->getTimestamp();
         if ($ageSeconds >= 300 && ($status === AgentJobStatus::Queued || $status === AgentJobStatus::Running)) {
             $this->log($logPath, 'Timeout: Agent-Reload-Job läuft seit ' . $ageSeconds . 's – PHP-FPM/nginx bitte manuell prüfen.');
-            return new UpdateResult(true, 'Update abgeschlossen. Agent-Reload hat Timeout überschritten – PHP-FPM/nginx manuell prüfen.', null, $logPath, $this->getInstalledVersion(), null);
+            return new UpdateResult(false, 'Agent-Reload hat das Zeitlimit überschritten.', 'reload_timeout', $logPath, $this->getInstalledVersion(), null);
         }
 
         if ($status === AgentJobStatus::Queued || $status === AgentJobStatus::Running) {
@@ -291,7 +305,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         // Failed
         $this->log($logPath, 'Agent-Reload fehlgeschlagen (Status: ' . $status->value . ') – PHP-FPM/nginx bitte manuell prüfen.');
-        return new UpdateResult(true, 'Update abgeschlossen. Agent-Reload fehlgeschlagen – PHP-FPM/nginx manuell prüfen.', null, $logPath, $this->getInstalledVersion(), null);
+        return new UpdateResult(false, 'Agent-Reload fehlgeschlagen.', 'reload_failed', $logPath, $this->getInstalledVersion(), null);
     }
 
     public function applyMigrations(): UpdateResult
@@ -797,22 +811,11 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function getInstalledVersion(): ?string
     {
-        $versionFile = rtrim($this->installDir, '/\\') . '/VERSION';
-        $version = $this->readVersionFile($versionFile);
-        if ($version !== null) {
-            return $version;
+        $active = $this->resolveCurrentDir();
+        if ($active !== null) {
+            $version = $this->readVersionFile(rtrim($this->resolveAppRoot($active),'/\\').'/VERSION');
+            if ($version !== null) { return $version; }
         }
-
-        if ($this->currentSymlink !== '' && is_link($this->currentSymlink)) {
-            $target = readlink($this->currentSymlink);
-            if ($target !== false) {
-                $version = $this->readVersionFile(rtrim($target, '/\\') . '/VERSION');
-                if ($version !== null) {
-                    return $version;
-                }
-            }
-        }
-
         return $this->fallbackVersion !== '' ? $this->fallbackVersion : null;
     }
 
@@ -1440,7 +1443,13 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function deployUpdate(string $sourceDir, string $version, string $logPath): bool
     {
+        $sourceDir = $this->resolveAppRoot($sourceDir);
+        if (!is_file($sourceDir.'/bin/console') || !is_file($sourceDir.'/public/index.php')) {
+            $this->log($logPath, 'Kein installierbares Panel im Release-Archiv (bin/console oder public/index.php fehlt).');
+            return false;
+        }
         $excludes = $this->parseExcludes();
+        $this->log($logPath, 'Aktives Panel-Verzeichnis: '.$this->installDir);
         if ($this->canUseSymlinkStrategy()) {
             return $this->deployWithSymlink($sourceDir, $version, $logPath, $excludes);
         }
@@ -1450,65 +1459,92 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function canUseSymlinkStrategy(): bool
     {
-        if ($this->releasesDir === '' || $this->currentSymlink === '') {
+        if ($this->releasesDir === '' || $this->currentSymlink === '' || !is_link($this->currentSymlink)) {
             return false;
         }
-
-        $releasesParent = dirname($this->releasesDir);
-        if (!is_dir($this->releasesDir) && !is_writable($releasesParent)) {
+        $active = realpath($this->resolveAppRoot($this->activatedReleaseDir ?? $this->installDir));
+        $current = realpath($this->resolveAppRoot($this->currentSymlink));
+        // Never create an unused `current` beside an existing direct installation.
+        if ($active === false || $current !== $active || realpath(dirname($this->currentSymlink)) === $active) {
             return false;
         }
-
-        $currentParent = dirname($this->currentSymlink);
-        if (!is_dir($currentParent) || !is_writable($currentParent)) {
-            return false;
-        }
-
-        return true;
+        return is_writable(dirname($this->currentSymlink)) &&
+            (is_dir($this->releasesDir) ? is_writable($this->releasesDir) : is_writable(dirname($this->releasesDir)));
     }
 
     private function deployWithSymlink(string $sourceDir, string $version, string $logPath, array $excludes): bool
     {
-        $releaseDir = rtrim($this->releasesDir, '/\\') . '/' . $version;
-        if (!is_dir($this->releasesDir)) {
-            mkdir($this->releasesDir, 0775, true);
-        }
-
-        if (is_dir($releaseDir)) {
-            $this->removeDirectory($releaseDir);
-        }
-
-        $this->copyDirectory($sourceDir, $releaseDir, []);
-        $currentDir = $this->resolveCurrentDir();
-        if ($currentDir !== null) {
-            $this->copyExcludedPaths($currentDir, $releaseDir, $excludes);
-            // Also copy excluded runtime files that live under the app-root subdir (e.g. core/)
-            // because fnmatch('.env', 'core/.env.local') returns false — path separators are
-            // not matched by the glob wildcard in PHP's fnmatch, so patterns like '.env.local'
-            // must be matched relative to the app root directly.
-            $currentAppRoot = $this->resolveAppRoot($currentDir);
-            $releaseAppRoot = $this->resolveAppRoot($releaseDir);
-            if ($currentAppRoot !== $currentDir) {
-                $this->copyExcludedPaths($currentAppRoot, $releaseAppRoot, $excludes);
-            }
-        }
-
-        $this->writeVersionFile($releaseDir, $version);
-        if (!$this->runPostDeploy($releaseDir, $logPath)) {
-            $this->log($logPath, 'Post-Deploy fehlgeschlagen. Rollback durchgeführt.');
-            $this->removeDirectory($releaseDir);
+        if (!preg_match('/^[0-9A-Za-z][0-9A-Za-z._+-]*$/D', $version)) {
+            $this->log($logPath, 'Ungültige Release-Version.');
             return false;
         }
-
-        if (is_link($this->currentSymlink) || file_exists($this->currentSymlink)) {
-            unlink($this->currentSymlink);
+        $releaseDir = rtrim($this->releasesDir, '/\\').'/'.$version.'-'.bin2hex(random_bytes(4));
+        $previous = realpath($this->currentSymlink);
+        if ($previous === false) { return false; }
+        $this->enableRuntimeMaintenance($this->installDir, $logPath);
+        try {
+            if (!is_dir($this->releasesDir) && !mkdir($this->releasesDir,0775,true)) { return false; }
+            $this->copyDirectory($sourceDir,$releaseDir,[]);
+            $this->copyExcludedPaths($this->installDir,$releaseDir,$excludes);
+            if (!$this->shareReleaseRuntime($releaseDir,$logPath)) { return false; }
+            $this->writeVersionFile($releaseDir,$version);
+            if (!$this->runPostDeploy($releaseDir,$logPath)) { return false; }
+            if (!$this->replaceCurrentSymlink($releaseDir,$logPath)) { return false; }
+            $this->activatedReleaseDir = $releaseDir;
+            if (!$this->activateWebRuntime($logPath)) {
+                $this->replaceCurrentSymlink($previous,$logPath);
+                $this->activatedReleaseDir = null;
+                $this->invalidateWebOpcache($logPath);
+                return false;
+            }
+            $this->log($logPath,'Aktive Version atomar umgeschaltet: '.$releaseDir);
+            $this->cleanupOldReleases($releaseDir,$logPath);
+            return true;
+        } finally {
+            $this->disableRuntimeMaintenance($this->installDir,$logPath);
+            if ($this->activatedReleaseDir !== $releaseDir && is_dir($releaseDir)) { $this->removeDirectory($releaseDir); }
         }
+    }
 
-        symlink($releaseDir, $this->currentSymlink);
-        $this->log($logPath, 'Symlink auf neue Version gesetzt: ' . $releaseDir);
-        $this->dispatchWebStackReload($logPath);
-        $this->cleanupOldReleases($releaseDir, $logPath);
+    private function replaceCurrentSymlink(string $target,string $logPath): bool
+    {
+        $temporary = $this->currentSymlink.'.new-'.bin2hex(random_bytes(6));
+        try {
+            if (!@symlink($target,$temporary) || !@rename($temporary,$this->currentSymlink)) {
+                $this->log($logPath,'Aktiver Release-Link konnte nicht atomar ersetzt werden.');
+                return false;
+            }
+            clearstatcache(true);
+            return realpath($this->currentSymlink) === realpath($target);
+        } finally { if (is_link($temporary)) { unlink($temporary); } }
+    }
 
+    private function shareReleaseRuntime(string $releaseDir,string $logPath): bool
+    {
+        $sharedRoot = dirname($this->currentSymlink).'/shared';
+        foreach (['var','srv','storage','uploads','public/uploads'] as $relative) {
+            $old = $this->installDir.'/'.$relative;
+            $new = $releaseDir.'/'.$relative;
+            if (is_link($old)) {
+                $shared = realpath($old);
+                if ($shared === false || !is_dir($shared)) { return false; }
+            } else {
+                $shared = $sharedRoot.'/'.$relative;
+                if (!is_dir(dirname($shared)) && !mkdir(dirname($shared),0775,true)) { return false; }
+                if (is_dir($old)) {
+                    if (file_exists($shared) || !rename($old,$shared)) {
+                        $this->log($logPath,'Runtime-Verzeichnis kann nicht sicher geteilt werden: '.$relative);
+                        return false;
+                    }
+                    if (!symlink($shared,$old)) { rename($shared,$old); return false; }
+                } elseif (!is_dir($shared) && !mkdir($shared,0775,true)) { return false; }
+            }
+            if (is_link($new) || is_file($new)) { unlink($new); }
+            elseif (is_dir($new)) { $this->removeDirectory($new); }
+            if (!is_dir(dirname($new))) { mkdir(dirname($new),0775,true); }
+            if (!symlink($shared,$new)) { return false; }
+        }
+        $this->log($logPath,'Update-Jobs, Sessions und Uploads bleiben über Release-Wechsel hinweg gemeinsam erhalten.');
         return true;
     }
 
@@ -1565,6 +1601,12 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 continue;
             }
 
+            $runtimeReferenced = false;
+            foreach (['var','srv','storage','uploads','public/uploads'] as $relative) {
+                $target = realpath($this->resolveAppRoot($currentReleaseDir).'/'.$relative);
+                if ($target !== false && $this->isPathInside($target,$real)) { $runtimeReferenced = true; break; }
+            }
+            if ($runtimeReferenced) { $this->log($logPath,'Release mit aktiven Runtime-Daten bleibt erhalten: '.$real); continue; }
             try {
                 $this->removeDirectory($real);
                 $this->log($logPath, 'Release-Cleanup: gelöscht: ' . $real);
@@ -1654,7 +1696,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 return false;
             }
 
-            return true;
+            return $this->activateWebRuntime($logPath);
         }
 
         $backupDir = rtrim(sys_get_temp_dir(), '/\\') . '/webinterface_backup_' . bin2hex(random_bytes(6));
@@ -1667,19 +1709,52 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         if (!$this->runRsync($sourceDir, $this->installDir, $excludes, $logPath, true)) {
             $this->log($logPath, 'Deploy fehlgeschlagen. Rollback wird durchgeführt.');
-            $this->runRsync($backupDir, $this->installDir, [], $logPath, true);
+            $this->runRsync($backupDir, $this->installDir, $excludes, $logPath, true);
             return false;
         }
 
         $this->writeVersionFile($this->installDir, $version);
         if (!$this->runPostDeploy($this->installDir, $logPath)) {
             $this->log($logPath, 'Post-Deploy fehlgeschlagen. Rollback wird durchgeführt.');
-            $this->runRsync($backupDir, $this->installDir, [], $logPath, true);
+            $this->runRsync($backupDir, $this->installDir, $excludes, $logPath, true);
             return false;
         }
 
-        $this->dispatchWebStackReload($logPath);
+        if (!$this->activateWebRuntime($logPath)) {
+            $this->runRsync($backupDir,$this->installDir,$excludes,$logPath,true);
+            $this->invalidateWebOpcache($logPath);
+            return false;
+        }
+        return true;
+    }
 
+    private function activateWebRuntime(string $logPath): bool
+    {
+        if (!$this->invalidateWebOpcache($logPath)) { return false; }
+        $this->dispatchWebStackReload($logPath);
+        return ($this->reloadAgentId ?? '') === '' || $this->lastDispatchedReloadJobId !== null;
+    }
+
+    private function invalidateWebOpcache(string $logPath): bool
+    {
+        clearstatcache(true);
+        // CLI OPcache is separate from PHP-FPM. A browser tick resets the shared
+        // serving cache, while a detached CLI runner must use the reload agent.
+        if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
+            $this->log($logPath,'CLI-Prozess: Web-OPcache wird bei konfiguriertem Reload durch den Agenten erneuert.');
+            return true;
+        }
+        if (trim((string)ini_get('opcache.preload')) !== '' && ($this->reloadAgentId ?? '') === '') {
+            $this->log($logPath,'PHP-Preloading erfordert einen konfigurierten Reload-Agenten; Aktivierung nicht bestätigt.');
+            return false;
+        }
+        if (function_exists('opcache_get_status') && opcache_get_status(false) !== false) {
+            if (!function_exists('opcache_reset') || !opcache_reset()) {
+                $this->log($logPath,'Web-OPcache konnte nicht zurückgesetzt werden.');
+                return false;
+            }
+            $this->log($logPath,'OPcache der laufenden Web-PHP-Instanz zurückgesetzt.');
+        }
         return true;
     }
 
@@ -1916,6 +1991,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function resolveAppRoot(string $baseDir): string
     {
+        if (is_file(rtrim($baseDir,'/\\').'/bin/console') && is_dir(rtrim($baseDir,'/\\').'/public')) { return $baseDir; }
         $coreDir = rtrim($baseDir, '/\\') . '/core';
         return is_dir($coreDir) ? $coreDir : $baseDir;
     }
@@ -1956,18 +2032,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function resolveCurrentDir(): ?string
     {
-        if (is_link($this->currentSymlink)) {
-            $target = readlink($this->currentSymlink);
-            if ($target !== false) {
-                return $target;
-            }
-        }
-
-        if (is_dir($this->installDir)) {
-            return $this->installDir;
-        }
-
-        return null;
+        if ($this->activatedReleaseDir !== null) { return $this->activatedReleaseDir; }
+        if ($this->canUseSymlinkStrategy()) { return realpath($this->currentSymlink) ?: null; }
+        return is_dir($this->installDir) ? $this->installDir : null;
     }
 
     private function parseExcludes(): array
@@ -2129,7 +2196,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         if (!$this->runRsync($sourceDir, $this->installDir, $excludes, $logPath)) {
             $this->log($logPath, 'Delta-Deploy fehlgeschlagen. Rollback wird durchgeführt.');
-            $this->runRsync($backupDir, $this->installDir, [], $logPath, true);
+            $this->runRsync($backupDir, $this->installDir, $excludes, $logPath, true);
             return false;
         }
 
@@ -2137,10 +2204,15 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $this->writeVersionFile($this->installDir, $version);
         if (!$this->runPostDeploy($this->installDir, $logPath)) {
             $this->log($logPath, 'Post-Deploy fehlgeschlagen. Rollback wird durchgeführt.');
-            $this->runRsync($backupDir, $this->installDir, [], $logPath, true);
+            $this->runRsync($backupDir, $this->installDir, $excludes, $logPath, true);
             return false;
         }
 
+        if (!$this->activateWebRuntime($logPath)) {
+            $this->runRsync($backupDir,$this->installDir,$excludes,$logPath,true);
+            $this->invalidateWebOpcache($logPath);
+            return false;
+        }
         return true;
     }
 
@@ -2204,9 +2276,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function removeDirectory(string $directory): void
     {
-        if (!is_dir($directory)) {
-            return;
-        }
+        if (is_link($directory)) { unlink($directory); return; }
+        if (!is_dir($directory)) { return; }
 
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
@@ -2214,7 +2285,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         );
 
         foreach ($iterator as $item) {
-            if ($item->isDir()) {
+            if ($item->isLink()) {
+                unlink($item->getPathname());
+            } elseif ($item->isDir()) {
                 rmdir($item->getPathname());
             } else {
                 unlink($item->getPathname());
@@ -2597,7 +2670,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function runRsync(string $source, string $destination, array $excludes, string $logPath, bool $delete = false): bool
     {
-        $args = ['-a'];
+        $args = ['-a', '--checksum'];
         if ($delete) {
             $args[] = '--delete';
         }

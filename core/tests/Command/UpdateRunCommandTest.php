@@ -106,6 +106,19 @@ final class UpdateRunCommandTest extends TestCase
         self::assertSame(Command::FAILURE, $tester->execute(['job-id' => $jobId]));
     }
 
+    public function testDetachedRunnerKeepsReloadPendingForThePanel(): void
+    {
+        $dir=sys_get_temp_dir().'/update-reload-test-'.bin2hex(random_bytes(6));mkdir($dir,0770,true);
+        $id='job-cli-reload';$path=$dir.'/'.$id.'.json';
+        file_put_contents($path,json_encode(['id'=>$id,'type'=>'both','status'=>'pending','logPath'=>$dir.'/job.log']));
+        $jobs=$this->mockJobService($path,$id,$dir);$service=$this->createMock(WebinterfaceUpdateServiceInterface::class);
+        $service->expects(self::once())->method('applyUpdate')->willReturn(new UpdateResult(true,'installed',null,null,'2','2',reloadJobId:'reload-cli'));
+        $service->expects(self::once())->method('applyMigrations')->willReturn(new UpdateResult(true,'migrated',null,null,'2','2'));
+        $tester=new CommandTester(new UpdateRunCommand($jobs,$service));self::assertSame(Command::SUCCESS,$tester->execute(['job-id'=>$id]));
+        $job=json_decode(file_get_contents($path),true);self::assertSame('running',$job['status']);self::assertSame('await_agent_reload',$job['nextStep']);
+        self::assertSame('reload-cli',$job['payload']['reload_job_id']);self::assertNull($job['finishedAt']);
+    }
+
     private function mockJobService(string $jobPath, string $jobId, string $dir): UpdateJobServiceInterface
     {
         $jobService = $this->createMock(UpdateJobServiceInterface::class);

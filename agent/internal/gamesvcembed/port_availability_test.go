@@ -21,7 +21,7 @@ func TestPortAvailabilityDetectsListenersOnBothFamilies(t *testing.T) {
 					}
 					t.Fatal(err)
 				}
-				defer listener.Close()
+				defer func() { _ = listener.Close() }()
 				port = listener.Addr().(*net.TCPAddr).Port
 			} else {
 				listener, err := net.ListenPacket(network, host)
@@ -31,7 +31,7 @@ func TestPortAvailabilityDetectsListenersOnBothFamilies(t *testing.T) {
 					}
 					t.Fatal(err)
 				}
-				defer listener.Close()
+				defer func() { _ = listener.Close() }()
 				port = listener.LocalAddr().(*net.UDPAddr).Port
 			}
 			free, err := checkPortFree(network[:3], port)
@@ -51,7 +51,7 @@ func TestPortAvailabilityReleasesProbeSockets(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
+	_ = listener.Close()
 	for i := 0; i < 2; i++ {
 		free, err := checkPortFree("tcp", port)
 		if err != nil || !free {

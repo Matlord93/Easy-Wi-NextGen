@@ -1,5 +1,5 @@
 {% set isRunning = coreUpdate.latestJob and coreUpdate.latestJob.status in ['pending', 'running'] %}
-<div id="core-update-card" class="ng-card" style="overflow:hidden;"{% if isRunning %} hx-post="/admin/updates/job/{{ coreUpdate.latestJob.id }}/tick" hx-vals='{{ {csrf_token: coreUpdate.csrf.tick}|json_encode|e('html_attr') }}' hx-trigger="load, every 2s" hx-target="#core-update-card" hx-swap="outerHTML"{% endif %}>
+<div data-update-job="{{ coreUpdate.latestJob.id|default('') }}" data-update-status="{{ coreUpdate.latestJob.status|default('') }}" data-update-kind="{{ coreUpdate.latestJob.type|default('') }}" id="core-update-card" class="ng-card" style="overflow:hidden;"{% if isRunning %} hx-post="/admin/updates/job/{{ coreUpdate.latestJob.id }}/tick" hx-vals='{{ {csrf_token: coreUpdate.csrf.tick}|json_encode|e('html_attr') }}' hx-trigger="load, every 2s" hx-target="#core-update-card" hx-swap="outerHTML"{% endif %}>
 
     {# ── Card Header ── #}
     <div style="padding:20px 24px 0;">
@@ -16,7 +16,11 @@
 
             {# Status badge #}
             <div>
-                {% if coreUpdate.updateAvailable %}
+                {% if isRunning %}
+                    <span style="color:#fbbf24;">{{ t('admin_updates_activation_running',page_locale()) }}</span>
+                {% elseif coreUpdate.latestJob and coreUpdate.latestJob.status == 'failed' %}
+                    <span style="color:#f87171;">{{ t('admin_updates_activation_failed',page_locale()) }}</span>
+                {% elseif coreUpdate.updateAvailable %}
                     <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">
                         <span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;animation:pulse 2s infinite;"></span>
                         {{ t('admin_dashboard_core_update_available', page_locale()) }}
@@ -199,7 +203,7 @@
                 </div>
                 <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_type', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);">{{ coreUpdate.latestJob.type }}</span></div>
                 <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_exit', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.exitCode ?? '—' }}</span></div>
-                <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_step', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.lastStep ?? '—' }}</span></div>
+                <div style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_job_step', page_locale()) }} <span style="font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.latestJob.currentStep ?? coreUpdate.latestJob.lastStep ?? '—' }}</span></div>
             </div>
             {% if coreUpdate.latestJob.status == 'failed' %}
                 <p style="margin:8px 0 0;font-size:12px;color:#fca5a5;">{{ t('admin_dashboard_core_job_failed_detail', page_locale())|replace({'%code%': coreUpdate.latestJob.exitCode ?? '—', '%step%': coreUpdate.latestJob.lastStep ?? '—'}) }}</p>

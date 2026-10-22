@@ -227,6 +227,7 @@ services:
       $settingsService: '@App\Module\Setup\Application\WebinterfaceUpdateSettingsService'
       $manifestUrl: '%app.core_update_manifest_url%'
       $installDir: '%app.core_update_install_dir%'
+      $projectDir: '%kernel.project_dir%'
       $releasesDir: '%app.core_update_releases_dir%'
       $currentSymlink: '%app.core_update_current_symlink%'
       $lockFile: '%app.core_update_lock_file%'

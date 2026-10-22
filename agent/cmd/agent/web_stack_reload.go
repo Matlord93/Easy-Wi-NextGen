@@ -22,47 +22,53 @@ func handleWebStackReload(job jobs.Job) (jobs.Result, func() error) {
 
 	var out strings.Builder
 
-	webStackReloadPhpFpm(&out)
-	webStackReloadNginx(&out)
-
+	ok := reloadWebStack(&out, webStackServiceActive, webStackRunService)
+	status := "success"
+	message := "web stack reload completed"
+	if !ok {
+		status = "failed"
+		message = "web stack activation failed; check PHP/web service reload logs"
+	}
 	return jobs.Result{
-		JobID:  job.ID,
-		Status: "success",
-		Output: map[string]string{
-			"message": "web stack reload completed",
-			"details": out.String(),
-		},
+		JobID: job.ID, Status: status,
+		Output:    map[string]string{"message": message, "details": out.String()},
 		Completed: time.Now().UTC(),
 	}, nil
 }
 
-func webStackReloadPhpFpm(out *strings.Builder) {
-	versions := []string{"8.5", "8.4", "8.3", "8.2", "8.1"}
-	for _, ver := range versions {
-		service := fmt.Sprintf("php%s-fpm", ver)
-		if !webStackServiceActive(service) {
+func reloadWebStack(out *strings.Builder, active func(string) bool, run func(string, string, *strings.Builder) bool) bool {
+	foundPHP := false
+	ok := true
+	services := []string{"php8.6-fpm", "php8.5-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm", "php-fpm"}
+	for _, service := range services {
+		if !active(service) {
 			continue
 		}
-		if webStackRunService("reload", service, out) {
-			return
+		foundPHP = true
+		if !run("reload", service, out) && !run("restart", service, out) {
+			ok = false
 		}
-		// reload not supported by this unit – fall back to restart
-		webStackRunService("restart", service, out)
-		return
 	}
-	appendOutput(out, "php-fpm: no active php-fpm service found (tried "+strings.Join(versions, ", ")+")")
-}
-
-func webStackReloadNginx(out *strings.Builder) {
-	if !webStackServiceActive("nginx") {
-		appendOutput(out, "nginx: service not active")
-		return
+	// Apache installations may serve PHP through mod_php instead of FPM.
+	for _, service := range []string{"apache2", "httpd"} {
+		if !active(service) {
+			continue
+		}
+		foundPHP = true
+		if !run("reload", service, out) && !run("restart", service, out) {
+			ok = false
+		}
 	}
-	if webStackRunService("reload", "nginx", out) {
-		return
+	if !foundPHP {
+		appendOutput(out, "no active PHP-FPM/Apache service found; activation cannot be confirmed")
+		ok = false
 	}
-	// reload not supported – fall back to restart
-	webStackRunService("restart", "nginx", out)
+	if active("nginx") {
+		if !run("reload", "nginx", out) && !run("restart", "nginx", out) {
+			ok = false
+		}
+	}
+	return ok
 }
 
 // webStackServiceActive returns true when `systemctl is-active <service>` exits 0.

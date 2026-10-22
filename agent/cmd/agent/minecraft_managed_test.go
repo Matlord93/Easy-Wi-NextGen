@@ -98,7 +98,9 @@ func TestManagedMinecraftBedrockUsesDistinctReservedIPv6Port(t *testing.T) {
 
 func TestManagedMinecraftBedrockNetherNetConstrainsGameplayPorts(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "server.properties"), []byte("transport=nethernet\nserver-udp-ports=49152-65535\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "server.properties"), []byte("transport=nethernet\nserver-udp-ports=49152-65535\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	payload := makeBedrockPayload(map[string]any{"minecraft_managed": "true", "required_ports": "game,gamev6", "ports": []any{19132, 19134}})
 	if err := ensureMinecraftServerProperties(dir, payload); err != nil {
 		t.Fatal(err)
@@ -150,7 +152,7 @@ func TestManagedMinecraftBungeePreservesBackendsAndUsesProxyConfig(t *testing.T)
 
 func TestManagedMinecraftDownloadsVerifyChecksums(t *testing.T) {
 	body := []byte("trusted artifact")
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(body) }))
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(body) }))
 	defer server.Close()
 	sum := sha256.Sum256(body)
 	sha := hex.EncodeToString(sum[:])
@@ -210,10 +212,18 @@ func TestManagedJavaArchiveRejectsTraversal(t *testing.T) {
 	if err := tw.WriteHeader(&tar.Header{Name: "../escape", Mode: 0755, Size: 1}); err != nil {
 		t.Fatal(err)
 	}
-	tw.Write([]byte("x"))
-	tw.Close()
-	gz.Close()
-	f.Close()
+	if _, err := tw.Write([]byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := unpackJavaArchive(path, filepath.Join(dir, "out"), false); err == nil {
 		t.Fatal("archive traversal accepted")
 	}
@@ -235,7 +245,9 @@ func TestManagedJavaReusesValidatedVersionWithoutNetwork(t *testing.T) {
 	if err := os.WriteFile(path, []byte("#!/bin/sh\necho 'openjdk version \"21.0.1\"' >&2\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	os.Chmod(path, 0755)
+	if err := os.Chmod(path, 0755); err != nil {
+		t.Fatal(err)
+	}
 	payload := map[string]any{"minecraft_java_version": "21", "java_bin": "wrong"}
 	if err := ensureManagedMinecraftJava(payload); err != nil {
 		t.Fatal(err)
@@ -340,7 +352,7 @@ func TestManagedMinecraftNetherNetStatusDoesNotInventPlayerCounts(t *testing.T) 
 }
 
 func TestManagedMinecraftNetherNetRejectsOrdinaryWebServer(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("not Bedrock")) }))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("not Bedrock")) }))
 	defer server.Close()
 	host, port, _ := net.SplitHostPort(strings.TrimPrefix(server.URL, "http://"))
 	if _, err := queryMinecraftBedrockNetherNet(host, port); err == nil {
@@ -354,7 +366,9 @@ func TestManagedMinecraftConfigBackupCannotReadOutsideSymlink(t *testing.T) {
 	}
 	dir := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside")
-	os.WriteFile(outside, []byte("private"), 0600)
+	if err := os.WriteFile(outside, []byte("private"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink(outside, filepath.Join(dir, "server.properties")); err != nil {
 		t.Fatal(err)
 	}

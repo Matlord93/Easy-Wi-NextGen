@@ -6942,3 +6942,6 @@ ports_game_scope: "Port pool game assignment"
 ports_scope_all: "General pool (existing)"
 ports_scope_other: "Other game servers (excluding Minecraft)"
 ports_scope_hint: "Dedicated game pools take priority and never fall back to general pools. The node checks TCP and UDP before allocation; ports are not assigned unless verification succeeds."
+
+admin_updates_activation_running: "Installing and activating update …"
+admin_updates_activation_failed: "Update or activation failed – check the log"

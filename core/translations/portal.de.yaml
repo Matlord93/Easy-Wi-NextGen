@@ -6942,3 +6942,6 @@ ports_game_scope: "Spielzuordnung des Portbereichs"
 ports_scope_all: "Allgemeiner Bereich (bestehend)"
 ports_scope_other: "Andere Gameserver (ohne Minecraft)"
 ports_scope_hint: "Eigene Spielbereiche werden bevorzugt und dürfen nicht in allgemeine Bereiche ausweichen. Vor jeder Vergabe prüft der Node TCP und UDP; ohne erfolgreiche Prüfung werden keine Ports vergeben."
+
+admin_updates_activation_running: "Update wird installiert und aktiviert …"
+admin_updates_activation_failed: "Update oder Aktivierung fehlgeschlagen – Protokoll prüfen"

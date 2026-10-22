@@ -34,7 +34,7 @@ func TestManagedMinecraftLiveVanilla(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer response.Body.Close()
+		defer func() { _ = response.Body.Close() }()
 		if response.StatusCode != 200 {
 			t.Fatalf("HTTP %d for %s", response.StatusCode, url)
 		}
@@ -62,7 +62,7 @@ func TestManagedMinecraftLiveVanilla(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
+	_ = listener.Close()
 	dir := t.TempDir()
 	payload := map[string]any{"minecraft_managed": "true", "minecraft_channel": "vanilla", "minecraft_java_version": fmt.Sprint(details["javaVersion"].(map[string]any)["majorVersion"]), "minecraft_version": "1.21.11", "game_key": "minecraft_vanilla_all", "minecraft_download_url": artifact["url"], "minecraft_sha1": artifact["sha1"], "required_ports": "game", "ports": []int{port}, "bind_ip": "127.0.0.1", "env_vars": map[string]any{"SERVER_NAME": "Managed integration", "MAX_PLAYERS": "5"}}
 	if err := prepareManagedMinecraftInstall(dir, "", payload); err != nil {
@@ -75,15 +75,19 @@ func TestManagedMinecraftLiveVanilla(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.WriteString("view-distance=2\nsimulation-distance=2\nlevel-type=minecraft:flat\ngenerate-structures=false\n")
-	f.Close()
+	if _, err := f.WriteString("view-distance=2\nsimulation-distance=2\nlevel-type=minecraft:flat\ngenerate-structures=false\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 	defer cancel()
 	log, err := os.Create(filepath.Join(dir, "startup.log"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer log.Close()
+	defer func() { _ = log.Close() }()
 	command := exec.CommandContext(ctx, payloadValue(payload, "java_bin"), "-Xms256M", "-Xmx1G", "-jar", "server.jar", "nogui")
 	command.Dir = dir
 	command.Stdout = log
@@ -96,10 +100,10 @@ func TestManagedMinecraftLiveVanilla(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		stdin.Close()
+		_ = stdin.Close()
 		if command.ProcessState == nil {
-			command.Process.Kill()
-			command.Wait()
+			_ = command.Process.Kill()
+			_ = command.Wait()
 		}
 	}()
 	deadline := time.Now().Add(120 * time.Second)
@@ -110,8 +114,10 @@ func TestManagedMinecraftLiveVanilla(t *testing.T) {
 			if !strings.Contains(fmt.Sprint(status), "1.21.11") {
 				t.Fatalf("wrong version: %v", status)
 			}
-			fmt.Fprintln(stdin, "stop")
-			stdin.Close()
+			if _, err := fmt.Fprintln(stdin, "stop"); err != nil {
+				t.Fatal(err)
+			}
+			_ = stdin.Close()
 			if err := command.Wait(); err != nil {
 				t.Fatal(err)
 			}
@@ -152,7 +158,7 @@ func TestManagedMinecraftLiveDistributions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		if r.StatusCode != 200 {
 			t.Fatalf("HTTP %d: %s", r.StatusCode, url)
 		}
@@ -220,7 +226,7 @@ func TestManagedMinecraftLiveDistributions(t *testing.T) {
 					t.Fatal(err)
 				}
 				bytes, err := io.ReadAll(r.Body)
-				r.Body.Close()
+				_ = r.Body.Close()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -232,7 +238,7 @@ func TestManagedMinecraftLiveDistributions(t *testing.T) {
 				t.Fatal(err)
 			}
 			port := listener.Addr().(*net.TCPAddr).Port
-			listener.Close()
+			_ = listener.Close()
 			dir := t.TempDir()
 			key := "minecraft_" + channel + "_all"
 			if channel == "bedrock" {
@@ -279,12 +285,18 @@ func startMinecraftDistribution(t *testing.T, dir, channel string, port int, pay
 		if err != nil {
 			t.Fatal(err)
 		}
-		file.WriteString("view-distance=2\nsimulation-distance=2\nlevel-type=minecraft:flat\ngenerate-structures=false\n")
+		if _, err := file.WriteString("view-distance=2\nsimulation-distance=2\nlevel-type=minecraft:flat\ngenerate-structures=false\n"); err != nil {
+			t.Fatal(err)
+		}
 		if channel == "bedrock" {
 			// Local discovery test only; authentication requires external Xbox services.
-			file.WriteString("online-mode=false\nallow-list=false\n")
+			if _, err := file.WriteString("online-mode=false\nallow-list=false\n"); err != nil {
+				t.Fatal(err)
+			}
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 	defer cancel()
@@ -303,7 +315,7 @@ func startMinecraftDistribution(t *testing.T, dir, channel string, port int, pay
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer log.Close()
+	defer func() { _ = log.Close() }()
 	command.Stdout = log
 	command.Stderr = log
 	stdin, err := command.StdinPipe()
@@ -314,10 +326,10 @@ func startMinecraftDistribution(t *testing.T, dir, channel string, port int, pay
 		t.Fatal(err)
 	}
 	defer func() {
-		stdin.Close()
+		_ = stdin.Close()
 		if command.ProcessState == nil {
-			command.Process.Kill()
-			command.Wait()
+			_ = command.Process.Kill()
+			_ = command.Wait()
 		}
 	}()
 	deadline := time.Now().Add(120 * time.Second)
@@ -337,8 +349,10 @@ func startMinecraftDistribution(t *testing.T, dir, channel string, port int, pay
 			if channel == "bungeecord" {
 				commandName = "end"
 			}
-			fmt.Fprintln(stdin, commandName)
-			stdin.Close()
+			if _, err := fmt.Fprintln(stdin, commandName); err != nil {
+				t.Fatal(err)
+			}
+			_ = stdin.Close()
 			if err := command.Wait(); err != nil {
 				t.Fatal(err)
 			}

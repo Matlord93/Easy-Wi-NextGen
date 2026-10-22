@@ -126,7 +126,7 @@ func checkPortFree(proto string, port int) (bool, error) {
 	var sockets []io.Closer
 	defer func() {
 		for _, socket := range sockets {
-			socket.Close()
+			_ = socket.Close()
 		}
 	}()
 	for _, family := range []string{"4", "6"} {

@@ -51,9 +51,9 @@ func writeMinecraftPreflightManifest(dir, user string, payload map[string]any) (
 	if err != nil {
 		return "", err
 	}
-	defer os.Remove(file.Name())
+	defer func() { _ = os.Remove(file.Name()) }()
 	if _, err := file.Write(content); err != nil {
-		file.Close()
+		_ = file.Close()
 		return "", err
 	}
 	if err := file.Close(); err != nil {
@@ -103,8 +103,7 @@ func runMinecraftPreflight(path string) error {
 		return fmt.Errorf("invalid Minecraft manifest directory")
 	}
 	if !isMinecraftBedrockTemplate(manifest.Payload) {
-		var major int
-		fmt.Sscanf(payloadValue(manifest.Payload, "minecraft_java_version"), "%d", &major)
+		major, _ := strconv.Atoi(payloadValue(manifest.Payload, "minecraft_java_version"))
 		if err := validateManagedJava(payloadValue(manifest.Payload, "java_bin"), major); err != nil {
 			return err
 		}
