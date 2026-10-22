@@ -26,6 +26,8 @@ final class AdminMinecraftVersionController
         private readonly MinecraftVersionImportService $importService,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly \App\Module\Gameserver\Application\MinecraftCatalogSynchronizer $catalogSynchronizer,
+        private readonly \Symfony\Component\Security\Csrf\CsrfTokenManagerInterface $csrfTokens,
     ) {
     }
 
@@ -47,6 +49,8 @@ final class AdminMinecraftVersionController
         if ($q !== '') { $qb->andWhere('v.mcVersion LIKE :q OR v.build LIKE :q OR v.downloadUrl LIKE :q OR v.notes LIKE :q')->setParameter('q', '%'.$q.'%'); }
 
         return new Response($this->twig->render('admin/minecraft_versions/index.html.twig', [
+            'syncStatus' => $this->catalogSynchronizer->status(),
+            'syncToken' => $this->csrfTokens->getToken('minecraft-catalog-sync')->getValue(),
             'versions' => $qb->getQuery()->getResult(),
             'filters' => ['channel' => $request->query->get('channel', ''), 'source' => $request->query->get('source', ''), 'active' => $active, 'preview' => $preview, 'q' => $q],
             'importResult' => $this->importResultFromQuery($request),
@@ -54,6 +58,15 @@ final class AdminMinecraftVersionController
             'uploadError' => trim((string) $request->query->get('upload_error', '')),
             'activeNav' => 'minecraft_versions',
         ]));
+    }
+
+    #[Route(path: '/sync', name: 'admin_minecraft_versions_sync', methods: ['POST'])]
+    public function synchronize(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) { return new Response('Forbidden', 403); }
+        if (!$this->csrfTokens->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('minecraft-catalog-sync', (string) $request->request->get('_token')))) { return new Response('Invalid CSRF token', 403); }
+        $this->catalogSynchronizer->requestRefresh();
+        return new RedirectResponse('/admin/minecraft-versions');
     }
 
     #[Route(path: '/new', name: 'admin_minecraft_versions_new', methods: ['GET', 'POST'])]

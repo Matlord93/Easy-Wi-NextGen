@@ -17,23 +17,38 @@ final class MinecraftCatalogService
     }
 
     /** @return array<string, mixed> */
-    public function getUiCatalog(): array
+    public function getUiCatalog(?string $onlyChannel = null): array
     {
-        return [
-            'vanilla' => ['versions' => $this->sortVersions($this->catalogRepository->findVersionsByChannel('vanilla', true))],
-            'paper' => [
-                'versions' => $this->sortVersions($this->catalogRepository->findVersionsByChannel('paper', true)),
-                'builds' => $this->sortBuilds($this->catalogRepository->findBuildsGroupedByVersion('paper', true)),
-            ],
-            'bedrock' => ['versions' => $this->sortVersions($this->catalogRepository->findVersionsByChannel('bedrock', true))],
-        ];
+        $catalog = [];
+        foreach ($onlyChannel === null ? MinecraftVersionCatalog::CHANNELS : [$onlyChannel] as $channel) {
+            $active = $this->catalogRepository->findActiveByChannel($channel);
+            $catalog[$channel] = [
+                'versions' => $this->sortVersions($this->catalogRepository->findVersionsByChannel($channel, true)),
+                'builds' => $this->sortBuilds($this->catalogRepository->findBuildsGroupedByVersion($channel, true)),
+                'build_release_types' => array_reduce($active, static function (array $types, MinecraftVersionCatalog $entry): array { $types[$entry->getMcVersion()][$entry->getBuild() ?? ''] = $entry->getMetadata()['release_type'] ?? 'release'; return $types; }, []),
+                'release_types' => array_reduce($active, static function (array $types, MinecraftVersionCatalog $entry): array { $version = $entry->getMcVersion(); $kind = $entry->getMetadata()['release_type'] ?? 'release'; if (($types[$version] ?? null) !== 'release') { $types[$version] = $kind; } return $types; }, []),
+            ];
+        }
+        return $catalog;
+    }
+
+    public function resolveInstalledEntry(string $channel, ?string $version, ?string $build): ?MinecraftVersionCatalog
+    {
+        if ($version === null) { return $this->resolveEntry($channel, null, null); }
+        return $this->catalogRepository->findEntry($channel, $version, $build, false);
     }
 
     public function resolveVersion(string $channel, ?string $version): ?string
     {
         $normalized = trim((string) ($version ?? ''));
         if ($normalized === '' || strtolower($normalized) === 'latest') {
-            return $this->catalogRepository->findLatestVersion($channel, true);
+            $entries = $this->catalogRepository->findActiveByChannel($channel);
+            usort($entries, fn (MinecraftVersionCatalog $a, MinecraftVersionCatalog $b): int => $this->compareVersions($b->getMcVersion(), $a->getMcVersion()));
+            foreach ($entries as $entry) {
+                $kind = $entry->getMetadata()['release_type'] ?? 'release';
+                if ($kind === 'release') { return $entry->getMcVersion(); }
+            }
+            return $entries === [] ? $this->catalogRepository->findLatestVersion($channel, true) : null;
         }
 
         return $normalized;
@@ -47,8 +62,13 @@ final class MinecraftCatalogService
         }
 
         $resolvedBuild = null;
-        if ($channel === 'paper') {
-            $resolvedBuild = $build !== null && trim($build) !== '' ? trim($build) : $this->catalogRepository->findLatestBuild($channel, $resolvedVersion, true);
+        if (in_array($channel, ['paper', 'bungeecord'], true)) {
+            $resolvedBuild = $build !== null && trim($build) !== '' ? trim($build) : null;
+            if ($resolvedBuild === null) {
+                $candidates = array_filter($this->catalogRepository->findActiveByChannel($channel), static fn (MinecraftVersionCatalog $entry): bool => $entry->getMcVersion() === $resolvedVersion && ($entry->getMetadata()['release_type'] ?? 'release') === 'release');
+                usort($candidates, static fn (MinecraftVersionCatalog $a, MinecraftVersionCatalog $b): int => strnatcmp((string) $b->getBuild(), (string) $a->getBuild()));
+                $resolvedBuild = $candidates === [] ? $this->catalogRepository->findLatestBuild($channel, $resolvedVersion, true) : reset($candidates)->getBuild();
+            }
         }
 
         return $this->catalogRepository->findEntry($channel, $resolvedVersion, $resolvedBuild, true);
@@ -71,14 +91,26 @@ final class MinecraftCatalogService
         }
 
         $buildInput = trim((string) ($build ?? ''));
-        if ($channel === 'paper' && $buildInput !== '' && !$this->catalogRepository->buildExists($channel, $resolvedVersion, $buildInput, true)) {
+        if (in_array($channel, ['paper', 'bungeecord'], true) && $buildInput !== '' && !$this->catalogRepository->buildExists($channel, $resolvedVersion, $buildInput, true)) {
             return $this->trans('minecraft_catalog_error_build_unavailable');
         }
-        if ($channel !== 'paper' && $buildInput !== '') {
+        if (!in_array($channel, ['paper', 'bungeecord'], true) && $buildInput !== '') {
             return $this->trans('minecraft_catalog_error_build_paper_only');
         }
 
         return null;
+    }
+
+    public function pinSelection(\App\Module\Core\Domain\Entity\Instance $instance, ?string $version, ?string $build): void
+    {
+        $channel = $this->channelFromResolver($instance);
+        if ($channel === null) { return; }
+        $error = $this->validateSelection($channel, $version, $build);
+        if ($error !== null) { throw new \InvalidArgumentException($error); }
+        $entry = $this->resolveEntry($channel, $version, $build);
+        if ($entry === null) { throw new \InvalidArgumentException('No installable catalog entry.'); }
+        $instance->setLockedVersion($entry->getMcVersion());
+        $instance->setLockedBuildId($entry->getBuild());
     }
 
     public function findNewerAvailable(\App\Module\Core\Domain\Entity\Instance $instance): ?MinecraftVersionCatalog
@@ -91,19 +123,20 @@ final class MinecraftCatalogService
         if (!$latest instanceof MinecraftVersionCatalog) {
             return null;
         }
-        if ($this->compareVersions($latest->getMcVersion(), $instance->getInstalledVersion()) <= 0) {
-            return null;
-        }
+        if (($comparison = $this->compareVersions($latest->getMcVersion(), $instance->getInstalledVersion())) < 0) { return null; }
+        if ($comparison === 0 && strnatcmp((string) $latest->getBuild(), (string) $instance->getInstalledBuildId()) <= 0) { return null; }
         return $latest;
     }
 
-    public function channelFromResolver(\App\Module\Core\Domain\Entity\Instance $instance): ?string
+    public static function channelFromResolver(\App\Module\Core\Domain\Entity\Instance $instance): ?string
     {
         $resolver = $instance->getTemplate()->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
         return match ($type) {
             'minecraft_vanilla' => 'vanilla',
             'papermc_paper' => 'paper',
+            'minecraft_spigot' => 'spigot',
+            'minecraft_bungeecord' => 'bungeecord',
             'minecraft_bedrock' => 'bedrock',
             default => null,
         };

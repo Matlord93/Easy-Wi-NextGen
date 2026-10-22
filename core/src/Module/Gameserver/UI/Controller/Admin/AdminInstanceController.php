@@ -18,6 +18,7 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\ShopOrder;
 use App\Module\Core\Domain\Entity\ShopRental;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
@@ -82,6 +83,8 @@ final class AdminInstanceController
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
         ?GameServerInstallPathManager $installPathManager = null,
+        private readonly ?\App\Module\Gameserver\Application\MinecraftCatalogService $minecraftCatalog = null,
+        private readonly ?\App\Module\Gameserver\Application\MinecraftPortReservations $minecraftReservations = null,
     ) {
         $this->installPathManager = $installPathManager;
     }
@@ -134,6 +137,7 @@ final class AdminInstanceController
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
             'templates' => $templates,
+            'minecraftCatalog' => $this->minecraftCatalog?->getUiCatalog() ?? [],
             'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
             'form' => $this->buildFormContext(),
             'activeNav' => 'game-instances',
@@ -167,6 +171,7 @@ final class AdminInstanceController
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
             'templates' => $templates,
+            'minecraftCatalog' => $this->minecraftCatalog?->getUiCatalog() ?? [],
             'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
             'form' => $this->buildFormContext(),
         ]));
@@ -174,6 +179,23 @@ final class AdminInstanceController
 
     #[Route(path: '', name: 'admin_instances_create', methods: ['POST'])]
     public function create(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) { return $this->createWithReservedPorts($request); }
+        $input = $request->request->all();
+        try { return $this->entityManager->wrapInTransaction(function () use ($request, $input): Response {
+            // Serialize creation per node before reading free port ranges.
+            if (trim((string) ($input['node_id'] ?? '')) === '') { return $this->createWithReservedPorts($request); }
+            $this->entityManager->find(Agent::class, (string) ($input['node_id'] ?? ''), \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+            $response = $this->createWithReservedPorts($request);
+            if ($response->getStatusCode() >= 400) { throw new \App\Module\Ports\Application\PortAllocationAborted($response); }
+            return $response;
+        }); }
+        catch (\App\Module\Ports\Application\PortAllocationAborted $error) { return $error->response; }
+        catch (\App\Module\Ports\Application\PortCheckUnavailable $error) { return new Response($error->getMessage(),503); }
+    }
+
+    private function createWithReservedPorts(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
@@ -191,9 +213,15 @@ final class AdminInstanceController
             return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
         }
 
-        $requiredPorts = $formData['template']->getRequiredPorts();
+        $formData['setup_vars'] = \App\Module\Gameserver\Application\MinecraftPortPlan::settings($formData['template'], $request->request->getBoolean('minecraft_rcon'), $request->request->getBoolean('minecraft_query'), $formData['setup_vars']);
+        $requiredPorts = \App\Module\Gameserver\Application\MinecraftPortPlan::definitions($formData['template'], $formData['setup_vars']);
         $requiredCount = count($requiredPorts);
         $portBlock = $formData['port_block'];
+        if ($portBlock !== null) {
+            try { $this->portLeaseManager->assertAssignable($portBlock,$formData['template']); }
+            catch (\App\Module\Ports\Application\PortCheckUnavailable $error) { throw $error; }
+            catch (\RuntimeException $error) { $formData['errors'][]=$error->getMessage(); return $this->renderFormWithErrors($request,$formData,409); }
+        }
         if ($portBlock === null && $requiredCount > 0) {
             $this->ensureDefaultPortPool($formData['node'], $actor);
             if ($formData['port_start'] !== null) {
@@ -203,6 +231,7 @@ final class AdminInstanceController
                         $formData['customer'],
                         $formData['port_start'],
                         $requiredCount,
+                        $formData['template'],
                     );
                 } catch (\RuntimeException | \InvalidArgumentException $exception) {
                     $formData['errors'][] = $exception->getMessage();
@@ -213,7 +242,7 @@ final class AdminInstanceController
                     return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
                 }
             } else {
-                $portBlock = $this->allocatePortBlock($formData['node'], $formData['customer'], $requiredCount);
+                $portBlock = $this->allocatePortBlock($formData['node'], $formData['customer'], $requiredCount, $formData['template']);
             }
             if ($portBlock === null) {
                 $formData['errors'][] = 'No free port blocks available on the selected node.';
@@ -233,6 +262,20 @@ final class AdminInstanceController
             InstanceUpdatePolicy::Manual,
         );
 
+        try {
+            $this->minecraftCatalog?->pinSelection($instance, trim((string) $request->request->get('minecraft_version', '')), trim((string) $request->request->get('minecraft_build', '')));
+        } catch (\InvalidArgumentException $error) {
+            $formData['errors'][] = $error->getMessage();
+            return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
+        }
+        if ($this->minecraftCatalog?->channelFromResolver($instance) === 'bungeecord') {
+            $backend = trim((string) $request->request->get('bungee_backend', ''));
+            if (!preg_match('/^(?:[A-Za-z0-9.-]+|\[[0-9a-fA-F:]+\]):([0-9]{1,5})$/', $backend, $parts) || (int) $parts[1] < 1 || (int) $parts[1] > 65535) {
+                $formData['errors'][] = 'BungeeCord requires a backend address (host:port).';
+                return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
+            }
+            $formData['setup_vars']['BUNGEE_BACKEND'] = $backend;
+        }
         $instance->setSlots($formData['current_slots']);
         $instance->setMaxSlots($formData['max_slots']);
         $instance->setCurrentSlots($formData['current_slots']);
@@ -245,6 +288,14 @@ final class AdminInstanceController
         }
 
         $this->entityManager->persist($instance);
+        if ($portBlock !== null && $this->minecraftCatalog?->channelFromResolver($instance) !== null) {
+            $ports = $portBlock->getPorts(); $reservations = [];
+            foreach ($requiredPorts as $index => $definition) {
+                if (isset($ports[$index])) { $reservations[] = ['role' => $definition['name'], 'protocol' => $definition['protocol'], 'port' => $ports[$index]]; }
+            }
+            $this->minecraftReservations?->reserve($instance, $reservations);
+        }
+
         if ($portBlock !== null) {
             $this->entityManager->persist($portBlock);
         }
@@ -856,6 +907,11 @@ final class AdminInstanceController
             'steam_account' => $steamAccount,
             'steam_password' => $steamPassword,
             'setup_vars' => $setupVars,
+            'minecraft_version' => trim((string) $request->request->get('minecraft_version', '')),
+            'minecraft_build' => trim((string) $request->request->get('minecraft_build', '')),
+            'minecraft_rcon' => $request->request->getBoolean('minecraft_rcon'),
+            'minecraft_query' => $request->request->getBoolean('minecraft_query'),
+            'bungee_backend' => trim((string) $request->request->get('bungee_backend', '')),
             'instance_base_dir' => $instanceBaseDir,
             'use_shared_storage' => $useSharedStorage,
         ];
@@ -874,6 +930,7 @@ final class AdminInstanceController
         $data = [
             'customer_id' => '',
             'template_id' => '',
+            'minecraft_version' => '', 'minecraft_build' => '', 'minecraft_rcon' => false, 'minecraft_query' => false, 'bungee_backend' => '',
             'node_id' => '',
             'cpu_limit' => 50,
             'ram_limit' => 4096,
@@ -918,9 +975,9 @@ final class AdminInstanceController
         return $data;
     }
 
-    private function allocatePortBlockAt(Agent $node, User $customer, int $startPort, int $requiredCount): ?PortBlock
+    private function allocatePortBlockAt(Agent $node, User $customer, int $startPort, int $requiredCount, Template $template): ?PortBlock
     {
-        $pools = $this->portPoolRepository->findEnabledByNode($node);
+        $pools = \App\Module\Ports\Application\GamePortPoolPolicy::select($this->portPoolRepository->findBy(['node'=>$node]),$template);
         $endPort = $startPort + $requiredCount - 1;
 
         foreach ($pools as $pool) {
@@ -947,10 +1004,12 @@ final class AdminInstanceController
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
             'templates' => $templates,
+            'minecraftCatalog' => $this->minecraftCatalog?->getUiCatalog() ?? [],
             'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
             'form' => $this->buildFormContext([
                 'customer_id' => $formData['customer_id'],
                 'template_id' => $formData['template_id'],
+                'minecraft_version' => $formData['minecraft_version'], 'minecraft_build' => $formData['minecraft_build'], 'minecraft_rcon' => $formData['minecraft_rcon'], 'minecraft_query' => $formData['minecraft_query'], 'bungee_backend' => $formData['bungee_backend'],
                 'node_id' => $formData['node_id'],
                 'cpu_limit' => $formData['cpu_limit'],
                 'ram_limit' => $formData['ram_limit'],
@@ -1171,17 +1230,18 @@ final class AdminInstanceController
         ]), $status);
     }
 
-    private function allocatePortBlock(Agent $node, User $customer, int $requiredCount): ?PortBlock
+    private function allocatePortBlock(Agent $node, User $customer, int $requiredCount, Template $template): ?PortBlock
     {
         if ($requiredCount <= 0) {
             return null;
         }
 
-        $pools = $this->portPoolRepository->findBy(['node' => $node]);
+        $pools = \App\Module\Ports\Application\GamePortPoolPolicy::select($this->portPoolRepository->findBy(['node' => $node]),$template);
         foreach ($pools as $pool) {
             try {
                 return $this->portLeaseManager->allocateBlock($pool, $customer, $requiredCount);
-            } catch (\RuntimeException) {
+            } catch (\RuntimeException $error) {
+                if ($error instanceof \App\Module\Ports\Application\PortCheckUnavailable) { throw $error; }
                 continue;
             }
         }

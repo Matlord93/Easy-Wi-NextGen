@@ -79,6 +79,16 @@
                     </div>
 
                     <div class="form-field">
+                        <label class="form-label">{{ t('ports_game_scope', page_locale()) }}</label>
+                        <select name="game_scope" class="form-input" required>
+                            <option value="all">{{ t('ports_scope_all', page_locale()) }}</option>
+                            <option value="minecraft">Minecraft (Vanilla, Paper, Spigot, Bedrock, BungeeCord)</option>
+                            <option value="other">{{ t('ports_scope_other', page_locale()) }}</option>
+                            {% for template in gameTemplates %}<option value="game:{{ template.gameKey }}">{{ template.displayName }}</option>{% endfor %}
+                        </select>
+                        <p>{{ t('ports_scope_hint', page_locale()) }}</p>
+                    </div>
+                    <div class="form-field">
                         <label class="form-label">{{ t('admin_port_pools_range_label', page_locale()) }}</label>
                         <div class="grid grid-cols-2 gap-2">
                             <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_pools_range_start_placeholder', page_locale()) }}" class="form-input" required>
@@ -189,7 +199,20 @@
                                 <td class="font-mono text-xs" style="color:var(--ng-text)">{{ pool.id }}</td>
                                 <td>
                                     <div class="font-semibold" style="color:var(--ng-text)">{{ pool.name }}</div>
-                                    <div class="text-xs" style="color:var(--ng-text-muted)">{{ pool.tag }}</div>
+                                    {% set assignedTemplate = gameTemplates|filter(template => ('game:' ~ template.gameKey) == pool.game_scope)|first %}
+                                    <div class="text-xs" style="color:var(--ng-text-muted)">{{ pool.tag }} · {{ pool.game_scope == 'all' ? t('ports_scope_all',page_locale()) : (pool.game_scope == 'other' ? t('ports_scope_other',page_locale()) : assignedTemplate.displayName|default(pool.game_scope)) }}</div>
+                                    <details><summary>{{ t('ports_game_scope',page_locale()) }}</summary>
+                                        <form method="post" action="{{ path('admin_port_pool_scope', {id:pool.id}) }}">
+                                            <input type="hidden" name="_token" value="{{ scopeTokens[pool.id] }}">
+                                            <select name="game_scope" class="form-input">
+                                                <option value="all" {{ pool.game_scope == 'all' ? 'selected' : '' }}>{{ t('ports_scope_all',page_locale()) }}</option>
+                                                <option value="minecraft" {{ pool.game_scope == 'minecraft' ? 'selected' : '' }}>Minecraft</option>
+                                                <option value="other" {{ pool.game_scope == 'other' ? 'selected' : '' }}>{{ t('ports_scope_other',page_locale()) }}</option>
+                                                {% for template in gameTemplates %}<option value="game:{{ template.gameKey }}" {{ pool.game_scope == ('game:' ~ template.gameKey) ? 'selected' : '' }}>{{ template.displayName }}</option>{% endfor %}
+                                            </select>
+                                            <button class="ui-button" type="submit">{{ t('save',page_locale()) }}</button>
+                                        </form>
+                                    </details>
                                 </td>
                                 <td>{{ pool.node.name ?? pool.node.id }}</td>
                                 <td><span class="ui-badge ui-badge--info">{{ pool.start_port }}-{{ pool.end_port }}</span></td>

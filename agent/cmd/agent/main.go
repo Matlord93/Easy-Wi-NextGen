@@ -44,6 +44,7 @@ func main() {
 	if handled := handleMailCLI(os.Args[1:]); handled {
 		return
 	}
+	minecraftPreflight := flag.String("minecraft-preflight", "", "validate Minecraft runtime and restore reserved network settings")
 	configPath := flag.String("config", "", "path to agent.conf")
 	selfUpdate := flag.Bool("self-update", false, "perform self-update and restart")
 	showVersion := flag.Bool("version", false, "print agent version and exit")
@@ -57,6 +58,13 @@ func main() {
 		return
 	}
 
+	if *minecraftPreflight != "" {
+		if err := runMinecraftPreflight(*minecraftPreflight); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if *wrapperMode {
 		runWrapper(*wrapperInstanceID, *wrapperSocketPath, flag.Args())
 		return
@@ -771,7 +779,7 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 	case "postgres.grant.apply":
 		return handlePostgresGrantApply(job)
 	case "instance.create":
-		return handleInstanceCreate(job)
+		return handleInstanceCreate(job, logSender)
 	case "instance.start":
 		return handleInstanceStart(job, logSender)
 	case "instance.stop":

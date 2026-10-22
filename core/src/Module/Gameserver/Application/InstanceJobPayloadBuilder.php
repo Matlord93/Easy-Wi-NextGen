@@ -12,6 +12,7 @@ use App\Repository\SharedStorageTemplateLocatorInterface;
 final class InstanceJobPayloadBuilder
 {
     private MinecraftCatalogService $minecraftCatalogService;
+    private bool $managedCatalogAvailable;
     private MinecraftJavaVersionResolver $minecraftJavaVersionResolver;
 
     public function __construct(
@@ -22,6 +23,7 @@ final class InstanceJobPayloadBuilder
         ?MinecraftJavaVersionResolver $minecraftJavaVersionResolver = null,
         private readonly ?JavaBinaryConfig $javaBinaryConfig = null,
     ) {
+        $this->managedCatalogAvailable = $minecraftCatalogService !== null;
         $this->minecraftCatalogService = $minecraftCatalogService ?? new MinecraftCatalogService(new class () implements MinecraftVersionCatalogRepositoryInterface {
             public function findVersionsByChannel(string $channel, bool $activeOnly = true): array { return []; }
             public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array { return []; }
@@ -63,7 +65,7 @@ final class InstanceJobPayloadBuilder
      */
     public function buildSniperUpdatePayload(Instance $instance, ?string $targetBuildId = null, ?string $targetVersion = null): array
     {
-        $payload = $this->buildBasePayload($instance);
+        $payload = $this->buildBasePayload($instance, true, $targetVersion, $targetBuildId);
 
         if ($targetBuildId !== null) {
             $payload['target_build_id'] = $targetBuildId;
@@ -80,7 +82,7 @@ final class InstanceJobPayloadBuilder
      */
     public function buildRuntimePayload(Instance $instance): array
     {
-        $payload = $this->buildBasePayload($instance);
+        $payload = $this->buildBasePayload($instance, false);
         $payload['config_files'] = $this->buildConfigOverridePayload($instance);
 
         return $payload;
@@ -89,7 +91,7 @@ final class InstanceJobPayloadBuilder
     /**
      * @return array<string, string>
      */
-    private function buildBasePayload(Instance $instance): array
+    private function buildBasePayload(Instance $instance, bool $install = true, ?string $targetVersion = null, ?string $targetBuild = null): array
     {
         $template = $instance->getTemplate();
         $payload = [
@@ -109,7 +111,7 @@ final class InstanceJobPayloadBuilder
             'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
             'update_command' => $this->templateInstallResolver->resolveUpdateCommand($instance),
             'start_params' => $template->getStartParams(),
-            'required_ports' => implode(',', $template->getRequiredPortLabels()),
+            'required_ports' => implode(',', array_column(MinecraftPortPlan::forInstance($instance), 'name')),
             'env_vars' => $this->buildEnvVars($instance),
             'secrets' => $this->buildSecretPlaceholders($instance),
         ];
@@ -143,6 +145,39 @@ final class InstanceJobPayloadBuilder
             $payload['JAVA_BIN'] = $javaBin;
         }
 
+        $channel = $this->minecraftCatalogService->channelFromResolver($instance);
+        $managedCapable = ($instance->getNode()->getMetadata()['minecraft_managed_install'] ?? false) === true;
+        $linux = strtolower((string) ($instance->getNode()->getMetadata()['os'] ?? $instance->getNode()->getLastHeartbeatStats()['os'] ?? 'linux')) !== 'windows';
+        if ($channel !== null && $this->managedCatalogAvailable && $linux && $install && !$managedCapable) { throw new \RuntimeException('MINECRAFT_AGENT_UPDATE_REQUIRED'); }
+        if ($channel !== null && $this->managedCatalogAvailable && $linux && $managedCapable) {
+            $version = $install ? ($targetVersion ?? $instance->getLockedVersion()) : ($instance->getInstalledVersion() ?? $instance->getLockedVersion());
+            $build = $install ? ($targetBuild ?? $instance->getLockedBuildId()) : ($instance->getInstalledBuildId() ?? $instance->getLockedBuildId());
+            $entry = $install ? $this->minecraftCatalogService->resolveEntry($channel, $version, $build) : $this->minecraftCatalogService->resolveInstalledEntry($channel, $version, $build);
+            if ($entry === null && !$install && $version !== null) { $entry = new \App\Module\Core\Domain\Entity\MinecraftVersionCatalog($channel, $version, $build, ''); $entry->setJavaVersion($instance->getInstalledJavaVersion()); }
+            if ($entry === null) { throw new \RuntimeException('No installable Minecraft catalog entry. Synchronize the catalog first.'); }
+            $payload['minecraft_managed'] = 'true';
+            $payload['minecraft_channel'] = $channel;
+            $payload['minecraft_version'] = $entry->getMcVersion();
+            $payload['minecraft_build'] = $entry->getBuild() ?? '';
+            $payload['minecraft_install_strategy'] = (string) ($entry->getMetadata()['strategy'] ?? 'download');
+            $payload['minecraft_download_url'] = $entry->getDownloadUrl();
+            $payload['minecraft_build_java_version'] = (string) ($entry->getMetadata()['build_java'] ?? '');
+            $payload['minecraft_source_revision'] = (string) ($entry->getMetadata()['source_revision'] ?? '');
+            $payload['minecraft_sha256'] = $entry->getSha256() ?? '';
+            $payload['minecraft_sha1'] = (string) ($entry->getMetadata()['sha1'] ?? '');
+            if ($channel !== 'bedrock') {
+                $payload['minecraft_java_version'] = !$install && $instance->getInstalledJavaVersion() !== null
+                    ? $instance->getInstalledJavaVersion()
+                    : $this->minecraftJavaVersionResolver->resolve($entry->getMcVersion(), $entry->getJavaVersion());
+            }
+            // The agent owns configuration and Java selection, including legacy seeded templates.
+            $payload['start_params'] = $channel === 'bedrock'
+                ? 'LD_LIBRARY_PATH={{INSTANCE_DIR}} {{INSTANCE_DIR}}/bedrock_server'
+                : '{{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar'.($channel === 'bungeecord' ? '' : ' nogui');
+            $payload['install_command'] = 'echo "Minecraft artifact installation managed by agent"';
+            $payload['update_command'] = $payload['install_command'];
+        }
+
         return $payload;
     }
 
@@ -150,7 +185,7 @@ final class InstanceJobPayloadBuilder
     private function resolveMinecraftJavaBin(Instance $instance): ?string
     {
         $channel = $this->minecraftCatalogService->channelFromResolver($instance);
-        if (!in_array($channel, ['vanilla', 'paper'], true)) {
+        if (!in_array($channel, ['vanilla', 'paper', 'spigot', 'bungeecord'], true)) {
             return null;
         }
 
@@ -233,7 +268,7 @@ final class InstanceJobPayloadBuilder
 
         $ports = $portBlock->getPorts();
         $reservations = [];
-        $requiredPorts = $instance->getTemplate()->getRequiredPorts();
+        $requiredPorts = MinecraftPortPlan::forInstance($instance);
         foreach ($requiredPorts as $index => $definition) {
             if (!isset($ports[$index])) {
                 continue;
@@ -248,7 +283,7 @@ final class InstanceJobPayloadBuilder
 
         return [
             'ports' => $ports,
-            'port_reservations' => $reservations,
+            'port_reservations' => MinecraftPortPlan::withBedrockSignaling($instance->getTemplate(), $reservations),
         ];
     }
 
@@ -318,6 +353,14 @@ final class InstanceJobPayloadBuilder
             if (!isset($vars[$optionalPasswordKey])) {
                 $vars[$optionalPasswordKey] = '';
             }
+        }
+
+        if ($this->minecraftCatalogService->channelFromResolver($instance) !== null) {
+            // Leave native JVM overhead below the systemd memory ceiling.
+            $heap = max(128, (int) floor($instance->getRamLimit() * 0.75));
+            $vars['JAVA_XMX'] = $heap.'M';
+            $vars['JAVA_XMS'] = min(512, $heap).'M';
+            $vars['MAX_PLAYERS'] = (string) ($instance->getCurrentSlots() ?? $instance->getSlots());
         }
 
         $normalized = [];

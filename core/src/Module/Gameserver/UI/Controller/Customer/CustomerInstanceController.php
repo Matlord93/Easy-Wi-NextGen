@@ -575,10 +575,12 @@ final class CustomerInstanceController
 
         $resolver = $instance->getTemplate()->getInstallResolver();
         $resolverType = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
-        if (in_array($resolverType, ['minecraft_vanilla', 'papermc_paper', 'minecraft_bedrock'], true)) {
+        if (in_array($resolverType, ['minecraft_vanilla', 'papermc_paper', 'minecraft_spigot', 'minecraft_bungeecord', 'minecraft_bedrock'], true)) {
             $channel = match ($resolverType) {
                 'minecraft_vanilla' => 'vanilla',
                 'papermc_paper' => 'paper',
+                'minecraft_spigot' => 'spigot',
+                'minecraft_bungeecord' => 'bungeecord',
                 default => 'bedrock',
             };
             $validationError = $this->minecraftCatalogService->validateSelection($channel, $lockedVersion, $lockedBuildId);

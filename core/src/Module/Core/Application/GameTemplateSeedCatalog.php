@@ -1626,6 +1626,27 @@ final class GameTemplateSeedCatalog
             ),
         ];
 
+        foreach (['spigot' => 'Spigot', 'bungeecord' => 'BungeeCord Proxy'] as $channel => $name) {
+            $templates[] = $this->template(
+                'minecraft_'.$channel.'_all', 'Minecraft '.$name,
+                'Automatically managed '.$name.' with selectable versions/builds and Java provisioning.',
+                null, null, [['name' => 'game', 'label' => $channel === 'bungeecord' ? 'Proxy (TCP)' : 'Game (TCP)', 'protocol' => 'tcp']],
+                '{{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar'.($channel === 'spigot' ? ' nogui' : ''),
+                [['key' => 'JAVA_XMS', 'value' => '512M'], ['key' => 'JAVA_XMX', 'value' => '1G'], ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi '.$name], ['key' => 'MAX_PLAYERS', 'value' => '20']],
+                [['path' => $channel === 'bungeecord' ? 'config.yml' : 'server.properties', 'description' => 'Server settings (network ports are managed by the panel)']],
+                [], $fastdl, 'echo "Install handled by catalog resolver."', 'echo "Update handled by catalog resolver."', [], ['type' => 'minecraft_'.$channel], ['linux'],
+            );
+        }
+        // Properties are written atomically by the agent, not shell fragments on each start.
+        foreach ($templates as &$minecraftTemplate) {
+            if (in_array($minecraftTemplate['game_key'], ['minecraft_vanilla_all', 'minecraft_paper_all'], true)) {
+                $minecraftTemplate['start_params'] = '{{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui';
+            } elseif ($minecraftTemplate['game_key'] === 'minecraft_bedrock') {
+                $minecraftTemplate['start_params'] = 'LD_LIBRARY_PATH={{INSTANCE_DIR}} {{INSTANCE_DIR}}/bedrock_server';
+            }
+        }
+        unset($minecraftTemplate);
+
         $catalog = $this->sharedPathCatalog();
         foreach ($templates as &$tpl) {
             $gameKey = (string) ($tpl['game_key'] ?? '');

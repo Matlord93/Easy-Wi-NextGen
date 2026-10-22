@@ -33,7 +33,7 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
      */
     public function findByInstances(array $instances): array
     {
-        if ($instances === []) {
+        if ([] === $instances) {
             return [];
         }
 
@@ -47,6 +47,11 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
     /**
      * @return PortBlock[]
      */
+    public function findByNode(\App\Module\Core\Domain\Entity\Agent $node): array
+    {
+        return $this->createQueryBuilder('block')->join('block.pool', 'pool')->where('pool.node = :node')->setParameter('node', $node)->getQuery()->getResult();
+    }
+
     public function findByPool(PortPool $pool): array
     {
         return $this->findBy(['pool' => $pool], ['startPort' => 'ASC']);

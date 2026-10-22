@@ -25,15 +25,32 @@ class AgentGameServerClient
      * @param array<int, array{proto: string, port: int}> $checks
      * @return array<int, array{proto: string, port: int, free: bool}>
      */
-    public function checkFreePorts(Instance $instance, array $checks): array
+    public function checkFreePortsForNode(Agent $node, array $checks): array
     {
-        $response = $this->requestJson($instance, 'POST', '/ports/check-free', [
-            'checks' => $checks,
+        $token = trim((string) ($node->getMetadata()['gamesvc_bearer_token'] ?? ''));
+        if ($token === '') {
+            $token = $this->encryptionService->decrypt($node->getSecretPayload());
+        }
+        $response = $this->httpClient->request('POST', $this->resolveBaseUrl($node).'/ports/check-free', [
+            'headers' => ['Authorization' => 'Bearer '.$token, 'Accept' => 'application/json'],
+            'json' => ['checks' => $checks],
+            'timeout' => $this->timeoutSeconds,
+            'max_duration' => $this->timeoutSeconds,
         ]);
-
-        return is_array($response['results'] ?? null) ? $response['results'] : [];
+        if ($response->getStatusCode() !== 200) {
+            throw new \RuntimeException('Portprüfung auf dem Node nicht verfügbar. Es wurden keine Ports vergeben.');
+        }
+        $data = self::unwrapAgentEnvelope($response->toArray());
+        if (!is_array($data['results'] ?? null)) {
+            throw new \RuntimeException('Ungültige Antwort der Node-Portprüfung.');
+        }
+        return $data['results'];
     }
 
+    public function checkFreePorts(Instance $instance, array $checks): array
+    {
+        return $this->checkFreePortsForNode($instance->getNode(), $checks);
+    }
 
     /**
      * @param array<string, mixed> $payload

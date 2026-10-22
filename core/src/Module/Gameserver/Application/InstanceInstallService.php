@@ -23,6 +23,8 @@ final class InstanceInstallService
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly SharedStorageTemplateLocatorInterface $templateRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly ?InstanceJobPayloadBuilder $managedPayloadBuilder = null,
+        private readonly ?MinecraftPortReservations $minecraftReservations = null,
     ) {
     }
 
@@ -46,6 +48,10 @@ final class InstanceInstallService
                 'is_ready' => false,
                 'error_code' => 'NODE_NOT_SET',
             ];
+        }
+
+        if ($this->managedPayloadBuilder !== null && MinecraftCatalogService::channelFromResolver($instance) !== null && $this->resolveNodeOs($instance->getNode()) !== 'windows' && ($instance->getNode()->getMetadata()['minecraft_managed_install'] ?? false) !== true) {
+            return ['is_ready' => false, 'error_code' => 'MINECRAFT_AGENT_UPDATE_REQUIRED'];
         }
 
         $supportedOs = $instance->getTemplate()->getSupportedOs();
@@ -166,6 +172,14 @@ final class InstanceInstallService
             'port_block_id' => $portAllocation['port_block_id'],
         ];
 
+        if ($this->managedPayloadBuilder !== null && str_starts_with((string) ($instance->getTemplate()->getInstallResolver()['type'] ?? ''), 'minecraft') || ($this->managedPayloadBuilder !== null && ($instance->getTemplate()->getInstallResolver()['type'] ?? '') === 'papermc_paper')) {
+            try {
+                $managed = $this->managedPayloadBuilder->buildSniperInstallPayload($instance);
+                $this->minecraftReservations?->reserve($instance, $portAllocation['reservations']);
+                $payload = array_replace($payload, $managed, ['ports' => $portAllocation['ports'], 'port_reservations' => $portAllocation['reservations']]);
+            } catch (\RuntimeException $error) { return ['ok' => false, 'error_code' => 'MINECRAFT_CATALOG_UNAVAILABLE', 'message' => $error->getMessage()]; }
+        }
+
         if ($useSharedStorage) {
             $template = $instance->getTemplate();
             $sharedTemplate = $template->supportsSharedStorage()
@@ -194,7 +208,7 @@ final class InstanceInstallService
      */
     private function allocateDefaultPorts(Instance $instance): array
     {
-        $requiredPorts = $instance->getTemplate()->getRequiredPorts();
+        $requiredPorts = MinecraftPortPlan::forInstance($instance);
         $requiredCount = count($requiredPorts);
 
         $portBlock = null;
@@ -203,11 +217,12 @@ final class InstanceInstallService
         }
 
         if ($portBlock === null && $requiredCount > 0) {
-            $pools = $this->portPoolRepository->findBy(['node' => $instance->getNode()]);
+            $pools = \App\Module\Ports\Application\GamePortPoolPolicy::select($this->portPoolRepository->findBy(['node' => $instance->getNode()]),$instance->getTemplate());
             foreach ($pools as $pool) {
                 try {
                     $portBlock = $this->portLeaseManager->allocateBlock($pool, $instance->getCustomer(), $requiredCount);
-                } catch (\RuntimeException) {
+                } catch (\RuntimeException $error) {
+                    if ($error instanceof \App\Module\Ports\Application\PortCheckUnavailable) { throw $error; }
                     continue;
                 }
 
@@ -243,7 +258,7 @@ final class InstanceInstallService
 
         return [
             'ports' => array_slice($ports, 0, $requiredCount),
-            'reservations' => $this->buildPortReservations($ports, $requiredPorts),
+            'reservations' => MinecraftPortPlan::withBedrockSignaling($instance->getTemplate(), $this->buildPortReservations($ports, $requiredPorts)),
             'port_block_id' => $portBlock->getId(),
         ];
     }

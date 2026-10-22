@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -52,7 +53,16 @@ func handleInstanceConfigApply(job jobs.Job) (jobs.Result, func() error) {
 			return failureResultWithCode(job.ID, "BINARY_NOT_ALLOWED", fmt.Errorf("binary content not allowed"), requestID, "")
 		}
 
-		stats, err := writeConfigAtomicallyForOS(target, file.Content, file.Backup, osType)
+		var stats configWriteStats
+		if payloadValue(job.Payload, "minecraft_managed") == "true" {
+			relative, relErr := filepath.Rel(root, target)
+			if relErr != nil {
+				return failureResultWithCode(job.ID, "PATH_TRAVERSAL", relErr, requestID, "")
+			}
+			stats, err = writeManagedMinecraftConfig(root, relative, file.Content, file.Backup)
+		} else {
+			stats, err = writeConfigAtomicallyForOS(target, file.Content, file.Backup, osType)
+		}
 		if err != nil {
 			return failureResultWithCode(job.ID, mapConfigErr(err), err, requestID, "")
 		}
@@ -65,6 +75,11 @@ func handleInstanceConfigApply(job jobs.Job) (jobs.Result, func() error) {
 		})
 	}
 
+	if payloadValue(job.Payload, "minecraft_managed") == "true" {
+		if err := ensureMinecraftServerProperties(root, job.Payload); err != nil {
+			return failureResultWithCode(job.ID, "INVALID_INPUT", err, requestID, "")
+		}
+	}
 	writtenJSON, _ := json.Marshal(written)
 
 	return jobs.Result{

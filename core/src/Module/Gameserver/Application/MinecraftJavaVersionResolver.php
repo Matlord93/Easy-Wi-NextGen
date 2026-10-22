@@ -9,6 +9,7 @@ final class MinecraftJavaVersionResolver
     /** @var array<string, string> */
     public const JAVA_BIN_BY_VERSION = [
         '8' => 'java8',
+        '16' => 'java16',
         '17' => 'java17',
         '21' => 'java21',
         '25' => 'java25',
@@ -22,8 +23,9 @@ final class MinecraftJavaVersionResolver
     public function resolve(?string $mcVersion, ?string $configuredJavaVersion = null): string
     {
         $configured = trim((string) $configuredJavaVersion);
-        if (in_array($configured, ['8', '17', '21', '25'], true)) {
-            return $configured;
+        if ($configured !== '') {
+            if (!ctype_digit($configured) || (int) $configured < 8 || (int) $configured > 99) { throw new \InvalidArgumentException('Invalid catalog Java requirement.'); }
+            return (string) (int) $configured;
         }
 
         $version = trim((string) $mcVersion);

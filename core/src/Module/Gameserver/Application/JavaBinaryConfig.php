@@ -22,7 +22,7 @@ final class JavaBinaryConfig
     {
         return $this->overrides[$version]
             ?? MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION[$version]
-            ?? 'java21';
+            ?? 'java'.$version;
     }
 
     /** @return array<string, string> map of version → binary */

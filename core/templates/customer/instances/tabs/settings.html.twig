@@ -14,6 +14,7 @@
     data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
     data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
     data-i18n="{{ {
+        'latestStableBuild': t('minecraft_latest_build', page_locale()),
         'automationSaved': t('customer_instance_settings_automation_saved', page_locale()),
         'saving': t('customer_instance_settings_saving', page_locale()),
         'saveAutomationBtn': t('customer_instance_settings_automation_save_btn', page_locale()),
@@ -48,6 +49,19 @@
             <div id="gs-settings-error" class="ng-alert ng-alert--danger hidden" style="margin-top:0.75rem"></div>
         </div>
     </div>
+
+    {% set resolverType = instance.template.install_resolver.type|default('') %}
+    {% set minecraftType = {'minecraft_vanilla':'Vanilla','papermc_paper':'Paper','minecraft_spigot':'Spigot','minecraft_bungeecord':'BungeeCord Proxy','minecraft_bedrock':'Bedrock'}[resolverType]|default('') %}
+    {% if minecraftType %}
+    <section class="cust-panel" style="margin-bottom:1.25rem">
+      <div class="cust-panel__body">
+        <strong>{{ minecraftType }}</strong>
+        <p>{{ t('minecraft_status_installed', page_locale()) }}: {{ instance.installed_version|default('—', true) }}{% if instance.installed_build_id %} · Build {{ instance.installed_build_id }}{% endif %}</p>
+        <p>{{ t('minecraft_status_java', page_locale()) }}: {{ resolverType == 'minecraft_bedrock' ? '—' : instance.installed_java_version|default('—', true) }}</p>
+        <p>{{ t('minecraft_customer_config_hint', page_locale()) }}</p>
+      </div>
+    </section>
+    {% endif %}
 
     {# ─── Config files ─── #}
     <div class="cust-panel" style="margin-bottom:1.25rem">
@@ -180,6 +194,11 @@
                     <div style="margin-top:0.75rem">
                         <label class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_settings_version_label', page_locale()) }}</label>
                         <select id="gs-version-lock-version" class="form-input" style="font-size:0.75rem;padding:0.375rem 0.5rem;margin-top:0.25rem"></select>
+                        {% if minecraftType %}<label><input type="checkbox" id="gs-minecraft-previews"> {{ t('minecraft_show_previews', page_locale()) }}</label>{% endif %}
+                        <div id="gs-version-lock-build-wrap" hidden>
+                          <label class="form-label">{{ t('minecraft_build_label', page_locale()) }}</label>
+                          <select id="gs-version-lock-build" class="form-input" name="locked_build_id"></select>
+                        </div>
                     </div>
                 </div>
             </div>

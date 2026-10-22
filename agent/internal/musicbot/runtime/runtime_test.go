@@ -454,6 +454,7 @@ done
 		t.Fatalf("New() error = %v", err)
 	}
 	defer func() { _ = rt.Close() }()
+	defer func() { _ = rt.connectors["teamspeak"].Disconnect(context.Background()) }()
 
 	rt.autoConnectAll(context.Background())
 
@@ -471,6 +472,12 @@ done
 		t.Fatalf("playback_status audio readiness = %#v, want ready", playbackStatus)
 	}
 
+	// Stdout responses and stderr diagnostics are consumed independently.
+	// Disconnect waits for the process and its stderr copier, so every emitted
+	// startup event is logged before we inspect the buffer.
+	if err := rt.connectors["teamspeak"].Disconnect(context.Background()); err != nil {
+		t.Fatalf("Disconnect() error = %v", err)
+	}
 	log := logBuf.String()
 	for _, want := range []string{"bridge_event=BridgeStarted", "bridge_event=ClientQueryReady", "bridge_event=ClientConnected", "bridge_event=ServerConnected", "bridge_event=AudioInjectionReady", "event=RuntimeStatusPublished", "capability_status=ready"} {
 		if !strings.Contains(log, want) {

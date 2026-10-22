@@ -109,7 +109,7 @@ final class InstanceConfigService
             // injected by renderTemplateStrict() in the Go agent at start time.
             // Do NOT rename to PORT_GAME here without also updating ConfigTemplateRegistry
             // and the config-push pathway.
-            'minecraft_vanilla_all', 'minecraft_paper_all' => $this->withConfig($payload, 'server.properties', [
+            'minecraft_vanilla_all', 'minecraft_paper_all', 'minecraft_spigot_all' => $this->withConfig($payload, 'server.properties', [
                 'SERVER_PORT' => (string) ($ports['GAME_PORT'] ?? 25565),
                 'RCON_PORT' => (string) ($ports['RCON_PORT'] ?? 25575),
             ]),
@@ -146,7 +146,7 @@ final class InstanceConfigService
     private function buildConfigSlotPayload(string $gameKey, int $slots, array $payload): array
     {
         return match ($gameKey) {
-            'minecraft_vanilla_all', 'minecraft_paper_all' => $this->withConfig($payload, 'server.properties', [
+            'minecraft_vanilla_all', 'minecraft_paper_all', 'minecraft_spigot_all' => $this->withConfig($payload, 'server.properties', [
                 'MAX_PLAYERS' => (string) $slots,
             ]),
             'minecraft_bedrock' => $this->withConfig($payload, 'server.properties', [

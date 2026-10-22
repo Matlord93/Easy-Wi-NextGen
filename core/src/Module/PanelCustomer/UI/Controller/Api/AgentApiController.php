@@ -2330,7 +2330,7 @@ final class AgentApiController
             $this->entityManager->persist($instance);
         }
 
-        if (!in_array($job->getType(), ['sniper.install', 'sniper.update'], true)) {
+        if (!in_array($job->getType(), ['sniper.install', 'sniper.update', 'instance.create', 'instance.reinstall'], true)) {
             return;
         }
 
@@ -2374,6 +2374,8 @@ final class AgentApiController
         return match ($type) {
             'minecraft_vanilla' => 'vanilla',
             'papermc_paper' => 'paper',
+            'minecraft_spigot' => 'spigot',
+            'minecraft_bungeecord' => 'bungeecord',
             'minecraft_bedrock' => 'bedrock',
             default => null,
         };

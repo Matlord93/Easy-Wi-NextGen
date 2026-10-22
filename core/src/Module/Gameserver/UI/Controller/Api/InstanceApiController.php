@@ -14,6 +14,7 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\ShopOrder;
 use App\Module\Core\Domain\Entity\ShopRental;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
@@ -52,12 +53,31 @@ final class InstanceApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly GameServerInstallPathManager $installPathManager,
         private readonly TranslatorInterface $translator,
+        private readonly ?\App\Module\Gameserver\Application\MinecraftCatalogService $minecraftCatalog = null,
+        private readonly ?\App\Module\Gameserver\Application\MinecraftPortReservations $minecraftReservations = null,
     ) {
     }
 
     #[Route(path: '/api/admin/instances', name: 'admin_instances_create_api', methods: ['POST'])]
     #[Route(path: '/api/v1/admin/instances', name: 'admin_instances_create_api_v1', methods: ['POST'])]
     public function createInstance(Request $request): JsonResponse
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) { return $this->createWithReservedPorts($request); }
+        $input = $request->toArray();
+        try { return $this->entityManager->wrapInTransaction(function () use ($request, $input): JsonResponse {
+            // Serialize creation per node before reading free port ranges.
+            if (trim((string) ($input['node_id'] ?? '')) === '') { return $this->createWithReservedPorts($request); }
+            $this->entityManager->find(Agent::class, (string) ($input['node_id'] ?? ''), \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+            $response = $this->createWithReservedPorts($request);
+            if ($response->getStatusCode() >= 400) { throw new \App\Module\Ports\Application\PortAllocationAborted($response); }
+            return $response;
+        }); }
+        catch (\App\Module\Ports\Application\PortAllocationAborted $error) { return $error->response; }
+        catch (\App\Module\Ports\Application\PortCheckUnavailable $error) { return new JsonResponse(['error'=>$error->getMessage()],503); }
+    }
+
+    private function createWithReservedPorts(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
@@ -172,11 +192,17 @@ final class InstanceApiController
             }
         }
 
-        $requiredPorts = $template->getRequiredPorts();
+        $minecraftPortSettings = \App\Module\Gameserver\Application\MinecraftPortPlan::settings($template, (bool) ($payload['minecraft_rcon'] ?? false), (bool) ($payload['minecraft_query'] ?? false));
+        $requiredPorts = \App\Module\Gameserver\Application\MinecraftPortPlan::definitions($template, $minecraftPortSettings);
         $requiredCount = count($requiredPorts);
 
+        if ($portBlock !== null) {
+            try { $this->portLeaseManager->assertAssignable($portBlock,$template); }
+            catch (\App\Module\Ports\Application\PortCheckUnavailable $error) { throw $error; }
+            catch (\RuntimeException $error) { return new JsonResponse(['error'=>$error->getMessage()],409); }
+        }
         if ($portBlock === null && $requiredCount > 0) {
-            $portBlock = $this->allocatePortBlock($node, $customer, $requiredCount);
+            $portBlock = $this->allocatePortBlock($node, $customer, $requiredCount, $template);
             if ($portBlock === null) {
                 return new JsonResponse(['error' => $this->translator->trans('gs_api_no_free_port_blocks')], JsonResponse::HTTP_BAD_REQUEST);
             }
@@ -195,11 +221,27 @@ final class InstanceApiController
         );
 
         $instance->setInstanceBaseDir($instanceBaseDir);
+        $instance->setSetupVars($minecraftPortSettings);
+        try { $this->minecraftCatalog?->pinSelection($instance, (string) ($payload['minecraft_version'] ?? ''), (string) ($payload['minecraft_build'] ?? '')); }
+        catch (\InvalidArgumentException $error) { return new JsonResponse(['error' => $error->getMessage()], 422); }
+        if ($this->minecraftCatalog?->channelFromResolver($instance) === 'bungeecord') {
+            $backend = trim((string) ($payload['bungee_backend'] ?? ''));
+            if (!preg_match('/^(?:[A-Za-z0-9.-]+|\[[0-9a-fA-F:]+\]):([0-9]{1,5})$/', $backend, $match) || (int) $match[1] < 1 || (int) $match[1] > 65535) { return new JsonResponse(['error' => 'BungeeCord backend must be host:port.'], 422); }
+            $instance->setSetupVars(array_replace($instance->getSetupVars(), ['BUNGEE_BACKEND' => $backend]));
+        }
         $instance->setSlots($currentSlots);
         $instance->setMaxSlots($maxSlots);
         $instance->setCurrentSlots($currentSlots);
 
         $this->entityManager->persist($instance);
+        if ($portBlock !== null && $this->minecraftCatalog?->channelFromResolver($instance) !== null) {
+            $ports = $portBlock->getPorts(); $reservations = [];
+            foreach ($requiredPorts as $index => $definition) {
+                if (isset($ports[$index])) { $reservations[] = ['role' => $definition['name'], 'protocol' => $definition['protocol'], 'port' => $ports[$index]]; }
+            }
+            $this->minecraftReservations?->reserve($instance, $reservations);
+        }
+
         if ($portBlock !== null) {
             $this->entityManager->persist($portBlock);
         }
@@ -260,17 +302,18 @@ final class InstanceApiController
         ], JsonResponse::HTTP_CREATED);
     }
 
-    private function allocatePortBlock(Agent $node, User $customer, int $requiredCount): ?PortBlock
+    private function allocatePortBlock(Agent $node, User $customer, int $requiredCount, Template $template): ?PortBlock
     {
         if ($requiredCount <= 0) {
             return null;
         }
 
-        $pools = $this->portPoolRepository->findBy(['node' => $node]);
+        $pools = \App\Module\Ports\Application\GamePortPoolPolicy::select($this->portPoolRepository->findBy(['node' => $node]),$template);
         foreach ($pools as $pool) {
             try {
                 return $this->portLeaseManager->allocateBlock($pool, $customer, $requiredCount);
-            } catch (\RuntimeException) {
+            } catch (\RuntimeException $error) {
+                if ($error instanceof \App\Module\Ports\Application\PortCheckUnavailable) { throw $error; }
                 continue;
             }
         }
@@ -458,6 +501,8 @@ final class InstanceApiController
             return new JsonResponse(['error' => $this->translator->trans('gs_api_invalid_timezone')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
+        $channel = $this->minecraftCatalog?->channelFromResolver($instance);
+        if ($channel !== null && ($error = $this->minecraftCatalog->validateSelection($channel, $lockedVersion, $lockedBuildId)) !== null) { return new JsonResponse(['error' => $error], 422); }
         $instance->setUpdatePolicy($policy);
         $instance->setLockedBuildId($lockedBuildId !== '' ? $lockedBuildId : null);
         $instance->setLockedVersion($lockedVersion !== '' ? $lockedVersion : null);

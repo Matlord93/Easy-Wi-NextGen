@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"text/template"
 )
 
@@ -89,6 +90,10 @@ func (s *Server) handleCheckFree(w http.ResponseWriter, r *http.Request) {
 		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
 		return
 	}
+	if len(req.Checks) == 0 || len(req.Checks) > 256 {
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "between 1 and 256 checks required", nil)
+		return
+	}
 	results := make([]portCheckResult, 0, len(req.Checks))
 	for _, check := range req.Checks {
 		result := portCheckResult{Proto: strings.ToLower(check.Proto), Port: check.Port}
@@ -110,24 +115,45 @@ func (s *Server) handleCheckFree(w http.ResponseWriter, r *http.Request) {
 }
 
 func checkPortFree(proto string, port int) (bool, error) {
-	address := net.JoinHostPort("0.0.0.0", fmtPort(port))
-	if proto == "udp" {
-		conn, err := net.ListenPacket("udp", address)
-		if err != nil {
-			return false, nil
-		}
-		_ = conn.Close()
-		return true, nil
+	if port < 1 || port > 65535 {
+		return false, errors.New("invalid port")
 	}
-	if proto == "tcp" {
-		listener, err := net.Listen("tcp", address)
-		if err != nil {
-			return false, nil
-		}
-		_ = listener.Close()
-		return true, nil
+	if proto != "tcp" && proto != "udp" {
+		return false, errors.New("unsupported proto")
 	}
-	return false, errors.New("unsupported proto")
+	// Check both address families; an IPv6-only listener must not be missed
+	// by a successful bind on 0.0.0.0. Keep sockets open until all binds finish.
+	var sockets []io.Closer
+	defer func() {
+		for _, socket := range sockets {
+			socket.Close()
+		}
+	}()
+	for _, family := range []string{"4", "6"} {
+		host := "0.0.0.0"
+		if family == "6" {
+			host = "::"
+		}
+		address := net.JoinHostPort(host, fmtPort(port))
+		var socket io.Closer
+		var err error
+		if proto == "tcp" {
+			socket, err = net.Listen("tcp"+family, address)
+		} else {
+			socket, err = net.ListenPacket("udp"+family, address)
+		}
+		if err != nil {
+			if family == "6" && (errors.Is(err, syscall.EAFNOSUPPORT) || errors.Is(err, syscall.EPROTONOSUPPORT) || errors.Is(err, syscall.EADDRNOTAVAIL)) {
+				continue
+			}
+			if errors.Is(err, syscall.EADDRINUSE) {
+				return false, nil
+			}
+			return false, err
+		}
+		sockets = append(sockets, socket)
+	}
+	return true, nil
 }
 
 type renderConfigRequest struct {

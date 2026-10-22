@@ -28,11 +28,11 @@ func isMinecraftJavaTemplate(payload map[string]any) bool {
 // Only applies to Minecraft Java Edition servers (Vanilla, Paper). Bedrock is skipped.
 // Existing comments and unrelated lines in eula.txt are preserved.
 func ensureMinecraftEula(instanceDir string, payload map[string]any) error {
-	if !isMinecraftJavaTemplate(payload) {
+	if !isMinecraftJavaTemplate(payload) || isMinecraftProxyTemplate(payload) {
 		return nil
 	}
 	eulaPath := filepath.Join(instanceDir, "eula.txt")
-	existing, err := os.ReadFile(eulaPath)
+	existing, err := readMinecraftConfig(instanceDir, "eula.txt")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return os.WriteFile(eulaPath, []byte("eula=true\n"), instanceFileMode)

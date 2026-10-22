@@ -12,9 +12,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'uniq_minecraft_versions_catalog', columns: ['channel', 'mc_version', 'build'])]
 class MinecraftVersionCatalog
 {
-    public const CHANNELS = ['vanilla', 'paper', 'bedrock'];
-    public const SOURCES = ['import', 'manual'];
-    public const JAVA_VERSIONS = ['8', '16', '17', '21'];
+    public const CHANNELS = ['vanilla', 'paper', 'spigot', 'bedrock', 'bungeecord'];
+    public const SOURCES = ['import', 'manual', 'sync'];
+    public const JAVA_VERSIONS = ['8', '16', '17', '21', '25'];
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -56,6 +56,12 @@ class MinecraftVersionCatalog
 
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
+
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $metadata = [];
+
+    public function getMetadata(): array { return $this->metadata ?? []; }
+    public function setMetadata(array $metadata): void { $this->metadata = $metadata; }
 
     public function __construct(
         string $channel,

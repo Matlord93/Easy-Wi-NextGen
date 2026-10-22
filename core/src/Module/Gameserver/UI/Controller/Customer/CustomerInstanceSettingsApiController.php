@@ -55,6 +55,8 @@ final class CustomerInstanceSettingsApiController
         private readonly GameProfileRepository $gameProfileRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
+        private readonly ?\App\Module\Core\Application\FileServiceClient $fileService = null,
+        private readonly ?\App\Module\Gameserver\Application\InstanceJobPayloadBuilder $payloadBuilder = null,
     ) {
     }
 
@@ -226,11 +228,15 @@ final class CustomerInstanceSettingsApiController
                 return $this->apiError($request, 'INVALID_INPUT', 'Selected lock version is not available.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
             }
 
+            $channel = MinecraftCatalogService::channelFromResolver($instance);
+            $buildRaw = trim((string) ($lockInput['build'] ?? ''));
+            if ($enabled && $channel !== null && ($error = $this->minecraftCatalogService->validateSelection($channel, $versionRaw, $buildRaw)) !== null) {
+                return $this->apiError($request, 'INVALID_INPUT', $error, 422);
+            }
             if ($enabled) {
-                $instance->setLockedVersion($versionRaw);
-                if ($instance->getCurrentBuildId() !== null) {
-                    $instance->setLockedBuildId($instance->getCurrentBuildId());
-                }
+                if ($channel !== null) { $this->minecraftCatalogService->pinSelection($instance, $versionRaw, $buildRaw); }
+                else { $instance->setLockedVersion($versionRaw); $instance->setLockedBuildId($buildRaw !== '' ? $buildRaw : null); }
+
             } else {
                 $instance->setLockedVersion(null);
                 $instance->setLockedBuildId(null);
@@ -388,6 +394,9 @@ final class CustomerInstanceSettingsApiController
             'version_lock' => [
                 'enabled' => $instance->getLockedVersion() !== null,
                 'version' => $instance->getLockedVersion(),
+                'build' => $instance->getLockedBuildId(),
+                'channel' => MinecraftCatalogService::channelFromResolver($instance),
+                'catalog' => ($channel = MinecraftCatalogService::channelFromResolver($instance)) !== null ? ($this->minecraftCatalogService->getUiCatalog($channel)[$channel] ?? []) : [],
                 'available_versions' => $availableVersions,
             ],
         ];
@@ -399,17 +408,8 @@ final class CustomerInstanceSettingsApiController
         $resolver = $instance->getTemplate()->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
 
-        if ($type === 'minecraft_vanilla') {
-            return $this->minecraftCatalogService->getUiCatalog()['vanilla']['versions'] ?? [];
-        }
-
-        if ($type === 'papermc_paper') {
-            return $this->minecraftCatalogService->getUiCatalog()['paper']['versions'] ?? [];
-        }
-
-        if ($type === 'minecraft_bedrock') {
-            return $this->minecraftCatalogService->getUiCatalog()['bedrock']['versions'] ?? [];
-        }
+        $channel = MinecraftCatalogService::channelFromResolver($instance);
+        if ($channel !== null) { return $this->minecraftCatalogService->getUiCatalog($channel)[$channel]['versions'] ?? []; }
 
         $versions = array_values(array_filter([
             $instance->getCurrentVersion(),
@@ -548,6 +548,11 @@ final class CustomerInstanceSettingsApiController
             return $this->apiError($request, 'INVALID_INPUT', $this->translator->trans('gs_api_config_content_too_large'), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        try {
+            \App\Module\Gameserver\Application\MinecraftConfigurationPolicy::assertEditable($instance, (string) $config['file_path'], (string) ($config['content'] ?? ''), $content);
+        } catch (\InvalidArgumentException $error) {
+            return $this->apiError($request, 'INVALID_INPUT', $error->getMessage(), 422);
+        }
         $this->storeInstanceOverride($instance, (string) $config['file_path'], $content, [
             'name' => (string) $config['name'],
             'format' => (string) $config['format'],
@@ -580,14 +585,21 @@ final class CustomerInstanceSettingsApiController
             return $this->mapException($request, $exception);
         }
 
-        $job = new Job('instance.config.apply', [
+        $applyPayload = [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'agent_id' => $instance->getNode()->getId(),
             'config_id' => (string) $config['id'],
             'config_key' => (string) ($config['config_key'] ?? $config['id']),
             'file_path' => (string) $config['file_path'],
-        ]);
+            'install_path' => $instance->getInstallPath(),
+            'content' => (string) $config['content'],
+            'files' => [['path' => (string) $config['file_path'], 'content' => (string) $config['content'], 'backup' => true]],
+        ];
+        if (MinecraftCatalogService::channelFromResolver($instance) !== null && $this->payloadBuilder !== null) {
+            $applyPayload = array_replace($this->payloadBuilder->buildRuntimePayload($instance), $applyPayload);
+        }
+        $job = new Job('instance.config.apply', $applyPayload);
         $this->entityManager->persist($job);
         $this->entityManager->flush();
 
@@ -640,6 +652,22 @@ final class CustomerInstanceSettingsApiController
             ];
         }
 
+        $minecraftChannel = MinecraftCatalogService::channelFromResolver($instance);
+        if ($minecraftChannel !== null) {
+            $managedPath = $minecraftChannel === 'bungeecord' ? 'config.yml' : 'server.properties';
+            if (!isset($knownPaths[$managedPath])) {
+                $knownPaths[$managedPath] = true;
+                $configs[] = [
+                    'id' => 'minecraft-managed', 'name' => $managedPath,
+                    'config_key' => $managedPath, 'file_path' => $managedPath,
+                    'scope' => 'instance', 'format' => $minecraftChannel === 'bungeecord' ? 'yaml' : 'properties',
+                    'editable' => true, 'exists' => $instance->getInstalledVersion() !== null,
+                    'source' => isset($overrides[$managedPath]) ? 'instance' : 'managed',
+                    'updated_at' => '',
+                ];
+            }
+        }
+
         foreach ($overrides as $filePath => $override) {
             if (!is_string($filePath) || isset($knownPaths[$filePath]) || !is_array($override)) {
                 continue;
@@ -686,6 +714,11 @@ final class CustomerInstanceSettingsApiController
             $filePath = (string) $config['file_path'];
             $override = $overrides[$filePath] ?? null;
             $content = is_array($override) ? (string) ($override['content'] ?? '') : '';
+            if (!is_array($override) && MinecraftCatalogService::channelFromResolver($instance) !== null && in_array($filePath, ['server.properties', 'config.yml'], true)) {
+                if ($this->fileService === null) { throw new \Symfony\Component\HttpKernel\Exception\HttpException(503, 'Node file service is unavailable.'); }
+                try { $remote = $this->fileService->readFileContent($instance, $filePath); $content = $remote['content']; }
+                catch (\App\Module\Core\Application\Exception\FileServiceException $error) { throw new \Symfony\Component\HttpKernel\Exception\HttpException(503, 'Cannot read the existing server configuration. No empty replacement has been created.', $error); }
+            }
             $etag = hash('sha256', $content);
 
             return [

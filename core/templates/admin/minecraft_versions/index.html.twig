@@ -12,6 +12,19 @@
     <a class="ui-button ui-button--primary ui-button--sm" href="/admin/minecraft-versions/new">{{ t('admin_minecraft_versions_new', page_locale()) }}</a>
   </div>
   <div style="padding:16px;display:grid;gap:14px;">
+    <section class="ng-alert ng-alert--info">
+      <strong>{{ t('minecraft_catalog_automatic', page_locale()) }}</strong>
+      <p>{{ t('minecraft_catalog_automatic_hint', page_locale()) }}</p>
+      {% for channel in ['vanilla','paper','spigot','bedrock','bungeecord'] %}
+        {% set sync = syncStatus.channels[channel]|default({}) %}
+        <p><strong>{{ channel|capitalize }}</strong> · {{ sync.success_at|default(0) ? sync.success_at|date('Y-m-d H:i') : t('minecraft_sync_pending', page_locale()) }} · {{ sync.count|default(0) }}
+          {% if sync.error|default('') %}<span class="text-red-500">{{ sync.error }}</span>{% endif %}</p>
+      {% endfor %}
+      <form method="post" action="/admin/minecraft-versions/sync">
+        <input type="hidden" name="_token" value="{{ syncToken }}">
+        <button class="ui-button ui-button--primary" {{ syncStatus.queued|default(false) ? 'disabled' : '' }}>{{ t(syncStatus.queued|default(false) ? 'minecraft_sync_queued' : 'minecraft_sync_now', page_locale()) }}</button>
+      </form>
+    </section>
     {% if uploadOk is defined and uploadOk %}
       <div class="alert alert-success">
         <strong>{{ t('admin_minecraft_versions_upload_success', page_locale()) }}</strong>
@@ -38,7 +51,7 @@
       </div>
     {% endif %}
     <form method="get" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <select name="channel"><option value="">{{ t('admin_minecraft_versions_all_channels', page_locale()) }}</option>{% for c in ['vanilla','paper','bedrock'] %}<option value="{{ c }}" {% if filters.channel == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+      <select name="channel"><option value="">{{ t('admin_minecraft_versions_all_channels', page_locale()) }}</option>{% for c in ['vanilla','paper','spigot','bedrock','bungeecord'] %}<option value="{{ c }}" {% if filters.channel == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
       <select name="active"><option value="">{{ t('admin_minecraft_versions_active_filter', page_locale()) }}</option><option value="1" {% if filters.active == '1' %}selected{% endif %}>{{ t('admin_minecraft_versions_active', page_locale()) }}</option><option value="0" {% if filters.active == '0' %}selected{% endif %}>{{ t('admin_minecraft_versions_inactive', page_locale()) }}</option></select>
       <select name="source"><option value="">{{ t('admin_minecraft_versions_all_sources', page_locale()) }}</option><option value="import" {% if filters.source == 'import' %}selected{% endif %}>import</option><option value="manual" {% if filters.source == 'manual' %}selected{% endif %}>manual</option></select>
       <select name="preview"><option value="">{{ t('admin_minecraft_versions_preview_filter', page_locale()) }}</option><option value="1" {% if filters.preview == '1' %}selected{% endif %}>{{ t('admin_minecraft_versions_yes', page_locale()) }}</option><option value="0" {% if filters.preview == '0' %}selected{% endif %}>{{ t('admin_minecraft_versions_no', page_locale()) }}</option></select>

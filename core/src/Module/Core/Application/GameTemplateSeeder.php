@@ -40,7 +40,7 @@ final class GameTemplateSeeder
     /**
      * @return array{created: int, updated: int}
      */
-    public function seedTemplatesOnly(?EntityManagerInterface $entityManager = null): array
+    public function seedTemplatesOnly(?EntityManagerInterface $entityManager = null, ?array $onlyGameKeys = null, bool $createOnly = false): array
     {
         $entityManager = $entityManager ?? $this->registry->getManager();
         $templateRepository = $entityManager->getRepository(Template::class);
@@ -52,7 +52,9 @@ final class GameTemplateSeeder
                 continue;
             }
 
+            if ($onlyGameKeys !== null && !in_array($gameKey, $onlyGameKeys, true)) { continue; }
             $existingTemplate = $templateRepository->findOneBy(['gameKey' => $gameKey]);
+            if ($createOnly && $existingTemplate instanceof Template) { continue; }
 
             $requiredPorts = $templateData['required_ports'] ?? [];
             $envVars = $templateData['env_vars'] ?? [];
@@ -389,6 +391,8 @@ final class GameTemplateSeeder
             'minecraft_paper_all',
             'minecraft_vanilla_all',
             'minecraft_bedrock',
+            'minecraft_spigot_all',
+            'minecraft_bungeecord_all',
             'hytale',
         ], true);
     }

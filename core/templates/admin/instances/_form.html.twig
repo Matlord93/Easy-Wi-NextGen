@@ -23,6 +23,17 @@
         </div>
     {% endif %}
 
+    <fieldset data-minecraft-create hidden class="ng-alert ng-alert--info">
+        <legend>{{ t('minecraft_managed_setup', page_locale()) }}</legend>
+        <p>{{ t('minecraft_managed_setup_hint', page_locale()) }}</p>
+        <label>{{ t('minecraft_version_label', page_locale()) }} <select name="minecraft_version" class="form-input" data-create-mc-version data-selected="{{ form.minecraft_version|default('') }}"></select></label>
+        <label data-create-mc-build-label>{{ t('minecraft_build_label', page_locale()) }} <select name="minecraft_build" class="form-input" data-create-mc-build data-selected="{{ form.minecraft_build|default('') }}"></select></label>
+        <label data-create-mc-rcon-label><input type="checkbox" name="minecraft_rcon" value="1" data-create-mc-rcon {{ form.minecraft_rcon|default(false) ? 'checked' : '' }}> RCON</label>
+        <label data-create-mc-query-label><input type="checkbox" name="minecraft_query" value="1" data-create-mc-query {{ form.minecraft_query|default(false) ? 'checked' : '' }}> Query (UDP)</label>
+        <label><input type="checkbox" data-create-mc-preview> {{ t('minecraft_show_previews', page_locale()) }}</label>
+        <label data-create-mc-backend hidden>{{ t('minecraft_proxy_backend', page_locale()) }} <input name="bungee_backend" value="{{ form.bungee_backend|default('') }}" class="form-input" placeholder="lobby.example.com:25565"></label>
+        <p data-create-mc-empty hidden>{{ t('minecraft_catalog_empty_hint', page_locale()) }}</p>
+    </fieldset>
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;">
         <div class="form-field">
             <label class="form-label">{{ t('admin_instances_customer_label', page_locale()) }}</label>
@@ -41,6 +52,7 @@
                     {% set supportedOs = template.supportedOs ?? [] %}
                     <option value="{{ template.id }}"
                             data-game-key="{{ template.gameKey|lower }}"
+                            data-minecraft-channel="{{ {'minecraft_vanilla':'vanilla','papermc_paper':'paper','minecraft_spigot':'spigot','minecraft_bungeecord':'bungeecord','minecraft_bedrock':'bedrock'}[template.installResolver.type|default('')]|default('') }}"
                             data-template-identity="{{ (template.displayName ~ '::' ~ template.gameKey)|lower|trim }}"
                             data-supported-os="{{ supportedOs|map(v => v|lower)|join(',') }}"
                             data-shared-storage-supported="{{ ((template.supportsSharedStorage ?? false) or (template_shared_storage_support[template.id]|default(false))) ? '1' : '0' }}"
@@ -264,5 +276,55 @@
 
     updateTemplates();
     updateSharedStorageState();
+})();
+</script>
+
+<script>
+(() => {
+ const script = document.currentScript;
+ let form = script.previousElementSibling;
+ while (form && form.tagName !== 'FORM') form = form.previousElementSibling;
+ if (!form || form.tagName !== 'FORM') return;
+ const catalog = {{ minecraftCatalog|default({})|json_encode(15)|raw }};
+ const template = form.querySelector('[data-template-select]');
+ const section = form.querySelector('[data-minecraft-create]');
+ const versions = form.querySelector('[data-create-mc-version]');
+ const builds = form.querySelector('[data-create-mc-build]');
+ const preview = form.querySelector('[data-create-mc-preview]');
+ let initialVersion = versions.dataset.selected || ''; let initialBuild = builds.dataset.selected || '';
+ const backend = form.querySelector('[name=bungee_backend]');
+ const option = (select, value, text) => select.add(new Option(text, value));
+ const updateBuilds = () => {
+  const channel = template.selectedOptions[0]?.dataset.minecraftChannel || '';
+  const previous = builds.value || initialBuild; initialBuild = '';
+  builds.replaceChildren(); option(builds, '', {{ t('minecraft_latest_build', page_locale())|json_encode(15)|raw }});
+  for (const build of catalog[channel]?.builds?.[versions.value] || []) { if (preview.checked || (catalog[channel]?.build_release_types?.[versions.value]?.[build] || 'release') === 'release') option(builds, build, build); }
+  if ([...builds.options].some(o => o.value === previous)) builds.value = previous;
+  const enabled = ['paper','bungeecord'].includes(channel);
+  builds.disabled = !enabled; form.querySelector('[data-create-mc-build-label]').hidden = !enabled;
+ };
+ const update = () => {
+  const channel = template.selectedOptions[0]?.dataset.minecraftChannel || '';
+  section.hidden = !channel; versions.disabled = !channel;
+  const rcon = form.querySelector('[data-create-mc-rcon]');
+  const query = form.querySelector('[data-create-mc-query]');
+  rcon.disabled = !channel || ['bedrock','bungeecord'].includes(channel);
+  query.disabled = !channel || channel === 'bedrock';
+  form.querySelector('[data-create-mc-rcon-label]').hidden = rcon.disabled;
+  form.querySelector('[data-create-mc-query-label]').hidden = query.disabled;
+  backend.disabled = channel !== 'bungeecord'; backend.required = channel === 'bungeecord';
+  form.querySelector('[data-create-mc-backend]').hidden = channel !== 'bungeecord';
+  const previous = versions.value || initialVersion; initialVersion = '';
+  versions.replaceChildren();
+  for (const version of catalog[channel]?.versions || []) {
+   const kind = catalog[channel]?.release_types?.[version] || 'release';
+   if (preview.checked || kind === 'release') option(versions, version, version + (kind === 'release' ? '' : ' (' + kind + ')'));
+  }
+  if ([...versions.options].some(o => o.value === previous)) versions.value = previous;
+  versions.required = !!channel;
+  form.querySelector('[data-create-mc-empty]').hidden = !channel || versions.options.length > 0;
+  updateBuilds();
+ };
+ template.addEventListener('change', update); preview.addEventListener('change', update); versions.addEventListener('change', updateBuilds); update();
 })();
 </script>

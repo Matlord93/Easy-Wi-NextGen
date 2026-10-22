@@ -54,6 +54,23 @@
     const autoUpdateStatus = document.getElementById('gs-auto-update-status');
     const versionLockEnabled = document.getElementById('gs-version-lock-enabled');
     const versionLockVersion = document.getElementById('gs-version-lock-version');
+    const versionLockBuild = document.getElementById('gs-version-lock-build');
+    const versionLockBuildWrap = document.getElementById('gs-version-lock-build-wrap');
+    const minecraftPreviews = document.getElementById('gs-minecraft-previews');
+    let minecraftVersionLock = {};
+    const updateMinecraftBuilds = (selected = versionLockBuild?.value || '') => {
+        if (!versionLockBuild) return;
+        const channel = minecraftVersionLock.channel;
+        if (versionLockBuildWrap) versionLockBuildWrap.hidden = !['paper', 'bungeecord'].includes(channel);
+        versionLockBuild.replaceChildren(new Option(tr('latestStableBuild'), ''));
+        for (const build of minecraftVersionLock.catalog?.builds?.[versionLockVersion?.value] || []) {
+            const kind = minecraftVersionLock.catalog?.build_release_types?.[versionLockVersion?.value]?.[build] || 'release';
+            if (!minecraftPreviews?.checked && kind !== 'release' && build !== selected) continue;
+            versionLockBuild.add(new Option(build, build));
+        }
+        versionLockBuild.value = [...versionLockBuild.options].some(option => option.value === selected) ? selected : '';
+    };
+
     const versionLockStatus = document.getElementById('gs-version-lock-status');
     const automationSaveBtn = document.getElementById('gs-automation-save');
     const accessRevealBtn = document.getElementById('gs-access-reveal');
@@ -240,7 +257,8 @@
         if (!versionLockVersion) {
             return;
         }
-        const values = Array.isArray(versions) ? versions : [];
+        const values = (Array.isArray(versions) ? versions : []).filter(version =>
+            !minecraftVersionLock.channel || minecraftPreviews?.checked || version === selected || (minecraftVersionLock.catalog?.release_types?.[version] || 'release') === 'release');
         if (values.length === 0) {
             versionLockVersion.innerHTML = '<option value="">default</option>';
         } else {
@@ -271,7 +289,9 @@
         if (versionLockEnabled) {
             versionLockEnabled.checked = Boolean(data.version_lock?.enabled);
         }
-        populateVersionOptions(data.version_lock?.available_versions || [], data.version_lock?.version || '');
+        minecraftVersionLock = data.version_lock || {};
+        populateVersionOptions(minecraftVersionLock.available_versions || [], minecraftVersionLock.version || '');
+        updateMinecraftBuilds(minecraftVersionLock.build || '');
         updateAutomationTimeVisibility();
     };
 
@@ -299,6 +319,7 @@
                         version_lock: {
                             enabled: Boolean(versionLockEnabled?.checked),
                             version: versionLockVersion?.value || null,
+                            build: versionLockBuild?.value || null,
                         },
                     },
                 }),
@@ -426,6 +447,8 @@
         }
     });
 
+    versionLockVersion?.addEventListener('change', () => updateMinecraftBuilds(''));
+    minecraftPreviews?.addEventListener('change', () => { populateVersionOptions(minecraftVersionLock.available_versions || [], versionLockVersion?.value || ''); updateMinecraftBuilds(); });
     configSearch?.addEventListener('input', renderConfigList);
     configScope?.addEventListener('change', renderConfigList);
     autoBackupEnabled?.addEventListener('change', updateAutomationTimeVisibility);

@@ -608,6 +608,12 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	allocatedPorts := parsePayloadPorts(job.Payload)
+	if err := prepareManagedMinecraftInstall(instanceDir, osUsername, job.Payload, minecraftInstallProgress(job.ID, logSender)); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureManagedMinecraftJava(job.Payload); err != nil {
+		return failureResult(job.ID, err)
+	}
 	templateValues := buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
 
 	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
@@ -1056,6 +1062,10 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startScriptPath, "", cpuLimit, ramLimit)
+	unitContent, err = addMinecraftSystemdPreflight(unitContent, instanceDir, osUsername, job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
 		markSharedFailure(err)
 		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
@@ -1098,8 +1108,13 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	log.Printf("instance=%s template=%s start_command=%s start_script_path=%s", instanceID, templateKey, maskedCommand, startScriptPath)
 
 	buildID, version := extractBuildInfo(output)
+	if payloadValue(job.Payload, "minecraft_managed") == "true" {
+		buildID = payloadValue(job.Payload, "minecraft_build")
+		version = payloadValue(job.Payload, "minecraft_version")
+	}
 	resultOutput := map[string]string{
 		"message":           "sniper " + action + " completed",
+		"java_version":      payloadValue(job.Payload, "minecraft_java_version"),
 		"start_script_path": startScriptPath,
 		"service_name":      serviceName,
 		"cpu_limit":         strconv.Itoa(cpuLimit),

@@ -56,6 +56,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         private readonly BackupTargetRepository $backupTargetRepository,
         private readonly AppSettingsService $appSettingsService,
         private readonly CentralSchedulerRunner $centralSchedulerRunner,
+        private readonly ?\App\Module\Gameserver\Application\MinecraftCatalogSynchronizer $minecraftCatalogSynchronizer = null,
     ) {
         parent::__construct();
     }
@@ -123,6 +124,9 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
 
     private function runSchedulePass(OutputInterface $output): int
     {
+        // Hourly, non-destructive catalog refresh; provider failures do not stop schedules.
+        try { $this->minecraftCatalogSynchronizer?->startIfDue(); }
+        catch (\Throwable $error) { $output->writeln('Minecraft catalog: '.$error->getMessage()); }
         $now = new \DateTimeImmutable();
         $queued = 0;
         $queued += $this->centralSchedulerRunner->runDue($now);

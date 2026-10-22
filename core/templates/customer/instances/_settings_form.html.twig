@@ -2,7 +2,8 @@
 {% set templateContext = instance.template ?? {} %}
 {% set installResolver = templateContext.install_resolver ?? templateContext.installResolver ?? {} %}
 {% set resolverType = installResolver.type ?? '' %}
-{% set isMinecraft = resolverType in ['minecraft_vanilla', 'papermc_paper', 'minecraft_bedrock'] %}
+{% set minecraftChannel = {'minecraft_vanilla':'vanilla','papermc_paper':'paper','minecraft_spigot':'spigot','minecraft_bungeecord':'bungeecord','minecraft_bedrock':'bedrock'}[resolverType]|default('') %}
+{% set isMinecraft = resolverType in ['minecraft_vanilla', 'papermc_paper', 'minecraft_spigot', 'minecraft_bungeecord', 'minecraft_bedrock'] %}
 {% if detailMode %}
     <form method="post" action="{{ path('customer_instance_settings', {id: instance.id, detail: 1}) }}" class="space-y-5">
 {% else %}
@@ -68,7 +69,7 @@
             {% if isMinecraft %}
                 <div class="mt-3 rounded-lg border border-slate-700/40 bg-slate-900/40 p-3 text-xs text-slate-400">
                     <div class="font-semibold text-slate-300">
-                        {% if resolverType == 'papermc_paper' %}{{ t('minecraft_type_paper', page_locale()) }}{% elseif resolverType == 'minecraft_bedrock' %}{{ t('minecraft_type_bedrock', page_locale()) }}{% else %}{{ t('minecraft_type_vanilla', page_locale()) }}{% endif %}
+                        {% if resolverType == 'minecraft_spigot' %}Spigot{% elseif resolverType == 'minecraft_bungeecord' %}BungeeCord Proxy{% elseif resolverType in ['papermc_paper', 'minecraft_bungeecord'] %}{{ t('minecraft_type_paper', page_locale()) }}{% elseif resolverType == 'minecraft_bedrock' %}{{ t('minecraft_type_bedrock', page_locale()) }}{% else %}{{ t('minecraft_type_vanilla', page_locale()) }}{% endif %}
                     </div>
                     <div class="mt-1">{{ t('minecraft_status_installed', page_locale()) }}: <span class="text-slate-200">{{ instance.installed_version ?? instance.current_version ?? '—' }}</span>{% if (instance.installed_build_id ?? instance.current_build_id ?? '') != '' %} Build {{ instance.installed_build_id ?? instance.current_build_id }}{% endif %}</div>
                     <div>{{ t('minecraft_status_java', page_locale()) }}: <span class="text-slate-200">{{ resolverType == 'minecraft_bedrock' ? '—' : (instance.installed_java_version ?? '—') }}</span></div>
@@ -79,7 +80,7 @@
                 </div>
             {% endif %}
             {% if isMinecraft and minecraftCatalog is not empty %}
-                {% set versionOptions = resolverType == 'minecraft_vanilla' ? minecraftCatalog.vanilla.versions : (resolverType == 'minecraft_bedrock' ? minecraftCatalog.bedrock.versions : minecraftCatalog.paper.versions) %}
+                {% set versionOptions = minecraftCatalog[minecraftChannel].versions %}
                 <div class="mt-4 grid gap-3 sm:grid-cols-2">
                     <div>
                         <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_locked_version', page_locale()) }}</label>
@@ -92,14 +93,14 @@
                             {% endfor %}
                         </select>
                     </div>
-                    {% if resolverType == 'papermc_paper' %}
+                    {% if resolverType in ['papermc_paper', 'minecraft_bungeecord'] %}
                         <div>
                             <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_locked_build_id', page_locale()) }}</label>
                             <select name="locked_build_id"
                                 class="mt-1.5 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
                                 data-minecraft-build>
                                 <option value="" {% if (instance.locked_build_id ?? '') == '' %}selected{% endif %}>{{ t('customer_instance_latest_option', page_locale()) }}</option>
-                                {% for version, builds in minecraftCatalog.paper.builds %}
+                                {% for version, builds in minecraftCatalog[minecraftChannel].builds %}
                                     {% for build in builds %}
                                         <option value="{{ build }}" data-version="{{ version }}" {% if build == (instance.locked_build_id ?? '') %}selected{% endif %}>
                                             {{ build }} ({{ version }})
@@ -142,7 +143,7 @@
 
     </form>
 
-{% if isMinecraft and resolverType == 'papermc_paper' %}
+{% if isMinecraft and resolverType in ['papermc_paper', 'minecraft_bungeecord'] %}
     <script>
         (() => {
             const versionSelects = document.querySelectorAll('[data-minecraft-version]');

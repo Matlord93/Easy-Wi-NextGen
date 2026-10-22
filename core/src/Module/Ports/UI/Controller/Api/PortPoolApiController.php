@@ -39,6 +39,7 @@ final class PortPoolApiController
                 'id' => $pool->getId(),
                 'name' => $pool->getName(),
                 'tag' => $pool->getTag(),
+                'game_scope' => $pool->getGameScope(),
                 'node' => [
                     'id' => $node->getId(),
                     'name' => $node->getName(),
@@ -75,7 +76,7 @@ final class PortPoolApiController
         $allocationStep = is_numeric($payload['allocation_step'] ?? null) ? (int) $payload['allocation_step'] : 1;
         $allocationStep = in_array($allocationStep, [1, 10], true) ? $allocationStep : 1;
 
-        if ($nodeId === '' || $name === '' || $tag === '' || !is_numeric($startValue) || !is_numeric($endValue)) {
+        if ('' === $nodeId || '' === $name || '' === $tag || !is_numeric($startValue) || !is_numeric($endValue)) {
             return new JsonResponse(['error' => 'Node, name, tag, start_port, and end_port are required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
@@ -86,11 +87,16 @@ final class PortPoolApiController
         }
 
         $node = $this->agentRepository->find($nodeId);
-        if ($node === null) {
+        if (null === $node) {
             return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $pool = new PortPool($node, $name, $tag, $startPort, $endPort, $enabled, $allocationStep);
+        try {
+            $pool->setGameScope((string) ($payload['game_scope'] ?? 'all'));
+        } catch (\InvalidArgumentException $error) {
+            return new JsonResponse(['error' => $error->getMessage()], 400);
+        }
         $this->entityManager->persist($pool);
 
         $this->auditLogger->log($actor, 'port_pool.created', [
@@ -98,6 +104,7 @@ final class PortPoolApiController
             'node_id' => $node->getId(),
             'name' => $pool->getName(),
             'tag' => $pool->getTag(),
+            'game_scope' => $pool->getGameScope(),
             'start_port' => $pool->getStartPort(),
             'end_port' => $pool->getEndPort(),
             'enabled' => $pool->isEnabled(),
@@ -109,12 +116,40 @@ final class PortPoolApiController
             'id' => $pool->getId(),
             'name' => $pool->getName(),
             'tag' => $pool->getTag(),
+            'game_scope' => $pool->getGameScope(),
             'node_id' => $node->getId(),
             'start_port' => $pool->getStartPort(),
             'end_port' => $pool->getEndPort(),
             'enabled' => $pool->isEnabled(),
             'allocation_step' => $pool->getAllocationStep(),
         ], JsonResponse::HTTP_CREATED);
+    }
+
+    #[Route(path: '/api/admin/port-pools/{id}', name: 'admin_port_pool_update_scope', methods: ['PATCH'], requirements: ['id' => '\\d+'])]
+    #[Route(path: '/api/v1/admin/port-pools/{id}', name: 'admin_port_pool_update_scope_v1', methods: ['PATCH'], requirements: ['id' => '\\d+'])]
+    public function updateScope(Request $request, int $id): JsonResponse
+    {
+        $actor = $this->requireAdmin($request);
+        try {
+            $input = $request->toArray();
+        } catch (\JsonException) {
+            return new JsonResponse(['error' => 'Invalid JSON'], 400);
+        }
+        $pool = $this->portPoolRepository->find($id);
+        if (!$pool instanceof PortPool) {
+            return new JsonResponse(['error' => 'Port pool not found'], 404);
+        }
+        try {
+            $this->entityManager->wrapInTransaction(function () use ($pool, $input, $actor): void {
+                $this->entityManager->lock($pool->getNode(), \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+                $pool->setGameScope((string) ($input['game_scope'] ?? ''));
+                $this->auditLogger->log($actor, 'port_pool.scope_updated', ['port_pool_id' => $pool->getId(), 'game_scope' => $pool->getGameScope()]);
+            });
+        } catch (\InvalidArgumentException $error) {
+            return new JsonResponse(['error' => $error->getMessage()], 400);
+        }
+
+        return new JsonResponse(['id' => $pool->getId(), 'game_scope' => $pool->getGameScope()]);
     }
 
     private function requireAdmin(Request $request): User

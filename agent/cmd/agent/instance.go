@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -31,7 +32,7 @@ const (
 
 var consoleCommandRateLimiter = newTokenBucketLimiter(5, time.Second)
 
-func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
+func handleInstanceCreate(job jobs.Job, senders ...JobLogSender) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
 		return handleInstanceCreateWindows(job)
 	}
@@ -133,6 +134,12 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
+	if err := prepareManagedMinecraftInstall(instanceDir, osUsername, job.Payload, minecraftInstallProgress(job.ID, firstMinecraftLogSender(senders))); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureManagedMinecraftJava(job.Payload); err != nil {
+		return failureResult(job.ID, err)
+	}
 	templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
 	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
 	if err != nil {
@@ -168,6 +175,10 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
+	unitContent, err = addMinecraftSystemdPreflight(unitContent, instanceDir, osUsername, job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
 	}
@@ -188,6 +199,11 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
+	if payloadValue(job.Payload, "minecraft_managed") == "true" {
+		diagnostics["version"] = payloadValue(job.Payload, "minecraft_version")
+		diagnostics["build_id"] = payloadValue(job.Payload, "minecraft_build")
+		diagnostics["java_version"] = payloadValue(job.Payload, "minecraft_java_version")
+	}
 	return jobs.Result{
 		JobID:  job.ID,
 		Status: "success",
@@ -248,6 +264,11 @@ func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, fun
 	streamServiceLogs(job.ID, logSender, serviceName, 10*time.Second)
 
 	diagnostics := collectServiceDiagnostics(serviceName)
+	if payloadValue(job.Payload, "minecraft_managed") == "true" {
+		diagnostics["version"] = payloadValue(job.Payload, "minecraft_version")
+		diagnostics["build_id"] = payloadValue(job.Payload, "minecraft_build")
+		diagnostics["java_version"] = payloadValue(job.Payload, "minecraft_java_version")
+	}
 	diagnostics["service_name"] = serviceName
 	for key, value := range runtimeUpdates {
 		diagnostics[key] = value
@@ -291,6 +312,11 @@ func handleInstanceStop(job jobs.Job, logSender JobLogSender) (jobs.Result, func
 	streamServiceLogs(job.ID, logSender, serviceName, 5*time.Second)
 
 	diagnostics := collectServiceDiagnostics(serviceName)
+	if payloadValue(job.Payload, "minecraft_managed") == "true" {
+		diagnostics["version"] = payloadValue(job.Payload, "minecraft_version")
+		diagnostics["build_id"] = payloadValue(job.Payload, "minecraft_build")
+		diagnostics["java_version"] = payloadValue(job.Payload, "minecraft_java_version")
+	}
 	diagnostics["service_name"] = serviceName
 
 	return jobs.Result{
@@ -339,6 +365,11 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 	streamServiceLogs(job.ID, logSender, serviceName, 10*time.Second)
 
 	diagnostics := collectServiceDiagnostics(serviceName)
+	if payloadValue(job.Payload, "minecraft_managed") == "true" {
+		diagnostics["version"] = payloadValue(job.Payload, "minecraft_version")
+		diagnostics["build_id"] = payloadValue(job.Payload, "minecraft_build")
+		diagnostics["java_version"] = payloadValue(job.Payload, "minecraft_java_version")
+	}
 	diagnostics["service_name"] = serviceName
 	for key, value := range runtimeUpdates {
 		diagnostics[key] = value
@@ -468,6 +499,11 @@ func handleInstanceLogsTail(job jobs.Job, logSender JobLogSender) (jobs.Result, 
 	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
+	if payloadValue(job.Payload, "minecraft_managed") == "true" {
+		diagnostics["version"] = payloadValue(job.Payload, "minecraft_version")
+		diagnostics["build_id"] = payloadValue(job.Payload, "minecraft_build")
+		diagnostics["java_version"] = payloadValue(job.Payload, "minecraft_java_version")
+	}
 	diagnostics["service_name"] = serviceName
 
 	return jobs.Result{
@@ -835,6 +871,12 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 
+	if err := prepareManagedMinecraftInstall(instanceDir, osUsername, job.Payload, minecraftInstallProgress(job.ID, logSender)); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureManagedMinecraftJava(job.Payload); err != nil {
+		return failureResult(job.ID, err)
+	}
 	templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
 	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
 	if err != nil {
@@ -853,6 +895,10 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
+	unitContent, err = addMinecraftSystemdPreflight(unitContent, instanceDir, osUsername, job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
 	}
@@ -861,6 +907,11 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
+	if payloadValue(job.Payload, "minecraft_managed") == "true" {
+		diagnostics["version"] = payloadValue(job.Payload, "minecraft_version")
+		diagnostics["build_id"] = payloadValue(job.Payload, "minecraft_build")
+		diagnostics["java_version"] = payloadValue(job.Payload, "minecraft_java_version")
+	}
 	sharedActive := shouldUseSharedStorage(job.Payload, "instance_reinstall")
 	sharedRoot := payloadValue(job.Payload, "shared_server_dir")
 	if sharedRoot == "" {
@@ -1223,6 +1274,9 @@ func buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw stri
 		}
 	}
 
+	if java := payloadValue(payload, "java_bin"); payloadValue(payload, "minecraft_java_version") != "" && java != "" {
+		values["JAVA_BIN"] = shellEscape(java)
+	}
 	return values
 }
 
@@ -1496,11 +1550,11 @@ func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, e
 		return updates, err
 	}
 
+	if err := ensureManagedMinecraftJava(payload); err != nil {
+		return updates, err
+	}
 	if err := ensureMinecraftEula(instanceDir, payload); err != nil {
 		return updates, fmt.Errorf("eula: %w", err)
-	}
-	if err := ensureMinecraftServerProperties(instanceDir, payload); err != nil {
-		return updates, fmt.Errorf("server.properties: %w", err)
 	}
 
 	if files := parseConfigOverrideFiles(payload); len(files) > 0 {
@@ -1508,6 +1562,16 @@ func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, e
 			target, err := sanitizeInstancePath(instanceDir, entry.path)
 			if err != nil {
 				return updates, err
+			}
+			if payloadValue(payload, "minecraft_managed") == "true" {
+				relative, err := filepath.Rel(instanceDir, target)
+				if err != nil {
+					return updates, err
+				}
+				if err := publishMinecraftFile(instanceDir, relative, bytes.NewReader(entry.content), instanceFilesFileMode); err != nil {
+					return updates, err
+				}
+				continue
 			}
 			if err := os.MkdirAll(filepath.Dir(target), instanceDirMode); err != nil {
 				return updates, fmt.Errorf("create config dir: %w", err)
@@ -1522,6 +1586,20 @@ func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, e
 		updates["config_files_applied"] = strconv.Itoa(len(files))
 	}
 
+	if err := ensureMinecraftServerProperties(instanceDir, payload); err != nil {
+		return updates, fmt.Errorf("server.properties: %w", err)
+	}
+
+	if payloadValue(payload, "minecraft_managed") == "true" && !isMinecraftBedrockTemplate(payload) {
+		if err := validateMinecraftJar(filepath.Join(instanceDir, "server.jar"), payloadValue(payload, "minecraft_java_version")); err != nil {
+			return updates, err
+		}
+	}
+	if payloadValue(payload, "minecraft_managed") == "true" {
+		if _, err := writeMinecraftPreflightManifest(instanceDir, buildInstanceUsername(payloadValue(payload, "customer_id"), payloadValue(payload, "instance_id")), payload); err != nil {
+			return updates, err
+		}
+	}
 	startParams := payloadValue(payload, "start_params")
 	if startParams != "" {
 		requiredPortsRaw := payloadValue(payload, "required_ports")

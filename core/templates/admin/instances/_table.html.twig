@@ -180,7 +180,7 @@
                             <div style="margin-top:2px;font-size:11px;color:#6366f1;">{{ instance.shared_storage_status }}</div>
                         {% endif %}
                         {% if instance.install_error_code %}
-                            <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.install_error_code }}</div>
+                            <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.install_error_code == 'MINECRAFT_AGENT_UPDATE_REQUIRED' ? t('minecraft_agent_update_required', page_locale()) : instance.install_error_code }}</div>
                         {% endif %}
                     </td>
                     <td style="text-align:right;">

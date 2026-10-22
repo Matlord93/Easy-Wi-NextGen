@@ -37,6 +37,9 @@ class PortPool implements ResourceEventSource
     #[ORM\Column]
     private int $endPort;
 
+    #[ORM\Column(length: 160, options: ['default' => 'all'])]
+    private string $gameScope = 'all';
+
     #[ORM\Column]
     private bool $enabled = true;
 
@@ -65,6 +68,20 @@ class PortPool implements ResourceEventSource
     public function getId(): ?int
     {
         return $this->id;
+    }
+
+    public function getGameScope(): string
+    {
+        return $this->gameScope;
+    }
+
+    public function setGameScope(string $scope): void
+    {
+        if (!in_array($scope, ['all', 'minecraft', 'other'], true) && !preg_match('/^game:[a-zA-Z0-9_.-]{1,120}$/D', $scope)) {
+            throw new \InvalidArgumentException('Invalid game scope.');
+        }
+        $this->gameScope = $scope;
+        $this->touch();
     }
 
     public function getNode(): Agent
@@ -126,7 +143,6 @@ class PortPool implements ResourceEventSource
     {
         return $this->createdAt;
     }
-
 
     public function getAllocationStep(): int
     {

@@ -30,23 +30,23 @@ final class GameTemplateSeedCatalogTest extends TestCase
     // Vanilla
     // -------------------------------------------------------------------------
 
-    public function testVanillaStartParamsContainsPortGame(): void
+    public function testVanillaConfigContainsPortGame(): void
     {
-        $params = (string) ($this->templates['minecraft_vanilla_all']['start_params'] ?? '');
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_vanilla_all']['config_files'], 'server.properties')['contents'] ?? '');
         self::assertStringContainsString('{{PORT_GAME}}', $params);
         self::assertStringNotContainsString('{{SERVER_PORT}}', $params);
     }
 
-    public function testVanillaStartParamsContainsSetPropertyServerPort(): void
+    public function testVanillaConfigContainsServerPort(): void
     {
-        $params = (string) ($this->templates['minecraft_vanilla_all']['start_params'] ?? '');
-        self::assertStringContainsString('set_property server.properties server-port', $params);
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_vanilla_all']['config_files'], 'server.properties')['contents'] ?? '');
+        self::assertStringContainsString('server-port={{PORT_GAME}}', $params);
     }
 
-    public function testVanillaStartParamsSetsMotdViaSetProperty(): void
+    public function testVanillaConfigContainsMotd(): void
     {
-        $params = (string) ($this->templates['minecraft_vanilla_all']['start_params'] ?? '');
-        self::assertStringContainsString('set_property server.properties motd', $params);
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_vanilla_all']['config_files'], 'server.properties')['contents'] ?? '');
+        self::assertStringContainsString('motd={{SERVER_NAME}}', $params);
     }
 
     public function testVanillaConfigFilesServerPropertiesUsesPortGame(): void
@@ -62,23 +62,23 @@ final class GameTemplateSeedCatalogTest extends TestCase
     // Paper
     // -------------------------------------------------------------------------
 
-    public function testPaperStartParamsContainsPortGame(): void
+    public function testPaperConfigContainsPortGame(): void
     {
-        $params = (string) ($this->templates['minecraft_paper_all']['start_params'] ?? '');
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_paper_all']['config_files'], 'server.properties')['contents'] ?? '');
         self::assertStringContainsString('{{PORT_GAME}}', $params);
         self::assertStringNotContainsString('{{SERVER_PORT}}', $params);
     }
 
-    public function testPaperStartParamsContainsSetPropertyServerPort(): void
+    public function testPaperConfigContainsServerPort(): void
     {
-        $params = (string) ($this->templates['minecraft_paper_all']['start_params'] ?? '');
-        self::assertStringContainsString('set_property server.properties server-port', $params);
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_paper_all']['config_files'], 'server.properties')['contents'] ?? '');
+        self::assertStringContainsString('server-port={{PORT_GAME}}', $params);
     }
 
-    public function testPaperStartParamsSetsMotdViaSetProperty(): void
+    public function testPaperConfigContainsMotd(): void
     {
-        $params = (string) ($this->templates['minecraft_paper_all']['start_params'] ?? '');
-        self::assertStringContainsString('set_property server.properties motd', $params);
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_paper_all']['config_files'], 'server.properties')['contents'] ?? '');
+        self::assertStringContainsString('motd={{SERVER_NAME}}', $params);
     }
 
     public function testPaperConfigFilesServerPropertiesUsesPortGame(): void
@@ -94,21 +94,21 @@ final class GameTemplateSeedCatalogTest extends TestCase
     // Bedrock
     // -------------------------------------------------------------------------
 
-    public function testBedrockStartParamsContainsSetPropertyServerPort(): void
+    public function testBedrockConfigContainsServerPort(): void
     {
-        $params = (string) ($this->templates['minecraft_bedrock']['start_params'] ?? '');
-        self::assertStringContainsString('set_property server.properties server-port', $params);
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_bedrock']['config_files'], 'server.properties')['contents'] ?? '');
+        self::assertStringContainsString('server-port={{PORT_GAME}}', $params);
     }
 
-    public function testBedrockStartParamsContainsSetPropertyServerPortV6(): void
+    public function testBedrockConfigContainsServerPortV6(): void
     {
-        $params = (string) ($this->templates['minecraft_bedrock']['start_params'] ?? '');
-        self::assertStringContainsString('set_property server.properties server-portv6', $params);
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_bedrock']['config_files'], 'server.properties')['contents'] ?? '');
+        self::assertStringContainsString('server-portv6={{PORT_GAMEV6}}', $params);
     }
 
-    public function testBedrockStartParamsContainsPortGame(): void
+    public function testBedrockConfigContainsPortGame(): void
     {
-        $params = (string) ($this->templates['minecraft_bedrock']['start_params'] ?? '');
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_bedrock']['config_files'], 'server.properties')['contents'] ?? '');
         self::assertStringContainsString('{{PORT_GAME}}', $params);
     }
 
@@ -118,10 +118,10 @@ final class GameTemplateSeedCatalogTest extends TestCase
         self::assertStringNotContainsString('19133', $params);
     }
 
-    public function testBedrockStartParamsSetsServerNameViaSetProperty(): void
+    public function testBedrockConfigContainsServerName(): void
     {
-        $params = (string) ($this->templates['minecraft_bedrock']['start_params'] ?? '');
-        self::assertStringContainsString('set_property server.properties server-name', $params);
+        $params = (string) ($this->findConfigFile($this->templates['minecraft_bedrock']['config_files'], 'server.properties')['contents'] ?? '');
+        self::assertStringContainsString('server-name={{SERVER_NAME}}', $params);
     }
 
     public function testBedrockConfigFilesServerPropertiesUsesPortGameV6ForPortV6(): void

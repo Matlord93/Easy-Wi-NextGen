@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -93,7 +94,7 @@ func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 			Output:    buildQueryOutput("running", "source", "", startedAt, result),
 			Completed: time.Now().UTC(),
 		}, nil
-	case "minecraft_java", "minecraft", "minecraft_paper_all", "minecraft_vanilla_all":
+	case "minecraft_java", "minecraft", "minecraft_paper_all", "minecraft_vanilla_all", "minecraft_spigot_all", "minecraft_bungeecord_all", "spigot", "bungeecord":
 		startedAt := time.Now()
 		result, err := queryMinecraftJava(host, port)
 		if err != nil {
@@ -714,7 +715,52 @@ func queryMinecraftJava(host, port string) (map[string]string, error) {
 	return output, nil
 }
 
+// Current Bedrock uses NetherNet HTTP signaling; historical releases use RakNet.
+// Probe both without making a failed UDP ping hide a healthy current server.
 func queryMinecraftBedrock(host, port string) (map[string]string, error) {
+	type response struct {
+		data map[string]string
+		err  error
+	}
+	replies := make(chan response, 2)
+	go func() { data, err := queryMinecraftBedrockRakNet(host, port); replies <- response{data, err} }()
+	go func() { data, err := queryMinecraftBedrockNetherNet(host, port); replies <- response{data, err} }()
+	var last error
+	for i := 0; i < 2; i++ {
+		reply := <-replies
+		if reply.err == nil {
+			return reply.data, nil
+		}
+		last = reply.err
+	}
+	return nil, last
+}
+
+func queryMinecraftBedrockNetherNet(host, port string) (map[string]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), minecraftQueryTimeout)
+	defer cancel()
+	// Query local/direct service addresses, never forward them through an HTTP proxy.
+	transport := &http.Transport{DialContext: (&net.Dialer{Timeout: minecraftQueryTimeout}).DialContext, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(host, port)+"/v1/join", nil)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer reply.Body.Close()
+	if reply.StatusCode != http.StatusOK || !strings.HasPrefix(strings.ToLower(reply.Header.Get("Content-Type")), "application/json") {
+		return nil, fmt.Errorf("Bedrock NetherNet signaling unavailable (HTTP %d)", reply.StatusCode)
+	}
+	// This signaling endpoint does not provide player/version counts. Leave
+	// those unknown instead of manufacturing a zero-player status.
+	return map[string]string{"transport": "nethernet", "query_details_unavailable": "true"}, nil
+}
+
+func queryMinecraftBedrockRakNet(host, port string) (map[string]string, error) {
 	portNum, err := strconv.Atoi(port)
 	if err != nil || portNum <= 0 || portNum > 65535 {
 		return nil, fmt.Errorf("invalid port %q", port)

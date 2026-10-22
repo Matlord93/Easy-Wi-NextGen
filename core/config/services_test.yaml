@@ -8,3 +8,7 @@ services:
 
   Symfony\Component\Security\Csrf\CsrfTokenManagerInterface: '@App\Tests\Support\StatelessCsrfTokenManager'
   App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient'
+
+  App\Module\Ports\Application\NodePortAvailability:
+    autowire: true
+    public: true

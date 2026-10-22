@@ -18,8 +18,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Twig\Environment;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Twig\Environment;
 
 #[Route(path: '/admin/port-pools')]
 final class AdminPortPoolController
@@ -32,8 +32,10 @@ final class AdminPortPoolController
         private readonly PortLeaseManager $portLeaseManager,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly \App\Repository\TemplateRepository $templateRepository,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly \Symfony\Component\Security\Csrf\CsrfTokenManagerInterface $csrfTokens,
     ) {
     }
 
@@ -60,10 +62,10 @@ final class AdminPortPoolController
         $tag = trim((string) $request->request->get('tag', ''));
         $startValue = $request->request->get('start_port');
         $endValue = $request->request->get('end_port');
-        $enabled = $request->request->get('enabled') === '1';
+        $enabled = '1' === $request->request->get('enabled');
         $allocationMode = (string) $request->request->get('allocation_mode', 'next');
 
-        if ($nodeId === '' || $name === '' || $tag === '' || $startValue === null || $endValue === null) {
+        if ('' === $nodeId || '' === $name || '' === $tag || null === $startValue || null === $endValue) {
             return $this->renderPage('Please complete all required fields.');
         }
 
@@ -78,12 +80,17 @@ final class AdminPortPoolController
         }
 
         $node = $this->agentRepository->find($nodeId);
-        if ($node === null) {
+        if (null === $node) {
             return $this->renderPage('Node not found.');
         }
 
-        $allocationStep = $allocationMode === 'gap10' ? 10 : 1;
+        $allocationStep = 'gap10' === $allocationMode ? 10 : 1;
         $pool = new PortPool($node, $name, $tag, $startPort, $endPort, $enabled, $allocationStep);
+        try {
+            $pool->setGameScope((string) $request->request->get('game_scope', 'all'));
+        } catch (\InvalidArgumentException $error) {
+            return $this->renderPage($error->getMessage());
+        }
         $this->entityManager->persist($pool);
 
         $this->auditLogger->log($actor, 'port_pool.created', [
@@ -91,6 +98,7 @@ final class AdminPortPoolController
             'node_id' => $node->getId(),
             'name' => $pool->getName(),
             'tag' => $pool->getTag(),
+            'game_scope' => $pool->getGameScope(),
             'start_port' => $pool->getStartPort(),
             'end_port' => $pool->getEndPort(),
             'enabled' => $pool->isEnabled(),
@@ -126,12 +134,12 @@ final class AdminPortPoolController
         }
 
         $customer = $this->userRepository->find($customerId);
-        if (!$customer instanceof User || $customer->getType() !== UserType::Customer) {
+        if (!$customer instanceof User || UserType::Customer !== $customer->getType()) {
             return $this->renderPage('Customer not found.');
         }
 
         try {
-            if ($startPortValue !== null && $startPortValue !== '' && $endPortValue !== null && $endPortValue !== '') {
+            if (null !== $startPortValue && '' !== $startPortValue && null !== $endPortValue && '' !== $endPortValue) {
                 if (!is_numeric($startPortValue) || !is_numeric($endPortValue)) {
                     return $this->renderPage('Please provide a valid custom range.');
                 }
@@ -146,7 +154,7 @@ final class AdminPortPoolController
             } else {
                 $blocks = [$this->portLeaseManager->allocateBlock($pool, $customer, $size)];
             }
-        } catch (\RuntimeException | \InvalidArgumentException $exception) {
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
             return $this->renderPage($exception->getMessage());
         }
 
@@ -165,6 +173,33 @@ final class AdminPortPoolController
         return $this->renderPage(null, count($blocks) > 1 ? 'Server port blocks allocated.' : 'Server port block allocated.');
     }
 
+    #[Route(path: '/{id}/scope', name: 'admin_port_pool_scope', methods: ['POST'], requirements: ['id' => '\\d+'])]
+    public function updateScope(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden', 403);
+        }
+        if (!$this->csrfTokens->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('port-pool-scope-'.$id, (string) $request->request->get('_token')))) {
+            return new Response('Invalid CSRF token', 403);
+        }
+        $pool = $this->portPoolRepository->find($id);
+        if (!$pool instanceof PortPool) {
+            return new Response('Port pool not found', 404);
+        }
+        try {
+            $this->entityManager->wrapInTransaction(function () use ($pool, $request, $actor): void {
+                $this->entityManager->lock($pool->getNode(), \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+                $pool->setGameScope((string) $request->request->get('game_scope', ''));
+                $this->auditLogger->log($actor, 'port_pool.scope_updated', ['port_pool_id' => $pool->getId(), 'game_scope' => $pool->getGameScope()]);
+            });
+        } catch (\InvalidArgumentException $error) {
+            return new Response($error->getMessage(), 400);
+        }
+
+        return new \Symfony\Component\HttpFoundation\RedirectResponse('/admin/port-pools');
+    }
+
     private function renderPage(?string $error = null, ?string $notice = null): Response
     {
         $pools = $this->portPoolRepository->findBy([], ['createdAt' => 'DESC']);
@@ -172,6 +207,12 @@ final class AdminPortPoolController
         $blocks = $this->portBlockRepository->findBy([], ['createdAt' => 'DESC']);
 
         return new Response($this->twig->render('admin/port-pools/index.html.twig', [
+            'gameTemplates' => $this->templateRepository->findBy([], ['displayName' => 'ASC']),
+            'scopeTokens' => array_reduce($pools, function (array $tokens, PortPool $pool): array {
+                $tokens[$pool->getId()] = $this->csrfTokens->getToken('port-pool-scope-'.$pool->getId())->getValue();
+
+                return $tokens;
+            }, []),
             'portPools' => array_map(fn (PortPool $pool) => $this->normalizePool($pool), $pools),
             'portBlocks' => array_map(fn (PortBlock $block) => $this->normalizeBlock($block), $blocks),
             'nodes' => $nodes,
@@ -188,6 +229,7 @@ final class AdminPortPoolController
             'id' => $pool->getId(),
             'name' => $pool->getName(),
             'tag' => $pool->getTag(),
+            'game_scope' => $pool->getGameScope(),
             'node' => [
                 'id' => $pool->getNode()->getId(),
                 'name' => $pool->getNode()->getName(),
