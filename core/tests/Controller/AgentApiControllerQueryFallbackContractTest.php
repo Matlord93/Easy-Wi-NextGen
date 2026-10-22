@@ -65,7 +65,7 @@ final class AgentApiControllerQueryFallbackContractTest extends TestCase
     {
         $roles = (string) file_get_contents(__DIR__.'/../../../agent/cmd/agent/roles.go');
 
-        self::assertStringContainsString('"platform_family": runtime.GOOS', $roles);
+        self::assertMatchesRegularExpression('/"platform_family"\s*:\s*runtime\.GOOS\b/', $roles);
         self::assertStringContainsString('"os":', $roles);
     }
 
