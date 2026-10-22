@@ -23,6 +23,7 @@ final class ApiVersioningGuardTest extends KernelTestCase
             '#^/api/admin/users$#',
             '#^/api/admin/shop/provision$#',
             '#^/api/admin/port-pools$#',
+            '#^/api/admin/port-pools/\\{id\\}$#',
             '#^/api/port-blocks$#',
             '#^/api/admin/port-blocks$#',
             '#^/api/admin/instances$#',
