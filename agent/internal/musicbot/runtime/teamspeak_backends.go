@@ -195,9 +195,28 @@ type ExternalBridgeTeamspeakVoiceClient struct {
 	cmd         *exec.Cmd
 	stdin       io.WriteCloser
 	scanner     *bufio.Scanner
-	stderrBuf   *bytes.Buffer // captures bridge diagnostic logs (written to stderr by bridge)
+	stderrBuf   *bridgeDiagnosticBuffer // captures bridge diagnostic logs (written to stderr by bridge)
 	logger      interface{ Printf(string, ...any) }
 	channel     string
+}
+
+// bridgeDiagnosticBuffer is written by os/exec's stderr copier while status
+// requests may read diagnostics before the bridge process exits.
+type bridgeDiagnosticBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *bridgeDiagnosticBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *bridgeDiagnosticBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 type teamspeakBridgeRequest struct {
@@ -278,7 +297,7 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 	if path == "" {
 		path = teamspeakConfigString(config, "backend_path")
 	}
-	var stderrBuf bytes.Buffer
+	var stderrBuf bridgeDiagnosticBuffer
 	cmd := exec.Command(path)
 	cmd.Env = append(os.Environ(), "EASYWI_TS_BRIDGE=1")
 	cmd.Stderr = io.MultiWriter(&stderrBuf, os.Stderr, c.bridgeEventLogWriter())
