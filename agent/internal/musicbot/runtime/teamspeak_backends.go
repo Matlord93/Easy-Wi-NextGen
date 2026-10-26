@@ -193,6 +193,7 @@ type ExternalBridgeTeamspeakVoiceClient struct {
 	mu          sync.Mutex // protects cmd, stdin, scanner, stderrBuf, state fields
 	roundTripMu sync.Mutex // serializes bridgeRoundTrip calls
 	cmd         *exec.Cmd
+	waitCommand func() error
 	stdin       io.WriteCloser
 	scanner     *bufio.Scanner
 	stderrBuf   *bridgeDiagnosticBuffer // captures bridge diagnostic logs (written to stderr by bridge)
@@ -299,6 +300,9 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 	}
 	var stderrBuf bridgeDiagnosticBuffer
 	cmd := exec.Command(path)
+	// Descendants may keep stderr open after the bridge itself is killed.
+	// Bound pipe draining so cleanup cannot defeat the connection timeout.
+	cmd.WaitDelay = 500 * time.Millisecond
 	cmd.Env = append(os.Environ(), "EASYWI_TS_BRIDGE=1")
 	cmd.Stderr = io.MultiWriter(&stderrBuf, os.Stderr, c.bridgeEventLogWriter())
 	stdin, err := cmd.StdinPipe()
@@ -317,6 +321,7 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Connect(ctx context.Context, config
 
 	c.mu.Lock()
 	c.cmd = cmd
+	c.waitCommand = sync.OnceValue(cmd.Wait)
 	c.stdin = stdin
 	c.scanner = bufio.NewScanner(stdout)
 	c.stderrBuf = &stderrBuf
@@ -366,8 +371,10 @@ func (c *ExternalBridgeTeamspeakVoiceClient) Disconnect(ctx context.Context) err
 func (c *ExternalBridgeTeamspeakVoiceClient) stopBridgeProcess() {
 	c.mu.Lock()
 	cmd := c.cmd
+	waitCommand := c.waitCommand
 	stdin := c.stdin
 	c.cmd = nil
+	c.waitCommand = nil
 	c.stdin = nil
 	c.scanner = nil
 	c.stderrBuf = nil
@@ -377,7 +384,9 @@ func (c *ExternalBridgeTeamspeakVoiceClient) stopBridgeProcess() {
 	}
 	if cmd != nil && cmd.Process != nil {
 		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		if waitCommand != nil {
+			_ = waitCommand()
+		}
 	}
 	c.state = ConnectionStateDisconnected
 	c.clientID = ""
@@ -486,6 +495,7 @@ func (c *ExternalBridgeTeamspeakVoiceClient) bridgeRoundTrip(ctx context.Context
 	stdin := c.stdin
 	scanner := c.scanner
 	cmd := c.cmd
+	waitCommand := c.waitCommand
 	c.mu.Unlock()
 
 	if stdin == nil || scanner == nil {
@@ -511,8 +521,8 @@ func (c *ExternalBridgeTeamspeakVoiceClient) bridgeRoundTrip(ctx context.Context
 			} else {
 				// Bridge stdout closed (process exited). Call Wait() to populate
 				// ProcessState so the exit code is available for diagnostics.
-				if cmd != nil {
-					_ = cmd.Wait()
+				if waitCommand != nil {
+					_ = waitCommand()
 				}
 				stderrSnippet := c.bridgeStderrSnippet()
 				exitCode := ""
