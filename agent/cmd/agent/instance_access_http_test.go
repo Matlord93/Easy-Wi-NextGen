@@ -822,7 +822,17 @@ func TestEnsureProFTPDSFTPModuleInstalledAcceptsLoadedDSOConfig(t *testing.T) {
 	}
 }
 
+// Health repair tests must not depend on, or modify, the host's AppArmor
+// configuration. Active-profile behavior has its own dedicated tests below.
+func isolateProFTPDAppArmorProfile(t *testing.T) {
+	t.Helper()
+	original := proFTPDAppArmorProfilePath
+	t.Cleanup(func() { proFTPDAppArmorProfilePath = original })
+	proFTPDAppArmorProfilePath = filepath.Join(t.TempDir(), "missing-apparmor-profile")
+}
+
 func TestCheckLinuxProFTPDHealthRepairsMissingAuthUserFile(t *testing.T) {
+	isolateProFTPDAppArmorProfile(t)
 	origAuth := proFTPDAuthUserFilePath
 	origHostKey := proFTPDHostKeyPath
 	origConfDir := detectProFTPDConfDirFunc
@@ -961,6 +971,7 @@ func TestEnsureProFTPDConfigWritesManagedConfigIdempotently(t *testing.T) {
 }
 
 func TestCheckLinuxProFTPDHealthRewritesConfigAndRestartsWhenPortNotListening(t *testing.T) {
+	isolateProFTPDAppArmorProfile(t)
 	origAuth := proFTPDAuthUserFilePath
 	origHostKey := proFTPDHostKeyPath
 	origConfDir := detectProFTPDConfDirFunc
