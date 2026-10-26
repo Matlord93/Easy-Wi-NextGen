@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -500,6 +501,56 @@ func TestExternalBridgeConnectTimesOutInsteadOfWaitingForever(t *testing.T) {
 	err := client.Connect(ctx, TeamSpeakConnectorConfig{Enabled: true, BackendType: TeamSpeakBackendTypeExternalClientBridge, BridgePath: bridgePath, Host: "ts.example.com"})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Connect() error = %v, want context deadline exceeded", err)
+	}
+}
+
+func TestExternalBridgeCancellationWithInheritedStderrReturnsPromptly(t *testing.T) {
+	// Keep this shell fixture serial: it deliberately creates a descendant
+	// holding the bridge's output pipes open after the shell is killed.
+	dir := t.TempDir()
+	pidPath := filepath.Join(dir, "child.pid")
+	bridgePath := filepath.Join(dir, "hanging-bridge")
+	script := fmt.Sprintf("#!/bin/sh\nsleep 30 &\necho $! > %q\nread line\nwait\n", pidPath)
+	if err := os.WriteFile(bridgePath, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		data, err := os.ReadFile(pidPath)
+		if err != nil {
+			return
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err == nil && pid > 0 {
+			if child, err := os.FindProcess(pid); err == nil {
+				_ = child.Kill()
+			}
+		}
+	})
+	client := NewExternalBridgeTeamspeakVoiceClient()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- client.Connect(ctx, TeamSpeakConnectorConfig{Enabled: true, BackendType: TeamSpeakBackendTypeExternalClientBridge, BridgePath: bridgePath, Host: "ts.example.com"})
+	}()
+	readyDeadline := time.Now().Add(3 * time.Second)
+	for {
+		if data, err := os.ReadFile(pidPath); err == nil && len(strings.TrimSpace(string(data))) > 0 {
+			break
+		}
+		if time.Now().After(readyDeadline) {
+			t.Fatal("bridge descendant did not start")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Connect() = %v, want context canceled", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Connect blocked on inherited bridge output pipes after cancellation")
 	}
 }
 
