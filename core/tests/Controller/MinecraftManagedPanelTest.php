@@ -9,9 +9,68 @@ use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftConfigurationPolicy;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Process\Process;
 
 final class MinecraftManagedPanelTest extends AbstractWebTestCase
 {
+    public function testManagedInstallCommandsRejectMissingArtifactsInsteadOfReportingSuccess(): void
+    {
+        $this->seedSite();
+        $instance = $this->seedInstance();
+        $version = 'artifact-check-'.bin2hex(random_bytes(8));
+        $instance->setLockedVersion($version);
+        $instance->getNode()->recordHeartbeat(['os' => 'linux'], 'test', '127.0.0.1', [], ['minecraft_managed_install' => true]);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $builder = self::getContainer()->get(InstanceJobPayloadBuilder::class);
+        $dir = sys_get_temp_dir().'/minecraft-install-'.bin2hex(random_bytes(8));
+        mkdir($dir, 0700);
+        $entries = [];
+        try {
+            foreach (['vanilla' => 'minecraft_vanilla', 'paper' => 'papermc_paper', 'spigot' => 'minecraft_spigot', 'bungeecord' => 'minecraft_bungeecord', 'bedrock' => 'minecraft_bedrock'] as $channel => $resolver) {
+                $instance->getTemplate()->setInstallResolver(['type' => $resolver]);
+                $entry = new MinecraftVersionCatalog($channel, $version, null, 'https://example.com/server');
+                $entries[] = $entry;
+                $entry->setJavaVersion('21');
+                $em->persist($entry);
+                $em->flush();
+                $payload = $builder->buildSniperInstallPayload($instance);
+                self::assertSame('true', $payload['minecraft_managed']);
+                self::assertSame($payload['install_command'], $payload['update_command']);
+                $artifact = $dir.'/'.($channel === 'bedrock' ? 'bedrock_server' : 'server.jar');
+                foreach (['missing', 'directory', 'empty', 'present'] as $state) {
+                    if ($state === 'directory') { mkdir($artifact); }
+                    if ($state === 'empty') { file_put_contents($artifact, ''); }
+                    if ($state === 'present') { file_put_contents($artifact, 'installed artifact'); }
+                    if ($channel === 'bedrock' && is_file($artifact)) { chmod($artifact, 0700); }
+                    // A trailing successful shell command must not mask the failure.
+                    $process = new Process(['sh', '-c', $payload['install_command'].'; true'], $dir);
+                    $process->run();
+                    self::assertSame($state === 'present' ? 0 : 1, $process->getExitCode(), $channel.': '.$state);
+                    if ($state !== 'present') {
+                        self::assertStringContainsString('MINECRAFT_ARTIFACT_MISSING', $process->getErrorOutput());
+                    }
+                    if (is_dir($artifact)) { rmdir($artifact); }
+                    elseif (is_file($artifact)) { unlink($artifact); }
+                }
+                if ($channel === 'bedrock') {
+                    file_put_contents($artifact, 'non executable');
+                    chmod($artifact, 0600);
+                    $process = new Process(['sh', '-c', $payload['install_command']], $dir);
+                    $process->run();
+                    self::assertSame(1, $process->getExitCode());
+                    unlink($artifact);
+                }
+            }
+        } finally {
+            foreach ($entries as $entry) { $em->remove($entry); }
+            $em->flush();
+            foreach (glob($dir.'/*') ?: [] as $path) {
+                if (is_dir($path)) { rmdir($path); } else { unlink($path); }
+            }
+            rmdir($dir);
+        }
+    }
+
     public function testAdminCreationOffersNewTypesAndCatalogSelection(): void
     {
         $this->seedSite();
