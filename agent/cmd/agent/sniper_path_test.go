@@ -1,12 +1,87 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestSniperStartValidationAllowsProvisionedMinecraftJava(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires a POSIX Java fixture")
+	}
+	t.Setenv("EASYWI_JAVA_CACHE_DIR", filepath.Join(t.TempDir(), "java-cache"))
+	gameDir := t.TempDir()
+	java := managedMinecraftJavaBinaryPath("25")
+	if err := os.MkdirAll(filepath.Dir(java), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(java, []byte("#!/bin/sh\necho 'openjdk version \"25.0.1\"' >&2\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	payload := map[string]any{"minecraft_managed": "true", "minecraft_channel": "paper", "minecraft_java_version": "25"}
+	if err := ensureManagedMinecraftJava(payload); err != nil {
+		t.Fatal(err)
+	}
+	command := fmt.Sprintf("%s -Xmx1G -jar %s/server.jar nogui", payloadValue(payload, "java_bin"), gameDir)
+	expected, _, required, err := resolveExpectedStartExecutable(gameDir, command, "")
+	if err != nil || !required || expected != java {
+		t.Fatalf("unexpected start resolution: path=%s required=%t err=%v", expected, required, err)
+	}
+	for _, channel := range []string{"vanilla", "paper", "spigot", "bungeecord"} {
+		payload["minecraft_channel"] = channel
+		exists, executable, err := validateSniperStartExecutablePath(gameDir, expected, payload)
+		if err != nil || !exists || !executable {
+			t.Fatalf("%s: managed Java rejected: exists=%t executable=%t err=%v", channel, exists, executable, err)
+		}
+	}
+	for _, tc := range []struct {
+		name  string
+		key   string
+		value string
+		path  string
+	}{
+		{"unmanaged job", "minecraft_managed", "false", java},
+		{"missing managed flag", "minecraft_managed", "", java},
+		{"bedrock job", "minecraft_channel", "bedrock", java},
+		{"unknown channel", "minecraft_channel", "other", java},
+		{"wrong Java major", "minecraft_java_version", "21", java},
+		{"invalid Java major", "minecraft_java_version", "../25", java},
+		{"different selected runtime", "java_bin", "/usr/bin/java", java},
+		{"arbitrary external binary", "java_bin", "/usr/bin/java", "/usr/bin/java"},
+		{"other cache executable", "java_bin", filepath.Join(filepath.Dir(java), "javac"), filepath.Join(filepath.Dir(java), "javac")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			changed := make(map[string]any, len(payload))
+			for key, value := range payload {
+				changed[key] = value
+			}
+			changed[tc.key] = tc.value
+			_, _, err := validateSniperStartExecutablePath(gameDir, tc.path, changed)
+			if err == nil || !strings.Contains(err.Error(), "START_EXECUTABLE_OUTSIDE_GAME_DIR") {
+				t.Fatalf("expected external executable rejection, got %v", err)
+			}
+		})
+	}
+	if err := os.Chmod(java, 0644); err != nil {
+		t.Fatal(err)
+	}
+	exists, executable, err := validateSniperStartExecutablePath(gameDir, java, payload)
+	if err != nil || !exists || executable {
+		t.Fatalf("non-executable Java must fail validation: exists=%t executable=%t err=%v", exists, executable, err)
+	}
+	if err := os.Remove(java); err != nil {
+		t.Fatal(err)
+	}
+	exists, executable, err = validateSniperStartExecutablePath(gameDir, java, payload)
+	if err != nil || exists || executable {
+		t.Fatalf("missing Java must fail validation: exists=%t executable=%t err=%v", exists, executable, err)
+	}
+}
 
 func TestResolveSniperUserHomeAndGameDir(t *testing.T) {
 	t.Run("home path", func(t *testing.T) {

@@ -38,18 +38,9 @@ func ensureManagedMinecraftJava(payload map[string]any) error {
 	}
 	javaProvisionMu.Lock()
 	defer javaProvisionMu.Unlock()
-	root := strings.TrimSpace(os.Getenv("EASYWI_JAVA_CACHE_DIR"))
-	if root == "" {
-		root = "/var/cache/easywi-java"
-		if runtime.GOOS == "windows" {
-			root = filepath.Join(os.Getenv("ProgramData"), "easywi", "java")
-		}
-	}
+	root := minecraftJavaCacheRoot()
 	target := filepath.Join(root, "temurin-"+majorText+"-"+runtime.GOOS+"-"+runtime.GOARCH)
-	binary := filepath.Join(target, "bin", "java")
-	if runtime.GOOS == "windows" {
-		binary += ".exe"
-	}
+	binary := managedMinecraftJavaBinaryPath(majorText)
 	if err := validateManagedJava(binary, major); err != nil {
 		if err := installManagedJava(root, target, major); err != nil {
 			return fmt.Errorf("java %d provisioning failed: %w", major, err)
@@ -61,6 +52,25 @@ func ensureManagedMinecraftJava(payload map[string]any) error {
 	payload["java_bin"] = binary
 	payload["JAVA_BIN"] = binary
 	return nil
+}
+
+func minecraftJavaCacheRoot() string {
+	root := strings.TrimSpace(os.Getenv("EASYWI_JAVA_CACHE_DIR"))
+	if root == "" {
+		root = "/var/cache/easywi-java"
+		if runtime.GOOS == "windows" {
+			root = filepath.Join(os.Getenv("ProgramData"), "easywi", "java")
+		}
+	}
+	return root
+}
+
+func managedMinecraftJavaBinaryPath(majorText string) string {
+	binary := filepath.Join(minecraftJavaCacheRoot(), "temurin-"+majorText+"-"+runtime.GOOS+"-"+runtime.GOARCH, "bin", "java")
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
+	}
+	return binary
 }
 
 func supportedMinecraftJava(major int) bool { return major >= 8 && major <= 99 }

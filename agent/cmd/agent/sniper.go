@@ -1005,7 +1005,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
 	}
-	scriptExists, scriptExecutable, scriptErr := validateExpectedStartExecutablePath(instanceDir, expectedStartExecutablePath, false)
+	scriptExists, scriptExecutable, scriptErr := validateSniperStartExecutablePath(instanceDir, expectedStartExecutablePath, job.Payload)
 	if scriptErr != nil {
 		markSharedFailure(scriptErr)
 		return failureResult(job.ID, scriptErr)
@@ -1024,7 +1024,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		if uid, gid, err := lookupIDs(osUsername, osUsername); err == nil {
 			_ = os.Chown(expectedStartExecutablePath, uid, gid)
 		}
-		scriptExists, scriptExecutable, scriptErr = validateExpectedStartExecutablePath(instanceDir, expectedStartExecutablePath, false)
+		scriptExists, scriptExecutable, scriptErr = validateSniperStartExecutablePath(instanceDir, expectedStartExecutablePath, job.Payload)
 		if scriptErr != nil {
 			markSharedFailure(scriptErr)
 			return failureResult(job.ID, scriptErr)
@@ -1228,6 +1228,22 @@ func resolveExpectedStartExecutable(gameDir string, renderedStartCommand string,
 		return candidate, "direct_binary", true, nil
 	}
 	return "", "shell_command", false, nil
+}
+
+func validateSniperStartExecutablePath(gameDir, expectedPath string, payload map[string]any) (bool, bool, error) {
+	// Managed Java is provisioned and version-checked before start validation.
+	// Allow only that exact runtime, never arbitrary executables outside gameDir.
+	majorText := payloadValue(payload, "minecraft_java_version")
+	major, err := strconv.Atoi(majorText)
+	channel := payloadValue(payload, "minecraft_channel")
+	javaChannel := channel == "vanilla" || channel == "paper" || channel == "spigot" || channel == "bungeecord"
+	allowManagedJava := payloadValue(payload, "minecraft_managed") == "true" &&
+		javaChannel &&
+		err == nil && supportedMinecraftJava(major) &&
+		filepath.IsAbs(expectedPath) &&
+		filepath.Clean(expectedPath) == managedMinecraftJavaBinaryPath(majorText) &&
+		filepath.Clean(expectedPath) == payloadValue(payload, "java_bin")
+	return validateExpectedStartExecutablePath(gameDir, expectedPath, allowManagedJava)
 }
 
 func validateExpectedStartExecutablePath(gameDir, expectedPath string, allowExternal bool) (bool, bool, error) {

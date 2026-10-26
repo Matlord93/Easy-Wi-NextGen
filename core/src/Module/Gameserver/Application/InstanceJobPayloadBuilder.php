@@ -174,7 +174,15 @@ final class InstanceJobPayloadBuilder
             $payload['start_params'] = $channel === 'bedrock'
                 ? 'LD_LIBRARY_PATH={{INSTANCE_DIR}} {{INSTANCE_DIR}}/bedrock_server'
                 : '{{JAVA_BIN}} -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar'.($channel === 'bungeecord' ? '' : ' nogui');
-            $payload['install_command'] = 'echo "Minecraft artifact installation managed by agent"';
+            // This command also runs on agents that silently skip managed preparation.
+            // Never report a successful installation just because an echo exited zero.
+            $artifact = $channel === 'bedrock' ? 'bedrock_server' : 'server.jar';
+            $check = $channel === 'bedrock' ? '-x' : '-r';
+            $payload['install_command'] = sprintf(
+                'if [ ! -f %1$s ] || [ ! -s %1$s ] || [ ! %2$s %1$s ]; then echo "MINECRAFT_ARTIFACT_MISSING: %1$s was not installed. Update and restart the Linux agent, then reinstall Minecraft." >&2; exit 1; fi; echo "Minecraft server artifact verified"',
+                $artifact,
+                $check,
+            );
             $payload['update_command'] = $payload['install_command'];
         }
 
