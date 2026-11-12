@@ -138,6 +138,7 @@ func canonicalRoleName(role string) string {
 func collectMetadata(cfg config.Config) map[string]any {
 	metadata := map[string]any{
 		"ts6_supported":             detectTS6Support(),
+		"kvm_managed":               kvmCapabilities(),
 		"platform_family":           runtime.GOOS,
 		"minecraft_managed_install": runtime.GOOS == "linux",
 		"os":                        runtime.GOOS,

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -14,11 +15,15 @@ import (
 
 var kvmIdentifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
 var kvmRunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANG=C")
+	return cmd.CombinedOutput()
 }
 
 func handleKVMJob(job jobs.Job) orchestratorResult {
 	switch job.Type {
+	case "kvm.managed":
+		return handleKVMManaged(job)
 	case "kvm.vm.list":
 		return handleKVMList(job)
 	case "kvm.vm.status":

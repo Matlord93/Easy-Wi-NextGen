@@ -206,3 +206,26 @@ func TestLoadInvalidAgentIntervalEnvFallsBackToConfig(t *testing.T) {
 		t.Fatalf("PollInterval = %v, want %v", cfg.PollInterval, 45*time.Second)
 	}
 }
+
+func TestServiceListenerDefaultsToLoopbackAndPreservesExplicitBindings(t *testing.T) {
+	for _, tc := range []struct{ name, extra, want string }{
+		{"default", "", "127.0.0.1:7456"},
+		{"private interface", "service_listen=10.1.2.3:7456", "10.1.2.3:7456"},
+		{"explicit wildcard", "service_listen=0.0.0.0:7456", "0.0.0.0:7456"},
+		{"legacy explicit listener", "health_listen=127.0.0.1:8000", "127.0.0.1:8000"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "agent.conf")
+			if err := os.WriteFile(path, []byte("agent_id=security-test\nsecret=synthetic-test-secret\napi_url=https://panel.example.test\n"+tc.extra+"\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.ServiceListen != tc.want {
+				t.Fatalf("ServiceListen=%q, want %q", cfg.ServiceListen, tc.want)
+			}
+		})
+	}
+}

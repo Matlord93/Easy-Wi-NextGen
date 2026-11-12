@@ -73,6 +73,7 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 	})
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/kvm/console/", withBearerAuth(cfg.Secret, handleKVMConsoleHTTP))
 	mux.Handle("/v1/servers/", fileServer.Handler())
 	mux.HandleFunc("/v1/webspaces/", makeWebspaceCompatHandler(fileServer.Handler(), cfg.FileBaseDir))
 	mux.HandleFunc("/v1/mail/domains", mailMutationHandler("mail_domain"))

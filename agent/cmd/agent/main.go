@@ -21,6 +21,7 @@ import (
 	"easywi/agent/internal/metrics"
 	"easywi/agent/internal/system"
 	"easywi/agent/internal/trace"
+	"easywi/agent/internal/vmconsole"
 )
 
 var (
@@ -44,6 +45,7 @@ func main() {
 	if handled := handleMailCLI(os.Args[1:]); handled {
 		return
 	}
+	vmConsoleGateway := flag.Bool("vm-console-gateway", false, "run the panel VM console gateway")
 	minecraftPreflight := flag.String("minecraft-preflight", "", "validate Minecraft runtime and restore reserved network settings")
 	configPath := flag.String("config", "", "path to agent.conf")
 	selfUpdate := flag.Bool("self-update", false, "perform self-update and restart")
@@ -52,6 +54,13 @@ func main() {
 	wrapperInstanceID := flag.String("instance-id", "", "instance ID (wrapper mode)")
 	wrapperSocketPath := flag.String("command-socket", "", "unix socket path (wrapper mode)")
 	flag.Parse()
+	if *vmConsoleGateway {
+		if err := vmconsole.RunFromEnv(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if *showVersion {
 		fmt.Printf("easywi-agent %s (commit=%s date=%s)\n", version, commit, date)

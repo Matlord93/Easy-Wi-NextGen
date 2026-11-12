@@ -332,7 +332,7 @@ func applyDefaults(cfg *Config) {
 		if cfg.HealthListen != "" {
 			cfg.ServiceListen = cfg.HealthListen
 		} else {
-			cfg.ServiceListen = "0.0.0.0:7456"
+			cfg.ServiceListen = "127.0.0.1:7456"
 		}
 	}
 	if cfg.FileBaseDirs == nil {
