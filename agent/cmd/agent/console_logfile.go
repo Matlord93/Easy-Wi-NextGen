@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -16,9 +15,6 @@ import (
 const (
 	consoleLogTailBytes = 50 * 1024 // read from last 50 KB on reconnect
 )
-
-// ansiEscapeRe matches ANSI/VT100 escape sequences produced by a PTY.
-var ansiEscapeRe = regexp.MustCompile(`\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])`)
 
 // consoleLogFilePath returns the path of the per-instance console log file.
 // The directory is shared with the command socket so it is always created
@@ -29,30 +25,6 @@ func consoleLogFilePath(instanceID string) string {
 		return ""
 	}
 	return filepath.Join(instanceRuntimeDir, instanceID, "console.log")
-}
-
-// stripANSI removes ANSI/VT100 escape sequences from raw PTY output so that
-// the console log file contains plain text readable by the agent's reader.
-func stripANSI(data []byte) []byte {
-	return ansiEscapeRe.ReplaceAll(data, nil)
-}
-
-// openConsoleLogForWriting creates (or truncates) the console log file for the
-// given instance. The directory is created if it does not exist. Each new game
-// server start truncates the file so the reader always sees fresh output.
-func openConsoleLogForWriting(instanceID string) (*os.File, error) {
-	logPath := consoleLogFilePath(instanceID)
-	if logPath == "" {
-		return nil, fmt.Errorf("invalid instance ID for console log")
-	}
-	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
-		return nil, fmt.Errorf("create console log dir: %w", err)
-	}
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("open console log for writing: %w", err)
-	}
-	return f, nil
 }
 
 // appendConsoleLogLines appends installer/job output to the same per-instance

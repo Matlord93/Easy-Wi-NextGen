@@ -113,7 +113,7 @@ func (e *kvmEngine) updateCloudInit(g kvmGuest, p map[string]any) (map[string]an
 	cleanup := true
 	defer func() {
 		if cleanup {
-			os.RemoveAll(stage)
+			_ = os.RemoveAll(stage)
 		}
 	}()
 	if err = os.WriteFile(filepath.Join(stage, "user-data"), append([]byte("#cloud-config\n"), userData...), 0600); err != nil {
@@ -172,7 +172,7 @@ func kvmReadCloudFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, (1<<20)+1))
 	if err != nil || len(data) > 1<<20 {
 		return nil, errors.New("invalid cloud-init file")

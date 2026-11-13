@@ -22,7 +22,11 @@ func TestKVMConsoleUsesOnlyPrivateManagedSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.RemoveAll(root) })
+	t.Cleanup(func() {
+		if err := os.RemoveAll(root); err != nil {
+			t.Error(err)
+		}
+	})
 	t.Setenv("EASYWI_KVM_ROOT", root)
 	f.e, err = newKVMEngine(f.e.ctx)
 	if err != nil {
@@ -47,14 +51,14 @@ func TestKVMConsoleUsesOnlyPrivateManagedSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	received := make(chan string, 1)
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
 		_, _ = conn.Write([]byte("RFB 003.008\n"))
 		data := make([]byte, 4)
@@ -77,7 +81,7 @@ func TestKVMConsoleUsesOnlyPrivateManagedSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 	stream := &vmconsole.Stream{Conn: ws}
 	banner := make([]byte, 12)
 	if _, err := io.ReadFull(stream, banner); err != nil || string(banner) != "RFB 003.008\n" {

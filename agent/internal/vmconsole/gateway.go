@@ -58,7 +58,7 @@ func (g *Gateway) broker(ctx context.Context, path, cookie string, body any, out
 	if err != nil {
 		return errors.New("panel authorization unavailable")
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != 200 {
 		return errors.New("console authorization denied")
 	}
@@ -74,7 +74,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Header.Get("Origin") != g.Origin || !websocket.IsWebSocketUpgrade(r) {
-		http.Error(w, "Console origin denied", 403)
+		http.Error(w, "Console origin denied", http.StatusForbidden)
 		return
 	}
 	grant := ""
@@ -84,13 +84,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(grant) != 64 || strings.Trim(grant, "0123456789abcdef") != "" {
-		http.Error(w, "Console ticket required", 403)
+		http.Error(w, "Console ticket required", http.StatusForbidden)
 		return
 	}
 	g.mu.Lock()
 	if g.active >= 128 {
 		g.mu.Unlock()
-		http.Error(w, "Console capacity reached", 503)
+		http.Error(w, "Console capacity reached", http.StatusServiceUnavailable)
 		return
 	}
 	g.active++
@@ -104,11 +104,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var target Target
 	if err := g.broker(ctx, "/customer/vm-console/connect", r.Header.Get("Cookie"), map[string]string{"ticket": grant}, &target); err != nil {
-		http.Error(w, "Console authorization denied", 403)
+		http.Error(w, "Console authorization denied", http.StatusForbidden)
 		return
 	}
 	if !validTarget(target) {
-		http.Error(w, "Console target unavailable", 502)
+		http.Error(w, "Console target unavailable", http.StatusBadGateway)
 		return
 	}
 	if deadline, _ := ctx.Deadline(); time.Unix(target.ExpiresAt, 0).Before(deadline) {
@@ -130,16 +130,16 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	upstream, _, err := dialer.DialContext(ctx, target.URL, headers)
 	if err != nil {
-		http.Error(w, "Console upstream unavailable", 502)
+		http.Error(w, "Console upstream unavailable", http.StatusBadGateway)
 		return
 	}
-	defer upstream.Close()
+	defer func() { _ = upstream.Close() }()
 	upstream.SetReadLimit(4 << 20)
 	_ = upstream.SetReadDeadline(time.Now().Add(15 * time.Second))
 	_ = upstream.SetWriteDeadline(time.Now().Add(15 * time.Second))
 	up := &Stream{Conn: upstream}
 	if err := Authenticate(up, target.Password); err != nil {
-		http.Error(w, "Console authentication failed", 502)
+		http.Error(w, "Console authentication failed", http.StatusBadGateway)
 		return
 	}
 	target.Password = ""
@@ -150,7 +150,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer downstream.Close()
+	defer func() { _ = downstream.Close() }()
 	downstream.SetReadLimit(1 << 20)
 	_ = downstream.SetReadDeadline(time.Now().Add(15 * time.Second))
 	_ = downstream.SetWriteDeadline(time.Now().Add(15 * time.Second))
@@ -177,15 +177,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			case <-finished:
 				return
 			case <-ctx.Done():
-				upstream.Close()
-				downstream.Close()
+				_ = upstream.Close()
+				_ = downstream.Close()
 				return
 			case <-ticker.C:
 				_ = upstream.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
 				_ = downstream.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
 				if err := g.broker(ctx, "/customer/vm-console/validate", r.Header.Get("Cookie"), map[string]string{"session_id": target.Session}, nil); err != nil {
-					upstream.Close()
-					downstream.Close()
+					_ = upstream.Close()
+					_ = downstream.Close()
 					return
 				}
 			}
@@ -219,11 +219,11 @@ func RunFromEnv() error {
 		return errors.New("VM_CONSOLE_GATEWAY_SECRET must contain at least 32 characters")
 	}
 	o, err := url.Parse(origin)
-	if err != nil || o.Host == "" || o.User != nil || o.Path != "" || o.RawQuery != "" || o.Fragment != "" || (o.Scheme != "https" && !(o.Scheme == "http" && isLoopback(o.Hostname()))) {
+	if err != nil || o.Host == "" || o.User != nil || o.Path != "" || o.RawQuery != "" || o.Fragment != "" || (o.Scheme != "https" && (o.Scheme != "http" || !isLoopback(o.Hostname()))) {
 		return errors.New("VM_CONSOLE_PUBLIC_ORIGIN must be an HTTPS origin (HTTP only on loopback)")
 	}
 	p, err := url.Parse(panel)
-	if err != nil || p.Host == "" || p.User != nil || p.RawQuery != "" || p.Fragment != "" || p.Path != "" || (p.Scheme != "https" && !(p.Scheme == "http" && isLoopback(p.Hostname()))) {
+	if err != nil || p.Host == "" || p.User != nil || p.RawQuery != "" || p.Fragment != "" || p.Path != "" || (p.Scheme != "https" && (p.Scheme != "http" || !isLoopback(p.Hostname()))) {
 		return errors.New("VM_CONSOLE_PANEL_URL must be an HTTPS origin or a loopback HTTP origin")
 	}
 	host, _, err := net.SplitHostPort(listen)

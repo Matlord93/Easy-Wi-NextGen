@@ -28,15 +28,15 @@ func lockKVM(ctx context.Context, path string) (func(), error) {
 			return func() { _ = unix.Flock(fd, unix.LOCK_UN); _ = f.Close() }, nil
 		}
 		if !errors.Is(err, unix.EWOULDBLOCK) {
-			f.Close()
+			_ = f.Close()
 			return nil, err
 		}
 		select {
 		case <-ctx.Done():
-			f.Close()
+			_ = f.Close()
 			return nil, ctx.Err()
 		case <-deadline.C:
-			f.Close()
+			_ = f.Close()
 			return nil, errors.New("KVM host busy; retry after the running operation finishes")
 		case <-tick.C:
 		}

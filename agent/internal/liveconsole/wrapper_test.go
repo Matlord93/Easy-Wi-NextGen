@@ -54,11 +54,9 @@ func TestWrapperStreamsImmediatelyAndKeepsGameAfterViewerLeaves(t *testing.T) {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	var connErr error
 	for {
 		conn, err := DialLocal(ctx, socket+".output")
 		if err == nil {
-			connErr = nil
 			_ = json.NewEncoder(conn).Encode(Resume{})
 			_ = conn.SetReadDeadline(time.Now().Add(time.Second))
 			dec := json.NewDecoder(conn)
@@ -66,19 +64,18 @@ func TestWrapperStreamsImmediatelyAndKeepsGameAfterViewerLeaves(t *testing.T) {
 			for !found {
 				var f Frame
 				if err = dec.Decode(&f); err != nil {
-					conn.Close()
+					_ = conn.Close()
 					t.Fatal(err)
 				}
 				if len(f.Data) > 0 {
 					found = true
 				}
 			}
-			conn.Close()
+			_ = conn.Close()
 			break
 		}
-		connErr = err
 		if ctx.Err() != nil {
-			t.Fatal(connErr)
+			t.Fatal(err)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -90,14 +87,14 @@ func TestWrapperStreamsImmediatelyAndKeepsGameAfterViewerLeaves(t *testing.T) {
 		var hello map[string]any
 		_ = json.NewDecoder(conn).Decode(&hello)
 		_ = json.NewEncoder(conn).Encode(map[string]string{"instance_id": "7", "command": line})
-		conn.Close()
+		_ = conn.Close()
 	}
 	send("after-disconnect")
 	second, err := DialLocal(ctx, socket+".output")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer second.Close()
+	defer func() { _ = second.Close() }()
 	_ = json.NewEncoder(second).Encode(Resume{})
 	_ = second.SetReadDeadline(time.Now().Add(2 * time.Second))
 	dec := json.NewDecoder(second)

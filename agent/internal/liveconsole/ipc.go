@@ -33,7 +33,7 @@ func ServeOutput(ctx context.Context, l net.Listener, h *Hub) error {
 		go func() {
 			defer wg.Done()
 			defer func() { <-slots }()
-			defer c.Close()
+			defer func() { _ = c.Close() }()
 			stopConn := context.AfterFunc(ctx, func() { _ = c.Close() })
 			defer stopConn()
 			_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
@@ -53,7 +53,6 @@ func ServeOutput(ctx context.Context, l net.Listener, h *Hub) error {
 					return
 				}
 			}
-			history = nil
 			// Drain the peer side so a disconnected browser frees its local subscription
 			// even when the game produces no output.
 			closed := make(chan struct{})

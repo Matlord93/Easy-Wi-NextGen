@@ -78,14 +78,14 @@ func newGatewayFixture(t *testing.T, lifetime time.Duration, configure ...func(*
 	f := &gatewayFixture{input: make(chan string, 1)}
 	f.upstream = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "PVEAPIToken=synthetic-upstream-secret" {
-			http.Error(w, "denied", 403)
+			http.Error(w, "denied", http.StatusForbidden)
 			return
 		}
 		ws, err := (&websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}).Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
-		defer ws.Close()
+		defer func() { _ = ws.Close() }()
 		s := &Stream{Conn: ws}
 		if fakeRFBAuth(s, "synthetic-vnc-password") != nil {
 			return
@@ -100,20 +100,20 @@ func newGatewayFixture(t *testing.T, lifetime time.Duration, configure ...func(*
 	}))
 	f.broker = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-EasyWI-Console-Gateway") != "synthetic-gateway-secret" || r.Header.Get("Cookie") != "customer=synthetic-session" {
-			http.Error(w, "denied", 403)
+			http.Error(w, "denied", http.StatusForbidden)
 			return
 		}
 		if strings.HasSuffix(r.URL.Path, "/validate") {
 			f.checks.Add(1)
 			if f.revoked.Load() {
-				http.Error(w, "revoked", 403)
+				http.Error(w, "revoked", http.StatusForbidden)
 				return
 			}
 			_, _ = w.Write([]byte(`{"valid":true}`))
 			return
 		}
 		if f.claimed.Swap(true) {
-			http.Error(w, "reused", 403)
+			http.Error(w, "reused", http.StatusForbidden)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(Target{Session: "11111111-1111-4111-8111-111111111111", ExpiresAt: time.Now().Add(5 * time.Second).Unix(), URL: strings.Replace(f.upstream.URL, "https:", "wss:", 1), Authorization: "PVEAPIToken=synthetic-upstream-secret", Password: "synthetic-vnc-password", SkipTLSVerify: f.skipTLSVerify.Load()})
@@ -150,23 +150,26 @@ func TestGatewayTLSOptOutIsLimitedToTheBrokerTarget(t *testing.T) {
 				ws, response, err := f.dial("https://panel.test")
 				if !skip {
 					if ws != nil {
-						ws.Close()
+						_ = ws.Close()
 					}
 					if err == nil || response == nil || response.StatusCode != http.StatusBadGateway {
 						t.Fatal("untrusted upstream accepted without broker opt-out")
 					}
-					response.Body.Close()
+					_ = response.Body.Close()
 					continue
 				}
 				if err != nil {
 					t.Fatalf("explicit broker opt-out failed: %v", err)
 				}
-				ws.SetReadDeadline(time.Now().Add(time.Second))
-				if err := Authenticate(&Stream{Conn: ws}, ""); err != nil {
-					ws.Close()
+				if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+					_ = ws.Close()
 					t.Fatal(err)
 				}
-				ws.Close()
+				if err := Authenticate(&Stream{Conn: ws}, ""); err != nil {
+					_ = ws.Close()
+					t.Fatal(err)
+				}
+				_ = ws.Close()
 			}
 			if base.TLSClientConfig != nil && base.TLSClientConfig.InsecureSkipVerify {
 				t.Fatal("per-target opt-out mutated shared TLS configuration")
@@ -184,7 +187,7 @@ func TestGatewayRelaysRFBWithoutExposingPasswordAndClosesAfterRevocation(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 	_ = ws.SetReadDeadline(time.Now().Add(2 * time.Second))
 	stream := &Stream{Conn: ws}
 	if err := Authenticate(stream, ""); err != nil {
@@ -212,7 +215,7 @@ func TestGatewayRejectsCrossOriginBeforeConsumingGrant(t *testing.T) {
 	f := newGatewayFixture(t, time.Second)
 	ws, response, err := f.dial("https://attacker.test")
 	if ws != nil {
-		ws.Close()
+		_ = ws.Close()
 	}
 	if err == nil || response.StatusCode != 403 || f.claimed.Load() {
 		t.Fatal("cross-origin console accepted")
@@ -224,13 +227,13 @@ func TestGatewayRejectsReusedGrant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 	if err := Authenticate(&Stream{Conn: ws}, ""); err != nil {
 		t.Fatal(err)
 	}
 	other, response, err := f.dial("https://panel.test")
 	if other != nil {
-		other.Close()
+		_ = other.Close()
 	}
 	if err == nil || response.StatusCode != 403 {
 		t.Fatal("reused console grant accepted")
@@ -242,7 +245,7 @@ func TestGatewayHardDeadlineClosesIdleSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 	stream := &Stream{Conn: ws}
 	if err := Authenticate(stream, ""); err != nil {
 		t.Fatal(err)
@@ -263,7 +266,7 @@ func TestBrokerNeverFollowsCredentialRedirect(t *testing.T) {
 	leaked := atomic.Bool{}
 	destination := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { leaked.Store(true) }))
 	defer destination.Close()
-	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, destination.URL, 302) }))
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, destination.URL, http.StatusFound) }))
 	defer source.Close()
 	g := Gateway{PanelURL: source.URL, Client: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	if g.broker(context.Background(), "/connect", "sensitive-cookie", nil, nil) == nil || leaked.Load() {

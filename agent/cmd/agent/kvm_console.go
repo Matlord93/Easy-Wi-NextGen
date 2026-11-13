@@ -19,7 +19,7 @@ import (
 // socket derived from a verified managed UUID, never a caller-supplied target.
 func handleKVMConsoleHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" || r.Header.Get("Origin") != "" {
-		http.Error(w, "console request denied", 403)
+		http.Error(w, "console request denied", http.StatusForbidden)
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, "/v1/kvm/console/")
@@ -31,7 +31,7 @@ func handleKVMConsoleHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	e, err := newKVMEngine(ctx)
 	if err != nil {
-		http.Error(w, "KVM unavailable", 503)
+		http.Error(w, "KVM unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	var g kvmGuest
@@ -40,17 +40,17 @@ func handleKVMConsoleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := e.verifyGuest(g); err != nil {
-		http.Error(w, "managed VM identity unavailable", 409)
+		http.Error(w, "managed VM identity unavailable", http.StatusConflict)
 		return
 	}
 	out, err := e.virsh("dumpxml", id)
 	if err != nil {
-		http.Error(w, "VM unavailable", 409)
+		http.Error(w, "VM unavailable", http.StatusConflict)
 		return
 	}
 	var d kvmDomain
 	if xml.Unmarshal(out, &d) != nil || e.verifyXML(g, out) != nil || !e.consoleConfigured(g, d) {
-		http.Error(w, "VNC must be prepared while the VM is shut off", 409)
+		http.Error(w, "VNC must be prepared while the VM is shut off", http.StatusConflict)
 		return
 	}
 	path := d.Devices.Graphics[0].Listen.Socket
@@ -59,20 +59,20 @@ func handleKVMConsoleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	resolved, resolveErr := filepath.EvalSymlinks(path)
 	if resolveErr != nil || !kvmAllowedConsolePath(resolved) {
-		http.Error(w, "VM console not running", 409)
+		http.Error(w, "VM console not running", http.StatusConflict)
 		return
 	}
 	info, err := os.Lstat(path)
 	if err != nil || info.Mode()&os.ModeSocket == 0 || info.Mode().Perm()&0002 != 0 {
-		http.Error(w, "VM console not running", 409)
+		http.Error(w, "VM console not running", http.StatusConflict)
 		return
 	}
 	socket, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "unix", path)
 	if err != nil {
-		http.Error(w, "VM console unavailable", 503)
+		http.Error(w, "VM console unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	defer socket.Close()
+	defer func() { _ = socket.Close() }()
 	deadline, _ := ctx.Deadline()
 	_ = socket.SetDeadline(deadline)
 	upgrader := websocket.Upgrader{Subprotocols: []string{"binary"}, CheckOrigin: func(r *http.Request) bool { return r.Header.Get("Origin") == "" }}
@@ -80,7 +80,7 @@ func handleKVMConsoleHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 	ws.SetReadLimit(1 << 20)
 	_ = ws.SetReadDeadline(deadline)
 	_ = ws.SetWriteDeadline(deadline)
@@ -89,8 +89,8 @@ func handleKVMConsoleHTTP(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		select {
 		case <-ctx.Done():
-			ws.Close()
-			socket.Close()
+			_ = ws.Close()
+			_ = socket.Close()
 		case <-done:
 		}
 	}()

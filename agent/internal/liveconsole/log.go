@@ -29,7 +29,7 @@ func OpenLog(path string, truncate bool) (*BoundedLog, error) {
 	}
 	st, err := f.Stat()
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 	l := &BoundedLog{file: f, size: st.Size()}
@@ -39,7 +39,7 @@ func OpenLog(path string, truncate bool) (*BoundedLog, error) {
 	}
 	_, err = f.Seek(l.size, 0)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 	return l, nil

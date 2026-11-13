@@ -55,11 +55,14 @@ func TestLogReaderCancellationUnblocksPendingWrite(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- stream.wait() }()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("blocked log reader leaked")
 	}
-	stream.stdout.Close()
+	_ = stream.stdout.Close()
 }
 func TestLegacyLogReaderBoundsUnterminatedLine(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "console.log")
@@ -70,7 +73,7 @@ func TestLegacyLogReaderBoundsUnterminatedLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer stream.stdout.Close()
+	defer func() { _ = stream.stdout.Close() }()
 	_ = os.WriteFile(path, []byte(strings.Repeat("x", 512*1024)), 0600)
 	read := make(chan error, 1)
 	go func() {

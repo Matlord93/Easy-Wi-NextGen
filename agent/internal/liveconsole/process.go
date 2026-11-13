@@ -25,18 +25,18 @@ func startPipes(args []string) (*childProcess, error) {
 	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		r.Close()
-		w.Close()
+		_ = r.Close()
+		_ = w.Close()
 		return nil, err
 	}
 	cmd.Stdout = w
 	cmd.Stderr = w
 	if err = cmd.Start(); err != nil {
-		stdin.Close()
-		r.Close()
-		w.Close()
+		_ = stdin.Close()
+		_ = r.Close()
+		_ = w.Close()
 		return nil, err
 	}
-	w.Close()
+	_ = w.Close()
 	return &childProcess{ReadWriteCloser: &pipeTerminal{r, stdin}, wait: cmd.Wait, signal: cmd.Process.Signal}, nil
 }

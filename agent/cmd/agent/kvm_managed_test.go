@@ -90,7 +90,9 @@ func (f *kvmFixture) run(ctx context.Context, binary string, args ...string) ([]
 				return nil, err
 			}
 			var gib uint64
-			fmt.Sscanf(args[len(args)-1], "%dG", &gib)
+			if _, err := fmt.Sscanf(args[len(args)-1], "%dG", &gib); err != nil {
+				return nil, err
+			}
 			binaryPutSize(data, gib<<30)
 			return nil, os.WriteFile(path, data, 0600)
 		}
@@ -406,9 +408,15 @@ func TestKVMManagedSymlinkAndUnconfirmedOperations(t *testing.T) {
 	if r.status != "failed" || !strings.Contains(r.errorText, "symlink") {
 		t.Fatal("symlink root accepted")
 	}
-	os.Remove(filepath.Join(f.e.root, "backups"))
-	os.Mkdir(filepath.Join(f.e.root, "backups"), 0700)
-	kvmWriteJSON(filepath.Join(f.e.root, "operations", kvmTestOp+".json"), kvmOperation{Hash: "synthetic", Pending: true})
+	if err := os.Remove(filepath.Join(f.e.root, "backups")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(f.e.root, "backups"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := kvmWriteJSON(filepath.Join(f.e.root, "operations", kvmTestOp+".json"), kvmOperation{Hash: "synthetic", Pending: true}); err != nil {
+		t.Fatal(err)
+	}
 	r = f.job("network.create", kvmTestOp2, map[string]any{"network": "easywi-test", "cidr": "10.220.240.0/24", "mode": "nat"})
 	if r.status != "failed" || !strings.Contains(r.errorText, "UNCONFIRMED") {
 		t.Fatal("interrupted operation did not block mutations")
@@ -420,7 +428,9 @@ func TestKVMManagedNetworkCreationAndAttachmentGuard(t *testing.T) {
 	r := f.job("network.create", kvmTestOp, map[string]any{"network": "easywi-test", "cidr": "10.220.240.0/24", "mode": "nat"})
 	kvmAssertSuccess(t, r)
 	var n kvmNetwork
-	xml.Unmarshal(f.networks["easywi-test"], &n)
+	if err := xml.Unmarshal(f.networks["easywi-test"], &n); err != nil {
+		t.Fatal(err)
+	}
 	if n.IPs[0].DHCP.Range.Start != "10.220.240.2" || n.IPs[0].DHCP.Range.End != "10.220.240.254" {
 		t.Fatalf("invalid DHCP range: %#v", n)
 	}
@@ -447,7 +457,9 @@ func TestKVMManagedImageValidationRejectsExternalBacking(t *testing.T) {
 	f.image(path)
 	data, _ := os.ReadFile(path)
 	binary.BigEndian.PutUint64(data[8:16], 4096)
-	os.WriteFile(path, data, 0600)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := f.e.safeImage(path); err == nil {
 		t.Fatal("external backing file allowed")
 	}
@@ -459,7 +471,7 @@ func TestKVMManagedTemplateImportPinsChecksumAndVersion(t *testing.T) {
 	data, _ := os.ReadFile(path)
 	sum := sha256.Sum256(data)
 	hash := hex.EncodeToString(sum[:])
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(data) }))
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }))
 	defer server.Close()
 	original := kvmNewImageClient
 	kvmNewImageClient = func() *http.Client { return server.Client() }
@@ -534,7 +546,9 @@ func TestKVMManagedTraversalRejected(t *testing.T) {
 // Ensure test JSON serialization matches the wire representation, too.
 func TestKVMManagedJSONNumericResources(t *testing.T) {
 	var p map[string]any
-	json.Unmarshal([]byte(`{"vcpus":2,"memory_mib":2048}`), &p)
+	if err := json.Unmarshal([]byte(`{"vcpus":2,"memory_mib":2048}`), &p); err != nil {
+		t.Fatal(err)
+	}
 	n, err := positivePayloadInt(p, "vcpus", 1, 256)
 	if err != nil || n != 2 {
 		t.Fatalf("wire number rejected: %v", err)

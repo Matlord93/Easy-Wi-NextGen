@@ -41,7 +41,7 @@ func (e *kvmEngine) growDisk(g kvmGuest, p map[string]any) (map[string]any, erro
 	}
 	header := make([]byte, 104)
 	_, readErr := io.ReadFull(f, header)
-	f.Close()
+	_ = f.Close()
 	if readErr != nil || binary.BigEndian.Uint32(header[60:64]) != 0 {
 		return nil, errors.New("VM disk expansion requires no internal snapshots")
 	}

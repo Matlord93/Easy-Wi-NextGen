@@ -107,7 +107,7 @@ func TestIdleLocalDisconnectReleasesSubscription(t *testing.T) {
 	if err = json.NewDecoder(c).Decode(&hello); err != nil {
 		t.Fatal(err)
 	}
-	c.Close()
+	_ = c.Close()
 	until := time.Now().Add(time.Second)
 	for {
 		h.mu.Lock()
@@ -134,7 +134,7 @@ func TestBoundedCompatibilityLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 	for i := 0; i < 100; i++ {
 		if _, err = l.Write(bytes.Repeat([]byte("x"), 16384)); err != nil {
 			t.Fatal(err)
@@ -163,12 +163,12 @@ func TestLiveIPCDoesNotWaitForNewline(t *testing.T) {
 	defer cancel()
 	h := NewHub()
 	defer h.Close()
-	go ServeOutput(ctx, l, h)
+	go func() { _ = ServeOutput(ctx, l, h) }()
 	c, err := DialLocal(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_ = json.NewEncoder(c).Encode(Resume{})
 	dec := json.NewDecoder(c)
 	_ = c.SetReadDeadline(time.Now().Add(time.Second))

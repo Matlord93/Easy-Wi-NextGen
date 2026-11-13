@@ -34,17 +34,17 @@ func RunWrapper(instanceID, socketPath string, args []string) error {
 	if err != nil {
 		return fmt.Errorf("command listener: %w", err)
 	}
-	defer commands.Close()
+	defer func() { _ = commands.Close() }()
 	output, err := ListenLocal(socketPath + ".output")
 	if err != nil {
 		return fmt.Errorf("output listener: %w", err)
 	}
-	defer output.Close()
+	defer func() { _ = output.Close() }()
 	child, err := startChild(args)
 	if err != nil {
 		return err
 	}
-	defer child.Close()
+	defer func() { _ = child.Close() }()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	hub := NewHub()
@@ -55,7 +55,7 @@ func RunWrapper(instanceID, socketPath string, args []string) error {
 	if err != nil {
 		log.Printf("wrapper compatibility log unavailable: %v", err)
 	} else {
-		defer logFile.Close()
+		defer func() { _ = logFile.Close() }()
 	}
 	readDone := make(chan struct{})
 	go func() {
@@ -125,15 +125,15 @@ func serveCommands(ctx context.Context, l net.Listener, queue chan<- string, ins
 		select {
 		case slots <- struct{}{}:
 		default:
-			conn.Close()
+			_ = conn.Close()
 			continue
 		}
 		wg.Add(1)
 		go func(c net.Conn) {
 			defer wg.Done()
 			defer func() { <-slots }()
-			defer c.Close()
-			stopConn := context.AfterFunc(ctx, func() { c.Close() })
+			defer func() { _ = c.Close() }()
+			stopConn := context.AfterFunc(ctx, func() { _ = c.Close() })
 			defer stopConn()
 			_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
 			_ = c.SetWriteDeadline(time.Now().Add(time.Second))

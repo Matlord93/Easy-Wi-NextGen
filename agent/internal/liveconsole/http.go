@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"net"
 	"net/http"
@@ -32,18 +31,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	origin := r.Header.Get("Origin")
 	if !websocket.IsWebSocketUpgrade(r) {
-		http.Error(w, "WebSocket required", 400)
+		http.Error(w, "WebSocket required", http.StatusBadRequest)
 		return
 	}
 	c, err := verifyTicket(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), s.Secret, s.Agent, id, origin, time.Now())
 	if err != nil {
-		http.Error(w, "Console access denied", 403)
+		http.Error(w, "Console access denied", http.StatusForbidden)
 		return
 	}
 	seq, _ := strconv.ParseUint(r.URL.Query().Get("cursor"), 10, 64)
 	session := r.URL.Query().Get("session")
 	if len(session) > 32 {
-		http.Error(w, "Invalid cursor", 400)
+		http.Error(w, "Invalid cursor", http.StatusBadRequest)
 		return
 	}
 	now := time.Now().Unix()
@@ -58,7 +57,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, seen := s.used[c.Nonce]; seen || s.active >= 128 || len(s.used) >= 512 {
 		s.mu.Unlock()
-		http.Error(w, "Console capacity or authorization denied", 429)
+		http.Error(w, "Console capacity or authorization denied", http.StatusTooManyRequests)
 		return
 	}
 	s.used[c.Nonce] = c.Expires
@@ -75,13 +74,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	local, err := dial(dialCtx, s.SocketPath(id)+".output")
 	stopDial()
 	if err != nil {
-		http.Error(w, "Live console unavailable; restart this game with the updated wrapper", 503)
+		http.Error(w, "Live console unavailable; restart this game with the updated wrapper", http.StatusServiceUnavailable)
 		return
 	}
-	defer local.Close()
+	defer func() { _ = local.Close() }()
 	_ = local.SetWriteDeadline(time.Now().Add(2 * time.Second))
 	if json.NewEncoder(local).Encode(Resume{session, seq}) != nil {
-		http.Error(w, "Live console unavailable", 503)
+		http.Error(w, "Live console unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	scanner := bufio.NewScanner(local)
@@ -89,7 +88,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = local.SetReadDeadline(time.Now().Add(3 * time.Second))
 	var hello Frame
 	if !scanner.Scan() || json.Unmarshal(scanner.Bytes(), &hello) != nil || hello.Type != "status" || hello.Instance != id || !noncePattern.MatchString(hello.Session) {
-		http.Error(w, "Console endpoint identity mismatch", 503)
+		http.Error(w, "Console endpoint identity mismatch", http.StatusServiceUnavailable)
 		return
 	}
 	_ = local.SetReadDeadline(time.Time{})
@@ -98,7 +97,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	conn.SetReadLimit(512)
 	closeOnCancel := context.AfterFunc(ctx, func() { _ = local.Close(); _ = conn.Close() })
 	defer closeOnCancel()
@@ -106,13 +105,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(time.Now().Add(45 * time.Second)) })
 	go func() {
 		defer cancel()
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-			_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Output connection is read-only"), time.Now().Add(time.Second))
+		if _, _, err := conn.ReadMessage(); err != nil {
 			return
 		}
+		_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Output connection is read-only"), time.Now().Add(time.Second))
 	}()
 	_ = conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
 	if conn.WriteJSON(hello) != nil {
@@ -133,5 +129,5 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, fmt.Sprint("Console reconnect")), time.Now().Add(time.Second))
+	_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, "Console reconnect"), time.Now().Add(time.Second))
 }

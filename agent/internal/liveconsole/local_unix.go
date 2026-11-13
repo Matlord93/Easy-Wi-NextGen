@@ -11,7 +11,7 @@ import (
 func ListenLocal(path string) (net.Listener, error) {
 	// Do not unlink a live socket: a second wrapper must not replace a game.
 	if c, err := net.Dial("unix", path); err == nil {
-		c.Close()
+		_ = c.Close()
 		return nil, os.ErrExist
 	}
 	_ = os.Remove(path)
@@ -20,7 +20,7 @@ func ListenLocal(path string) (net.Listener, error) {
 		return nil, err
 	}
 	if err = os.Chmod(path, 0600); err != nil {
-		l.Close()
+		_ = l.Close()
 		return nil, err
 	}
 	return l, nil

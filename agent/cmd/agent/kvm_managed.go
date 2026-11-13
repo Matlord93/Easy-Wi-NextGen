@@ -381,7 +381,7 @@ func kvmReadJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return json.NewDecoder(io.LimitReader(f, 4<<20)).Decode(v)
 }
 func kvmSafeFile(path string) error {
@@ -414,7 +414,7 @@ func kvmAtomicWrite(path string, data []byte, mode os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if err = f.Chmod(mode); err == nil {
 		_, err = f.Write(data)
 	}
@@ -435,7 +435,7 @@ func kvmAtomicWrite(path string, data []byte, mode os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	return d.Sync()
 }
 func kvmNow() string { return time.Now().UTC().Format(time.RFC3339) }

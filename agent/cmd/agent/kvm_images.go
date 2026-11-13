@@ -106,7 +106,7 @@ func (e *kvmEngine) importTemplate(p map[string]any) (map[string]any, error) {
 	if err != nil {
 		return nil, errors.New("image download failed: check HTTPS certificate, URL and host allowlist")
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != 200 || res.ContentLength > kvmMaxImageBytes {
 		return nil, errors.New("image download refused: unexpected HTTP status or image larger than 8 GiB")
 	}
@@ -114,15 +114,15 @@ func (e *kvmEngine) importTemplate(p map[string]any) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(temp.Name())
+	defer func() { _ = os.Remove(temp.Name()) }()
 	hash := sha256.New()
 	n, err := io.Copy(io.MultiWriter(temp, hash), io.LimitReader(res.Body, kvmMaxImageBytes+1))
 	if err != nil {
-		temp.Close()
+		_ = temp.Close()
 		return nil, errors.New("image download interrupted")
 	}
 	if err = temp.Sync(); err != nil {
-		temp.Close()
+		_ = temp.Close()
 		return nil, err
 	}
 	if err = temp.Close(); err != nil {
@@ -137,7 +137,7 @@ func (e *kvmEngine) importTemplate(p map[string]any) (map[string]any, error) {
 		return nil, readErr
 	}
 	_, readErr = io.ReadFull(hf, header)
-	hf.Close()
+	_ = hf.Close()
 	if readErr != nil {
 		return nil, readErr
 	}
@@ -179,7 +179,7 @@ func (e *kvmEngine) safeImage(path string) (int64, error) {
 	}
 	header := make([]byte, 104)
 	_, err = io.ReadFull(f, header)
-	f.Close()
+	_ = f.Close()
 	if err != nil {
 		return 0, errors.New("invalid qcow2 header")
 	}
@@ -215,7 +215,7 @@ func (e *kvmEngine) fileHash(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	buf := make([]byte, 1<<20)
 	for {
@@ -264,7 +264,7 @@ func (e *kvmEngine) backup(g kvmGuest, p map[string]any) (map[string]any, error)
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(stage)
+	defer func() { _ = os.RemoveAll(stage) }()
 	image := filepath.Join(stage, "disk.qcow2")
 	if _, err := e.command("qemu-img", "convert", "-f", "qcow2", "-O", "qcow2", e.guestFile(g.ID, "disk.qcow2"), image); err != nil {
 		return nil, err
@@ -310,7 +310,7 @@ func (e *kvmEngine) restore(g kvmGuest, p map[string]any) (map[string]any, error
 		return nil, err
 	}
 	stage := e.guestFile(g.ID, "restore-"+payloadValue(p, "operation_id")+".qcow2")
-	defer os.Remove(stage)
+	defer func() { _ = os.Remove(stage) }()
 	if _, err := os.Lstat(stage); !os.IsNotExist(err) {
 		return nil, errors.New("restore staging path already exists")
 	}

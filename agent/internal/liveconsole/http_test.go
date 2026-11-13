@@ -54,7 +54,7 @@ func TestWebSocketOutputAndSingleUse(t *testing.T) {
 	server := &Server{Agent: "node", Secret: "secret", SocketPath: func(string) string { return "fixture" }, Dial: func(ctx context.Context, _ string) (net.Conn, error) {
 		reader, writer := net.Pipe()
 		go func() {
-			defer writer.Close()
+			defer func() { _ = writer.Close() }()
 			var r Resume
 			if json.NewDecoder(writer).Decode(&r) != nil {
 				return
@@ -98,7 +98,7 @@ func TestWebSocketOutputAndSingleUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
 	var hello Frame
 	if err = conn.ReadJSON(&hello); err != nil {
@@ -131,7 +131,7 @@ func TestWebSocketOutputAndSingleUse(t *testing.T) {
 	if err == nil || response.StatusCode != 503 {
 		t.Fatal("cross-instance local socket accepted")
 	}
-	conn.Close()
+	_ = conn.Close()
 	h.Publish([]byte("still running"))
 	if h.seq != 2 {
 		t.Fatal("viewer ended producer")
