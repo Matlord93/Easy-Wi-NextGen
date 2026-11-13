@@ -10,18 +10,17 @@ use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Enum\InvoiceStatus;
 use App\Repository\DunningReminderRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\DBAL\LockMode;
+use App\Module\Core\Domain\Enum\DunningStatus;
 
 final class DunningWorkflow
 {
-    /**
-     * @param DunningStep[] $steps
-     */
     public function __construct(
         private readonly DunningReminderRepository $reminderRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
-        private readonly DunningNotificationSender $notificationSender,
-        private readonly array $steps = [],
+        private readonly DunningNotificationSenderInterface $notificationSender,
+        private readonly BillingSettings $settings,
     ) {
     }
 
@@ -32,51 +31,63 @@ final class DunningWorkflow
         }
 
         $now = $now ?? new \DateTimeImmutable();
-        if ($invoice->getDueDate() > $now) {
-            return null;
-        }
+        return $this->entityManager->wrapInTransaction(function () use ($invoice, $actor, $now): ?DunningReminder {
+            $this->entityManager->refresh($invoice, LockMode::PESSIMISTIC_WRITE);
+            if (in_array($invoice->getStatus(), [InvoiceStatus::Paid, InvoiceStatus::Cancelled, InvoiceStatus::Draft], true) || $invoice->getOutstandingCents() === 0) {
+                return null;
+            }
+            if ($invoice->getDueDate() > $now) {
+                return null;
+            }
 
-        $step = $this->resolveNextStep($invoice);
-        if ($step === null) {
-            return null;
-        }
+            $latest = $this->reminderRepository->findLatestForInvoice($invoice);
+            if ($latest !== null && $latest->getStatus() === DunningStatus::Pending) {
+                if ($this->notificationSender->send($latest)) {
+                    $latest->markSent($now);
+                }
+                return $latest;
+            }
+            if ($latest !== null && ($latest->getSentAt() ?? $latest->getCreatedAt())->modify(sprintf('+%d days', max(1, $latest->getGraceDays()))) > $now) {
+                return null;
+            }
+            $step = $this->resolveNextStep($invoice);
+            if ($step === null) {
+                return null;
+            }
 
-        $reminder = new DunningReminder($invoice, $step->level, $step->feeCents, $step->graceDays);
-        if ($step->feeCents > 0) {
-            $invoice->addFee($step->feeCents);
-        }
+            $reminder = new DunningReminder($invoice, $step->level, $step->feeCents, $step->graceDays, $now);
+            if ($step->feeCents > 0) {
+                $invoice->addFee($step->feeCents);
+            }
 
-        if ($step->graceDays > 0) {
-            $invoice->extendDueDate($step->graceDays);
-        }
+            $invoice->setStatus(InvoiceStatus::PastDue);
+            $invoice->addReminder($reminder);
 
-        $invoice->setStatus(InvoiceStatus::PastDue);
-        $invoice->addReminder($reminder);
+            $this->entityManager->persist($reminder);
+            $notificationQueued = $this->notificationSender->send($reminder);
+            if ($notificationQueued) {
+                $reminder->markSent($now);
+            }
 
-        $this->entityManager->persist($reminder);
-        $notificationQueued = $this->notificationSender->send($reminder);
-        if ($notificationQueued) {
-            $reminder->markSent();
-        }
+            $this->auditLogger->log($actor, $notificationQueued ? 'billing.dunning.sent' : 'billing.dunning.created', [
+                'invoice_id' => $invoice->getId(),
+                'level' => $step->level,
+                'fee_cents' => $step->feeCents,
+                'grace_days' => $step->graceDays,
+                'notification_queued' => $notificationQueued,
+            ]);
 
-        $this->auditLogger->log($actor, $notificationQueued ? 'billing.dunning.sent' : 'billing.dunning.created', [
-            'invoice_id' => $invoice->getId(),
-            'level' => $step->level,
-            'fee_cents' => $step->feeCents,
-            'grace_days' => $step->graceDays,
-            'notification_queued' => $notificationQueued,
-        ]);
-
-        return $reminder;
+            return $reminder;
+        });
     }
 
     private function resolveNextStep(Invoice $invoice): ?DunningStep
     {
-        $steps = $this->steps ?: [
-            new DunningStep(1, 0, 7),
-            new DunningStep(2, 500, 7),
-            new DunningStep(3, 1000, 7),
-        ];
+        $options = $this->settings->get();
+        $steps = [];
+        foreach ($options['reminder_fees'] as $index => $fee) {
+            $steps[] = new DunningStep($index + 1, BillingAmount::parse((string) $fee), (int) $options['reminder_grace_days']);
+        }
 
         $latest = $this->reminderRepository->findLatestForInvoice($invoice);
         $nextLevel = $latest ? $latest->getLevel() + 1 : 1;

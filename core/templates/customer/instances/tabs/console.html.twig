@@ -2,9 +2,7 @@
 <div
     id="gameserver-console"
     data-url-command="{{ path('customer_instance_console_command_v2', {id: instance.id}) }}"
-    data-url-logs="{{ path('customer_instance_console_logs_envelope', {id: instance.id}) }}"
-    data-url-health="{{ path('customer_instance_console_health_envelope', {id: instance.id}) }}"
-    data-stream-url="{{ path('customer_instance_console_stream', {id: instance.id}) }}"
+    data-live-url="/console/live/{{ instance.id }}"
     data-csrf-token="{{ csrf_token('instance_console_' ~ instance.id) }}"
     data-i18n="{{ {
         streamUnavailable: t('customer_instance_console_log_unavailable', locale),
@@ -83,4 +81,4 @@
 <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
 <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
 <script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
-<script src="{{ asset('js/gameserver/console-app.js') }}"></script>
+<script src="{{ asset('js/gameserver/console-live.js') }}"></script>

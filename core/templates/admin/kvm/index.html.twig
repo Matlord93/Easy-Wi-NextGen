@@ -1,0 +1,9 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'infrastructure' %}
+{% set pageTitle = 'kvm.title'|trans({}, 'kvm') %}
+{% block content %}
+<div class="infra-page">
+ <header class="infra-hero"><div><span class="infra-eyebrow">{{ 'infra.infrastructure'|trans }}</span><h1>{{ pageTitle }}</h1><p>{{ 'infra.kvm_hint'|trans }}</p></div><span class="infra-tag">{{ nodes|length }} {{ 'infra.host'|trans }}</span></header>
+ <div class="infra-grid">{% for node in nodes %}<article class="infra-card"><div class="infra-card__head"><h2><a href="{{ path('admin_kvm_node', {id: node.id}) }}">{{ node.name ?: node.id }}</a></h2><span class="infra-tag">{{ node.status }}</span></div>{% include 'infrastructure/_metrics.html.twig' with {usage: infra_node_usage(node)} %}<p class="infra-muted">{{ node.metadata.kvm_managed.supported|default(false) ? 'kvm.agent_supported'|trans({}, 'kvm') : 'kvm.update_agent'|trans({}, 'kvm') }}</p><a class="ui-button ui-button--primary" href="{{ path('admin_kvm_node', {id: node.id}) }}">{{ 'infra.open'|trans }}</a></article>{% else %}<p class="infra-empty">{{ 'kvm.no_nodes'|trans({}, 'kvm') }}</p>{% endfor %}</div>
+</div>
+{% endblock %}

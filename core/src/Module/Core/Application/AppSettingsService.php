@@ -45,6 +45,11 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_SFTP_PRIVATE_KEY_PATH = 'sftp_private_key_path';
     public const KEY_SFTP_PRIVATE_KEY_PASSPHRASE = 'sftp_private_key_passphrase';
     public const KEY_INVOICE_LAYOUT = 'invoice_layout_html';
+    public const KEY_INFRA_MONITORING = 'infrastructure_monitoring';
+    public const KEY_INFRA_MONITORING_STATE = 'infrastructure_monitoring_state';
+    public const KEY_INVOICE_DESIGN = 'invoice_design';
+    public const KEY_BILLING_OPTIONS = 'billing_options';
+    public const KEY_BILLING_LAST_RUN_AT = 'billing_last_run_at';
     public const KEY_SECURITY_SESSION_IDLE_MINUTES = 'security_session_idle_minutes';
     public const KEY_SECURITY_SESSION_ABSOLUTE_MINUTES = 'security_session_absolute_minutes';
     public const KEY_SECURITY_2FA_GLOBAL_REQUIRED = 'security_2fa_required_global';
@@ -99,47 +104,26 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_MINECRAFT_AUTO_INSTALL_JAVA = 'minecraft_auto_install_java';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
-<div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
-  <div style="display: flex; justify-content: space-between; gap: 24px;">
-    <div>
-      <h1 style="margin: 0 0 8px;">{{ company.name }}</h1>
-      <p style="margin: 0; font-size: 12px; color: #555;">{{ company.address }}</p>
-      <p style="margin: 0; font-size: 12px; color: #555;">{{ company.email }}</p>
-    </div>
-    <div style="text-align: right;">
-      <h2 style="margin: 0 0 8px;">Invoice {{ invoice.number }}</h2>
-      <p style="margin: 0; font-size: 12px; color: #555;">Date {{ invoice.created_at|date('Y-m-d') }}</p>
-      <p style="margin: 0; font-size: 12px; color: #555;">Due {{ invoice.due_date|date('Y-m-d') }}</p>
-    </div>
-  </div>
-
-  <hr style="margin: 20px 0; border: 0; border-top: 1px solid #e5e7eb;">
-
-  <h3 style="margin: 0 0 8px;">Bill to</h3>
-  <p style="margin: 0;">{{ customer.name }}</p>
-  <p style="margin: 0; font-size: 12px; color: #555;">{{ customer.email }}</p>
-
-  <table style="width: 100%; margin-top: 20px; border-collapse: collapse;">
-    <thead>
-      <tr>
-        <th style="text-align: left; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Description</th>
-        <th style="text-align: right; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td style="padding: 12px 0;">Invoice {{ invoice.number }}</td>
-        <td style="padding: 12px 0; text-align: right;">{{ invoice.amount_total / 100 }} {{ invoice.currency }}</td>
-      </tr>
-    </tbody>
+<div style="font-family: DejaVu Sans, sans-serif; color: #18212f;">
+  <h1>{{ company.name }}</h1>
+  <p>{{ company.address|nl2br }}<br>{{ company.email }}<br>{{ labels.vat_id }}: {{ company.vat_id }}</p>
+  <hr>
+  <h2>{{ labels.invoice }} {{ invoice.number }}</h2>
+  <p>{{ labels.date }}: {{ invoice.created_at|date(date_format) }} · {{ labels.due_date }}: {{ invoice.due_date|date(date_format) }}</p>
+  {% if invoice.status == 'cancelled' %}<p><strong>{{ labels.cancelled }}</strong>: {{ invoice.cancellation_reason }}</p>{% endif %}
+  <h3>{{ labels.bill_to }}</h3>
+  <p>{{ customer.name }}<br>{{ customer.address }}<br>{{ customer.postal }} {{ customer.city }}<br>{{ customer.country }}<br>{{ customer.email }}<br>{{ customer.vat_id }}</p>
+  <table style="width:100%;border-collapse:collapse;margin-top:25px;">
+    <thead><tr><th style="text-align:left;border-bottom:1px solid #aaa;">{{ labels.description }}</th><th style="text-align:right;border-bottom:1px solid #aaa;">{{ labels.net }}</th></tr></thead>
+    <tbody><tr><td style="padding:12px 0;">{{ invoice.description|nl2br }}</td><td style="text-align:right;">{{ (invoice.net_cents / 100)|number_format(2, decimal_separator, thousands_separator) }} {{ invoice.currency }}</td></tr></tbody>
   </table>
-
-  <div style="margin-top: 16px; text-align: right;">
-    <p style="margin: 0; font-weight: bold;">Total: {{ invoice.amount_total / 100 }} {{ invoice.currency }}</p>
-    <p style="margin: 4px 0 0; font-size: 12px; color: #555;">Amount due: {{ invoice.amount_due / 100 }} {{ invoice.currency }}</p>
+  <div style="text-align:right;margin-top:20px;">
+    <p>{{ labels.tax }} ({{ (invoice.tax_rate_bps / 100)|number_format(2, decimal_separator, thousands_separator) }}%): {{ (invoice.tax_cents / 100)|number_format(2, decimal_separator, thousands_separator) }} {{ invoice.currency }}</p>
+    <p><strong>{{ labels.total }}: {{ (invoice.amount_total / 100)|number_format(2, decimal_separator, thousands_separator) }} {{ invoice.currency }}</strong></p>
+    <p>{{ labels.outstanding }}: {{ (invoice.amount_due / 100)|number_format(2, decimal_separator, thousands_separator) }} {{ invoice.currency }}</p>
   </div>
-
-  <p style="margin-top: 24px; font-size: 12px; color: #555;">{{ company.footer }}</p>
+  <p>{{ invoice.tax_notice }}</p>
+  <hr><p style="font-size:9pt;">{{ company.footer|nl2br }}</p>
 </div>
 TWIG;
 
@@ -175,6 +159,11 @@ TWIG;
         self::KEY_SFTP_PRIVATE_KEY_PATH => null,
         self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE => null,
         self::KEY_INVOICE_LAYOUT => self::DEFAULT_INVOICE_LAYOUT,
+        self::KEY_INVOICE_DESIGN => [],
+        self::KEY_INFRA_MONITORING => [],
+        self::KEY_INFRA_MONITORING_STATE => [],
+        self::KEY_BILLING_OPTIONS => [],
+        self::KEY_BILLING_LAST_RUN_AT => null,
         self::KEY_SECURITY_SESSION_IDLE_MINUTES => 30,
         self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES => 720,
         self::KEY_SECURITY_2FA_GLOBAL_REQUIRED => false,
@@ -685,11 +674,11 @@ TWIG;
         $settings = $this->getSettings();
         $value = $settings[self::KEY_INVOICE_LAYOUT] ?? null;
 
-        if (is_string($value) && $value !== '') {
+        if (is_string($value) && $value !== '' && $value !== self::DEFAULT_INVOICE_LAYOUT) {
             return $value;
         }
 
-        return self::DEFAULT_INVOICE_LAYOUT;
+        return \App\Module\Core\Application\Billing\InvoiceDesign::layout(\App\Module\Core\Application\Billing\InvoiceDesign::defaults());
     }
 
     public function getSessionIdleTimeoutMinutes(): int

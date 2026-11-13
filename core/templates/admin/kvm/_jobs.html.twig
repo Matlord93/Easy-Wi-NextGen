@@ -1,0 +1,5 @@
+{% trans_default_domain 'kvm' %}
+<button type="button" class="ui-button ui-button--primary" data-kvm-refresh-ready hidden>{{ 'kvm.refresh'|trans }}</button>
+<section class="ng-data-card kvm-card"><h2>{{ 'kvm.jobs'|trans }}</h2><div style="overflow-x:auto;"><table class="kvm-table"><thead><tr><th>{{ 'kvm.time'|trans }}</th><th>{{ 'kvm.action'|trans }}</th><th>{{ 'kvm.status'|trans }}</th></tr></thead><tbody>
+{% for job in jobs %}<tr {% if job.status.value in ['queued','running'] %}data-kvm-job="{{ path('admin_kvm_job', {id: node.id, jobId: job.id}) }}"{% endif %}><td>{{ job.createdAt|date('d.m.Y H:i:s','Europe/Berlin') }}</td><td>{{ ('kvm.action.' ~ job.payload.action)|trans }}<div class="kvm-meta">{{ job.id }}</div></td><td>{{ ('kvm.status.' ~ job.status.value)|trans }}{% if job.errorText %}<p role="alert">{{ job.errorText }}</p>{% endif %}{% if job.resultPayload.inventory_error|default('') %}<p>{{ 'kvm.refresh_failed'|trans }}</p>{% endif %}</td></tr>{% else %}<tr><td colspan="3">{{ 'kvm.no_jobs'|trans }}</td></tr>{% endfor %}
+</tbody></table></div><p data-kvm-poll-error hidden>{{ 'kvm.poll_error'|trans }}</p></section>

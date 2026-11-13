@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
 use Symfony\Contracts\EventDispatcher\Event;
 
+/**
+ * Public payload for extension.job.before_dispatch listeners in extensions.
+ *
+ * @psalm-api
+ */
 final class JobBeforeDispatchEvent extends Event
 {
     public function __construct(

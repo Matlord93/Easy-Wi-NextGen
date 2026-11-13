@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
+use Symfony\Component\Translation\LocaleSwitcher;
 
 final class PortalLocaleSubscriber implements EventSubscriberInterface
 {
@@ -24,6 +25,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
     public function __construct(
         private readonly InvoicePreferencesRepository $invoicePreferencesRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly LocaleSwitcher $localeSwitcher,
     ) {
     }
 
@@ -45,6 +47,9 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
         $locale = $this->resolveLocale($request);
 
         $request->setLocale($locale);
+        // User preferences are resolved after Symfony's LocaleAwareListener.
+        // Update translators/formatters as well as the request itself.
+        $this->localeSwitcher->setLocale($locale);
 
         if ($request->hasSession()) {
             $request->getSession()->set(self::LOCALE_SESSION_KEY, $locale);
@@ -69,7 +74,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
             ->withSameSite(Cookie::SAMESITE_LAX);
 
         $domain = $this->resolveCookieDomain($request->getHost());
-        if ($domain !== null) {
+        if (null !== $domain) {
             $cookie = $cookie->withDomain($domain);
         }
 
@@ -80,7 +85,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
     {
         $queryLocale = $request->query->get('lang');
         $normalizedQuery = PortalLocale::normalize($queryLocale);
-        if ($normalizedQuery !== null) {
+        if (null !== $normalizedQuery) {
             return $normalizedQuery;
         }
 
@@ -88,19 +93,19 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
         if ($actor instanceof User) {
             $preferences = $this->invoicePreferencesRepository->findOneByCustomer($actor);
             $userLocale = PortalLocale::normalize($preferences?->getPortalLanguage());
-            if ($userLocale !== null) {
+            if (null !== $userLocale) {
                 return $userLocale;
             }
         }
 
         $sessionLocale = $request->hasSession() ? $request->getSession()->get(self::LOCALE_SESSION_KEY) : null;
         $normalizedSession = PortalLocale::normalize($sessionLocale);
-        if ($normalizedSession !== null) {
+        if (null !== $normalizedSession) {
             return $normalizedSession;
         }
 
         $cookieLocale = PortalLocale::normalize($request->cookies->get(self::LOCALE_COOKIE));
-        if ($cookieLocale !== null) {
+        if (null !== $cookieLocale) {
             return $cookieLocale;
         }
 
@@ -110,7 +115,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
     private function persistLocalePreference(Request $request, string $locale): void
     {
         $rawLocale = $request->query->get('lang');
-        if (PortalLocale::normalize($rawLocale) === null) {
+        if (null === PortalLocale::normalize($rawLocale)) {
             return;
         }
 
@@ -122,10 +127,10 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
         $preferences = $this->invoicePreferencesRepository->findOneByCustomer($actor);
         $hasChanges = false;
 
-        if ($preferences === null) {
+        if (null === $preferences) {
             $preferences = new InvoicePreferences(
                 $actor,
-                $locale === 'en' ? 'en_GB' : 'de_DE',
+                'en' === $locale ? 'en_GB' : 'de_DE',
                 true,
                 true,
                 'manual',
@@ -145,7 +150,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
 
     private function resolveCookieDomain(string $host): ?string
     {
-        if ($host === '' || $host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+        if ('' === $host || 'localhost' === $host || false !== filter_var($host, FILTER_VALIDATE_IP)) {
             return null;
         }
 

@@ -1,0 +1,46 @@
+# Generated private console transport. Include inside the panel server {}.
+# Auth responses contain credentials and must never be served to a browser.
+resolver @RESOLVERS@ valid=30s;
+resolver_timeout 3s;
+location ~ ^/api/(v1/customer/)?instances/[1-9][0-9]*/console/live-authorize$ { return 404; }
+location ~ ^/console/live/([1-9][0-9]*)$ {
+    set $easywi_console_instance $1;
+    auth_request /_easywi_console_auth;
+    auth_request_set $easywi_console_target $upstream_http_x_console_target;
+    auth_request_set $easywi_console_auth $upstream_http_x_console_authorization;
+    proxy_pass $easywi_console_target$is_args$args;
+    proxy_http_version 1.1;
+    proxy_pass_request_headers off;
+    proxy_set_header Host $proxy_host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Sec-WebSocket-Key $http_sec_websocket_key;
+    proxy_set_header Sec-WebSocket-Version $http_sec_websocket_version;
+    proxy_set_header Origin $http_origin;
+    proxy_set_header Authorization $easywi_console_auth;
+    proxy_ssl_server_name on;
+    proxy_ssl_verify on;
+    proxy_ssl_trusted_certificate @CA_BUNDLE@;
+    proxy_buffering off;
+    proxy_read_timeout 45s;
+    proxy_send_timeout 5s;
+    proxy_connect_timeout 3s;
+}
+location = /_easywi_console_auth {
+    internal;
+    include @FASTCGI_PARAMS@;
+    fastcgi_pass @PHP_FPM@;
+    fastcgi_pass_request_body off;
+    fastcgi_param CONTENT_LENGTH "";
+    fastcgi_param SCRIPT_FILENAME @FRONT_CONTROLLER@;
+    fastcgi_param SCRIPT_NAME /index.php;
+    fastcgi_param REQUEST_URI /api/v1/customer/instances/$easywi_console_instance/console/live-authorize;
+    fastcgi_param QUERY_STRING "";
+    fastcgi_param REQUEST_METHOD GET;
+    fastcgi_param HTTP_ACCEPT application/json;
+    fastcgi_param HTTP_HOST $http_host;
+    fastcgi_param HTTP_COOKIE $http_cookie;
+    fastcgi_param HTTP_AUTHORIZATION "";
+    fastcgi_param HTTP_X_EASYWI_CONSOLE_PROXY @PROXY_SECRET@;
+    fastcgi_param HTTP_X_EASYWI_CONSOLE_ORIGIN $http_origin;
+}

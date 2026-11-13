@@ -1,0 +1,6 @@
+{% extends 'customer/base.html.twig' %}
+{% trans_default_domain 'infrastructure' %}
+{% block content %}
+<div class="infra-page"><header class="infra-hero"><div><span class="infra-eyebrow">Proxmox</span><h1>{{ 'pve.my_guests'|trans({}, 'proxmox') }}</h1><p>{{ 'infra.customer_hint'|trans }}</p></div><span class="infra-tag">{{ guests|length }} {{ 'infra.servers'|trans }}</span></header>
+<div class="infra-grid">{% for row in guests %}<article class="infra-card"><div class="infra-card__head"><h2><a href="{{ path('customer_proxmox_guest', {id: row.assignment.id}) }}">{{ row.assignment.vmId }} · {{ row.guest.name|default(row.assignment.kind|upper) }}</a></h2><span class="infra-tag {{ row.guest.status|default('') == 'running' ? 'infra-tag--online' : '' }}">{{ row.guest.status|default('pve.guest_unavailable'|trans({}, 'proxmox')) }}</span></div>{% include 'infrastructure/_metrics.html.twig' with {usage: infra_pve_usage(row.guest|default({}))} %}<div class="infra-actions"><span class="infra-tag">{{ row.assignment.kind|upper }}</span><a class="ui-button ui-button--primary" href="{{ path('customer_proxmox_guest', {id: row.assignment.id}) }}">{{ 'infra.open'|trans }}</a></div></article>{% else %}<p class="infra-empty">{{ 'pve.no_assigned_guests'|trans({}, 'proxmox') }}</p>{% endfor %}</div></div>
+{% endblock %}

@@ -225,7 +225,7 @@
                                     <div>{{ webspace.apply_status|default('unknown')|replace({'_':' '})|title }}</div>
                                     <div>{% if webspace.apply_required %}{{ t('admin_webspaces_apply_required', locale) }}{% else %}{{ t('admin_webspaces_apply_clean', locale) }}{% endif %}</div>
                                     {% if webspace.last_apply_error_code %}
-                                        <div style="color:#fca5a5;">{{ webspace.last_apply_error_code }}</div>
+                                        <div style="color:var(--aw-status-danger, #fca5a5);">{{ webspace.last_apply_error_code }}</div>
                                     {% endif %}
                                 </td>
                                 <td>

@@ -1,0 +1,6 @@
+{% extends 'customer/base.html.twig' %}
+{% trans_default_domain 'infrastructure' %}
+{% block content %}
+<div class="infra-page"><header class="infra-hero"><div><span class="infra-eyebrow">KVM</span><h1>{{ 'console.my_kvm'|trans({}, 'vm_console') }}</h1><p>{{ 'infra.customer_hint'|trans }}</p></div><span class="infra-tag">{{ guests|length }} {{ 'infra.servers'|trans }}</span></header>
+<div class="infra-grid">{% for row in guests %}{% set usage = infra_kvm_usage(row.assignment.node, row.assignment.vmUuid) %}<article class="infra-card"><div class="infra-card__head"><h2><a href="{{ path('customer_kvm_guest', {id: row.assignment.id}) }}">{{ row.guest.label|default('console.vm'|trans({}, 'vm_console')) }}</a></h2><span class="infra-tag {{ row.guest.state|default('') == 'running' ? 'infra-tag--online' : '' }}">{{ row.guest.state|default('console.unavailable'|trans({}, 'vm_console')) }}</span></div>{% include 'infrastructure/_metrics.html.twig' %}<p class="infra-muted">{{ row.guest.vcpus|default('—') }} vCPU · {{ row.guest.memory_mib|default('—') }} MiB · {{ row.guest.disk_gib|default('—') }} GiB</p><a class="ui-button ui-button--primary" href="{{ path('customer_kvm_guest', {id: row.assignment.id}) }}">{{ 'infra.open'|trans }}</a></article>{% else %}<p class="infra-empty">{{ 'console.no_vms'|trans({}, 'vm_console') }}</p>{% endfor %}</div></div>
+{% endblock %}

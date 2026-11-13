@@ -33,14 +33,20 @@
         return;
     }
 
+    let submitting = false;
+    let minecraftChannel = null;
+    let optionsLoaded = false;
     const setBusy = (busy) => {
-        submitBtn.disabled = busy;
+        submitting = busy;
+        submitBtn.disabled = busy || !optionSelect.value;
         submitBtn.textContent = busy ? label('labelStarting', 'Starting…') : label('labelStart', 'Start reinstall');
     };
 
     const loadOptions = async () => {
         try {
             const payload = await apiClient.request(root.dataset.urlOptions);
+            const previous = optionSelect.value;
+            minecraftChannel = payload.data?.minecraft_channel || null;
             const options = payload.data?.options || [];
             const sharedStorage = payload.data?.shared_storage || {};
             if (!Array.isArray(options) || options.length === 0) {
@@ -49,9 +55,11 @@
                 optionSelect.innerHTML = options.map((entry) => `<option value="${escHtml(entry.id)}">${escHtml(entry.label || entry.id)}</option>`).join('');
             }
 
+            if (options.some((entry) => entry.id === previous)) optionSelect.value = previous;
+            setBusy(submitting);
             const supported = !!sharedStorage.supported;
             const alreadyEnabled = !!sharedStorage.already_enabled;
-            if (sharedStorageInput) {
+            if (sharedStorageInput && !optionsLoaded) {
                 sharedStorageInput.disabled = !supported;
                 sharedStorageInput.checked = supported && alreadyEnabled;
             }
@@ -67,14 +75,19 @@
             if (sharedStorageStatus) {
                 sharedStorageStatus.classList.toggle('hidden', !alreadyEnabled);
             }
+            optionsLoaded = true;
             errors.clearInline(inlineError);
         } catch (error) {
             errors.showAll(inlineError, error);
-            optionSelect.innerHTML = `<option value="">${label('labelLoadingFailed', 'Loading failed')}</option>`;
+            if (!optionsLoaded) {
+                optionSelect.innerHTML = `<option value="">${label('labelLoadingFailed', 'Loading failed')}</option>`;
+                setBusy(submitting);
+            }
         }
     };
 
     const submit = async () => {
+        if (submitting || !optionSelect.value) return;
         if (!confirmInput.checked) {
             errors.showAll(inlineError, {
                 message: label('labelConfirmRequired', 'Please confirm the reinstall.'),
@@ -110,6 +123,20 @@
         }
     };
 
+    optionSelect?.addEventListener('change', () => setBusy(submitting));
+    const receiveCatalog = (event) => {
+        if (!root.isConnected) { document.removeEventListener('minecraft:catalog', receiveCatalog); return; }
+        const catalog = minecraftChannel && event.detail?.[minecraftChannel];
+        if (!catalog) return;
+        const previous = optionSelect.value;
+        const versions = (catalog.versions || []).filter((version) => (catalog.release_types?.[version] || 'release') === 'release');
+        if (!versions.length) return;
+        optionSelect.innerHTML = versions.map((version) => `<option value="${escHtml(version)}">${escHtml(version)}</option>`).join('');
+        if (versions.includes(previous)) optionSelect.value = previous;
+        setBusy(submitting);
+    };
+    document.addEventListener('minecraft:catalog', receiveCatalog);
+    setBusy(false);
     submitBtn?.addEventListener('click', submit);
     loadOptions();
 })();

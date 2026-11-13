@@ -1,0 +1,20 @@
+{% trans_default_domain 'vm_disk' %}
+{% import 'admin/kvm/_form.html.twig' as form %}
+<section class="infra-card" data-vm-disk-grow>
+ <div class="infra-card__head"><h2>{{ 'vm_disk.title'|trans }}</h2></div>
+ <p>{{ 'vm_disk.hint'|trans }}</p><p>{{ 'vm_disk.guest_hint'|trans }}</p>
+ {% if node.metadata.kvm_managed.disk_grow_version|default(0) != 1 %}
+ <p role="status">{{ 'vm_disk.update_agent'|trans }}</p>
+ {% else %}
+ <p>{{ 'vm_disk.current'|trans }}: <strong>{{ vm.disk_gib }} GiB</strong> · vda</p>
+ {% if vm.snapshots|default([]) is not empty %}<p role="status">{{ 'vm_disk.snapshots'|trans }}</p>{% endif %}
+ {% if vm.state != 'shut off' %}<p role="status">{{ 'vm_disk.stopped'|trans }}</p>{% endif %}
+ {% if vm.disk_gib >= 2048 %}<p role="status">{{ 'vm_disk.maximum'|trans }}</p>{% endif %}
+ {{ form.start(node, operationId, 'vm.disk_grow', vm.id) }}
+ <input type="hidden" name="expected_disk_gib" value="{{ vm.disk_gib }}">
+ <label>{{ 'vm_disk.target'|trans }} (GiB)<input class="form-input" type="number" name="disk_gib" min="{{ vm.disk_gib + 1 }}" max="2048" step="1" required {% if vm.disk_gib >= 2048 %}disabled{% endif %}></label>
+ <label class="infra-span"><span><input type="checkbox" name="confirm" value="1" required> {{ 'vm_disk.confirm'|trans }}</span></label>
+ <button class="ui-button ui-button--primary" {% if vm.state != 'shut off' or vm.snapshots|default([]) is not empty or vm.disk_gib >= 2048 %}disabled{% endif %}>{{ 'vm_disk.grow'|trans }}</button>
+ </form>
+ {% endif %}
+</section>

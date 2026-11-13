@@ -1,0 +1,2 @@
+<script type="application/json" data-minecraft-catalog-initial>{{ {catalog: catalog|default({}), sync: syncStatus|default({})}|json_encode(15)|raw }}</script>
+<script src="{{ asset('js/minecraft-catalog.js') }}" data-catalog-url="{{ path('minecraft_catalog') }}" data-loading="{{ 'mc.loading'|trans({}, 'minecraft') }}" data-updating="{{ 'mc.updating'|trans({}, 'minecraft') }}" data-automatic="{{ 'mc.automatic'|trans({}, 'minecraft') }}" data-available="{{ 'mc.available'|trans({'%count%': '{count}'}, 'minecraft') }}" defer></script>

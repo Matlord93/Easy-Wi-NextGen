@@ -1,0 +1,19 @@
+{% extends 'customer/base.html.twig' %}
+{% trans_default_domain 'infrastructure' %}
+{% import 'kvm/_customer_form.html.twig' as form %}
+{% block content %}
+{% set busy = jobs|filter(job => job.status in ['queued', 'running']) is not empty %}
+<div class="infra-page" data-infra-tabs>
+{% for error in app.flashes('kvm_customer_error') %}<p class="infra-card" role="alert">{{ error|trans({}, error starts with 'vm_config.' ? 'vm_config' : 'kvm') }}</p>{% endfor %}
+<nav class="infra-breadcrumb"><a href="{{ path('customer_kvm') }}">KVM</a><span>/</span><span>{{ guest.label|default('console.vm'|trans({}, 'vm_console')) }}</span></nav>
+<header class="infra-hero"><div><span class="infra-eyebrow">KVM · {{ 'infra.server'|trans }}</span><h1>{{ guest.label|default('console.vm'|trans({}, 'vm_console')) }}</h1><p>{{ guest.state|default('console.unavailable'|trans({}, 'vm_console')) }}</p>{% if busy %}<p role="status">{{ 'kvm.customer_pending'|trans({}, 'kvm') }}</p>{% endif %}</div><div class="infra-actions"><button type="button" class="ui-button ui-button--ghost" data-kvm-refresh-ready hidden>{{ 'kvm.refresh'|trans({}, 'kvm') }}</button><a class="ui-button ui-button--primary" href="#kvm-console" data-infra-shortcut>{{ 'infra.console'|trans }}</a></div></header>
+<p><a class="ui-button ui-button--ghost" href="{{ path('customer_infrastructure_history', {provider:'kvm',id:assignment.id}) }}">{{ 'monitor.open_history'|trans({}, 'monitoring') }}</a></p>
+<div><div data-infra-usage-url="{{ path('customer_kvm_usage', {id: assignment.id}) }}">{% include 'infrastructure/_usage_pair.html.twig' with {serverUsage: infra_kvm_usage(assignment.node, assignment.vmUuid), nodeUsage: infra_node_usage(assignment.node)} %}</div><p data-usage-error hidden>{{ 'infra.refresh_failed'|trans }}</p></div>
+<nav class="infra-tabs" data-infra-tablist aria-label="KVM">{% for pane in ['overview', 'settings', 'snapshots', 'backups', 'activity', 'console'] %}<a href="#kvm-{{ pane }}" data-infra-tab>{{ ('infra.' ~ pane)|trans }}</a>{% endfor %}</nav>
+<section class="infra-pane infra-card" id="kvm-overview" data-infra-pane><div class="infra-card__head"><h2>{{ 'infra.capacity'|trans }}</h2></div>{% if guest %}<div class="infra-grid"><div class="infra-stat"><span>vCPU</span><strong>{{ guest.vcpus }}</strong></div><div class="infra-stat"><span>{{ 'infra.memory'|trans }}</span><strong>{{ guest.memory_mib }} MiB</strong></div><div class="infra-stat"><span>{{ 'infra.disk'|trans }}</span><strong>{{ guest.disk_gib }} GiB</strong></div></div>{% else %}<p>{{ 'console.unavailable'|trans({}, 'vm_console') }}</p>{% endif %}{% if guest %}<div class="infra-power"><h2>{{ 'kvm.customer_power'|trans({}, 'kvm') }}</h2><div class="infra-grid">{% for action in ['vm.start', 'vm.shutdown', 'vm.reboot', 'vm.stop'] %}{{ form.start(assignment, operationId, action) }}{% if action in ['vm.reboot', 'vm.stop'] %}<label class="infra-span"><span><input type="checkbox" name="confirm" value="1" required> {{ 'kvm.customer_power_confirm'|trans({}, 'kvm') }}</span></label>{% endif %}<button class="ui-button {{ action == 'vm.start' ? 'ui-button--primary' : 'ui-button--ghost' }}" {% if busy %}disabled{% endif %}>{{ ('kvm.action.' ~ action)|trans({}, 'kvm') }}</button></form>{% endfor %}</div></div>{% endif %}</section>
+
+{% if guest %}<section class="infra-pane" id="kvm-settings" data-infra-pane>{% include 'kvm/_provisioning.html.twig' with {vm:guest, node:assignment.node, customer:true} %}</section>{% endif %}
+{% include 'customer/kvm/_management.html.twig' %}
+<section class="infra-pane" id="kvm-console" data-infra-pane>{% include 'vm_console/_console.html.twig' with {provider: 'kvm'} %}</section></div>
+<script src="{{ asset('js/kvm.js') }}" defer></script>
+{% endblock %}

@@ -1,58 +1,63 @@
-<details class="group" {{ form.errors is not empty or form.action == 'update' ? 'open' : '' }}>
-    <summary class="flex items-center justify-between gap-4 px-5 py-4">
-        <div>
-            <h2 class="ng-data-card__title">{{ t(form.header, page_locale()) }}</h2>
-            <p class="ng-data-card__sub">{{ t(form.description, page_locale()) }}</p>
-        </div>
-        <span class="ui-button ui-button--ghost ui-button--sm">
-            {{ t(form.submit_label, page_locale()) }}
-        </span>
-    </summary>
+<div id="cms-page-form" class="ng-data-card" data-admin-validation>
+    <div class="ng-data-card__body">
+        <details class="group" {{ form.errors is not empty or form.action == 'update' ? 'open' : '' }}>
+            <summary class="flex items-center justify-between gap-4 px-5 py-4">
+                <div>
+                    <h2 class="ng-data-card__title">{{ t(form.header, page_locale()) }}</h2>
+                    <p class="ng-data-card__sub">{{ t(form.description, page_locale()) }}</p>
+                </div>
+                <span class="ui-button ui-button--ghost ui-button--sm">
+                    {{ t(form.submit_label, page_locale()) }}
+                </span>
+            </summary>
 
-    <div class="border-t px-5 py-4" style="border-color:var(--ng-border)">
-        {% if form.errors is not empty %}
-            <div class="ng-alert ng-alert--danger mb-4">
-                <p class="font-semibold">{{ t('please_fix_following', page_locale()) }}</p>
-                <ul class="list-disc pl-5 mt-2">
-                    {% for error in form.errors %}
-                        <li>{{ error }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        {% endif %}
-
-        <form
-            class="flex flex-col gap-4"
-            hx-post="{{ form.action_url }}"
-            hx-target="#cms-page-form"
-            hx-swap="outerHTML"
-        >
-            <div class="form-field">
-                <label class="form-label">{{ t('title', page_locale()) }}</label>
-                <input type="text" name="title" value="{{ form.title }}" class="form-input" placeholder="{{ t('cms_page_title_placeholder', page_locale()) }}">
-            </div>
-            <div class="form-field">
-                <label class="form-label">{{ t('slug', page_locale()) }}</label>
-                <input type="text" name="slug" value="{{ form.slug }}" class="form-input" placeholder="{{ t('cms_page_slug_placeholder', page_locale()) }}">
-            </div>
-            <label class="inline-flex items-center gap-2 text-sm" style="color:var(--ng-text-muted)">
-                <input type="checkbox" name="is_published" {% if form.is_published %}checked{% endif %}>
-                {{ t('publish_immediately', page_locale()) }}
-            </label>
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button type="submit" class="ui-button ui-button--primary w-full">{{ t(form.submit_label, page_locale()) }}</button>
-                {% if form.action == 'update' %}
-                    <button
-                        type="button"
-                        class="ui-button ui-button--ghost sm:w-auto"
-                        hx-get="/admin/cms/pages/form"
-                        hx-target="#cms-page-form"
-                        hx-swap="outerHTML"
-                    >
-                        {{ t('cancel', page_locale()) }}
-                    </button>
+            <div class="border-t px-5 py-4" style="border-color:var(--ng-border)">
+                {% if form.errors is not empty %}
+                    <div class="ng-alert ng-alert--danger mb-4">
+                        <p class="font-semibold">{{ t('please_fix_following', page_locale()) }}</p>
+                        <ul class="list-disc pl-5 mt-2">
+                            {% for error in form.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
                 {% endif %}
+
+                <form
+                    class="flex flex-col gap-4"
+                    hx-post="{{ form.action_url }}"
+                    hx-target="#cms-page-form"
+                    hx-swap="outerHTML"
+                >
+                    <div class="form-field">
+                        <label class="form-label">{{ t('title', page_locale()) }}</label>
+                        <input type="text" name="title" value="{{ form.title }}" class="form-input" placeholder="{{ t('cms_page_title_placeholder', page_locale()) }}">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('slug', page_locale()) }}</label>
+                        <input type="text" name="slug" value="{{ form.slug }}" class="form-input" placeholder="{{ t('cms_page_slug_placeholder', page_locale()) }}">
+                    </div>
+                    <label class="inline-flex items-center gap-2 text-sm" style="color:var(--ng-text-muted)">
+                        <input type="checkbox" name="is_published" {% if form.is_published %}checked{% endif %}>
+                        {{ t('publish_immediately', page_locale()) }}
+                    </label>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <button type="submit" class="ui-button ui-button--primary w-full">{{ t(form.submit_label, page_locale()) }}</button>
+                        {% if form.action == 'update' %}
+                            <button
+                                type="button"
+                                class="ui-button ui-button--ghost sm:w-auto"
+                                hx-get="/admin/cms/pages/form"
+                                hx-target="#cms-page-form"
+                                hx-swap="outerHTML"
+                            >
+                                {{ t('cancel', page_locale()) }}
+                            </button>
+                        {% endif %}
+                    </div>
+                </form>
             </div>
-        </form>
+        </details>
+
     </div>
-</details>
+</div>

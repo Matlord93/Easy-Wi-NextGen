@@ -43,6 +43,8 @@ final class StripePaymentProvider implements PaymentProviderInterface
         private readonly string $successUrl,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%env(default:app.stripe_cancel_url_default:STRIPE_CANCEL_URL)%')]
         private readonly string $cancelUrl,
+        #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%env(default:app.default_uri_default:DEFAULT_URI)%')]
+        private readonly string $baseUri = 'http://localhost',
     ) {
     }
 
@@ -73,8 +75,8 @@ final class StripePaymentProvider implements PaymentProviderInterface
                 'line_items[0][quantity]'                              => 1,
                 'mode'                                                 => 'payment',
                 'client_reference_id'                                  => $invoice->getNumber(),
-                'success_url'                                          => $this->successUrl ?: '/billing',
-                'cancel_url'                                           => $this->cancelUrl ?: '/billing',
+                'success_url'                                          => $this->absoluteUrl($this->successUrl),
+                'cancel_url'                                           => $this->absoluteUrl($this->cancelUrl),
             ]),
         ]);
 
@@ -119,7 +121,7 @@ final class StripePaymentProvider implements PaymentProviderInterface
 
         $eventType = (string) ($event['type'] ?? '');
 
-        if ($eventType === 'checkout.session.completed') {
+        if (in_array($eventType, ['checkout.session.completed', 'checkout.session.async_payment_succeeded'], true)) {
             $this->handleCheckoutCompleted($event['data']['object'] ?? []);
             $this->entityManager->flush();
         } elseif ($eventType === 'payment_intent.payment_failed') {
@@ -140,27 +142,26 @@ final class StripePaymentProvider implements PaymentProviderInterface
             $params['created[gte]'] = $since->getTimestamp();
         }
 
-        try {
-            $response = $this->httpClient->request('GET', self::API_BASE . '/checkout/sessions?' . http_build_query($params), [
-                'auth_basic' => [$this->secretKey, ''],
-            ]);
-
-            $body = $response->toArray(false);
-        } catch (\Throwable $e) {
-            $this->logger->error('stripe.reconcile.fetch_failed', ['error' => $e->getMessage()]);
-            return;
-        }
-
-        foreach ($body['data'] ?? [] as $session) {
-            if (!is_array($session)) {
-                continue;
+        do {
+            $response = $this->httpClient->request('GET', self::API_BASE.'/checkout/sessions?'.http_build_query($params), ['auth_basic' => [$this->secretKey, '']]);
+            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+                throw new \RuntimeException('Stripe reconciliation failed.');
             }
-            if (($session['payment_status'] ?? '') !== 'paid') {
-                continue;
+            $body = $response->toArray();
+            foreach ($body['data'] ?? [] as $session) {
+                if (is_array($session) && ($session['payment_status'] ?? '') === 'paid') {
+                    $this->handleCheckoutCompleted($session);
+                }
             }
-            $this->handleCheckoutCompleted($session);
-        }
-
+            $hasMore = (bool) ($body['has_more'] ?? false);
+            if ($hasMore) {
+                $last = $body['data'][array_key_last($body['data'] ?? [])]['id'] ?? null;
+                if (!is_string($last) || $last === '' || $last === ($params['starting_after'] ?? null)) {
+                    throw new \RuntimeException('Stripe returned an invalid pagination cursor.');
+                }
+                $params['starting_after'] = $last;
+            }
+        } while ($hasMore);
         $this->entityManager->flush();
     }
 
@@ -169,6 +170,9 @@ final class StripePaymentProvider implements PaymentProviderInterface
      */
     private function handleCheckoutCompleted(array $session): void
     {
+        if (($session['payment_status'] ?? '') !== 'paid') {
+            return;
+        }
         $invoiceNumber = (string) ($session['client_reference_id'] ?? '');
         $sessionId     = (string) ($session['id'] ?? '');
         $amountTotal   = (int) ($session['amount_total'] ?? 0);
@@ -184,35 +188,16 @@ final class StripePaymentProvider implements PaymentProviderInterface
             return;
         }
 
-        $existingPayment = null;
-        foreach ($invoice->getPayments() as $payment) {
-            if ($payment->getProvider() === $this->getName() && $payment->getReference() === $sessionId) {
-                $existingPayment = $payment;
-                break;
-            }
-        }
-
-        if ($existingPayment !== null) {
-            return;
-        }
-
-        try {
-            $this->paymentRecorder->record(
-                $invoice,
-                $this->getName(),
-                $sessionId,
-                $amountTotal,
-                $currency,
-                PaymentStatus::Succeeded,
-                null,
-                new \DateTimeImmutable(),
-            );
-        } catch (\Throwable $e) {
-            $this->logger->error('stripe.webhook.record_failed', [
-                'session' => $sessionId,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        $this->paymentRecorder->record(
+            $invoice,
+            $this->getName(),
+            $sessionId,
+            $amountTotal,
+            $currency,
+            PaymentStatus::Succeeded,
+            null,
+            new \DateTimeImmutable(),
+        );
     }
 
     /**
@@ -247,7 +232,7 @@ final class StripePaymentProvider implements PaymentProviderInterface
             }
         }
 
-        if ($timestamp === null || $signatures === []) {
+        if ($timestamp === null || !ctype_digit($timestamp) || abs(time() - (int) $timestamp) > 300 || $signatures === []) {
             return false;
         }
 
@@ -260,5 +245,14 @@ final class StripePaymentProvider implements PaymentProviderInterface
         }
 
         return false;
+    }
+
+    private function absoluteUrl(string $url): string
+    {
+        if (str_starts_with($url, 'https://') || str_starts_with($url, 'http://')) {
+            return $url;
+        }
+
+        return rtrim($this->baseUri, '/').'/'.ltrim($url === '' || $url === '/billing' ? '/customer/billing' : $url, '/');
     }
 }

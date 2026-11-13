@@ -81,7 +81,13 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         );
     }
 
-    public function testBootstrapThenRegisterHappyPath(): void
+    public static function registrationServiceUrls(): array
+    {
+        return ['legacy' => ['', true], 'loopback' => ['http://127.0.0.1:7456', true], 'private' => ['https://10.1.2.3:7456', true], 'bad scheme' => ['file:///etc/passwd', false], 'credentials' => ['http://user:password@127.0.0.1:7456', false]];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('registrationServiceUrls')]
+    public function testBootstrapThenRegisterHappyPath(string $serviceUrl, bool $valid): void
     {
         $bootstrapTokenValue = 'bootstrap-token';
         $bootstrapTokenHash = hash('sha256', $bootstrapTokenValue);
@@ -176,12 +182,13 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         $encryptionService->method('encrypt')
             ->willReturn(['key_id' => 'v1', 'nonce' => 'n', 'ciphertext' => 'c']);
 
-        $signatureVerifier = new AgentSignatureVerifier(new ArrayAdapter(), new NullLogger(), 300, 600);
+        $signatureVerifier = new AgentSignatureVerifier(new \App\Module\Core\Application\AgentNonceStore($this->createStub(\Doctrine\DBAL\Connection::class)), new NullLogger(), 300, 600);
 
+        $createdAgent = null;
         $agentCreator = $this->createMock(AgentCreator::class);
         $agentCreator->method('create')
-            ->willReturnCallback(static function (string $id, array $secretPayload, ?string $name): Agent {
-                return new Agent($id, $secretPayload, $name);
+            ->willReturnCallback(static function (string $id, array $secretPayload, ?string $name) use (&$createdAgent): Agent {
+                return $createdAgent = new Agent($id, $secretPayload, $name);
             });
 
         $appSettingsService = $this->createMock(AppSettingsService::class);
@@ -201,6 +208,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
             'agent_id' => $agentId,
             'register_token' => $registerToken,
             'name' => '',
+            'service_base_url' => $serviceUrl,
         ], JSON_THROW_ON_ERROR);
 
         $timestamp = (new DateTimeImmutable())->format(DateTimeImmutable::RFC3339);
@@ -221,7 +229,9 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         $registerRequest->headers->set('X-Nonce', $nonce);
         $registerRequest->headers->set('X-Signature', $signature);
 
+        if (!$valid) { $this->expectException(\Symfony\Component\HttpKernel\Exception\BadRequestHttpException::class); }
         $registerResponse = $registrationController->register($registerRequest);
         $this->assertSame(201, $registerResponse->getStatusCode());
+        self::assertSame($serviceUrl, $createdAgent->getServiceBaseUrl());
     }
 }

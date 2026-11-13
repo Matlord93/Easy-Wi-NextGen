@@ -1,0 +1,31 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'admin_workspace' %}
+{% set pageTitle = 'workspace.overview'|trans %}
+{% set pageSubtitle = 'workspace.intro'|trans %}
+{% block content %}
+    <section class="ng-card">
+        <div class="ng-card__header"><h1>{{ 'workspace.overview'|trans }}</h1></div>
+        <div class="ng-card__body"><p>{{ 'workspace.intro'|trans }}</p></div>
+    </section>
+    <nav class="aw-setup-index" aria-label="{{ 'workspace.choose'|trans }}">
+        {% for guide in guides %}
+            <a href="#setup-{{ guide.key }}">{{ ('workspace.guide.' ~ guide.key ~ '.title')|trans }}</a>
+        {% endfor %}
+    </nav>
+    <div class="aw-setup-grid">
+        {% for guide in guides %}
+            {% set enabled = not guide.module or module_enabled(guide.module) %}
+            <section class="aw-setup-card" id="setup-{{ guide.key }}">
+                <h2>{{ ('workspace.guide.' ~ guide.key ~ '.title')|trans }}</h2>
+                <p>{{ ('workspace.guide.' ~ guide.key ~ '.intro')|trans }}</p>
+                {% if not enabled %}
+                    <p>
+                        <span class="ui-badge">{{ 'workspace.disabled'|trans }}</span>
+                        <a href="{{ path('admin_modules') }}">{{ 'workspace.enable'|trans }}</a>
+                    </p>
+                {% endif %}
+                {% include 'admin/workspace/_steps.html.twig' with {guide: guide, enabled: enabled} %}
+            </section>
+        {% endfor %}
+    </div>
+{% endblock %}

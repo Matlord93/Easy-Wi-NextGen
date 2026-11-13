@@ -1,0 +1,14 @@
+{% trans_default_domain 'admin_workspace' %}
+{% set guide = admin_workspace_context(activeNav|default('')) %}
+<section class="aw-context" aria-label="{{ 'workspace.help'|trans }}">
+    <nav class="aw-breadcrumbs" aria-label="{{ 'workspace.overview'|trans }}">
+        <a href="{{ path('admin_getting_started') }}">{{ 'workspace.setup'|trans }}</a>
+        <span aria-hidden="true">/</span>
+        <span>{{ ('workspace.guide.' ~ guide.key ~ '.title')|trans }}</span>
+    </nav>
+    <p class="aw-context__intro">{{ ('workspace.guide.' ~ guide.key ~ '.intro')|trans }}</p>
+    <details class="aw-guide">
+        <summary>{{ 'workspace.help'|trans }}</summary>
+        {% include 'admin/workspace/_steps.html.twig' with {guide: guide} %}
+    </details>
+</section>

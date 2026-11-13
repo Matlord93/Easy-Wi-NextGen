@@ -1,82 +1,25 @@
 {% extends 'admin/base.html.twig' %}
-{% set pageTitle = t('admin_minecraft_versions_title', page_locale()) %}
-{% set pageSubtitle = t('admin_minecraft_versions_subtitle', page_locale()) %}
-{% set activeNav = 'minecraft_versions' %}
+{% set pageTitle = 'mc.catalog_title'|trans({}, 'minecraft') %}
 {% block content %}
-<div class="ng-data-card">
-  <div class="ng-data-card__header">
-    <div>
-      <h2 class="ng-data-card__title">{{ t('admin_minecraft_versions_title', page_locale()) }}</h2>
-      <p class="ng-data-card__sub">{{ t('admin_minecraft_versions_active_help', page_locale()) }}</p>
-    </div>
-    <a class="ui-button ui-button--primary ui-button--sm" href="/admin/minecraft-versions/new">{{ t('admin_minecraft_versions_new', page_locale()) }}</a>
-  </div>
-  <div style="padding:16px;display:grid;gap:14px;">
-    <section class="ng-alert ng-alert--info">
-      <strong>{{ t('minecraft_catalog_automatic', page_locale()) }}</strong>
-      <p>{{ t('minecraft_catalog_automatic_hint', page_locale()) }}</p>
-      {% for channel in ['vanilla','paper','spigot','bedrock','bungeecord'] %}
-        {% set sync = syncStatus.channels[channel]|default({}) %}
-        <p><strong>{{ channel|capitalize }}</strong> · {{ sync.success_at|default(0) ? sync.success_at|date('Y-m-d H:i') : t('minecraft_sync_pending', page_locale()) }} · {{ sync.count|default(0) }}
-          {% if sync.error|default('') %}<span class="text-red-500">{{ sync.error }}</span>{% endif %}</p>
-      {% endfor %}
-      <form method="post" action="/admin/minecraft-versions/sync">
-        <input type="hidden" name="_token" value="{{ syncToken }}">
-        <button class="ui-button ui-button--primary" {{ syncStatus.queued|default(false) ? 'disabled' : '' }}>{{ t(syncStatus.queued|default(false) ? 'minecraft_sync_queued' : 'minecraft_sync_now', page_locale()) }}</button>
-      </form>
-    </section>
-    {% if uploadOk is defined and uploadOk %}
-      <div class="alert alert-success">
-        <strong>{{ t('admin_minecraft_versions_upload_success', page_locale()) }}</strong>
-        {{ t('admin_minecraft_versions_upload_channel_label', page_locale()) }}: {{ uploadOk }}
-      </div>
-    {% endif %}
-    {% if uploadError is defined and uploadError %}
-      <div class="alert alert-danger">
-        <strong>{{ t('admin_minecraft_versions_upload_error', page_locale()) }}</strong>
-        {{ uploadError }}
-      </div>
-    {% endif %}
-    {% if importResult %}
-      <div class="alert {{ importResult.errors > 0 ? 'alert-danger' : 'alert-success' }}">
-        <strong>{{ t('admin_minecraft_versions_import_result', page_locale()) }}</strong>
-        <span>{{ t('admin_minecraft_versions_import_created_label', page_locale()) }}: {{ importResult.created }}</span>
-        <span>{{ t('admin_minecraft_versions_import_updated_label', page_locale()) }}: {{ importResult.updated }}</span>
-        <span>{{ t('admin_minecraft_versions_import_skipped_label', page_locale()) }}: {{ importResult.skipped }}</span>
-        <span>{{ t('admin_minecraft_versions_import_deactivated_label', page_locale()) }}: {{ importResult.deactivated }}</span>
-        <span>{{ t('admin_minecraft_versions_import_errors_label', page_locale()) }}: {{ importResult.errors }}</span>
-        {% if importResult.errorMessages is not empty %}
-          <ul>{% for error in importResult.errorMessages %}<li>{{ error }}</li>{% endfor %}</ul>
-        {% endif %}
-      </div>
-    {% endif %}
-    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <select name="channel"><option value="">{{ t('admin_minecraft_versions_all_channels', page_locale()) }}</option>{% for c in ['vanilla','paper','spigot','bedrock','bungeecord'] %}<option value="{{ c }}" {% if filters.channel == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
-      <select name="active"><option value="">{{ t('admin_minecraft_versions_active_filter', page_locale()) }}</option><option value="1" {% if filters.active == '1' %}selected{% endif %}>{{ t('admin_minecraft_versions_active', page_locale()) }}</option><option value="0" {% if filters.active == '0' %}selected{% endif %}>{{ t('admin_minecraft_versions_inactive', page_locale()) }}</option></select>
-      <select name="source"><option value="">{{ t('admin_minecraft_versions_all_sources', page_locale()) }}</option><option value="import" {% if filters.source == 'import' %}selected{% endif %}>import</option><option value="manual" {% if filters.source == 'manual' %}selected{% endif %}>manual</option></select>
-      <select name="preview"><option value="">{{ t('admin_minecraft_versions_preview_filter', page_locale()) }}</option><option value="1" {% if filters.preview == '1' %}selected{% endif %}>{{ t('admin_minecraft_versions_yes', page_locale()) }}</option><option value="0" {% if filters.preview == '0' %}selected{% endif %}>{{ t('admin_minecraft_versions_no', page_locale()) }}</option></select>
-      <input name="q" value="{{ filters.q }}" placeholder="{{ t('admin_minecraft_versions_search_placeholder', page_locale()) }}">
-      <button class="ui-button ui-button--ghost ui-button--sm">{{ t('filter', page_locale()) }}</button>
-    </form>
-    <form method="post" action="/admin/minecraft-versions/import" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <strong>{{ t('admin_minecraft_versions_import_section', page_locale()) }}</strong>
-      <select name="channel"><option value="all">{{ t('admin_minecraft_versions_import_all', page_locale()) }}</option><option value="vanilla">Vanilla</option><option value="paper">Paper</option><option value="bedrock">Bedrock</option></select>
-      <label><input type="checkbox" name="force" value="1"> {{ t('admin_minecraft_versions_force', page_locale()) }}</label>
-      <label><input type="checkbox" name="deactivate_missing" value="1"> {{ t('admin_minecraft_versions_deactivate_missing', page_locale()) }}</label>
-      <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_minecraft_versions_import_start', page_locale()) }}</button>
-    </form>
-    <form method="post" action="/admin/minecraft-versions/upload-data-file" enctype="multipart/form-data" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <strong>{{ t('admin_minecraft_versions_upload_section', page_locale()) }}</strong>
-      <select name="channel"><option value="vanilla">Vanilla (minecraft-server.json)</option><option value="paper">Paper (paper-versions.json)</option><option value="bedrock">Bedrock (bedrock-server.json)</option></select>
-      <input type="file" name="data_file" accept=".json,application/json" required>
-      <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_minecraft_versions_upload_button', page_locale()) }}</button>
+<section class="ng-data-card">
+  <div class="ng-data-card__header"><div><h1>{{ 'mc.catalog_title'|trans({}, 'minecraft') }}</h1><p>{{ 'mc.automatic_hint'|trans({}, 'minecraft') }}</p></div><a href="{{ path('admin_minecraft') }}">{{ 'mc.choose_version'|trans({}, 'minecraft') }}</a></div>
+  <div class="ng-data-card__body">
+    <p role="status" data-minecraft-sync-status>{{ (syncStatus.updating ? 'mc.updating' : 'mc.automatic')|trans({}, 'minecraft') }}</p>
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;">
+      <label>{{ 'mc.channel'|trans({}, 'minecraft') }} <select name="channel" class="form-input"><option value="">{{ 'mc.all'|trans({}, 'minecraft') }}</option>{% for channel in channels %}<option value="{{ channel }}" {{ filters.channel == channel ? 'selected' : '' }}>{{ ('mc.channel.' ~ channel)|trans({}, 'minecraft') }}</option>{% endfor %}</select></label>
+      <label>{{ 'mc.search'|trans({}, 'minecraft') }} <input name="q" value="{{ filters.q }}" class="form-input"></label>
+      <button class="ui-button ui-button--ghost">{{ 'mc.filter'|trans({}, 'minecraft') }}</button>
     </form>
   </div>
-  <div class="ng-data-card__body--flush"><table class="ui-table"><thead><tr><th>{{ t('admin_minecraft_versions_channel', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_mc_version', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_build', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_java', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_source', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_active', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_preview', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_download_url', page_locale()) }}</th><th>{{ t('admin_minecraft_versions_updated_at', page_locale()) }}</th><th>{{ t('actions', page_locale()) }}</th></tr></thead><tbody>
-  {% for version in versions %}
-    {% set isPreview = 'preview' in version.downloadUrl|lower %}
-    <tr><td>{{ version.channel }}</td><td>{{ version.mcVersion }}</td><td>{{ version.build ?: '—' }}</td><td>{{ version.javaVersion ?: '—' }}</td><td>{{ version.source ?: '—' }}</td><td>{{ version.active ? t('admin_minecraft_versions_active', page_locale()) : t('admin_minecraft_versions_inactive', page_locale()) }}</td><td>{{ isPreview ? t('admin_minecraft_versions_yes', page_locale()) : t('admin_minecraft_versions_no', page_locale()) }}</td><td title="{{ version.downloadUrl }}" style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ version.downloadUrl }}</td><td>{{ version.updatedAt|date('Y-m-d H:i') }}</td><td><a href="/admin/minecraft-versions/{{ version.id }}/edit">{{ t('edit', page_locale()) }}</a><form method="post" action="/admin/minecraft-versions/{{ version.id }}/toggle" style="display:inline"><button>{{ version.active ? t('admin_minecraft_versions_deactivate', page_locale()) : t('admin_minecraft_versions_activate', page_locale()) }}</button></form><form method="post" action="/admin/minecraft-versions/{{ version.id }}/delete" style="display:inline"><button onclick="return confirm('{{ t('admin_minecraft_versions_delete_confirm', page_locale())|e('js') }}')">{{ t('delete', page_locale()) }}</button></form></td></tr>
-  {% else %}<tr><td colspan="10">{{ t('admin_minecraft_versions_empty', page_locale()) }}</td></tr>{% endfor %}
-  </tbody></table></div>
-</div>
+  <div class="ng-data-card__body--flush"><table class="ui-table">
+    <thead><tr>{% for label in ['channel', 'version', 'build', 'java', 'release_type'] %}<th>{{ ('mc.' ~ label)|trans({}, 'minecraft') }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for version in versions %}<tr><td>{{ ('mc.channel.' ~ version.channel)|trans({}, 'minecraft') }}</td><td>{{ version.mcVersion }}</td><td>{{ version.build ?: '—' }}</td><td>{{ version.javaVersion ?: '—' }}</td><td>{{ (version.metadata.release_type|default('release') == 'release' ? 'mc.release' : 'mc.preview')|trans({}, 'minecraft') }}</td></tr>{% else %}<tr><td colspan="5">{{ 'mc.loading'|trans({}, 'minecraft') }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <nav class="ng-data-card__body" aria-label="{{ 'mc.pages'|trans({}, 'minecraft') }}">
+    {% if page > 1 %}<a href="{{ path('admin_minecraft_versions', filters|merge({page: page - 1})) }}">{{ 'mc.previous'|trans({}, 'minecraft') }}</a>{% endif %}
+    <span>{{ page }} / {{ pages }} · {{ count }}</span>
+    {% if page < pages %}<a href="{{ path('admin_minecraft_versions', filters|merge({page: page + 1})) }}">{{ 'mc.next'|trans({}, 'minecraft') }}</a>{% endif %}
+  </nav>
+</section>
+{% include 'admin/minecraft/_catalog_script.html.twig' %}
 {% endblock %}

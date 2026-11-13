@@ -1,4 +1,4 @@
-<div id="cms-pages-table" class="cust-ws-table-wrap">
+<div id="cms-pages-table" class="cust-ws-table-wrap" hx-get="{{ path('admin_cms_pages_table') }}" hx-trigger="cms-pages-changed from:body" hx-swap="outerHTML">
     <table class="cust-table">
         <thead>
             <tr>

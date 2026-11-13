@@ -65,7 +65,7 @@
                         </div>
                         <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
                             <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('ticket_ui_kpi_high_priority', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:#fca5a5;">{{ summary.high_priority }}</div>
+                            <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ summary.high_priority }}</div>
                         </div>
                         <div class="tkt-kpi tkt-kpi--resolved">
                             <div class="tkt-kpi__label">{{ t('ticket_ui_kpi_resolved_today', locale) }}</div>

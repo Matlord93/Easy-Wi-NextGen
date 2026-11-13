@@ -1,0 +1,20 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'monitoring' %}
+{% set pageTitle = 'monitor.title'|trans %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('infrastructure.css') }}">
+<div class="infra-page"><header class="infra-hero"><div><span class="infra-eyebrow">Proxmox · KVM</span><h1>{{ 'monitor.title'|trans }}</h1><p>{{ 'monitor.setup_hint'|trans }}</p></div></header>
+{% if error %}<p class="infra-card" role="alert">{{ error|trans }}</p>{% endif %}
+<div class="infra-grid infra-grid--two">
+<section class="infra-card"><h2>{{ 'monitor.settings'|trans }}</h2>
+<form method="post" class="infra-form"><input type="hidden" name="_token" value="{{ csrf_token('infrastructure-monitoring-settings') }}">
+{% for field in ['enabled','alerts_enabled'] %}<label class="infra-span"><span><input type="checkbox" name="options[{{ field }}]" value="1" {{ options[field] ? 'checked' : '' }}> {{ ('monitor.' ~ field)|trans }}</span></label>{% endfor %}
+{% for field,limits in {retention_days:[1,365],proxmox_batch_size:[1,256],hold_seconds:[60,3600],offline_seconds:[120,3600],cpu_percent:[1,100],memory_percent:[1,100],disk_percent:[1,100]} %}<label>{{ ('monitor.' ~ field)|trans }}<input class="form-input" type="number" name="options[{{ field }}]" value="{{ options[field] }}" min="{{ limits[0] }}" max="{{ limits[1] }}" required></label>{% endfor %}
+<button class="ui-button ui-button--primary">{{ 'monitor.save'|trans }}</button></form></section>
+<section class="infra-card"><h2>{{ 'monitor.collector'|trans }}</h2><p>{{ 'monitor.collector_hint'|trans }}</p><p>{{ 'monitor.last_run'|trans }}: {{ collector.last_run_at|default(null) ? collector.last_run_at|date('d.m.Y H:i:s', 'Europe/Berlin') : '—' }}</p>
+{% if collector.last_result|default(null) %}<dl>{% for field in ['samples','unavailable','pruned'] %}<dt>{{ ('monitor.' ~ field)|trans }}</dt><dd>{{ collector.last_result[field]|default(0) }}</dd>{% endfor %}</dl>{% endif %}
+<p>{{ 'monitor.collection_budget'|trans }}</p>
+<form method="post"><input type="hidden" name="_token" value="{{ csrf_token('infrastructure-monitoring-settings') }}"><input type="hidden" name="action" value="collect"><button class="ui-button ui-button--ghost">{{ 'monitor.collect_now'|trans }}</button></form>
+<p><a href="{{ path('admin_proxmox') }}">Proxmox</a> · <a href="{{ path('admin_kvm') }}">KVM</a></p></section>
+</div></div>
+{% endblock %}

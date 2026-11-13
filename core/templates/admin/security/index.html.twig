@@ -77,7 +77,7 @@
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
                             <div class="tkt-hero__pill" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.1);">
                                 <span class="tkt-hero__pill-dot" style="background:#ef4444;animation:pulse 2s infinite;"></span>
-                                <span style="color:#fca5a5;">{{ t('admin_security_hero_label', locale) }}</span>
+                                <span style="color:var(--aw-status-danger, #fca5a5);">{{ t('admin_security_hero_label', locale) }}</span>
                             </div>
                             {% if attackCount > 0 %}
                                 <span class="ui-badge ui-badge--danger">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale) }}</span>
@@ -101,11 +101,11 @@
                         </div>
                         <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
                             <div class="tkt-kpi__label" style="color:rgba(252,165,165,.75);">{{ t('admin_security_blocked', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:#fca5a5;">{{ securityEventSummary.blocked }}</div>
+                            <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ securityEventSummary.blocked }}</div>
                         </div>
                         <div class="tkt-kpi {{ attackCount > 0 ? '' : 'tkt-kpi--resolved' }}" style="{{ attackCount > 0 ? 'border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);' : '' }}">
                             <div class="tkt-kpi__label" style="{{ attackCount > 0 ? 'color:rgba(252,165,165,.75);' : '' }}">{{ t('admin_security_kpi_attacks', locale) }}</div>
-                            <div class="tkt-kpi__value" style="{{ attackCount > 0 ? 'color:#fca5a5;' : '' }}">{{ attackCount }}</div>
+                            <div class="tkt-kpi__value" style="{{ attackCount > 0 ? 'color:var(--aw-status-danger, #fca5a5);' : '' }}">{{ attackCount }}</div>
                         </div>
                         <div class="tkt-kpi">
                             <div class="tkt-kpi__label">{{ t('admin_security_kpi_providers', locale) }}</div>
@@ -119,27 +119,27 @@
         {# Quick navigation #}
         <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
             <a href="#ddos" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(239,68,68,.15);color:#fca5a5;font-size:17px;">⚡</div>
+                <div class="tkt-qa__icon" style="background:rgba(239,68,68,.15);color:var(--aw-status-danger, #fca5a5);font-size:17px;">⚡</div>
                 <div class="tkt-qa__title">{{ t('admin_security_nav_ddos', locale) }}</div>
                 <div class="tkt-qa__sub">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale)|lower }}</div>
             </a>
             <a href="#firewall" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(96,165,250,.15);color:#60a5fa;font-size:17px;">🔥</div>
+                <div class="tkt-qa__icon" style="background:rgba(96,165,250,.15);color:var(--aw-status-info, #60a5fa);font-size:17px;">🔥</div>
                 <div class="tkt-qa__title">{{ t('admin_security_nav_firewall', locale) }}</div>
                 <div class="tkt-qa__sub">{{ totalNodes }} {{ t('admin_security_kpi_nodes', locale)|lower }}</div>
             </a>
             <a href="#fail2ban" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(251,191,36,.15);color:#fbbf24;font-size:17px;">🛡</div>
+                <div class="tkt-qa__icon" style="background:rgba(251,191,36,.15);color:var(--aw-status-warning, #fbbf24);font-size:17px;">🛡</div>
                 <div class="tkt-qa__title">{{ t('admin_security_nav_fail2ban', locale) }}</div>
                 <div class="tkt-qa__sub">{{ t('admin_security_nav_fail2ban_sub', locale) }}</div>
             </a>
             <a href="#events" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(167,139,250,.15);color:#a78bfa;font-size:17px;">📋</div>
+                <div class="tkt-qa__icon" style="background:rgba(167,139,250,.15);color:var(--aw-status-primary, #a78bfa);font-size:17px;">📋</div>
                 <div class="tkt-qa__title">{{ t('admin_security_nav_events', locale) }}</div>
                 <div class="tkt-qa__sub">{{ totalEvents }} {{ t('admin_security_nav_events_sub', locale) }}</div>
             </a>
             <a href="#providers" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(52,211,153,.15);color:#34d399;font-size:17px;">🔑</div>
+                <div class="tkt-qa__icon" style="background:rgba(52,211,153,.15);color:var(--aw-status-success, #34d399);font-size:17px;">🔑</div>
                 <div class="tkt-qa__title">{{ t('admin_security_nav_providers', locale) }}</div>
                 <div class="tkt-qa__sub">{{ credentials|length }} {{ t('admin_security_kpi_providers', locale)|lower }}</div>
             </a>
@@ -624,7 +624,7 @@
                 </div>
                 <div style="border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:16px;background:rgba(239,68,68,.05);text-align:center;">
                     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(252,165,165,.7);margin-bottom:8px;">{{ t('admin_security_blocked', locale) }}</div>
-                    <div style="font-size:30px;font-weight:700;color:#fca5a5;">{{ securityEventSummary.blocked }}</div>
+                    <div style="font-size:30px;font-weight:700;color:var(--aw-status-danger, #fca5a5);">{{ securityEventSummary.blocked }}</div>
                 </div>
                 <div style="border:1px solid var(--ng-border);border-radius:10px;padding:16px;background:var(--ng-surface-soft);text-align:center;">
                     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:8px;">{{ t('admin_security_event_count', locale) }}</div>

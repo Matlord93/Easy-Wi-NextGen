@@ -1,0 +1,4 @@
+{% trans_default_domain 'proxmox' %}
+{% if admin and kind == 'qemu' %}
+<section class="ng-data-card"><div class="ng-data-card__header"><h2>{{ 'pve.iso'|trans }}</h2></div><form method="post" action="{{ actionUrl }}" class="ng-data-card__body" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' with {action: 'iso-mount'} %}<select name="iso" class="form-input" required>{% for iso in detail.isos %}<option value="{{ iso.volid }}">{{ iso.volid }}</option>{% endfor %}</select><label><input type="checkbox" name="confirm" value="1" required> {{ 'pve.confirm_iso'|trans }}</label><button class="ui-button ui-button--primary">{{ 'pve.action.iso-mount'|trans }}</button></form></section>
+{% endif %}

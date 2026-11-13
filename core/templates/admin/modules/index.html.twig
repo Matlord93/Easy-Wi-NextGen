@@ -25,7 +25,7 @@
                 <div style="font-size:0.75rem;color:var(--ng-text-muted);margin-top:0.25rem;">{{ t('admin_modules_kpi_total', locale) }}</div>
             </div>
             <div class="tkt-kpi tkt-kpi--resolved" style="border-radius:var(--ng-radius);padding:1rem;text-align:center;">
-                <div style="font-size:2rem;font-weight:700;color:#4ade80;">{{ enabledCount }}</div>
+                <div style="font-size:2rem;font-weight:700;color:var(--aw-status-success, #4ade80);">{{ enabledCount }}</div>
                 <div style="font-size:0.75rem;color:rgba(74,222,128,0.7);margin-top:0.25rem;">{{ t('admin_modules_kpi_enabled', locale) }}</div>
             </div>
             <div class="tkt-kpi" style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:1rem;text-align:center;">
@@ -119,7 +119,7 @@
                     </div>
                     <div>
                         {% if module.enabled %}
-                            <span class="ui-badge" style="background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);border-radius:999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">{{ t('admin_modules_enabled', locale) }}</span>
+                            <span class="ui-badge" style="background:rgba(34,197,94,0.12);color:var(--aw-status-success, #4ade80);border:1px solid rgba(34,197,94,0.25);border-radius:999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">{{ t('admin_modules_enabled', locale) }}</span>
                         {% else %}
                             <span class="ui-badge" style="background:var(--ng-surface-soft);color:var(--ng-text-muted);border:1px solid var(--ng-border);border-radius:999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">{{ t('admin_modules_disabled', locale) }}</span>
                         {% endif %}

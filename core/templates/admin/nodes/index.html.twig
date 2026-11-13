@@ -301,6 +301,17 @@
                 </div>
             </div>
 
+            <section id="section-sftp-host-key" class="ng-data-card">
+                <div class="ng-data-card__header"><h2>{{ 'sftp.trusted_host'|trans({}, 'security_hardening') }}</h2></div>
+                <form method="post" action="{{ path('admin_nodes_sftp_host_key', {id: selectedNode.id}) }}" class="ng-data-card__body">
+                    <input type="hidden" name="_token" value="{{ csrf_token('node-sftp-host-key-' ~ selectedNode.id) }}">
+                    <label for="sftp-host-fingerprint">{{ 'sftp.fingerprint'|trans({}, 'security_hardening') }}</label>
+                    <input id="sftp-host-fingerprint" name="fingerprint" class="form-input" value="{{ selectedNode.agent.sftp_host_fingerprint|default('') }}" placeholder="SHA256:…" autocomplete="off">
+                    <p>{{ 'sftp.trust_hint'|trans({}, 'security_hardening') }}</p>
+                    <button class="ui-button ui-button--primary">{{ 'sftp.save'|trans({}, 'security_hardening') }}</button>
+                </form>
+            </section>
+
             {# ── Agent Settings ── #}
             <details id="section-agent-settings" class="ng-data-card">
                 <summary style="padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;user-select:none;">
@@ -583,7 +594,7 @@
                                         <span style="font-size:11px;color:var(--ng-text-muted);">{{ log.createdAt|date('Y-m-d H:i') }}</span>
                                     </div>
                                     {% if log.errorText %}
-                                        <div style="font-size:11px;color:#fca5a5;white-space:pre-line;font-family:monospace;">{{ log.errorText }}</div>
+                                        <div style="font-size:11px;color:var(--aw-status-danger, #fca5a5);white-space:pre-line;font-family:monospace;">{{ log.errorText }}</div>
                                     {% elseif log.logText %}
                                         <div style="font-size:11px;color:var(--ng-text-muted);white-space:pre-line;font-family:monospace;">{{ log.logText }}</div>
                                     {% endif %}
@@ -607,7 +618,7 @@
                             <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#ef4444" stroke-width="2"><path stroke-linecap="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         </span>
                         <div>
-                            <h2 class="ng-data-card__title" style="margin:0;color:#f87171;">{{ t('admin_nodes_delete_title', page_locale()) }}</h2>
+                            <h2 class="ng-data-card__title" style="margin:0;color:var(--aw-status-danger, #f87171);">{{ t('admin_nodes_delete_title', page_locale()) }}</h2>
                             <p class="ng-data-card__sub" style="margin:2px 0 0;">{{ t('admin_nodes_delete_hint', page_locale()) }}</p>
                         </div>
                     </div>

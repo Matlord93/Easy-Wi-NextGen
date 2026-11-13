@@ -68,6 +68,7 @@ final class AgentJobValidator
             'firewall.open_ports', 'firewall.close_ports' => $this->requireKeys($payload, ['agent_id', 'ports']),
             'ddos.policy.apply' => $this->requireKeys($payload, ['agent_id', 'mode']),
             'ddos.status.check' => $this->requireKeys($payload, ['agent_id']),
+            'kvm.managed' => $this->requireKeys($payload, ['action']),
             'kvm.vm.list', 'kvm.network.list' => [],
             'kvm.vm.status', 'kvm.snapshot.list' => $this->requireKeys($payload, ['name']),
             'kvm.vm.action' => $this->requireKeys($payload, ['name', 'action']),

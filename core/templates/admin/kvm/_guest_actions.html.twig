@@ -1,0 +1,19 @@
+{% trans_default_domain 'kvm' %}
+{% import 'admin/kvm/_form.html.twig' as form %}
+<article class="infra-card" id="vm-{{ vm.id }}"><h3>{{ vm.label|default(vm.id) }}</h3><p>{{ vm.state }} · {{ vm.managed ? 'kvm.managed'|trans : 'kvm.external'|trans }}</p><p class="kvm-meta">{{ vm.id }}</p>
+{% if vm.error|default('') %}<p class="kvm-alert">{{ vm.error }}</p>{% endif %}
+{% if vm.managed %}<p>{{ vm.vcpus }} vCPU · {{ vm.memory_mib }} MiB RAM · {{ vm.disk_gib }} GiB · {{ vm.network_type }}: {{ vm.network }}</p><p class="kvm-meta">{{ 'kvm.actual_resources'|trans }}: {{ vm.details['CPU(s)']|default('—') }} vCPU · {{ vm.details['Max memory']|default('—') }}</p><p class="kvm-meta">{{ vm.template }} · {{ vm.username }}@{{ vm.hostname }}</p>
+{% if not vm.error|default('') %}
+<form method="post" action="{{ path('admin_kvm_assign', {id: node.id, uuid: vm.id}) }}" class="kvm-form">
+<input type="hidden" name="_token" value="{{ csrf_token('kvm-assign-' ~ node.id ~ '-' ~ vm.id) }}">
+<label>{{ 'console.customer'|trans({}, 'vm_console') }}<select class="form-input" name="customer_id"><option value="0">{{ 'console.unassigned'|trans({}, 'vm_console') }}</option>{% for customer in customers %}<option value="{{ customer.id }}" {% if assignments[vm.id].customer.id|default(0) == customer.id %}selected{% endif %}>{{ customer.email }}</option>{% endfor %}</select></label><button class="ui-button">{{ 'kvm.save'|trans }}</button></form>
+{% if not vm.console_enabled|default(false) %}{{ form.start(node, operationId, 'vm.console.configure', vm.id) }}<button class="ui-button" {% if vm.state != 'shut off' %}disabled{% endif %}>{{ 'console.prepare'|trans({}, 'vm_console') }}</button><span>{{ 'console.prepare_hint'|trans({}, 'vm_console') }}</span></form>{% endif %}
+
+{{ form.start(node, operationId, 'vm.start', vm.id) }}
+<select name="action" class="form-input" aria-label="{{ 'kvm.action'|trans }}">{% for a in ['start','shutdown','reboot','stop','suspend','resume','autostart','autostart-disable'] %}<option value="vm.{{ a }}">{{ ('kvm.action.vm.' ~ a)|trans }}</option>{% endfor %}</select><button class="ui-button ui-button--primary">{{ 'kvm.execute'|trans }}</button></form>
+{% set stopped = vm.state == 'shut off' %}
+
+
+
+{% endif %}{% else %}<p class="kvm-meta">{{ vm.details['CPU(s)']|default('—') }} vCPU · {{ vm.details['Max memory']|default('—') }}</p>{% endif %}
+</article>

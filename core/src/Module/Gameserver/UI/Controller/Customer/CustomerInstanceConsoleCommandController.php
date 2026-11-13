@@ -54,7 +54,7 @@ final class CustomerInstanceConsoleCommandController
             throw new NotFoundHttpException('Instance not found.');
         }
         $isOwner = $instance->getCustomer()?->getId() === $actor->getId();
-        $isAdmin = $actor->getType() === UserType::Admin;
+        $isAdmin = $actor->isAdmin();
         if (!$isOwner && !$isAdmin) {
             $this->audit($actor, 'command_blocked', $id, null, 'forbidden');
             return $this->responseEnvelopeFactory->error($request, 'Forbidden', 'FORBIDDEN', JsonResponse::HTTP_FORBIDDEN);

@@ -1,0 +1,8 @@
+{% trans_default_domain 'proxmox' %}
+{% if detail.disks %}
+<section class="infra-card" data-pve-disk-inventory style="margin-top:16px;">
+ <h3>{{ 'pve.extra_disk.attached'|trans }}</h3>
+ <p>{{ 'pve.extra_disk.capacity_hint'|trans }}</p>
+ <div class="infra-grid">{% for disk in detail.disks %}<div class="infra-stat"><span>{{ disk.device }}</span><strong>{{ (disk.size_bytes / 1073741824)|number_format(2) }} GiB</strong></div>{% endfor %}</div>
+</section>
+{% endif %}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Domain\Entity;
 
 use App\Module\Core\Domain\Enum\InvoiceStatus;
+use App\Module\Core\Domain\Enum\PaymentStatus;
 use App\Repository\InvoiceRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -12,6 +13,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: InvoiceRepository::class)]
 #[ORM\Table(name: 'invoices')]
+#[ORM\UniqueConstraint(name: 'uniq_invoices_number', columns: ['number'])]
 class Invoice
 {
     #[ORM\Id]
@@ -50,6 +52,15 @@ class Invoice
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $billingDetails = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $cancelledAt = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $cancellationReason = null;
+
     /**
      * @var Collection<int, Payment>
      */
@@ -70,6 +81,9 @@ class Invoice
 
     public function __construct(User $customer, string $number, int $amountTotalCents, string $currency, \DateTimeImmutable $dueDate)
     {
+        if ($amountTotalCents <= 0 || $amountTotalCents > 2_147_483_647 || !preg_match('/^[A-Z]{3}$/D', $currency) || trim($number) === '' || mb_strlen($number) > 40) {
+            throw new \InvalidArgumentException('billing.invalid_invoice');
+        }
         $this->customer = $customer;
         $this->number = $number;
         $this->amountTotalCents = $amountTotalCents;
@@ -106,6 +120,9 @@ class Invoice
 
     public function setStatus(InvoiceStatus $status): void
     {
+        if ($this->status === InvoiceStatus::Cancelled && $status !== InvoiceStatus::Cancelled) {
+            throw new \DomainException('billing.cancelled_invoice');
+        }
         $this->status = $status;
         $this->touch();
     }
@@ -127,14 +144,17 @@ class Invoice
 
     public function addFee(int $feeCents): void
     {
+        if ($feeCents < 0 || $this->amountDueCents + $feeCents > 2_147_483_647 || $this->status === InvoiceStatus::Cancelled) {
+            throw new \DomainException('billing.invalid_amount');
+        }
         $this->amountDueCents += $feeCents;
         $this->touch();
     }
 
     public function applyCredit(int $creditCents): void
     {
-        if ($creditCents <= 0) {
-            return;
+        if ($creditCents <= 0 || $creditCents > $this->amountDueCents || $this->status === InvoiceStatus::Cancelled) {
+            throw new \DomainException('billing.invalid_credit');
         }
 
         $this->amountDueCents = max(0, $this->amountDueCents - $creditCents);
@@ -158,6 +178,9 @@ class Invoice
 
     public function markPaid(\DateTimeImmutable $paidAt): void
     {
+        if ($this->status === InvoiceStatus::Cancelled) {
+            throw new \DomainException('billing.cancelled_invoice');
+        }
         $this->status = InvoiceStatus::Paid;
         $this->paidAt = $paidAt;
         $this->touch();
@@ -182,6 +205,56 @@ class Invoice
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getBillingDetails(): array
+    {
+        return $this->billingDetails ?? [];
+    }
+
+    public function setBillingDetails(array $details): void
+    {
+        if ($this->billingDetails !== null) {
+            throw new \DomainException('billing.immutable_details');
+        }
+        $this->billingDetails = $details;
+    }
+
+    public function getPaidAmountCents(): int
+    {
+        $paid = 0;
+        foreach ($this->payments as $payment) {
+            if ($payment->getStatus() === PaymentStatus::Succeeded && $payment->getCurrency() === $this->currency) {
+                $paid += $payment->getAmountCents();
+            }
+        }
+
+        return $paid;
+    }
+
+    public function getOutstandingCents(): int
+    {
+        return $this->status === InvoiceStatus::Cancelled ? 0 : max(0, $this->amountDueCents - $this->getPaidAmountCents());
+    }
+
+    public function cancel(string $reason, ?\DateTimeImmutable $now = null): void
+    {
+        if (trim($reason) === '' || mb_strlen($reason) > 255 || $this->status === InvoiceStatus::Cancelled) {
+            throw new \DomainException('billing.invalid_cancellation');
+        }
+        $this->status = InvoiceStatus::Cancelled;
+        $this->cancellationReason = trim($reason);
+        $this->cancelledAt = $now ?? new \DateTimeImmutable();
+        $this->touch();
+    }
+
+    public function getCancelledAt(): ?\DateTimeImmutable
+    {
+        return $this->cancelledAt;
+    }
+    public function getCancellationReason(): ?string
+    {
+        return $this->cancellationReason;
     }
 
     /**

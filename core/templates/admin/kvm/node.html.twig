@@ -1,0 +1,54 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'kvm' %}
+{% import 'admin/kvm/_form.html.twig' as form %}
+{% set pageTitle = 'KVM · ' ~ (node.name ?: node.id) %}
+{% block content %}
+{% include 'admin/kvm/_style.html.twig' %}
+<div class="infra-page" data-infra-tabs>
+<nav class="infra-breadcrumb"><a href="{{ path('admin_kvm') }}">KVM</a><span>/</span><span>{{ node.name ?: node.id }}</span></nav>
+<header class="infra-hero"><div><span class="infra-eyebrow">KVM · {{ 'infra.host'|trans({}, 'infrastructure') }}</span><h1>{{ node.name ?: node.id }}</h1><p>{{ 'infra.inventory_hint'|trans({}, 'infrastructure') }}</p></div><div>{{ form.start(node, operationId, 'inspect') }}<button class="ui-button ui-button--primary" {% if availability %}disabled{% endif %}>{{ 'kvm.refresh'|trans }}</button></form></div></header>
+{% for error in app.flashes('kvm_error') %}<p role="alert" class="kvm-alert">{{ error|trans({}, error starts with 'vm_config.' ? 'vm_config' : 'kvm') }}</p>{% endfor %}
+{% if availability %}<p role="alert" class="kvm-alert">{{ availability|trans }}</p>{% endif %}
+{% set caps = inventory.capabilities|default(node.metadata.kvm_managed|default({})) %}
+{% if caps.missing_tools|default([]) %}<p class="kvm-alert">{{ 'kvm.missing_tools'|trans }}: {{ caps.missing_tools|join(', ') }}</p>{% endif %}
+{% if not caps.acceleration|default(false) %}<p class="kvm-alert">{{ 'kvm.no_acceleration'|trans }}</p>{% endif %}
+{% if inventory.pending_operations|default([]) %}<p class="kvm-alert">{{ 'kvm.unconfirmed'|trans }} {{ inventory.pending_operations|join(', ') }}</p>{% endif %}
+<section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.node_usage'|trans({}, 'infrastructure') }}</h2><span class="infra-tag">{{ node.status }}</span></div><div data-infra-usage-url="{{ path('admin_kvm_node_usage', {id: node.id}) }}">{% include 'infrastructure/_metrics.html.twig' with {usage: infra_node_usage(node)} %}</div><p data-usage-error hidden>{{ 'infra.refresh_failed'|trans({}, 'infrastructure') }}</p></section>
+<p><a class="ui-button ui-button--ghost" href="{{ path('admin_infrastructure_history', {provider:'kvm',connection:node.id,kind:'node',reference:node.id}) }}">{{ 'monitor.open_history'|trans({}, 'monitoring') }}</a></p>
+<nav class="infra-tabs" data-infra-tablist aria-label="KVM">{% for id, key in {servers: 'servers', create: 'create', templates: 'templates', network: 'network', activity: 'activity'} %}<a href="#kvm-{{ id }}" data-infra-tab>{{ ('infra.' ~ key)|trans({}, 'infrastructure') }}</a>{% endfor %}</nav>
+<section id="kvm-servers" class="infra-pane" data-infra-pane>
+<div data-infra-guests>{% if inventory %}{% include 'admin/kvm/_guests.html.twig' %}{% else %}<p class="infra-empty">{{ 'kvm.no_inventory'|trans }}</p>{% endif %}</div>
+</section>
+<section id="kvm-create" class="infra-pane" data-infra-pane>{% if inventory %}
+<section class="ng-data-card kvm-card kvm-stack"><h2>{{ 'kvm.action.vm.create'|trans }}</h2><p>{{ 'kvm.cloud_init_hint'|trans }}</p>
+{{ form.start(node, operationId, 'vm.create') }}
+<label>{{ 'kvm.name'|trans }}<input class="form-input" name="label" maxlength="120" required></label>
+<label>{{ 'kvm.templates'|trans }}<select class="form-input" name="template" required><option value="">{{ 'kvm.choose'|trans }}</option>{% for t in inventory.templates %}<option value="{{ t.id }}--{{ t.version }}">{{ t.id }} · {{ t.version }}</option>{% endfor %}</select></label>
+<label>Hostname<input class="form-input" name="hostname" pattern="[a-z][a-z0-9-]{0,47}" required></label>
+<label>{{ 'kvm.username'|trans }}<input class="form-input" name="username" value="easywi" pattern="[a-z][a-z0-9_-]{0,30}" required></label>
+<label>{{ 'kvm.ssh_keys'|trans }}<textarea class="form-input" name="ssh_keys" rows="4" maxlength="32768" placeholder="ssh-ed25519 …" required></textarea></label>
+<label>vCPU<input class="form-input" type="number" name="vcpus" min="1" max="256" value="2" required></label><label>RAM (MiB)<input class="form-input" type="number" name="memory_mib" min="128" max="1048576" value="2048" required></label><label>{{ 'kvm.disk'|trans }} (GiB)<input class="form-input" type="number" name="disk_gib" min="1" max="2048" value="20" required></label>
+<label>{{ 'kvm.network'|trans }}<select class="form-input" name="network_choice" required><option value="">{{ 'kvm.choose'|trans }}</option>{% for n in inventory.networks %}{% if n.details.Active|default('') == 'yes' %}<option value="network:{{ n.name }}">{{ n.name }} (libvirt)</option>{% endif %}{% endfor %}{% for bridge in inventory.bridges %}<option value="bridge:{{ bridge }}">{{ bridge }} (Bridge)</option>{% endfor %}</select></label>
+<button class="ui-button ui-button--primary" {% if not inventory.templates or not caps.acceleration|default(false) %}disabled{% endif %}>{{ 'kvm.action.vm.create'|trans }}</button></form></section>
+{% else %}<p class="infra-empty">{{ 'kvm.no_inventory'|trans }}</p>{% endif %}</section>
+<section id="kvm-templates" class="infra-pane" data-infra-pane>{% if inventory %}
+<section class="ng-data-card kvm-card kvm-stack"><h2>{{ 'kvm.templates'|trans }}</h2><p>{{ 'kvm.template_hint'|trans }}</p>
+<ul>{% for t in inventory.templates %}<li>{{ t.id }} · {{ t.version }} · {{ (t.virtual_size/1073741824)|number_format(1) }} GiB<div class="kvm-meta">SHA256: {{ t.sha256 }}</div></li>{% else %}<li>{{ 'kvm.no_templates'|trans }}</li>{% endfor %}</ul>
+{{ form.start(node, operationId, 'template.import') }}
+<label>{{ 'kvm.template_id'|trans }}<input class="form-input" name="template_id" pattern="[a-z][a-z0-9-]{0,47}" placeholder="ubuntu" required></label>
+<label>{{ 'kvm.version'|trans }}<input class="form-input" name="version" pattern="[a-z0-9][a-z0-9.-]{0,47}" placeholder="24.04-v1" required></label>
+<label>{{ 'kvm.image_url'|trans }}<input class="form-input" name="url" type="url" placeholder="https://…/image.qcow2" maxlength="2048" required></label>
+<label>SHA256<input class="form-input" name="sha256" pattern="[a-f0-9]{64}" minlength="64" maxlength="64" required></label>
+<button class="ui-button ui-button--primary">{{ 'kvm.action.template.import'|trans }}</button></form></section>
+{% else %}<p class="infra-empty">{{ 'kvm.no_inventory'|trans }}</p>{% endif %}</section>
+<section id="kvm-network" class="infra-pane" data-infra-pane>{% if inventory %}
+<section class="ng-data-card kvm-card"><h2>{{ 'kvm.networks'|trans }}</h2><p>{{ 'kvm.network_hint'|trans }}</p>
+{% for n in inventory.networks %}<p><strong>{{ n.name }}</strong> · {{ n.details.Active|default('?') }} · {{ n.bridge|default(n.details.Bridge|default('—')) }}</p>{% if n.managed %}{{ form.start(node, operationId, 'network.start') }}<input type="hidden" name="network" value="{{ n.name }}"><select class="form-input" name="action">{% for a in ['start','stop','autostart','autostart-disable'] %}<option value="network.{{ a }}">{{ ('kvm.action.network.' ~ a)|trans }}</option>{% endfor %}</select><button class="ui-button">{{ 'kvm.execute'|trans }}</button></form>{% endif %}{% endfor %}
+{{ form.start(node, operationId, 'network.create') }}<label>{{ 'kvm.name'|trans }}<input class="form-input" name="network" pattern="easywi-[a-z0-9-]{1,33}" placeholder="easywi-guests" required></label><label>CIDR<input class="form-input" name="cidr" placeholder="192.168.150.0/24" required></label><label>{{ 'kvm.mode'|trans }}<select class="form-input" name="mode"><option value="nat">NAT</option><option value="isolated">{{ 'kvm.isolated'|trans }}</option></select></label><button class="ui-button ui-button--primary">{{ 'kvm.action.network.create'|trans }}</button></form>
+</section>
+{% else %}<p class="infra-empty">{{ 'kvm.no_inventory'|trans }}</p>{% endif %}</section>
+<section id="kvm-activity" class="infra-pane" data-infra-pane>{% include 'admin/kvm/_jobs.html.twig' %}
+</section>
+</div>
+<script src="{{ asset('js/kvm.js') }}" defer></script>
+{% endblock %}

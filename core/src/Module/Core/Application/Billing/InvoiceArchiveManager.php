@@ -56,6 +56,9 @@ final class InvoiceArchiveManager
         string $contentType,
         ?User $actor = null,
     ): InvoiceArchive {
+        if ($contentType !== 'application/pdf' || !str_starts_with($contents, '%PDF-') || strlen($contents) > self::MAX_FILE_SIZE) {
+            throw new \InvalidArgumentException('billing.invalid_pdf');
+        }
         $existing = $this->archiveRepository->findOneBy(['invoice' => $invoice]);
         if ($existing instanceof InvoiceArchive) {
             throw new \RuntimeException('Invoice is already archived.');

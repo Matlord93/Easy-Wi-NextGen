@@ -1,0 +1,21 @@
+{% trans_default_domain 'vm_config' %}
+{% import 'admin/kvm/_form.html.twig' as adminForm %}
+{% import 'kvm/_customer_form.html.twig' as customerForm %}
+{% set stopped = vm.state|default('') == 'shut off' %}
+{% set available = node.metadata.kvm_managed.config_version|default(0) == 1 %}
+{% include 'infrastructure/_guest_agent.html.twig' with {
+checkUrl: customer|default(false) ? path('customer_kvm_action', {id:assignment.id}) : path('admin_kvm_action', {id:node.id}),
+checkToken: csrf_token(customer|default(false) ? 'kvm-customer-' ~ assignment.id : 'kvm-' ~ node.id),
+pollUrl: customer|default(false) ? path('customer_kvm_job', {id:assignment.id, jobId:'__JOB__'}) : path('admin_kvm_job', {id:node.id, jobId:'__JOB__'}),
+vmUuid:vm.id, checkAvailable:node.metadata.kvm_managed.guest_agent_status_version|default(0) == 1
+} %}
+<div class="infra-grid infra-grid--two">
+<section class="infra-card"><div class="infra-card__head"><h2>{{ 'vm_config.cloud_title'|trans }}</h2></div>
+{% if available and vm.cloud_init|default(null) %}
+{{ customer|default(false) ? customerForm.start(assignment, operationId, 'vm.cloud_init') : adminForm.start(node, operationId, 'vm.cloud_init', vm.id) }}
+{% include 'infrastructure/_cloud_init_fields.html.twig' with {cloud:vm.cloud_init, lockedUser:true} %}<button class="ui-button ui-button--primary" {% if not stopped or busy|default(false) %}disabled{% endif %}>{{ 'vm_config.save'|trans }}</button></form>
+{% else %}<p>{{ 'vm_config.update_inventory'|trans }}</p>{% endif %}</section>
+<section class="infra-card"><div class="infra-card__head"><h2>{{ 'vm_config.boot'|trans }}</h2></div><p>{{ 'vm_config.network_boot_hint'|trans }}</p>
+{{ customer|default(false) ? customerForm.start(assignment, operationId, 'vm.boot_order') : adminForm.start(node, operationId, 'vm.boot_order', vm.id) }}<label>{{ 'vm_config.boot'|trans }}<select class="form-input" name="boot_order"><option value="disk" {% if not vm.network_boot_first|default(false) %}selected{% endif %}>{{ 'vm_config.disk_first'|trans }}</option><option value="network" {% if vm.network_boot_first|default(false) %}selected{% endif %}>{{ 'vm_config.network_first'|trans }}</option></select></label><button class="ui-button ui-button--primary" {% if not stopped or not available or busy|default(false) %}disabled{% endif %}>{{ 'vm_config.save'|trans }}</button></form>
+{% if not customer|default(false) %}<h3>{{ 'vm_config.agent'|trans }}</h3><p>{{ 'vm_config.agent_hint'|trans }}</p>{{ adminForm.start(node, operationId, 'vm.guest_agent', vm.id) }}<button class="ui-button ui-button--ghost" {% if not stopped or not available or vm.guest_agent_enabled|default(false) %}disabled{% endif %}>{{ 'vm_config.agent_enable'|trans }}</button></form>{% endif %}</section>
+</div>

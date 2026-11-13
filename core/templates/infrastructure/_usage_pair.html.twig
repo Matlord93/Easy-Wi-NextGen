@@ -1,0 +1,5 @@
+{% trans_default_domain 'infrastructure' %}
+<div class="infra-grid infra-grid--two">
+ <section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.server_usage'|trans }}</h2><span class="infra-tag">{{ 'infra.server'|trans }}</span></div>{% include 'infrastructure/_metrics.html.twig' with {usage: serverUsage, seriesRole:'server', withIo:true} %}</section>
+ <section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.node_usage'|trans }}</h2><span class="infra-tag">{{ 'infra.host'|trans }}</span></div>{% include 'infrastructure/_metrics.html.twig' with {usage: nodeUsage, seriesRole:'node', withIo:false} %}</section>
+</div>

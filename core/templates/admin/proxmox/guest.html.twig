@@ -1,0 +1,4 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'proxmox' %}
+{% set pageTitle = cluster.name ~ ' · ' ~ vmId %}
+{% block content %}<div class="infra-page"><nav class="infra-breadcrumb"><a href="{{ path('admin_proxmox') }}">Proxmox</a><span>/</span><a href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ cluster.name }}</a><span>/</span><span>{{ vmId }}</span></nav>{% include 'proxmox/_alerts.html.twig' %}{% include 'proxmox/_guest.html.twig' %}{% include 'proxmox/_script.html.twig' %}</div>{% endblock %}

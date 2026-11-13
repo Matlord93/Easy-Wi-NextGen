@@ -1,0 +1,245 @@
+[
+  {
+    "name": "dual_stack_windows_and_loopback",
+    "input": [
+      {
+        "name": "Ethernet 2",
+        "hardware-address": "AA:BB:CC:DD:EE:FF",
+        "ip-addresses": [
+          {
+            "ip-address-type": "ipv4",
+            "ip-address": "192.0.2.15",
+            "prefix": 24
+          },
+          {
+            "ip-address-type": "ipv6",
+            "ip-address": "2001:0DB8:0:0:0:0:0:1",
+            "prefix": 64
+          }
+        ]
+      },
+      {
+        "name": "lo",
+        "ip-addresses": [
+          {
+            "ip-address-type": "ipv4",
+            "ip-address": "127.0.0.1",
+            "prefix": 8
+          },
+          {
+            "ip-address-type": "ipv6",
+            "ip-address": "::1",
+            "prefix": 128
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "state": "available",
+      "interfaces": [
+        {
+          "name": "Ethernet 2",
+          "mac": "aa:bb:cc:dd:ee:ff",
+          "addresses": [
+            {
+              "family": "ipv4",
+              "address": "192.0.2.15",
+              "prefix": 24
+            },
+            {
+              "family": "ipv6",
+              "address": "2001:db8::1",
+              "prefix": 64
+            }
+          ]
+        },
+        {
+          "name": "lo",
+          "mac": null,
+          "addresses": [
+            {
+              "family": "ipv4",
+              "address": "127.0.0.1",
+              "prefix": 8
+            },
+            {
+              "family": "ipv6",
+              "address": "::1",
+              "prefix": 128
+            }
+          ]
+        }
+      ],
+      "limited": false
+    }
+  },
+  {
+    "name": "invalid_and_duplicate_addresses",
+    "input": [
+      {
+        "name": "bad\nname"
+      },
+      {
+        "name": "eth0",
+        "hardware-address": "not-a-mac",
+        "ip-addresses": [
+          {
+            "ip-address-type": "ipv4",
+            "ip-address": "192.0.2.10",
+            "prefix": 24
+          },
+          {
+            "ip-address-type": "ipv4",
+            "ip-address": "192.0.2.10",
+            "prefix": 24
+          },
+          {
+            "ip-address-type": "ipv6",
+            "ip-address": "192.0.2.11",
+            "prefix": 64
+          },
+          {
+            "ip-address-type": "ipv6",
+            "ip-address": "fe80::1%eth0",
+            "prefix": 64
+          },
+          {
+            "ip-address-type": "ipv4",
+            "ip-address": "192.0.2.11",
+            "prefix": 33
+          },
+          {
+            "ip-address-type": "ipv6",
+            "ip-address": "::1",
+            "prefix": 129
+          },
+          {
+            "ip-address-type": "ipv4",
+            "ip-address": "192.0.2.12",
+            "prefix": -1
+          },
+          {
+            "ip-address-type": "ipv4",
+            "ip-address": "192.0.2.13",
+            "prefix": 24.5
+          },
+          {
+            "ip-address-type": "ipv4",
+            "ip-address": "<script>",
+            "prefix": 24
+          },
+          null
+        ]
+      },
+      {
+        "name": "eth0",
+        "ip-addresses": []
+      }
+    ],
+    "expected": {
+      "state": "available",
+      "interfaces": [
+        {
+          "name": "eth0",
+          "mac": null,
+          "addresses": [
+            {
+              "family": "ipv4",
+              "address": "192.0.2.10",
+              "prefix": 24
+            }
+          ]
+        }
+      ],
+      "limited": true
+    }
+  },
+  {
+    "name": "empty_list",
+    "input": [],
+    "expected": {
+      "state": "available",
+      "interfaces": [],
+      "limited": false
+    }
+  },
+  {
+    "name": "addressless_adapter",
+    "input": [
+      {
+        "name": "tun0"
+      }
+    ],
+    "expected": {
+      "state": "available",
+      "interfaces": [
+        {
+          "name": "tun0",
+          "mac": null,
+          "addresses": []
+        }
+      ],
+      "limited": false
+    }
+  },
+  {
+    "name": "invalid_root",
+    "input": {
+      "unexpected": []
+    },
+    "expected": {
+      "state": "invalid_response",
+      "interfaces": [],
+      "limited": false
+    }
+  },
+  {
+    "name": "mac_formats",
+    "input": [
+      {
+        "name": "eui64",
+        "hardware-address": "AA:BB:CC:DD:EE:FF:11:22"
+      },
+      {
+        "name": "ipoib",
+        "hardware-address": "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+      }
+    ],
+    "expected": {
+      "state": "available",
+      "interfaces": [
+        {
+          "name": "eui64",
+          "mac": "aa:bb:cc:dd:ee:ff:11:22",
+          "addresses": []
+        },
+        {
+          "name": "ipoib",
+          "mac": "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00",
+          "addresses": []
+        }
+      ],
+      "limited": false
+    }
+  },
+  {
+    "name": "null_address_list",
+    "input": [
+      {
+        "name": "eth0",
+        "ip-addresses": null
+      }
+    ],
+    "expected": {
+      "state": "available",
+      "interfaces": [
+        {
+          "name": "eth0",
+          "mac": null,
+          "addresses": []
+        }
+      ],
+      "limited": true
+    }
+  }
+]

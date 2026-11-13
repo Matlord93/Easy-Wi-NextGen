@@ -1,0 +1,6 @@
+{% macro start(assignment, operationId, action) %}
+<form method="post" action="{{ path('customer_kvm_action', {id: assignment.id}) }}" class="infra-form">
+<input type="hidden" name="_token" value="{{ csrf_token('kvm-customer-' ~ assignment.id) }}">
+<input type="hidden" name="operation_id" value="{{ operationId }}">
+<input type="hidden" name="action" value="{{ action }}">
+{% endmacro %}

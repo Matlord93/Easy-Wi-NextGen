@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\DunningReminder;
 use App\Repository\InvoicePreferencesRepository;
 use Psr\Log\LoggerInterface;
 
-final class DunningNotificationSender
+final class DunningNotificationSender implements DunningNotificationSenderInterface
 {
     public function __construct(
         private readonly MailService $mailService,
@@ -36,7 +36,7 @@ final class DunningNotificationSender
         try {
             return $this->mailService->sendTemplate($customer->getEmail(), 'invoice_reminder', [
                 'invoice_number' => $invoice->getNumber(),
-                'invoice_amount' => number_format($invoice->getAmountDueCents() / 100, 2, '.', ''),
+                'invoice_amount' => number_format($invoice->getOutstandingCents() / 100, 2, '.', ''),
                 'invoice_currency' => $invoice->getCurrency(),
                 'due_date' => $invoice->getDueDate(),
                 'reminder_level' => $reminder->getLevel(),

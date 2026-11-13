@@ -4,6 +4,9 @@
 {% set locale = page_locale() %}
 <div style="display:flex;flex-direction:column;gap:20px;">
 
+  {% for error in archive_errors %}<div class="ng-alert ng-alert--danger">{{ error }}</div>{% endfor %}
+  <a href="{{ path('admin_billing_invoice_pdf', {id: invoice.id}) }}" class="ui-button ui-button--primary">{{ 'billing.download_pdf'|trans({}, 'billing') }}</a>
+  <a href="{{ path('admin_billing_electronic', {id: invoice.id}) }}" class="ui-button ui-button--ghost">{{ 'billing.einvoice'|trans({}, 'billing') }}</a>
   <section class="ng-card" style="overflow:hidden;">
     <div class="tkt-hero">
       <div class="tkt-hero__inner">
@@ -63,12 +66,12 @@
         <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_billing_invoice_id', locale)|replace({'%id%': invoice.id}) }}</p>
       </div>
       <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;">
-        {% if invoice.status != 'paid' %}
-          <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-paid">
+        {% if invoice.status not in ['paid', 'cancelled'] %}
+          <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-paid"><input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
             <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_invoice_mark_paid', locale) }}</button>
           </form>
-        {% else %}
-          <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-unpaid">
+        {% elseif invoice.status == 'paid' %}
+          <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-unpaid"><input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
             <button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_billing_invoice_mark_unpaid', locale) }}</button>
           </form>
         {% endif %}
@@ -118,7 +121,7 @@
           </div>
         {% endif %}
         <p style="font-size:12px;color:var(--ng-text-muted);margin-bottom:12px;">{{ t('admin_billing_archive_generate_hint', locale) }}</p>
-        <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/archive/generate">
+        <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/archive/generate"><input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
           <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_archive_generate', locale) }}</button>
         </form>
       {% endif %}
@@ -133,24 +136,41 @@
       </div>
     </div>
     <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:20px;">
-      <form method="post" action="/admin/billing/layout" style="display:flex;flex-direction:column;gap:10px;">
-        <div class="form-field">
-          <label class="form-label">{{ t('admin_billing_layout_label', locale) }}</label>
-          <textarea name="invoice_layout" rows="12" class="form-input" style="font-family:monospace;font-size:12px;">{{ invoice_layout }}</textarea>
-        </div>
-        <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('admin_billing_layout_hint', locale) }}</p>
-        <div>
-          <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_layout_save', locale) }}</button>
-        </div>
-      </form>
+      <a class="ui-button ui-button--ghost" href="{{ path('admin_billing_design') }}">{{ 'billing.design'|trans({}, 'billing') }}</a>
+      <p>{{ 'billing.current_template_hint'|trans({}, 'billing') }}</p>
       <div>
         <h3 style="font-size:13px;font-weight:600;color:var(--ng-text);margin-bottom:10px;">{{ t('admin_billing_layout_preview', locale) }}</h3>
         <div style="border:1px solid var(--ng-border);border-radius:8px;padding:16px;background:#fff;">
-          {{ invoice_preview }}
+          <iframe title="{{ 'billing.preview'|trans({}, 'billing') }}" sandbox="" referrerpolicy="no-referrer" srcdoc="{{ invoice_preview }}" style="width:100%;min-height:700px;border:0;"></iframe>
         </div>
       </div>
     </div>
   </div>
 
+  {% if invoice.status != 'cancelled' %}
+  <section class="ng-data-card">
+    <div class="ng-data-card__body">
+      <h2>{{ 'billing.adjustments'|trans({}, 'billing') }}</h2>
+      <p>{{ 'billing.credit_hint'|trans({}, 'billing') }}</p>
+      {% if invoice.credit_available > 0 %}
+      <form method="post" action="{{ path('admin_billing_invoice_credit', {id: invoice.id}) }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
+        <label>{{ 'billing.credit_amount'|trans({}, 'billing') }} <input name="amount" required inputmode="decimal" class="form-input"></label>
+        <label>{{ 'billing.reason'|trans({}, 'billing') }} <input name="reason" required maxlength="255" class="form-input"></label>
+        <button class="ui-button ui-button--primary">{{ 'billing.issue_credit'|trans({}, 'billing') }}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ path('admin_billing_invoice_cancel', {id: invoice.id}) }}" style="margin-top:20px;">
+        <input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
+        <label>{{ 'billing.reason'|trans({}, 'billing') }} <input name="reason" required maxlength="255" class="form-input"></label>
+        <button class="ui-button ui-button--danger">{{ 'billing.cancel_invoice'|trans({}, 'billing') }}</button>
+      </form>
+    </div>
+  </section>
+  {% elseif invoice.cancellation_reason %}
+    <p>{{ 'billing.cancelled'|trans({}, 'billing') }}: {{ invoice.cancellation_reason }}</p>
+  {% endif %}
+  {% include 'billing/_items.html.twig' %}
+  {% include 'billing/_history.html.twig' %}
 </div>
 {% endblock %}

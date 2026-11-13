@@ -1,0 +1,23 @@
+{% trans_default_domain 'proxmox' %}
+{% set hasSnapshots = detail.snapshots|filter(s => s.name|default('') != 'current') is not empty %}
+{% set options = detail.extraDiskOptions|default({devices:[],storages:[]}) %}
+<section class="ng-data-card" data-pve-extra-disk>
+ <div class="ng-data-card__header"><h2>{{ 'pve.extra_disk.title'|trans }}</h2></div>
+ <div class="ng-data-card__body">
+  <p>{{ (kind == 'lxc' ? 'pve.extra_disk.lxc_hint' : 'pve.extra_disk.qemu_hint')|trans }}</p>
+  {% if detail.status.status|default('') != 'stopped' %}<p role="status">{{ 'vm_disk.stopped'|trans({}, 'vm_disk') }}</p>{% endif %}
+  {% if hasSnapshots %}<p role="status">{{ 'vm_disk.snapshots'|trans({}, 'vm_disk') }}</p>{% endif %}
+  {% if not options.devices or not options.storages %}<p>{{ 'pve.extra_disk.unavailable'|trans }}</p>{% else %}
+  <form method="post" action="{{ actionUrl }}" class="infra-form" data-pve-mutation>
+   {% include 'proxmox/_action_fields.html.twig' with {action:'disk-add'} %}
+   <input type="hidden" name="expected_digest" value="{{ detail.configuration.digest|default('') }}">
+   <label>{{ 'pve.extra_disk.device'|trans }}<select class="form-input" name="device" required>{% for device in options.devices %}<option value="{{ device }}">{{ device }}</option>{% endfor %}</select></label>
+   <label>{{ 'pve.storage'|trans }}<select class="form-input" name="storage" required>{% for storage in options.storages %}<option value="{{ storage.storage }}">{{ storage.storage }}</option>{% endfor %}</select></label>
+   <label>{{ 'pve.disk'|trans }} (GiB)<input name="size_gib" class="form-input" type="number" min="1" max="65536" step="1" required></label>
+   {% if kind == 'lxc' %}<label>{{ 'pve.extra_disk.mountpoint'|trans }}<input name="mountpoint" class="form-input" value="/mnt/data" pattern="/(mnt|srv)/[a-zA-Z0-9][a-zA-Z0-9_\-]{0,62}" maxlength="68" required></label>{% endif %}
+   <label class="infra-span"><span><input type="checkbox" name="confirm" value="1" required> {{ 'pve.extra_disk.confirm'|trans }}</span></label>
+   <button type="submit" class="ui-button ui-button--primary" {% if hasSnapshots or detail.status.status|default('') != 'stopped' or detail.configuration.lock|default('') or not detail.configuration.digest|default('') %}disabled{% endif %}>{{ 'pve.extra_disk.submit'|trans }}</button>
+  </form>
+  {% endif %}
+ </div>
+</section>

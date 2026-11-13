@@ -60,12 +60,12 @@
                     </div>
                     <div style="padding:10px 14px;border-radius:var(--ng-radius);background:{% if node.running %}rgba(34,197,94,.07){% else %}rgba(245,158,11,.07){% endif %};border:1px solid {% if node.running %}rgba(34,197,94,.25){% else %}rgba(245,158,11,.25){% endif %};">
                         <p style="margin:0 0 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ng-text-muted);">{{ t('admin_ts3_node_running_label', locale) }}</p>
-                        <p style="margin:0;font-size:14px;font-weight:600;color:{% if node.running %}#4ade80{% else %}#fbbf24{% endif %};">{{ node.running ? t('admin_ts3_node_status_yes', locale) : t('admin_ts3_node_status_no', locale) }}</p>
+                        <p style="margin:0;font-size:14px;font-weight:600;color:{% if node.running %}var(--aw-status-success, #4ade80){% else %}var(--aw-status-warning, #fbbf24){% endif %};">{{ node.running ? t('admin_ts3_node_status_yes', locale) : t('admin_ts3_node_status_no', locale) }}</p>
                     </div>
                     {% if node.lastError %}
                     <div style="grid-column:span 2;padding:10px 14px;border-radius:var(--ng-radius);background:rgba(244,63,94,.07);border:1px solid rgba(244,63,94,.25);">
                         <p style="margin:0 0 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(252,165,165,.7);">{{ t('admin_ts3_node_last_error', locale) }}</p>
-                        <p style="margin:0;font-size:13px;color:#fca5a5;font-family:monospace;word-break:break-all;">{{ node.lastError }}</p>
+                        <p style="margin:0;font-size:13px;color:var(--aw-status-danger, #fca5a5);font-family:monospace;word-break:break-all;">{{ node.lastError }}</p>
                     </div>
                     {% endif %}
                 </div>
@@ -76,11 +76,11 @@
                     </form>
                     <form method="post" action="/admin/ts3/nodes/{{ node.id }}/start">
                         <input type="hidden" name="_token" value="{{ csrf.start }}">
-                        <button class="ui-button ui-button--ghost ui-button--sm" style="color:#4ade80;border-color:rgba(34,197,94,.3);" type="submit">{{ t('admin_ts3_node_start', locale) }}</button>
+                        <button class="ui-button ui-button--ghost ui-button--sm" style="color:var(--aw-status-success, #4ade80);border-color:rgba(34,197,94,.3);" type="submit">{{ t('admin_ts3_node_start', locale) }}</button>
                     </form>
                     <form method="post" action="/admin/ts3/nodes/{{ node.id }}/stop">
                         <input type="hidden" name="_token" value="{{ csrf.stop }}">
-                        <button class="ui-button ui-button--ghost ui-button--sm" style="color:#f87171;border-color:rgba(239,68,68,.3);" type="submit">{{ t('admin_ts3_node_stop', locale) }}</button>
+                        <button class="ui-button ui-button--ghost ui-button--sm" style="color:var(--aw-status-danger, #f87171);border-color:rgba(239,68,68,.3);" type="submit">{{ t('admin_ts3_node_stop', locale) }}</button>
                     </form>
                     <form method="post" action="/admin/ts3/nodes/{{ node.id }}/restart">
                         <input type="hidden" name="_token" value="{{ csrf.restart }}">
@@ -99,7 +99,7 @@
                 </div>
                 {% if node.installedVersion %}
                 <div>
-                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(56,189,248,.1);color:#38bdf8;border:1px solid rgba(56,189,248,.25);">
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(56,189,248,.1);color:var(--aw-status-info, #38bdf8);border:1px solid rgba(56,189,248,.25);">
                         <svg style="width:11px;height:11px;" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
                         v{{ node.installedVersion }}
                     </span>
@@ -118,7 +118,7 @@
                     </div>
                 </div>
                 <div style="padding:12px 14px;margin-bottom:16px;border-radius:var(--ng-radius);background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.2);font-size:13px;color:var(--ng-text-muted);">
-                    <svg style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:5px;color:#38bdf8;" viewBox="0 0 16 16" fill="currentColor"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+                    <svg style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:5px;color:var(--aw-status-info, #38bdf8);" viewBox="0 0 16 16" fill="currentColor"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
                     {{ t('admin_ts3_node_update_hint', locale) }}
                 </div>
                 <form method="post" action="/admin/ts3/nodes/{{ node.id }}/update">
@@ -175,7 +175,7 @@
                                 </td>
                                 <td style="font-size:12px;color:var(--ng-text-muted);">{{ job.startedAt ? job.startedAt|date('Y-m-d H:i') : '—' }}</td>
                                 <td style="font-size:12px;color:var(--ng-text-muted);">{{ job.finishedAt ? job.finishedAt|date('Y-m-d H:i') : '—' }}</td>
-                                <td style="font-size:12px;color:#f87171;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ job.errorText ?? '—' }}</td>
+                                <td style="font-size:12px;color:var(--aw-status-danger, #f87171);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ job.errorText ?? '—' }}</td>
                                 <td>
                                     {% if job.logText or job.resultPayload %}
                                     <button type="button" class="ui-button ui-button--ghost ui-button--sm" onclick="this.closest('tr').nextElementSibling.classList.toggle('hidden')">

@@ -6,145 +6,124 @@ namespace App\Module\Gameserver\Command;
 
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
-use App\Module\Gameserver\Application\Console\NodeEndpointMissingException;
+use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Contracts\Service\ResetInterface;
 
-#[AsCommand(name: 'app:console:relay', description: 'Relays gRPC console stream to Redis SSE channels.')]
+#[AsCommand(name: 'app:console:relay', description: 'Optional legacy SSE relay; the integrated live console does not need this worker.')]
 final class ConsoleRelayCommand extends Command
 {
     private int $lastHeartbeatAt = 0;
+    private float $deadline = PHP_FLOAT_MAX;
+    private int $memoryLimit = PHP_INT_MAX;
 
     public function __construct(
         private readonly ConsoleAgentGrpcClientInterface $grpcClient,
         private readonly ConsoleEventBusInterface $eventBus,
         private readonly LoggerInterface $logger,
         private readonly ?\Redis $redis = null,
+        private readonly ?EntityManagerInterface $entityManager = null,
+        private readonly ?\Symfony\Contracts\HttpClient\HttpClientInterface $httpClient = null,
     ) {
         parent::__construct();
     }
 
+    protected function configure(): void
+    {
+        $this->addOption('time-limit', null, InputOption::VALUE_REQUIRED, 'Gracefully recycle after this many seconds.', '3600');
+        $this->addOption('memory-limit', null, InputOption::VALUE_REQUIRED, 'Gracefully recycle at this PHP heap size in MiB.', '96');
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        while (true) {
-            $this->touchHeartbeat();
-            $instanceIds = $this->eventBus->getInstancesWithSubscribers();
-            if ($instanceIds === []) {
-                $this->touchHeartbeat();
-                usleep(500000);
-                $this->touchHeartbeat();
-                continue;
-            }
-
-            foreach ($instanceIds as $instanceId) {
-                $this->touchHeartbeat();
-                $this->relayInstance($instanceId);
-                $this->touchHeartbeat();
-            }
-            $this->touchHeartbeat();
-            usleep(200000);
-            $this->touchHeartbeat();
+        $seconds = (int) $input->getOption('time-limit');
+        $mib = (int) $input->getOption('memory-limit');
+        if ($seconds < 1 || $mib < 16) {
+            $output->writeln('time-limit must be positive and memory-limit at least 16 MiB.');
+            return Command::INVALID;
         }
+        $this->deadline = microtime(true) + $seconds;
+        $this->memoryLimit = $mib * 1024 * 1024;
+        while (!$this->shouldRecycle()) {
+            $this->touchHeartbeat();
+            foreach ($this->eventBus->getInstancesWithSubscribers() as $instanceId) {
+                if ($this->shouldRecycle()) {
+                    break;
+                }
+                try {
+                    $this->relayInstance($instanceId);
+                } finally {
+                    $this->entityManager?->clear();
+                    if ($this->logger instanceof ResetInterface || $this->logger instanceof \Monolog\ResettableInterface) {
+                        $this->logger->reset();
+                    }
+                    if ($this->httpClient instanceof ResetInterface) {
+                        $this->httpClient->reset();
+                    }
+                    gc_collect_cycles();
+                }
+            }
+            usleep(200000);
+        }
+        $output->writeln('Legacy console worker recycled within configured time/memory limits.');
+        return Command::SUCCESS;
+    }
+
+    private function shouldRecycle(): bool
+    {
+        return microtime(true) >= $this->deadline || memory_get_usage(true) >= $this->memoryLimit;
     }
 
     private function relayInstance(int $instanceId): void
     {
-        $attempt = 0;
-        $lastEventAt = time();
-
-        while ($this->eventBus->getSubscriberCount($instanceId) > 0) {
-            $this->touchHeartbeat();
-            try {
-                foreach ($this->grpcClient->attachStream($instanceId) as $event) {
-                    $this->touchHeartbeat();
-                    $payload = [
-                        'type' => 'chunk',
-                        'ts' => $event['ts'] ?? (new \DateTimeImmutable())->format(DATE_ATOM),
-                        'instance_id' => $instanceId,
-                        'chunk_base64' => isset($event['chunk_bytes']) ? base64_encode((string) $event['chunk_bytes']) : (isset($event['chunk']) ? base64_encode((string) $event['chunk']) : null),
-                        'seq' => $event['seq'] ?? null,
-                        'status' => $event['status'] ?? null,
-                    ];
-                    $this->eventBus->publishConsoleEvent($instanceId, $payload);
-                    $lastEventAt = time();
-                    $this->touchHeartbeat();
+        if ($this->eventBus->getSubscriberCount($instanceId) < 1) {
+            return;
+        }
+        $started = microtime(true);
+        $count = 0;
+        $this->touchHeartbeat();
+        try {
+            foreach ($this->grpcClient->attachStream($instanceId) as $event) {
+                if ($this->shouldRecycle() || $this->eventBus->getSubscriberCount($instanceId) < 1) {
+                    return;
                 }
-                $attempt = 0;
                 $this->touchHeartbeat();
-            } catch (NodeEndpointMissingException $e) {
-                $correlationId = bin2hex(random_bytes(6));
-                $this->logger->warning('console relay node endpoint missing', [
-                    'instance_id' => $instanceId,
-                    'attempt' => $attempt,
-                    'error' => $e->getMessage(),
-                    'exception' => $e::class,
-                    'code' => $e->getCode(),
-                    'correlation_id' => $correlationId,
-                ]);
+                $chunk = (string) ($event['chunk_bytes'] ?? $event['chunk'] ?? '');
                 $this->eventBus->publishConsoleEvent($instanceId, [
-                    'type' => 'status',
-                    'status' => 'node_endpoint_missing',
-                    'instance_id' => $instanceId,
-                    'correlation_id' => $correlationId,
-                    'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
+                    'type' => 'chunk', 'ts' => $event['ts'] ?? (new \DateTimeImmutable())->format(DATE_ATOM),
+                    'instance_id' => $instanceId, 'chunk_base64' => base64_encode($chunk),
+                    'seq' => $event['seq'] ?? null, 'status' => $event['status'] ?? null,
                 ]);
-                $this->touchHeartbeat();
-                usleep(2_000_000);
-                $this->touchHeartbeat();
-            } catch (\Throwable $e) {
-                $attempt++;
-                $sleepMs = min(30_000, 1000 * (2 ** min($attempt, 5)) + random_int(0, 300));
-                $correlationId = bin2hex(random_bytes(6));
-                $this->logger->warning(sprintf(
-                    'console relay reconnect instance=%d attempt=%d error="%s" exception="%s"',
-                    $instanceId,
-                    $attempt,
-                    $e->getMessage(),
-                    $e::class,
-                ), [
-                    'instance_id' => $instanceId,
-                    'attempt' => $attempt,
-                    'error' => $e->getMessage(),
-                    'exception' => $e::class,
-                    'code' => $e->getCode(),
-                    'correlation_id' => $correlationId,
-                ]);
-                $this->touchHeartbeat();
-                usleep($sleepMs * 1000);
-                $this->touchHeartbeat();
+                // Fair turns: a continuously writing game cannot monopolize the worker.
+                if (++$count >= 200 || microtime(true) - $started >= 1) {
+                    return;
+                }
             }
-
-            if ((time() - $lastEventAt) >= 15) {
-                $this->eventBus->publishConsoleEvent($instanceId, [
-                    'type' => 'ping',
-                    'instance_id' => $instanceId,
-                    'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
-                ]);
-                $lastEventAt = time();
-                $this->touchHeartbeat();
-            }
+        } catch (\Throwable $exception) {
+            $this->logger->warning('Legacy console relay reconnect.', ['instance_id' => $instanceId, 'type' => $exception::class]);
+            usleep(200000);
+        } finally {
+            $this->touchHeartbeat();
         }
     }
 
     private function touchHeartbeat(): void
     {
         $now = time();
-        if (($now - $this->lastHeartbeatAt) < 5) {
+        if ($now - $this->lastHeartbeatAt < 5) {
             return;
-        }
-
-        $this->lastHeartbeatAt = $now;
+        } $this->lastHeartbeatAt = $now;
         if (!$this->redis instanceof \Redis) {
             return;
         }
-
         try {
             $this->redis->set('console_relay:heartbeat', (string) $now);
-        } catch (\Throwable $exception) {
-            $this->logger->debug('console relay heartbeat write failed', ['error' => $exception->getMessage()]);
+        } catch (\Throwable) { /* Heartbeat must not accumulate buffered reconnect logs. */
         }
     }
 }

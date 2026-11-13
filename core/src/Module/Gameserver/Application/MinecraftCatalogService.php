@@ -13,12 +13,14 @@ final class MinecraftCatalogService
     public function __construct(
         private readonly MinecraftVersionCatalogRepositoryInterface $catalogRepository,
         private readonly ?TranslatorInterface $translator = null,
+        private readonly ?MinecraftCatalogSynchronizer $synchronizer = null,
     ) {
     }
 
     /** @return array<string, mixed> */
     public function getUiCatalog(?string $onlyChannel = null): array
     {
+        $this->synchronizer?->ensureAvailable();
         $catalog = [];
         foreach ($onlyChannel === null ? MinecraftVersionCatalog::CHANNELS : [$onlyChannel] as $channel) {
             $active = $this->catalogRepository->findActiveByChannel($channel);
@@ -40,6 +42,7 @@ final class MinecraftCatalogService
 
     public function resolveVersion(string $channel, ?string $version): ?string
     {
+        $this->synchronizer?->ensureAvailable();
         $normalized = trim((string) ($version ?? ''));
         if ($normalized === '' || strtolower($normalized) === 'latest') {
             $entries = $this->catalogRepository->findActiveByChannel($channel);

@@ -131,15 +131,16 @@ final class AdminInstanceController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
+        $catalog = $this->minecraftCatalog?->getUiCatalog() ?? [];
         $templates = $this->listDistinctTemplates();
 
         return new Response($this->twig->render('admin/instances/provision.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
             'templates' => $templates,
-            'minecraftCatalog' => $this->minecraftCatalog?->getUiCatalog() ?? [],
+            'minecraftCatalog' => $catalog,
             'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
-            'form' => $this->buildFormContext(),
+            'form' => $this->buildFormContext(['template_id' => $request->query->getInt('template_id'), 'minecraft_version' => (string) $request->query->get('minecraft_version', '')]),
             'activeNav' => 'game-instances',
             'createNotice' => $this->buildCreateNotice($request),
         ]));
@@ -165,13 +166,14 @@ final class AdminInstanceController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
+        $catalog = $this->minecraftCatalog?->getUiCatalog() ?? [];
         $templates = $this->listDistinctTemplates();
 
         return new Response($this->twig->render('admin/instances/_form.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
             'templates' => $templates,
-            'minecraftCatalog' => $this->minecraftCatalog?->getUiCatalog() ?? [],
+            'minecraftCatalog' => $catalog,
             'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
             'form' => $this->buildFormContext(),
         ]));

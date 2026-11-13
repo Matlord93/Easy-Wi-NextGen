@@ -1,0 +1,5 @@
+{% trans_default_domain 'vm_config' %}
+<p class="infra-span">{{ 'vm_config.cloud_hint'|trans }}</p>
+<label>{{ 'vm_config.hostname'|trans }}<input class="form-input" name="hostname" value="{{ cloud.hostname }}" pattern="{{ lockedUser|default(false) ? '[a-z][a-z0-9-]{0,47}' : '[a-z0-9]([a-z0-9-]{0,46}[a-z0-9])?' }}" maxlength="48" required></label>
+<label>{{ 'vm_config.username'|trans }}<input class="form-input" name="username" value="{{ cloud.username }}" pattern="[a-z_][a-z0-9_-]{0,30}" maxlength="31" {% if lockedUser|default(false) %}readonly{% endif %} required></label>
+<label class="infra-span">{{ 'vm_config.keys'|trans }}<textarea class="form-input" name="ssh_keys" rows="5" maxlength="32768" required>{{ cloud.ssh_keys is iterable ? cloud.ssh_keys|join('\n') : cloud.ssh_keys }}</textarea><small>{{ 'vm_config.keys_hint'|trans }}</small></label>

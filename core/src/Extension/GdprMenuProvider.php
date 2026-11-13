@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace App\Extension;
 
+/**
+ * Loaded by Symfony through the app.extension.menu_provider tagged iterator.
+ *
+ * @psalm-api
+ */
 final class GdprMenuProvider implements ExtensionMenuProviderInterface
 {
+    #[\Override]
     public function adminMenuItems(): array
     {
         return [
@@ -26,6 +32,7 @@ final class GdprMenuProvider implements ExtensionMenuProviderInterface
         ];
     }
 
+    #[\Override]
     public function customerMenuItems(): array
     {
         return [

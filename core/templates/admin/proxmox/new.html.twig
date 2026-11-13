@@ -1,0 +1,20 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'proxmox' %}
+{% set pageTitle = 'pve.create_vm'|trans %}
+{% block content %}
+<p><a href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ cluster.name }}</a></p>
+{% include 'proxmox/_alerts.html.twig' %}
+{% if options %}<section class="ng-data-card"><div class="ng-data-card__header"><h1>{{ 'pve.create_vm'|trans }} · {{ node }}</h1></div>
+<form method="post" class="ng-data-card__body" data-pve-mutation style="display:grid;gap:12px;max-width:800px;">
+<input type="hidden" name="_token" value="{{ csrf_token('proxmox-new-' ~ cluster.id ~ '-' ~ node) }}"><input type="hidden" name="request_key" value="{{ requestKey }}">
+<label>{{ 'pve.name'|trans }}<input name="name" class="form-input" maxlength="63" pattern="[A-Za-z0-9][A-Za-z0-9.-]{0,62}" required></label>
+<label>{{ 'pve.iso'|trans }}<select name="iso" class="form-input" required>{% for iso in options.isos %}<option value="{{ iso.volid }}">{{ iso.volid }}</option>{% endfor %}</select></label>
+<label>{{ 'pve.disk_storage'|trans }}<select name="storage" class="form-input" required>{% for storage in options.storages %}<option value="{{ storage.storage }}">{{ storage.storage }}</option>{% endfor %}</select></label>
+<label>{{ 'pve.cores'|trans }}<input name="cores" class="form-input" type="number" min="1" max="128" value="2" required></label>
+<label>{{ 'pve.memory_mib'|trans }}<input name="memory" class="form-input" type="number" min="256" max="1048576" value="2048" required></label>
+<label>{{ 'pve.disk_gib'|trans }}<input name="disk" class="form-input" type="number" min="1" max="65536" value="32" required></label>
+<label>{{ 'pve.bridge'|trans }}<select name="bridge" class="form-input" required>{% for bridge in options.bridges %}<option value="{{ bridge.iface }}">{{ bridge.iface }}</option>{% endfor %}</select></label>
+<p>{{ 'pve.create_hint'|trans }}</p>{% if options.isos is empty or options.storages is empty or options.bridges is empty %}<p role="status">{{ 'pve.creation_missing'|trans }}</p>{% endif %}<button class="ui-button ui-button--primary" {{ options.isos is empty or options.storages is empty or options.bridges is empty ? 'disabled' : '' }}>{{ 'pve.create_vm'|trans }}</button>
+</form></section>{% endif %}
+{% include 'proxmox/_script.html.twig' %}
+{% endblock %}

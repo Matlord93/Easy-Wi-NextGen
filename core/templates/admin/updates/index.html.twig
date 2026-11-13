@@ -59,11 +59,11 @@
                 <p style="margin:0;font-size:13px;font-weight:700;color:var(--ng-text);">
                     {% if coreUpdate.updateAvailable %}
                         <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <svg style="width:14px;height:14px;color:#fbbf24;" viewBox="0 0 16 16" fill="currentColor"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z"/><path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm.7-3.509a.905.905 0 1 1 1.8 0L9.1 9.5a.552.552 0 0 1-1.1 0L7.702 7.49z" fill="#fff"/></svg>
+                            <svg style="width:14px;height:14px;color:var(--aw-status-warning, #fbbf24);" viewBox="0 0 16 16" fill="currentColor"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z"/><path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm.7-3.509a.905.905 0 1 1 1.8 0L9.1 9.5a.552.552 0 0 1-1.1 0L7.702 7.49z" fill="#fff"/></svg>
                             {{ t('admin_dashboard_core_update_available', page_locale()) }} — v{{ coreUpdate.latestVersion }}
                         </span>
                     {% elseif coreUpdate.updateAvailable is same as(false) %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;color:#4ade80;">
+                        <span style="display:inline-flex;align-items:center;gap:6px;color:var(--aw-status-success, #4ade80);">
                             <svg style="width:14px;height:14px;" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
                             {{ t('admin_dashboard_core_update_up_to_date', page_locale()) }}
                         </span>

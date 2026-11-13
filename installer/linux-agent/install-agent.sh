@@ -258,8 +258,8 @@ main() {
     cat >"$CONFIG_PATH" <<'CONF'
 # agent_id=node-xxxx
 # shared_secret=<secret>
-control_listen=0.0.0.0:7443
-service_listen=0.0.0.0:7456
+control_listen=127.0.0.1:7443
+service_listen=127.0.0.1:7456
 CONF
     chmod 600 "$CONFIG_PATH"
     log "Neue Konfiguration angelegt: $CONFIG_PATH"

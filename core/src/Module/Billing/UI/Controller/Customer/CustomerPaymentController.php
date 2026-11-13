@@ -18,6 +18,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use App\Module\Core\Attribute\RequiresModule;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 #[Route(path: '/customer/billing')]
 #[RequiresModule('billing')]
@@ -29,6 +31,7 @@ final class CustomerPaymentController
         private readonly PaymentProviderRegistry $providerRegistry,
         private readonly LoggerInterface $logger,
         private readonly TranslatorInterface $translator,
+        private readonly CsrfTokenManagerInterface $csrf,
     ) {
     }
 
@@ -45,6 +48,9 @@ final class CustomerPaymentController
         if (!$customer instanceof User) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
+        if (!$this->csrf->isTokenValid(new CsrfToken('billing', (string) $request->request->get('_token')))) {
+            return new Response('Invalid CSRF token.', Response::HTTP_FORBIDDEN);
+        }
 
         $invoice = $this->invoiceRepository->find($id);
         if (!$invoice instanceof Invoice || $invoice->getCustomer()->getId() !== $customer->getId()) {
@@ -52,7 +58,7 @@ final class CustomerPaymentController
         }
 
         if ($invoice->getStatus() !== InvoiceStatus::Open && $invoice->getStatus() !== InvoiceStatus::PastDue) {
-            return new RedirectResponse('/customer/profile#billing');
+            return new RedirectResponse('/customer/billing');
         }
 
         $preferences = $this->invoicePreferencesRepository->findOneByCustomer($customer);
@@ -68,7 +74,7 @@ final class CustomerPaymentController
         }
 
         try {
-            $instruction = $provider->createPaymentIntent($invoice, $invoice->getAmountDueCents());
+            $instruction = $provider->createPaymentIntent($invoice, $invoice->getOutstandingCents());
         } catch (\Throwable $e) {
             $this->logger->error('customer.payment.intent_failed', [
                 'invoice_id'    => $invoice->getId(),
@@ -76,14 +82,14 @@ final class CustomerPaymentController
                 'customer_id'   => $customer->getId(),
                 'error'         => $e->getMessage(),
             ]);
-            return new RedirectResponse('/customer/profile#billing');
+            return new RedirectResponse('/customer/billing');
         }
 
         if ($instruction->redirectUrl !== null) {
             return new RedirectResponse($instruction->redirectUrl);
         }
 
-        return new RedirectResponse('/customer/profile#billing');
+        return new RedirectResponse('/customer/billing/invoices/'.$id.($provider->getName() === 'manual' ? '?payment=manual' : ''), Response::HTTP_SEE_OTHER);
     }
 
     private function requireCustomer(Request $request): ?User

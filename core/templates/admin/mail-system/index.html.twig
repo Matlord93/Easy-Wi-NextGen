@@ -78,11 +78,11 @@
                 </div>
                 <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
                     <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_mail_system_kpi_errors', locale) }}</div>
-                    <div class="tkt-kpi__value" style="color:#fca5a5;">{{ status.levels.error|default(0) }}</div>
+                    <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ status.levels.error|default(0) }}</div>
                 </div>
                 <div class="tkt-kpi" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.12);">
                     <div class="tkt-kpi__label" style="color:rgba(252,165,165,.8);">{{ t('admin_mail_system_kpi_critical', locale) }}</div>
-                    <div class="tkt-kpi__value" style="color:#f87171;">{{ status.levels.critical|default(0) }}</div>
+                    <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #f87171);">{{ status.levels.critical|default(0) }}</div>
                 </div>
             </div>
 
@@ -166,7 +166,7 @@
                 </div>
                 <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
                     <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_mail_system_kpi_ext_fwd', locale) }}</div>
-                    <div class="tkt-kpi__value" style="color:#fca5a5;">{{ security.policy_posture.external_forwarding_enabled|default(0) }}</div>
+                    <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ security.policy_posture.external_forwarding_enabled|default(0) }}</div>
                 </div>
                 <div class="tkt-kpi tkt-kpi--open">
                     <div class="tkt-kpi__label">{{ t('admin_mail_system_kpi_spam_high', locale) }}</div>

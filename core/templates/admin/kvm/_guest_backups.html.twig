@@ -1,0 +1,6 @@
+{% trans_default_domain 'kvm' %}
+{% import 'admin/kvm/_form.html.twig' as form %}
+{% set stopped = vm.state == 'shut off' %}
+<p>{{ 'kvm.restore_hint'|trans }}</p>
+{{ form.start(node, operationId, 'backup.create', vm.id) }}<button class="ui-button" {% if not stopped %}disabled{% endif %}>{{ 'kvm.action.backup.create'|trans }}</button></form>
+{% for backup in vm.backups %}{{ form.start(node, operationId, 'backup.restore', vm.id) }}<input type="hidden" name="backup_id" value="{{ backup.id }}"><span>{{ backup.created_at|date('d.m.Y H:i','Europe/Berlin') }} · {{ (backup.size/1048576)|number_format(1) }} MiB</span><button class="ui-button" name="action" value="backup.restore" data-kvm-confirm="{{ 'kvm.confirm_restore'|trans }}" {% if not stopped or vm.snapshots|length %}disabled{% endif %}>{{ 'kvm.action.backup.restore'|trans }}</button><button class="ui-button" name="action" value="backup.delete" data-kvm-confirm="{{ 'kvm.confirm_delete'|trans }}" {% if not stopped %}disabled{% endif %}>{{ 'kvm.action.backup.delete'|trans }}</button></form>{% endfor %}

@@ -1,0 +1,42 @@
+{% extends 'admin/base.html.twig' %}
+{% block content %}
+<a href="{{ path('admin_billing_design') }}" class="ui-button ui-button--ghost">{{ 'billing.design'|trans({}, 'billing') }}</a>
+<section class="ng-data-card">
+  <div class="ng-data-card__header"><h1>{{ 'billing.settings'|trans({}, 'billing') }}</h1></div>
+  <div class="ng-data-card__body">
+    {% for error in errors %}<p class="ng-alert ng-alert--danger">{{ error }}</p>{% endfor %}
+    <form method="post" style="display:grid;gap:16px;max-width:800px;">
+      <input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
+      {% for field in ['company_name', 'company_address', 'company_email', 'company_vat_id', 'company_footer'] %}
+        <label class="form-label">{{ ('billing.' ~ field)|trans({}, 'billing') }}
+          <textarea name="options[{{ field }}]" maxlength="2000" class="form-input" rows="{{ field in ['company_address', 'company_footer'] ? 3 : 1 }}">{{ options[field] }}</textarea>
+        </label>
+      {% endfor %}
+      <fieldset style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+        <legend>{{ 'billing.einvoice'|trans({}, 'billing') }}</legend>
+        <p style="grid-column:1/-1;">{{ 'billing.einvoice_settings_hint'|trans({}, 'billing') }}</p>
+        {% for field in ['company_street', 'company_postal', 'company_city', 'company_country', 'company_contact', 'company_phone', 'company_tax_number', 'company_iban', 'company_bic'] %}
+          <label class="form-label">{{ ('billing.' ~ field)|trans({}, 'billing') }}<input name="options[{{ field }}]" maxlength="200" class="form-input" value="{{ options[field] }}"></label>
+        {% endfor %}
+      </fieldset>
+      <label class="form-label">{{ 'billing.tax_mode'|trans({}, 'billing') }}
+        <select name="options[tax_mode]" class="form-input">
+          {% for mode in ['standard', 'exempt', 'reverse_charge', 'small_business'] %}
+            <option value="{{ mode }}" {{ options.tax_mode == mode ? 'selected' : '' }}>{{ ('billing.tax_mode.' ~ mode)|trans({}, 'billing') }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form-label">{{ 'billing.tax_rate'|trans({}, 'billing') }} <input name="options[tax_rate]" value="{{ options.tax_rate }}" inputmode="decimal" required class="form-input"></label>
+      <p>{{ 'billing.snapshot_hint'|trans({}, 'billing') }}</p>
+      <label><input type="checkbox" name="options[automation_enabled]" value="1" {{ options.automation_enabled ? 'checked' : '' }}> {{ 'billing.automation_enabled'|trans({}, 'billing') }}</label>
+      <label><input type="checkbox" name="options[reminders_enabled]" value="1" {{ options.reminders_enabled ? 'checked' : '' }}> {{ 'billing.reminders_enabled'|trans({}, 'billing') }}</label>
+      <p>{{ 'billing.automation_hint'|trans({}, 'billing') }}</p>
+      <label class="form-label">{{ 'billing.grace_days'|trans({}, 'billing') }} <input type="number" min="1" max="90" name="options[reminder_grace_days]" value="{{ options.reminder_grace_days }}" required class="form-input"></label>
+      {% for fee in options.reminder_fees %}
+        <label class="form-label">{{ 'billing.reminder_fee'|trans({'%level%': loop.index}, 'billing') }} <input name="options[reminder_fees][]" value="{{ fee }}" inputmode="decimal" required class="form-input"></label>
+      {% endfor %}
+      <div><button class="ui-button ui-button--primary">{{ 'billing.save'|trans({}, 'billing') }}</button> <a href="{{ path('admin_billing') }}">{{ 'billing.back'|trans({}, 'billing') }}</a></div>
+    </form>
+  </div>
+</section>
+{% endblock %}

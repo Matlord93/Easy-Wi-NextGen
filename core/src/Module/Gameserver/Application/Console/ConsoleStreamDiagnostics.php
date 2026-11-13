@@ -11,6 +11,8 @@ final class ConsoleStreamDiagnostics
         private readonly AgentEndpointProbeInterface $agentEndpointProbe,
         private readonly ?\Redis $redis = null,
         private readonly int $relayStaleAfterSeconds = 20,
+        #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%env(bool:default:app.console_legacy_relay_default:CONSOLE_LEGACY_RELAY)%')]
+        private readonly bool $legacyRelayEnabled = false,
     ) {
     }
 
@@ -26,14 +28,20 @@ final class ConsoleStreamDiagnostics
             'redis_ping_ok' => $this->redisPingOk(),
             'relay_required' => $relayRequired,
             'relay_heartbeat_age_seconds' => $heartbeatAge,
-            'relay_stale' => $heartbeatAge === null || $heartbeatAge > $this->relayStaleAfterSeconds,
+            'relay_stale' => $relayRequired && ($heartbeatAge === null || $heartbeatAge > $this->relayStaleAfterSeconds),
+            'transport' => $this->legacyRelayEnabled ? 'legacy_sse' : 'websocket',
             'sample_node_endpoint_present' => $this->sampleNodeEndpointPresent(),
         ];
     }
 
+    public function isLegacyRelayEnabled(): bool
+    {
+        return $this->legacyRelayEnabled;
+    }
+
     public function isRelayRequired(): bool
     {
-        if (!$this->redis instanceof \Redis) {
+        if (!$this->legacyRelayEnabled || !$this->redis instanceof \Redis) {
             return false;
         }
 

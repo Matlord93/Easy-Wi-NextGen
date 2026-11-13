@@ -1,0 +1,9 @@
+{% trans_default_domain 'vm_console' %}
+<section class="cust-panel" style="margin-top:20px;" data-vm-console data-ticket-url="{{ path('customer_vm_console_ticket', {provider: provider, id: assignment.id}) }}" data-csrf="{{ csrf_token('vm-console-' ~ provider ~ '-' ~ assignment.id) }}" data-unavailable="{{ 'console.unavailable'|trans }}" data-connecting="{{ 'console.connecting'|trans }}" data-connected="{{ 'console.connected'|trans }}" data-disconnected="{{ 'console.disconnected'|trans }}">
+<div class="cust-panel__header"><h2>{{ 'console.title'|trans }}</h2></div>
+<div class="cust-panel__body"><p>{{ 'console.hint'|trans }}</p>
+{% if not consoleConfigured %}<p role="status">{{ 'console.not_configured'|trans }}</p>{% endif %}
+<div style="display:flex;flex-wrap:wrap;gap:10px;"><button type="button" class="ui-button ui-button--primary" data-console-connect {% if not consoleConfigured %}disabled{% endif %}>{{ 'console.connect'|trans }}</button><button type="button" class="ui-button" data-console-disconnect disabled>{{ 'console.disconnect'|trans }}</button><button type="button" class="ui-button" data-console-cad disabled>Ctrl + Alt + Del</button><button type="button" class="ui-button" data-console-fullscreen disabled>{{ 'console.fullscreen'|trans }}</button></div>
+<p role="status" aria-live="polite" data-console-status>{{ 'console.ready'|trans }}</p>
+<div data-console-screen tabindex="0" aria-label="{{ 'console.title'|trans }}" style="width:100%;height:65vh;min-height:280px;max-height:850px;background:#090d16;border-radius:8px;overflow:hidden;"></div>
+</div></section><script type="module" src="{{ asset('js/vm-console.js') }}"></script>

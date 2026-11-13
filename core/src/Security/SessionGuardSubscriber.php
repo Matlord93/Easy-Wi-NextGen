@@ -131,14 +131,14 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             return false;
         }
 
-        return str_starts_with($routeName, 'public_cms_')
+        return $routeName === 'payment_webhook'
+            || str_starts_with($routeName, 'public_cms_')
             || str_starts_with($routeName, 'public_forum_')
             || str_starts_with($routeName, 'public_cookie_')
             || str_starts_with($routeName, 'public_robots')
             || str_starts_with($routeName, 'public_sitemap')
             || $routeName === 'public_theme_preview'
-            || $routeName === 'public_kontakt'
-            || $routeName === 'customer_files_health';
+            || $routeName === 'public_kontakt';
     }
 
     private function isUiRoute(string $path): bool
@@ -148,7 +148,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
     private function unauthorizedResponse(Request $request): Response
     {
-        if (str_starts_with($request->getPathInfo(), '/api/')) {
+        if (str_starts_with($request->getPathInfo(), '/api/') || $request->attributes->get('_route') === 'customer_files_health') {
             return new JsonResponse(['error' => $this->translator->trans('error_security_unauthorized')], Response::HTTP_UNAUTHORIZED);
         }
 

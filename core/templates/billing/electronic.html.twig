@@ -1,0 +1,29 @@
+{% extends admin ? 'admin/base.html.twig' : 'customer/base.html.twig' %}
+{% block content %}
+<section class="ng-data-card">
+  <div class="ng-data-card__header"><h1>{{ 'billing.einvoice'|trans({}, 'billing') }} · {{ invoice.number }}</h1></div>
+  <div class="ng-data-card__body" style="display:grid;gap:16px;">
+    <p>{{ 'billing.einvoice_archive_hint'|trans({}, 'billing') }}</p>
+    {% if error %}<p class="ng-alert ng-alert--danger" role="alert">{{ error|trans({}, 'billing') }}</p>{% endif %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
+      {% for format in ['xrechnung', 'zugferd'] %}
+        {% set matching = archives|filter(a => a.format == format) %}
+        <article class="ng-card" style="padding:18px;overflow-wrap:anywhere;"><h2>{{ format == 'xrechnung' ? 'XRechnung 3.0.2' : 'ZUGFeRD / EN16931' }}</h2>
+          {% for archive in matching %}
+            <p>{{ archive.createdAt|date('d.m.Y H:i', 'Europe/Berlin') }}</p><p>{{ archive.validationVersion }}</p><p>SHA-256: <code>{{ archive.sha256 }}</code></p>
+            <a class="ui-button ui-button--primary" href="{{ path(admin ? 'admin_billing_electronic_download' : 'customer_billing_electronic_download', {id:invoice.id, format:format}) }}">{{ 'billing.einvoice_download'|trans({}, 'billing') }}</a>
+          {% else %}
+            {% if admin %}
+              {% if issues[format] %}<div class="ng-alert ng-alert--warning"><p>{{ 'billing.einvoice_incomplete'|trans({}, 'billing') }}</p><ul>{% for issue in issues[format] %}<li>{{ issue|trans({}, 'billing') }}</li>{% endfor %}</ul></div>{% endif %}
+              {% if not ready[format] %}<p class="ng-alert ng-alert--warning">{{ 'billing.einvoice_validator_missing'|trans({}, 'billing') }}</p>{% endif %}
+              <form method="post" action="{{ path('admin_billing_electronic_generate', {id:invoice.id, format:format}) }}"><input type="hidden" name="_token" value="{{ csrf_token('einvoice-' ~ invoice.id ~ '-' ~ format) }}"><button class="ui-button ui-button--primary" {{ issues[format] or not ready[format] ? 'disabled' : '' }}>{{ 'billing.einvoice_generate'|trans({}, 'billing') }}</button></form>
+            {% else %}<p>{{ 'billing.einvoice_not_available'|trans({}, 'billing') }}</p>{% endif %}
+          {% endfor %}
+        </article>
+      {% endfor %}
+    </div>
+    {% if admin %}<p>{{ 'billing.einvoice_original_hint'|trans({}, 'billing') }}</p>{% endif %}
+    <a class="ui-button ui-button--ghost" href="{{ path(admin ? 'admin_billing_invoice_show' : 'customer_billing_invoice', {id:invoice.id}) }}">{{ 'billing.back'|trans({}, 'billing') }}</a>
+  </div>
+</section>
+{% endblock %}

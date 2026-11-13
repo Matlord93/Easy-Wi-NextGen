@@ -1,0 +1,3 @@
+{% trans_default_domain 'proxmox' %}
+<script type="application/json" data-pve-labels>{{ {permission_denied: 'pve.result.permission_denied'|trans, updated: 'pve.updated'|trans, refresh_failed: 'pve.refresh_failed'|trans, submitting: 'pve.state.submitting'|trans, running: 'pve.state.running'|trans, uncertain: 'pve.state.uncertain'|trans, succeeded: 'pve.state.succeeded'|trans, failed: 'pve.state.failed'|trans, dispatch_failed: 'pve.result.dispatch_failed'|trans, dispatch_unknown: 'pve.result.dispatch_unknown'|trans, upstream_failed: 'pve.result.upstream_failed'|trans}|json_encode(15)|raw }}</script>
+<script src="{{ asset('js/proxmox.js') }}" defer></script>

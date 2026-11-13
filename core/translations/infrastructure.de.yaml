@@ -1,0 +1,66 @@
+infra.cpu: "CPU"
+infra.memory: "Arbeitsspeicher"
+infra.ram: "RAM"
+infra.disk: "Datenträger"
+infra.server: "Server"
+infra.host: "Host"
+infra.server_usage: "Server-Auslastung"
+infra.node_usage: "Node-Auslastung"
+infra.no_sample: "Noch kein Messwert verfügbar"
+infra.cpu_hint: "Auslastung der zugeteilten CPU-Kapazität"
+infra.host_memory: "RAM-Verbrauch auf dem Host (RSS)"
+infra.observed: "Letzter Messwert"
+infra.stale: "Messwerte veraltet"
+infra.refresh_failed: "Aktualisierung derzeit nicht möglich. Letzte Messwerte bleiben sichtbar."
+infra.overview: "Übersicht"
+infra.servers: "Server"
+infra.console: "Konsole"
+infra.snapshots: "Snapshots"
+infra.backups: "Backups"
+infra.settings: "Einstellungen"
+infra.network: "Netzwerk"
+infra.templates: "Vorlagen"
+infra.create: "Server erstellen"
+infra.activity: "Aufträge"
+infra.search: "Server suchen …"
+infra.all_states: "Alle Zustände"
+infra.running: "Gestartet"
+infra.stopped: "Gestoppt"
+infra.no_results: "Keine passenden Server gefunden."
+infra.open: "Verwalten"
+infra.refresh: "Messwerte aktualisieren"
+infra.capacity: "Zugewiesene Ressourcen"
+infra.dashboard: "Dashboard"
+infra.infrastructure: "Infrastruktur"
+infra.proxmox_hint: "Nodes und Server auf einen Blick. Wähle eine Verbindung, um Ressourcen und Gäste zu verwalten."
+infra.kvm_hint: "Hosts, virtuelle Server und Ressourcen übersichtlich verwalten."
+infra.customer_hint: "Deine virtuellen Server mit Auslastung, Sicherungen und direktem Konsolenzugriff."
+infra.connections: "Verbindungen"
+infra.available: "Verfügbar"
+infra.details: "Server öffnen"
+infra.inventory_hint: "Bestand und Konfiguration werden beim Abgleich aktualisiert. Auslastungswerte kommen mit den Agent-Heartbeats."
+infra.throughput: 'VM-Durchsatz'
+infra.net_rx: 'Netzwerk empfangen'
+infra.net_tx: 'Netzwerk gesendet'
+infra.disk_read: 'Datenträger lesen'
+infra.disk_write: 'Datenträger schreiben'
+infra.io_rrd: 'Zeitlich gemittelter Proxmox-Messwert'
+infra.io_counter: 'Mittelwert zwischen Agent-Messungen'
+infra.io_waiting: 'Noch keine aktuelle vollständige Ratenmessung. Fehlende Angaben bleiben leer.'
+infra.history_title: 'Kurzer Verlauf dieser Ansicht'
+infra.history_hint: 'Bis zu 60 Messpunkte der letzten 20 Minuten, nur in dieser geöffneten Ansicht. Bei Neuladen beginnt der Verlauf erneut.'
+infra.history_load: 'CPU und RAM (%)'
+infra.history_network: 'Netzwerkdurchsatz'
+infra.history_disk: 'Datenträgerdurchsatz'
+infra.history_waiting: 'Der Verlauf baut sich mit neuen Messwerten auf.'
+infra.history_interrupted: 'Messreihe unterbrochen. Letzte bestätigte Messwerte bleiben sichtbar.'
+infra.history_points: 'Messpunkte'
+infra.export_range: 'Exportumfang'
+infra.export_current: 'Letzter verfügbarer Messwert'
+infra.export_5: 'Verlauf: letzte 5 Minuten'
+infra.export_20: 'Gesamter Kurzverlauf (bis 20 Minuten)'
+infra.export_csv: 'CSV herunterladen'
+infra.export_hint: 'Exportiert nur die Messwerte dieser Karte. Zeitstempel stehen in UTC; fehlende Werte bleiben leer. Quelle und Messlücken sind enthalten.'
+infra.export_success: 'CSV erstellt: {rows} Messzeilen.'
+infra.export_empty: 'Für diesen Zeitraum sind keine exportierbaren Messwerte vorhanden.'
+infra.export_failed: 'CSV konnte nicht erstellt werden. Bitte erneut versuchen.'

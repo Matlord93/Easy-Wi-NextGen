@@ -1,0 +1,218 @@
+billing.invalid_amount: Bitte einen gültigen Betrag mit höchstens zwei Nachkommastellen
+  eingeben.
+billing.invalid_tax: Steuerart oder Steuersatz ist ungültig (0–100 %).
+billing.invalid_invoice: Rechnungsnummer, Betrag oder Währung ist ungültig.
+billing.cancelled_invoice: Diese Rechnung wurde bereits storniert.
+billing.invalid_credit: Die Gutschrift muss positiv sein und darf den verbleibenden
+  Rechnungsbetrag nicht übersteigen. Währung und Referenz müssen übereinstimmen.
+billing.invalid_cancellation: Bitte einen Storno-/Gutschriftgrund mit maximal 255
+  Zeichen angeben.
+billing.immutable_details: Ausgestellte Rechnungsdaten können nicht nachträglich überschrieben
+  werden.
+billing.invalid_payment: Betrag, Zahlungsreferenz oder Währung ist ungültig.
+billing.payment_reference_conflict: Diese Zahlungsreferenz ist bereits anders zugeordnet.
+billing.invalid_settings: Bitte die Rechnungseinstellungen überprüfen.
+billing.layout_too_large: Die Rechnungsvorlage ist zu groß.
+billing.invalid_layout: Die Rechnungsvorlage enthält ungültige oder nicht erlaubte
+  Anweisungen.
+billing.invalid_pdf: Bitte eine gültige PDF-Datei bis 10 MB verwenden. Bestehende
+  Archive können nicht ersetzt werden.
+billing.invalid_customer: Bitte einen gültigen Kunden auswählen.
+billing.duplicate_number: Diese Rechnungsnummer ist bereits vergeben.
+billing.invalid_date: Bitte ein gültiges Fälligkeitsdatum eingeben.
+billing.invalid_description: Bitte eine Leistungsbeschreibung mit maximal 2000 Zeichen
+  eingeben.
+billing.external_payment: Externe Zahlungen können hier nicht zurückgenommen werden.
+  Bitte beim Zahlungsanbieter prüfen.
+billing.already_archived: Die Rechnung ist bereits archiviert und bleibt unverändert.
+billing.invalid_export: Exportart oder Jahr ist ungültig.
+billing.settings: Rechnungseinstellungen
+billing.gross_hint: Der Gesamtbetrag ist der Bruttobetrag inklusive der ausgewählten
+  Steuer.
+billing.description: Leistungsbeschreibung
+billing.tax_mode: Steuerbehandlung
+billing.tax_rate: Steuersatz in %
+billing.tax_mode.standard: Umsatzsteuer
+billing.tax_mode.exempt: Steuerbefreit
+billing.tax_mode.reverse_charge: Reverse Charge
+billing.tax_mode.small_business: Kleinunternehmerregelung
+billing.preview: Rechnungsvorschau
+billing.download_pdf: PDF herunterladen
+billing.adjustments: Gutschrift und Storno
+billing.credit_hint: Gutschriften reduzieren die Forderung. Eine Auszahlung bereits
+  erhaltener Zahlungen muss separat beim Zahlungsanbieter erfolgen.
+billing.credit_amount: Gutschriftbetrag
+billing.reason: Begründung
+billing.issue_credit: Gutschrift ausstellen
+billing.cancel_invoice: Rechnung stornieren
+billing.cancelled: Storniert
+billing.company_name: Firmenname
+billing.company_address: Firmenanschrift
+billing.company_email: Kontakt-E-Mail
+billing.company_vat_id: USt-IdNr. / Steuernummer
+billing.company_footer: Zahlungshinweise und Fußzeile
+billing.snapshot_hint: Absender, Empfänger und Steuerbeträge werden bei Ausstellung
+  gespeichert. Änderungen gelten für neue Rechnungen.
+billing.automation_enabled: Stündlichen Zahlungsabgleich aktivieren
+billing.reminders_enabled: Automatische Zahlungserinnerungen aktivieren
+billing.automation_hint: Der zentrale Scheduler führt den aktivierten Abgleich stündlich
+  aus. Erinnerungen erfordern zusätzlich einen eingerichteten E-Mail-Versand.
+billing.grace_days: Tage zwischen versandten Erinnerungen
+billing.reminder_fee: Gebühr für Mahnstufe %level%
+billing.save: Speichern
+billing.back: Zurück
+billing.payments: Zahlungen
+billing.credits: Gutschriften
+billing.reminders: Zahlungserinnerungen
+billing.date: Datum
+billing.reference: Referenz
+billing.amount: Betrag
+billing.status: Status
+billing.reminder_level: Mahnstufe %level%
+billing.empty: Keine Einträge vorhanden.
+billing.history: Rechnungshistorie
+billing.number: Rechnungsnummer
+billing.net: Netto
+billing.tax: Umsatzsteuer
+billing.total: Gesamtbetrag
+billing.outstanding: Offener Betrag
+billing.due_date: Fällig am
+billing.invoice: Rechnung
+billing.pay: Zahlungsanweisung öffnen
+billing.bill_to: Rechnungsempfänger
+billing.vat_id: USt-IdNr.
+billing.notice.standard: ''
+billing.notice.legacy: ''
+billing.notice.exempt: Steuerbefreite Leistung.
+billing.notice.reverse_charge: Steuerschuldnerschaft des Leistungsempfängers (Reverse
+  Charge).
+billing.notice.small_business: Kein Umsatzsteuerausweis aufgrund der Kleinunternehmerregelung.
+billing.state.open: Offen
+billing.state.past_due: Überfällig
+billing.state.paid: Ausgeglichen
+billing.state.cancelled: Storniert
+billing.state.draft: Entwurf
+billing.state.succeeded: Erfolgreich
+billing.state.pending: Ausstehend
+billing.state.failed: Fehlgeschlagen / zurückgenommen
+billing.state.refunded: Erstattet
+billing.state.issued: Ausgestellt
+billing.state.applied: Verrechnet
+billing.state.voided: Ungültig
+billing.state.sent: Versand eingeplant
+billing.state.resolved: Erledigt
+billing.manual_payment_hint: Die Zahlungsinformationen stehen auf deiner Rechnung. Verwende die Rechnungsnummer als Verwendungszweck. Bei fehlenden Bankdaten kontaktiere bitte den Anbieter.
+
+billing.currency: "Währung"
+billing.items: "Rechnungspositionen"
+billing.quantity: "Menge"
+billing.unit_price: "Einzelpreis (brutto)"
+billing.line_total: "Positionsbetrag (brutto)"
+billing.add_item: "Position hinzufügen"
+billing.remove_item: "Entfernen"
+billing.move_up: "Position nach oben"
+billing.move_down: "Position nach unten"
+billing.items_hint: "Bis zu 100 Positionen. Menge mit bis zu drei Nachkommastellen, Einzelpreis brutto und Steuersatz je Position. Komma und Punkt sind als Dezimaltrennzeichen möglich."
+billing.rounding_hint: "Bruttobeträge werden je Position auf Cent gerundet, die enthaltene Steuer je Steuersatz. Rundungsdifferenzen werden auf die Nettobeträge verteilt; Positions- und Rechnungssummen bleiben erhalten."
+billing.invalid_items: "Bitte 1 bis 100 vollständige Rechnungspositionen eingeben."
+billing.invalid_quantity: "Die Menge muss größer als 0 sein und darf höchstens drei Nachkommastellen haben."
+billing.design: "Rechnungsvorlage gestalten"
+billing.design_hint: "Gestalte die Vorlage für neue Rechnungen. Die Vorschau verwendet Beispieldaten und wird ohne Speichern aktualisiert."
+billing.design_saved: "Rechnungsvorlage gespeichert. Bereits archivierte PDFs bleiben unverändert."
+billing.editor_mode: "Bearbeitung"
+billing.visual_editor: "Visueller Editor"
+billing.code_editor: "Eigene HTML-/Twig-Vorlage"
+billing.editor_mode_hint: "Der visuelle Editor erzeugt eine neue Vorlage aus den gewählten Einstellungen. Bestehenden eigenen Code bearbeitest du im Code-Modus. Erst Speichern übernimmt die gewählte Variante."
+billing.code_hint: "Für volle Gestaltungsfreiheit sind HTML, CSS und freigegebene Twig-Ausdrücke möglich. Mehrere Positionen mit „for item in invoice.items“ durchlaufen. Mengen sind in Tausendsteln, Geldbeträge in Cent gespeichert."
+billing.preview_failed: "Vorschau konnte nicht aktualisiert werden. Bitte Eingaben prüfen."
+billing.preview_ready: "Vorschau mit Beispieldaten"
+billing.refresh_preview: "Vorschau aktualisieren"
+billing.invalid_design: "Bitte gültige Farben, Schrift- und Layout-Einstellungen verwenden."
+billing.invalid_logo: "Bitte ein gültiges PNG-/JPEG-Logo bis 48 KiB und maximal 1600 × 1600 Pixel auswählen."
+billing.logo_hint: "PNG/JPEG bis 48 KiB, maximal 1600 × 1600 Pixel. Das Logo wird direkt eingebettet."
+billing.remove_logo: "Gespeichertes Logo entfernen"
+billing.show_tax_column: "Steuersatz je Position als Tabellenspalte anzeigen"
+billing.current_template_hint: "Diese Vorschau zeigt die aktuelle Vorlage. Der PDF-Download liefert bei archivierten Rechnungen weiterhin das unveränderte Original."
+billing.design.accent: "Akzentfarbe"
+billing.design.text_color: "Textfarbe"
+billing.design.font: "Schrift"
+billing.design.font_size: "Schriftgröße (pt)"
+billing.design.margin_mm: "Seitenränder (mm)"
+billing.design.logo_width: "Logobreite (px)"
+billing.design.header_align: "Kopfausrichtung"
+billing.design.spacing: "Abstände"
+billing.design.heading: "Eigener Rechnungstitel (optional)"
+billing.design.intro: "Einleitung"
+billing.design.footer_text: "Zusätzliche Fußzeile"
+billing.design.logo: "Firmenlogo"
+billing.design.style: "Layout"
+billing.design.modern: "Modern"
+billing.design.classic: "Klassisch"
+billing.design.sans: "Sans Serif"
+billing.design.serif: "Serif"
+billing.design.mono: "Monospace"
+billing.design.comfortable: "Großzügig"
+billing.design.compact: "Kompakt"
+billing.design.left: "Links"
+billing.design.right: "Rechts"
+billing.gd_required: "Für PNG-Logos in PDF-Rechnungen wird die PHP-Erweiterung GD benötigt. Bitte php-gd für die verwendete PHP-Version installieren bzw. aktivieren."
+billing.unit_price_short: "Einzelpreis"
+billing.line_total_short: "Betrag"
+billing.gross: "brutto"
+billing.tax_short: Steuer
+
+billing.einvoice: "Elektronische Rechnung"
+billing.einvoice_settings_hint: "Diese strukturierten Angaben werden beim Ausstellen gespeichert. Die bisherigen Rechnungen bleiben unverändert. Für XRechnung/ZUGFeRD müssen auch die Kundendaten vollständig sein."
+billing.einvoice_creation_hint: "Für XRechnung und ZUGFeRD: Käuferreferenz (z. B. Leitweg-ID) und tatsächliches Leistungsdatum angeben. Fehlende Angaben lassen sich nach dem Ausstellen nicht ergänzen."
+billing.buyer_reference: "Käuferreferenz / Leitweg-ID"
+billing.service_date: "Leistungsdatum"
+billing.einvoice_archive_hint: "Hier stehen lokal geprüfte, unveränderliche E-Rechnungen zum Download bereit. Zahlungen oder spätere Änderungen an Stammdaten verändern diese Dateien nicht."
+billing.einvoice_original_hint: "ZUGFeRD verwendet das archivierte Original-PDF als sichtbare Rechnung. Prüfe vor dem Erstellen, dass dieses PDF zu den Rechnungsdaten gehört. Die Werkzeuge laufen nur während der Prüfung; es wird kein zusätzlicher dauerhafter Dienst benötigt."
+billing.einvoice_incomplete: "Die beim Ausstellen gespeicherten Pflichtangaben sind unvollständig. Ein Export dieser Rechnung ist nicht möglich."
+billing.einvoice_invalid_data: "Bitte die Angaben zur E-Rechnung prüfen."
+billing.einvoice_invalid_iban: "Bitte eine gültige IBAN angeben."
+billing.einvoice_validator_missing: "Die lokalen Prüfwerkzeuge fehlen oder haben eine andere Version. Administration: scripts/setup-einvoice-validation.py ausführen (Java 21 erforderlich)."
+billing.einvoice_validation_unavailable: "Die lokale Formatprüfung konnte nicht abgeschlossen werden. Es wurde keine E-Rechnung archiviert."
+billing.einvoice_rules_failed: "Die Formatprüfung hat die Rechnung abgelehnt. Prüfe insbesondere Steuersummen und Pflichtangaben. Es wurde kein Export archiviert."
+billing.einvoice_pdf_failed: "Das PDF konnte nicht als geprüftes PDF/A-3b erstellt werden. Bitte das archivierte Original-PDF prüfen."
+billing.einvoice_schema_failed: "Die XML-Struktur ist ungültig; es wurde kein Export erstellt."
+billing.einvoice_pdf_archive_required: "Für ZUGFeRD wird das archivierte Original-PDF benötigt."
+billing.einvoice_archive_corrupted: "Die Prüfsumme des Archivs stimmt nicht überein. Bitte die Administration kontaktieren."
+billing.einvoice_busy: "Es läuft bereits eine Formatprüfung. Bitte anschließend erneut versuchen."
+billing.einvoice_not_available: "Für diese Rechnung wurde noch kein Export bereitgestellt."
+billing.einvoice_generate: "Prüfen und unveränderlich archivieren"
+billing.einvoice_download: "Geprüfte Datei herunterladen"
+billing.einvoice_invalid_format: "Unbekanntes E-Rechnungsformat."
+billing.einvoice_reverse_charge_ids: "Bei Reverse Charge werden die Umsatzsteuer-IDs beider Parteien benötigt."
+billing.einvoice_missing_snapshot: "Diese Rechnung enthält keinen vollständigen, strukturierten Positions- und Steuersnapshot."
+billing.company_street: "Straße und Hausnummer"
+billing.company_postal: "Postleitzahl"
+billing.company_city: "Ort"
+billing.company_country: "Ländercode (ISO, z. B. DE)"
+billing.company_contact: "Ansprechpartner"
+billing.company_phone: "Telefon"
+billing.company_tax_number: "Steuernummer"
+billing.company_iban: "IBAN"
+billing.company_bic: "BIC (optional)"
+billing.einvoice_missing.company.name: "Aussteller: Name fehlt."
+billing.einvoice_missing.company.street: "Aussteller: Straße und Hausnummer fehlt."
+billing.einvoice_missing.company.postal: "Aussteller: Postleitzahl fehlt."
+billing.einvoice_missing.company.city: "Aussteller: Ort fehlt."
+billing.einvoice_missing.company.country: "Aussteller: Ländercode (ISO, z. B. DE) fehlt."
+billing.einvoice_missing.company.email: "Aussteller: E-Mail fehlt."
+billing.einvoice_missing.company.contact: "Aussteller: Ansprechpartner fehlt."
+billing.einvoice_missing.company.phone: "Aussteller: Telefon fehlt."
+billing.einvoice_missing.company.iban: "Aussteller: IBAN fehlt."
+billing.einvoice_missing.company.tax_number: "Aussteller: Steuernummer fehlt."
+billing.einvoice_invalid_country.company: "Ländercode prüfen: company"
+billing.einvoice_invalid_email.company: "E-Mail-Adresse prüfen: company"
+billing.einvoice_missing.customer.name: "Kunde: Name fehlt."
+billing.einvoice_missing.customer.address: "Kunde: Anschrift fehlt."
+billing.einvoice_missing.customer.postal: "Kunde: Postleitzahl fehlt."
+billing.einvoice_missing.customer.city: "Kunde: Ort fehlt."
+billing.einvoice_missing.customer.country: "Kunde: Ländercode (ISO, z. B. DE) fehlt."
+billing.einvoice_missing.customer.email: "Kunde: E-Mail fehlt."
+billing.einvoice_invalid_country.customer: "Ländercode prüfen: customer"
+billing.einvoice_invalid_email.customer: "E-Mail-Adresse prüfen: customer"
+billing.einvoice_missing.buyer_reference: "Käuferreferenz / Leitweg-ID fehlt."
+billing.einvoice_missing.service_date: "Leistungsdatum fehlt."

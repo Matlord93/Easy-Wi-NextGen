@@ -1,0 +1,8 @@
+{% trans_default_domain 'kvm' %}
+{% import 'admin/kvm/_form.html.twig' as form %}
+{% set stopped = vm.state == 'shut off' %}
+{{ form.start(node, operationId, 'vm.limits', vm.id) }}<label>vCPU<input class="form-input" name="vcpus" type="number" min="1" max="256" value="{{ vm.vcpus }}" required></label><label>RAM (MiB)<input class="form-input" name="memory_mib" type="number" min="128" max="1048576" value="{{ vm.memory_mib }}" required></label><button class="ui-button" {% if not stopped %}disabled{% endif %}>{{ 'kvm.save'|trans }}</button></form>
+{% include 'kvm/_provisioning.html.twig' %}
+
+{% include 'admin/kvm/_disk_grow.html.twig' %}
+{% include 'admin/kvm/_guest_network.html.twig' %}

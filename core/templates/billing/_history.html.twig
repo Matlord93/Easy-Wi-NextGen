@@ -1,0 +1,20 @@
+{% for section in ['payments', 'credits', 'reminders'] %}
+<section class="ng-data-card" style="margin-top:20px;">
+  <div class="ng-data-card__header"><h2>{{ ('billing.' ~ section)|trans({}, 'billing') }}</h2></div>
+  <div class="cust-ws-table-wrap">
+    <table class="cust-table">
+      <thead><tr><th>{{ 'billing.date'|trans({}, 'billing') }}</th><th>{{ 'billing.reference'|trans({}, 'billing') }}</th><th>{{ 'billing.amount'|trans({}, 'billing') }}</th><th>{{ 'billing.status'|trans({}, 'billing') }}</th></tr></thead>
+      <tbody>
+        {% for row in invoice[section] %}
+        <tr>
+          <td>{{ (row.created_at ?? row.issued_at)|date('Y-m-d H:i') }}</td>
+          <td>{% if section == 'payments' %}{{ row.provider }} · {{ row.reference }}{% elseif section == 'credits' %}{{ row.number }} · {{ row.reason }}{% else %}{{ 'billing.reminder_level'|trans({'%level%': row.level}, 'billing') }}{% endif %}</td>
+          <td>{{ ((row.amount ?? row.fee) / 100)|number_format(2, '.', ',') }} {{ invoice.currency }}</td>
+          <td>{{ ('billing.state.' ~ row.status)|trans({}, 'billing') }}</td>
+        </tr>
+        {% else %}<tr><td colspan="4">{{ 'billing.empty'|trans({}, 'billing') }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endfor %}

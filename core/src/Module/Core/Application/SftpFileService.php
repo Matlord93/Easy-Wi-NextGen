@@ -22,6 +22,8 @@ final class SftpFileService
         private readonly AppSettingsService $settingsService,
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly EncryptionService $encryptionService,
+        private readonly SftpConnectionFactory $connections = new SftpConnectionFactory(),
+        private readonly SshHostKeyVerifier $hostKeys = new SshHostKeyVerifier(),
     ) {
     }
 
@@ -233,22 +235,29 @@ final class SftpFileService
         $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
         $auth = $credential === null ? $this->resolveAuthentication() : null;
 
-        $sftp = new SFTP($host, $port, 10);
-        if ($auth !== null) {
-            $loggedIn = $sftp->login($username, $auth);
-        } else {
-            $loggedIn = $sftp->login($username, $this->resolvePassword($instance));
-        }
+        $fingerprint = $this->hostKeys->requireFingerprint($instance->getNode()->getSftpHostFingerprint());
+        $sftp = $this->connections->create($host, $port);
+        try {
+            $this->hostKeys->verify($sftp, $fingerprint);
+            if ($auth !== null) {
+                $loggedIn = $sftp->login($username, $auth);
+            } else {
+                $loggedIn = $sftp->login($username, $this->resolvePassword($instance));
+            }
 
-        if (!$loggedIn) {
-            throw new SftpException('sftp_auth_failed', 'Unable to authenticate with SFTP server.', 502, [
-                'host' => $host,
-                'port' => $port,
-                'username' => $username,
-            ]);
-        }
+            if (!$loggedIn) {
+                throw new SftpException('sftp_auth_failed', 'Unable to authenticate with SFTP server.', 502, [
+                    'host' => $host,
+                    'port' => $port,
+                    'username' => $username,
+                ]);
+            }
 
-        return $sftp;
+            return $sftp;
+        } catch (\Throwable $error) {
+            $sftp->disconnect();
+            throw $error;
+        }
     }
 
     private function resolveHost(Instance $instance): string

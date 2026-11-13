@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Domain\Entity;
 
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Domain\ValueObject\SshHostFingerprint;
 use App\Repository\AgentRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -56,6 +57,9 @@ class Agent
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $serviceBaseUrl = null;
+
+    #[ORM\Column(length: 80, nullable: true)]
+    private ?string $sftpHostFingerprint = null;
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $serviceApiTokenEncrypted = null;
@@ -166,6 +170,17 @@ class Agent
     public function getMetadata(): ?array
     {
         return $this->metadata;
+    }
+
+    public function getSftpHostFingerprint(): ?string
+    {
+        return $this->sftpHostFingerprint;
+    }
+
+    public function setSftpHostFingerprint(?string $fingerprint): void
+    {
+        $this->sftpHostFingerprint = $fingerprint === null || trim($fingerprint) === '' ? null : SshHostFingerprint::normalize($fingerprint);
+        $this->touch();
     }
 
     public function getServiceBaseUrl(): string

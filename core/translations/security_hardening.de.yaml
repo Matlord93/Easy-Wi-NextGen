@@ -1,0 +1,4 @@
+sftp.trusted_host: "Vertrauenswürdiger SFTP-Hostschlüssel"
+sftp.fingerprint: "SHA256-Fingerprint"
+sftp.trust_hint: "Den Fingerprint am Node über eine vertrauenswürdige Verbindung prüfen. Ohne hinterlegten Schlüssel bleiben SFTP-Verbindungen gesperrt. Ein leeres Feld entfernt das Vertrauen."
+sftp.save: "Hostschlüssel speichern"

@@ -1,0 +1,26 @@
+/* Admin theme compatibility: colours only. Dashboard layout remains untouched. */
+html:not(.dark) {
+    color-scheme: light;
+    --ui-bg: #f1f5fb; --ui-bg-deep: #f1f5fb; --ui-bg-soft: #f7f9fd;
+    --ui-surface: #fff; --ui-surface-strong: #f7f9fd;
+    --ui-text: #0f172a; --ui-muted: #4e6585;
+    --ui-border: #dce3ef; --ui-border-strong: #b7c4d8;
+    --ui-card-shadow: 0 2px 8px rgb(15 23 42 / .05);
+}
+html:not(.dark) body.admin-interface { background: var(--ng-bg) !important; color: var(--ng-text) !important; }
+html:not(.dark) body.admin-interface::before { opacity: .22; }
+html:not(.dark) body.admin-interface :is(.ng-sidebar,.ng-topbar,.ng-user-menu__dropdown,.ng-card,.ng-data-card,.ui-card,.nodes-card,.setup-panel) {
+    background: var(--ng-surface) !important; color: var(--ng-text) !important; border-color: var(--ng-border) !important;
+}
+html:not(.dark) body.admin-interface :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,textarea) {
+    background: var(--ng-surface-soft) !important; color: var(--ng-text) !important; border-color: var(--ng-border-strong) !important;
+}
+html:not(.dark) body.admin-interface :is(.ng-sidebar__item,.ng-sidebar__group-label,.ng-sidebar__title,.ng-topbar__title h1,.ng-user-button,.ng-topbar__profile,.ng-user-menu__item) { color: var(--ng-text) !important; }
+html:not(.dark) body.admin-interface :is(.ng-sidebar__item.is-active,.ng-sidebar__item:hover) { background: var(--ng-primary-soft) !important; color: var(--ng-primary) !important; }
+html:not(.dark) body.admin-interface :is(.tkt-hero,.server-hero) { background: linear-gradient(120deg,#fff,#eef2ff) !important; }
+html:not(.dark) body.admin-interface :is(.tkt-hero__title,.tkt-kpi__value,.ng-card__title,.ui-card__title) { color: var(--ng-text) !important; }
+html:not(.dark) body.admin-interface :is(.tkt-hero__sub,.tkt-kpi__label,.ng-card__subtitle,.ui-card__subtitle) { color: var(--ng-text-muted) !important; }
+html:not(.dark) body.admin-interface :is(.tkt-kpi,.tkt-hero__pill,.ng-icon-button,.ng-user-button) { background: var(--ng-surface-soft) !important; border-color: var(--ng-border) !important; }
+html:not(.dark) body.admin-interface :is(.bg-slate-900,.bg-slate-800,.bg-slate-950,[class*="bg-slate-900/"],[class*="bg-slate-800/"],[class*="bg-slate-950/"]) { background-color: var(--ng-surface-soft) !important; }
+html:not(.dark) body.admin-interface :is(.text-white,.text-slate-100,.text-slate-200,.text-slate-300) { color: var(--ng-text) !important; }
+html:not(.dark) body.admin-interface .ui-button--primary { color: #fff !important; }

@@ -1,0 +1,12 @@
+{% trans_default_domain 'proxmox' %}
+<section class="ng-data-card"><div class="ng-data-card__header"><h2>{{ 'pve.resources'|trans }}</h2></div><div class="ng-data-card__body">
+{% if detail.configuration is not null %}
+<p>{{ 'pve.resources_hint'|trans }}</p>
+<form method="post" action="{{ actionUrl }}" class="infra-form" data-pve-mutation>
+{% include 'proxmox/_action_fields.html.twig' with {action: 'resources-update'} %}
+<label>{{ (kind == 'qemu' ? 'pve.cores_per_socket' : 'pve.cores')|trans }}<input class="form-input" name="cores" type="number" min="1" max="128" value="{{ detail.configuration.cores|default(detail.status.cpus|default(1)) }}" required></label>
+<label>{{ 'pve.memory'|trans }} (MiB)<input class="form-input" name="memory" type="number" min="128" max="1048576" value="{{ detail.configuration.memory|default(detail.status.maxmem is defined ? (detail.status.maxmem / 1048576)|round : 2048) }}" required></label>
+{% if kind == 'qemu' %}<p class="infra-span">{{ 'pve.sockets_retained'|trans }}: {{ detail.configuration.sockets|default(1) }}</p>{% endif %}
+<button class="ui-button ui-button--primary" {% if detail.status.status|default('') != 'stopped' %}disabled{% endif %}>{{ 'pve.save'|trans }}</button>
+</form>{% else %}<p>{{ 'pve.resources_unavailable'|trans }}</p>{% endif %}
+</div></section>

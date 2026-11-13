@@ -1,6 +1,7 @@
 {% extends 'admin/base.html.twig' %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ asset('billing.css') }}">
 {% set locale = page_locale() %}
 <div style="display:flex;flex-direction:column;gap:20px;">
 
@@ -30,6 +31,7 @@
   <div class="ng-data-card">
     <div class="ng-data-card__body">
       <form method="post" action="/admin/billing/invoices" style="display:flex;flex-direction:column;gap:16px;">
+        <input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
         <div class="form-field">
           <label class="form-label">{{ t('admin_billing_customer', locale) }}</label>
           <select name="customer_id" class="form-input">
@@ -43,23 +45,32 @@
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">
           <div class="form-field">
             <label class="form-label">{{ t('admin_billing_invoice_number', locale) }}</label>
-            <input name="number" value="{{ form.number }}" class="form-input">
+            <input name="number" required maxlength="40" value="{{ form.number }}" class="form-input">
           </div>
           <div class="form-field">
             <label class="form-label">{{ t('admin_billing_invoice_due_date', locale) }}</label>
             <input name="due_date" type="date" value="{{ form.due_date_raw ?? form.due_date }}" class="form-input">
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">
-          <div class="form-field">
-            <label class="form-label">{{ t('admin_billing_amount_total', locale) }}</label>
-            <input name="amount" value="{{ form.amount }}" placeholder="99.00" class="form-input">
-          </div>
-          <div class="form-field">
-            <label class="form-label">{{ t('admin_billing_currency', locale) }}</label>
-            <input name="currency" value="{{ form.currency }}" class="form-input">
-          </div>
-        </div>
+        <label class="form-label">{{ 'billing.currency'|trans({}, 'billing') }}<input name="currency" maxlength="3" value="{{ form.currency }}" class="form-input" data-billing-currency></label>
+        <fieldset style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+          <legend>{{ 'billing.einvoice'|trans({}, 'billing') }}</legend>
+          <label class="form-label">{{ 'billing.buyer_reference'|trans({}, 'billing') }}<input name="buyer_reference" maxlength="200" value="{{ form.buyer_reference|default('') }}" class="form-input"></label>
+          <label class="form-label">{{ 'billing.service_date'|trans({}, 'billing') }}<input type="date" name="service_date" value="{{ form.service_date|default('') }}" class="form-input"></label>
+          <p style="grid-column:1/-1;">{{ 'billing.einvoice_creation_hint'|trans({}, 'billing') }}</p>
+        </fieldset>
+        <label class="form-label">{{ 'billing.tax_mode'|trans({}, 'billing') }}
+          <select name="tax_mode" class="form-input" data-billing-tax-mode>{% for mode in ['standard', 'exempt', 'reverse_charge', 'small_business'] %}<option value="{{ mode }}" {{ form.tax_mode == mode ? 'selected' : '' }}>{{ ('billing.tax_mode.' ~ mode)|trans({}, 'billing') }}</option>{% endfor %}</select>
+        </label>
+        <section data-billing-items data-default-tax="{{ form.tax_rate }}" data-locale="{{ locale }}">
+          <div class="billing-toolbar"><h2>{{ 'billing.items'|trans({}, 'billing') }}</h2><button type="button" class="ui-button ui-button--ghost" data-add-item>{{ 'billing.add_item'|trans({}, 'billing') }}</button></div>
+          <p>{{ 'billing.items_hint'|trans({}, 'billing') }}</p>
+          <div data-item-list>{% for row in form.items %}{% include 'admin/billing/_item_fields.html.twig' with {index:loop.index0} %}{% endfor %}</div>
+          <template data-item-template>{% include 'admin/billing/_item_fields.html.twig' with {index:'__INDEX__', row:{description:'', quantity:'1', unit_price:'', tax_rate:form.tax_rate}} %}</template>
+          <p role="status" data-item-count></p>
+          <div class="billing-totals" aria-live="polite"><span>{{ 'billing.net'|trans({}, 'billing') }}: <strong data-items-net>—</strong></span><span>{{ 'billing.tax'|trans({}, 'billing') }}: <strong data-items-tax>—</strong></span><span>{{ 'billing.total'|trans({}, 'billing') }}: <strong data-items-total>—</strong></span></div>
+          <p>{{ 'billing.rounding_hint'|trans({}, 'billing') }}</p>
+        </section>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_billing_create_invoice_submit', locale) }}</button>
           <a href="/admin/billing" class="ui-button ui-button--ghost ui-button--sm">{{ t('cancel', locale) }}</a>
@@ -69,4 +80,5 @@
   </div>
 
 </div>
+<script src="{{ asset('js/billing-items.js') }}" defer></script>
 {% endblock %}

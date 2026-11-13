@@ -1,0 +1,8 @@
+{% trans_default_domain 'infrastructure' %}
+<section class="infra-throughput"><h3>{{ 'infra.throughput'|trans }}</h3><div class="infra-rate-grid">
+{% for key, label in {net_rx:'infra.net_rx',net_tx:'infra.net_tx',disk_read:'infra.disk_read',disk_write:'infra.disk_write'} %}
+{% set rate = attribute(usage, key ~ '_bytes_per_second') %}
+<div><span>{{ label|trans }}</span><strong data-usage-rate="{{ key }}">{% if rate is not null %}{% set divisor = rate >= 1073741824 ? 1073741824 : (rate >= 1048576 ? 1048576 : (rate >= 1024 ? 1024 : 1)) %}{{ (rate / divisor)|number_format(2) }} {{ divisor == 1073741824 ? 'GiB/s' : (divisor == 1048576 ? 'MiB/s' : (divisor == 1024 ? 'KiB/s' : 'B/s')) }}{% else %}—{% endif %}</strong></div>
+{% endfor %}</div>
+<p class="infra-observed">{% if usage.io_observed_at and not usage.io_stale %}{{ (usage.io_source == 'proxmox_rrd' ? 'infra.io_rrd' : 'infra.io_counter')|trans }} · {{ usage.io_interval_seconds|number_format(1) }} s · <time datetime="{{ usage.io_observed_at }}">{{ usage.io_observed_at|date('d.m.Y H:i:s', 'Europe/Berlin') }}</time>{% else %}{{ 'infra.io_waiting'|trans }}{% endif %}</p>
+</section>

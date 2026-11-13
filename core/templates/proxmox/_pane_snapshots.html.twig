@@ -1,0 +1,8 @@
+{% trans_default_domain 'proxmox' %}
+<section class="ng-data-card">
+ <div class="ng-data-card__header"><h2>{{ 'pve.snapshots'|trans }}</h2></div>
+ <div class="ng-data-card__body infra-operation-grid">
+ <form method="post" action="{{ actionUrl }}" data-pve-mutation style="display:grid;gap:12px;max-width:700px;">{% include 'proxmox/_action_fields.html.twig' with {action: 'snapshot-create'} %}<label>{{ 'pve.snapshot_name'|trans }}<input name="snapshot" class="form-input" pattern="[A-Za-z][A-Za-z0-9_-]{0,39}" maxlength="40" required></label><label>{{ 'pve.description'|trans }}<input name="description" class="form-input" maxlength="2000"></label><button class="ui-button ui-button--primary">{{ 'pve.action.snapshot-create'|trans }}</button></form>
+ <div class="infra-table-wrap"><table class="infra-table"><tbody>{% for snapshot in detail.snapshots|filter(s => s.name != 'current') %}<tr><td>{{ snapshot.name }}</td><td>{{ snapshot.description|default('') }}</td><td><div style="display:flex;flex-wrap:wrap;gap:12px;">{% for action in ['snapshot-rollback', 'snapshot-delete'] %}<form method="post" action="{{ actionUrl }}" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' %}<input type="hidden" name="snapshot" value="{{ snapshot.name }}"><label style="display:block;"><input type="checkbox" name="confirm" value="1" required> {{ (action == 'snapshot-rollback' ? 'pve.confirm_snapshot_rollback' : 'pve.confirm_snapshot_delete')|trans }}</label><button class="ui-button ui-button--ghost">{{ ('pve.action.' ~ action)|trans }}</button></form>{% endfor %}</div></td></tr>{% else %}<tr><td>{{ 'pve.no_snapshots'|trans }}</td></tr>{% endfor %}</tbody></table></div>
+ </div>
+</section>

@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\JobResult;
 use Symfony\Contracts\EventDispatcher\Event;
 
+/**
+ * Public payload for extension.job.after_result listeners in extensions.
+ *
+ * @psalm-api
+ */
 final class JobAfterResultEvent extends Event
 {
     public function __construct(

@@ -1,0 +1,25 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'proxmox' %}
+{% block content %}
+<section class="ng-data-card">
+ <div class="ng-data-card__header"><h1>{{ 'pve.review.title'|trans }} #{{ task.id }}</h1></div>
+ <div class="ng-data-card__body" style="display:grid;gap:16px;max-width:900px;overflow-wrap:anywhere;">
+  {% if error %}<p class="ng-alert ng-alert--danger" role="alert">{{ error|trans }}</p>{% endif %}
+  <p>{{ task.cluster.name }} · {{ task.node }} · {{ task.kind }} {{ task.vmId ?: '—' }}</p>
+  <p>{{ ('pve.action.' ~ task.action)|trans }} · {{ ('pve.state.' ~ task.state)|trans }}</p>
+  {% if task.result %}<p>{{ ('pve.result.' ~ task.result)|trans }}</p>{% endif %}
+  {% if task.upid %}<p>UPID: <code>{{ task.upid }}</code></p>{% endif %}
+  {% if task.state == 'uncertain' %}
+   <p class="ng-alert ng-alert--warning">{{ 'pve.review.hint'|trans }}</p>
+   <form method="post" style="display:grid;gap:14px;" data-pve-mutation>
+    <input type="hidden" name="_token" value="{{ csrf_token('proxmox-task-review-' ~ task.id) }}">
+    <label class="form-label">{{ 'pve.review.outcome'|trans }}<select name="outcome" required class="form-input"><option value="">—</option><option value="success">{{ 'pve.review.success'|trans }}</option><option value="failure">{{ 'pve.review.failure'|trans }}</option></select></label>
+    <label class="form-label">{{ 'pve.review.note'|trans }}<textarea name="note" minlength="10" maxlength="1000" required rows="4" class="form-input"></textarea></label>
+    <label><input type="checkbox" name="confirm" value="1" required> {{ 'pve.review.confirm'|trans }}</label>
+    <button class="ui-button ui-button--primary" type="submit">{{ 'pve.review.submit'|trans }}</button>
+   </form>
+  {% endif %}
+  <a class="ui-button ui-button--ghost" href="{{ path('admin_proxmox_cluster', {id:task.cluster.id}) }}">{{ 'pve.back'|trans }}</a>
+ </div>
+</section>
+{% endblock %}

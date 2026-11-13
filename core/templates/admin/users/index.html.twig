@@ -40,15 +40,15 @@
                         </div>
                         <div class="tkt-kpi" style="border-color:rgba(96,165,250,.25);background:rgba(96,165,250,.07);">
                             <div class="tkt-kpi__label" style="color:rgba(147,197,253,.7);">{{ t('user_type_customer', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:#93c5fd;">{{ users|filter(u => u.type == 'customer')|length }}</div>
+                            <div class="tkt-kpi__value" style="color:var(--aw-status-info, #93c5fd);">{{ users|filter(u => u.type == 'customer')|length }}</div>
                         </div>
                         <div class="tkt-kpi" style="border-color:rgba(252,211,77,.25);background:rgba(252,211,77,.07);">
                             <div class="tkt-kpi__label" style="color:rgba(252,211,77,.7);">{{ t('user_type_reseller_plural', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:#fcd34d;">{{ users|filter(u => u.type == 'reseller')|length }}</div>
+                            <div class="tkt-kpi__value" style="color:var(--aw-status-warning, #fcd34d);">{{ users|filter(u => u.type == 'reseller')|length }}</div>
                         </div>
                         <div class="tkt-kpi" style="border-color:rgba(196,181,253,.25);background:rgba(196,181,253,.07);">
                             <div class="tkt-kpi__label" style="color:rgba(196,181,253,.7);">{{ t('user_type_admin_plural', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:#c4b5fd;">{{ users|filter(u => u.type in ['admin', 'superadmin'])|length }}</div>
+                            <div class="tkt-kpi__value" style="color:var(--aw-status-primary, #c4b5fd);">{{ users|filter(u => u.type in ['admin', 'superadmin'])|length }}</div>
                         </div>
                     </div>
                 </div>
@@ -180,7 +180,7 @@
                             <p style="font-size:13px;font-weight:600;color:var(--ng-text);margin:0;">{{ pending.email }}</p>
                             <div style="display:flex;gap:8px;">
                                 <form method="post" action="/admin/users/{{ pending.id }}/ssh-key/approve">
-                                    <button type="submit" class="ui-button ui-button--sm" style="background:rgba(34,197,94,0.15);color:#4ade80;border-color:rgba(34,197,94,0.35);">{{ t('user_management_ssh_pending_approve', locale) }}</button>
+                                    <button type="submit" class="ui-button ui-button--sm" style="background:rgba(34,197,94,0.15);color:var(--aw-status-success, #4ade80);border-color:rgba(34,197,94,0.35);">{{ t('user_management_ssh_pending_approve', locale) }}</button>
                                 </form>
                                 <form method="post" action="/admin/users/{{ pending.id }}/ssh-key/reject">
                                     <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('user_management_ssh_pending_reject', locale) }}</button>
@@ -376,7 +376,7 @@ function filterUsers() {
     function positionMenu(details) {
         var trigger = details.querySelector('.ng-overflow__trigger');
         var menu = details.querySelector('.ng-overflow__menu');
-        if (!trigger || !menu) return;
+        if (!trigger || !menu || menu.hasAttribute('popover')) return;
 
         var tRect = trigger.getBoundingClientRect();
         var menuH = menu.offsetHeight;
@@ -397,7 +397,7 @@ function filterUsers() {
     }
 
     function resetMenu(menu) {
-        if (!menu) return;
+        if (!menu || menu.hasAttribute('popover')) return;
         menu.style.position = '';
         menu.style.top = '';
         menu.style.bottom = '';

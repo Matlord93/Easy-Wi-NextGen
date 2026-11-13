@@ -1,0 +1,25 @@
+{% trans_default_domain 'vm_disk' %}
+<section class="ng-data-card" data-vm-disk-grow>
+ <div class="ng-data-card__header"><h2>{{ 'vm_disk.title'|trans }}</h2></div>
+ <div class="ng-data-card__body">
+ <p>{{ 'vm_disk.hint'|trans }}</p><p>{{ (kind == 'lxc' ? 'vm_disk.lxc_hint' : 'vm_disk.guest_hint')|trans }}</p>
+ {% set hasSnapshots = detail.snapshots|filter(snapshot => snapshot.name|default('') != 'current') is not empty %}
+ {% if hasSnapshots %}<p role="status">{{ 'vm_disk.snapshots'|trans }}</p>{% endif %}
+ {% if detail.status.status|default('') != 'stopped' %}<p role="status">{{ 'vm_disk.stopped'|trans }}</p>{% endif %}
+ {% if detail.configuration.lock|default('') %}<p role="status">{{ 'vm_disk.locked'|trans }}</p>{% endif %}
+ {% for disk in detail.disks %}
+ <div class="infra-card">
+ <h3>{{ disk.device }}</h3><p>{{ 'vm_disk.current'|trans }}: <strong>{{ (disk.size_bytes / 1073741824)|number_format(2) }} GiB</strong></p>
+ {% if disk.minimum_gib > 65536 %}<p role="status">{{ 'vm_disk.maximum'|trans }}</p>{% endif %}
+ <form method="post" action="{{ actionUrl }}" class="infra-form" data-pve-mutation>
+ {% include 'proxmox/_action_fields.html.twig' with {action:'disk-grow'} %}
+ <input type="hidden" name="disk" value="{{ disk.device }}">
+ <input type="hidden" name="expected_digest" value="{{ detail.configuration.digest|default('') }}">
+ <input type="hidden" name="expected_bytes" value="{{ disk.size_bytes }}">
+ <label>{{ 'vm_disk.target'|trans }} (GiB)<input class="form-input" type="number" name="size_gib" min="{{ disk.minimum_gib }}" max="65536" step="1" required {% if disk.minimum_gib > 65536 %}disabled{% endif %}></label>
+ <label class="infra-span"><span><input type="checkbox" name="confirm" value="1" required> {{ 'vm_disk.confirm'|trans }}</span></label>
+ <button class="ui-button ui-button--primary" {% if detail.status.status|default('') != 'stopped' or hasSnapshots or detail.configuration.lock|default('') or not detail.configuration.digest|default('') or disk.minimum_gib > 65536 %}disabled{% endif %}>{{ 'vm_disk.grow'|trans }}</button>
+ </form></div>
+ {% else %}<p>{{ 'vm_disk.none'|trans }}</p>{% endfor %}
+ </div>
+</section>

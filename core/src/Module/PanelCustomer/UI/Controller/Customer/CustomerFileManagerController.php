@@ -408,74 +408,25 @@ final class CustomerFileManagerController extends AbstractController
     #[Route(path: '/health', name: 'customer_files_health', methods: ['GET'])]
     public function health(Request $request): JsonResponse
     {
+        $customer = $this->requireCustomer($request);
+        $webspaceId = trim((string) $request->query->get('webspace', ''));
+        // Ownership must be checked before configuration checks or network access.
+        $webspace = $webspaceId !== '' ? $this->findCustomerWebspace($customer, $webspaceId) : null;
         $sftpHost = $this->settingsService->getSftpHost();
         if ($sftpHost === null || $sftpHost === '') {
-            return new JsonResponse([
-                'ok' => false,
-                'message' => $this->translator->trans('customer_files_sftp_host_missing', [], 'portal', $request->getLocale()),
-                'missing' => ['sftp_host'],
-            ]);
+            return new JsonResponse(['ok' => false, 'message' => $this->translator->trans('customer_files_sftp_host_missing', [], 'portal', $request->getLocale()), 'missing' => ['sftp_host']], 503, ['Cache-Control' => 'private, no-store']);
         }
-
-        $webspaceId = (string) $request->query->get('webspace', '');
-        if ($webspaceId === '') {
-            return new JsonResponse([
-                'ok' => true,
-                'message' => $this->translator->trans('customer_files_sftp_config_present', [], 'portal', $request->getLocale()),
-                'missing' => [],
-            ]);
-        }
-
-        $webspace = $this->webspaceRepository->find($webspaceId);
         if ($webspace === null) {
-            return new JsonResponse([
-                'ok' => false,
-                'message' => $this->translator->trans('customer_files_webspace_not_found', [], 'portal', $request->getLocale()),
-                'missing' => [],
-                'root_readable' => false,
-            ]);
+            return new JsonResponse(['ok' => true, 'message' => $this->translator->trans('customer_files_sftp_config_present', [], 'portal', $request->getLocale()), 'missing' => []], 200, ['Cache-Control' => 'private, no-store']);
         }
-
         try {
-            $entries = $this->sftpService->list($webspace, '');
+            $this->sftpService->list($webspace, '');
 
-            return new JsonResponse([
-                'ok' => true,
-                'message' => $this->translator->trans('customer_files_sftp_root_readable', [], 'portal', $request->getLocale()),
-                'missing' => [],
-                'root_readable' => true,
-                'entries' => $entries,
-                'webspace' => [
-                    'id' => $webspace->getId(),
-                    'path' => $webspace->getPath(),
-                    'docroot' => $webspace->getDocroot(),
-                ],
-                'root_resolution' => [
-                    'path' => $webspace->getPath(),
-                    'docroot' => $webspace->getDocroot(),
-                ],
-            ]);
+            return new JsonResponse(['ok' => true, 'root_readable' => true], 200, ['Cache-Control' => 'private, no-store']);
         } catch (\Throwable $exception) {
-            $this->logger->error('files.health_sftp_failed', [
-                'webspace_id' => $webspace->getId(),
-                'exception' => $exception,
-            ]);
+            $this->logger->error('files.health_sftp_failed', ['webspace_id' => $webspace->getId(), 'exception' => $exception]);
 
-            return new JsonResponse([
-                'ok' => false,
-                'message' => $exception->getMessage(),
-                'missing' => [],
-                'root_readable' => false,
-                'webspace' => [
-                    'id' => $webspace->getId(),
-                    'path' => $webspace->getPath(),
-                    'docroot' => $webspace->getDocroot(),
-                ],
-                'root_resolution' => [
-                    'path' => $webspace->getPath(),
-                    'docroot' => $webspace->getDocroot(),
-                ],
-            ]);
+            return new JsonResponse(['ok' => false, 'root_readable' => false, 'message' => $this->translator->trans('customer_files_sftp_health_failed', [], 'portal', $request->getLocale())], 503, ['Cache-Control' => 'private, no-store']);
         }
     }
 

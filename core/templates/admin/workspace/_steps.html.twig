@@ -1,0 +1,15 @@
+{% trans_default_domain 'admin_workspace' %}
+<ol class="aw-steps">
+    {% for step in guide.steps %}
+        <li>
+            <strong>{{ (step.key ~ '.title')|trans }}</strong>
+            <p>{{ (step.key ~ '.body')|trans }}</p>
+            {% if step.href and (enabled is not defined or enabled) %}
+                <a href="{{ step.href }}">
+                    {{ 'workspace.open'|trans }} <span aria-hidden="true">→</span>
+                    <span class="aw-visually-hidden">: {{ (step.key ~ '.title')|trans }}</span>
+                </a>
+            {% endif %}
+        </li>
+    {% endfor %}
+</ol>

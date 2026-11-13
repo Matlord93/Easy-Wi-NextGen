@@ -1,0 +1,21 @@
+{% extends 'customer/base.html.twig' %}
+{% block content %}
+<section class="ng-data-card">
+  <div class="ng-data-card__header"><h1>{{ 'billing.history'|trans({}, 'billing') }}</h1></div>
+  <div class="cust-ws-table-wrap"><table class="cust-table">
+    <thead><tr><th>{{ 'billing.number'|trans({}, 'billing') }}</th><th>{{ 'billing.date'|trans({}, 'billing') }}</th><th>{{ 'billing.total'|trans({}, 'billing') }}</th><th>{{ 'billing.outstanding'|trans({}, 'billing') }}</th><th>{{ 'billing.status'|trans({}, 'billing') }}</th><th>PDF</th></tr></thead>
+    <tbody>
+    {% for invoice in invoices %}
+      <tr>
+        <td><a href="{{ path('customer_billing_invoice', {id: invoice.id}) }}">{{ invoice.number }}</a></td>
+        <td>{{ invoice.created_at|date('Y-m-d') }}</td>
+        <td>{{ (invoice.amount_total / 100)|number_format(2, '.', ',') }} {{ invoice.currency }}</td>
+        <td>{{ (invoice.amount_due / 100)|number_format(2, '.', ',') }} {{ invoice.currency }}</td>
+        <td>{{ ('billing.state.' ~ invoice.status)|trans({}, 'billing') }}</td>
+        <td><a href="{{ path('customer_billing_invoice_pdf', {id: invoice.id}) }}">{{ 'billing.download_pdf'|trans({}, 'billing') }}</a></td>
+      </tr>
+    {% else %}<tr><td colspan="6">{{ 'billing.empty'|trans({}, 'billing') }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% trans_default_domain 'proxmox' %}
+<section class="ng-data-card" style="margin-top:20px;">
+ <div class="ng-data-card__header"><h2>{{ 'pve.tasks'|trans }}</h2></div>
+ <div style="overflow-x:auto;"><table class="ui-table"><thead><tr><th>{{ 'pve.created'|trans }}</th><th>{{ 'pve.guest'|trans }}</th><th>{{ 'pve.action'|trans }}</th><th>{{ 'pve.state'|trans }}</th></tr></thead><tbody>
+ {% for task in tasks %}<tr {% if task.active and task.state != 'uncertain' %}data-pve-task-url="{{ admin|default(true) ? path('admin_proxmox_task', {id: task.cluster.id, taskId: task.id}) : path('customer_proxmox_task', {id: assignment.id, taskId: task.id}) }}"{% endif %}><td>{{ task.createdAt|date('d.m.Y H:i') }}</td><td>{{ task.vmId ?: '—' }}</td><td>{{ ('pve.action.' ~ task.action)|trans }}{% if admin|default(true) %}<br><a href="{{ path('admin_proxmox_task_review', {id:task.cluster.id, taskId:task.id}) }}">{{ 'pve.review.details'|trans }}</a>{% endif %}</td><td data-pve-task-state>{{ ('pve.state.' ~ task.state)|trans }}{% if task.result and task.result != 'OK' %} · {{ ('pve.result.' ~ task.result)|trans }}{% endif %}</td></tr>{% else %}<tr><td colspan="4">{{ 'pve.no_tasks'|trans }}</td></tr>{% endfor %}
+ </tbody></table></div>
+</section>

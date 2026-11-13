@@ -1,0 +1,20 @@
+{% trans_default_domain 'infrastructure' %}
+<div data-infra-series data-series-role="{{ seriesRole|default('node') }}">
+<div class="infra-metrics" data-usage-metrics>
+{% for key, label in {cpu: 'infra.cpu', memory: 'infra.ram', disk: 'infra.disk'} %}
+  {% set pct = key == 'cpu' ? usage.cpu_percent : attribute(usage, key ~ '_percent') %}
+  <div class="infra-metric">
+    <div class="infra-metric__label">{{ label|trans }}</div>
+    <strong data-usage-value="{{ key }}">{{ pct is not null ? pct|number_format(1) ~ ' %' : '—' }}</strong>
+    {% if pct is not null %}<meter min="0" max="100" value="{{ min(100, max(0, pct)) }}" aria-label="{{ label|trans }}">{{ pct|number_format(1) }} %</meter>{% else %}<div class="infra-meter-empty" aria-hidden="true"></div>{% endif %}
+    <small>{% if key != 'cpu' %}{% set used = attribute(usage, key ~ '_used_bytes') %}{% set total = attribute(usage, key ~ '_total_bytes') %}{{ used is not null ? (used / 1073741824)|number_format(2) : '—' }} / {{ total is not null ? (total / 1073741824)|number_format(2) : '—' }} GiB{% elseif pct is null %}{{ 'infra.no_sample'|trans }}{% else %}{{ 'infra.cpu_hint'|trans }}{% endif %}</small>
+    {% if key == 'memory' and usage.memory_source == 'host_rss' %}<small>{{ 'infra.host_memory'|trans }}</small>{% endif %}
+  </div>
+{% endfor %}
+</div>
+<p class="infra-observed" data-usage-observed>{% if usage.observed_at %}{{ 'infra.observed'|trans }}: <time datetime="{{ usage.observed_at }}">{{ usage.observed_at|date('d.m.Y H:i:s', 'Europe/Berlin') }}</time>{% else %}{{ 'infra.no_sample'|trans }}{% endif %}{% if usage.stale %} · {{ 'infra.stale'|trans }}{% endif %}</p>
+
+{% if withIo|default(false) %}{% include 'infrastructure/_throughput.html.twig' %}{% endif %}
+{% include 'infrastructure/_history.html.twig' %}
+<script type="application/json" data-history-sample>{{ usage|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_HEX_AMP') b-or constant('JSON_HEX_APOS') b-or constant('JSON_HEX_QUOT'))|raw }}</script>
+</div>

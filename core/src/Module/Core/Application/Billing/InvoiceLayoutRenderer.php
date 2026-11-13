@@ -7,73 +7,129 @@ namespace App\Module\Core\Application\Billing;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Repository\CustomerProfileRepository;
+use App\Repository\InvoicePreferencesRepository;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
+use Twig\Extension\SandboxExtension;
+use Twig\Loader\ArrayLoader;
+use Twig\Sandbox\SecurityPolicy;
 
 final class InvoiceLayoutRenderer
 {
     public function __construct(
-        private readonly Environment $twig,
         private readonly CustomerProfileRepository $profileRepository,
         private readonly SiteResolver $siteResolver,
+        private readonly BillingSettings $settings,
+        private readonly TranslatorInterface $translator,
+        private readonly InvoicePreferencesRepository $preferences,
     ) {
+    }
+
+    public function snapshot(Invoice $invoice, Request $request, array $tax, string $description): void
+    {
+        $parties = $this->parties($invoice, $request);
+        $invoice->setBillingDetails(array_merge($tax, $parties, ['description' => $description, 'document' => [
+            'number' => $invoice->getNumber(), 'currency' => $invoice->getCurrency(), 'total_cents' => $invoice->getAmountTotalCents(),
+            'issue_date' => $invoice->getCreatedAt()->format('Y-m-d'), 'due_date' => $invoice->getDueDate()->format('Y-m-d'),
+        ]]));
     }
 
     public function render(Invoice $invoice, Request $request, string $layout): string
     {
+        if (strlen($layout) > 100000) {
+            throw new \InvalidArgumentException('billing.layout_too_large');
+        }
+        $details = $invoice->getBillingDetails();
+        $parties = isset($details['customer'], $details['company']) ? $details : $this->parties($invoice, $request);
+        $context = [
+            'invoice' => array_merge($details, [
+                'id' => $invoice->getId(), 'number' => $invoice->getNumber(), 'status' => $invoice->getStatus()->value,
+                'currency' => $invoice->getCurrency(), 'amount_total' => $invoice->getAmountTotalCents(),
+                'amount_due' => $invoice->getOutstandingCents(), 'amount_paid' => $invoice->getPaidAmountCents(),
+                'due_date' => $invoice->getDueDate(), 'paid_at' => $invoice->getPaidAt(), 'created_at' => $invoice->getCreatedAt(),
+                'cancelled_at' => $invoice->getCancelledAt(), 'cancellation_reason' => $invoice->getCancellationReason(),
+                'description' => $details['description'] ?? $invoice->getNumber(),
+                'items' => InvoiceItems::forInvoice($invoice),
+                'tax_breakdown' => $details['tax_breakdown'] ?? [['tax_rate_bps' => $details['tax_rate_bps'] ?? 0, 'tax_cents' => $details['tax_cents'] ?? 0]],
+                'net_cents' => $details['net_cents'] ?? $invoice->getAmountTotalCents(), 'tax_cents' => $details['tax_cents'] ?? 0,
+                'tax_rate_bps' => $details['tax_rate_bps'] ?? 0, 'tax_mode' => $details['tax_mode'] ?? 'legacy',
+            ]),
+            'customer' => $parties['customer'], 'company' => $parties['company'],
+        ];
+        $locale = $details['locale'] ?? $this->preferences->findOneByCustomer($invoice->getCustomer())?->getLocale() ?? 'de';
+        $labels = [];
+        foreach (['invoice', 'number', 'date', 'due_date', 'bill_to', 'description', 'net', 'tax', 'total', 'outstanding', 'vat_id', 'cancelled', 'quantity', 'unit_price', 'line_total', 'unit_price_short', 'line_total_short', 'gross', 'tax_short'] as $label) {
+            $labels[$label] = $this->translator->trans('billing.'.$label, [], 'billing', $locale);
+        }
+        $context['labels'] = $labels;
+        $context['decimal_separator'] = str_starts_with($locale, 'de') ? ',' : '.';
+        $context['thousands_separator'] = str_starts_with($locale, 'de') ? '.' : ',';
+        $context['date_format'] = str_starts_with($locale, 'de') ? 'd.m.Y' : 'Y-m-d';
+        $context['invoice']['tax_notice'] = $this->translator->trans('billing.notice.'.$context['invoice']['tax_mode'], [], 'billing', $locale);
+        try {
+            return $this->environment()->createTemplate($layout)->render($context);
+        } catch (\Twig\Error\Error $exception) {
+            throw new \InvalidArgumentException('billing.invalid_layout', 0, $exception);
+        }
+    }
+
+    public function validate(string $layout): void
+    {
+        if ('' === trim($layout) || strlen($layout) > 100000) {
+            throw new \InvalidArgumentException('billing.invalid_layout');
+        }
+        try {
+            $this->environment()->createTemplate($layout)->render([]);
+        } catch (\Twig\Error\Error $exception) {
+            throw new \InvalidArgumentException('billing.invalid_layout', 0, $exception);
+        }
+    }
+
+    public static function previewDocument(string $html): string
+    {
+        return '<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; style-src &apos;unsafe-inline&apos;; img-src data:; font-src data:; form-action &apos;none&apos;; base-uri &apos;none&apos;"><style>body{background:#fff;color:#18212f;font-family:sans-serif;padding:20px;overflow-wrap:anywhere}</style></head><body>'.$html.'</body></html>';
+    }
+
+    private function environment(): Environment
+    {
+        $twig = new Environment(new ArrayLoader(), ['autoescape' => 'html', 'strict_variables' => false]);
+        $twig->addExtension(new SandboxExtension(new SecurityPolicy(
+            ['if', 'for', 'set'],
+            ['escape', 'e', 'date', 'number_format', 'default', 'replace', 'title', 'upper', 'lower', 'nl2br', 'length', 'join', 'trim', 'round', 'abs'],
+            [],
+            [],
+            [],
+        ), true));
+
+        return $twig;
+    }
+
+    private function parties(Invoice $invoice, Request $request): array
+    {
         $customer = $invoice->getCustomer();
         $profile = $this->profileRepository->findOneByCustomer($customer);
-
-        $customerName = $profile?->getCompany()
-            ?? trim(sprintf('%s %s', $profile?->getFirstName() ?? '', $profile?->getLastName() ?? ''))
-            ?? $customer->getEmail();
-        $customerName = trim($customerName) !== '' ? $customerName : $customer->getEmail();
-
+        $name = trim((string) $profile?->getCompany());
+        if ('' === $name) {
+            $name = trim(($profile?->getFirstName() ?? '').' '.($profile?->getLastName() ?? '')) ?: $customer->getEmail();
+        }
         $site = $this->siteResolver->resolve($request);
-        $companyName = $site?->getName() ?? 'Easy-Wi';
-        $companyHost = $site?->getHost() ?? $request->getHost();
+        $settings = $this->settings->get();
 
-        $context = [
-            'invoice' => [
-                'id' => $invoice->getId(),
-                'number' => $invoice->getNumber(),
-                'status' => $invoice->getStatus()->value,
-                'currency' => $invoice->getCurrency(),
-                'amount_total' => $invoice->getAmountTotalCents(),
-                'amount_due' => $invoice->getAmountDueCents(),
-                'due_date' => $invoice->getDueDate(),
-                'paid_at' => $invoice->getPaidAt(),
-                'created_at' => $invoice->getCreatedAt(),
-            ],
+        return [
             'customer' => [
-                'id' => $customer->getId(),
-                'email' => $customer->getEmail(),
-                'name' => $customerName,
-                'company' => $profile?->getCompany(),
-                'address' => $profile?->getAddress(),
-                'postal' => $profile?->getPostal(),
-                'city' => $profile?->getCity(),
-                'country' => $profile?->getCountry(),
-                'phone' => $profile?->getPhone(),
-                'vat_id' => $profile?->getVatId(),
+                'id' => $customer->getId(), 'email' => $customer->getEmail(), 'name' => $name,
+                'company' => $profile?->getCompany(), 'address' => $profile?->getAddress(), 'postal' => $profile?->getPostal(),
+                'city' => $profile?->getCity(), 'country' => $profile?->getCountry(), 'phone' => $profile?->getPhone(), 'vat_id' => $profile?->getVatId(),
             ],
             'company' => [
-                'name' => $companyName,
-                'host' => $companyHost,
-                'address' => '',
-                'email' => '',
-                'footer' => '',
+                'name' => $settings['company_name'] ?: ($site?->getName() ?? 'Easy-Wi'),
+                'host' => $site?->getHost() ?? $request->getHost(), 'address' => $settings['company_address'],
+                'email' => $settings['company_email'], 'vat_id' => $settings['company_vat_id'], 'footer' => $settings['company_footer'],
+                'street' => $settings['company_street'], 'postal' => $settings['company_postal'], 'city' => $settings['company_city'], 'country' => $settings['company_country'],
+                'contact' => $settings['company_contact'], 'phone' => $settings['company_phone'], 'tax_number' => $settings['company_tax_number'], 'iban' => $settings['company_iban'], 'bic' => $settings['company_bic'],
             ],
+            'locale' => $this->preferences->findOneByCustomer($customer)?->getLocale() ?? 'de',
         ];
-
-        try {
-            $template = $this->twig->createTemplate($layout);
-            return $template->render($context);
-        } catch (\Throwable $exception) {
-            return sprintf(
-                '<pre style="color:#b91c1c; white-space:pre-wrap;">Layout error: %s</pre>',
-                htmlspecialchars($exception->getMessage(), ENT_QUOTES)
-            );
-        }
     }
 }

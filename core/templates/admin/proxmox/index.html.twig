@@ -1,0 +1,23 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'proxmox' %}
+{% set pageTitle = 'pve.title'|trans %}
+{% block content %}
+<div class="infra-page">{% include 'proxmox/_alerts.html.twig' %}
+<header class="infra-hero"><div><span class="infra-eyebrow">{{ 'infra.infrastructure'|trans({}, 'infrastructure') }}</span><h1>{{ pageTitle }}</h1><p>{{ 'infra.proxmox_hint'|trans({}, 'infrastructure') }}</p></div><span class="infra-tag">{{ clusters|length }} {{ 'infra.connections'|trans({}, 'infrastructure') }}</span></header>
+<div class="infra-grid infra-grid--wide"><section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.connections'|trans({}, 'infrastructure') }}</h2></div><div class="infra-grid">{% for cluster in clusters %}<article class="infra-card"><div class="infra-card__head"><h2><a href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ cluster.name }}</a></h2><span class="infra-tag">{{ (cluster.enabled ? 'pve.enabled' : 'pve.disabled')|trans }}</span></div><p class="infra-muted">{{ cluster.baseUrl }}</p><a class="ui-button ui-button--primary" href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ 'infra.open'|trans({}, 'infrastructure') }}</a></article>{% else %}<p class="infra-empty">{{ 'pve.no_clusters'|trans }}</p>{% endfor %}</div></section>
+<section class="ng-data-card">
+  <div class="ng-data-card__header"><h2>{{ 'pve.add_cluster'|trans }}</h2></div>
+  <form method="post" class="ng-data-card__body" style="display:grid;gap:12px;">
+    <input type="hidden" name="_token" value="{{ csrf_token('proxmox-config') }}">
+    <label>{{ 'pve.cluster_name'|trans }}<input class="form-input" name="name" maxlength="120" required></label>
+    <label>{{ 'pve.base_url'|trans }}<input class="form-input" name="base_url" type="url" placeholder="https://pve.example.net:8006" maxlength="255" required></label>
+    <label>{{ 'pve.token_id'|trans }}<input class="form-input" name="token_id" placeholder="easywi@pve!panel" maxlength="190" autocomplete="off" required></label>
+    <label>{{ 'pve.token_secret'|trans }}<input class="form-input" name="token_secret" type="password" autocomplete="new-password" required></label>
+    <label>{{ 'pve.verify_tls'|trans }}<select class="form-input" name="verify_tls" aria-describedby="pve-tls-hint" required><option value="1" selected>{{ 'pve.verify_tls_on'|trans }}</option><option value="0">{{ 'pve.verify_tls_off'|trans }}</option></select></label>
+    <p id="pve-tls-hint">{{ 'pve.verify_tls_hint'|trans }}</p>
+    <p>{{ 'pve.connection_hint'|trans }}</p>
+    <button class="ui-button ui-button--primary">{{ 'pve.save'|trans }}</button>
+  </form>
+</section>
+</div></div>
+{% endblock %}

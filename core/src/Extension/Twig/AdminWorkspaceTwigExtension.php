@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Extension\Twig;
+
+use App\Module\PanelAdmin\Application\AdminWorkspaceGuide;
+use Twig\Extension\AbstractExtension;
+use Twig\TwigFunction;
+
+final class AdminWorkspaceTwigExtension extends AbstractExtension
+{
+    public function __construct(private readonly AdminWorkspaceGuide $guide)
+    {
+    }
+
+    public function getFunctions(): array
+    {
+        return [new TwigFunction('admin_workspace_context', $this->guide->context(...))];
+    }
+}

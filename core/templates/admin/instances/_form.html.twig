@@ -292,6 +292,8 @@
  const builds = form.querySelector('[data-create-mc-build]');
  const preview = form.querySelector('[data-create-mc-preview]');
  let initialVersion = versions.dataset.selected || ''; let initialBuild = builds.dataset.selected || '';
+ const selectedChannel = template.selectedOptions[0]?.dataset.minecraftChannel || '';
+ if (initialVersion && (catalog[selectedChannel]?.release_types?.[initialVersion] || 'release') !== 'release') preview.checked = true;
  const backend = form.querySelector('[name=bungee_backend]');
  const option = (select, value, text) => select.add(new Option(text, value));
  const updateBuilds = () => {
@@ -326,5 +328,13 @@
   updateBuilds();
  };
  template.addEventListener('change', update); preview.addEventListener('change', update); versions.addEventListener('change', updateBuilds); update();
+ const receiveCatalog = (event) => {
+  if (!form.isConnected) { document.removeEventListener('minecraft:catalog', receiveCatalog); return; }
+  Object.assign(catalog, event.detail || {}); update();
+ };
+ document.addEventListener('minecraft:catalog', receiveCatalog);
+
 })();
 </script>
+
+{% include 'admin/minecraft/_catalog_script.html.twig' with {catalog: minecraftCatalog} %}

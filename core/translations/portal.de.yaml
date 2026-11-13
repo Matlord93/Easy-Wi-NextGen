@@ -6928,9 +6928,9 @@ minecraft_build_label: "Build"
 minecraft_latest_build: "Neuester stabiler Build"
 minecraft_show_previews: "Snapshots und Vorabversionen anzeigen"
 minecraft_proxy_backend: "Proxy-Backend (Host:Port)"
-minecraft_catalog_empty_hint: "Keine Versionen verfügbar. Automatische Katalogsynchronisierung in der Administration prüfen."
+minecraft_catalog_empty_hint: "Versionen werden automatisch geladen …"
 minecraft_catalog_automatic: "Automatischer Minecraft-Katalog"
-minecraft_catalog_automatic_hint: "Der Panel-Scheduler aktualisiert die offiziellen Quellen stündlich. Uploads sind optional. Bestehende Server behalten ihre installierte Version."
+minecraft_catalog_automatic_hint: "Version auswählen und Server anlegen. Der Versionskatalog wird automatisch eingerichtet und aktualisiert."
 minecraft_sync_pending: "Noch nicht synchronisiert"
 minecraft_sync_now: "Katalog aktualisieren"
 minecraft_sync_queued: "Aktualisierung vorgemerkt"
@@ -6945,3 +6945,5 @@ ports_scope_hint: "Eigene Spielbereiche werden bevorzugt und dürfen nicht in al
 
 admin_updates_activation_running: "Update wird installiert und aktiviert …"
 admin_updates_activation_failed: "Update oder Aktivierung fehlgeschlagen – Protokoll prüfen"
+
+customer_files_sftp_health_failed: "Die SFTP-Verbindung ist derzeit nicht verfügbar."

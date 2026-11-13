@@ -6928,9 +6928,9 @@ minecraft_build_label: "Build"
 minecraft_latest_build: "Latest stable build"
 minecraft_show_previews: "Show snapshots and preview versions"
 minecraft_proxy_backend: "Proxy backend (host:port)"
-minecraft_catalog_empty_hint: "No versions available. Check automatic catalog synchronization in administration."
+minecraft_catalog_empty_hint: "Versions are being loaded automatically …"
 minecraft_catalog_automatic: "Automatic Minecraft catalog"
-minecraft_catalog_automatic_hint: "The panel scheduler refreshes official sources hourly. Uploads are optional. Existing servers keep their installed version."
+minecraft_catalog_automatic_hint: "Choose a version and create a server. The version catalog is set up and refreshed automatically."
 minecraft_sync_pending: "Not synchronized yet"
 minecraft_sync_now: "Refresh catalog"
 minecraft_sync_queued: "Refresh queued"
@@ -6945,3 +6945,5 @@ ports_scope_hint: "Dedicated game pools take priority and never fall back to gen
 
 admin_updates_activation_running: "Installing and activating update …"
 admin_updates_activation_failed: "Update or activation failed – check the log"
+
+customer_files_sftp_health_failed: "The SFTP connection is currently unavailable."

@@ -104,6 +104,7 @@ class InvoiceArchive
     public function getPdfContents(): string
     {
         if (is_resource($this->pdfData)) {
+            rewind($this->pdfData);
             $contents = stream_get_contents($this->pdfData);
             return $contents === false ? '' : $contents;
         }

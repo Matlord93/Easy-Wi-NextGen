@@ -1,0 +1,5 @@
+.monitor-chart { min-width:0; border:1px solid var(--ng-border,#cbd5e1); padding:16px; border-radius:12px; }
+.monitor-chart svg { width:100%; height:auto; display:block; }
+.monitor-chart svg text { fill:var(--ng-text-muted,#64748b); font:12px sans-serif; }
+.monitor-chart p { overflow-wrap:anywhere; font-size:12px; }
+[data-monitor-custom][hidden] { display:none!important; }

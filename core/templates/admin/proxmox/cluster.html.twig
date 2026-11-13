@@ -1,0 +1,27 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'proxmox' %}
+{% set pageTitle = cluster.name ~ ' · Proxmox' %}
+{% block content %}
+<div class="infra-page" data-infra-tabs>
+<nav class="infra-breadcrumb"><a href="{{ path('admin_proxmox') }}">Proxmox</a><span>/</span><span>{{ cluster.name }}</span></nav>
+{% include 'proxmox/_alerts.html.twig' %}
+<header class="infra-hero"><div><span class="infra-eyebrow">Proxmox</span><h1>{{ cluster.name }}</h1><p>{{ cluster.baseUrl }}</p></div><span class="infra-tag">{{ (cluster.enabled ? 'pve.enabled' : 'pve.disabled')|trans }}</span></header>
+<nav class="infra-tabs" data-infra-tablist aria-label="Proxmox">{% for id in ['overview', 'activity', 'settings'] %}<a data-infra-tab href="#pve-{{ id }}">{{ ('infra.' ~ id)|trans({}, 'infrastructure') }}</a>{% endfor %}</nav>
+<section class="infra-pane" id="pve-overview" data-infra-pane><p class="infra-observed" data-pve-refresh-state>{{ 'pve.refresh_hint'|trans }}</p><div data-pve-resources-url="{{ path('admin_proxmox_resources', {id: cluster.id}) }}">{% include 'admin/proxmox/_resources.html.twig' %}</div></section>
+<section class="infra-pane" id="pve-activity" data-infra-pane>{% include 'proxmox/_tasks.html.twig' with {admin: true} %}</section>
+<section class="infra-pane" id="pve-settings" data-infra-pane><section class="infra-card"><h2>{{ 'pve.connection_settings'|trans }}</h2>
+ <form action="{{ path('admin_proxmox_settings', {id: cluster.id}) }}" method="post" class="infra-form">
+ <input type="hidden" name="_token" value="{{ csrf_token('proxmox-settings-' ~ cluster.id) }}">
+ <label>{{ 'pve.cluster_name'|trans }}<input name="name" class="form-input" value="{{ cluster.name }}" maxlength="120" required></label>
+ <label>{{ 'pve.base_url'|trans }}<input name="base_url" class="form-input" type="url" value="{{ cluster.baseUrl }}" required></label>
+ <label>{{ 'pve.token_id'|trans }}<input name="token_id" class="form-input" value="{{ cluster.tokenId }}" autocomplete="off" required></label>
+ <label>{{ 'pve.token_secret'|trans }}<input name="token_secret" class="form-input" type="password" autocomplete="new-password"><span>{{ 'pve.secret_unchanged'|trans }}</span></label>
+ <label>{{ 'pve.verify_tls'|trans }}<select class="form-input" name="verify_tls" aria-describedby="pve-tls-hint" required><option value="1" {{ cluster.tlsVerificationEnabled ? 'selected' : '' }}>{{ 'pve.verify_tls_on'|trans }}</option><option value="0" {{ not cluster.tlsVerificationEnabled ? 'selected' : '' }}>{{ 'pve.verify_tls_off'|trans }}</option></select></label>
+ <p id="pve-tls-hint">{{ 'pve.verify_tls_hint'|trans }}</p>
+ <label><input type="checkbox" name="enabled" value="1" {{ cluster.enabled ? 'checked' : '' }}> {{ 'pve.enabled'|trans }}</label>
+ <p>{{ 'pve.connection_hint'|trans }}</p><button class="ui-button ui-button--primary">{{ 'pve.save'|trans }}</button>
+ </form>
+</section>
+</section>
+{% include 'proxmox/_script.html.twig' %}
+</div>{% endblock %}

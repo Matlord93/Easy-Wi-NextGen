@@ -1,0 +1,37 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'billing' %}
+{% set pageTitle = 'billing.design'|trans %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('billing.css') }}">
+<section class="ng-data-card">
+ <div class="ng-data-card__header"><h1>{{ 'billing.design'|trans }}</h1><a href="{{ path('admin_billing') }}" class="ui-button ui-button--ghost">{{ 'billing.back'|trans }}</a></div>
+ <div class="ng-data-card__body">
+  <p>{{ 'billing.design_hint'|trans }}</p>
+  {% if app.request.query.get('saved') == '1' %}<p role="status">{{ 'billing.design_saved'|trans }}</p>{% endif %}
+  {% for error in errors %}<p class="ng-alert ng-alert--danger" role="alert">{{ error }}</p>{% endfor %}
+  <div class="billing-editor" data-invoice-editor data-preview-url="{{ path('admin_billing_design_preview') }}" data-preview-error="{{ 'billing.preview_failed'|trans }}" data-preview-ready="{{ 'billing.preview_ready'|trans }}">
+   <form method="post" enctype="multipart/form-data" class="billing-editor__form">
+    <input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
+    <label>{{ 'billing.editor_mode'|trans }}<select name="mode" class="form-input"><option value="visual" {{ mode == 'visual' ? 'selected' : '' }}>{{ 'billing.visual_editor'|trans }}</option><option value="custom" {{ mode == 'custom' ? 'selected' : '' }}>{{ 'billing.code_editor'|trans }}</option></select></label>
+    <p>{{ 'billing.editor_mode_hint'|trans }}</p>
+    <fieldset class="billing-design-fields" data-visual-fields>
+     <legend>{{ 'billing.visual_editor'|trans }}</legend>
+     {% for field in ['accent', 'text_color'] %}<label>{{ ('billing.design.' ~ field)|trans }}<input type="color" name="design[{{ field }}]" value="{{ options[field] }}"></label>{% endfor %}
+     {% for field,choices in {style:['modern','classic'],font:['sans','serif','mono'],spacing:['comfortable','compact'],header_align:['left','right']} %}<label>{{ ('billing.design.' ~ field)|trans }}<select class="form-input" name="design[{{ field }}]">{% for choice in choices %}<option value="{{ choice }}" {{ options[field] == choice ? 'selected' : '' }}>{{ ('billing.design.' ~ choice)|trans }}</option>{% endfor %}</select></label>{% endfor %}
+     {% for field,limits in {font_size:[9,14],margin_mm:[10,25],logo_width:[50,180]} %}<label>{{ ('billing.design.' ~ field)|trans }}<input class="form-input" name="design[{{ field }}]" type="number" min="{{ limits[0] }}" max="{{ limits[1] }}" value="{{ options[field] }}" required></label>{% endfor %}
+     <label>{{ 'billing.design.heading'|trans }}<input class="form-input" name="design[heading]" maxlength="80" value="{{ options.heading }}"></label>
+     {% for field in ['intro', 'footer_text'] %}<label class="billing-wide">{{ ('billing.design.' ~ field)|trans }}<textarea class="form-input" name="design[{{ field }}]" maxlength="{{ field == 'intro' ? 1000 : 2000 }}" rows="3">{{ options[field] }}</textarea></label>{% endfor %}
+     <label class="billing-wide">{{ 'billing.design.logo'|trans }}<input type="file" name="logo" accept="image/png,image/jpeg"><small>{{ 'billing.logo_hint'|trans }}</small></label>
+     {% if options.logo_data_uri %}<label class="billing-wide"><span><input type="checkbox" name="remove_logo" value="1"> {{ 'billing.remove_logo'|trans }}</span></label>{% endif %}
+     <label class="billing-wide"><span><input type="checkbox" name="design[show_tax_column]" value="1" {{ options.show_tax_column ? 'checked' : '' }}> {{ 'billing.show_tax_column'|trans }}</span></label>
+    </fieldset>
+    <div data-custom-fields><label>{{ 'billing.code_editor'|trans }}<textarea name="invoice_layout" rows="15" maxlength="100000" class="form-input billing-editor__source">{{ layout }}</textarea></label><p>{{ 'billing.code_hint'|trans }}</p><code>invoice.items · item.description · item.quantity_milli · item.unit_price_cents · item.gross_cents · invoice.tax_breakdown</code></div>
+    <div class="billing-toolbar"><button type="submit" class="ui-button ui-button--primary">{{ 'billing.save'|trans }}</button><button type="button" class="ui-button ui-button--ghost" data-preview-refresh>{{ 'billing.refresh_preview'|trans }}</button></div>
+    <p>{{ 'billing.snapshot_hint'|trans }}</p>
+   </form>
+   <div class="billing-preview-wrap"><h2>{{ 'billing.preview'|trans }}</h2><p role="status" aria-live="polite" data-preview-status>{{ 'billing.preview_ready'|trans }}</p><iframe class="billing-preview" title="{{ 'billing.preview'|trans }}" sandbox="" referrerpolicy="no-referrer" srcdoc="{{ preview }}"></iframe></div>
+  </div>
+ </div>
+</section>
+<script src="{{ asset('js/billing-design.js') }}" defer></script>
+{% endblock %}

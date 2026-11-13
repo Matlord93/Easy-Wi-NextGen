@@ -260,7 +260,7 @@
         const values = (Array.isArray(versions) ? versions : []).filter(version =>
             !minecraftVersionLock.channel || minecraftPreviews?.checked || version === selected || (minecraftVersionLock.catalog?.release_types?.[version] || 'release') === 'release');
         if (values.length === 0) {
-            versionLockVersion.innerHTML = '<option value="">default</option>';
+            versionLockVersion.innerHTML = `<option value="">${escHtml(minecraftVersionLock.channel ? tr('catalogLoading') : 'default')}</option>`;
         } else {
             versionLockVersion.innerHTML = values.map((version) => `<option value="${escHtml(version)}">${escHtml(version)}</option>`).join('');
         }
@@ -447,6 +447,17 @@
         }
     });
 
+    const receiveCatalog = (event) => {
+        if (!mount.isConnected) { document.removeEventListener('minecraft:catalog', receiveCatalog); return; }
+        const catalog = minecraftVersionLock.channel && event.detail?.[minecraftVersionLock.channel];
+        if (!catalog) return;
+        const selected = versionLockVersion?.value || '';
+        minecraftVersionLock.catalog = catalog;
+        minecraftVersionLock.available_versions = catalog.versions || [];
+        populateVersionOptions(minecraftVersionLock.available_versions, selected);
+        updateMinecraftBuilds();
+    };
+    document.addEventListener('minecraft:catalog', receiveCatalog);
     versionLockVersion?.addEventListener('change', () => updateMinecraftBuilds(''));
     minecraftPreviews?.addEventListener('change', () => { populateVersionOptions(minecraftVersionLock.available_versions || [], versionLockVersion?.value || ''); updateMinecraftBuilds(); });
     configSearch?.addEventListener('input', renderConfigList);

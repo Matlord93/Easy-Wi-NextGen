@@ -138,6 +138,9 @@ final class CustomerInstanceConsoleStreamController
         if ($this->diagnostics->isNullClient()) {
             return ['status' => 'backend_not_configured', 'message' => 'Console backend not configured'];
         }
+        if (!$this->diagnostics->isLegacyRelayEnabled()) {
+            return ['status' => 'websocket_required', 'message' => 'This console uses the integrated live WebSocket transport.'];
+        }
 
         // Redis + relay are only needed when the event bus uses pub/sub mode.
         // In direct mode (no Redis configured) the FallbackConsoleEventBus streams

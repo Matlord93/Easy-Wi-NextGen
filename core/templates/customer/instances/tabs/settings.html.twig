@@ -14,6 +14,7 @@
     data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
     data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
     data-i18n="{{ {
+        'catalogLoading': 'mc.loading'|trans({}, 'minecraft'),
         'latestStableBuild': t('minecraft_latest_build', page_locale()),
         'automationSaved': t('customer_instance_settings_automation_saved', page_locale()),
         'saving': t('customer_instance_settings_saving', page_locale()),
@@ -216,3 +217,7 @@
 <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
 <script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
 <script src="{{ asset('js/gameserver/settings-app.js') }}"></script>
+
+{% if minecraftType %}
+    {% include 'admin/minecraft/_catalog_script.html.twig' with {catalog: minecraftCatalog|default({})} %}
+{% endif %}

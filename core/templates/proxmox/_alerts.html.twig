@@ -1,0 +1,3 @@
+{% trans_default_domain 'proxmox' %}
+{% if error|default(null) %}<div class="ng-alert ng-alert--danger" role="alert">{{ error|trans({}, error starts with 'vm_config.' ? 'vm_config' : 'proxmox') }}</div>{% endif %}
+{% for message in app.flashes('proxmox_error') %}<div class="ng-alert ng-alert--danger" role="alert">{{ message|trans({}, message starts with 'vm_config.' ? 'vm_config' : 'proxmox') }}</div>{% endfor %}

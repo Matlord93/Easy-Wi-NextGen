@@ -1,0 +1,6 @@
+{% trans_default_domain 'kvm' %}
+{% import 'admin/kvm/_form.html.twig' as form %}
+{% set stopped = vm.state == 'shut off' %}
+
+{{ form.start(node, operationId, 'snapshot.create', vm.id) }}<label>{{ 'kvm.snapshot_name'|trans }}<input class="form-input" name="snapshot" pattern="[a-z][a-z0-9-]{0,47}" required></label><button class="ui-button" {% if not stopped %}disabled{% endif %}>{{ 'kvm.action.snapshot.create'|trans }}</button></form>
+{% for snap in vm.snapshots %}{{ form.start(node, operationId, 'snapshot.revert', vm.id) }}<input type="hidden" name="snapshot" value="{{ snap }}"><span>{{ snap }}</span><button name="action" value="snapshot.revert" class="ui-button" data-kvm-confirm="{{ 'kvm.confirm_revert'|trans }}" {% if not stopped %}disabled{% endif %}>{{ 'kvm.action.snapshot.revert'|trans }}</button><button name="action" value="snapshot.delete" class="ui-button" data-kvm-confirm="{{ 'kvm.confirm_delete'|trans }}" {% if not stopped %}disabled{% endif %}>{{ 'kvm.action.snapshot.delete'|trans }}</button></form>{% endfor %}

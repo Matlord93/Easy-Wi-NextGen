@@ -1,0 +1,16 @@
+{% trans_default_domain 'guest_agent' %}
+<section class="infra-card" data-vm-agent-panel>
+<div class="infra-card__head"><h2>{{ 'guest_agent.title'|trans }}</h2><span class="infra-tag" data-vm-agent-state role="status" aria-live="polite">{{ 'guest_agent.unchecked'|trans }}</span></div>
+<p>{{ 'guest_agent.hint'|trans }}</p>
+<dl class="infra-grid"><div><dt>{{ 'guest_agent.version'|trans }}</dt><dd data-vm-agent-field="version">—</dd></div><div><dt>{{ 'guest_agent.hostname'|trans }}</dt><dd data-vm-agent-field="hostname">—</dd></div><div><dt>{{ 'guest_agent.os'|trans }}</dt><dd data-vm-agent-field="os">—</dd></div></dl>
+<section class="infra-network" aria-label="{{ 'guest_agent.network_title'|trans }}"><h3>{{ 'guest_agent.network_title'|trans }}</h3><p data-vm-agent-network-state aria-live="polite">{{ 'guest_agent.network_unchecked'|trans }}</p><div class="infra-network-list" data-vm-agent-network-list></div><p data-vm-agent-network-limited hidden>{{ 'guest_agent.network_limited'|trans }}</p><p><small>{{ 'guest_agent.network_hint'|trans }}</small></p></section>
+<p><small>{{ 'guest_agent.observed'|trans }}: <time data-vm-agent-time>—</time></small></p>
+<form method="post" action="{{ checkUrl }}" data-vm-agent-form {% if pollUrl|default(null) %}data-vm-agent-poll="{{ pollUrl }}"{% endif %}>
+<input type="hidden" name="_token" value="{{ checkToken }}">{% if pollUrl|default(null) %}<input type="hidden" name="action" value="vm.agent_status"><input type="hidden" name="vm_id" value="{{ vmUuid|default('') }}"><input type="hidden" name="operation_id" value="{{ operationId }}">{% endif %}
+<button type="submit" class="ui-button ui-button--ghost" {% if checkAvailable|default(true) == false %}disabled{% endif %}>{{ 'guest_agent.check'|trans }}</button>
+</form>
+{% if checkAvailable|default(true) == false %}<p>{{ 'guest_agent.update_agent'|trans }}</p>{% endif %}
+<p><small>{{ 'guest_agent.observation_hint'|trans }}</small></p>
+<script type="application/json" data-vm-agent-labels>{{ {'unchecked':'guest_agent.unchecked'|trans,'checking':'guest_agent.checking'|trans,'pending':'guest_agent.pending'|trans,'failed':'guest_agent.failed'|trans,'reachable':'guest_agent.reachable'|trans,'not_running':'guest_agent.not_running'|trans,'disabled':'guest_agent.disabled'|trans,'unreachable':'guest_agent.unreachable'|trans,'forbidden':'guest_agent.forbidden'|trans,'unavailable':'guest_agent.unavailable'|trans,'invalid_response':'guest_agent.invalid_response'|trans,'busy':'guest_agent.busy'|trans,'network_available':'guest_agent.network_available'|trans,'network_empty':'guest_agent.network_empty'|trans,'network_unsupported':'guest_agent.network_unsupported'|trans,'network_not_reported':'guest_agent.network_not_reported'|trans,'network_unavailable':'guest_agent.network_unavailable'|trans,'network_invalid_response':'guest_agent.network_invalid_response'|trans,'network_mac':'guest_agent.network_mac'|trans,'network_no_addresses':'guest_agent.network_no_addresses'|trans,'network_checking':'guest_agent.network_checking'|trans}|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_HEX_AMP') b-or constant('JSON_HEX_APOS') b-or constant('JSON_HEX_QUOT'))|raw }}</script>
+</section>
+<script src="{{ asset('js/vm-guest-agent.js') }}" defer></script>

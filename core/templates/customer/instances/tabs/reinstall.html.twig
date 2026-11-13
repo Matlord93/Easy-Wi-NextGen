@@ -69,3 +69,7 @@
 <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
 <script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
 <script src="{{ asset('js/gameserver/reinstall-app.js') }}"></script>
+
+{% if instance.template.install_resolver.type|default('') in ['minecraft_vanilla', 'papermc_paper', 'minecraft_spigot', 'minecraft_bungeecord', 'minecraft_bedrock'] %}
+    {% include 'admin/minecraft/_catalog_script.html.twig' %}
+{% endif %}

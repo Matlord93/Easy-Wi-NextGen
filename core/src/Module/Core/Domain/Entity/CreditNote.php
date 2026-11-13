@@ -10,6 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CreditNoteRepository::class)]
 #[ORM\Table(name: 'credit_notes')]
+#[ORM\UniqueConstraint(name: 'uniq_credit_notes_number', columns: ['number'])]
 class CreditNote
 {
     #[ORM\Id]

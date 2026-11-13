@@ -1,0 +1,172 @@
+/* Consistent admin work areas, including the dashboard. */
+body.admin-interface.admin-workspace {
+    --ng-bg:#0c1220; --ng-surface:#121c2e; --ng-surface-soft:#182339; --ng-elevated:#202e46;
+    --ng-text:#e5edf9; --ng-text-muted:#a5b4cc; --ng-border:#2a3850; --ng-border-strong:#4b5e7c;
+    --ng-primary:#a5a9ff; --ng-primary-soft:rgb(129 140 248 / .14); --aw-action:#5856d6;
+    --ui-bg:var(--ng-bg); --ui-bg-deep:var(--ng-bg); --ui-bg-soft:var(--ng-surface-soft);
+    --ui-surface:var(--ng-surface); --ui-surface-strong:var(--ng-surface-soft);
+    --ui-border:var(--ng-border); --ui-border-strong:var(--ng-border-strong);
+    --ui-text:var(--ng-text); --ui-muted:var(--ng-text-muted); --ui-accent:var(--aw-action);
+    --ng-sidebar-w:248px; --aw-shadow:0 2px 8px rgb(0 0 0 / .06);
+    background:var(--ng-bg) !important; color:var(--ng-text) !important;
+    font-size:14px; line-height:1.6;
+}
+html:not(.dark) body.admin-interface.admin-workspace {
+    --ng-bg:#f5f7fb; --ng-surface:#fff; --ng-surface-soft:#f8faff; --ng-elevated:#edf2f9;
+    --ng-text:#14213a; --ng-text-muted:#52627a; --ng-border:#d8e0ec; --ng-border-strong:#aebdd2;
+    --ng-primary:#4f46e5; --ng-primary-soft:#eeedff; --aw-action:#4f46e5;
+}
+body.admin-workspace::before { display:none; }
+body.admin-interface.admin-workspace .ng-main { min-width:0; width:100%; }
+body.admin-interface.admin-workspace .ng-content { padding:24px 28px 48px; max-width:1700px; margin-inline:auto; width:100%; color:var(--ng-text); }
+body.admin-interface.admin-workspace .ng-sidebar { background:var(--ng-surface) !important; width:var(--ng-sidebar-w) !important; min-width:var(--ng-sidebar-w) !important; height:100vh !important; min-height:100vh !important; position:sticky !important; top:0; padding:16px 12px !important; overflow-y:auto !important; border-right:1px solid var(--ng-border); }
+body.admin-interface.admin-workspace .ng-sidebar__nav { gap:8px !important; padding:0 !important; }
+body.admin-interface.admin-workspace .ng-sidebar__group { padding:4px 0 !important; background:transparent !important; border:0; }
+body.admin-interface.admin-workspace .ng-sidebar__group-label { font-size:11px; letter-spacing:.07em; color:var(--ng-text-muted) !important; padding:8px 10px; }
+body.admin-interface.admin-workspace .ng-sidebar__item { min-height:40px !important; border-radius:8px; padding:8px 11px !important; font-size:13px !important; color:var(--ng-text-muted) !important; border:1px solid transparent; }
+body.admin-interface.admin-workspace .ng-sidebar__item:hover { background:var(--ng-surface-soft) !important; color:var(--ng-text) !important; }
+body.admin-interface.admin-workspace .ng-sidebar__item.is-active { background:var(--ng-primary-soft) !important; border-color:var(--ng-border); color:var(--ng-primary) !important; font-weight:650; }
+body.admin-interface.admin-workspace .ng-topbar { position:relative; padding:14px 28px !important; height:auto !important; min-height:72px !important; gap:16px; background:var(--ng-surface) !important; border-bottom:1px solid var(--ng-border); box-shadow:none; }
+body.admin-interface.admin-workspace .ng-topbar__profile { display:none; }
+body.admin-interface.admin-workspace .ng-topbar__title { min-width:0; gap:10px; }
+body.admin-interface.admin-workspace .ng-topbar__title > div { min-width:0; }
+body.admin-interface.admin-workspace .ng-topbar__title h1 { color:var(--ng-text) !important; font-size:17px; line-height:1.4; overflow-wrap:anywhere; }
+body.admin-interface.admin-workspace .ng-topbar__title p { color:var(--ng-text-muted) !important; font-size:12px; max-width:70ch; }
+body.admin-interface.admin-workspace .ng-topbar__actions { flex-shrink:0; gap:8px !important; flex-wrap:wrap; }
+body.admin-interface.admin-workspace .ng-user-button__name { max-width:16ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+body.admin-interface.admin-workspace :is(.ng-icon-button,.ng-user-button,.ng-language-switcher) { border-color:var(--ng-border) !important; background:var(--ng-surface-soft) !important; color:var(--ng-text) !important; }
+body.admin-interface.admin-workspace :is(.ng-card,.ng-data-card,.ui-card,.cust-panel,.server-card,.nodes-card) { background:var(--ng-surface) !important; border:1px solid var(--ng-border) !important; border-radius:12px !important; box-shadow:var(--aw-shadow) !important; color:var(--ng-text); }
+body.admin-interface.admin-workspace :is(.ng-card__header,.ng-data-card__header,.ui-card__header) { padding:18px 22px !important; border-bottom:1px solid var(--ng-border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; background:transparent !important; }
+body.admin-interface.admin-workspace :is(.ng-card__body,.ng-data-card__body,.ui-card__body) { padding:20px 22px !important; }
+body.admin-interface.admin-workspace :is(.ng-card__title,.ui-card__title,.ng-data-card h2,.ng-card h2) { color:var(--ng-text) !important; font-size:16px; font-weight:650; line-height:1.45; }
+body.admin-interface.admin-workspace :is(.tkt-hero,.server-hero) { padding:22px !important; background:var(--ng-surface) !important; border-bottom:1px solid var(--ng-border); }
+body.admin-interface.admin-workspace .tkt-hero__inner { gap:20px; }
+body.admin-interface.admin-workspace :is(.tkt-hero__title,.server-hero h1) { color:var(--ng-text) !important; font-size:25px !important; line-height:1.3; letter-spacing:-.025em; }
+body.admin-interface.admin-workspace :is(.tkt-hero__sub,.server-hero p) { color:var(--ng-text-muted) !important; font-size:13px !important; max-width:85ch; }
+body.admin-interface.admin-workspace .tkt-hero__pill { padding:0 !important; border:0 !important; background:transparent !important; color:var(--ng-text-muted) !important; font-size:11px; }
+body.admin-interface.admin-workspace .tkt-kpi { background:var(--ng-surface-soft) !important; border:1px solid var(--ng-border) !important; box-shadow:none; min-width:0; padding:12px 15px !important; border-radius:9px; }
+body.admin-interface.admin-workspace .tkt-kpi__label { color:var(--ng-text-muted) !important; font-size:11px; line-height:1.5; }
+body.admin-interface.admin-workspace .tkt-kpi__value { color:var(--ng-text) !important; font-size:23px !important; }
+body.admin-interface.admin-workspace :is(label,.form-label) { font-size:13px !important; color:var(--ng-text) !important; font-weight:600; line-height:1.5; }
+body.admin-interface.admin-workspace :is(.form-field,.ui-field) { min-width:0; gap:7px; }
+body.admin-interface.admin-workspace :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]),select,textarea) {
+    min-height:42px; max-width:100%; padding:10px 12px; border:1px solid var(--ng-border-strong) !important; border-radius:8px !important;
+    background:var(--ng-surface-soft) !important; color:var(--ng-text) !important; font-size:14px !important; box-shadow:none;
+}
+body.admin-interface.admin-workspace textarea { min-height:100px; resize:vertical; }
+body.admin-interface.admin-workspace :is(input,select,textarea)::placeholder { color:var(--ng-text-muted); opacity:.85; }
+body.admin-interface.admin-workspace :is(input,select,textarea):focus-visible { outline:3px solid var(--ng-primary-soft) !important; outline-offset:1px; border-color:var(--ng-primary) !important; }
+body.admin-interface.admin-workspace :is(input,select,textarea):user-invalid { border-color:#dc3545 !important; }
+body.admin-interface.admin-workspace :is(input[type=checkbox],input[type=radio]) { width:17px; height:17px; accent-color:var(--aw-action); vertical-align:middle; flex-shrink:0; }
+body.admin-interface.admin-workspace :is(.form-hint,.ui-hint,.text-slate-400,.text-slate-500,.text-slate-600) { color:var(--ng-text-muted) !important; }
+body.admin-interface.admin-workspace :is(.text-slate-700,.text-slate-800,.text-slate-900,.text-gray-900) { color:var(--ng-text) !important; }
+body.admin-interface.admin-workspace :is(.bg-white,.bg-slate-50,.bg-slate-100,.bg-gray-50) { background-color:var(--ng-surface) !important; }
+body.admin-interface.admin-workspace :is(.ui-button,.ng-button,.btn) { min-height:38px; padding:9px 15px; border-radius:8px !important; font-size:13px !important; font-weight:600; line-height:1.4; white-space:normal; }
+body.admin-interface.admin-workspace :is(.ui-button--primary,.ng-button--primary,.btn-primary) { background:var(--aw-action) !important; border-color:var(--aw-action) !important; color:#fff !important; box-shadow:none !important; }
+body.admin-interface.admin-workspace :is(.ui-button--ghost,.ui-button--secondary,.ng-button--ghost) { background:var(--ng-surface) !important; color:var(--ng-text) !important; border-color:var(--ng-border-strong) !important; }
+body.admin-interface.admin-workspace :is(button,a,input):focus-visible { outline:3px solid var(--ng-primary); outline-offset:3px; }
+body.admin-interface.admin-workspace :is(button,input,select,textarea):disabled { opacity:.6; cursor:not-allowed; }
+body.admin-interface.admin-workspace table { border-collapse:separate; border-spacing:0; color:var(--ng-text); width:100%; font-size:13px; }
+body.admin-interface.admin-workspace :is(th,td) { padding:13px 15px !important; border-color:var(--ng-border) !important; vertical-align:middle; }
+body.admin-interface.admin-workspace thead { background:var(--ng-surface-soft) !important; }
+body.admin-interface.admin-workspace th { color:var(--ng-text-muted) !important; font-size:11px; text-transform:uppercase; letter-spacing:.045em; font-weight:650; }
+body.admin-interface.admin-workspace tbody tr:hover { background:var(--ng-surface-soft) !important; }
+body.admin-interface.admin-workspace :is(.ng-alert,.ui-alert) { border-radius:9px; padding:14px 17px; line-height:1.6; }
+body.admin-interface.admin-workspace :is(pre,code) { overflow-wrap:anywhere; }
+body.admin-interface.admin-workspace pre { max-width:100%; overflow:auto; padding:14px; border-radius:8px; }
+body.admin-interface.admin-workspace :is(.server-tab,.ng-tab) { color:var(--ng-text-muted); background:var(--ng-surface); border-color:var(--ng-border); }
+body.admin-interface.admin-workspace :is(.server-tab.is-active,.ng-tab.is-active) { background:var(--ng-primary-soft); color:var(--ng-primary); }
+.aw-context { margin:0 0 22px; padding:16px 20px; background:var(--ng-surface); border:1px solid var(--ng-border); border-radius:10px; }
+.aw-context__top { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.aw-breadcrumbs { display:flex; gap:9px; flex-wrap:wrap; font-size:12px; color:var(--ng-text-muted); }
+.aw-breadcrumbs a,.aw-guide a { color:var(--ng-primary); text-decoration:none; }
+.aw-context__intro { margin:8px 0 0; max-width:100ch; color:var(--ng-text-muted); font-size:13px; }
+.aw-guide summary { cursor:pointer; color:var(--ng-primary); font-size:12px; font-weight:600; }
+.aw-guide[open] { margin-top:12px; }
+.aw-steps { list-style:none; padding:0; margin:16px 0 0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; counter-reset:step; }
+.aw-steps li { background:var(--ng-surface-soft); border:1px solid var(--ng-border); border-radius:8px; padding:14px; }
+.aw-steps li::before { counter-increment:step; content:counter(step); display:inline-grid; place-items:center; width:24px; height:24px; border-radius:7px; background:var(--ng-primary-soft); color:var(--ng-primary); font-size:12px; font-weight:700; margin-bottom:7px; }
+.aw-steps strong { display:block; font-size:13px; color:var(--ng-text); }
+.aw-steps p { font-size:12px; color:var(--ng-text-muted); margin:6px 0 10px; }
+.aw-nav-search { display:block; padding:10px 3px 4px; }
+.aw-nav-search input { width:100%; min-height:36px !important; font-size:12px !important; }
+.aw-nav-empty { font-size:12px; color:var(--ng-text-muted); padding:10px; }
+.aw-table-scroll { width:100%; overflow-x:auto; border-radius:inherit; overscroll-behavior-x:contain; }
+.aw-required { color:var(--ng-primary); margin-left:3px; }
+.aw-visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.aw-setup-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:22px; }
+.aw-setup-card { background:var(--ng-surface); border:1px solid var(--ng-border); border-radius:12px; padding:22px; scroll-margin-top:20px; }
+.aw-setup-card h2 { margin:0 0 7px; font-size:18px; color:var(--ng-text); }
+.aw-setup-card > p { margin:0 0 16px; color:var(--ng-text-muted); font-size:13px; }
+.aw-setup-card .aw-steps { grid-template-columns:1fr; }
+.aw-setup-card .aw-steps li { padding:12px 14px; }
+.aw-setup-card .aw-steps li::before { float:left; margin:0 12px 20px 0; }
+.aw-setup-card .aw-steps p { margin-bottom:5px; }
+body.admin-interface.admin-workspace.is-sidebar-collapsed .ng-sidebar { width:72px !important; min-width:72px !important; padding:16px 8px !important; }
+body.admin-workspace.is-sidebar-collapsed .aw-nav-search,body.admin-workspace.is-sidebar-collapsed .aw-nav-empty { display:none !important; }
+body.admin-workspace [hidden] { display:none !important; }
+@media(max-width:1150px) {
+    body.admin-workspace .ng-content [style*="220px minmax"],body.admin-workspace .ng-content [style*="320px minmax"] { grid-template-columns:minmax(0,1fr) !important; }
+}
+@media(max-width:768px) {
+    body.admin-interface.admin-workspace .ng-sidebar { position:fixed !important; left:0; top:0; z-index:80; }
+    body.admin-interface.admin-workspace .ng-content { padding:16px 14px 32px; }
+    body.admin-interface.admin-workspace .ng-topbar { padding:12px 14px !important; align-items:flex-start !important; flex-wrap:wrap; }
+    body.admin-interface.admin-workspace .ng-topbar__title { flex:1 1 190px; }
+    body.admin-interface.admin-workspace .ng-topbar__actions { margin-left:auto; gap:6px !important; }
+    body.admin-interface.admin-workspace .ng-user-button__name { display:none; }
+    body.admin-workspace .ng-content [style*="grid-template-columns"],body.admin-workspace .ng-content :is(.grid-cols-2,.grid-cols-3,.grid-cols-4,.grid-cols-5) { grid-template-columns:minmax(0,1fr) !important; }
+    body.admin-workspace .ng-content .tkt-hero [style*="grid-template-columns"] { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+    body.admin-workspace .ng-content [style*="position:sticky"],body.admin-workspace .ng-content [style*="position: sticky"] { position:static !important; }
+    body.admin-interface.admin-workspace :is(.ng-card__header,.ng-data-card__header,.ui-card__header,.ng-card__body,.ng-data-card__body,.ui-card__body) { padding:16px !important; }
+    .aw-steps,.aw-setup-grid { grid-template-columns:1fr; }
+    .aw-context,.aw-setup-card { padding:16px; }
+}
+@media(prefers-reduced-motion:reduce) { body.admin-workspace *,body.admin-workspace *::before,body.admin-workspace *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+/* Quiet surfaces and menus stay readable in either colour scheme. */
+body.admin-interface.admin-workspace .tkt-hero::after { display:none; }
+body.admin-interface.admin-workspace :is(.ng-overflow__menu,.ng-user-menu__dropdown,.ng-modal__panel,.ui-modal__panel) { background:var(--ng-surface) !important; color:var(--ng-text) !important; border:1px solid var(--ng-border) !important; box-shadow:0 12px 32px rgb(0 0 0 / .16); }
+body.admin-interface.admin-workspace .ui-button { background:var(--ng-surface) !important; color:var(--ng-text) !important; border:1px solid var(--ng-border-strong) !important; }
+body.admin-interface.admin-workspace .ui-button--primary { background:var(--aw-action) !important; border-color:var(--aw-action) !important; color:#fff !important; }
+body.admin-interface.admin-workspace .ui-button--danger { background:rgb(239 68 68 / .13) !important; color:#fca5a5 !important; border-color:#b45360 !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.ui-badge--success,.ng-badge--success,.status-running) { background:#ecfdf3 !important; color:#166534 !important; border-color:#a7e5bc !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.ui-badge--warning,.ng-badge--warning,.status-pending_setup) { background:#fff7ed !important; color:#92400e !important; border-color:#fed7aa !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.ui-badge--danger,.ng-badge--danger,.status-stopped,.ui-button--danger) { background:#fff1f2 !important; color:#9f1239 !important; border-color:#fecdd3 !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.ui-badge--info,.ng-badge--info,.status-provisioning) { background:#eff6ff !important; color:#1e40af !important; border-color:#bfdbfe !important; }
+html:not(.dark) body.admin-interface.admin-workspace .ui-badge--primary { background:#eeedff !important; color:#4338ca !important; border-color:#c7c4ff !important; }
+body.admin-interface.admin-workspace .ng-overflow__menu[popover] { position:fixed !important; inset:auto; margin:0; max-height:calc(100vh - 24px); max-width:calc(100vw - 24px); min-width:0 !important; overflow:auto; }
+@media(max-width:768px) {
+    body.admin-workspace .ng-content [class*="col-span-"],body.admin-workspace .ng-content [style*="grid-column:span"],body.admin-workspace .ng-content [style*="grid-column: span"] { grid-column:1/-1 !important; }
+}
+body.admin-interface.admin-workspace .ng-overflow__menu[popover]:not(:popover-open) { display:none !important; }
+body.admin-interface.admin-workspace .ng-language-switcher__link { color:var(--ng-text-muted) !important; }
+body.admin-interface.admin-workspace .ng-language-switcher__link.is-active { background:var(--ng-primary-soft) !important; color:var(--ng-primary) !important; }
+body.admin-interface.admin-workspace :is(.ng-user-button__avatar,.ng-topbar__profile-avatar--initial) { background:var(--ng-primary-soft) !important; color:var(--ng-primary) !important; }
+body.admin-interface.admin-workspace pre { background:var(--ng-surface-soft) !important; color:var(--ng-text) !important; border:1px solid var(--ng-border); }
+body.admin-interface.admin-workspace .ng-sidebar::before { display:none; }
+body.admin-interface.admin-workspace :is(.tkt-hero__title,.ng-topbar__title h1) { text-shadow:none !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.ng-alert--danger,.ui-alert--danger) { background:#fff1f2 !important; color:#9f1239 !important; border-color:#fecdd3 !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.ng-alert--success,.ui-alert--success) { background:#ecfdf3 !important; color:#166534 !important; border-color:#a7e5bc !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.ng-alert--warning,.ui-alert--warning) { background:#fff7ed !important; color:#92400e !important; border-color:#fed7aa !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.text-red-400,.text-red-500) { color:#9f1239 !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.text-green-400,.text-green-500,.text-emerald-400,.text-emerald-500) { color:#166534 !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.text-blue-400,.text-blue-500) { color:#1e40af !important; }
+html:not(.dark) body.admin-interface.admin-workspace :is(.text-amber-400,.text-amber-500,.text-yellow-400) { color:#92400e !important; }
+/* Shared status colours also cover older templates with inline declarations. */
+body.admin-interface.admin-workspace {
+    --aw-status-success:#4ade80; --aw-status-warning:#fcd34d; --aw-status-danger:#fca5a5;
+    --aw-status-info:#7dd3fc; --aw-status-primary:#c4b5fd;
+}
+html:not(.dark) body.admin-interface.admin-workspace {
+    --aw-status-success:#166534; --aw-status-warning:#92400e; --aw-status-danger:#9f1239;
+    --aw-status-info:#1e40af; --aw-status-primary:#5b21b6;
+}
+body.admin-interface.admin-workspace .ng-content :is(h1,h2,h3,h4,h5,h6) { color:var(--ng-text) !important; }
+body.admin-interface.admin-workspace .ng-sidebar { box-shadow:none !important; }
+body.admin-interface.admin-workspace .ng-sidebar__title { background:none !important; -webkit-text-fill-color:currentColor; color:var(--ng-text) !important; }
+body.admin-interface.admin-workspace .ng-sidebar__item.is-active :is(.ng-sidebar__text,.ng-sidebar__icon) { color:var(--ng-primary) !important; }
+body.admin-interface.admin-workspace :is(input,textarea)::placeholder { color:var(--ng-text-muted) !important; opacity:.85; }
+.aw-setup-index { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
+.aw-setup-index a { padding:7px 12px; border:1px solid var(--ng-border); border-radius:8px; background:var(--ng-surface); color:var(--ng-primary); font-size:12px; text-decoration:none; }
+.aw-setup-index a:hover { background:var(--ng-primary-soft); }
+body.admin-interface.admin-workspace :is(.tkt-oldest__label,.tkt-oldest__icon) { color:var(--aw-status-warning) !important; }

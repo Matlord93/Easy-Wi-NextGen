@@ -1,0 +1,212 @@
+billing.invalid_amount: Enter a valid amount with at most two decimal places.
+billing.invalid_tax: Invalid tax treatment or tax rate (0–100%).
+billing.invalid_invoice: Invalid invoice number, amount or currency.
+billing.cancelled_invoice: This invoice has already been cancelled.
+billing.invalid_credit: The credit must be positive and must not exceed the remaining
+  invoice value. Currency and reference must match.
+billing.invalid_cancellation: Enter a cancellation/credit reason of at most 255 characters.
+billing.immutable_details: Issued invoice details cannot be overwritten.
+billing.invalid_payment: Invalid payment amount, reference or currency.
+billing.payment_reference_conflict: This payment reference is already associated with
+  different payment details.
+billing.invalid_settings: Please check the billing settings.
+billing.layout_too_large: The invoice template is too large.
+billing.invalid_layout: The invoice template contains invalid or disallowed instructions.
+billing.invalid_pdf: Use a valid PDF file up to 10 MB. Existing archives cannot be
+  replaced.
+billing.invalid_customer: Select a valid customer.
+billing.duplicate_number: This invoice number is already in use.
+billing.invalid_date: Enter a valid due date.
+billing.invalid_description: Enter a service description of at most 2000 characters.
+billing.external_payment: External payments cannot be reversed here. Review them with
+  the payment provider.
+billing.already_archived: This invoice is already archived and will remain unchanged.
+billing.invalid_export: Invalid export type or year.
+billing.settings: Billing settings
+billing.gross_hint: The total is the gross amount including the selected tax.
+billing.description: Service description
+billing.tax_mode: Tax treatment
+billing.tax_rate: Tax rate in %
+billing.tax_mode.standard: VAT
+billing.tax_mode.exempt: Tax exempt
+billing.tax_mode.reverse_charge: Reverse charge
+billing.tax_mode.small_business: Small business exemption
+billing.preview: Invoice preview
+billing.download_pdf: Download PDF
+billing.adjustments: Credits and cancellation
+billing.credit_hint: Credits reduce the receivable. Refunding received payments is
+  a separate action with the payment provider.
+billing.credit_amount: Credit amount
+billing.reason: Reason
+billing.issue_credit: Issue credit
+billing.cancel_invoice: Cancel invoice
+billing.cancelled: Cancelled
+billing.company_name: Company name
+billing.company_address: Company address
+billing.company_email: Contact email
+billing.company_vat_id: VAT / tax ID
+billing.company_footer: Payment instructions and footer
+billing.snapshot_hint: Seller, recipient and tax amounts are saved when issued. Settings
+  changes apply to new invoices.
+billing.automation_enabled: Enable hourly payment reconciliation
+billing.reminders_enabled: Enable automatic payment reminders
+billing.automation_hint: The central scheduler runs enabled reconciliation hourly.
+  Reminders also require configured email delivery.
+billing.grace_days: Days between sent reminders
+billing.reminder_fee: Fee for reminder level %level%
+billing.save: Save
+billing.back: Back
+billing.payments: Payments
+billing.credits: Credits
+billing.reminders: Payment reminders
+billing.date: Date
+billing.reference: Reference
+billing.amount: Amount
+billing.status: Status
+billing.reminder_level: Reminder level %level%
+billing.empty: No entries yet.
+billing.history: Invoice history
+billing.number: Invoice number
+billing.net: Net
+billing.tax: VAT
+billing.total: Total
+billing.outstanding: Outstanding
+billing.due_date: Due date
+billing.invoice: Invoice
+billing.pay: Open payment instructions
+billing.bill_to: Bill to
+billing.vat_id: VAT ID
+billing.notice.standard: ''
+billing.notice.legacy: ''
+billing.notice.exempt: Tax-exempt supply.
+billing.notice.reverse_charge: VAT is payable by the recipient (reverse charge).
+billing.notice.small_business: VAT is not charged under the small business exemption.
+billing.state.open: Open
+billing.state.past_due: Overdue
+billing.state.paid: Settled
+billing.state.cancelled: Cancelled
+billing.state.draft: Draft
+billing.state.succeeded: Succeeded
+billing.state.pending: Pending
+billing.state.failed: Failed / reversed
+billing.state.refunded: Refunded
+billing.state.issued: Issued
+billing.state.applied: Applied
+billing.state.voided: Voided
+billing.state.sent: Delivery queued
+billing.state.resolved: Resolved
+billing.manual_payment_hint: Payment details are provided on your invoice. Use the invoice number as the payment reference. Contact your provider if bank details are missing.
+
+billing.currency: "Currency"
+billing.items: "Invoice items"
+billing.quantity: "Quantity"
+billing.unit_price: "Unit price (gross)"
+billing.line_total: "Line total (gross)"
+billing.add_item: "Add item"
+billing.remove_item: "Remove"
+billing.move_up: "Move item up"
+billing.move_down: "Move item down"
+billing.items_hint: "Up to 100 items. Quantities support three decimal places; enter a gross unit price and tax rate for each item. Decimal commas and points are accepted."
+billing.rounding_hint: "Gross amounts are rounded per line and VAT per tax rate. Rounding differences are allocated to net line amounts; gross line and invoice totals are preserved."
+billing.invalid_items: "Enter 1 to 100 complete invoice items."
+billing.invalid_quantity: "Quantity must be greater than zero with no more than three decimal places."
+billing.design: "Design invoice template"
+billing.design_hint: "Design the template for new invoices. The preview uses sample data and updates without saving."
+billing.design_saved: "Invoice template saved. Previously archived PDFs remain unchanged."
+billing.editor_mode: "Editing mode"
+billing.visual_editor: "Visual editor"
+billing.code_editor: "Custom HTML/Twig template"
+billing.editor_mode_hint: "The visual editor generates a template from your settings. Edit existing custom code in code mode. Only Save applies the selected version."
+billing.code_hint: "Use HTML, CSS and permitted Twig expressions for full control. Loop over multiple items with “for item in invoice.items”. Quantities are stored in thousandths and money in cents."
+billing.preview_failed: "Preview could not be updated. Check your inputs."
+billing.preview_ready: "Preview with sample data"
+billing.refresh_preview: "Refresh preview"
+billing.invalid_design: "Use valid colors, font and layout settings."
+billing.invalid_logo: "Select a valid PNG/JPEG logo up to 48 KiB and at most 1600 × 1600 pixels."
+billing.logo_hint: "PNG/JPEG up to 48 KiB, at most 1600 × 1600 pixels. The logo is embedded directly."
+billing.remove_logo: "Remove saved logo"
+billing.show_tax_column: "Show per-item tax rate column"
+billing.current_template_hint: "This preview uses the current template. PDF downloads for archived invoices continue to return the unchanged original."
+billing.design.accent: "Accent color"
+billing.design.text_color: "Text color"
+billing.design.font: "Font"
+billing.design.font_size: "Font size (pt)"
+billing.design.margin_mm: "Page margins (mm)"
+billing.design.logo_width: "Logo width (px)"
+billing.design.header_align: "Header alignment"
+billing.design.spacing: "Spacing"
+billing.design.heading: "Custom invoice heading (optional)"
+billing.design.intro: "Introduction"
+billing.design.footer_text: "Additional footer"
+billing.design.logo: "Company logo"
+billing.design.style: "Layout"
+billing.design.modern: "Modern"
+billing.design.classic: "Classic"
+billing.design.sans: "Sans serif"
+billing.design.serif: "Serif"
+billing.design.mono: "Monospace"
+billing.design.comfortable: "Comfortable"
+billing.design.compact: "Compact"
+billing.design.left: "Left"
+billing.design.right: "Right"
+billing.gd_required: "PNG logos in PDF invoices require the PHP GD extension. Install or enable php-gd for the PHP version in use."
+billing.unit_price_short: "Unit price"
+billing.line_total_short: "Amount"
+billing.gross: "gross"
+billing.tax_short: Tax
+
+billing.einvoice: "Electronic invoice"
+billing.einvoice_settings_hint: "These structured details are frozen when issuing an invoice. Existing invoices remain unchanged. Complete customer details are also required for XRechnung/ZUGFeRD."
+billing.einvoice_creation_hint: "For XRechnung and ZUGFeRD, enter the buyer reference (such as routing ID) and actual supply date. Missing details cannot be added after issuing."
+billing.buyer_reference: "Buyer reference / routing ID"
+billing.service_date: "Supply date"
+billing.einvoice_archive_hint: "Download locally validated, immutable electronic invoices. Later payments or profile changes do not modify these files."
+billing.einvoice_original_hint: "ZUGFeRD uses the archived original PDF as its visual invoice. Verify that this PDF matches the invoice data before generating it. Tools run only during validation; no additional persistent service is required."
+billing.einvoice_incomplete: "Mandatory details frozen at issuance are incomplete. This invoice cannot be exported."
+billing.einvoice_invalid_data: "Please check the electronic invoice details."
+billing.einvoice_invalid_iban: "Please enter a valid IBAN."
+billing.einvoice_validator_missing: "Local validation tools are missing or have a different version. Administration: run scripts/setup-einvoice-validation.py (requires Java 21)."
+billing.einvoice_validation_unavailable: "Local format validation could not complete. No electronic invoice was archived."
+billing.einvoice_rules_failed: "Format validation rejected the invoice. Check VAT totals and mandatory details. No export was archived."
+billing.einvoice_pdf_failed: "A validated PDF/A-3b could not be created. Please check the archived original PDF."
+billing.einvoice_schema_failed: "The XML structure is invalid; no export was created."
+billing.einvoice_pdf_archive_required: "ZUGFeRD requires the archived original PDF."
+billing.einvoice_archive_corrupted: "The archive checksum does not match. Please contact administration."
+billing.einvoice_busy: "A format validation is already running. Please try again shortly."
+billing.einvoice_not_available: "An export has not been provided for this invoice yet."
+billing.einvoice_generate: "Validate and archive permanently"
+billing.einvoice_download: "Download validated file"
+billing.einvoice_invalid_format: "Unknown electronic invoice format."
+billing.einvoice_reverse_charge_ids: "Reverse charge requires VAT IDs for both parties."
+billing.einvoice_missing_snapshot: "This invoice has no complete structured line and VAT snapshot."
+billing.company_street: "Street and building number"
+billing.company_postal: "Postal code"
+billing.company_city: "City"
+billing.company_country: "Country code (ISO, e.g. DE)"
+billing.company_contact: "Contact person"
+billing.company_phone: "Phone"
+billing.company_tax_number: "Tax number"
+billing.company_iban: "IBAN"
+billing.company_bic: "BIC (optional)"
+billing.einvoice_missing.company.name: "Seller: Name is missing."
+billing.einvoice_missing.company.street: "Seller: Street and building number is missing."
+billing.einvoice_missing.company.postal: "Seller: Postal code is missing."
+billing.einvoice_missing.company.city: "Seller: City is missing."
+billing.einvoice_missing.company.country: "Seller: Country code (ISO, e.g. DE) is missing."
+billing.einvoice_missing.company.email: "Seller: Email is missing."
+billing.einvoice_missing.company.contact: "Seller: Contact person is missing."
+billing.einvoice_missing.company.phone: "Seller: Phone is missing."
+billing.einvoice_missing.company.iban: "Seller: IBAN is missing."
+billing.einvoice_missing.company.tax_number: "Seller: Tax number is missing."
+billing.einvoice_invalid_country.company: "Check country code: company"
+billing.einvoice_invalid_email.company: "Check email address: company"
+billing.einvoice_missing.customer.name: "Buyer: Name is missing."
+billing.einvoice_missing.customer.address: "Buyer: Address is missing."
+billing.einvoice_missing.customer.postal: "Buyer: Postal code is missing."
+billing.einvoice_missing.customer.city: "Buyer: City is missing."
+billing.einvoice_missing.customer.country: "Buyer: Country code (ISO, e.g. DE) is missing."
+billing.einvoice_missing.customer.email: "Buyer: Email is missing."
+billing.einvoice_invalid_country.customer: "Check country code: customer"
+billing.einvoice_invalid_email.customer: "Check email address: customer"
+billing.einvoice_missing.buyer_reference: "Buyer reference / routing ID is missing."
+billing.einvoice_missing.service_date: "Supply date is missing."

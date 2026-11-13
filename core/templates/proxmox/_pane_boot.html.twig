@@ -1,0 +1,7 @@
+{% trans_default_domain 'vm_config' %}
+{% if kind == 'qemu' and detail.configuration is not null %}
+<section class="ng-data-card"><div class="ng-data-card__header"><h2>{{ 'vm_config.boot'|trans }}</h2></div><div class="ng-data-card__body">
+<form method="post" action="{{ actionUrl }}" class="infra-form" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' with {action:'boot-order'} %}<label class="infra-span">{{ 'vm_config.boot_devices'|trans }}<input class="form-input" name="boot_order" value="{{ detail.configuration.boot|default('') starts with 'order=' ? detail.configuration.boot|slice(6) : '' }}" maxlength="180" required><small>{{ detail.bootDevices|join(', ') }}</small></label><p class="infra-span">{{ 'vm_config.boot_hint'|trans }}</p><button class="ui-button ui-button--primary" {% if detail.status.status|default('') != 'stopped' or detail.bootDevices is empty %}disabled{% endif %}>{{ 'vm_config.save'|trans }}</button></form>
+</div></section>
+<section class="ng-data-card"><div class="ng-data-card__header"><h2>{{ 'vm_config.agent'|trans }}</h2></div><div class="ng-data-card__body"><p>{{ 'vm_config.agent_hint'|trans }}</p><form method="post" action="{{ actionUrl }}" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' with {action:'guest-agent'} %}<button class="ui-button ui-button--primary" {% if detail.status.status|default('') != 'stopped' %}disabled{% endif %}>{{ 'vm_config.agent_enable'|trans }}</button></form></div></section>
+{% endif %}

@@ -28,6 +28,9 @@ final class CreditNoteIssuer
         ?\App\Module\Core\Domain\Entity\User $actor = null,
         ?\DateTimeImmutable $issuedAt = null,
     ): CreditNote {
+        if ($invoice->getStatus() === \App\Module\Core\Domain\Enum\InvoiceStatus::Cancelled || $amountCents <= 0 || $amountCents > $invoice->getAmountDueCents() || $currency !== $invoice->getCurrency() || trim($number) === '' || mb_strlen($number) > 40 || mb_strlen($reason ?? '') > 255) {
+            throw new \InvalidArgumentException('billing.invalid_credit');
+        }
         $creditNote = new CreditNote($invoice, $number, $amountCents, $currency, $reason);
         $creditNote->markIssued($issuedAt);
 

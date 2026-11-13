@@ -39,14 +39,14 @@ class DunningReminder
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
-    public function __construct(Invoice $invoice, int $level, int $feeCents, int $graceDays)
+    public function __construct(Invoice $invoice, int $level, int $feeCents, int $graceDays, ?\DateTimeImmutable $now = null)
     {
         $this->invoice = $invoice;
         $this->level = $level;
         $this->feeCents = $feeCents;
         $this->graceDays = $graceDays;
         $this->status = DunningStatus::Pending;
-        $this->createdAt = new \DateTimeImmutable();
+        $this->createdAt = $now ?? new \DateTimeImmutable();
     }
 
     public function getId(): ?int
@@ -79,10 +79,10 @@ class DunningReminder
         return $this->status;
     }
 
-    public function markSent(): void
+    public function markSent(?\DateTimeImmutable $now = null): void
     {
         $this->status = DunningStatus::Sent;
-        $this->sentAt = new \DateTimeImmutable();
+        $this->sentAt = $now ?? new \DateTimeImmutable();
     }
 
     public function markResolved(): void

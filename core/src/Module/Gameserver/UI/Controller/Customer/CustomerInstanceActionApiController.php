@@ -744,14 +744,10 @@ final class CustomerInstanceActionApiController
 
         $options = [];
         $versions = [];
-        $resolver = $instance->getTemplate()->getInstallResolver();
-        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
-        if ($type === 'minecraft_vanilla') {
-            $versions = $this->minecraftCatalogService->getUiCatalog()['vanilla']['versions'] ?? [];
-        } elseif ($type === 'papermc_paper') {
-            $versions = $this->minecraftCatalogService->getUiCatalog()['paper']['versions'] ?? [];
-        } elseif ($type === 'minecraft_bedrock') {
-            $versions = $this->minecraftCatalogService->getUiCatalog()['bedrock']['versions'] ?? [];
+        $channel = MinecraftCatalogService::channelFromResolver($instance);
+        if ($channel !== null) {
+            $catalog = $this->minecraftCatalogService->getUiCatalog($channel)[$channel];
+            $versions = array_values(array_filter($catalog['versions'], static fn (string $version): bool => ($catalog['release_types'][$version] ?? 'release') === 'release'));
         }
 
         foreach ($versions as $version) {
@@ -764,7 +760,7 @@ final class CustomerInstanceActionApiController
                 'version' => $version,
             ];
         }
-        if ($options === []) {
+        if ($options === [] && $channel === null) {
             $fallback = $instance->getCurrentVersion() ?? 'default';
             $options[] = ['id' => $fallback, 'label' => $fallback, 'version' => $fallback];
         }
@@ -773,6 +769,7 @@ final class CustomerInstanceActionApiController
 
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
+            'minecraft_channel' => $channel,
             'warnings' => ['customer_instances_reinstall_warning_data_loss'],
             'options' => $options,
             'shared_storage' => [

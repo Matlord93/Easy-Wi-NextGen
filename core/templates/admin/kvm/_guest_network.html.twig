@@ -1,0 +1,22 @@
+{% trans_default_domain 'kvm' %}
+{% import 'admin/kvm/_form.html.twig' as form %}
+{% set capable = node.metadata.kvm_managed.network_config_version|default(0) == 1 %}
+<section class="ng-data-card" data-kvm-network-config>
+ <div class="ng-data-card__header"><h2>{{ 'kvm.network_config.title'|trans }}</h2></div>
+ <div class="ng-data-card__body">
+  <p>{{ 'kvm.network_config.hint'|trans }}</p>
+  <p>{{ 'kvm.network_config.current'|trans }}: {{ vm.network_type }} · {{ vm.network }}</p>
+  {% if not capable %}<p>{{ 'kvm.update_agent'|trans }}</p>{% else %}
+   {{ form.start(node, operationId, 'vm.network', vm.id) }}
+   <input type="hidden" name="expected_network_type" value="{{ vm.network_type }}"><input type="hidden" name="expected_network" value="{{ vm.network }}">
+   <label>{{ 'kvm.network_config.target'|trans }}<select name="network_choice" class="form-input" required>
+    <option value="">{{ 'kvm.choose'|trans }}</option>
+    {% for network in inventory.networks|default([]) %}{% if network.details.Active|default('')|lower == 'yes' %}<option value="network:{{ network.name }}" {{ vm.network_type == 'network' and vm.network == network.name ? 'selected' : '' }}>libvirt · {{ network.name }}</option>{% endif %}{% endfor %}
+    {% for bridge in inventory.bridges|default([]) %}<option value="bridge:{{ bridge }}" {{ vm.network_type == 'bridge' and vm.network == bridge ? 'selected' : '' }}>Bridge · {{ bridge }}</option>{% endfor %}
+   </select></label>
+   <label><input type="checkbox" name="confirm" value="1" required> {{ 'kvm.network_config.confirm'|trans }}</label>
+   <button type="submit" class="ui-button ui-button--primary" {{ vm.state != 'shut off' or vm.snapshots|default([]) ? 'disabled' : '' }}>{{ 'kvm.network_config.submit'|trans }}</button>
+   </form>
+  {% endif %}
+ </div>
+</section>

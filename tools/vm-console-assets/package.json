@@ -1,0 +1,7 @@
+{
+  "name": "easywi-vm-console-assets",
+  "private": true,
+  "scripts": {"build": "esbuild node_modules/@novnc/novnc/core/rfb.js --bundle --format=esm --minify --legal-comments=inline --outfile=../../core/public/lib/novnc/rfb-1.7.0.js"},
+  "dependencies": {"@novnc/novnc": "1.7.0"},
+  "devDependencies": {"esbuild": "0.25.12"}
+}

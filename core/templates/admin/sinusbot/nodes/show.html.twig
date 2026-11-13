@@ -147,7 +147,7 @@
                 {% if node.lastError %}
                 <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:12px;grid-column:1/-1;">
                     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(252,165,165,.8);margin-bottom:4px;">{{ t('admin_sinusbot_last_error_label', locale) }}</div>
-                    <div style="font-size:13px;color:#fca5a5;font-family:monospace;word-break:break-all;">{{ node.lastError }}</div>
+                    <div style="font-size:13px;color:var(--aw-status-danger, #fca5a5);font-family:monospace;word-break:break-all;">{{ node.lastError }}</div>
                 </div>
                 {% endif %}
             </div>
@@ -329,13 +329,13 @@
                             {% endif %}
                         </div>
                         {% if job.errorText %}
-                            <div style="color:#fca5a5;font-size:12px;margin-bottom:6px;font-family:monospace;">{{ job.errorText }}</div>
+                            <div style="color:var(--aw-status-danger, #fca5a5);font-size:12px;margin-bottom:6px;font-family:monospace;">{{ job.errorText }}</div>
                         {% endif %}
                         {% if job.logText %}
-                            <pre style="background:#0f172a;color:#94a3b8;padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:11px;margin:0 0 6px;line-height:1.5;">{{ job.logText }}</pre>
+                            <pre style="background:#0f172a;color:var(--ng-text-muted, #94a3b8);padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:11px;margin:0 0 6px;line-height:1.5;">{{ job.logText }}</pre>
                         {% endif %}
                         {% if job.resultPayload %}
-                            <pre style="background:#0f172a;color:#94a3b8;padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:11px;margin:0;line-height:1.5;">{{ job.resultPayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                            <pre style="background:#0f172a;color:var(--ng-text-muted, #94a3b8);padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:11px;margin:0;line-height:1.5;">{{ job.resultPayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
                         {% endif %}
                     </div>
                     {% if not loop.last %}<div style="height:1px;"></div>{% endif %}
@@ -362,7 +362,7 @@
             <svg width="15" height="15" fill="none" viewBox="0 0 24 24" style="flex-shrink:0;transition:transform .2s;color:var(--ng-text-muted);" class="details-chevron"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </summary>
         <div class="ng-data-card__body" style="border-top:1px solid var(--ng-border);">
-            <pre style="background:#0f172a;color:#94a3b8;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;margin-bottom:12px;line-height:1.5;">{{ t('admin_sinusbot_user_management_example', locale) }}</pre>
+            <pre style="background:#0f172a;color:var(--ng-text-muted, #94a3b8);padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;margin-bottom:12px;line-height:1.5;">{{ t('admin_sinusbot_user_management_example', locale) }}</pre>
             <a class="ui-button ui-button--ghost ui-button--sm" href="https://sinusbot.github.io/api-docs/" target="_blank" rel="noopener noreferrer">{{ t('admin_sinusbot_user_management_link', locale) }}</a>
         </div>
     </details>

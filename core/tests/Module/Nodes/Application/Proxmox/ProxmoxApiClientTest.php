@@ -14,6 +14,45 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class ProxmoxApiClientTest extends TestCase
 {
+    public function testDiskExpansionSendsAbsoluteSizeWithServerDigest(): void
+    {
+        $http = new MockHttpClient(static function (string $method, string $url, array $options): MockResponse {
+            self::assertSame('PUT', $method);
+            self::assertStringEndsWith('/nodes/pve1/qemu/101/resize', $url);
+            parse_str($options['body'], $body);
+            self::assertSame(['disk' => 'scsi0', 'size' => '40G', 'digest' => 'server-digest'], $body);
+            return new MockResponse('{"data":"UPID:pve1:resize"}');
+        });
+        self::assertSame(['task' => 'UPID:pve1:resize'], $this->client($http)->growDisk($this->connection(), 'pve1', 101, 'qemu', 'scsi0', 40, 'server-digest'));
+    }
+
+    public function testTlsPreferenceAppliesPerRequestWithoutChangingOtherConnections(): void
+    {
+        $seen = [];
+        $http = new MockHttpClient(static function (string $method, string $url, array $options) use (&$seen): MockResponse {
+            $seen[] = [$options['verify_peer'], $options['verify_host']];
+
+            return new MockResponse('{"data":[]}');
+        });
+        $client = $this->client($http);
+        $client->nodes($this->connection());
+        $client->nodes(new ProxmoxConnection('https://pve.example.test:8006', 'panel@pve!test', 'secret', false));
+        $client->nodes($this->connection());
+
+        self::assertSame([[true, true], [false, false], [true, true]], $seen);
+    }
+
+    public function testTransportDiagnosticsClassifyTlsWithoutLeakingCredentials(): void
+    {
+        $http = new MockHttpClient(static function (): never {
+            throw new \Symfony\Component\HttpClient\Exception\TransportException('SSL certificate problem for secret-token-value');
+        });
+        $logger = $this->createMock(\Psr\Log\LoggerInterface::class);
+        $logger->expects(self::once())->method('error')->with('Proxmox API transport failure.', self::callback(static fn (array $context): bool => $context['reason'] === 'tls' && !str_contains(json_encode($context), 'secret-token-value')));
+        try { (new ProxmoxApiClient($http, $logger))->clusterResources($this->connection()); self::fail('Expected transport error'); }
+        catch (ProxmoxApiException $error) { self::assertStringContainsString('TLS verification failed', $error->getMessage()); self::assertStringNotContainsString('secret-token-value', $error->getMessage()); }
+    }
+
     public function testListsQemuAndLxcGuestsWithTokenAuthentication(): void
     {
         $requests = [];
@@ -99,6 +138,70 @@ final class ProxmoxApiClientTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         new ProxmoxConnection('http://pve.example.test:8006', 'panel@pve', 'secret');
+    }
+
+    public function testTokenCannotFollowRedirectsAndTlsAndTimeoutsAreEnforced(): void
+    {
+        $http = new MockHttpClient(static function (string $method, string $url, array $options): MockResponse {
+            self::assertTrue($options['verify_peer']);
+            self::assertTrue($options['verify_host']);
+            self::assertSame(0, $options['max_redirects']);
+            self::assertSame(20.0, $options['max_duration']);
+
+            return new MockResponse('{"data":[]}');
+        });
+        $this->client($http)->nodes($this->connection());
+    }
+
+    public function testConnectionsForDifferentClustersDoNotShareTokens(): void
+    {
+        $headers = [];
+        $http = new MockHttpClient(static function (string $method, string $url, array $options) use (&$headers): MockResponse {
+            $headers[$url] = $options['normalized_headers']['authorization'][0];
+
+            return new MockResponse('{"data":[]}');
+        });
+        $client = $this->client($http);
+        $client->nodes($this->connection());
+        $client->nodes(new ProxmoxConnection('https://second.example.test:8006', 'other@pve!panel', 'another-synthetic-token'));
+        self::assertSame('Authorization: PVEAPIToken=panel@pve!easywi=secret', $headers['https://pve.example.test:8006/api2/json/nodes']);
+        self::assertSame('Authorization: PVEAPIToken=other@pve!panel=another-synthetic-token', $headers['https://second.example.test:8006/api2/json/nodes']);
+    }
+
+    public function testMalformedListIsAControlledApiFailure(): void
+    {
+        $this->expectException(ProxmoxApiException::class);
+        $this->client(new MockHttpClient(new MockResponse('{"data":true}')))->nodes($this->connection());
+    }
+
+    public function testInvalidJsonDoesNotExposeUpstreamContentOrToken(): void
+    {
+        try {
+            $this->client(new MockHttpClient(new MockResponse('<html>private-upstream-error</html>', ['http_code' => 500])))->nodes($this->connection());
+            self::fail('Malformed response accepted.');
+        } catch (ProxmoxApiException $error) {
+            self::assertStringNotContainsString('private-upstream-error', (string) $error);
+            self::assertStringNotContainsString('PVEAPIToken', (string) $error);
+        }
+    }
+
+    public static function unsafeConnections(): array
+    {
+        return [
+            ['https://user:password@pve.example.test:8006', 'panel@pve!test', 'secret'],
+            ['https://pve.example.test/api2/json', 'panel@pve!test', 'secret'],
+            ['https://pve.example.test/?query=1', 'panel@pve!test', 'secret'],
+            ['https://pve.example.test/#fragment', 'panel@pve!test', 'secret'],
+            ['https://pve.example.test', "panel@pve!test\r\nX-Other: value", 'secret'],
+            ['https://pve.example.test', 'panel@pve!test', "secret\r\nX-Other: value"],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('unsafeConnections')]
+    public function testUnsafeOriginsOrHeadersAreRejected(string $url, string $token, string $secret): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new ProxmoxConnection($url, $token, $secret);
     }
 
     private function client(MockHttpClient $http): ProxmoxApiClient

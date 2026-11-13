@@ -13,6 +13,85 @@ use Symfony\Component\Process\Process;
 
 final class MinecraftManagedPanelTest extends AbstractWebTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        self::bootKernel();
+        self::getContainer()->get('cache.rate_limiter')->clear();
+        self::ensureKernelShutdown();
+    }
+
+    public function testAutomaticOverviewAndCatalogApiHaveNoManualSetup(): void
+    {
+        $this->seedSite();
+        self::getContainer()->get(GameTemplateSeeder::class)->seedTemplatesOnly(null, ['minecraft_vanilla_all'], true);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $version = 'automatic-'.bin2hex(random_bytes(8));
+        $entry = new MinecraftVersionCatalog('vanilla', $version, null, 'https://example.test/server.jar');
+        $em->persist($entry);
+        $em->flush();
+        $template = $em->getRepository(\App\Module\Core\Domain\Entity\Template::class)->findOneBy(['gameKey' => 'minecraft_vanilla_all']);
+        $templateId = $template->getId();
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->request('GET', '/api/v1/minecraft/catalog');
+        self::assertResponseStatusCodeSame(401);
+        $this->loginAsRole($client, 'admin');
+        $crawler = $client->request('GET', '/admin/minecraft');
+        self::assertResponseIsSuccessful();
+        self::assertCount(5, $crawler->filterXPath('//*[@data-minecraft-version-form]'));
+        self::assertCount(0, $crawler->filterXPath('//form[@method="post"] | //input[@type="file"]'));
+        self::assertStringNotContainsString('%active%', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString($version, (string) $client->getResponse()->getContent());
+        $client->request('GET', '/admin/instances/provision?template_id='.$templateId.'&minecraft_version='.$version);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('data-selected="'.$version.'"', (string) $client->getResponse()->getContent());
+        $client->request('GET', '/api/v1/minecraft/catalog');
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $client->getResponse()->getContent(), true)['data'];
+        self::assertContains($version, $data['catalog']['vanilla']['versions']);
+        self::assertArrayHasKey('bungeecord', $data['catalog']);
+        self::assertArrayHasKey('updating', $data['sync']);
+        $client->request('POST', '/admin/minecraft-versions/'.$entry->getId().'/delete');
+        self::assertResponseStatusCodeSame(303);
+        self::assertNotNull(self::getContainer()->get(EntityManagerInterface::class)->find(MinecraftVersionCatalog::class, $entry->getId()));
+    }
+
+    public function testReinstallUsesAutomaticStableVersionsForAllFiveChannels(): void
+    {
+        $this->seedSite();
+        $instance = $this->seedInstance();
+        $id = $instance->getId();
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->request('GET', '/');
+        $client->request('POST', '/login', ['email' => 'instance-customer@example.test', 'password' => 'P@ssw0rd!']);
+        foreach (['vanilla' => 'minecraft_vanilla', 'paper' => 'papermc_paper', 'spigot' => 'minecraft_spigot', 'bungeecord' => 'minecraft_bungeecord', 'bedrock' => 'minecraft_bedrock'] as $channel => $resolver) {
+            $em = self::getContainer()->get(EntityManagerInterface::class);
+            $instance = $em->find(\App\Module\Core\Domain\Entity\Instance::class, $id);
+            $instance->getTemplate()->setInstallResolver(['type' => $resolver]);
+            $version = 'reinstall-'.bin2hex(random_bytes(8));
+            $entry = new MinecraftVersionCatalog($channel, $version, null, 'https://example.test/server');
+            $entry->setMetadata(['release_type' => 'release']);
+            $preview = new MinecraftVersionCatalog($channel, $version.'-preview', null, 'https://example.test/preview');
+            $preview->setMetadata(['release_type' => 'snapshot']);
+            $em->persist($entry);
+            $em->persist($preview);
+            $em->flush();
+            $client->request('GET', '/api/v1/customer/instances/'.$id.'/reinstall/options');
+            self::assertResponseIsSuccessful();
+            $data = json_decode((string) $client->getResponse()->getContent(), true)['data'];
+            self::assertSame($channel, $data['minecraft_channel']);
+            self::assertContains($version, array_column($data['options'], 'version'));
+            self::assertNotContains($version.'-preview', array_column($data['options'], 'version'));
+        }
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $em->getConnection()->executeStatement("DELETE FROM minecraft_versions_catalog WHERE channel = 'bedrock'");
+        $client->request('GET', '/api/v1/customer/instances/'.$id.'/reinstall/options');
+        self::assertResponseIsSuccessful();
+        self::assertSame([], json_decode((string) $client->getResponse()->getContent(), true)['data']['options']);
+    }
+
     public function testManagedInstallCommandsRejectMissingArtifactsInsteadOfReportingSuccess(): void
     {
         $this->seedSite();
@@ -95,7 +174,8 @@ final class MinecraftManagedPanelTest extends AbstractWebTestCase
         self::assertStringContainsString('1.21.11', $html);
         $client->request('GET', '/admin/minecraft-versions');
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('/admin/minecraft-versions/sync', (string) $client->getResponse()->getContent());
+        self::assertStringNotContainsString('/admin/minecraft-versions/sync', (string) $client->getResponse()->getContent());
+        self::assertStringNotContainsString('type="file"', (string) $client->getResponse()->getContent());
         $client->request('POST', '/admin/minecraft-versions/sync', ['_token' => 'invalid']);
         self::assertResponseStatusCodeSame(403);
     }
@@ -162,6 +242,10 @@ final class MinecraftManagedPanelTest extends AbstractWebTestCase
         self::assertStringContainsString('BungeeCord Proxy', $html);
         self::assertStringContainsString('2104', $html);
         self::assertStringContainsString('name="locked_build_id"', $html);
+        self::assertStringContainsString('/js/minecraft-catalog.js', $html);
+        $client->request('GET', '/instances/'.$id.'/reinstall');
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('/js/minecraft-catalog.js', (string) $client->getResponse()->getContent());
     }
 
     public function testCreationReservesOnlyRequestedPortsAndPinsTheSelectedVersion(): void

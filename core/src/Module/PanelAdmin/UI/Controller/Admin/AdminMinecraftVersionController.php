@@ -4,283 +4,87 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
-use App\Module\Core\Application\MinecraftVersionImportService;
 use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Gameserver\Application\MinecraftCatalogService;
+use App\Module\Gameserver\Application\MinecraftCatalogSynchronizer;
 use App\Repository\MinecraftVersionCatalogRepository;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Contracts\Translation\TranslatorInterface;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 
-#[Route(path: '/admin/minecraft-versions')]
-final class AdminMinecraftVersionController
+#[Route('/admin/minecraft-versions')]
+final readonly class AdminMinecraftVersionController
 {
-    public function __construct(
-        private readonly MinecraftVersionCatalogRepository $repository,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly MinecraftVersionImportService $importService,
-        private readonly Environment $twig,
-        private readonly TranslatorInterface $translator,
-        private readonly \App\Module\Gameserver\Application\MinecraftCatalogSynchronizer $catalogSynchronizer,
-        private readonly \Symfony\Component\Security\Csrf\CsrfTokenManagerInterface $csrfTokens,
-    ) {
+    public function __construct(private MinecraftVersionCatalogRepository $repository, private MinecraftCatalogService $catalog, private MinecraftCatalogSynchronizer $catalogSynchronizer, private CsrfTokenManagerInterface $csrfTokens, private Environment $twig)
+    {
     }
 
-    #[Route(path: '', name: 'admin_minecraft_versions', methods: ['GET'])]
+    #[Route('', name: 'admin_minecraft_versions', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        if (!$this->isAdmin($request)) { return new Response($this->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
-        $qb = $this->repository->createQueryBuilder('v')->orderBy('v.channel', 'ASC')->addOrderBy('v.mcVersion', 'DESC')->addOrderBy('v.build', 'DESC');
-        foreach (['channel', 'source'] as $filter) {
-            $value = trim((string) $request->query->get($filter, ''));
-            if ($value !== '') { $qb->andWhere(sprintf('v.%s = :%s', $filter, $filter))->setParameter($filter, $value); }
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden', 403);
         }
-        $active = trim((string) $request->query->get('active', ''));
-        if ($active !== '') { $qb->andWhere('v.isActive = :active')->setParameter('active', $active === '1'); }
-        $preview = trim((string) $request->query->get('preview', ''));
-        if ($preview === '1') { $qb->andWhere('LOWER(v.downloadUrl) LIKE :preview')->setParameter('preview', '%preview%'); }
-        if ($preview === '0') { $qb->andWhere('LOWER(v.downloadUrl) NOT LIKE :preview')->setParameter('preview', '%preview%'); }
-        $q = trim((string) $request->query->get('q', ''));
-        if ($q !== '') { $qb->andWhere('v.mcVersion LIKE :q OR v.build LIKE :q OR v.downloadUrl LIKE :q OR v.notes LIKE :q')->setParameter('q', '%'.$q.'%'); }
+        $this->catalog->getUiCatalog();
+        $channel = (string) $request->query->get('channel', '');
+        $search = trim((string) $request->query->get('q', ''));
+        $page = max(1, $request->query->getInt('page', 1));
+        $qb = $this->repository->createQueryBuilder('v')->where('v.isActive = true');
+        if (in_array($channel, MinecraftVersionCatalog::CHANNELS, true)) {
+            $qb->andWhere('v.channel = :channel')->setParameter('channel', $channel);
+        }
+        if ('' !== $search) {
+            $qb->andWhere('v.mcVersion LIKE :q OR v.build LIKE :q')->setParameter('q', '%'.$search.'%');
+        }
+        $count = (int) (clone $qb)->select('COUNT(v.id)')->getQuery()->getSingleScalarResult();
+        $pages = max(1, (int) ceil($count / 100));
+        $page = min($page, $pages);
+        $versions = $qb->orderBy('v.channel', 'ASC')->addOrderBy('v.releasedAt', 'DESC')->addOrderBy('v.mcVersion', 'DESC')->addOrderBy('v.build', 'DESC')->setMaxResults(100)->setFirstResult(($page - 1) * 100)->getQuery()->getResult();
 
         return new Response($this->twig->render('admin/minecraft_versions/index.html.twig', [
-            'syncStatus' => $this->catalogSynchronizer->status(),
-            'syncToken' => $this->csrfTokens->getToken('minecraft-catalog-sync')->getValue(),
-            'versions' => $qb->getQuery()->getResult(),
-            'filters' => ['channel' => $request->query->get('channel', ''), 'source' => $request->query->get('source', ''), 'active' => $active, 'preview' => $preview, 'q' => $q],
-            'importResult' => $this->importResultFromQuery($request),
-            'uploadOk' => trim((string) $request->query->get('upload_ok', '')),
-            'uploadError' => trim((string) $request->query->get('upload_error', '')),
-            'activeNav' => 'minecraft_versions',
+            'versions' => $versions, 'syncStatus' => $this->catalogSynchronizer->publicStatus(),
+            'channels' => MinecraftVersionCatalog::CHANNELS, 'filters' => ['channel' => $channel, 'q' => $search],
+            'page' => $page, 'pages' => $pages, 'count' => $count, 'activeNav' => 'minecraft_versions',
         ]));
     }
 
-    #[Route(path: '/sync', name: 'admin_minecraft_versions_sync', methods: ['POST'])]
+    #[Route('/sync', name: 'admin_minecraft_versions_sync', methods: ['POST'])]
     public function synchronize(Request $request): Response
     {
-        if (!$this->isAdmin($request)) { return new Response('Forbidden', 403); }
-        if (!$this->csrfTokens->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('minecraft-catalog-sync', (string) $request->request->get('_token')))) { return new Response('Invalid CSRF token', 403); }
+        if (!$this->isAdmin($request) || !$this->csrfTokens->isTokenValid(new CsrfToken('minecraft-catalog-sync', (string) $request->request->get('_token')))) {
+            return new Response('Forbidden', 403);
+        }
         $this->catalogSynchronizer->requestRefresh();
-        return new RedirectResponse('/admin/minecraft-versions');
+        $this->catalogSynchronizer->startIfDue();
+
+        return new RedirectResponse('/admin/minecraft-versions', Response::HTTP_SEE_OTHER);
     }
 
-    #[Route(path: '/new', name: 'admin_minecraft_versions_new', methods: ['GET', 'POST'])]
-    public function new(Request $request): Response
+    // Keep bookmarks/form targets harmless while old release pages are still open.
+    #[Route('/new', name: 'admin_minecraft_versions_new', methods: ['GET', 'POST'])]
+    #[Route('/{id<\d+>}/edit', name: 'admin_minecraft_versions_edit', methods: ['GET', 'POST'])]
+    #[Route('/{id<\d+>}/toggle', name: 'admin_minecraft_versions_toggle', methods: ['POST'])]
+    #[Route('/{id<\d+>}/delete', name: 'admin_minecraft_versions_delete', methods: ['POST'])]
+    #[Route('/upload-data-file', name: 'admin_minecraft_versions_upload_data_file', methods: ['POST'])]
+    #[Route('/import', name: 'admin_minecraft_versions_import', methods: ['POST'])]
+    public function legacyManualAction(Request $request): Response
     {
-        if (!$this->isAdmin($request)) { return new Response($this->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
-        $version = new MinecraftVersionCatalog('vanilla', '', null, 'https://example.com/server.jar');
-        $version->setSource('manual');
-        if ($request->isMethod('POST')) {
-            $errors = $this->applyForm($version, $request, true);
-            if ($errors === []) {
-                $this->entityManager->persist($version);
-                $this->entityManager->flush();
-                return new RedirectResponse('/admin/minecraft-versions');
-            }
-        }
-        return new Response($this->twig->render('admin/minecraft_versions/form.html.twig', ['version' => $version, 'errors' => $errors ?? [], 'activeNav' => 'minecraft_versions']));
-    }
-
-    #[Route(path: '/{id<\d+>}/edit', name: 'admin_minecraft_versions_edit', methods: ['GET', 'POST'])]
-    public function edit(Request $request, int $id): Response
-    {
-        if (!$this->isAdmin($request)) { return new Response($this->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
-        $version = $this->repository->find($id);
-        if (!$version instanceof MinecraftVersionCatalog) { return new Response($this->trans('error_not_found'), Response::HTTP_NOT_FOUND); }
-        if ($request->isMethod('POST')) {
-            $errors = $this->applyForm($version, $request, false);
-            if ($errors === []) {
-                $this->entityManager->persist($version);
-                $this->entityManager->flush();
-                return new RedirectResponse('/admin/minecraft-versions');
-            }
-        }
-        return new Response($this->twig->render('admin/minecraft_versions/form.html.twig', ['version' => $version, 'errors' => $errors ?? [], 'activeNav' => 'minecraft_versions']));
-    }
-
-    #[Route(path: '/{id<\d+>}/toggle', name: 'admin_minecraft_versions_toggle', methods: ['POST'])]
-    public function toggle(Request $request, int $id): Response
-    {
-        if (!$this->isAdmin($request)) { return new Response($this->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
-        $version = $this->repository->find($id);
-        if ($version instanceof MinecraftVersionCatalog) { $version->setIsActive(!$version->isActive()); $this->entityManager->flush(); }
-        return new RedirectResponse('/admin/minecraft-versions');
-    }
-
-    #[Route(path: '/{id<\d+>}/delete', name: 'admin_minecraft_versions_delete', methods: ['POST'])]
-    public function delete(Request $request, int $id): Response
-    {
-        if (!$this->isAdmin($request)) { return new Response($this->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
-        $version = $this->repository->find($id);
-        if (!$version instanceof MinecraftVersionCatalog) { return new RedirectResponse('/admin/minecraft-versions'); }
-        $installed = $this->countInstalled($version);
-        if ($installed > 0) {
-            return new Response($this->trans('admin_minecraft_versions_delete_blocked', ['%count%' => (string) $installed]), Response::HTTP_CONFLICT);
-        }
-        $this->entityManager->remove($version);
-        $this->entityManager->flush();
-        return new RedirectResponse('/admin/minecraft-versions');
-    }
-
-    #[Route(path: '/upload-data-file', name: 'admin_minecraft_versions_upload_data_file', methods: ['POST'])]
-    public function uploadDataFile(Request $request): Response
-    {
-        if (!$this->isAdmin($request)) { return new Response($this->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
-
-        $channel = trim((string) $request->request->get('channel', ''));
-        if (!in_array($channel, MinecraftVersionImportService::CHANNELS, true)) {
-            return new RedirectResponse('/admin/minecraft-versions?upload_error='.urlencode($this->trans('admin_minecraft_versions_upload_invalid_channel')));
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden', 403);
         }
 
-        $file = $request->files->get('data_file');
-        if (!$file instanceof UploadedFile || !$file->isValid()) {
-            return new RedirectResponse('/admin/minecraft-versions?upload_error='.urlencode($this->trans('admin_minecraft_versions_upload_no_file')));
-        }
-
-        $content = file_get_contents($file->getPathname());
-        if ($content === false || $content === '') {
-            return new RedirectResponse('/admin/minecraft-versions?upload_error='.urlencode($this->trans('admin_minecraft_versions_upload_empty_file')));
-        }
-
-        try {
-            $this->importService->replaceDataFile($channel, $content);
-        } catch (\RuntimeException $e) {
-            return new RedirectResponse('/admin/minecraft-versions?upload_error='.urlencode($e->getMessage()));
-        }
-
-        return new RedirectResponse('/admin/minecraft-versions?upload_ok='.urlencode($channel));
-    }
-
-    #[Route(path: '/import', name: 'admin_minecraft_versions_import', methods: ['POST'])]
-    public function import(Request $request): Response
-    {
-        if (!$this->isAdmin($request)) { return new Response($this->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
-        $channel = trim((string) $request->request->get('channel', 'all'));
-        $channels = $channel === 'all' ? MinecraftVersionImportService::CHANNELS : [$channel];
-        if ($channel !== 'all' && !in_array($channel, MinecraftVersionImportService::CHANNELS, true)) {
-            $summary = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'deactivated' => 0, 'errors' => [$this->trans('admin_minecraft_versions_import_invalid_channel')], 'dryRun' => false];
-        } else {
-            $summary = $this->importService->import($channels, false, (bool) $request->request->get('force'), (bool) $request->request->get('deactivate_missing'));
-        }
-        return new RedirectResponse('/admin/minecraft-versions?'.$this->buildImportResultQuery($summary));
-    }
-
-    private function applyForm(MinecraftVersionCatalog $version, Request $request, bool $create): array
-    {
-        $channel = trim((string) $request->request->get('channel', ''));
-        $mcVersion = trim((string) $request->request->get('mc_version', ''));
-        $build = trim((string) $request->request->get('build', ''));
-        $downloadUrl = trim((string) $request->request->get('download_url', ''));
-        $javaVersion = trim((string) $request->request->get('java_version', ''));
-        $source = trim((string) $request->request->get('source', 'manual')) ?: 'manual';
-        $errors = [];
-        if (!in_array($channel, MinecraftVersionCatalog::CHANNELS, true)) { $errors[] = $this->trans('admin_minecraft_versions_error_channel'); }
-        if ($mcVersion === '') { $errors[] = $this->trans('admin_minecraft_versions_error_mc_version_required'); }
-        if ($downloadUrl === '' || !filter_var($downloadUrl, FILTER_VALIDATE_URL)) { $errors[] = $this->trans('admin_minecraft_versions_error_download_url'); }
-        if ($channel === 'paper' && $build === '') { $errors[] = $this->trans('admin_minecraft_versions_error_paper_build'); }
-        if ($channel !== 'paper' && $build !== '') { $errors[] = $this->trans('admin_minecraft_versions_error_build_not_allowed'); }
-        if ($channel === 'bedrock' && $javaVersion !== '') { $errors[] = $this->trans('admin_minecraft_versions_error_bedrock_java'); }
-        if ($channel === 'bedrock' && !$this->isZipUrl($downloadUrl)) { $errors[] = $this->trans('admin_minecraft_versions_error_bedrock_zip'); }
-        if ($channel === 'bedrock' && !$this->isUnzipAvailable()) { $errors[] = $this->trans('admin_minecraft_versions_error_unzip_missing'); }
-        if ($javaVersion !== '' && !in_array($javaVersion, MinecraftVersionCatalog::JAVA_VERSIONS, true)) { $errors[] = $this->trans('admin_minecraft_versions_error_java_version'); }
-        if ($channel === 'bedrock') { $javaVersion = ''; }
-        if ($channel !== 'paper') { $build = ''; }
-        if (!in_array($source, MinecraftVersionCatalog::SOURCES, true)) { $source = 'manual'; }
-        $existing = $this->repository->findOneBy(['channel' => $channel, 'mcVersion' => $mcVersion, 'build' => $build !== '' ? $build : null]);
-        if ($existing instanceof MinecraftVersionCatalog && ($create || $existing->getId() !== $version->getId())) { $errors[] = $this->trans('admin_minecraft_versions_error_unique'); }
-        if ($errors !== []) { return $errors; }
-        $version->setChannel($channel);
-        $version->setMcVersion($mcVersion);
-        $version->setBuild($build !== '' ? $build : null);
-        $version->setDownloadUrl($downloadUrl);
-        $version->setJavaVersion($javaVersion !== '' ? $javaVersion : null);
-        $version->setSource($source);
-        $version->setIsActive((bool) $request->request->get('is_active'));
-        $version->setNotes(trim((string) $request->request->get('notes', '')) ?: null);
-        return [];
-    }
-
-    private function countInstalled(MinecraftVersionCatalog $version): int
-    {
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('COUNT(i.id)')
-            ->from(\App\Module\Core\Domain\Entity\Instance::class, 'i')
-            ->where('i.installedChannel = :channel')
-            ->andWhere('i.installedVersion = :version')
-            ->setParameter('channel', $version->getChannel())
-            ->setParameter('version', $version->getMcVersion());
-        if ($version->getBuild() === null) { $qb->andWhere('i.installedBuildId IS NULL'); } else { $qb->andWhere('i.installedBuildId = :build')->setParameter('build', $version->getBuild()); }
-        return (int) $qb->getQuery()->getSingleScalarResult();
-    }
-
-
-    /**
-     * @param array{created:int,updated:int,skipped:int,deactivated:int,errors:array<int,string>,dryRun:bool} $summary
-     */
-    private function buildImportResultQuery(array $summary): string
-    {
-        return http_build_query([
-            'import_created' => $summary['created'],
-            'import_updated' => $summary['updated'],
-            'import_skipped' => $summary['skipped'],
-            'import_deactivated' => $summary['deactivated'],
-            'import_errors' => count($summary['errors']),
-            'import_error_messages' => $summary['errors'] !== [] ? implode("\n", $summary['errors']) : null,
-        ]);
-    }
-
-    /** @return array{created:int,updated:int,skipped:int,deactivated:int,errors:int,errorMessages:array<int,string>}|null */
-    private function importResultFromQuery(Request $request): ?array
-    {
-        if (!$request->query->has('import_created')) {
-            return null;
-        }
-
-        $messages = trim((string) $request->query->get('import_error_messages', ''));
-
-        return [
-            'created' => max(0, (int) $request->query->get('import_created', 0)),
-            'updated' => max(0, (int) $request->query->get('import_updated', 0)),
-            'skipped' => max(0, (int) $request->query->get('import_skipped', 0)),
-            'deactivated' => max(0, (int) $request->query->get('import_deactivated', 0)),
-            'errors' => max(0, (int) $request->query->get('import_errors', 0)),
-            'errorMessages' => $messages !== '' ? preg_split('/\R/', $messages) ?: [] : [],
-        ];
-    }
-
-    private function isZipUrl(string $url): bool
-    {
-        $path = strtolower((string) (parse_url($url, PHP_URL_PATH) ?: ''));
-        return str_ends_with($path, '.zip');
-    }
-
-    private function isUnzipAvailable(): bool
-    {
-        foreach (explode(PATH_SEPARATOR, (string) getenv('PATH')) as $directory) {
-            $candidate = rtrim($directory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'unzip';
-            if (is_file($candidate) && is_executable($candidate)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-
-    /** @param array<string, string> $parameters */
-    private function trans(string $key, array $parameters = []): string
-    {
-        return $this->translator->trans($key, $parameters, 'portal');
+        return new RedirectResponse('/admin/minecraft-versions', Response::HTTP_SEE_OTHER);
     }
 
     private function isAdmin(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
+
         return $actor instanceof User && $actor->isAdmin();
     }
 }

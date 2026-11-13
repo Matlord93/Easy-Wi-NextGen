@@ -7,7 +7,6 @@ namespace App\Module\Core\Application;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
-use Psr\Cache\CacheItemPoolInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
@@ -15,7 +14,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 final class AgentSignatureVerifier
 {
     public function __construct(
-        private readonly CacheItemPoolInterface $cache,
+        private readonly AgentNonceStore $nonces,
         private readonly LoggerInterface $logger,
         private readonly int $maxSkewSeconds,
         private readonly int $nonceTtlSeconds,
@@ -57,49 +56,29 @@ final class AgentSignatureVerifier
         $path = $paths[0];
 
         $expected = null;
+        $normalizedExpected = null;
+        $matched = false;
+        $normalizedTimestamp = $parsedTimestamp->setTimezone(new DateTimeZone('UTC'))->format(DateTimeInterface::RFC3339);
         foreach ($paths as $candidatePath) {
             $payload = self::buildSignaturePayload($agentId, $method, $candidatePath, $timestamp, $nonce, $body);
             $candidateExpected = hash_hmac('sha256', $payload, $secret);
+            $expected ??= $candidateExpected;
             if (hash_equals($candidateExpected, $signature)) {
-                $expected = $candidateExpected;
-                $path = $candidatePath;
+                $matched = true;
                 break;
             }
-
-            if ($expected === null) {
-                $expected = $candidateExpected;
-            }
-        }
-
-        if ($expected === null) {
-            throw new UnauthorizedHttpException('hmac', 'invalid_signature');
-        }
-
-        if (!hash_equals($expected, $signature)) {
-            $normalizedTimestamp = $parsedTimestamp
-                ->setTimezone(new DateTimeZone('UTC'))
-                ->format(DateTimeInterface::RFC3339);
-            $normalizedExpected = null;
             if ($normalizedTimestamp !== $timestamp) {
-                foreach ($paths as $candidatePath) {
-                    $normalizedPayload = self::buildSignaturePayload(
-                        $agentId,
-                        $method,
-                        $candidatePath,
-                        $normalizedTimestamp,
-                        $nonce,
-                        $body,
-                    );
-                    $candidateNormalizedExpected = hash_hmac('sha256', $normalizedPayload, $secret);
-                    if (hash_equals($candidateNormalizedExpected, $signature)) {
-                        return;
-                    }
-                    if ($normalizedExpected === null) {
-                        $normalizedExpected = $candidateNormalizedExpected;
-                    }
+                $normalizedPayload = self::buildSignaturePayload($agentId, $method, $candidatePath, $normalizedTimestamp, $nonce, $body);
+                $candidateNormalizedExpected = hash_hmac('sha256', $normalizedPayload, $secret);
+                $normalizedExpected ??= $candidateNormalizedExpected;
+                if (hash_equals($candidateNormalizedExpected, $signature)) {
+                    $matched = true;
+                    break;
                 }
             }
+        }
 
+        if (!$matched) {
             $bodyHash = hash('sha256', $body);
             $this->logger->warning('Agent signature mismatch.', [
                 'reason' => 'invalid_signature',
@@ -117,14 +96,13 @@ final class AgentSignatureVerifier
             throw new UnauthorizedHttpException('hmac', 'invalid_signature');
         }
 
-        $nonceKey = sprintf('agent_nonce.%s.%s', $agentId, $nonce);
-        $nonceItem = $this->cache->getItem($nonceKey);
-        if ($nonceItem->isHit()) {
+        // A future-dated signature stays valid for almost twice the skew window.
+        // Both signature paths must consume the same nonce until that window ends.
+        $expiresAt = max($now->getTimestamp() + max(1, $this->nonceTtlSeconds), $parsedTimestamp->getTimestamp() + $this->maxSkewSeconds + 1);
+        if (!$this->nonces->consume($agentId, $nonce, $expiresAt)) {
             throw new UnauthorizedHttpException('hmac', 'nonce_reuse');
         }
-        $nonceItem->set(true);
-        $nonceItem->expiresAfter($this->nonceTtlSeconds);
-        $this->cache->save($nonceItem);
+
     }
 
     public static function buildSignaturePayload(

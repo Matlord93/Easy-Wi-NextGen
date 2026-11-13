@@ -1352,6 +1352,7 @@ final class AdminNodeController
                 'agent' => [
                     'base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : null,
                     'token_configured' => $agentTokenConfigured,
+                    'sftp_host_fingerprint' => $node->getSftpHostFingerprint(),
                     'job_concurrency' => $node->getJobConcurrency(),
                     'instance_base_dirs' => $instanceBaseDirs,
                 ],

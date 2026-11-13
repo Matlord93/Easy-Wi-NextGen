@@ -6,11 +6,7 @@
 {% set customerInitial = customerName|slice(0, 1)|upper %}
 {% set pageTitle = '' %}
 {% set pageSubtitle = '' %}
-{% set topbarActions = [{
-    label: t('customer_dashboard_action_order', page_locale()),
-    href: '/shop',
-    variant: 'primary'
-}] %}
+{% set topbarActions = [] %}
 
 {% block content %}
 {% set storagePercent = resourceUsage.disk %}
@@ -23,7 +19,7 @@
 {% set nextPaymentAmount = nextPayment ? (nextPayment.amount_due / 100)|number_format(2, ',', '.') ~ ' ' ~ nextPayment.currency : '—' %}
 {% set ticketPercent = summary.tickets_total > 0 ? ((summary.tickets_open / summary.tickets_total) * 100)|round(0, 'common') : 0 %}
 
-<div class="cust-page">
+<div class="cust-page infra-page infra-dashboard">
 
     {# ── Hero ── #}
     <div class="cust-hero">
@@ -80,6 +76,10 @@
         </div>
     </div>
 
+    <nav class="infra-grid infra-grid--two" aria-label="{{ 'infra.infrastructure'|trans({}, 'infrastructure') }}">
+      <a class="infra-card infra-panel-link" href="{{ path('customer_proxmox') }}"><div class="infra-eyebrow">Proxmox</div><h2>{{ 'pve.my_guests'|trans({}, 'proxmox') }}</h2><p class="infra-muted">{{ 'infra.customer_hint'|trans({}, 'infrastructure') }}</p></a>
+      <a class="infra-card infra-panel-link" href="{{ path('customer_kvm') }}"><div class="infra-eyebrow">KVM</div><h2>{{ 'console.my_kvm'|trans({}, 'vm_console') }}</h2><p class="infra-muted">{{ 'infra.customer_hint'|trans({}, 'infrastructure') }}</p></a>
+    </nav>
     {% if panelNews is not empty %}
     <div class="cust-panel">
         <div class="cust-panel__head">
@@ -130,7 +130,7 @@
                             {% set isOnline = instance.status in ['running', 'online'] %}
                             {% set isOff    = instance.status in ['stopped', 'offline'] %}
                             {% set dotClass = isOnline ? 'success' : (isOff ? 'danger' : 'warning') %}
-                            {% set cpuPct   = instance.cpu_percent ?? 0 %}
+                            {% set cpuPct = instance.cpu_percent %}
                             {% set cpuFill  = cpuPct > 80 ? 'danger' : (cpuPct > 60 ? 'warning' : '') %}
                             <article class="cust-server-card">
                                 <div class="cust-server-card__head">
@@ -144,17 +144,17 @@
                                     <div class="cust-server-card__res-item">
                                         <span class="cust-server-card__res-label">CPU</span>
                                         <span class="cust-server-card__res-value">{{ instance.cpu_percent is not null ? instance.cpu_percent|number_format(1) ~ '%' : '—' }}</span>
-                                        <div class="cust-server-card__res-bar"><div class="cust-server-card__res-fill cust-server-card__res-fill--{{ cpuFill }}" style="width:{{ cpuPct }}%"></div></div>
+                                        <div class="cust-server-card__res-bar"><div class="cust-server-card__res-fill cust-server-card__res-fill--{{ cpuFill }}" style="width:{{ min(100, max(0, cpuPct|default(0))) }}%"></div></div>
                                     </div>
                                     <div class="cust-server-card__res-item">
                                         <span class="cust-server-card__res-label">RAM</span>
                                         <span class="cust-server-card__res-value">{% if instance.mem_used_bytes is not null %}{{ (instance.mem_used_bytes / 1024 / 1024)|number_format(0) }}{% else %}—{% endif %} MiB</span>
-                                        <div class="cust-server-card__res-bar"><div class="cust-server-card__res-fill" style="width:0%"></div></div>
+                                        {% if instance.mem_used_bytes is not null and instance.booked_ram_bytes > 0 %}<meter min="0" max="100" value="{{ min(100, max(0, instance.mem_used_bytes / instance.booked_ram_bytes * 100)) }}" aria-label="RAM"></meter>{% endif %}
                                     </div>
                                     <div class="cust-server-card__res-item">
                                         <span class="cust-server-card__res-label">Ping</span>
                                         <span class="cust-server-card__res-value">{{ instance.latency_ms is not null ? instance.latency_ms ~ ' ms' : '—' }}</span>
-                                        <div class="cust-server-card__res-bar"><div class="cust-server-card__res-fill" style="width:0%"></div></div>
+
                                     </div>
                                 </div>
                                 <div class="cust-server-card__actions">

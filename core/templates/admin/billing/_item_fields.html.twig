@@ -1,0 +1,7 @@
+<div class="billing-item" data-item-row>
+ <label class="form-label billing-item__description">{{ 'billing.description'|trans({}, 'billing') }}<textarea class="form-input" rows="2" name="items[{{ index }}][description]" data-item-field="description" maxlength="2000" required>{{ row.description }}</textarea></label>
+ <label class="form-label">{{ 'billing.quantity'|trans({}, 'billing') }}<input class="form-input" name="items[{{ index }}][quantity]" data-item-field="quantity" value="{{ row.quantity }}" inputmode="decimal" maxlength="10" required></label>
+ <label class="form-label">{{ 'billing.unit_price'|trans({}, 'billing') }}<input class="form-input" name="items[{{ index }}][unit_price]" data-item-field="unit_price" value="{{ row.unit_price }}" inputmode="decimal" maxlength="12" required></label>
+ <label class="form-label">{{ 'billing.tax_rate'|trans({}, 'billing') }}<input class="form-input" name="items[{{ index }}][tax_rate]" data-item-field="tax_rate" value="{{ row.tax_rate }}" inputmode="decimal" maxlength="6" required></label>
+ <div class="billing-item__actions"><strong data-item-total>—</strong><button type="button" class="ui-button ui-button--ghost" data-item-up aria-label="{{ 'billing.move_up'|trans({}, 'billing') }}">↑</button><button type="button" class="ui-button ui-button--ghost" data-item-down aria-label="{{ 'billing.move_down'|trans({}, 'billing') }}">↓</button><button type="button" class="ui-button ui-button--ghost" data-item-remove>{{ 'billing.remove_item'|trans({}, 'billing') }}</button></div>
+</div>

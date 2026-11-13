@@ -1,0 +1,7 @@
+{% macro start(node, operationId, action, vmId = '') %}
+<form method="post" action="{{ path('admin_kvm_action', {id: node.id}) }}" class="kvm-form">
+<input type="hidden" name="_token" value="{{ csrf_token('kvm-' ~ node.id) }}">
+<input type="hidden" name="operation_id" value="{{ operationId }}">
+<input type="hidden" name="action" value="{{ action }}">
+{% if vmId %}<input type="hidden" name="vm_id" value="{{ vmId }}">{% endif %}
+{% endmacro %}

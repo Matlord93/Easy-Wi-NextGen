@@ -6,7 +6,7 @@
             <div>
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                     <div style="width:32px;height:32px;border-radius:10px;background:rgba(56,189,248,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                        <svg style="width:16px;height:16px;color:#7dd3fc;" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm1 8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H2zm.5-2a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0-5a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0 8a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm3 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm0-5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm0 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/></svg>
+                        <svg style="width:16px;height:16px;color:var(--aw-status-info, #7dd3fc);" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm1 8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H2zm.5-2a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0-5a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0 8a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm3 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm0-5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm0 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/></svg>
                     </div>
                     <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--ng-text);">{{ t('admin_updates_agents_title', page_locale()) }}</h2>
                 </div>
@@ -16,12 +16,12 @@
             {# Status badge #}
             <div>
                 {% if agentUpdate.updates > 0 %}
-                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(251,191,36,0.12);color:var(--aw-status-warning, #fbbf24);border:1px solid rgba(251,191,36,0.3);">
                         <span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;animation:pulse 2s infinite;"></span>
                         {{ agentUpdate.updates }} {{ t('admin_nodes_updates_label', page_locale()) }}
                     </span>
                 {% else %}
-                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.25);">
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(34,197,94,0.1);color:var(--aw-status-success, #4ade80);border:1px solid rgba(34,197,94,0.25);">
                         <svg style="width:11px;height:11px;" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
                         {{ t('admin_dashboard_core_update_up_to_date', page_locale()) }}
                     </span>
@@ -63,11 +63,11 @@
                     >
                     <span style="font-size:13px;font-weight:600;color:var(--ng-text);">{{ label }}</span>
                     {% if value == 'stable' %}
-                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);">{{ t('update_channel_stable', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,0.12);color:var(--aw-status-success, #4ade80);border:1px solid rgba(34,197,94,0.25);">{{ t('update_channel_stable', page_locale()) }}</span>
                     {% elseif value == 'beta' %}
-                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(245,158,11,0.12);color:#fcd34d;border:1px solid rgba(245,158,11,0.25);">{{ t('update_channel_beta', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(245,158,11,0.12);color:var(--aw-status-warning, #fcd34d);border:1px solid rgba(245,158,11,0.25);">{{ t('update_channel_beta', page_locale()) }}</span>
                     {% elseif value == 'dev' %}
-                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(56,189,248,0.12);color:#7dd3fc;border:1px solid rgba(56,189,248,0.25);">{{ t('update_channel_dev', page_locale()) }}</span>
+                        <span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(56,189,248,0.12);color:var(--aw-status-info, #7dd3fc);border:1px solid rgba(56,189,248,0.25);">{{ t('update_channel_dev', page_locale()) }}</span>
                     {% endif %}
                 </label>
             {% endfor %}
@@ -87,12 +87,12 @@
 
     {# ── Notices ── #}
     {% if agentUpdate.notice %}
-        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);font-size:13px;color:#4ade80;">
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);font-size:13px;color:var(--aw-status-success, #4ade80);">
             {{ agentUpdate.notice }}
         </div>
     {% endif %}
     {% if agentUpdate.error %}
-        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);font-size:13px;color:#fcd34d;">
+        <div style="margin:10px 24px 0;padding:12px 14px;border-radius:var(--ng-radius);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);font-size:13px;color:var(--aw-status-warning, #fcd34d);">
             {{ agentUpdate.error }}
         </div>
     {% endif %}
@@ -131,11 +131,11 @@
                 {{ t('admin_updates_cache_next_check', page_locale()) }}: <strong style="color:var(--ng-text);">{{ agentUpdate.cacheStatus.expires_at|date('Y-m-d H:i:s') }}</strong>.
             {% endif %}
             {% if agentUpdate.cacheStatus.rate_limit_reset is defined and agentUpdate.cacheStatus.rate_limit_reset %}
-                <span style="color:#fcd34d;">{{ t('admin_updates_cache_rate_limit', page_locale()) }} {{ agentUpdate.cacheStatus.rate_limit_reset|date('Y-m-d H:i:s') }}.</span>
+                <span style="color:var(--aw-status-warning, #fcd34d);">{{ t('admin_updates_cache_rate_limit', page_locale()) }} {{ agentUpdate.cacheStatus.rate_limit_reset|date('Y-m-d H:i:s') }}.</span>
             {% elseif agentUpdate.cacheStatus.last_error is defined and agentUpdate.cacheStatus.last_error and agentUpdate.cacheStatus.has_cache is defined and agentUpdate.cacheStatus.has_cache %}
-                <span style="color:#fcd34d;">{{ t('admin_updates_cache_stale', page_locale()) }}</span>
+                <span style="color:var(--aw-status-warning, #fcd34d);">{{ t('admin_updates_cache_stale', page_locale()) }}</span>
             {% elseif agentUpdate.cacheStatus.last_error is defined and agentUpdate.cacheStatus.last_error %}
-                <span style="color:#f87171;">{{ t('admin_updates_cache_unavailable', page_locale()) }}</span>
+                <span style="color:var(--aw-status-danger, #f87171);">{{ t('admin_updates_cache_unavailable', page_locale()) }}</span>
             {% endif %}
         </div>
     {% endif %}

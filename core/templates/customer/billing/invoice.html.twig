@@ -1,0 +1,31 @@
+{% extends 'customer/base.html.twig' %}
+{% block content %}
+<section class="ng-data-card">
+  <div class="ng-data-card__header"><h1>{{ 'billing.invoice'|trans({}, 'billing') }} {{ invoice.number }}</h1></div>
+  <div class="ng-data-card__body">
+    {% if manual_payment %}
+      <div class="ng-alert">
+        <p>{{ 'billing.manual_payment_hint'|trans({}, 'billing') }}</p>
+        <p>{{ invoice.details.company.footer|default('')|nl2br }}</p>
+        <p>{{ 'billing.reference'|trans({}, 'billing') }}: {{ invoice.number }}</p>
+      </div>
+    {% endif %}
+    {% include 'billing/_items.html.twig' %}
+    <p>{{ 'billing.total'|trans({}, 'billing') }}: {{ (invoice.amount_total / 100)|number_format(2, '.', ',') }} {{ invoice.currency }}</p>
+    {% for group in invoice.details.tax_breakdown|default([{tax_rate_bps:invoice.details.tax_rate_bps|default(0), tax_cents:invoice.details.tax_cents|default(0)}]) %}<p>{{ 'billing.tax'|trans({}, 'billing') }} ({{ (group.tax_rate_bps / 100)|number_format(2) }}%): {{ (group.tax_cents / 100)|number_format(2) }} {{ invoice.currency }}</p>{% endfor %}
+    <p>{{ 'billing.outstanding'|trans({}, 'billing') }}: {{ (invoice.amount_due / 100)|number_format(2, '.', ',') }} {{ invoice.currency }}</p>
+    <p>{{ 'billing.due_date'|trans({}, 'billing') }}: {{ invoice.due_date|date('Y-m-d') }} · {{ ('billing.state.' ~ invoice.status)|trans({}, 'billing') }}</p>
+    {% if invoice.cancellation_reason %}<p>{{ 'billing.cancelled'|trans({}, 'billing') }}: {{ invoice.cancellation_reason }}</p>{% endif %}
+    <a class="ui-button ui-button--primary" href="{{ path('customer_billing_invoice_pdf', {id: invoice.id}) }}">{{ 'billing.download_pdf'|trans({}, 'billing') }}</a>
+    <a class="ui-button ui-button--ghost" href="{{ path('customer_billing_electronic', {id: invoice.id}) }}">{{ 'billing.einvoice'|trans({}, 'billing') }}</a>
+    <a class="ui-button ui-button--ghost" href="{{ path('customer_billing') }}">{{ 'billing.back'|trans({}, 'billing') }}</a>
+    {% if invoice.status in ['open', 'past_due'] and invoice.amount_due > 0 %}
+    <form method="post" action="{{ path('customer_invoice_pay', {id: invoice.id}) }}" style="margin-top:15px;">
+      <input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
+      <button class="ui-button ui-button--primary">{{ 'billing.pay'|trans({}, 'billing') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% include 'billing/_history.html.twig' %}
+{% endblock %}

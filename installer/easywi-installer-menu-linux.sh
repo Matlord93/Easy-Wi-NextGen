@@ -804,6 +804,74 @@ ensure_git_safe_dir() {
 }
 
 # ---------------------------------------------------------------------------
+# Hardened image preflight
+# ---------------------------------------------------------------------------
+
+mount_options_for_path() {
+  local path="$1"
+  command -v findmnt >/dev/null 2>&1 || return 1
+  findmnt -T "${path}" -n -o OPTIONS 2>/dev/null | head -n1
+}
+
+check_path_policy() {
+  local path="$1" purpose="$2" require_exec="${3:-false}" options=""
+  [[ -e "${path}" ]] || fatal "${purpose} fehlt: ${path}"
+  options="$(mount_options_for_path "${path}" || true)"
+  if [[ "${require_exec}" == "true" && ",${options}," == *,noexec,* ]]; then
+    fatal "${purpose} liegt auf einem mit noexec eingehängten Dateisystem: ${path}. Mount-Optionen: ${options}. Verschiebe die Datei auf einen ausführbaren Pfad oder passe die Mount-Richtlinie gezielt an."
+  fi
+  if [[ "${require_exec}" == "true" && -f "${path}" && ! -x "${path}" ]]; then
+    fatal "${purpose} ist nicht ausführbar: ${path} (Abhilfe: Eigentümer und Ausführungsbit prüfen)."
+  fi
+  if [[ "${require_exec}" != "true" && ! -w "${path}" ]]; then
+    fatal "${purpose} ist für den Installer nicht beschreibbar: ${path}. Eigentümer, ACLs und systemd/AppArmor/SELinux-Richtlinien prüfen."
+  fi
+  ok "Pfadprüfung ${purpose}: ${path}${options:+ (Mount: ${options})}"
+}
+
+security_policy_hint() {
+  log "Security-Diagnose: aa-status; getenforce/sestatus; journalctl -k | grep -Ei 'apparmor|denied|audit'. Richtlinien nicht pauschal deaktivieren, sondern den gemeldeten Pfad/Prozess gezielt freigeben."
+}
+
+diagnose_agent_start_failure() {
+  log "easywi-agent konnte nicht gestartet werden. systemd-Status und letzte Journal-Einträge:"
+  systemctl status easywi-agent.service --no-pager -l 2>&1 | tail -n 80 | sed "s/^/${INSTALLER_NAME}   | /" >&2 || true
+  journalctl -u easywi-agent.service -n 200 --no-pager 2>&1 | tail -n 200 | sed "s/^/${INSTALLER_NAME}   | /" >&2 || true
+  systemctl cat easywi-agent.service 2>&1 | sed "s/^/${INSTALLER_NAME}   | /" >&2 || true
+  security_policy_hint
+}
+
+preflight_agent_runtime() {
+  local working_dir="${1:-/var/lib/easywi-agent}"
+  check_path_policy /usr/local/bin/easywi-agent "Agent-Binary" true
+  [[ -r /etc/easywi/agent.conf ]] || fatal "Agent-Konfiguration fehlt oder ist nicht lesbar: /etc/easywi/agent.conf"
+  mkdir -p "${working_dir}"
+  check_path_policy "${working_dir}" "Agent-Arbeitsverzeichnis" false
+  if has_systemctl && command -v systemd-analyze >/dev/null 2>&1; then
+    systemd-analyze verify /etc/systemd/system/easywi-agent.service >>"${LOG_FILE}" 2>&1 \
+      || fatal "systemd-Unit easywi-agent.service ist ungültig; Details: ${LOG_FILE}"
+  fi
+}
+
+preflight_panel_update_paths() {
+  local install_dir="$1" core_dir="$2" web_user="${3:-}"
+  check_path_policy "${install_dir}" "Panel-/Update-Verzeichnis" false
+  check_path_policy "${core_dir}" "Panel-Core-Verzeichnis" false
+  if [[ -n "${web_user}" ]] && id "${web_user}" >/dev/null 2>&1; then
+    runuser -u "${web_user}" -- test -w "${core_dir}" \
+      || record_warn "Panel-Core ist für PHP/Webserver-User ${web_user} nicht direkt beschreibbar: ${core_dir}. Das ist bei privilegiertem Update-Runner zulässig; andernfalls Eigentümer/Gruppe/ACL korrigieren."
+  fi
+  if [[ -d "${install_dir}/.git" ]]; then
+    local owner
+    owner="$(stat -c '%U:%G' "${install_dir}" 2>/dev/null || echo unbekannt)"
+    ensure_git_safe_dir "${install_dir}"
+    git -C "${install_dir}" status --porcelain=v1 >>"${LOG_FILE}" 2>&1 \
+      || fatal "Git-Status fehlgeschlagen (Repository-Owner: ${owner}). Prüfe Eigentümer und git safe.directory für ${install_dir}."
+    ok "Git-Repository geprüft (Owner ${owner}, safe.directory gesetzt)."
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Composer
 # ---------------------------------------------------------------------------
 
@@ -937,6 +1005,14 @@ server {
     }
 }
 NGINX
+
+  # Reuse the panel reverse proxy for event-driven agent consoles; no relay daemon.
+  local console_setup="${web_root%/public}/tools/console/configure-live-console.py"
+  if [[ -f "${console_setup}" ]]; then
+    python3 "${console_setup}" --core "${web_root%/public}" --vhost "${config_file}" --php-fpm "${php_fpm_socket}"
+  else
+    warn "Live-Konsole: Konfigurationsskript fehlt im Release (${console_setup})."
+  fi
 
   # Debian/Ubuntu use symlinks
   if [[ "${family}" == "debian" && "${conf_dir}" != "${enabled_dir}" ]]; then
@@ -1712,15 +1788,18 @@ write_panel_console_relay_service() {
   if has_systemctl; then
     cat > /etc/systemd/system/easywi-console-relay.service <<UNIT
 [Unit]
-Description=EasyWI console relay worker
+Description=EasyWI legacy console relay (optional)
 After=network.target redis.service
 
 [Service]
 Type=simple
 WorkingDirectory=${core_dir}
-ExecStart=${php_bin} ${core_dir}/bin/console app:console:relay --env=prod
+ExecStart=${php_bin} ${core_dir}/bin/console app:console:relay --env=prod --no-debug --time-limit=3600 --memory-limit=96
 Restart=always
-RestartSec=2
+RestartSec=5
+RuntimeMaxSec=3660
+MemoryHigh=128M
+MemoryMax=192M
 User=${system_user}
 Group=${web_group}
 Environment=LANG=C.UTF-8
@@ -1904,6 +1983,9 @@ RestartSec=5
 LimitNOFILE=1048576
 RuntimeDirectory=easywi-agent
 RuntimeDirectoryMode=0755
+WorkingDirectory=${instance_base_dir}
+UMask=0027
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
@@ -2842,7 +2924,7 @@ build_sig_payload() {
 }
 
 register_agent_with_core() {
-  local core_url="$1" bootstrap_token="$2" version="$3" name="$4" hostname="$5" state_file="$6"
+  local core_url="$1" bootstrap_token="$2" version="$3" name="$4" hostname="$5" state_file="$6" service_url="${7:-}"
   [[ -z "${hostname}" ]] && hostname="$(hostname -f 2>/dev/null || hostname)"
 
   local payload; payload="$(jq -n \
@@ -2876,15 +2958,16 @@ register_agent_with_core() {
   fi
 
   local agent_secret
-  agent_secret="$(complete_agent_registration "${reg_url}" "${reg_token}" "${agent_id}" "${name}")"
+  agent_secret="$(complete_agent_registration "${reg_url}" "${reg_token}" "${agent_id}" "${name}" "${service_url}")"
   printf '%s|%s' "${agent_id}" "${agent_secret}"
 }
 
 complete_agent_registration() {
-  local reg_url="$1" reg_token="$2" agent_id="$3" agent_name="$4"
+  local reg_url="$1" reg_token="$2" agent_id="$3" agent_name="$4" service_url="${5:-}"
   local payload; payload="$(jq -n \
     --arg a "${agent_id}" --arg t "${reg_token}" --arg n "${agent_name}" \
-    '{agent_id:$a,register_token:$t,name:$n}')"
+    --arg s "${service_url}" \
+    '{agent_id:$a,register_token:$t,name:$n,service_base_url:$s}')"
 
   local ts nonce path sig
   ts="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
@@ -2917,13 +3000,14 @@ write_agent_conf() {
 
   mapfile -t bdc < <(build_agent_base_dir_config "${file_base_dir}")
   local primary="${bdc[0]}" all_dirs="${bdc[1]}"
+  local service_listen="${10:-127.0.0.1:7456}"
 
   mkdir -p /etc/easywi
   cat > /etc/easywi/agent.conf <<CONF
 agent_id=${agent_id}
 secret=${secret}
 api_url=${api_url}
-service_listen=0.0.0.0:7456
+service_listen=${service_listen}
 poll_interval=${poll_interval_seconds}s
 heartbeat_interval=${heartbeat_interval_seconds}s
 request_timeout=${request_timeout_seconds}s
@@ -2944,7 +3028,7 @@ write_agent_conf_placeholder() {
 # agent_id=<ID>
 # secret=<SECRET>
 # api_url=https://panel.example.com
-# service_listen=0.0.0.0:7456
+# service_listen=127.0.0.1:7456
 # poll_interval=30s
 # heartbeat_interval=60s
 # request_timeout=15s
@@ -3064,6 +3148,7 @@ install_panel() {
   # nginx/PHP-FPM must be able to read public/ and write runtime state.
   local web_group; web_group="$(id -gn www-data 2>/dev/null || id -gn nginx 2>/dev/null || echo "${system_user}")"
   set_panel_file_permissions "${install_dir}" "${core_dir}" "${system_user}" "${web_group}"
+  preflight_panel_update_paths "${install_dir}" "${core_dir}" "$(detect_web_user)"
   configure_php_fpm_easywi_sandbox "${PHP_FPM_SERVICE}"
 
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
@@ -3110,7 +3195,7 @@ install_panel() {
 
   write_panel_messenger_service        "${php_bin}" "${core_dir}/bin/console" "${core_dir}" "${system_user}" "${web_group}"
   write_panel_scheduler_service        "${php_bin}" "${core_dir}/bin/console" "${core_dir}" "${system_user}" "${web_group}"
-  write_panel_console_relay_service    "${php_bin}" "${core_dir}" "${system_user}" "${web_group}"
+  ok "Die Live-Konsole verwendet den Agent direkt; ein separater Console-Relay wird nicht aktiviert."
   write_panel_console_wrapper          "${php_bin}" "${core_dir}/bin/console"
   write_panel_cron                     "${php_bin}" "${core_dir}/bin/console" "${system_user}"
 
@@ -3207,6 +3292,22 @@ install_agent() {
   local heartbeat_interval_seconds="${11:-${EASYWI_AGENT_HEARTBEAT_INTERVAL_SECONDS:-30}}"
   local request_timeout_seconds="${12:-${EASYWI_AGENT_REQUEST_TIMEOUT_SECONDS:-10}}"
   local state_file="${EASYWI_BOOTSTRAP_STATE_FILE:-/etc/easywi/bootstrap-state.json}"
+  # Keep explicitly configured listeners when reinstalling an existing node.
+  local service_listen="${EASYWI_AGENT_SERVICE_LISTEN:-}"
+  if [[ -z "${service_listen}" && -f /etc/easywi/agent.conf ]]; then
+    service_listen="$(agent_conf_value service_listen)"
+  fi
+  service_listen="${service_listen:-127.0.0.1:7456}"
+  [[ "${service_listen}" != *$'\n'* && "${service_listen}" != *$'\r'* ]] || fatal "Ungültige Agent-Bind-Adresse."
+  local service_url="${EASYWI_AGENT_ADVERTISED_URL:-}"
+  # Combined/local installation: publish the local endpoint in the signed registration.
+  if [[ -z "${service_url}" && "${core_url}" =~ ^https?://(127\.0\.0\.1|localhost)(:|/|$) && "${service_listen}" =~ ^127\.0\.0\.1:[0-9]+$ ]]; then
+    service_url="http://${service_listen}"
+  fi
+  if [[ "${service_listen}" == "127.0.0.1:"* ]]; then
+    log "Agent-Service bleibt lokal (${service_listen}). Remote-Panels benötigen eine explizite Bind-Adresse und eine Firewall-Freigabe nur für das Panel."
+  fi
+
 
   # URL die in agent.conf als api_url landet – echte Panel-URL, nicht 127.0.0.1
   local api_url="${api_url_override:-${core_url}}"
@@ -3249,7 +3350,7 @@ install_agent() {
     st_id="$(jq -r '.agent_id // empty' < "${state_file}")"
     if [[ -n "${st_url}" && -n "${st_token}" && -n "${st_id}" ]]; then
       log "Verwende gespeicherten Bootstrap-State."
-      if agent_secret="$(complete_agent_registration "${st_url}" "${st_token}" "${st_id}" "${agent_name}")"; then
+      if agent_secret="$(complete_agent_registration "${st_url}" "${st_token}" "${st_id}" "${agent_name}" "${service_url}")"; then
         agent_id="${st_id}"
       else
         warn "Gespeicherter State ungültig – versuche neuen Bootstrap."
@@ -3262,7 +3363,7 @@ install_agent() {
     [[ -z "${bootstrap_token}" ]] && fatal "Bootstrap-Token fehlt. Bitte EASYWI_BOOTSTRAP_TOKEN setzen oder im Installer angeben."
     local identity
     identity="$(register_agent_with_core "${core_url}" "${bootstrap_token}" \
-      "${agent_version}" "${agent_name}" "${agent_hostname}" "${state_file}")"
+      "${agent_version}" "${agent_name}" "${agent_hostname}" "${state_file}" "${service_url}")"
     agent_id="${identity%%|*}"
     agent_secret="${identity#*|}"
   fi
@@ -3270,12 +3371,17 @@ install_agent() {
   # agent.conf bekommt die echte Panel-URL (api_url), nicht die Bootstrap-URL (127.0.0.1)
   write_agent_conf "${agent_id}" "${agent_secret}" "${api_url}" \
     "${file_base_dir}" "${sftp_base_dir}" "${bind_ips}" \
-    "${poll_interval_seconds}" "${heartbeat_interval_seconds}" "${request_timeout_seconds}"
+    "${poll_interval_seconds}" "${heartbeat_interval_seconds}" "${request_timeout_seconds}" "${service_listen}"
   write_agent_service "${primary_base}" "${sftp_base_dir}" "${poll_interval_seconds}" "${heartbeat_interval_seconds}" "${request_timeout_seconds}"
+  preflight_agent_runtime "${primary_base}"
 
   if has_systemctl; then
     systemctl daemon-reload
-    systemctl enable --now easywi-agent.service
+    if ! systemctl enable --now easywi-agent.service; then
+      diagnose_agent_start_failure
+      fatal "Konnte easywi-agent.service nicht starten. Diagnose siehe oben und ${LOG_FILE}."
+    fi
+    systemctl is-active --quiet easywi-agent.service || { diagnose_agent_start_failure; fatal "easywi-agent.service ist nach dem Start nicht aktiv."; }
   elif has_openrc; then
     rc-service easywi-agent start || true
   fi
@@ -3318,8 +3424,9 @@ update_agent() {
   if "${was_active}"; then
     log "Starte Agent neu."
     if has_systemctl; then
-      systemctl start easywi-agent.service 2>/dev/null || fatal "Konnte easywi-agent.service nicht starten. Prüfe: systemctl status easywi-agent.service"
-      systemctl is-active --quiet easywi-agent.service 2>/dev/null || fatal "easywi-agent.service ist nach dem Update nicht aktiv."
+      preflight_agent_runtime "$(awk -F= '$1==\"file_base_dir\" {print $2; exit}' /etc/easywi/agent.conf 2>/dev/null || echo /var/lib/easywi-agent)"
+      systemctl start easywi-agent.service 2>/dev/null || { diagnose_agent_start_failure; fatal "Konnte easywi-agent.service nicht starten."; }
+      systemctl is-active --quiet easywi-agent.service 2>/dev/null || { diagnose_agent_start_failure; fatal "easywi-agent.service ist nach dem Update nicht aktiv."; }
     else
       service_enable_start easywi-agent
     fi
@@ -5164,19 +5271,41 @@ check_services() {
 }
 
 check_security_modules() {
-  step "Prüfe AppArmor/SELinux."
+  step "Prüfe AppArmor/SELinux, Audit-Meldungen und Mount-Hardening."
   if command -v aa-status >/dev/null 2>&1; then
     aa-status >>"${LOG_FILE}" 2>&1 || record_warn "aa-status meldete Fehler."
+    systemctl status apparmor --no-pager >>"${LOG_FILE}" 2>&1 || true
   else
     record_warn "aa-status nicht verfügbar oder AppArmor nicht installiert."
   fi
   if command -v getenforce >/dev/null 2>&1; then
-    getenforce >>"${LOG_FILE}" 2>&1 || true
+    local selinux_mode
+    selinux_mode="$(getenforce 2>/dev/null || echo unknown)"
+    echo "SELinux: ${selinux_mode}" >>"${LOG_FILE}"
+    sestatus >>"${LOG_FILE}" 2>&1 || true
   else
     echo "SELinux: not installed/not available." >>"${LOG_FILE}"
   fi
-  dmesg 2>/dev/null | grep -i denied >>"${LOG_FILE}" 2>&1 || true
-  journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor >>"${LOG_FILE}" 2>&1 || true
+  local denied=""
+  denied="$(journalctl -k -n 1000 --no-pager 2>/dev/null | grep -Ei 'apparmor|avc:.*denied|audit.*denied' | tail -n 30 || true)"
+  if [[ -z "${denied}" ]]; then
+    denied="$(grep -Eih 'DENIED|apparmor|avc:.*denied' /var/log/syslog /var/log/kern.log /var/log/audit/audit.log 2>/dev/null | tail -n 30 || true)"
+  fi
+  if [[ -n "${denied}" ]]; then
+    printf '%s\n' "${denied}" >>"${LOG_FILE}"
+    record_warn "Security-Policy-DENIED/Audit-Meldungen gefunden. Details: ${LOG_FILE}. Betroffene Regel gezielt anpassen; AppArmor/SELinux nicht pauschal deaktivieren."
+  fi
+  if command -v findmnt >/dev/null 2>&1; then
+    findmnt -o TARGET,SOURCE,FSTYPE,OPTIONS >>"${LOG_FILE}" 2>&1 || true
+    local path options
+    for path in /usr/local/bin /var/www /opt /tmp; do
+      [[ -e "${path}" ]] || continue
+      options="$(mount_options_for_path "${path}" || true)"
+      if [[ ",${options}," == *,noexec,* ]]; then
+        record_warn "noexec erkannt: ${path} (${options}). Agent-Binaries/Updater dürfen von diesem Mount nicht ausgeführt werden."
+      fi
+    done
+  fi
 }
 
 run_diagnostics() {
@@ -5194,9 +5323,9 @@ run_diagnostics() {
     echo "## EasyWI services"; systemctl status easywi-agent easywi-messenger easywi-scheduler.timer easywi-console-relay --no-pager -l 2>&1 || true; journalctl -u easywi-agent -u easywi-messenger -n 100 --no-pager 2>&1 || true
     echo "## Agent health"; local agent_port; agent_port="$(detect_agent_health_port | head -n1)"; if [[ -n "${agent_port}" ]]; then echo "Agent-Port: ${agent_port}"; curl -4 -fsS --max-time 5 "http://127.0.0.1:${agent_port}/health" 2>&1 || true; else echo "Agent-Port: not detected"; fi
     echo "## Network"; getent ahosts localhost 2>&1 || true; ss -tulpn 2>&1 || true; ip addr 2>&1 || true; ip route 2>&1 || true
-    echo "## Filesystems"; df -T 2>&1 || true; mount 2>&1 || true
+    echo "## Filesystems"; df -T 2>&1 || true; findmnt -o TARGET,SOURCE,FSTYPE,OPTIONS 2>&1 || mount 2>&1 || true
     echo "## Firewall"; ufw status verbose 2>&1 || true; update-alternatives --display iptables 2>&1 || true; nft list ruleset 2>&1 || true
-    echo "## AppArmor/SELinux"; aa-status 2>&1 || true; if command -v getenforce >/dev/null 2>&1; then getenforce 2>&1 || true; else echo "SELinux: not installed/not available."; fi; dmesg 2>/dev/null | grep -i denied || true; journalctl -k -n 500 --no-pager 2>/dev/null | grep -i apparmor || true
+    echo "## AppArmor/SELinux/Audit"; aa-status 2>&1 || true; systemctl status apparmor --no-pager 2>&1 || true; if command -v getenforce >/dev/null 2>&1; then getenforce 2>&1 || true; sestatus 2>&1 || true; else echo "SELinux: not installed/not available."; fi; journalctl -k -n 1000 --no-pager 2>/dev/null | grep -Ei 'apparmor|denied|audit' || true; grep -Eih 'DENIED|apparmor|audit' /var/log/syslog /var/log/kern.log /var/log/audit/audit.log 2>/dev/null | tail -n 200 || true
     echo "## Data areas"
     local path webuser agentuser
     webuser="$(detect_web_user)"; agentuser="$(detect_agent_user)"

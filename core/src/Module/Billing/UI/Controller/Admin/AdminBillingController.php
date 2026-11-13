@@ -7,619 +7,411 @@ namespace App\Module\Billing\UI\Controller\Admin;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\Billing\AccountingExportService;
+use App\Module\Core\Application\Billing\BillingAmount;
+use App\Module\Core\Application\Billing\BillingSettings;
 use App\Module\Core\Application\Billing\DunningWorkflow;
+use App\Module\Core\Application\Billing\InvoiceAdjustmentService;
 use App\Module\Core\Application\Billing\InvoiceArchiveManager;
+use App\Module\Core\Application\Billing\InvoiceDocumentService;
+use App\Module\Core\Application\Billing\InvoiceItems;
 use App\Module\Core\Application\Billing\InvoiceLayoutRenderer;
+use App\Module\Core\Application\Billing\InvoicePresenter;
 use App\Module\Core\Application\Billing\InvoiceStatusUpdater;
+use App\Module\Core\Application\Billing\PaymentRecorder;
+use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InvoiceStatus;
+use App\Module\Core\Domain\Enum\PaymentStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\CreditNoteRepository;
 use App\Repository\InvoiceArchiveRepository;
 use App\Repository\InvoiceRepository;
 use App\Repository\PaymentRepository;
 use App\Repository\UserRepository;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
-use Twig\Environment;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Twig\Environment;
 
-#[Route(path: '/admin/billing')]
-final class AdminBillingController
+#[Route('/admin/billing')]
+final readonly class AdminBillingController
 {
     public function __construct(
-        private readonly InvoiceRepository $invoiceRepository,
-        private readonly CreditNoteRepository $creditNoteRepository,
-        private readonly PaymentRepository $paymentRepository,
-        private readonly InvoiceArchiveRepository $invoiceArchiveRepository,
-        private readonly InvoiceArchiveManager $invoiceArchiveManager,
-        private readonly AccountingExportService $accountingExportService,
-        private readonly UserRepository $userRepository,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly DunningWorkflow $dunningWorkflow,
-        private readonly InvoiceStatusUpdater $invoiceStatusUpdater,
-        private readonly AppSettingsService $settingsService,
-        private readonly InvoiceLayoutRenderer $layoutRenderer,
-        private readonly Environment $twig,
-        private readonly TranslatorInterface $translator,
+        private InvoiceRepository $invoiceRepository,
+        private CreditNoteRepository $creditNoteRepository,
+        private PaymentRepository $paymentRepository,
+        private InvoiceArchiveRepository $invoiceArchiveRepository,
+        private InvoiceArchiveManager $invoiceArchiveManager,
+        private AccountingExportService $accountingExportService,
+        private UserRepository $userRepository,
+        private EntityManagerInterface $entityManager,
+        private AuditLogger $auditLogger,
+        private DunningWorkflow $dunningWorkflow,
+        private InvoiceStatusUpdater $invoiceStatusUpdater,
+        private AppSettingsService $settingsService,
+        private BillingSettings $billingSettings,
+        private InvoiceLayoutRenderer $layoutRenderer,
+        private InvoiceDocumentService $documents,
+        private InvoicePresenter $presenter,
+        private InvoiceAdjustmentService $adjustments,
+        private PaymentRecorder $payments,
+        private CsrfTokenManagerInterface $csrf,
+        private Environment $twig,
+        private TranslatorInterface $translator,
     ) {
     }
 
-    #[Route(path: '', name: 'admin_billing', methods: ['GET'])]
+    #[Route('', name: 'admin_billing', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
-        }
-
-        $recentInvoices = $this->invoiceRepository->findRecent();
-        $invoiceIds = array_map(static fn (\App\Module\Core\Domain\Entity\Invoice $invoice): int => $invoice->getId() ?? 0, $recentInvoices);
-        $archivedInvoiceIds = $this->invoiceArchiveRepository->findArchivedInvoiceIds($invoiceIds);
-        $recentCreditNotes = $this->creditNoteRepository->findRecent();
-        $summary = [
-            'open' => $this->invoiceRepository->countByStatus(InvoiceStatus::Open),
-            'past_due' => $this->invoiceRepository->countByStatus(InvoiceStatus::PastDue),
-            'paid' => $this->invoiceRepository->countByStatus(InvoiceStatus::Paid),
-        ];
+        $this->actor($request);
+        $invoices = $this->invoiceRepository->findRecent(100);
+        $archives = $this->invoiceArchiveRepository->findArchivedInvoiceIds(array_map(static fn (Invoice $i) => $i->getId(), $invoices));
 
         return new Response($this->twig->render('admin/billing/index.html.twig', [
             'activeNav' => 'billing',
-            'summary' => $summary,
-            'invoices' => $this->normalizeInvoices($recentInvoices, $archivedInvoiceIds),
-            'credit_notes' => $this->normalizeCreditNotes($recentCreditNotes),
+            'summary' => ['open' => $this->invoiceRepository->countByStatus(InvoiceStatus::Open), 'past_due' => $this->invoiceRepository->countByStatus(InvoiceStatus::PastDue), 'paid' => $this->invoiceRepository->countByStatus(InvoiceStatus::Paid)],
+            'invoices' => array_map(fn (Invoice $i) => $this->presenter->present($i) + ['is_archived' => in_array($i->getId(), $archives, true)], $invoices),
+            'credit_notes' => array_map(static fn ($c) => ['number' => $c->getNumber(), 'invoice_number' => $c->getInvoice()->getNumber(), 'customer' => $c->getInvoice()->getCustomer()->getEmail(), 'status' => $c->getStatus()->value, 'amount' => $c->getAmountCents(), 'currency' => $c->getCurrency(), 'issued_at' => $c->getIssuedAt()], $this->creditNoteRepository->findRecent()),
         ]));
     }
 
-    #[Route(path: '/invoices/new', name: 'admin_billing_invoice_new', methods: ['GET'])]
+    #[Route('/invoices/new', name: 'admin_billing_invoice_new', methods: ['GET'])]
     public function newInvoice(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
-        }
+        $this->actor($request);
 
-        $customers = $this->userRepository->findCustomers();
-
-        return new Response($this->twig->render('admin/billing/create.html.twig', [
-            'activeNav' => 'billing',
-            'customers' => $customers,
-            'form' => $this->buildInvoiceFormContext(),
-        ]));
+        return $this->form();
     }
 
-    #[Route(path: '/invoices', name: 'admin_billing_invoice_create', methods: ['POST'])]
+    #[Route('/invoices', name: 'admin_billing_invoice_create', methods: ['POST'])]
     public function createInvoice(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        $actor = $this->actor($request, true);
+        $data = $request->request->all();
+        try {
+            $customer = $this->userRepository->find((int) ($data['customer_id'] ?? 0));
+            if (!$customer instanceof User || UserType::Customer !== $customer->getType()) {
+                throw new \InvalidArgumentException('billing.invalid_customer');
+            }
+            $number = trim((string) ($data['number'] ?? ''));
+            if (null !== $this->invoiceRepository->findOneBy(['number' => $number])) {
+                throw new \InvalidArgumentException('billing.duplicate_number');
+            }
+            $rows = array_key_exists('items', $data) ? $data['items'] : [['description' => $data['description'] ?? '', 'quantity' => '1', 'unit_price' => $data['amount'] ?? '', 'tax_rate' => $data['tax_rate'] ?? '19.00']];
+            $tax = InvoiceItems::calculate($rows, is_string($data['tax_mode'] ?? null) ? $data['tax_mode'] : 'standard');
+            $tax['electronic_invoice'] = \App\Module\Core\Application\Billing\ElectronicInvoiceData::fromInput($data);
+            $gross = $tax['gross_cents'];
+            $due = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) ($data['due_date'] ?? ''));
+            if (false === $due || $due->format('Y-m-d') !== ($data['due_date'] ?? '')) {
+                throw new \InvalidArgumentException('billing.invalid_date');
+            }
+            $description = mb_substr(implode("\n", array_column($tax['items'], 'description')), 0, 2000);
+            $invoice = new Invoice($customer, $number, $gross, strtoupper(trim((string) ($data['currency'] ?? 'EUR'))), $due);
+            $this->layoutRenderer->snapshot($invoice, $request, $tax, $description);
+            \App\Module\Core\Application\Billing\InvoicePdfRenderer::assertCapabilities($this->settingsService->getInvoiceLayout());
+            $this->entityManager->wrapInTransaction(function () use ($invoice, $actor, $request): void {
+                $this->entityManager->persist($invoice);
+                $this->entityManager->flush();
+                $this->auditLogger->log($actor, 'billing.invoice.created', ['invoice_id' => $invoice->getId(), 'number' => $invoice->getNumber(), 'amount_total_cents' => $invoice->getAmountTotalCents(), 'tax' => array_intersect_key($invoice->getBillingDetails(), array_flip(['tax_mode', 'tax_rate_bps', 'net_cents', 'tax_cents']))]);
+                $this->invoiceArchiveManager->archiveInvoiceContent($invoice, $this->documents->generate($invoice, $request), preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()).'.pdf', 'application/pdf', $actor);
+            });
+        } catch (\InvalidArgumentException $exception) {
+            return $this->form($data, [$this->message($exception)], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (UniqueConstraintViolationException) {
+            return new Response($this->translator->trans('billing.duplicate_number', [], 'billing'), Response::HTTP_CONFLICT);
         }
 
-        $formData = $this->parseInvoicePayload($request);
-        $customers = $this->userRepository->findCustomers();
-
-        if ($formData['errors'] !== []) {
-            return new Response($this->twig->render('admin/billing/create.html.twig', [
-                'activeNav' => 'billing',
-                'customers' => $customers,
-                'form' => $formData,
-            ]), Response::HTTP_BAD_REQUEST);
-        }
-
-        $invoice = new \App\Module\Core\Domain\Entity\Invoice(
-            $formData['customer'],
-            $formData['number'],
-            $formData['amount_total_cents'],
-            $formData['currency'],
-            $formData['due_date'],
-        );
-
-        $this->entityManager->persist($invoice);
-        $this->entityManager->flush();
-        $this->auditLogger->log($actor, 'billing.invoice.created', [
-            'invoice_id' => $invoice->getId(),
-            'number' => $invoice->getNumber(),
-            'customer_id' => $invoice->getCustomer()->getId(),
-            'amount_total_cents' => $invoice->getAmountTotalCents(),
-            'currency' => $invoice->getCurrency(),
-        ]);
-        $this->entityManager->flush();
-
-        return new RedirectResponse(sprintf('/admin/billing/invoices/%d', $invoice->getId()));
+        return $this->redirect($invoice);
     }
 
-    #[Route(path: '/dunning', name: 'admin_billing_dunning_run', methods: ['POST'])]
+    #[Route('/dunning', name: 'admin_billing_dunning_run', methods: ['POST'])]
     public function runDunning(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
-        }
-
+        $actor = $this->actor($request, true);
         $now = new \DateTimeImmutable();
-        $invoices = $this->invoiceRepository->findDunnable($now);
-
-        foreach ($invoices as $invoice) {
+        foreach ($this->invoiceRepository->findDunnable($now) as $invoice) {
             $this->invoiceStatusUpdater->syncStatus($invoice, $actor, $now);
+            $this->entityManager->flush();
             $this->dunningWorkflow->apply($invoice, $actor, $now);
         }
-
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/billing');
+        return new RedirectResponse('/admin/billing', Response::HTTP_SEE_OTHER);
     }
 
-    #[Route(path: '/invoices/{id}', name: 'admin_billing_invoice_show', methods: ['GET'], requirements: ['id' => '\\d+'])]
+    #[Route('/invoices/{id<\d+>}', name: 'admin_billing_invoice_show', methods: ['GET'])]
     public function showInvoice(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
-        }
+        $this->actor($request);
 
-        $invoice = $this->invoiceRepository->find($id);
-        if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
-        }
-
-        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
-        $layout = $this->settingsService->getInvoiceLayout();
-        $preview = $this->layoutRenderer->render($invoice, $request, $layout);
-
-        return new Response($this->twig->render('admin/billing/invoice.html.twig', [
-            'activeNav' => 'billing',
-            'invoice' => $this->normalizeInvoiceDetail($invoice),
-            'archive' => $this->normalizeArchive($archive),
-            'archive_errors' => [],
-            'invoice_layout' => $layout,
-            'invoice_preview' => $preview,
-        ]));
+        return $this->detail($request, $this->invoice($id));
     }
 
-    #[Route(path: '/invoices/{id}/mark-paid', name: 'admin_billing_invoice_mark_paid', methods: ['POST'], requirements: ['id' => '\\d+'])]
+    #[Route('/invoices/{id<\d+>}/mark-paid', name: 'admin_billing_invoice_mark_paid', methods: ['POST'])]
     public function markInvoicePaid(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        $actor = $this->actor($request, true);
+        $invoice = $this->invoice($id);
+        if (InvoiceStatus::Cancelled === $invoice->getStatus()) {
+            return $this->detail($request, $invoice, [$this->translator->trans('billing.cancelled_invoice', [], 'billing')], Response::HTTP_CONFLICT);
         }
+        $this->entityManager->wrapInTransaction(function () use ($invoice, $actor): void {
+            $this->entityManager->refresh($invoice, LockMode::PESSIMISTIC_WRITE);
+            if ($invoice->getOutstandingCents() > 0) {
+                $this->payments->record($invoice, 'manual', 'MANUAL-'.bin2hex(random_bytes(12)), $invoice->getOutstandingCents(), $invoice->getCurrency(), PaymentStatus::Succeeded, $actor, new \DateTimeImmutable());
+            }
+        });
 
-        $invoice = $this->invoiceRepository->find($id);
-        if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
-        }
-
-        $now = new \DateTimeImmutable();
-        $previousStatus = $invoice->getStatus();
-        $invoice->markPaid($now);
-
-        $this->auditLogger->log($actor, 'billing.invoice.manual_paid', [
-            'invoice_id' => $invoice->getId(),
-            'number' => $invoice->getNumber(),
-            'previous_status' => $previousStatus->value,
-            'paid_at' => $now->format(DATE_RFC3339),
-        ]);
-
-        $this->entityManager->flush();
-
-        return new RedirectResponse(sprintf('/admin/billing/invoices/%d', $invoice->getId()));
+        return $this->redirect($invoice);
     }
 
-    #[Route(path: '/invoices/{id}/mark-unpaid', name: 'admin_billing_invoice_mark_unpaid', methods: ['POST'], requirements: ['id' => '\\d+'])]
+    #[Route('/invoices/{id<\d+>}/mark-unpaid', name: 'admin_billing_invoice_mark_unpaid', methods: ['POST'])]
     public function markInvoiceUnpaid(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        $actor = $this->actor($request, true);
+        $invoice = $this->invoice($id);
+        try {
+            $this->entityManager->wrapInTransaction(function () use ($invoice, $actor): void {
+                $this->entityManager->refresh($invoice, LockMode::PESSIMISTIC_WRITE);
+                if (InvoiceStatus::Cancelled === $invoice->getStatus()) {
+                    throw new \DomainException('billing.cancelled_invoice');
+                }
+                foreach ($invoice->getPayments() as $payment) {
+                    if (PaymentStatus::Succeeded === $payment->getStatus() && 'manual' !== $payment->getProvider()) {
+                        throw new \DomainException('billing.external_payment');
+                    }
+                }
+                foreach ($invoice->getPayments() as $payment) {
+                    if ('manual' === $payment->getProvider() && PaymentStatus::Succeeded === $payment->getStatus()) {
+                        $payment->setStatus(PaymentStatus::Failed);
+                    }
+                }
+                $this->invoiceStatusUpdater->syncStatus($invoice, $actor);
+                $this->auditLogger->log($actor, 'billing.payment.manual_reversed', ['invoice_id' => $invoice->getId()]);
+            });
+        } catch (\DomainException $exception) {
+            return $this->detail($request, $invoice, [$this->message($exception)], Response::HTTP_CONFLICT);
         }
 
-        $invoice = $this->invoiceRepository->find($id);
-        if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
-        }
-
-        $now = new \DateTimeImmutable();
-        $previousStatus = $invoice->getStatus();
-        $nextStatus = $this->resolveUnpaidStatus($invoice, $now);
-        $invoice->setStatus($nextStatus);
-        $invoice->clearPaidAt();
-
-        $this->auditLogger->log($actor, 'billing.invoice.manual_unpaid', [
-            'invoice_id' => $invoice->getId(),
-            'number' => $invoice->getNumber(),
-            'previous_status' => $previousStatus->value,
-            'next_status' => $nextStatus->value,
-        ]);
-
-        $this->entityManager->flush();
-
-        return new RedirectResponse(sprintf('/admin/billing/invoices/%d', $invoice->getId()));
+        return $this->redirect($invoice);
     }
 
-    #[Route(path: '/invoices/{id}/archive', name: 'admin_billing_invoice_archive', methods: ['POST'], requirements: ['id' => '\\d+'])]
-    public function archiveInvoice(Request $request, int $id): Response
+    #[Route('/invoices/{id<\d+>}/credit', name: 'admin_billing_invoice_credit', methods: ['POST'])]
+    public function credit(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        $actor = $this->actor($request, true);
+        $invoice = $this->invoice($id);
+        try {
+            $this->adjustments->credit($invoice, BillingAmount::parse((string) $request->request->get('amount')), (string) $request->request->get('reason'), $actor);
+        } catch (\InvalidArgumentException|\DomainException $exception) {
+            return $this->detail($request, $invoice, [$this->message($exception)], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $invoice = $this->invoiceRepository->find($id);
-        if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
-        }
-
-        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
-
-        $formData = $this->parseArchivePayload($request);
-        if ($archive !== null) {
-            $formData['errors'][] = 'Invoice is already archived and cannot be replaced.';
-        }
-
-        if ($formData['errors'] !== []) {
-            return new Response($this->twig->render('admin/billing/invoice.html.twig', [
-                'activeNav' => 'billing',
-                'invoice' => $this->normalizeInvoiceDetail($invoice),
-                'archive' => $this->normalizeArchive($archive),
-                'archive_errors' => $formData['errors'],
-                'invoice_layout' => $this->settingsService->getInvoiceLayout(),
-                'invoice_preview' => $this->layoutRenderer->render(
-                    $invoice,
-                    $request,
-                    $this->settingsService->getInvoiceLayout()
-                ),
-            ]), Response::HTTP_BAD_REQUEST);
-        }
-
-        /** @var UploadedFile $file */
-        $file = $formData['file'];
-        $archive = $this->invoiceArchiveManager->archiveInvoice($invoice, $file, $actor);
-
-        return new Response($this->twig->render('admin/billing/invoice.html.twig', [
-            'activeNav' => 'billing',
-            'invoice' => $this->normalizeInvoiceDetail($invoice),
-            'archive' => $this->normalizeArchive($archive),
-            'archive_errors' => [],
-            'invoice_layout' => $this->settingsService->getInvoiceLayout(),
-            'invoice_preview' => $this->layoutRenderer->render(
-                $invoice,
-                $request,
-                $this->settingsService->getInvoiceLayout()
-            ),
-        ]));
+        return $this->redirect($invoice);
     }
 
-    #[Route(path: '/invoices/{id}/archive/generate', name: 'admin_billing_invoice_archive_generate', methods: ['POST'], requirements: ['id' => '\\d+'])]
+    #[Route('/invoices/{id<\d+>}/cancel', name: 'admin_billing_invoice_cancel', methods: ['POST'])]
+    public function cancel(Request $request, int $id): Response
+    {
+        $actor = $this->actor($request, true);
+        $invoice = $this->invoice($id);
+        try {
+            $this->adjustments->cancel($invoice, (string) $request->request->get('reason'), $actor);
+        } catch (\InvalidArgumentException|\DomainException $exception) {
+            return $this->detail($request, $invoice, [$this->message($exception)], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return $this->redirect($invoice);
+    }
+
+    #[Route('/invoices/{id<\d+>}/pdf', name: 'admin_billing_invoice_pdf', methods: ['GET'])]
+    public function pdf(Request $request, int $id): Response
+    {
+        $this->actor($request);
+
+        return $this->documents->download($this->invoice($id), $request);
+    }
+
+    #[Route('/invoices/{id<\d+>}/archive/generate', name: 'admin_billing_invoice_archive_generate', methods: ['POST'])]
     public function generateArchive(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        $actor = $this->actor($request, true);
+        $invoice = $this->invoice($id);
+        if (null !== $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice])) {
+            return $this->detail($request, $invoice, [$this->translator->trans('billing.already_archived', [], 'billing')], Response::HTTP_CONFLICT);
+        }
+        try {
+            $this->invoiceArchiveManager->archiveInvoiceContent($invoice, $this->documents->generate($invoice, $request), preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()).'.pdf', 'application/pdf', $actor);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->detail($request, $invoice, [$this->message($exception)], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $invoice = $this->invoiceRepository->find($id);
-        if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
-        }
-
-        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
-        if ($archive !== null) {
-            return new Response('Invoice is already archived.', Response::HTTP_BAD_REQUEST);
-        }
-
-        $layout = $this->settingsService->getInvoiceLayout();
-        $contents = $this->layoutRenderer->render($invoice, $request, $layout);
-        $fileName = sprintf('%s.html', $invoice->getNumber());
-
-        $archive = $this->invoiceArchiveManager->archiveInvoiceContent(
-            $invoice,
-            $contents,
-            $fileName,
-            'text/html',
-            $actor,
-        );
-
-        return new Response($this->twig->render('admin/billing/invoice.html.twig', [
-            'activeNav' => 'billing',
-            'invoice' => $this->normalizeInvoiceDetail($invoice),
-            'archive' => $this->normalizeArchive($archive),
-            'archive_errors' => [],
-            'invoice_layout' => $layout,
-            'invoice_preview' => $contents,
-        ]));
+        return $this->redirect($invoice);
     }
 
-    #[Route(path: '/layout', name: 'admin_billing_layout_update', methods: ['POST'])]
-    public function updateLayout(Request $request): Response
+    #[Route('/invoices/{id<\d+>}/archive', name: 'admin_billing_invoice_archive', methods: ['POST'])]
+    public function archiveInvoice(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        $actor = $this->actor($request, true);
+        $invoice = $this->invoice($id);
+        $file = $request->files->get('invoice_pdf');
+        if (null !== $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]) || !$file instanceof UploadedFile || !$file->isValid() || ($file->getSize() ?? 0) > InvoiceArchiveManager::MAX_FILE_SIZE || 'application/pdf' !== $file->getMimeType() || '%PDF-' !== file_get_contents($file->getPathname(), false, null, 0, 5)) {
+            return $this->detail($request, $invoice, [$this->translator->trans('billing.invalid_pdf', [], 'billing')], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
+        $this->invoiceArchiveManager->archiveInvoice($invoice, $file, $actor);
 
-        $layout = (string) $request->request->get('invoice_layout', '');
-        if (trim($layout) === '') {
-            return new Response('Invoice layout cannot be empty.', Response::HTTP_BAD_REQUEST);
-        }
-
-        $this->settingsService->updateSettings([
-            AppSettingsService::KEY_INVOICE_LAYOUT => $layout,
-        ]);
-
-        $redirect = $request->headers->get('referer');
-        if (!is_string($redirect) || $redirect === '') {
-            $redirect = '/admin/billing?layout_saved=1';
-        }
-
-        return new RedirectResponse($redirect);
+        return $this->redirect($invoice);
     }
 
-    #[Route(path: '/invoices/{id}/archive/download', name: 'admin_billing_invoice_archive_download', methods: ['GET'], requirements: ['id' => '\\d+'])]
+    #[Route('/invoices/{id<\d+>}/archive/download', name: 'admin_billing_invoice_archive_download', methods: ['GET'])]
     public function downloadArchive(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        $this->actor($request);
+        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $this->invoice($id)]);
+        if (null === $archive) {
+            throw new NotFoundHttpException();
         }
+        $name = preg_replace('/[^a-zA-Z0-9._-]/', '_', $archive->getFileName());
 
-        $invoice = $this->invoiceRepository->find($id);
-        if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
-            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
-        }
-
-        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
-        if ($archive === null) {
-            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
-        }
-
-        $response = new Response($archive->getPdfContents());
-        $response->headers->set('Content-Type', $archive->getContentType());
-        $response->headers->set('Content-Disposition', sprintf('attachment; filename=\"%s\"', $archive->getFileName()));
-
-        return $response;
+        return new Response($archive->getPdfContents(), Response::HTTP_OK, ['Content-Type' => $archive->getContentType(), 'Content-Disposition' => HeaderUtils::makeDisposition('attachment', $name ?: 'invoice.pdf'), 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
-    #[Route(path: '/export', name: 'admin_billing_export', methods: ['GET'])]
+    #[Route('/layout', name: 'admin_billing_layout_update', methods: ['POST'])]
+    public function updateLayout(Request $request): Response
+    {
+        $actor = $this->actor($request, true);
+        try {
+            $layout = (string) $request->request->get('invoice_layout', '');
+            $this->layoutRenderer->validate($layout);
+            $this->settingsService->updateSettings([AppSettingsService::KEY_INVOICE_LAYOUT => $layout]);
+            $this->auditLogger->log($actor, 'billing.layout.updated', []);
+            $this->entityManager->flush();
+        } catch (\InvalidArgumentException $exception) {
+            return new Response($this->message($exception), Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        $id = (int) $request->request->get('invoice_id', 0);
+
+        return new RedirectResponse($id > 0 ? '/admin/billing/invoices/'.$id : '/admin/billing', Response::HTTP_SEE_OTHER);
+    }
+
+    #[Route('/settings', name: 'admin_billing_settings', methods: ['GET', 'POST'])]
+    public function settings(Request $request): Response
+    {
+        $actor = $this->actor($request, $request->isMethod('POST'));
+        $errors = [];
+        if ($request->isMethod('POST')) {
+            try {
+                $this->billingSettings->save($request->request->all('options'));
+                $this->auditLogger->log($actor, 'billing.settings.updated', []);
+                $this->entityManager->flush();
+
+                return new RedirectResponse('/admin/billing/settings', Response::HTTP_SEE_OTHER);
+            } catch (\InvalidArgumentException $exception) {
+                $errors[] = $this->message($exception);
+            }
+        }
+
+        return new Response($this->twig->render('admin/billing/settings.html.twig', ['activeNav' => 'billing', 'options' => $this->billingSettings->get(), 'errors' => $errors]), [] === $errors ? Response::HTTP_OK : Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    #[Route('/export', name: 'admin_billing_export', methods: ['GET'])]
     public function export(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
-        }
-
+        $this->actor($request);
+        $yearRaw = $request->query->get('year');
+        $year = null === $yearRaw || '' === $yearRaw ? null : filter_var($yearRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1900, 'max_range' => 9999]]);
         $type = (string) $request->query->get('type', 'invoices');
-        $yearValue = $request->query->get('year');
-        $year = is_numeric($yearValue) ? (int) $yearValue : null;
-
-        if ($type === 'payments') {
-            $payments = $this->paymentRepository->findForExport($year);
-            $csv = $this->accountingExportService->exportPayments($payments);
-            $fileName = $year !== null ? sprintf('payments-%d.csv', $year) : 'payments.csv';
+        if (false === $year || !in_array($type, ['invoices', 'payments'], true)) {
+            return new Response($this->translator->trans('billing.invalid_export', [], 'billing'), Response::HTTP_BAD_REQUEST);
+        }
+        if ('payments' === $type) {
+            $csv = $this->accountingExportService->exportPayments($this->paymentRepository->findForExport($year));
         } else {
             $invoices = $this->invoiceRepository->findForExport($year);
-            $invoiceIds = array_map(static fn (\App\Module\Core\Domain\Entity\Invoice $invoice): int => $invoice->getId() ?? 0, $invoices);
-            $archiveMeta = $this->invoiceArchiveRepository->findArchiveMetadataByInvoiceIds($invoiceIds);
-            $csv = $this->accountingExportService->exportInvoices($invoices, $archiveMeta);
-            $fileName = $year !== null ? sprintf('invoices-%d.csv', $year) : 'invoices.csv';
+            $ids = array_map(static fn (Invoice $i) => $i->getId(), $invoices);
+            $csv = $this->accountingExportService->exportInvoices($invoices, $this->invoiceArchiveRepository->findArchiveMetadataByInvoiceIds($ids));
         }
 
-        $response = new StreamedResponse(static function () use ($csv): void {
-            echo $csv;
-        });
-        $response->headers->set('Content-Type', 'text/csv; charset=utf-8');
-        $response->headers->set('Content-Disposition', sprintf('attachment; filename=\"%s\"', $fileName));
-
-        return $response;
+        return new Response($csv, Response::HTTP_OK, ['Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => HeaderUtils::makeDisposition('attachment', $type.(null === $year ? '' : '-'.$year).'.csv'), 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
-    private function isAdmin(Request $request): bool
+    private function actor(Request $request, bool $write = false): User
     {
         $actor = $request->attributes->get('current_user');
-        return $actor instanceof User && $actor->isAdmin();
+        if (!$actor instanceof User || !$actor->isAdmin() || ($write && !$this->csrf->isTokenValid(new CsrfToken('billing', (string) $request->request->get('_token'))))) {
+            throw new AccessDeniedHttpException();
+        }
+
+        return $actor;
     }
 
-    /**
-     * @param int[] $archivedInvoiceIds
-     */
-    private function normalizeInvoices(array $invoices, array $archivedInvoiceIds): array
+    private function invoice(int $id): Invoice
     {
-        return array_map(static function (\App\Module\Core\Domain\Entity\Invoice $invoice) use ($archivedInvoiceIds): array {
-            $isArchived = in_array($invoice->getId(), $archivedInvoiceIds, true);
+        $invoice = $this->invoiceRepository->find($id);
+        if (!$invoice instanceof Invoice) {
+            throw new NotFoundHttpException();
+        }
 
-            return [
-                'id' => $invoice->getId(),
-                'number' => $invoice->getNumber(),
-                'customer' => $invoice->getCustomer()->getEmail(),
-                'status' => $invoice->getStatus()->value,
-                'amount_due' => $invoice->getAmountDueCents(),
-                'currency' => $invoice->getCurrency(),
-                'due_date' => $invoice->getDueDate(),
-                'paid_at' => $invoice->getPaidAt(),
-                'is_archived' => $isArchived,
-            ];
-        }, $invoices);
+        return $invoice;
     }
 
-    private function normalizeCreditNotes(array $creditNotes): array
+    private function redirect(Invoice $invoice): Response
     {
-        return array_map(static function (\App\Module\Core\Domain\Entity\CreditNote $creditNote): array {
-            return [
-                'id' => $creditNote->getId(),
-                'number' => $creditNote->getNumber(),
-                'invoice_number' => $creditNote->getInvoice()->getNumber(),
-                'customer' => $creditNote->getInvoice()->getCustomer()->getEmail(),
-                'status' => $creditNote->getStatus()->value,
-                'amount' => $creditNote->getAmountCents(),
-                'currency' => $creditNote->getCurrency(),
-                'issued_at' => $creditNote->getIssuedAt(),
-                'reason' => $creditNote->getReason(),
-            ];
-        }, $creditNotes);
+        return new RedirectResponse('/admin/billing/invoices/'.$invoice->getId(), Response::HTTP_SEE_OTHER);
     }
 
-    private function normalizeInvoiceDetail(\App\Module\Core\Domain\Entity\Invoice $invoice): array
+    private function message(\Throwable $exception): string
     {
-        return [
-            'id' => $invoice->getId(),
-            'number' => $invoice->getNumber(),
-            'status' => $invoice->getStatus()->value,
-            'customer' => $invoice->getCustomer()->getEmail(),
-            'currency' => $invoice->getCurrency(),
-            'amount_total' => $invoice->getAmountTotalCents(),
-            'amount_due' => $invoice->getAmountDueCents(),
-            'due_date' => $invoice->getDueDate(),
-            'paid_at' => $invoice->getPaidAt(),
-            'created_at' => $invoice->getCreatedAt(),
-        ];
+        return $this->translator->trans($exception->getMessage(), [], 'billing');
     }
 
-    private function resolveUnpaidStatus(\App\Module\Core\Domain\Entity\Invoice $invoice, \DateTimeImmutable $now): InvoiceStatus
+    private function form(array $data = [], array $errors = [], int $status = Response::HTTP_OK): Response
     {
-        return $invoice->getDueDate() <= $now ? InvoiceStatus::PastDue : InvoiceStatus::Open;
+        $options = $this->billingSettings->get();
+        $data += ['customer_id' => null, 'number' => 'INV-'.date('Ymd').'-'.bin2hex(random_bytes(6)), 'amount' => '', 'currency' => 'EUR', 'due_date' => date('Y-m-d', strtotime('+14 days')), 'tax_mode' => $options['tax_mode'], 'tax_rate' => $options['tax_rate'], 'description' => ''];
+        $data['items'] ??= [['description' => $data['description'], 'quantity' => '1', 'unit_price' => $data['amount'], 'tax_rate' => $data['tax_rate']]];
+        if (!is_array($data['items'])) {
+            $data['items'] = [];
+        }
+        $data['items'] = array_slice(array_values($data['items']), 0, InvoiceItems::MAX_ITEMS);
+        foreach ($data['items'] as &$row) {
+            $row = is_array($row) ? $row : [];
+            foreach (['description', 'quantity', 'unit_price', 'tax_rate'] as $key) {
+                $row[$key] = is_string($row[$key] ?? null) ? $row[$key] : '';
+            }
+        } unset($row);
+        $data['errors'] = $errors;
+
+        return new Response($this->twig->render('admin/billing/create.html.twig', ['activeNav' => 'billing', 'customers' => $this->userRepository->findCustomers(), 'form' => $data]), $status);
     }
 
-    private function normalizeArchive(?\App\Module\Core\Domain\Entity\InvoiceArchive $archive): array
+    private function detail(Request $request, Invoice $invoice, array $errors = [], int $status = Response::HTTP_OK): Response
     {
-        if ($archive === null) {
-            return [
-                'is_archived' => false,
-            ];
+        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
+        $layout = $this->settingsService->getInvoiceLayout();
+        try {
+            $preview = InvoiceLayoutRenderer::previewDocument($this->layoutRenderer->render($invoice, $request, $layout));
+        } catch (\InvalidArgumentException $exception) {
+            $preview = '';
+            $errors[] = $this->message($exception);
         }
 
-        return [
-            'is_archived' => true,
-            'id' => $archive->getId(),
-            'file_name' => $archive->getFileName(),
-            'content_type' => $archive->getContentType(),
-            'file_size' => $archive->getFileSize(),
-            'pdf_hash' => $archive->getPdfHash(),
-            'archived_year' => $archive->getArchivedYear(),
-            'created_at' => $archive->getCreatedAt(),
-        ];
-    }
-
-    private function buildInvoiceFormContext(
-        array $errors = [],
-        ?User $customer = null,
-        ?string $number = null,
-        ?string $amount = null,
-        ?string $currency = null,
-        ?string $dueDate = null,
-    ): array {
-        $defaultDueDate = (new \DateTimeImmutable('+14 days'))->format('Y-m-d');
-
-        return [
-            'errors' => $errors,
-            'customer_id' => $customer?->getId(),
-            'number' => $number ?? $this->generateInvoiceNumber(),
-            'amount' => $amount ?? '',
-            'currency' => $currency ?? 'EUR',
-            'due_date' => $dueDate ?? $defaultDueDate,
-            'due_date_raw' => $dueDate ?? $defaultDueDate,
-        ];
-    }
-
-    private function parseInvoicePayload(Request $request): array
-    {
-        $errors = [];
-        $customerId = (int) $request->request->get('customer_id', 0);
-        $number = trim((string) $request->request->get('number', ''));
-        $amountRaw = trim((string) $request->request->get('amount', ''));
-        $currency = strtoupper(trim((string) $request->request->get('currency', 'EUR')));
-        $dueDateRaw = trim((string) $request->request->get('due_date', ''));
-
-        $customer = $customerId > 0 ? $this->userRepository->find($customerId) : null;
-        if (!$customer instanceof User || $customer->getType() !== UserType::Customer) {
-            $errors[] = 'Customer is required.';
-        }
-
-        if ($number === '') {
-            $errors[] = 'Invoice number is required.';
-        }
-
-        $amountTotalCents = $this->parseAmountCents($amountRaw);
-        if ($amountTotalCents <= 0) {
-            $errors[] = 'Amount must be greater than zero.';
-        }
-
-        if ($currency === '' || strlen($currency) !== 3) {
-            $errors[] = 'Currency must be a 3-letter code.';
-        }
-
-        $dueDate = \DateTimeImmutable::createFromFormat('Y-m-d', $dueDateRaw) ?: null;
-        if ($dueDate === null) {
-            $errors[] = 'Due date is required.';
-        }
-
-        return [
-            'errors' => $errors,
-            'customer' => $customer instanceof User ? $customer : null,
-            'customer_id' => $customerId,
-            'number' => $number,
-            'amount' => $amountRaw,
-            'amount_total_cents' => $amountTotalCents,
-            'currency' => $currency,
-            'due_date' => $dueDate,
-            'due_date_raw' => $dueDateRaw,
-        ];
-    }
-
-    private function parseAmountCents(string $amount): int
-    {
-        if ($amount === '') {
-            return 0;
-        }
-
-        $normalized = str_replace(',', '.', $amount);
-        if (!is_numeric($normalized)) {
-            return 0;
-        }
-
-        return (int) round(((float) $normalized) * 100);
-    }
-
-    private function generateInvoiceNumber(): string
-    {
-        $date = (new \DateTimeImmutable())->format('Ymd');
-
-        return sprintf('INV-%s-%04d', $date, random_int(0, 9999));
-    }
-
-    private function parseArchivePayload(Request $request): array
-    {
-        $errors = [];
-        $file = $request->files->get('invoice_pdf');
-
-        if (!$file instanceof UploadedFile) {
-            $errors[] = 'Invoice PDF is required.';
-            return [
-                'errors' => $errors,
-                'file' => null,
-            ];
-        }
-
-        if (!$file->isValid()) {
-            $errors[] = 'PDF upload failed.';
-        }
-
-        $mimeType = $file->getMimeType();
-        if ($mimeType !== null && $mimeType !== 'application/pdf') {
-            $errors[] = 'Only PDF files are allowed.';
-        }
-
-        $size = $file->getSize() ?? 0;
-        if ($size === 0) {
-            $errors[] = 'PDF file is empty.';
-        }
-        if ($size > InvoiceArchiveManager::MAX_FILE_SIZE) {
-            $errors[] = 'PDF file exceeds the 10MB limit.';
-        }
-
-        return [
-            'errors' => $errors,
-            'file' => $file,
-        ];
+        return new Response($this->twig->render('admin/billing/invoice.html.twig', [
+            'activeNav' => 'billing', 'invoice' => $this->presenter->present($invoice),
+            'archive' => null === $archive ? ['is_archived' => false] : ['is_archived' => true, 'file_name' => $archive->getFileName(), 'file_size' => $archive->getFileSize(), 'content_type' => $archive->getContentType(), 'archived_year' => $archive->getArchivedYear(), 'pdf_hash' => $archive->getPdfHash(), 'created_at' => $archive->getCreatedAt()],
+            'archive_errors' => $errors, 'invoice_layout' => $layout, 'invoice_preview' => $preview,
+        ]), $status);
     }
 }

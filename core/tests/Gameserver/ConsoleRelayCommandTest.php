@@ -63,6 +63,23 @@ final class ConsoleRelayCommandTest extends TestCase
         self::assertTrue(true);
     }
 
+    public function testRelayStopsAsSoonAsLastViewerLeaves(): void
+    {
+        $bus = $this->createMock(ConsoleEventBusInterface::class);
+        $bus->method('getSubscriberCount')->willReturnOnConsecutiveCalls(1, 1, 0);
+        $bus->expects(self::once())->method('publishConsoleEvent');
+        $relay = new ConsoleRelayCommand($this->fakeGrpc([['chunk' => 'first'], ['chunk' => 'second'], ['chunk' => 'third']]), $bus, new NullLogger());
+        (new \ReflectionMethod($relay, 'relayInstance'))->invoke($relay, 1);
+    }
+
+    public function testWorkerRecyclesAfterTimeLimit(): void
+    {
+        $tester = new \Symfony\Component\Console\Tester\CommandTester(new ConsoleRelayCommand($this->fakeGrpc([]), $this->fakeBus(), new NullLogger()));
+        self::assertSame(0, $tester->execute(['--time-limit' => '1', '--memory-limit' => '512']));
+        self::assertStringContainsString('recycled', $tester->getDisplay());
+        self::assertSame(2, $tester->execute(['--time-limit' => '0']));
+    }
+
     /** @param iterable<array<string,mixed>>|callable():iterable<array<string,mixed>> $stream */
     private function fakeGrpc(iterable|callable $stream): ConsoleAgentGrpcClientInterface
     {

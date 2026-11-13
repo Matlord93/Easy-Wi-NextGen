@@ -33,10 +33,17 @@ abstract class AbstractWebTestCase extends WebTestCase
         $em = self::getContainer()->get(EntityManagerInterface::class);
         $this->ensureSchema($em);
         $this->ensureInstallLock();
+        // Reset login throttles along with users/sessions so test order is irrelevant.
+        self::getContainer()->get('cache.rate_limiter')->clear();
 
         $conn = $em->getConnection();
         $conn->executeStatement('PRAGMA foreign_keys = OFF');
         $tables = [
+            'vm_console_sessions',
+            'kvm_guest_assignments',
+            'proxmox_tasks',
+            'proxmox_guest_assignments',
+            'proxmox_clusters',
             'forum_post_reports',
             'forum_posts',
             'forum_threads',

@@ -68,6 +68,8 @@ final class CustomerProfileController
         #[Autowire('%app.payment_dummy_enabled%')]
         private readonly bool $allowDummyPayment,
         private readonly Environment $twig,
+        #[Autowire('%env(default:app.stripe_secret_key_default:STRIPE_SECRET_KEY)%')]
+        private readonly string $stripeSecretKey = '',
     ) {
     }
 
@@ -339,6 +341,9 @@ final class CustomerProfileController
     private function getPaymentMethods(): array
     {
         $methods = self::PAYMENT_METHOD_LABELS;
+        if ($this->stripeSecretKey !== '') {
+            $methods['stripe'] = 'Stripe';
+        }
         if (!$this->isDummyPaymentAllowed()) {
             unset($methods['dummy']);
         }

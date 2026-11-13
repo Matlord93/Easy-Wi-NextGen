@@ -1,0 +1,18 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'kvm' %}
+{% set pageTitle = vm.label|default(vm.id) %}
+{% block content %}
+{% include 'admin/kvm/_style.html.twig' %}
+<div class="infra-page infra-kvm-detail" data-infra-tabs>
+ <nav class="infra-breadcrumb"><a href="{{ path('admin_kvm') }}">KVM</a><span>/</span><a href="{{ path('admin_kvm_node', {id: node.id}) }}">{{ node.name ?: node.id }}</a><span>/</span><span>{{ pageTitle }}</span></nav>
+ <header class="infra-hero"><div><span class="infra-eyebrow">KVM · {{ 'infra.server'|trans({}, 'infrastructure') }}</span><h1>{{ pageTitle }}</h1><p>{{ vm.id }}</p></div><span class="infra-tag {{ vm.state == 'running' ? 'infra-tag--online' : '' }}">{{ vm.state }}</span></header>
+ {% for error in app.flashes('kvm_error') %}<p role="alert" class="kvm-alert">{{ error|trans({}, error starts with 'vm_config.' ? 'vm_config' : 'kvm') }}</p>{% endfor %}
+ <p><a class="ui-button ui-button--ghost" href="{{ path('admin_infrastructure_history', {provider:'kvm',connection:node.id,kind:'vm',reference:vm.id}) }}">{{ 'monitor.open_history'|trans({}, 'monitoring') }}</a></p>
+ <div><div data-infra-usage-url="{{ path('admin_kvm_guest_usage', {id: node.id, uuid: vm.id}) }}">{% include 'infrastructure/_usage_pair.html.twig' with {serverUsage: infra_kvm_usage(node, vm.id), nodeUsage: infra_node_usage(node)} %}</div><p data-usage-error hidden>{{ 'infra.refresh_failed'|trans({}, 'infrastructure') }}</p></div>
+ <nav class="infra-tabs" data-infra-tablist aria-label="{{ pageTitle }}">{% for id in ['overview', 'settings', 'snapshots', 'backups', 'activity'] %}<a data-infra-tab href="#kvm-{{ id }}">{{ ('infra.' ~ id)|trans({}, 'infrastructure') }}</a>{% endfor %}</nav>
+ <section class="infra-pane" id="kvm-overview" data-infra-pane>{% include 'admin/kvm/_guest_actions.html.twig' %}</section>
+ {% for section in ['settings', 'snapshots', 'backups'] %}<section class="infra-pane infra-card" id="kvm-{{ section }}" data-infra-pane><h2>{{ ('infra.' ~ section)|trans({}, 'infrastructure') }}</h2>{% if vm.managed and not vm.error|default('') %}{% include 'admin/kvm/_guest_' ~ section ~ '.html.twig' %}{% else %}<p>{{ 'kvm.external'|trans }}</p>{% endif %}</section>{% endfor %}
+ <section class="infra-pane" id="kvm-activity" data-infra-pane>{% include 'admin/kvm/_jobs.html.twig' %}</section>
+</div>
+<script src="{{ asset('js/kvm.js') }}" defer></script>
+{% endblock %}

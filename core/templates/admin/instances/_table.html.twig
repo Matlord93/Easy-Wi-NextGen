@@ -117,7 +117,7 @@
                             </div>
                         {% endif %}
                         {% if instance.sftp_last_error %}
-                            <div style="font-size:11px;color:#ef4444;">{{ t('admin_instances_sftp_error_label', page_locale()) }}: {{ instance.sftp_last_error }}</div>
+                            <div style="font-size:11px;color:var(--aw-status-danger, #ef4444);">{{ t('admin_instances_sftp_error_label', page_locale()) }}: {{ instance.sftp_last_error }}</div>
                         {% endif %}
                     </td>
                     <td>{{ instance.node }}</td>
@@ -161,7 +161,7 @@
                             <div style="margin-top:4px;font-size:11px;color:var(--color-text-muted,#94a3b8);">
                                 {{ instance.latest_lifecycle_job_type }} · {{ instance.latest_lifecycle_job_status }}
                                 {% if instance.latest_lifecycle_job_error_code %}
-                                    <span style="color:#ef4444;">({{ instance.latest_lifecycle_job_error_code }})</span>
+                                    <span style="color:var(--aw-status-danger, #ef4444);">({{ instance.latest_lifecycle_job_error_code }})</span>
                                 {% endif %}
                             </div>
                         {% endif %}
@@ -218,7 +218,7 @@
                                 </button>
                             {% endif %}
                             <button class="ui-button ui-button--ghost ui-button--sm"
-                                    style="border-color:#fca5a5;color:#ef4444;"
+                                    style="border-color:#fca5a5;color:var(--aw-status-danger, #ef4444);"
                                     hx-post="{{ path('admin_instances_delete_form', {id: instance.id}) }}"
                                     hx-confirm="{{ t('admin_instances_delete_confirm', page_locale()) }}">
                                 {{ t('delete', page_locale()) }}

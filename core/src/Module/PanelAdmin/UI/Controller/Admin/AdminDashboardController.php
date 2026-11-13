@@ -175,6 +175,7 @@ final class AdminDashboardController
                 'lastHeartbeatVersion' => $agent->getLastHeartbeatVersion(),
                 'cpu' => $cpu,
                 'memory' => $memory,
+                'disk' => $this->formatPercent($this->extractMetricPercent($metrics, 'disk') ?? $this->extractMetricPercent($stats, 'disk')),
                 'queue' => $queue,
             ];
         }, $agents);

@@ -1,0 +1,66 @@
+infra.cpu: "CPU"
+infra.memory: "Memory"
+infra.ram: "RAM"
+infra.disk: "Storage"
+infra.server: "Server"
+infra.host: "Host"
+infra.server_usage: "Server utilization"
+infra.node_usage: "Node utilization"
+infra.no_sample: "No measurement available yet"
+infra.cpu_hint: "Utilization of allocated CPU capacity"
+infra.host_memory: "Memory used on the host (RSS)"
+infra.observed: "Last measurement"
+infra.stale: "Measurements are stale"
+infra.refresh_failed: "Refresh unavailable. Last measurements remain visible."
+infra.overview: "Overview"
+infra.servers: "Servers"
+infra.console: "Console"
+infra.snapshots: "Snapshots"
+infra.backups: "Backups"
+infra.settings: "Settings"
+infra.network: "Network"
+infra.templates: "Templates"
+infra.create: "Create server"
+infra.activity: "Tasks"
+infra.search: "Search servers …"
+infra.all_states: "All states"
+infra.running: "Running"
+infra.stopped: "Stopped"
+infra.no_results: "No matching servers found."
+infra.open: "Manage"
+infra.refresh: "Refresh measurements"
+infra.capacity: "Allocated resources"
+infra.dashboard: "Dashboard"
+infra.infrastructure: "Infrastructure"
+infra.proxmox_hint: "Nodes and servers at a glance. Choose a connection to manage resources and guests."
+infra.kvm_hint: "Manage hosts, virtual servers and resources in one workspace."
+infra.customer_hint: "Your virtual servers with utilization, backups and direct console access."
+infra.connections: "Connections"
+infra.available: "Available"
+infra.details: "Open server"
+infra.inventory_hint: "Inventory and configuration update on inspection. Utilization arrives with agent heartbeats."
+infra.throughput: 'VM throughput'
+infra.net_rx: 'Network received'
+infra.net_tx: 'Network sent'
+infra.disk_read: 'Disk read'
+infra.disk_write: 'Disk write'
+infra.io_rrd: 'Time-averaged Proxmox sample'
+infra.io_counter: 'Average between agent samples'
+infra.io_waiting: 'No current complete rate sample yet. Missing values remain empty.'
+infra.history_title: 'Short history for this view'
+infra.history_hint: 'Up to 60 samples from the last 20 minutes in this open view only. Reloading starts a new history.'
+infra.history_load: 'CPU and RAM (%)'
+infra.history_network: 'Network throughput'
+infra.history_disk: 'Disk throughput'
+infra.history_waiting: 'History builds as new samples arrive.'
+infra.history_interrupted: 'Sample stream interrupted. Last confirmed readings remain visible.'
+infra.history_points: 'Samples'
+infra.export_range: 'Export scope'
+infra.export_current: 'Last available sample'
+infra.export_5: 'History: last 5 minutes'
+infra.export_20: 'Entire short history (up to 20 minutes)'
+infra.export_csv: 'Download CSV'
+infra.export_hint: 'Exports this card’s samples only. Timestamps use UTC; missing values stay empty. Sources and measurement gaps are included.'
+infra.export_success: 'CSV created: {rows} sample rows.'
+infra.export_empty: 'No exportable samples are available for this period.'
+infra.export_failed: 'Could not create CSV. Please try again.'

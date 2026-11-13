@@ -6,6 +6,7 @@ namespace App\Module\PanelCustomer\Application;
 
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\SshHostKeyVerifier;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Repository\WebspaceSftpCredentialRepository;
 use League\Flysystem\Filesystem;
@@ -244,13 +245,15 @@ class SftpFilesystemService
             $password = $this->encryptionService->decrypt($credential->getEncryptedPassword());
             $root = rtrim($webspace->getPath(), '/');
 
+            $fingerprint = (new SshHostKeyVerifier())->requireFingerprint($webspace->getNode()->getSftpHostFingerprint());
             $provider = new SftpConnectionProvider(
-                $host,
-                $username,
-                $password,
-                $port,
-                false,
-                10,
+                host: $host,
+                username: $username,
+                password: $password,
+                port: $port,
+                useAgent: false,
+                timeout: 10,
+                hostFingerprint: $fingerprint,
             );
 
             $adapter = new SftpAdapter($provider, $root);

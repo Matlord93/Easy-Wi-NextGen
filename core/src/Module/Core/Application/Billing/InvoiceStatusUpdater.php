@@ -7,12 +7,10 @@ namespace App\Module\Core\Application\Billing;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Enum\InvoiceStatus;
-use App\Repository\PaymentRepository;
 
 final class InvoiceStatusUpdater
 {
     public function __construct(
-        private readonly PaymentRepository $paymentRepository,
         private readonly AuditLogger $auditLogger,
     ) {
     }
@@ -20,10 +18,17 @@ final class InvoiceStatusUpdater
     public function syncStatus(Invoice $invoice, ?\App\Module\Core\Domain\Entity\User $actor = null, ?\DateTimeImmutable $now = null): void
     {
         $now = $now ?? new \DateTimeImmutable();
-        $paidAmount = $this->paymentRepository->sumSucceededForInvoice($invoice);
+        if (in_array($invoice->getStatus(), [InvoiceStatus::Cancelled, InvoiceStatus::Draft], true)) {
+            return;
+        }
+        // Include newly recorded payments before the unit of work is flushed.
+        $paidAmount = $invoice->getPaidAmountCents();
         $previousStatus = $invoice->getStatus();
 
         if ($paidAmount >= $invoice->getAmountDueCents()) {
+            foreach ($invoice->getReminders() as $reminder) {
+                $reminder->markResolved();
+            }
             if ($previousStatus !== InvoiceStatus::Paid) {
                 $invoice->markPaid($now);
                 $this->auditLogger->log($actor, 'billing.invoice.paid', [

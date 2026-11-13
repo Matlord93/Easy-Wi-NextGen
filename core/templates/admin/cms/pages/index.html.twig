@@ -68,11 +68,7 @@
             </div>
         </div>
 
-        <div id="cms-page-form" class="ng-data-card" hx-trigger="cms-pages-changed from:body" hx-get="/admin/cms/pages/form" hx-swap="outerHTML">
-            <div class="ng-data-card__body">
-                {% include 'admin/cms/pages/_form.html.twig' with { form: form } %}
-            </div>
-        </div>
+        {% include 'admin/cms/pages/_form.html.twig' with { form: form } %}
     </div>
 
 </div>

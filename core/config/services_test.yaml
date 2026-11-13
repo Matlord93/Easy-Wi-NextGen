@@ -1,4 +1,11 @@
 services:
+  App\Module\Nodes\Application\Proxmox\ProxmoxApiClient:
+    autowire: true
+    public: true
+  App\Module\Gameserver\Application\MinecraftCatalogService:
+    autowire: true
+    arguments:
+      $synchronizer: null
   App\Module\Core\EventSubscriber\DatabaseConfigSubscriber:
     autowire: true
     autoconfigure: false
@@ -7,6 +14,7 @@ services:
   App\Tests\Support\StatelessCsrfTokenManager: ~
 
   Symfony\Component\Security\Csrf\CsrfTokenManagerInterface: '@App\Tests\Support\StatelessCsrfTokenManager'
+  security.csrf.token_manager: '@App\Tests\Support\StatelessCsrfTokenManager'
   App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient'
 
   App\Module\Ports\Application\NodePortAvailability:

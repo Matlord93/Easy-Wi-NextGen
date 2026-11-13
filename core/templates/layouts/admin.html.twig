@@ -1,9 +1,21 @@
 {% extends 'layouts/base.html.twig' %}
 
-{% block body_class %}admin-interface ng-shell{% endblock %}
+{% block theme_bootstrap %}<script src="{{ asset('js/panel-theme.js') }}"></script>{% endblock %}
+{% block head %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('admin-theme.css') }}">
+        <link rel="stylesheet" href="{{ asset('admin-workspace.css') }}">
+        <script src="{{ asset('js/admin-workspace.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('infrastructure.css') }}">
+    <script src="{{ asset('js/infrastructure.js') }}" defer></script>
+    <script src="{{ asset('js/infrastructure-export.js') }}" defer></script>
+    <script src="{{ asset('js/infrastructure-history.js') }}" defer></script>
+{% endblock %}
+{% block body_class %}admin-interface ng-shell admin-workspace{% endblock %}
 
 {% block body %}
 {% set activeNav = activeNav|default('') %}
+{% set workspaceEnabled = true %}
 {% set extensionItems = extension_menu_items('admin') %}
 {% set gdprItems = extensionItems is not empty
     ? extensionItems|filter(item => item.href starts with '/admin/gdpr')
@@ -99,6 +111,9 @@
 ]|filter(v => v) %}
 
 {% set systemModuleItems = [
+    { key: 'proxmox', label: 'Proxmox', href: path('admin_proxmox'), iconSvg: icon.server },
+    { key: 'kvm', label: 'KVM', href: path('admin_kvm'), iconSvg: icon.server },
+    { key: 'monitoring', label: 'monitor.title'|trans({}, 'monitoring'), href: path('admin_infrastructure_monitoring'), iconSvg: icon.server },
     { key: 'firewall',         label: t('admin_nav_firewall', page_locale()),        href: path('admin_security'),              iconSvg: icon.shield },
     { key: 'port-pools',       label: t('admin_nav_server_ports', page_locale()),    href: path('admin_port_pools'),            iconSvg: icon.port },
     { key: 'metrics',          label: t('admin_nav_metrics', page_locale()),         href: path('admin_metrics'),               iconSvg: icon.metrics },
@@ -151,9 +166,10 @@
         open: true,
         items: [
             { key: 'dashboard',  label: t('admin_nav_dashboard', page_locale()),  href: path('admin_dashboard'), iconSvg: icon.dashboard },
+            workspaceEnabled ? { key: 'getting-started', label: 'workspace.setup'|trans({}, 'admin_workspace'), href: path('admin_getting_started'), iconSvg: icon.templates } : null,
             { key: 'activity',   label: t('activity', page_locale()),             href: path('admin_activity'),  iconSvg: icon.activity },
             { key: 'audit-logs', label: t('admin_nav_audit_logs', page_locale()), href: path('admin_audit_logs'),iconSvg: icon.audit }
-        ]
+        ]|filter(v => v)
     },
     customerItems is not empty ? {
         label: t('admin_nav_group_accounts', page_locale()),
@@ -225,7 +241,8 @@
         logoUrl: brandingLogo ?: null,
         activeNav: activeNav,
         groups: sidebarGroups,
-        footer: ''
+        footer: '',
+        adminWorkspace: workspaceEnabled
     } %}
     <div class="ng-sidebar-backdrop" data-sidebar-backdrop></div>
 
@@ -237,6 +254,7 @@
             profile: adminProfileSummary
         } %}
         <div class="ng-content">
+            {% if activeNav != 'dashboard' %}{% include 'admin/workspace/_guide.html.twig' %}{% endif %}
             {% block content %}{% endblock %}
         </div>
     </main>
@@ -246,26 +264,6 @@
 
 <script>
     (function () {
-        /* ── Theme toggle ── */
-        var themeToggle = document.getElementById('theme-toggle');
-        var iconDark = themeToggle ? themeToggle.querySelector('.theme-icon-dark') : null;
-        var iconLight = themeToggle ? themeToggle.querySelector('.theme-icon-light') : null;
-
-        function applyTheme() {
-            var isDark = document.documentElement.classList.contains('dark');
-            if (iconDark)  iconDark.style.display  = isDark  ? '' : 'none';
-            if (iconLight) iconLight.style.display = !isDark ? '' : 'none';
-        }
-
-        if (themeToggle) {
-            applyTheme();
-            themeToggle.addEventListener('click', function () {
-                var isDark = document.documentElement.classList.toggle('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                applyTheme();
-            });
-        }
-
         /* ── Sidebar toggle ── */
         var body = document.body;
         var toggles = document.querySelectorAll('.ng-sidebar-toggle');

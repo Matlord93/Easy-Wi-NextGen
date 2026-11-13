@@ -19,7 +19,8 @@ final class ConsoleStreamDiagnosticsTest extends TestCase
         $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, null);
         $snapshot = $diagnostics->snapshot();
 
-        self::assertTrue($snapshot['relay_stale']);
+        self::assertFalse($snapshot['relay_stale']);
+        self::assertSame('websocket', $snapshot['transport']);
         self::assertFalse($snapshot['backend_configured']);
         self::assertFalse($snapshot['sample_node_endpoint_present']);
     }
@@ -35,6 +36,7 @@ final class ConsoleStreamDiagnosticsTest extends TestCase
 
     public function testIsRelayRequiredReturnsFalseWhenRedisPingFails(): void
     {
+        if (!class_exists(\Redis::class)) { self::markTestSkipped("Redis extension is required for the legacy transport test."); }
         // Simulates RedisConnectionFactory returning a non-connected \Redis instance
         // (it catches connection exceptions and returns the object anyway).
         $redis = $this->createMock(\Redis::class);
@@ -42,7 +44,7 @@ final class ConsoleStreamDiagnosticsTest extends TestCase
 
         $probe = $this->createMock(AgentEndpointProbeInterface::class);
 
-        $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, $redis);
+        $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, $redis, 20, true);
 
         // Even though a \Redis instance was injected, the relay is not required
         // when Redis is actually unreachable — FallbackConsoleEventBus will use
@@ -52,12 +54,13 @@ final class ConsoleStreamDiagnosticsTest extends TestCase
 
     public function testIsRelayRequiredReturnsTrueWhenRedisResponds(): void
     {
+        if (!class_exists(\Redis::class)) { self::markTestSkipped("Redis extension is required for the legacy transport test."); }
         $redis = $this->createMock(\Redis::class);
         $redis->method('ping')->willReturn(true);
 
         $probe = $this->createMock(AgentEndpointProbeInterface::class);
 
-        $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, $redis);
+        $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, $redis, 20, true);
 
         self::assertTrue($diagnostics->isRelayRequired());
     }

@@ -40,7 +40,10 @@
     "endroid/qr-code": "^6.1",
     "symfony/doctrine-messenger": "^8.1",
     "symfony/mailgun-mailer": "^8.1",
-    "symfony/process": "^8.1"
+    "symfony/process": "^8.1",
+    "dompdf/dompdf": "^3.1",
+    "horstoeko/zugferd": "^1.0.135",
+    "symfony/lock": "8.1.*"
   },
   "require-dev": {
     "friendsofphp/php-cs-fixer": "^3.68",
@@ -93,7 +96,19 @@
     ]
   },
   "conflict": {
-    "symfony/symfony": "*"
+    "symfony/symfony": "*",
+    "symfony/config": "<8.1.11",
+    "symfony/filesystem": "<8.1.11",
+    "symfony/framework-bundle": "<8.1.11",
+    "symfony/http-client": "<8.1.11",
+    "symfony/http-foundation": "<8.1.11",
+    "symfony/http-kernel": "<8.1.11",
+    "symfony/routing": "<8.1.11",
+    "symfony/security-http": "<8.1.11",
+    "symfony/serializer": "<8.1.11",
+    "symfony/validator": "<8.1.11",
+    "symfony/yaml": "<8.1.11",
+    "symfony/mime": "<8.1.10"
   },
   "extra": {
     "symfony": {

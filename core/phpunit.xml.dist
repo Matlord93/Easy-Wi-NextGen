@@ -15,6 +15,7 @@
   </testsuites>
   <php>
     <ini name="memory_limit" value="512M"/>
+    <env name="VM_CONSOLE_GATEWAY_SECRET" value="synthetic-console-gateway-secret-for-tests-only" force="true"/>
     <env name="APP_ENV" value="test" force="true"/>
     <env name="APP_DEBUG" value="1" force="true"/>
     <env name="DEFAULT_URI" value="http://localhost" force="true"/>

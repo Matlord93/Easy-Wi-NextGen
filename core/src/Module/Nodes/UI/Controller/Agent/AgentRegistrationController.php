@@ -81,6 +81,14 @@ final class AgentRegistrationController
 
         $this->signatureVerifier->verify($request, $agentId, $signatureSecret);
 
+        $serviceUrl = trim((string) ($payload['service_base_url'] ?? ''));
+        if ($serviceUrl !== '') {
+            $parts = parse_url($serviceUrl);
+            if ($parts === false || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || empty($parts['host']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || !in_array($parts['path'] ?? '', ['', '/'], true)) {
+                throw new BadRequestHttpException('Invalid agent service URL.');
+            }
+        }
+
         $secret = bin2hex(random_bytes(32));
 
         try {
@@ -121,6 +129,7 @@ final class AgentRegistrationController
         } catch (AgentConfigurationException $exception) {
             throw new BadRequestHttpException($exception->getMessage(), $exception);
         }
+        if ($serviceUrl !== '') { $agent->setServiceBaseUrl($serviceUrl); }
         $this->entityManager->persist($agent);
         $this->auditLogger->log(null, 'agent.registered', [
             'agent_id' => $agentId,

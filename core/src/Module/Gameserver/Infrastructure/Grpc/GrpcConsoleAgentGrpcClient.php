@@ -20,6 +20,9 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterface
 {
+    /** @var array<int,string> */
+    private array $resumeCursors = [];
+
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly HttpClientInterface $httpClient,
@@ -80,10 +83,11 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         $node = $instance->getNode();
         $endpoint = $this->resolveEndpoint($node);
         $baseRequestUri = '/v1/instances/' . $instanceId . '/console/logs';
-        $cursor = '';
+        $cursor = $this->resumeCursors[$instanceId] ?? '';
+        $started = microtime(true);
         $emptyStreak = 0;
 
-        while (true) {
+        while (microtime(true) - $started < 5) {
             $query = $cursor !== '' ? ['cursor' => $cursor] : [];
             $requestUri = $this->withQueryString($baseRequestUri, $query);
             try {
@@ -112,6 +116,8 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
 
             if ($newCursor !== '') {
                 $cursor = $newCursor;
+                $this->resumeCursors[$instanceId] = $cursor;
+                if (count($this->resumeCursors) > 512) { unset($this->resumeCursors[array_key_first($this->resumeCursors)]); }
             }
 
             foreach ($lines as $line) {

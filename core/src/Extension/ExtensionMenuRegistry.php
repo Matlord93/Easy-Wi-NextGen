@@ -7,6 +7,9 @@ namespace App\Extension;
 final class ExtensionMenuRegistry
 {
     /**
+     * Symfony injects the tagged menu providers when constructing this service.
+     *
+     * @psalm-api
      * @param iterable<ExtensionMenuProviderInterface> $menuProviders
      */
     public function __construct(private readonly iterable $menuProviders)

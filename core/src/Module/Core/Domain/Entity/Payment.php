@@ -10,6 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: PaymentRepository::class)]
 #[ORM\Table(name: 'payments')]
+#[ORM\UniqueConstraint(name: 'uniq_payments_provider_reference', columns: ['provider', 'reference'])]
 class Payment
 {
     #[ORM\Id]

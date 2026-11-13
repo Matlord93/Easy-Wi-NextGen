@@ -20,6 +20,7 @@ prepare_tree(){
     "$ROOT/core/" "$target/"
   mkdir -p "$target/var/cache" "$target/var/log"
   cp "$ROOT/VERSION" "$target/VERSION"
+  bash "$ROOT/scripts/prepare-minecraft-catalog.sh" "$target"
   if [[ "$mode" == "novendor" ]]; then rm -rf "$target/vendor"; fi
 }
 

@@ -1,0 +1,4 @@
+sftp.trusted_host: "Trusted SFTP host key"
+sftp.fingerprint: "SHA256 fingerprint"
+sftp.trust_hint: "Verify the fingerprint on the node over a trusted connection. SFTP connections remain blocked until a key is trusted. An empty field removes trust."
+sftp.save: "Save host key"

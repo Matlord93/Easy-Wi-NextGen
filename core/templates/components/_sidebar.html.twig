@@ -1,3 +1,4 @@
+{% set adminWorkspace = adminWorkspace|default(false) %}
 {% set title = title|default('') %}
 {% set groups = groups|default([]) %}
 {% set activeNav = activeNav|default('') %}
@@ -22,10 +23,15 @@
         </button>
     </div>
 
+    {% if adminWorkspace %}
+    <label class="aw-nav-search"><span class="aw-visually-hidden">{{ 'workspace.search'|trans({}, 'admin_workspace') }}</span><input type="search" data-admin-nav-search placeholder="{{ 'workspace.search'|trans({}, 'admin_workspace') }}" autocomplete="off"></label>
+    <p class="aw-nav-empty" data-admin-nav-empty hidden>{{ 'workspace.no_results'|trans({}, 'admin_workspace') }}</p>
+    {% endif %}
     <nav class="ng-sidebar__nav" aria-label="{{ t('sidebar_nav_aria', page_locale()) }}">
         {% for group in groups %}
             {% set groupId = group.id|default(group.label|default(loop.index)) %}
-            <details class="ng-sidebar__group" data-nav-id="{{ groupId|lower|replace({' ': '-'}) }}" {{ group.open ? 'open' : '' }}>
+            {% set forceOpen = adminWorkspace and group.items|filter(item => item.key|default('') == activeNav)|length > 0 %}
+            <details {% if forceOpen %}data-nav-force-open{% endif %} class="ng-sidebar__group" data-nav-id="{{ groupId|lower|replace({' ': '-'}) }}" {{ group.open or forceOpen ? 'open' : '' }}>
                 <summary class="ng-sidebar__group-label">
                     <span>{{ group.label }}</span>
                     <svg class="ng-sidebar__chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -69,12 +75,14 @@
         var groups = document.querySelectorAll('.ng-sidebar__group[data-nav-id]');
         groups.forEach(function (group) {
             var key = 'ng-sidebar-group:' + group.dataset.navId;
-            var stored = localStorage.getItem(key);
-            if (stored !== null) {
+            var stored = null;
+            try { stored = localStorage.getItem(key); } catch (_) {}
+            if (stored !== null && !group.hasAttribute('data-nav-force-open')) {
                 group.open = stored === 'open';
             }
             group.addEventListener('toggle', function () {
-                localStorage.setItem(key, group.open ? 'open' : 'closed');
+                if (document.body.dataset.adminNavFiltering === 'true') return;
+                try { localStorage.setItem(key, group.open ? 'open' : 'closed'); } catch (_) {}
             });
         });
     })();

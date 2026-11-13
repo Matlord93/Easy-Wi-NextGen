@@ -99,15 +99,15 @@
                             <tr>
                                 <td>
                                     <div style="font-weight:500;">{{ instance.name }}</div>
-                                    <div style="font-size:11px;color:#94a3b8;">#{{ instance.id }}</div>
+                                    <div style="font-size:11px;color:var(--ng-text-muted, #94a3b8);">#{{ instance.id }}</div>
                                 </td>
                                 <td>
                                     <div>{{ instance.customer.email }}</div>
-                                    <div style="font-size:11px;color:#94a3b8;">#{{ instance.customer.id }}</div>
+                                    <div style="font-size:11px;color:var(--ng-text-muted, #94a3b8);">#{{ instance.customer.id }}</div>
                                 </td>
                                 <td>
                                     <div>{{ instance.node.name }}</div>
-                                    <div style="font-size:11px;color:#94a3b8;">{{ instance.node.id }}</div>
+                                    <div style="font-size:11px;color:var(--ng-text-muted, #94a3b8);">{{ instance.node.id }}</div>
                                 </td>
                                 <td>
                                     <span class="ui-badge ui-badge--{{ statusBadgeMap[instance.status] ?? 'neutral' }}">
@@ -184,7 +184,7 @@
                                 <tr>
                                     <td>
                                         <div style="font-weight:500;">{{ node.name ?? node.id }}</div>
-                                        <div style="font-size:11px;color:#94a3b8;">{{ node.id }}</div>
+                                        <div style="font-size:11px;color:var(--ng-text-muted, #94a3b8);">{{ node.id }}</div>
                                     </td>
                                     <td>
                                         <span class="ui-badge ui-badge--neutral">{{ node.status }}</span>

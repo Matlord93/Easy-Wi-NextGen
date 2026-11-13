@@ -37,6 +37,7 @@ final class CustomerModuleTwigExtension extends AbstractExtension
         private readonly MailboxRepository $mailboxRepository,
         private readonly MusicbotInstanceRepository $musicbotInstanceRepository,
         private readonly ShopRentalRepository $shopRentalRepository,
+        private readonly \Doctrine\ORM\EntityManagerInterface $em,
     ) {
     }
 
@@ -62,6 +63,8 @@ final class CustomerModuleTwigExtension extends AbstractExtension
         }
 
         return match (strtolower($moduleKey)) {
+            'kvm' => $this->em->getRepository(\App\Module\Nodes\Domain\Entity\KvmGuestAssignment::class)->count(['customer' => $actor]) > 0,
+            'proxmox' => $this->em->getRepository(\App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment::class)->count(['customer' => $actor]) > 0,
             'game' => $this->instanceRepository->count(['customer' => $actor]) > 0,
             'voice' => $this->voiceInstanceRepository->count(['customer' => $actor]) > 0
                 || $this->ts3VirtualServerRepository->count(['customerId' => $customerId, 'archivedAt' => null]) > 0

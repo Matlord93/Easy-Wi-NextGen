@@ -1,0 +1,6 @@
+{% trans_default_domain 'vm_config' %}
+{% if kind == 'qemu' %}
+<section class="ng-data-card"><div class="ng-data-card__header"><h2>{{ 'vm_config.cloud_title'|trans }}</h2></div><div class="ng-data-card__body">
+{% if detail.provisioning and detail.provisioning.supported %}<form method="post" action="{{ actionUrl }}" class="infra-form" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' with {action:'cloud-init'} %}{% include 'infrastructure/_cloud_init_fields.html.twig' with {cloud: detail.provisioning} %}<p class="infra-span">{{ 'vm_config.pve_name_hint'|trans }}</p><button class="ui-button ui-button--primary" {% if detail.status.status|default('') != 'stopped' %}disabled{% endif %}>{{ 'vm_config.save'|trans }}</button></form>{% else %}<p>{{ 'vm_config.no_cloud_init'|trans }}</p>{% endif %}
+</div></section>
+{% endif %}

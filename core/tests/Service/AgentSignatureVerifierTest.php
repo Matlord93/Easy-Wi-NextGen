@@ -8,7 +8,8 @@ use App\Module\Core\Application\AgentSignatureVerifier;
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use App\Module\Core\Application\AgentNonceStore;
+use Doctrine\DBAL\DriverManager;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 
@@ -16,7 +17,7 @@ final class AgentSignatureVerifierTest extends TestCase
 {
     public function testValidSignature(): void
     {
-        $cache = new ArrayAdapter();
+        $cache = $this->nonceStore();
         $verifier = new AgentSignatureVerifier($cache, new NullLogger(), 300, 600);
 
         $agentId = 'agent-123';
@@ -40,7 +41,7 @@ final class AgentSignatureVerifierTest extends TestCase
 
     public function testRejectsReusedNonce(): void
     {
-        $cache = new ArrayAdapter();
+        $cache = $this->nonceStore();
         $verifier = new AgentSignatureVerifier($cache, new NullLogger(), 300, 600);
 
         $agentId = 'agent-123';
@@ -65,7 +66,7 @@ final class AgentSignatureVerifierTest extends TestCase
 
     public function testRejectsExpiredTimestamp(): void
     {
-        $cache = new ArrayAdapter();
+        $cache = $this->nonceStore();
         $verifier = new AgentSignatureVerifier($cache, new NullLogger(), 10, 600);
 
         $agentId = 'agent-123';
@@ -88,7 +89,7 @@ final class AgentSignatureVerifierTest extends TestCase
 
     public function testAcceptsNormalizedMillisecondTimestamp(): void
     {
-        $cache = new ArrayAdapter();
+        $cache = $this->nonceStore();
         $verifier = new AgentSignatureVerifier($cache, new NullLogger(), 300, 600);
 
         $agentId = 'agent-123';
@@ -114,7 +115,7 @@ final class AgentSignatureVerifierTest extends TestCase
 
     public function testRejectsDifferentRawBodyEvenIfJsonEquivalent(): void
     {
-        $cache = new ArrayAdapter();
+        $cache = $this->nonceStore();
         $verifier = new AgentSignatureVerifier($cache, new NullLogger(), 300, 600);
 
         $agentId = 'agent-123';
@@ -139,7 +140,7 @@ final class AgentSignatureVerifierTest extends TestCase
 
     public function testAcceptsSignatureWhenProxyAddsTrailingSlashToPathInfo(): void
     {
-        $cache = new ArrayAdapter();
+        $cache = $this->nonceStore();
         $verifier = new AgentSignatureVerifier($cache, new NullLogger(), 300, 600);
 
         $agentId = 'agent-123';
@@ -161,6 +162,62 @@ final class AgentSignatureVerifierTest extends TestCase
         $verifier->verify($request, $agentId, $secret);
 
         $this->assertTrue(true);
+    }
+
+    public function testTimestampVariantsCannotReplayTheSameSignedRequest(): void
+    {
+        $store = $this->nonceStore();
+        $verifier = new AgentSignatureVerifier($store, new NullLogger(), 300, 1);
+        $now = (new DateTimeImmutable())->setTimezone(new \DateTimeZone('UTC'));
+        $canonical = $now->format(DateTimeImmutable::RFC3339);
+        $signature = $this->sign('agent-123', 'secret', 'GET', '/agent/jobs', '', $canonical, 'shared-nonce');
+        foreach ([$now->format('Y-m-d\\TH:i:s.v\\Z'), $canonical, $now->format('Y-m-d\\TH:i:s\\Z')] as $index => $timestamp) {
+            $request = Request::create('/agent/jobs');
+            $request->headers->add(['X-Agent-ID' => 'agent-123', 'X-Timestamp' => $timestamp, 'X-Nonce' => 'shared-nonce', 'X-Signature' => $signature]);
+            try {
+                $verifier->verify($request, 'agent-123', 'secret');
+                self::assertSame(0, $index, 'A replay with an alternative timestamp was accepted.');
+            } catch (UnauthorizedHttpException $error) {
+                self::assertGreaterThan(0, $index);
+                self::assertSame('nonce_reuse', $error->getMessage());
+            }
+        }
+    }
+
+    public function testFutureTimestampIsRememberedForTheEntireValidityWindow(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $connection->executeStatement('CREATE TABLE agent_request_nonces (nonce_key VARCHAR(64) PRIMARY KEY, expires_at BIGINT NOT NULL)');
+        $verifier = new AgentSignatureVerifier(new AgentNonceStore($connection), new NullLogger(), 300, 1);
+        $future = new DateTimeImmutable('+290 seconds');
+        $timestamp = $future->format(DateTimeImmutable::RFC3339);
+        $request = Request::create('/agent/jobs');
+        $request->headers->add(['X-Agent-ID' => 'agent-123', 'X-Timestamp' => $timestamp, 'X-Nonce' => 'future', 'X-Signature' => $this->sign('agent-123', 'secret', 'GET', '/agent/jobs', '', $timestamp, 'future')]);
+        $verifier->verify($request, 'agent-123', 'secret');
+        self::assertGreaterThanOrEqual($future->getTimestamp() + 301, (int) $connection->fetchOne('SELECT expires_at FROM agent_request_nonces'));
+        // A separate verifier/process using the same database must still reject it.
+        $this->expectException(UnauthorizedHttpException::class);
+        (new AgentSignatureVerifier(new AgentNonceStore($connection), new NullLogger(), 300, 1))->verify($request, 'agent-123', 'secret');
+    }
+
+    public function testBadSignatureDoesNotReserveANonce(): void
+    {
+        $verifier = new AgentSignatureVerifier($this->nonceStore(), new NullLogger(), 300, 600);
+        $timestamp = (new DateTimeImmutable())->format(DateTimeImmutable::RFC3339);
+        $request = Request::create('/agent/jobs');
+        $request->headers->add(['X-Agent-ID' => 'agent-123', 'X-Timestamp' => $timestamp, 'X-Nonce' => 'not-poisoned', 'X-Signature' => 'invalid']);
+        try { $verifier->verify($request, 'agent-123', 'secret'); self::fail('Bad signature accepted.'); }
+        catch (UnauthorizedHttpException $error) { self::assertSame('invalid_signature', $error->getMessage()); }
+        $request->headers->set('X-Signature', $this->sign('agent-123', 'secret', 'GET', '/agent/jobs', '', $timestamp, 'not-poisoned'));
+        $verifier->verify($request, 'agent-123', 'secret');
+    }
+
+    private function nonceStore(): AgentNonceStore
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $connection->executeStatement('CREATE TABLE agent_request_nonces (nonce_key VARCHAR(64) PRIMARY KEY, expires_at BIGINT NOT NULL)');
+
+        return new AgentNonceStore($connection);
     }
 
     private function sign(string $agentId, string $secret, string $method, string $path, string $body, string $timestamp, string $nonce): string

@@ -6,7 +6,9 @@
 {% set locale = page_locale() %}
 
 {% block content %}
+<a href="{{ path('admin_billing_design') }}" class="ui-button ui-button--ghost">{{ 'billing.design'|trans({}, 'billing') }}</a>
 <div style="display:flex;flex-direction:column;gap:20px;">
+<a href="{{ path('admin_billing_settings') }}" class="ui-button ui-button--ghost">{{ 'billing.settings'|trans({}, 'billing') }}</a>
 
     {# ── Hero with KPI ── #}
     <section class="ng-card" style="overflow:hidden;">
@@ -28,7 +30,7 @@
                         </div>
                         <div class="tkt-kpi" style="border-color:rgba(252,165,165,.25);background:rgba(252,165,165,.07);">
                             <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_billing_past_due', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:#fca5a5;">{{ summary.past_due }}</div>
+                            <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ summary.past_due }}</div>
                         </div>
                         <div class="tkt-kpi tkt-kpi--resolved">
                             <div class="tkt-kpi__label">{{ t('admin_billing_paid', locale) }}</div>
@@ -57,7 +59,7 @@
                 </div>
             </a>
             <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
-                <form method="post" action="/admin/billing/dunning" style="display:contents;">
+                <form method="post" action="/admin/billing/dunning" style="display:contents;"><input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
                     <button type="submit" class="tkt-qa">
                         <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">⚡</div>
                         <div class="tkt-qa__title">{{ t('admin_billing_run_dunning', locale) }}</div>
@@ -163,7 +165,7 @@
                     <h2 class="tkt-filter-bar__title">{{ t('admin_billing_credit_notes', locale) }}</h2>
                     <p class="tkt-filter-bar__sub">{{ t('admin_billing_credit_notes_intro', locale) }}</p>
                 </div>
-                <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_billing_create_credit', locale) }}</button>
+                <a class="ui-button ui-button--ghost ui-button--sm" href="#invoices-tbody">{{ t('admin_billing_create_credit', locale) }}</a>
             </div>
         </div>
         <div class="cust-ws-table-wrap">
