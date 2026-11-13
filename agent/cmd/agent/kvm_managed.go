@@ -78,7 +78,7 @@ func kvmCapabilities() map[string]any {
 			missing = append(missing, b)
 		}
 	}
-	return map[string]any{"version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "disk_grow_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
+	return map[string]any{"version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "disk_grow_version": 1, "network_config_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
 }
 
 func newKVMEngine(ctx context.Context) (*kvmEngine, error) {
@@ -250,6 +250,8 @@ func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, er
 		return nil, err
 	}
 	switch action {
+	case "vm.network":
+		return e.updateGuestNetwork(g, p)
 	case "vm.disk_grow":
 		return e.growDisk(g, p)
 	case "vm.cloud_init":
