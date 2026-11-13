@@ -7,8 +7,12 @@ namespace App\Repository;
 use App\Module\Core\Domain\Entity\MailMetricBucket;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<MailMetricBucket>
+ */
 final class MailMetricBucketRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -70,7 +74,7 @@ SQL;
             'to' => $to->format('Y-m-d H:i:s'),
             'limit' => max(1, min($limit, 100)),
         ], [
-            'limit' => \PDO::PARAM_INT,
+            'limit' => ParameterType::INTEGER,
         ])->fetchAllAssociative();
     }
 

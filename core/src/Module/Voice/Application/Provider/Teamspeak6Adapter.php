@@ -12,11 +12,13 @@ final class Teamspeak6Adapter implements VoiceProviderAdapter
     {
     }
 
+    #[\Override]
     public function supports(string $providerType): bool
     {
         return $providerType === 'ts6';
     }
 
+    #[\Override]
     public function query(VoiceInstance $instance): VoiceQueryResult
     {
         $result = $this->probeStatus($instance);
@@ -32,6 +34,7 @@ final class Teamspeak6Adapter implements VoiceProviderAdapter
         );
     }
 
+    #[\Override]
     public function probeStatus(VoiceInstance $instance): array
     {
         $server = $this->lookup->find($instance->getExternalId());
@@ -42,6 +45,7 @@ final class Teamspeak6Adapter implements VoiceProviderAdapter
         return ['status' => $server['status'], 'players_online' => null, 'players_max' => $server['slots'], 'reason' => null, 'error_code' => null];
     }
 
+    #[\Override]
     public function performAction(VoiceInstance $instance, string $action): array
     {
         if (!in_array($action, ['start', 'stop', 'restart'], true)) {
@@ -51,6 +55,7 @@ final class Teamspeak6Adapter implements VoiceProviderAdapter
         return ['accepted' => true, 'reason' => null, 'error_code' => null];
     }
 
+    #[\Override]
     public function getConnectInfo(VoiceInstance $instance): array
     {
         $server = $this->lookup->find($instance->getExternalId());
@@ -66,6 +71,7 @@ final class Teamspeak6Adapter implements VoiceProviderAdapter
         ];
     }
 
+    #[\Override]
     public function getPlayers(VoiceInstance $instance): array
     {
         $server = $this->lookup->find($instance->getExternalId());

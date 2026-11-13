@@ -74,8 +74,10 @@ final class AdminMailPolicyController
 
         $policy->apply(
             $dto->requireTls,
+            $policy->isSmtpEnabled(),
             $dto->maxRecipients,
             $dto->maxHourlyEmails,
+            $policy->isAbusePolicyEnabled(),
             $dto->allowExternalForwarding,
             $dto->spamProtectionLevel,
             $dto->greylistingEnabled,

@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\ShopProduct;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<ShopProduct>
+ */
 final class ShopProductRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

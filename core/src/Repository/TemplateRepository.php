@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\Template;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Template>
+ */
 final class TemplateRepository extends ServiceEntityRepository implements SharedStorageTemplateLocatorInterface
 {
     public function __construct(ManagerRegistry $registry)
@@ -15,6 +18,7 @@ final class TemplateRepository extends ServiceEntityRepository implements Shared
         parent::__construct($registry, Template::class);
     }
 
+    #[\Override]
     public function findSharedStorageVariantForIdentity(Template $template): ?Template
     {
         $displayName = trim($template->getDisplayName());

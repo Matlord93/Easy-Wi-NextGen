@@ -29,6 +29,7 @@ final class UpdateAutoCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -38,6 +39,7 @@ final class UpdateAutoCommand extends Command
             ->addOption('agents-only', null, InputOption::VALUE_NONE, 'Only queue available agent updates and skip the core update');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $settings = $this->settingsService->getSettings();

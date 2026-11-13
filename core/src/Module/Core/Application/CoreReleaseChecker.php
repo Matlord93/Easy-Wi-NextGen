@@ -132,7 +132,7 @@ final class CoreReleaseChecker
         ];
     }
 
-    /** @return callable(string,string):bool|int */
+    /** @return callable(string,string):(bool|int) */
     public static function coreAssetMatcher(): callable
     {
         return static function (string $assetName, string $releaseTag): bool|int {

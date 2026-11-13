@@ -12,7 +12,7 @@ final class InstanceSftpCredentialEntityTest extends TestCase
 {
     public function testSetUsernameUpdatesToAgentProvidedValue(): void
     {
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $credential = new InstanceSftpCredential($instance, 'sftp1', [
             'key_id' => 'k',
             'nonce' => 'n',
@@ -26,7 +26,7 @@ final class InstanceSftpCredentialEntityTest extends TestCase
 
     public function testProvisioningStateTransitionsTrackSuccessAndFailure(): void
     {
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $credential = new InstanceSftpCredential($instance, 'sftp1', [
             'key_id' => 'k',
             'nonce' => 'n',
@@ -51,7 +51,7 @@ final class InstanceSftpCredentialEntityTest extends TestCase
 
     public function testSetUsernameIgnoresEmptyInput(): void
     {
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $credential = new InstanceSftpCredential($instance, 'sftp1', [
             'key_id' => 'k',
             'nonce' => 'n',

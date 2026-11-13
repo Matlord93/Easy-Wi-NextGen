@@ -23,6 +23,7 @@ final class RequestDrivenScheduleTriggerSubscriber implements EventSubscriberInt
     ) {
     }
 
+    #[\Override]
     public static function getSubscribedEvents(): array
     {
         return [KernelEvents::TERMINATE => 'onTerminate'];

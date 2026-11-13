@@ -21,6 +21,7 @@ final class RunGameserverInstanceSchedulesCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $lockHandle = $this->acquireProcessLock();

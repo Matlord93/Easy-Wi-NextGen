@@ -22,6 +22,7 @@ final class TemplatesLintCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $templates = $this->templateRepository->findAll();

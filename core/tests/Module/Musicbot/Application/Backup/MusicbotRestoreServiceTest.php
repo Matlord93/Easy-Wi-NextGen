@@ -12,18 +12,21 @@ use App\Module\Musicbot\Application\Backup\MusicbotRestoreService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 final class MusicbotRestoreServiceTest extends TestCase
 {
     private MusicbotRestoreService $service;
     private MockObject&EntityManagerInterface $em;
-    private MockObject&MusicbotBackupDataProvider $dataProvider;
+    private Stub&MusicbotBackupDataProvider $dataProvider;
 
     protected function setUp(): void
     {
         $this->em = $this->createMock(EntityManagerInterface::class);
-        $this->dataProvider = $this->createMock(MusicbotBackupDataProvider::class);
+        $this->em->expects(self::never())->method('persist');
+        $this->em->expects(self::never())->method('flush');
+        $this->dataProvider = $this->createStub(MusicbotBackupDataProvider::class);
         $this->dataProvider->method('getConnections')->willReturn([]);
         $this->dataProvider->method('getPlaylists')->willReturn([]);
         $this->dataProvider->method('getRadioStations')->willReturn([]);
@@ -38,9 +41,6 @@ final class MusicbotRestoreServiceTest extends TestCase
 
     public function testDryRunDoesNotPersist(): void
     {
-        $this->em->expects(self::never())->method('persist');
-        $this->em->expects(self::never())->method('flush');
-
         $manifest = $this->buildManifest(['instance' => ['instance_config' => ['volume' => 75]]]);
         $instance = $this->buildMockInstance();
 
@@ -110,10 +110,10 @@ final class MusicbotRestoreServiceTest extends TestCase
         );
     }
 
-    private function buildMockInstance(): MockObject&MusicbotInstance
+    private function buildMockInstance(): Stub&MusicbotInstance
     {
         $customer = new \App\Module\Core\Domain\Entity\User('c@x.com', UserType::Customer);
-        $instance = $this->createMock(MusicbotInstance::class);
+        $instance = $this->createStub(MusicbotInstance::class);
         $instance->method('getId')->willReturn(42);
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getInstanceConfig')->willReturn([]);

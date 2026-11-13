@@ -17,6 +17,7 @@ final readonly class ApiExceptionSubscriber implements EventSubscriberInterface
     {
     }
 
+    #[\Override]
     public static function getSubscribedEvents(): array { return [KernelEvents::EXCEPTION => ['onException', 0]]; }
 
     public function onException(ExceptionEvent $event): void

@@ -17,7 +17,7 @@ final class DatabaseTableReadOnlyTest extends TestCase
 {
     public function testInvalidTableNameRejected(): void
     {
-        $service = new DatabaseTableService($this->createMock(EncryptionService::class), static fn() => null);
+        $service = new DatabaseTableService($this->createStub(EncryptionService::class), static fn() => null);
         $db = $this->newDatabase();
         $this->expectException(\InvalidArgumentException::class);
         $service->describeTable($db, 'users;DROP');
@@ -25,7 +25,7 @@ final class DatabaseTableReadOnlyTest extends TestCase
 
     public function testRowsPaginationLimitEnforcedAndUsesCustomerUser(): void
     {
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('decrypt')->willReturn('customer-pass');
 
         $stmt = new class {

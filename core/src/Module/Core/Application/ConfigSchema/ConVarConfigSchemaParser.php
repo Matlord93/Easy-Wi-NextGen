@@ -6,11 +6,13 @@ namespace App\Module\Core\Application\ConfigSchema;
 
 final class ConVarConfigSchemaParser extends AbstractConfigSchemaParser
 {
+    #[\Override]
     public function format(): string
     {
         return 'convar';
     }
 
+    #[\Override]
     public function parse(string $content, array $schema): ConfigSchemaParseResult
     {
         $parsed = [];
@@ -35,6 +37,7 @@ final class ConVarConfigSchemaParser extends AbstractConfigSchemaParser
         return $this->buildResult($schema, $parsed, $warnings, false);
     }
 
+    #[\Override]
     public function generate(array $schema, array $values): string
     {
         $fields = $schema['fields'] ?? [];

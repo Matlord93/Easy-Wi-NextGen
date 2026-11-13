@@ -4,6 +4,9 @@ namespace App\Repository;
 use App\Module\Core\Domain\Entity\ShopProductVariant;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+/**
+ * @extends ServiceEntityRepository<ShopProductVariant>
+ */
 final class ShopProductVariantRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry) { parent::__construct($registry, ShopProductVariant::class); }

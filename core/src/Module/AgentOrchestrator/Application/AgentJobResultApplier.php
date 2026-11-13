@@ -522,13 +522,6 @@ final class AgentJobResultApplier
         if (is_array($payload) && isset($payload['last_error']) && is_string($payload['last_error'])) {
             $node->setLastError($payload['last_error']);
         }
-
-        if (is_array($payload) && isset($payload['dependencies']) && is_array($payload['dependencies'])) {
-            $dependencies = $payload['dependencies'];
-            $node->setTs3ClientInstalled((bool) ($dependencies['ts3_client_installed'] ?? $node->isTs3ClientInstalled()));
-            $node->setTs3ClientVersion(is_string($dependencies['ts3_client_version'] ?? null) ? $dependencies['ts3_client_version'] : null);
-            $node->setTs3ClientPath(is_string($dependencies['ts3_client_path'] ?? null) ? $dependencies['ts3_client_path'] : null);
-        }
     }
 
     private function applyTs6NodeResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void

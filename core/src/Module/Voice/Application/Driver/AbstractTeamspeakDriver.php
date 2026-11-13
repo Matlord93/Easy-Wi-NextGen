@@ -22,11 +22,13 @@ abstract class AbstractTeamspeakDriver implements VoiceDriver
     ) {
     }
 
+    #[\Override]
     public function supports(VoiceServer $server): bool
     {
         return $server->provider() === $this->provider();
     }
 
+    #[\Override]
     public function createServer(VoiceServer $server, VoiceQueryEngine $engine): array
     {
         return $engine->execute($server, function () {
@@ -34,21 +36,25 @@ abstract class AbstractTeamspeakDriver implements VoiceDriver
         }, retryable: false);
     }
 
+    #[\Override]
     public function listUsers(VoiceServer $server, VoiceQueryEngine $engine): array
     {
         return $engine->execute($server, fn () => $this->executeCommands($this->listUserCommands()));
     }
 
+    #[\Override]
     public function manageUser(VoiceServer $server, VoiceUser $user, VoiceQueryEngine $engine): array
     {
         return $engine->execute($server, fn () => $this->executeCommands($this->userManagementCommands($user)), retryable: false);
     }
 
+    #[\Override]
     public function applyPermissions(VoiceServer $server, VoiceUser $user, PermissionSet $permissions, VoiceQueryEngine $engine): array
     {
         return $engine->execute($server, fn () => $this->executeCommands($this->permissionCommands($user, $permissions)));
     }
 
+    #[\Override]
     public function createToken(VoiceServer $server, PermissionSet $permissions, VoiceQueryEngine $engine): array
     {
         return $engine->execute($server, fn () => $this->executeCommands($this->tokenCommands($permissions)), retryable: false);

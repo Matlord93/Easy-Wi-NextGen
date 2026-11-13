@@ -8,6 +8,7 @@ use App\Module\Gameserver\Application\Console\ConsoleRealtimePublisherInterface;
 
 final class NullConsoleRealtimePublisher implements ConsoleRealtimePublisherInterface
 {
+    #[\Override]
     public function publish(string $topic, array $payload, bool $isPrivate = true): void
     {
     }

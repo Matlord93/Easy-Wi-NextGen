@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<psalm
+    xmlns="https://getpsalm.org/schema/config"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://getpsalm.org/schema/config tools/psalm/vendor/vimeo/psalm/config.xsd"
+    errorLevel="1"
+    phpVersion="8.5"
+    findUnusedCode="true"
+    findUnusedBaselineEntry="true"
+    findUnusedIssueHandlerSuppression="true"
+    autoloader="vendor/autoload.php"
+    cacheDirectory="var/cache/psalm"
+>
+    <projectFiles>
+        <directory name="src" />
+    </projectFiles>
+    <extraFiles>
+        <directory name="migrations" />
+    </extraFiles>
+    <plugins>
+        <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+            <symfonyMajorVersion>8</symfonyMajorVersion>
+            <containerXml>var/cache/dev/App_KernelDevDebugContainer.xml</containerXml>
+        </pluginClass>
+        <pluginClass class="Psalm\PhpUnitPlugin\Plugin" />
+    </plugins>
+</psalm>

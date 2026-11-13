@@ -17,6 +17,7 @@ final class PortAllocationSyncSubscriber implements EventSubscriber
     {
     }
 
+    #[\Override]
     public function getSubscribedEvents(): array
     {
         return [Events::postPersist, Events::postUpdate, Events::postRemove];

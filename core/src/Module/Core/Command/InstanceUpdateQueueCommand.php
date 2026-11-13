@@ -37,6 +37,7 @@ final class InstanceUpdateQueueCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $now = new \DateTimeImmutable();
@@ -65,7 +66,7 @@ final class InstanceUpdateQueueCommand extends Command
             $timeZone = $schedule->getTimeZone() ?? 'UTC';
             $timeZoneObj = new \DateTimeZone($timeZone);
             $nowLocal = $now->setTimezone($timeZoneObj);
-            $cron = CronExpression::factory($cronExpression);
+            $cron = new CronExpression($cronExpression);
             $previousRun = $cron->getPreviousRunDate($nowLocal, 0, true);
 
             $lastQueuedAt = $instance->getLastUpdateQueuedAt();

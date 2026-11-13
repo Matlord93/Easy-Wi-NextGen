@@ -11,6 +11,9 @@ use App\Module\Core\Domain\Enum\PaymentStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Payment>
+ */
 final class PaymentRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -35,13 +38,16 @@ final class PaymentRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('payment')
+        /** @var list<Payment> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('payment')
             ->innerJoin('payment.invoice', 'invoice')
             ->andWhere('invoice.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('payment.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -62,6 +68,9 @@ final class PaymentRepository extends ServiceEntityRepository
                 ->setParameter('end', $end);
         }
 
-        return $queryBuilder->getQuery()->getResult();
+        /** @var list<Payment> $hydratedEntities */
+        $hydratedEntities = $queryBuilder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 }

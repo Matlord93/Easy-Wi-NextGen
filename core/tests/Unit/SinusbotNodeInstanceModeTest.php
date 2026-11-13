@@ -13,7 +13,7 @@ final class SinusbotNodeInstanceModeTest extends TestCase
 {
     private function makeNode(string $mode = 'multi'): SinusbotNode
     {
-        $agent = $this->createMock(Agent::class);
+        $agent = $this->createStub(Agent::class);
         $node = new SinusbotNode(
             'Test Node',
             $agent,
@@ -35,7 +35,7 @@ final class SinusbotNodeInstanceModeTest extends TestCase
 
     public function testEntityDefaultModeIsMulti(): void
     {
-        $agent = $this->createMock(Agent::class);
+        $agent = $this->createStub(Agent::class);
         $node = new SinusbotNode(
             'Test',
             $agent,

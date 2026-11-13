@@ -11,9 +11,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'unifi_policy')]
 class UnifiPolicy
 {
-    public const MODE_AUTO = 'auto';
-    public const MODE_MANUAL = 'manual';
-    public const MODE_HYBRID = 'hybrid';
+    public const string MODE_AUTO = 'auto';
+    public const string MODE_MANUAL = 'manual';
+    public const string MODE_HYBRID = 'hybrid';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

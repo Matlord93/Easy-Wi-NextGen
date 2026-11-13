@@ -31,6 +31,7 @@ final class DiskEnforceReconcileCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);

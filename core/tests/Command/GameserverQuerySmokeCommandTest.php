@@ -20,10 +20,10 @@ final class GameserverQuerySmokeCommandTest extends TestCase
     {
         $instance = $this->instance(1, 'l4d2');
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createStub(InstanceRepository::class);
         $repo->method('findAll')->willReturn([$instance]);
 
-        $service = $this->createMock(QuerySmokeRunnerInterface::class);
+        $service = $this->createStub(QuerySmokeRunnerInterface::class);
         $service->method('run')->willReturn([
             'engine' => 'source1',
             'instance_id' => 1,
@@ -44,10 +44,10 @@ final class GameserverQuerySmokeCommandTest extends TestCase
     {
         $instance = $this->instance(1, 'l4d2');
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createStub(InstanceRepository::class);
         $repo->method('findAll')->willReturn([$instance]);
 
-        $service = $this->createMock(QuerySmokeRunnerInterface::class);
+        $service = $this->createStub(QuerySmokeRunnerInterface::class);
         $service->method('run')->willReturn([
             'engine' => 'source1',
             'instance_id' => 1,
@@ -68,11 +68,11 @@ final class GameserverQuerySmokeCommandTest extends TestCase
 
     private function instance(int $id, string $gameKey): Instance
     {
-        $template = $this->createMock(Template::class);
+        $template = $this->createStub(Template::class);
         $template->method('getGameKey')->willReturn($gameKey);
         $template->method('getRequirements')->willReturn(['query' => ['type' => 'steam_a2s']]);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getId')->willReturn($id);
         $instance->method('getTemplate')->willReturn($template);
 

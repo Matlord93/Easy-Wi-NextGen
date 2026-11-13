@@ -77,11 +77,16 @@ final class CustomerInstanceBackupsApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
 
         $controller = $this->newControllerWithRepo($repo);
         $request = Request::create('/api/instances/7/backups/11/restore', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['confirm' => false]));
@@ -100,13 +105,18 @@ final class CustomerInstanceBackupsApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
 
         $controller = $this->newControllerWithRepo($repo);
         $request = Request::create('/api/instances/7/backups/health', 'GET');
@@ -129,11 +139,16 @@ final class CustomerInstanceBackupsApiControllerTest extends TestCase
         $this->setEntityId($customer, 10);
         $this->setEntityId($owner, 20);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
 
         return [$this->newControllerWithRepo($repo), $customer];
     }
@@ -145,12 +160,10 @@ final class CustomerInstanceBackupsApiControllerTest extends TestCase
         $controller = $reflection->newInstanceWithoutConstructor();
 
         $prop = $reflection->getProperty('instanceRepository');
-        $prop->setAccessible(true);
         $prop->setValue($controller, $repo);
 
         $translatorProp = $reflection->getProperty('translator');
-        $translatorProp->setAccessible(true);
-        $translatorProp->setValue($controller, $this->createMock(TranslatorInterface::class));
+        $translatorProp->setValue($controller, $this->createStub(TranslatorInterface::class));
 
         return $controller;
     }
@@ -159,7 +172,6 @@ final class CustomerInstanceBackupsApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

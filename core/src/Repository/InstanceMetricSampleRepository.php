@@ -74,7 +74,8 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
 
     public function findLatestForInstance(Instance $instance): ?InstanceMetricSample
     {
-        return $this->createQueryBuilder('sample')
+        /** @var InstanceMetricSample|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('sample')
             ->andWhere('sample.instance = :instance')
             ->setParameter('instance', $instance)
             ->orderBy('sample.collectedAt', 'DESC')
@@ -82,6 +83,8 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     /**

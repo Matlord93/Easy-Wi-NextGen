@@ -26,11 +26,13 @@ final class VoiceRetentionPruneCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('days', null, InputOption::VALUE_REQUIRED, 'Retention in days.', '14');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

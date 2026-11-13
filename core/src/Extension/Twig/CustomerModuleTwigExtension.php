@@ -41,6 +41,7 @@ final class CustomerModuleTwigExtension extends AbstractExtension
     ) {
     }
 
+    #[\Override]
     public function getFunctions(): array
     {
         return [

@@ -17,7 +17,7 @@ final class AdminMailMatrixPageControllerTest extends TestCase
 {
     private function translator(): TranslatorInterface
     {
-        $t = $this->createMock(TranslatorInterface::class);
+        $t = $this->createStub(TranslatorInterface::class);
         $t->method('trans')->willReturnCallback(static fn (string $id): string => $id);
         return $t;
     }

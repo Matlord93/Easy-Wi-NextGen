@@ -11,7 +11,7 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class AuditLogger
 {
-    private const MAX_PAYLOAD_JSON_BYTES = 65535;
+    private const int MAX_PAYLOAD_JSON_BYTES = 65535;
 
     public function __construct(
         private readonly AuditLogRepository $auditLogRepository,

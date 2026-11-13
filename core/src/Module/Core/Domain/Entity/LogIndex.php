@@ -12,9 +12,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'log_indices_identity', columns: ['agent_id', 'source', 'scope_type', 'scope_id', 'log_name'])]
 class LogIndex
 {
-    public const SOURCE_JOB = 'job';
-    public const SOURCE_NGINX = 'nginx';
-    public const SOURCE_MAIL = 'mail';
+    public const string SOURCE_JOB = 'job';
+    public const string SOURCE_NGINX = 'nginx';
+    public const string SOURCE_MAIL = 'mail';
 
     #[ORM\Id]
     #[ORM\Column(length: 32)]

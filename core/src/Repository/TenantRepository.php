@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\Tenant;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Tenant>
+ */
 final class TenantRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

@@ -578,7 +578,7 @@ final class InstallerService
         $isMysql = $this->isMySqlConnection($connection);
 
         // Generate schema diff SQL without executing (no FK checks needed for this step).
-        $sqls = $schemaTool->getUpdateSchemaSql($metadata, true);
+        $sqls = $schemaTool->getUpdateSchemaSql($metadata);
 
         if ($isMysql) {
             $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');

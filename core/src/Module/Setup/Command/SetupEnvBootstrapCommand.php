@@ -21,11 +21,13 @@ final class SetupEnvBootstrapCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('check-only', null, InputOption::VALUE_NONE, 'Check env bootstrap readiness without writing anything.');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $checkOnly = (bool) $input->getOption('check-only');

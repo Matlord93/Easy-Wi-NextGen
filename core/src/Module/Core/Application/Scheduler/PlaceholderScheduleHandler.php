@@ -6,6 +6,7 @@ namespace App\Module\Core\Application\Scheduler;
 
 abstract class PlaceholderScheduleHandler implements ScheduleHandlerInterface
 {
+    #[\Override]
     public function schedules(): array
     {
         return [new InternalSchedule(
@@ -25,11 +26,13 @@ abstract class PlaceholderScheduleHandler implements ScheduleHandlerInterface
         )];
     }
 
+    #[\Override]
     public function runDue(?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         return ScheduleExecutionResult::skipped($this->label().' is not enabled.');
     }
 
+    #[\Override]
     public function runNow(string $source, string $id, ?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         return ScheduleExecutionResult::skipped($this->label().' is not enabled.');

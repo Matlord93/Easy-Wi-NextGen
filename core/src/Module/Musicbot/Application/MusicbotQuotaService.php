@@ -30,6 +30,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
     ) {
     }
 
+    #[\Override]
     public function assertCanCreateMusicbot(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -41,6 +42,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertCanUploadTrack(User $customer, int $fileSizeBytes): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -68,6 +70,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertCanCreatePlaylist(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -82,6 +85,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertCanAddPlaylistItem(User $customer, \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist $playlist): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -96,6 +100,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertCanAddToQueue(User $customer, MusicbotInstance $instance): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -121,6 +126,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertCanManageTeamspeakConnection(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -129,6 +135,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertTeamspeakCommandsAllowed(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -164,6 +171,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertWebradioAllowed(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -172,6 +180,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertYoutubeAllowed(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -180,6 +189,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertAutoDjAllowed(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -188,6 +198,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertStreamAllowed(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -196,6 +207,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertApiAllowed(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);

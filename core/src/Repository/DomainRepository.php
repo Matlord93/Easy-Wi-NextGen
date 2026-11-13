@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Domain>
+ */
 class DomainRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -21,12 +24,15 @@ class DomainRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer, int $limit = 200): array
     {
-        return $this->createQueryBuilder('domain')
+        /** @var list<Domain> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('domain')
             ->andWhere('domain.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('domain.createdAt', 'DESC')
             ->setMaxResults(max(1, min(500, $limit)))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

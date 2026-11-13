@@ -35,6 +35,7 @@ final class PrivacyGdprBackgroundJobService implements PrivacyGdprBackgroundJobR
     ) {
     }
 
+    #[\Override]
     public function run(int $exportProcessLimit = 25, int $exportCleanupLimit = 100, ?\DateTimeImmutable $now = null): PrivacyGdprBackgroundJobResult
     {
         $now ??= new \DateTimeImmutable();

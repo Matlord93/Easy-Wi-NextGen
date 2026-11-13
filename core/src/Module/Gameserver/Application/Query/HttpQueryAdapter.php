@@ -16,11 +16,13 @@ final class HttpQueryAdapter implements QueryAdapterInterface
     ) {
     }
 
+    #[\Override]
     public function supports(string $type): bool
     {
         return $type === 'http';
     }
 
+    #[\Override]
     public function query(Instance $instance, QueryContext $context): QueryResult
     {
         $config = $context->getConfig();

@@ -27,6 +27,7 @@ final class AgentBootstrapTokenCreateCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -36,6 +37,7 @@ final class AgentBootstrapTokenCreateCommand extends Command
             ->addOption('max-attempts', null, InputOption::VALUE_REQUIRED, 'Maximum bootstrap attempts. Use 0 for unlimited attempts.', '5');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

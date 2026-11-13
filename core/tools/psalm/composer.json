@@ -1,0 +1,15 @@
+{
+  "name": "easywi/psalm-analysis",
+  "description": "Locked Psalm tools for the Easy-Wi core analysis.",
+  "type": "project",
+  "license": "AGPL-3.0-only",
+  "require": {
+    "php": ">=8.4",
+    "vimeo/psalm": "^7.4.0",
+    "psalm/plugin-symfony": "^5.11.0",
+    "psalm/plugin-phpunit": "^1.1.0"
+  },
+  "config": {
+    "sort-packages": true
+  }
+}

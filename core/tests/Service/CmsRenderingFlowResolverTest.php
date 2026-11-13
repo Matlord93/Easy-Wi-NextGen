@@ -18,16 +18,16 @@ final class CmsRenderingFlowResolverTest extends TestCase
 {
     public function testWindowMaintenanceOverridesNormalRenderingBySchedule(): void
     {
-        $settingsRepository = $this->createMock(\App\Repository\CmsSiteSettingsRepository::class);
+        $settingsRepository = $this->createStub(\App\Repository\CmsSiteSettingsRepository::class);
         $settingsRepository->method('findOneBySite')->willReturn(null);
-        $entityManager = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $entityManager = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
         $themeResolver = new ThemeResolver(new \App\Module\Cms\Application\CmsSettingsProvider($settingsRepository, $entityManager));
 
-        $appSettings = $this->createMock(AppSettingsService::class);
+        $appSettings = $this->createStub(AppSettingsService::class);
         $appSettings->method('getSettings')->willReturn([]);
         $maintenanceService = new CmsMaintenanceService($appSettings);
 
-        $repo = $this->createMock(CmsMaintenanceWindowProviderInterface::class);
+        $repo = $this->createStub(CmsMaintenanceWindowProviderInterface::class);
         $repo->method('findCurrentPublicBySite')->willReturn([
             new MaintenanceWindow(5, 'Deployment', new \DateTimeImmutable('-2 minutes'), new \DateTimeImmutable('+10 minutes'), 'Planned downtime', true),
         ]);
@@ -36,7 +36,6 @@ final class CmsRenderingFlowResolverTest extends TestCase
 
         $site = new Site('Demo', 'demo.local');
         $ref = new \ReflectionProperty($site, 'id');
-        $ref->setAccessible(true);
         $ref->setValue($site, 5);
 
         $resolved = $resolver->resolve(new Request(), $site);

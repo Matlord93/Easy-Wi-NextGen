@@ -36,7 +36,7 @@ final class TemplateEngineFamilyResolverTest extends TestCase
 
     private function template(string $gameKey, array $requirements): Template
     {
-        $template = $this->createMock(Template::class);
+        $template = $this->createStub(Template::class);
         $template->method('getGameKey')->willReturn($gameKey);
         $template->method('getRequirements')->willReturn($requirements);
 

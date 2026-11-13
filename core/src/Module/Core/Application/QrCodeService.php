@@ -53,16 +53,16 @@ final class QrCodeService
 
     private function buildWithEndroid(string $data, PngWriter|SvgWriter $writer): string
     {
-        $result = (new Builder())
-            ->writer($writer)
-            ->writerOptions([])
-            ->data($data)
-            ->encoding(new Encoding('UTF-8'))
-            ->errorCorrectionLevel(ErrorCorrectionLevel::Low)
-            ->size(220)
-            ->margin(10)
-            ->roundBlockSizeMode(RoundBlockSizeMode::Margin)
-            ->build();
+        $result = (new Builder(
+            writer: $writer,
+            writerOptions: [],
+            data: $data,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::Low,
+            size: 220,
+            margin: 10,
+            roundBlockSizeMode: RoundBlockSizeMode::Margin,
+        ))->build();
 
         return $result->getString();
     }

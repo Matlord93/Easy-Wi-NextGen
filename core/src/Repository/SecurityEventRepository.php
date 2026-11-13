@@ -51,10 +51,13 @@ final class SecurityEventRepository extends ServiceEntityRepository
             $builder->andWhere('event.source = :source')->setParameter('source', $source);
         }
 
-        return $builder
+        /** @var list<SecurityEvent> $hydratedEntities */
+        $hydratedEntities = $builder
             ->orderBy('event.occurredAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

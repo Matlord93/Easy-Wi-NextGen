@@ -6,8 +6,8 @@ namespace App\Module\Gameserver\Application;
 
 final class MinecraftJavaVersionResolver
 {
-    /** @var array<string, string> */
-    public const JAVA_BIN_BY_VERSION = [
+    /** @var array<int, string> */
+    public const array JAVA_BIN_BY_VERSION = [
         '8' => 'java8',
         '16' => 'java16',
         '17' => 'java17',

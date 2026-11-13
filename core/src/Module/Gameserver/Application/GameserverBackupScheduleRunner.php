@@ -220,7 +220,7 @@ final class GameserverBackupScheduleRunner
             return null;
         }
 
-        $cron = CronExpression::factory($cronExpression);
+        $cron = new CronExpression($cronExpression);
         $previousRun = $cron->getPreviousRunDate($now->setTimezone($timeZone), 0, true);
 
         return [$previousRun, $timeZone];

@@ -31,20 +31,20 @@ final class DatabaseTableControllerAccessTest extends TestCase
         $other = new User('other@test', UserType::Customer);
         $db = $this->newDatabase($owner);
 
-        $dbRepo = $this->createMock(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepository::class);
         $dbRepo->method('find')->willReturn($db);
-        $nodeRepo = $this->createMock(DatabaseNodeRepository::class);
-        $em = $this->createMock(EntityManagerInterface::class);
-        $audit = $this->createMock(AuditLogger::class);
-        $prov = $this->createMock(DatabaseProvisioningService::class);
-        $naming = $this->createMock(DatabaseNamingPolicy::class);
-        $twig = $this->createMock(Environment::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
+        $em = $this->createStub(EntityManagerInterface::class);
+        $audit = $this->createStub(AuditLogger::class);
+        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $naming = $this->createStub(DatabaseNamingPolicy::class);
+        $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturn('ok');
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturn('err');
-        $tables = $this->createMock(DatabaseTableService::class);
+        $tables = $this->createStub(DatabaseTableService::class);
 
-        $c = new CustomerDatabaseController($dbRepo, $nodeRepo, $this->createMock(JobRepository::class), $em, $audit, $prov, $naming, $twig, $translator, $tables);
+        $c = new CustomerDatabaseController($dbRepo, $nodeRepo, $this->createStub(JobRepository::class), $em, $audit, $prov, $naming, $twig, $translator, $tables);
 
         $r = new Request();
         $r->attributes->set('current_user', $other);

@@ -35,6 +35,7 @@ final class FilesAgentDiagnoseCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -45,6 +46,7 @@ final class FilesAgentDiagnoseCommand extends Command
             ->addOption('read-path', null, InputOption::VALUE_OPTIONAL, 'Optional file path to read', '');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
@@ -226,7 +228,7 @@ final class FilesAgentDiagnoseCommand extends Command
     }
 
     /**
-     * @return array{status: string, url: string|null}
+     * @return array{status: string, url: string|null, latency_ms: int|null, status_code: int|null, body: array<array-key, mixed>|null}
      */
     private function probeAgentHealth(Agent $agent): array
     {

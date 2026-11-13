@@ -94,13 +94,13 @@ final class DatabaseRowEditControllerTest extends TestCase
         $db = $this->newDatabase($owner);
 
         $captured = [];
-        $twig = $this->createMock(Environment::class);
+        $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturnCallback(static function (string $tpl, array $ctx) use (&$captured): string {
             $captured = ['tpl' => $tpl, 'ctx' => $ctx];
             return 'ok';
         });
 
-        $tables = $this->createMock(DatabaseTableService::class);
+        $tables = $this->createStub(DatabaseTableService::class);
         $tables->method('listRows')->willReturn(['rows' => [['id' => '1', 'name' => 'n']], 'limit' => 50, 'offset' => 0]);
         $tables->method('listPrimaryKeyColumns')->willReturnOnConsecutiveCalls(['id'], [], ['id_a', 'id_b']);
 
@@ -118,8 +118,8 @@ final class DatabaseRowEditControllerTest extends TestCase
 
     private function controller(Database $database): array
     {
-        $tables = $this->createMock(DatabaseTableService::class);
-        $twig = $this->createMock(Environment::class);
+        $tables = $this->createStub(DatabaseTableService::class);
+        $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturn('ok');
 
         return [$this->controllerWithTwigAndTables($database, $twig, $tables), $tables];
@@ -127,20 +127,20 @@ final class DatabaseRowEditControllerTest extends TestCase
 
     private function controllerWithTwigAndTables(Database $database, Environment $twig, DatabaseTableService $tables): CustomerDatabaseController
     {
-        $dbRepo = $this->createMock(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepository::class);
         $dbRepo->method('find')->willReturn($database);
 
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturnCallback(static fn (string $key): string => $key);
 
         return new CustomerDatabaseController(
             $dbRepo,
-            $this->createMock(DatabaseNodeRepository::class),
-            $this->createMock(JobRepository::class),
-            $this->createMock(EntityManagerInterface::class),
-            $this->createMock(AuditLogger::class),
-            $this->createMock(DatabaseProvisioningService::class),
-            $this->createMock(DatabaseNamingPolicy::class),
+            $this->createStub(DatabaseNodeRepository::class),
+            $this->createStub(JobRepository::class),
+            $this->createStub(EntityManagerInterface::class),
+            $this->createStub(AuditLogger::class),
+            $this->createStub(DatabaseProvisioningService::class),
+            $this->createStub(DatabaseNamingPolicy::class),
             $twig,
             $translator,
             $tables,

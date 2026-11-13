@@ -13,21 +13,20 @@ final class DbConfigProviderPathResolutionTest extends TestCase
 {
     public function testPrefersProjectFallbackPathOverSystemPathWhenBothExist(): void
     {
-        if (!is_file('/etc/easywi/db.json') || !is_readable('/etc/easywi/db.json')) {
-            $this->markTestSkipped('/etc/easywi/db.json is not present in this environment.');
-        }
-
         $baseDir = sys_get_temp_dir() . '/easywi-db-provider-' . bin2hex(random_bytes(5));
         $projectDir = $baseDir . '/core';
         $projectFallbackPath = $projectDir . '/var/easywi/db.json';
 
         mkdir(dirname($projectFallbackPath), 0777, true);
         file_put_contents($projectFallbackPath, '{}');
+        $systemPath = $baseDir.'/system-db.json';
+        file_put_contents($systemPath, '{}');
 
         try {
-            $provider = $this->createProvider(null, $projectDir);
+            $provider = $this->createProvider(null, $projectDir, $systemPath);
             self::assertSame($projectFallbackPath, $provider->getConfigPath());
         } finally {
+            @unlink($systemPath);
             @unlink($projectFallbackPath);
             @rmdir(dirname($projectFallbackPath));
             @rmdir($projectDir . '/var');
@@ -38,13 +37,18 @@ final class DbConfigProviderPathResolutionTest extends TestCase
 
     public function testFallsBackToSystemPathWhenNoProjectConfigExists(): void
     {
-        $provider = $this->createProvider(null, '/tmp');
+        $baseDir = sys_get_temp_dir().'/easywi-db-system-'.bin2hex(random_bytes(5));
+        mkdir($baseDir);
+        $systemPath = $baseDir.'/system-db.json';
+        file_put_contents($systemPath, '{}');
 
-        if (!is_file('/etc/easywi/db.json')) {
-            $this->markTestSkipped('/etc/easywi/db.json is not present in this environment.');
+        try {
+            $provider = $this->createProvider(null, $baseDir.'/no-project', $systemPath);
+            self::assertSame($systemPath, $provider->getConfigPath());
+        } finally {
+            unlink($systemPath);
+            rmdir($baseDir);
         }
-
-        self::assertSame('/etc/easywi/db.json', $provider->getConfigPath());
     }
 
     public function testResolvesParentProjectFallbackPathWhenFileExists(): void
@@ -69,11 +73,11 @@ final class DbConfigProviderPathResolutionTest extends TestCase
         }
     }
 
-    private function createProvider(?string $envPath, string $projectDir): DbConfigProvider
+    private function createProvider(?string $envPath, string $projectDir, string $systemPath = '/etc/easywi/db.json'): DbConfigProvider
     {
         $secretKeyLoader = new SecretKeyLoader('/tmp/easywi-test-secret.key', '/tmp');
         $cryptoService = new CryptoService($secretKeyLoader);
 
-        return new DbConfigProvider($cryptoService, $secretKeyLoader, $envPath, $projectDir);
+        return new DbConfigProvider($cryptoService, $secretKeyLoader, $envPath, $projectDir, $systemPath);
     }
 }

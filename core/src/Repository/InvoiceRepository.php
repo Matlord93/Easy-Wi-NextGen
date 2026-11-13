@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Enum\InvoiceStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Invoice>
+ */
 final class InvoiceRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -22,11 +25,14 @@ final class InvoiceRepository extends ServiceEntityRepository
      */
     public function findRecent(int $limit = 10): array
     {
-        return $this->createQueryBuilder('invoice')
+        /** @var list<Invoice> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('invoice')
             ->orderBy('invoice.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function countByStatus(InvoiceStatus $status): int
@@ -44,12 +50,15 @@ final class InvoiceRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('invoice')
+        /** @var list<Invoice> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('invoice')
             ->andWhere('invoice.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('invoice.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -57,7 +66,8 @@ final class InvoiceRepository extends ServiceEntityRepository
      */
     public function findDunnable(\DateTimeImmutable $now): array
     {
-        return $this->createQueryBuilder('invoice')
+        /** @var list<Invoice> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('invoice')
             ->andWhere('invoice.status IN (:statuses)')
             ->andWhere('invoice.dueDate <= :now')
             ->setParameter('statuses', [InvoiceStatus::Open->value, InvoiceStatus::PastDue->value])
@@ -65,6 +75,8 @@ final class InvoiceRepository extends ServiceEntityRepository
             ->orderBy('invoice.dueDate', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -85,6 +97,9 @@ final class InvoiceRepository extends ServiceEntityRepository
                 ->setParameter('end', $end);
         }
 
-        return $queryBuilder->getQuery()->getResult();
+        /** @var list<Invoice> $hydratedEntities */
+        $hydratedEntities = $queryBuilder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 }

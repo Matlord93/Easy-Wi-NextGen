@@ -45,6 +45,7 @@ final class ConsoleSmokeCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -53,6 +54,7 @@ final class ConsoleSmokeCommand extends Command
             ->addOption('lines', null, InputOption::VALUE_REQUIRED, 'Number of recent console lines to display (default 10)', '10');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

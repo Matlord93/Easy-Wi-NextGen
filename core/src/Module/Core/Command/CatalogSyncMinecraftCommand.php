@@ -14,6 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class CatalogSyncMinecraftCommand extends Command
 {
     public function __construct(private readonly MinecraftCatalogSynchronizer $synchronizer) { parent::__construct(); }
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $status = $this->synchronizer->synchronize(true);

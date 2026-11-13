@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Enum\InstanceScheduleAction;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<InstanceSchedule>
+ */
 final class InstanceScheduleRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -28,13 +31,16 @@ final class InstanceScheduleRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('schedule')
+        /** @var list<InstanceSchedule> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('schedule')
             ->andWhere('schedule.instance IN (:instances)')
             ->andWhere('schedule.action = :action')
             ->setParameter('instances', $instances)
             ->setParameter('action', $action)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findOneByInstanceAndAction(Instance $instance, InstanceScheduleAction $action): ?InstanceSchedule
@@ -50,7 +56,8 @@ final class InstanceScheduleRepository extends ServiceEntityRepository
      */
     public function findEnabledBatchAfterId(int $afterId, int $limit): array
     {
-        return $this->createQueryBuilder('schedule')
+        /** @var list<InstanceSchedule> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('schedule')
             ->andWhere('schedule.enabled = :enabled')
             ->andWhere('schedule.id > :afterId')
             ->setParameter('enabled', true)
@@ -59,5 +66,7 @@ final class InstanceScheduleRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

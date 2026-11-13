@@ -25,13 +25,21 @@ final class InstanceJobPayloadBuilder
     ) {
         $this->managedCatalogAvailable = $minecraftCatalogService !== null;
         $this->minecraftCatalogService = $minecraftCatalogService ?? new MinecraftCatalogService(new class () implements MinecraftVersionCatalogRepositoryInterface {
+            #[\Override]
             public function findVersionsByChannel(string $channel, bool $activeOnly = true): array { return []; }
+            #[\Override]
             public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array { return []; }
+            #[\Override]
             public function findActiveByChannel(string $channel): array { return []; }
+            #[\Override]
             public function findLatestVersion(string $channel, bool $activeOnly = true): ?string { return null; }
+            #[\Override]
             public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string { return null; }
+            #[\Override]
             public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog { return null; }
+            #[\Override]
             public function versionExists(string $channel, string $version, bool $activeOnly = true): bool { return false; }
+            #[\Override]
             public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool { return false; }
         });
         $this->minecraftJavaVersionResolver = $minecraftJavaVersionResolver ?? new MinecraftJavaVersionResolver($this->javaBinaryConfig);

@@ -18,11 +18,13 @@ class MusicbotTrackRepository extends ServiceEntityRepository implements Musicbo
     }
 
     /** @return MusicbotTrack[] */
+    #[\Override]
     public function findByCustomer(User $customer): array
     {
         return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
     }
 
+    #[\Override]
     public function findOneForCustomer(int $id, User $customer): ?MusicbotTrack
     {
         return $this->findOneBy(['id' => $id, 'customer' => $customer]);

@@ -11,10 +11,10 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'database_nodes')]
 class DatabaseNode
 {
-    public const TLS_OFF = 'off';
-    public const TLS_REQUIRED = 'required';
-    public const TLS_VERIFY_CA = 'verify_ca';
-    public const TLS_VERIFY_FULL = 'verify_full';
+    public const string TLS_OFF = 'off';
+    public const string TLS_REQUIRED = 'required';
+    public const string TLS_VERIFY_CA = 'verify_ca';
+    public const string TLS_VERIFY_FULL = 'verify_full';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

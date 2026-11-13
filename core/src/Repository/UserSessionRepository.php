@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\UserSession;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<UserSession>
+ */
 final class UserSessionRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -65,7 +68,8 @@ final class UserSessionRepository extends ServiceEntityRepository
     {
         $now = new \DateTimeImmutable();
 
-        return $this->createQueryBuilder('session')
+        /** @var list<UserSession> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('session')
             ->andWhere('session.user = :user')
             ->andWhere('session.revokedAt IS NULL')
             ->andWhere('session.expiresAt IS NULL OR session.expiresAt > :now')
@@ -74,5 +78,7 @@ final class UserSessionRepository extends ServiceEntityRepository
             ->orderBy('session.createdAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

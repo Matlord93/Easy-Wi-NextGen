@@ -325,7 +325,7 @@ final class AdminTemplateController
         if ($changed) {
             $this->entityManager->persist($template);
             $this->entityManager->flush();
-            $this->auditLogger->log('template.shared_paths_synced', ['template_id' => $template->getId(), 'game_key' => $template->getGameKey()], $actor);
+            $this->auditLogger->log($actor, 'template.shared_paths_synced', ['template_id' => $template->getId(), 'game_key' => $template->getGameKey()]);
             $request->getSession()?->getFlashBag()->add('success', $this->translator->trans('admin_template_shared_paths_updated'));
         } else {
             $request->getSession()?->getFlashBag()->add('info', $this->translator->trans('admin_template_shared_paths_no_update'));

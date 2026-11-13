@@ -23,10 +23,10 @@ final class VoiceProbeGuardTest extends TestCase
         $instance = new VoiceInstance($customer, $node, '1', 'TS3 One');
         $state = new VoiceRateLimitState($node, 'ts3');
 
-        $store = $this->createMock(VoiceRateLimitStateStoreInterface::class);
+        $store = $this->createStub(VoiceRateLimitStateStoreInterface::class);
         $store->method('findOneByNodeAndProvider')->willReturn($state);
 
-        $em = $this->createMock(EntityManagerInterface::class);
+        $em = $this->createStub(EntityManagerInterface::class);
         $guard = new VoiceProbeGuard($store, $em);
 
         $guard->registerFailure($instance);
@@ -46,10 +46,10 @@ final class VoiceProbeGuardTest extends TestCase
         $state->setTokens(0.4);
         $state->setLockedUntil(new \DateTimeImmutable('+5 seconds'));
 
-        $store = $this->createMock(VoiceRateLimitStateStoreInterface::class);
+        $store = $this->createStub(VoiceRateLimitStateStoreInterface::class);
         $store->method('findOneByNodeAndProvider')->willReturn($state);
 
-        $em = $this->createMock(EntityManagerInterface::class);
+        $em = $this->createStub(EntityManagerInterface::class);
         $guard = new VoiceProbeGuard($store, $em);
 
         $result = $guard->allow($instance);

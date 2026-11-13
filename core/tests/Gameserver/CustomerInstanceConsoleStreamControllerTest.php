@@ -199,7 +199,7 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
             }
         };
 
-        $probe = $this->createMock(AgentEndpointProbeInterface::class);
+        $probe = $this->createStub(AgentEndpointProbeInterface::class);
         $probe->method('hasAnyEndpoint')->willReturn(false);
         $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, null);
 
@@ -273,22 +273,26 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 
     private function controllerWith(ConsoleEventBusInterface $eventBus, bool $owner, int $maxDurationSeconds = 1, ?ConsoleStreamDiagnostics $diagnostics = null): CustomerInstanceConsoleStreamController
     {
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $customer = new User('owner@example.test', UserType::Customer);
         $this->setEntityId($customer, $owner ? 5 : 7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(1)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [1];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        return new CustomerInstanceConsoleStreamController($repo, $eventBus, $this->createMock(TranslatorInterface::class), $maxDurationSeconds, 1, $diagnostics, null, false);
+            return $instance;
+        });
+
+        return new CustomerInstanceConsoleStreamController($repo, $eventBus, $this->createStub(TranslatorInterface::class), $maxDurationSeconds, 1, $diagnostics, null, false);
     }
 
     private function setEntityId(object $entity, int $id): void
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

@@ -103,7 +103,7 @@ final class AdminGdprController
         $interval = $this->settingsService->getPrivacyGdprJobsInterval();
         if ($this->settingsService->isPrivacyGdprJobsEnabled() && \Cron\CronExpression::isValidExpression($interval)) {
             try {
-                $next = \Cron\CronExpression::factory($interval)->getNextRunDate(new \DateTimeImmutable('now', new \DateTimeZone('UTC')), 0, true);
+                $next = (new \Cron\CronExpression($interval))->getNextRunDate(new \DateTimeImmutable('now', new \DateTimeZone('UTC')), 0, true);
                 $nextRunAt = \DateTimeImmutable::createFromMutable($next)->setTimezone(new \DateTimeZone('UTC'));
             } catch (\Throwable) {
                 $nextRunAt = null;

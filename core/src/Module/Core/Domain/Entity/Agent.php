@@ -13,10 +13,10 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'agents')]
 class Agent
 {
-    public const STATUS_REGISTERED = 'registered';
-    public const STATUS_ACTIVE = 'active';
-    public const STATUS_OFFLINE = 'offline';
-    public const STATUS_DECOMMISSIONED = 'decommissioned';
+    public const string STATUS_REGISTERED = 'registered';
+    public const string STATUS_ACTIVE = 'active';
+    public const string STATUS_OFFLINE = 'offline';
+    public const string STATUS_DECOMMISSIONED = 'decommissioned';
 
     #[ORM\Id]
     #[ORM\Column(length: 64)]

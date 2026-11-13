@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\PublicServer;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<PublicServer>
+ */
 final class PublicServerRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -20,7 +23,8 @@ final class PublicServerRepository extends ServiceEntityRepository
      */
     public function findDueForCheck(\DateTimeImmutable $now, int $limit): array
     {
-        return $this->createQueryBuilder('server')
+        /** @var list<PublicServer> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('server')
             ->andWhere('server.nextCheckAt IS NULL OR server.nextCheckAt <= :now')
             ->setParameter('now', $now)
             ->orderBy('server.nextCheckAt', 'ASC')
@@ -28,6 +32,8 @@ final class PublicServerRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -60,7 +66,10 @@ final class PublicServerRepository extends ServiceEntityRepository
             $builder->setMaxResults($limit);
         }
 
-        return $builder->getQuery()->getResult();
+        /** @var list<PublicServer> $hydratedEntities */
+        $hydratedEntities = $builder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     /**

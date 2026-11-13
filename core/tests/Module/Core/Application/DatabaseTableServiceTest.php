@@ -17,7 +17,7 @@ final class DatabaseTableServiceTest extends TestCase
 {
     public function testListTablesStillWorksAfterOneTimeRevealConsumptionBecauseEncryptedPasswordRemains(): void
     {
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('decrypt')->willReturn('operational-password');
 
         $statement = new class {

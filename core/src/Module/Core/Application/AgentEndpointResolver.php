@@ -10,7 +10,7 @@ use App\Module\Core\Domain\Entity\SinusbotNode;
 class AgentEndpointResolver
 {
     /** Loopback addresses that indicate a co-located (same-server) agent. */
-    private const LOOPBACK = ['127.0.0.1', '::1', 'localhost'];
+    private const array LOOPBACK = ['127.0.0.1', '::1', 'localhost'];
 
     public function __construct(
         private readonly int $defaultServicePort = 7456,

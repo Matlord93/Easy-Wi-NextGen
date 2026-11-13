@@ -3233,8 +3233,8 @@ final class AgentApiController
             $encrypted = $target->getEncryptedCredentials();
             $secret = [];
             foreach (['password', 'token', 'username'] as $key) {
-                if (is_string($encrypted[$key] ?? null) && $encrypted[$key] !== '') {
-                    $secret[$key] = $this->encryptionService->decrypt((string) $encrypted[$key]);
+                if (is_array($encrypted[$key] ?? null)) {
+                    $secret[$key] = $this->encryptionService->decrypt($encrypted[$key]);
                 }
             }
             if ($secret !== []) {

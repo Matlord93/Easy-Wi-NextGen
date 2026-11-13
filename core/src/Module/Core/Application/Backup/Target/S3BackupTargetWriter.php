@@ -29,11 +29,13 @@ final class S3BackupTargetWriter implements BackupTargetWriterInterface
     {
     }
 
+    #[\Override]
     public function supports(BackupStorageTarget $target): bool
     {
         return $target->type() === 's3';
     }
 
+    #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
         $bucket    = (string) ($target->config()['bucket'] ?? '');

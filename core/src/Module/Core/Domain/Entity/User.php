@@ -122,11 +122,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->email = strtolower($email);
     }
 
+    #[\Override]
     public function getUserIdentifier(): string
     {
         return $this->email;
     }
 
+    #[\Override]
     public function getPassword(): string
     {
         return $this->passwordHash;
@@ -151,6 +153,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->type = $type->value;
     }
 
+    #[\Override]
     public function getRoles(): array
     {
         $roles = match ($this->getType()) {

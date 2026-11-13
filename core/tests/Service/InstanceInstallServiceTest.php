@@ -63,7 +63,7 @@ final class InstanceInstallServiceTest extends TestCase
 
     public function testPrepareInstallWithSharedStorageReturnsErrorWhenNotSupported(): void
     {
-        $locator = $this->createMock(SharedStorageTemplateLocatorInterface::class);
+        $locator = $this->createStub(SharedStorageTemplateLocatorInterface::class);
         $locator->method('findSharedStorageVariantForIdentity')->willReturn(null);
 
         $service = $this->buildService(sharedStorageLocator: $locator);
@@ -106,7 +106,7 @@ final class InstanceInstallServiceTest extends TestCase
             ['shared_paths' => [['source' => 'maps', 'target' => 'maps', 'mode' => 'symlink', 'readonly' => true]]],
         );
 
-        $locator = $this->createMock(SharedStorageTemplateLocatorInterface::class);
+        $locator = $this->createStub(SharedStorageTemplateLocatorInterface::class);
         $locator->method('findSharedStorageVariantForIdentity')->willReturn($sharedTemplate);
 
         $service = $this->buildService(sharedStorageLocator: $locator);
@@ -127,18 +127,18 @@ final class InstanceInstallServiceTest extends TestCase
 
     private function buildService(?SharedStorageTemplateLocatorInterface $sharedStorageLocator = null): InstanceInstallService
     {
-        $resolver = $this->createMock(TemplateInstallResolver::class);
+        $resolver = $this->createStub(TemplateInstallResolver::class);
         $resolver->method('resolveInstallCommand')->willReturn('install');
         $resolver->method('resolveUpdateCommand')->willReturn('update');
 
         return new InstanceInstallService(
             new SetupChecker(),
-            $this->createMock(PortPoolRepository::class),
-            $this->createMock(PortBlockRepository::class),
-            $this->createMock(PortLeaseManager::class),
+            $this->createStub(PortPoolRepository::class),
+            $this->createStub(PortBlockRepository::class),
+            $this->createStub(PortLeaseManager::class),
             $resolver,
-            $sharedStorageLocator ?? $this->createMock(SharedStorageTemplateLocatorInterface::class),
-            $this->createMock(EntityManagerInterface::class),
+            $sharedStorageLocator ?? $this->createStub(SharedStorageTemplateLocatorInterface::class),
+            $this->createStub(EntityManagerInterface::class),
         );
     }
 

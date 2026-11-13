@@ -24,11 +24,7 @@
     <env name="APP_SECRET" value="change_this_secret" force="true"/>
     <env name="MAILER_DSN" value="null://null" force="true"/>
     <env name="MESSENGER_TRANSPORT_DSN" value="sync://" force="true"/>
-    <env name="APP_CORE_UPDATE_RELEASES_DIR" value="/workspace/webinterface/core/releases" force="true"/>
-    <env name="APP_CORE_UPDATE_CURRENT_SYMLINK" value="/workspace/webinterface/core/current" force="true"/>
-    <env name="APP_CORE_UPDATE_LOCK_FILE" value="/workspace/webinterface/core/tmp/webinterface_update.lock" force="true"/>
     <env name="APP_CORE_UPDATE_MANIFEST_URL" value="http://localhost/update/manifest.json" force="true"/>
-    <env name="APP_CORE_UPDATE_INSTALL_DIR" value="/workspace/webinterface/core" force="true"/>
     <env name="APP_CORE_VERSION" value="test" force="true"/>
     <env name="APP_CORE_UPDATE_WORKFLOW" value="webinterface-update.yml" force="true"/>
     <env name="APP_GITHUB_TOKEN" value="" force="true"/>
@@ -47,9 +43,6 @@
     <env name="APP_CORE_UPDATE_RUNNER" value="/usr/local/bin/easywi-core-runner" force="true"/>
     <env name="APP_CORE_UPDATE_KEEP_RELEASES" value="2" force="true"/>
     <env name="APP_CORE_UPDATE_EXCLUDES" value=".env,config/local*,var/,storage/,uploads/" force="true"/>
-    <env name="APP_CORE_UPDATE_JOBS_DIR" value="/workspace/webinterface/core/srv/update/jobs" force="true"/>
-    <env name="APP_CORE_UPDATE_LOGS_DIR" value="/workspace/webinterface/core/srv/update/logs" force="true"/>
-    <env name="APP_CORE_UPDATE_BACKUPS_DIR" value="/workspace/webinterface/core/srv/update/backups" force="true"/>
     <env name="APP_ADMIN_AUTHORIZED_KEYS_PATH" value="/home/easywi/.ssh/authorized_keys" force="true"/>
     <env name="APP_SINUSBOT_QUOTA_MIN" value="1" force="true"/>
     <env name="APP_SINUSBOT_QUOTA_MAX" value="100" force="true"/>

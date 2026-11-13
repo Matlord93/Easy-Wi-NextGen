@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\Site;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<BlogCategory>
+ */
 final class BlogCategoryRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

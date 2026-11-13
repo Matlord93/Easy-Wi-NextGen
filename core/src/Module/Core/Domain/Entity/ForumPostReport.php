@@ -12,8 +12,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_forum_reports_status_created', columns: ['status', 'created_at'])]
 class ForumPostReport
 {
-    public const STATUS_OPEN = 'open';
-    public const STATUS_RESOLVED = 'resolved';
+    public const string STATUS_OPEN = 'open';
+    public const string STATUS_RESOLVED = 'resolved';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

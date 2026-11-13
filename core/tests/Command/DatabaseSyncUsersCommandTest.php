@@ -29,30 +29,30 @@ final class DatabaseSyncUsersCommandTest extends TestCase
         $db->setUsername('');
         $db->setEncryptedPassword(null);
 
-        $repo = $this->createMock(DatabaseRepository::class);
+        $repo = $this->createStub(DatabaseRepository::class);
         $repo->method('findBy')->willReturn([$db]);
 
-        $provisioning = $this->createMock(DatabaseProvisioningService::class);
+        $provisioning = $this->createStub(DatabaseProvisioningService::class);
         $provisioning->method('buildCreateJobs')->willReturn([new Job('database.create', ['database_id' => '1'])]);
 
-        $inspector = $this->createMock(DatabaseNodeInspector::class);
+        $inspector = $this->createStub(DatabaseNodeInspector::class);
         $inspector->method('inspect')->willReturn([
             'database_exists' => false,
             'user_exists' => false,
             'grants_ok' => false,
         ]);
 
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('encrypt')->willReturn(['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
 
-        $naming = $this->createMock(DatabaseNamingPolicy::class);
+        $naming = $this->createStub(DatabaseNamingPolicy::class);
         $naming->method('buildCustomerScopedName')->willReturn('u2_demo');
 
         $em = $this->createMock(EntityManagerInterface::class);
         $em->expects(self::atLeastOnce())->method('persist');
         $em->expects(self::once())->method('flush');
 
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturnCallback(static function (string $id, array $params = []): string {
             return $id . ' ' . json_encode($params);
         });

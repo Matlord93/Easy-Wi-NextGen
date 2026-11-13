@@ -26,18 +26,18 @@ final class AdminSinusbotInstanceControllerSoloGuardTest extends TestCase
         SinusbotNodeRepository $nodeRepo,
         ?SinusbotInstanceProvisioner $provisioner = null,
     ): AdminSinusbotInstanceController {
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturnArgument(0);
 
-        $csrfManager = $this->createMock(CsrfTokenManagerInterface::class);
+        $csrfManager = $this->createStub(CsrfTokenManagerInterface::class);
         $csrfManager->method('isTokenValid')->willReturn(true);
 
         return new AdminSinusbotInstanceController(
-            $this->createMock(SinusbotInstanceRepository::class),
+            $this->createStub(SinusbotInstanceRepository::class),
             $nodeRepo,
-            $this->createMock(UserRepository::class),
-            $this->createMock(EntityManagerInterface::class),
-            $provisioner ?? $this->createMock(SinusbotInstanceProvisioner::class),
+            $this->createStub(UserRepository::class),
+            $this->createStub(EntityManagerInterface::class),
+            $provisioner ?? $this->createStub(SinusbotInstanceProvisioner::class),
             $csrfManager,
             $translator,
         );
@@ -47,12 +47,17 @@ final class AdminSinusbotInstanceControllerSoloGuardTest extends TestCase
     {
         $admin = new User('admin@example.test', UserType::Admin);
 
-        $node = $this->createMock(SinusbotNode::class);
+        $node = $this->createStub(SinusbotNode::class);
         $node->method('getId')->willReturn(7);
         $node->method('getInstanceMode')->willReturn('solo');
 
-        $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
-        $nodeRepo->method('find')->with(7)->willReturn($node);
+        $nodeRepo = $this->createStub(SinusbotNodeRepository::class);
+        $nodeRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($node): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $node;
+        });
 
         $provisioner = $this->createMock(SinusbotInstanceProvisioner::class);
         $provisioner->expects($this->never())->method('createInstanceForCustomer');
@@ -83,32 +88,42 @@ final class AdminSinusbotInstanceControllerSoloGuardTest extends TestCase
         $admin = new User('admin@example.test', UserType::Admin);
         $customer = new User('customer@example.test', UserType::Customer);
 
-        $node = $this->createMock(SinusbotNode::class);
+        $node = $this->createStub(SinusbotNode::class);
         $node->method('getId')->willReturn(3);
         $node->method('getInstanceMode')->willReturn('multi');
 
-        $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
-        $nodeRepo->method('find')->with(3)->willReturn($node);
+        $nodeRepo = $this->createStub(SinusbotNodeRepository::class);
+        $nodeRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($node): mixed {
+            $expectedArguments = [3];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $userRepo = $this->createMock(UserRepository::class);
-        $userRepo->method('find')->with(5)->willReturn($customer);
+            return $node;
+        });
+
+        $userRepo = $this->createStub(UserRepository::class);
+        $userRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($customer): mixed {
+            $expectedArguments = [5];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $customer;
+        });
 
         $provisioner = $this->createMock(SinusbotInstanceProvisioner::class);
         $provisioner->expects($this->once())
             ->method('createInstanceForCustomer')
             ->with($customer, $node, 3, null);
 
-        $csrfManager = $this->createMock(CsrfTokenManagerInterface::class);
+        $csrfManager = $this->createStub(CsrfTokenManagerInterface::class);
         $csrfManager->method('isTokenValid')->willReturn(true);
 
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturnArgument(0);
 
         $controller = new AdminSinusbotInstanceController(
-            $this->createMock(SinusbotInstanceRepository::class),
+            $this->createStub(SinusbotInstanceRepository::class),
             $nodeRepo,
             $userRepo,
-            $this->createMock(EntityManagerInterface::class),
+            $this->createStub(EntityManagerInterface::class),
             $provisioner,
             $csrfManager,
             $translator,

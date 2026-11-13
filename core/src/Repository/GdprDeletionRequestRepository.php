@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<GdprDeletionRequest>
+ */
 final class GdprDeletionRequestRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -18,13 +21,16 @@ final class GdprDeletionRequestRepository extends ServiceEntityRepository
 
     public function findLatestByCustomer(User $customer): ?GdprDeletionRequest
     {
-        return $this->createQueryBuilder('request')
+        /** @var GdprDeletionRequest|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('request')
             ->andWhere('request.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('request.requestedAt', 'DESC')
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     public function findByJobId(string $jobId): ?GdprDeletionRequest

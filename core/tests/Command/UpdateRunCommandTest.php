@@ -22,7 +22,7 @@ final class UpdateRunCommandTest extends TestCase
         $jobPath = $dir . '/' . $jobId . '.json';
         file_put_contents($jobPath, json_encode(['id' => $jobId, 'status' => 'pending', 'logPath' => $dir . '/log.log'], JSON_PRETTY_PRINT));
 
-        $jobService = $this->createMock(UpdateJobServiceInterface::class);
+        $jobService = $this->createStub(UpdateJobServiceInterface::class);
         $jobService->method('getJobsDir')->willReturn($dir);
         $jobService->method('getJob')->willReturnCallback(static function (string $id) use ($jobPath): ?array {
             if ($id !== 'job-success') {
@@ -54,7 +54,7 @@ final class UpdateRunCommandTest extends TestCase
         $jobPath = $dir . '/' . $jobId . '.json';
         file_put_contents($jobPath, json_encode(['id' => $jobId, 'status' => 'pending', 'type' => 'migrate', 'logPath' => $dir . '/log.log'], JSON_PRETTY_PRINT));
 
-        $jobService = $this->createMock(UpdateJobServiceInterface::class);
+        $jobService = $this->createStub(UpdateJobServiceInterface::class);
         $jobService->method('getJobsDir')->willReturn($dir);
         $jobService->method('getJob')->willReturnCallback(static function (string $id) use ($jobPath): ?array {
             if ($id !== 'job-failed') {
@@ -101,7 +101,7 @@ final class UpdateRunCommandTest extends TestCase
         $jobPath = $dir . '/' . $jobId . '.json';
         file_put_contents($jobPath, json_encode(['id' => $jobId, 'status' => 'pending', 'type' => 'wat', 'logPath' => $dir . '/log.log'], JSON_PRETTY_PRINT));
         $jobService = $this->mockJobService($jobPath, $jobId, $dir);
-        $updateService = $this->createMock(WebinterfaceUpdateServiceInterface::class);
+        $updateService = $this->createStub(WebinterfaceUpdateServiceInterface::class);
         $tester = new CommandTester(new UpdateRunCommand($jobService, $updateService));
         self::assertSame(Command::FAILURE, $tester->execute(['job-id' => $jobId]));
     }
@@ -121,7 +121,7 @@ final class UpdateRunCommandTest extends TestCase
 
     private function mockJobService(string $jobPath, string $jobId, string $dir): UpdateJobServiceInterface
     {
-        $jobService = $this->createMock(UpdateJobServiceInterface::class);
+        $jobService = $this->createStub(UpdateJobServiceInterface::class);
         $jobService->method('getJobsDir')->willReturn($dir);
         $jobService->method('getJob')->willReturnCallback(static function (string $id) use ($jobPath, $jobId): ?array {
             if ($id !== $jobId) {

@@ -591,7 +591,7 @@ final class AdminBackupController
         ]);
 
         $result = @file_get_contents($url, false, $context);
-        $headers = is_array($http_response_header) ? $http_response_header : [];
+        $headers = http_get_last_response_headers() ?? [];
         $statusLine = is_string($headers[0] ?? null) ? (string) $headers[0] : '';
 
         return [$statusLine, is_string($result) ? substr($result, 0, 128) : null];

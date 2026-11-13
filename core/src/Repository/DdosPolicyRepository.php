@@ -29,10 +29,13 @@ final class DdosPolicyRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('policy')
+        /** @var list<DdosPolicy> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('policy')
             ->where('policy.node IN (:nodes)')
             ->setParameter('nodes', $nodes)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

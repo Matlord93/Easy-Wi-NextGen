@@ -52,9 +52,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
     public function testReinstallPayloadUsesBuilderAndDisablesAutostart(): void
     {
         $instance = $this->buildInstance();
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createStub(InstanceRepository::class);
         $instanceRepository->method('find')->willReturn($instance);
-        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
@@ -94,7 +94,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             }
         };
         $templateResolver = new TemplateInstallResolver(new MinecraftCatalogService($catalogRepo));
-        $appSettings = $this->createMock(AppSettingsService::class);
+        $appSettings = $this->createStub(AppSettingsService::class);
         $portBlockFinder = new class () implements PortBlockFinderInterface {
             public function findByInstance(Instance $instance): ?\App\Module\Ports\Domain\Entity\PortBlock
             {
@@ -103,14 +103,14 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         };
         $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder, $this->newInstanceWithoutConstructor(\App\Repository\TemplateRepository::class));
 
-        $messageBus = $this->createMock(MessageBusInterface::class);
+        $messageBus = $this->createStub(MessageBusInterface::class);
         $captured = null;
         $messageBus->method('dispatch')->willReturnCallback(function (object $message) use (&$captured) {
             $captured = $message;
             return new Envelope($message, [new HandledStamp(['status' => 'queued', 'job_id' => '42'], 'handler')]);
         });
 
-        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createMock(TranslatorInterface::class));
+        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createStub(TranslatorInterface::class));
         $consoleCommandValidator = new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
             public function getCustomerConsoleAllowedCommands(): array
             {
@@ -138,11 +138,11 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $payloadBuilder,
             $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
-            $this->createMock(EntityManagerInterface::class),
+            $this->createStub(EntityManagerInterface::class),
             $messageBus,
             new ResponseEnvelopeFactory(),
-            $this->createMock(EncryptionService::class),
-            $this->createMock(TranslatorInterface::class),
+            $this->createStub(EncryptionService::class),
+            $this->createStub(TranslatorInterface::class),
             null,
             null,
             $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
@@ -177,9 +177,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
     {
         $instance = $this->buildInstance();
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createStub(InstanceRepository::class);
         $instanceRepository->method('find')->willReturn($instance);
-        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $catalogRepo = $this->newInstanceWithoutConstructor(\App\Repository\MinecraftVersionCatalogRepository::class);
@@ -191,10 +191,10 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             }
         };
         $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder, $this->newInstanceWithoutConstructor(\App\Repository\TemplateRepository::class));
-        $appSettings = $this->createMock(AppSettingsService::class);
+        $appSettings = $this->createStub(AppSettingsService::class);
 
-        $messageBus = $this->createMock(MessageBusInterface::class);
-        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createMock(TranslatorInterface::class));
+        $messageBus = $this->createStub(MessageBusInterface::class);
+        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createStub(TranslatorInterface::class));
         $consoleCommandValidator = new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
             public function getCustomerConsoleAllowedCommands(): array
             {
@@ -222,11 +222,11 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $payloadBuilder,
             $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
-            $this->createMock(EntityManagerInterface::class),
+            $this->createStub(EntityManagerInterface::class),
             $messageBus,
             new ResponseEnvelopeFactory(),
-            $this->createMock(EncryptionService::class),
-            $this->createMock(TranslatorInterface::class),
+            $this->createStub(EncryptionService::class),
+            $this->createStub(TranslatorInterface::class),
             null,
             null,
             $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),
@@ -246,15 +246,15 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
     public function testReinstallReturnsConflictWhenLifecycleJobActive(): void
     {
         $instance = $this->buildInstance();
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createStub(InstanceRepository::class);
         $instanceRepository->method('find')->willReturn($instance);
 
-        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(new \App\Module\Core\Domain\Entity\Job('instance.backup.create', []));
 
         $templateResolver = $this->newInstanceWithoutConstructor(TemplateInstallResolver::class);
         $payloadBuilder = $this->newInstanceWithoutConstructor(InstanceJobPayloadBuilder::class);
-        $appSettings = $this->createMock(AppSettingsService::class);
+        $appSettings = $this->createStub(AppSettingsService::class);
 
         $controller = new CustomerInstanceActionApiController(
             $instanceRepository,
@@ -265,7 +265,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $jobRepository,
             $this->newInstanceWithoutConstructor(JobLogRepository::class),
-            new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createMock(TranslatorInterface::class)),
+            new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createStub(TranslatorInterface::class)),
             $this->newInstanceWithoutConstructor(AuditLogger::class),
             new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
                 public function getCustomerConsoleAllowedCommands(): array { return []; }
@@ -278,11 +278,11 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $payloadBuilder,
             $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
-            $this->createMock(EntityManagerInterface::class),
-            $this->createMock(MessageBusInterface::class),
+            $this->createStub(EntityManagerInterface::class),
+            $this->createStub(MessageBusInterface::class),
             new ResponseEnvelopeFactory(),
-            $this->createMock(EncryptionService::class),
-            $this->createMock(TranslatorInterface::class),
+            $this->createStub(EncryptionService::class),
+            $this->createStub(TranslatorInterface::class),
             null,
             null,
             $this->newInstanceWithoutConstructor(GithubReleaseAssetUrlResolver::class),

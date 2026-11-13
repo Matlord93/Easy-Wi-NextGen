@@ -8,11 +8,13 @@ use App\Module\Core\Application\Backup\BackupStorageTarget;
 
 final class LocalBackupTargetWriter implements BackupTargetWriterInterface
 {
+    #[\Override]
     public function supports(BackupStorageTarget $target): bool
     {
         return $target->type() === 'local';
     }
 
+    #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
         $basePath = (string) ($target->config()['base_path'] ?? $target->config()['path'] ?? '');

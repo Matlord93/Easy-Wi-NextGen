@@ -13,6 +13,7 @@ final class DoctrineAgentEndpointProbe implements AgentEndpointProbeInterface
     {
     }
 
+    #[\Override]
     public function hasAnyEndpoint(): bool
     {
         $agent = $this->agentRepository->findOneBy([], ['updatedAt' => 'DESC']);

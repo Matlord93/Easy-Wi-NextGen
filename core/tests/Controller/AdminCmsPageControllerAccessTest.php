@@ -72,7 +72,7 @@ final class AdminCmsPageControllerAccessTest extends TestCase
             $entityManager,
             $auditLogger,
             $twig,
-            $this->createMock(TranslatorInterface::class),
+            $this->createStub(TranslatorInterface::class),
         );
     }
 

@@ -21,18 +21,22 @@ class MusicbotQueueItemRepository extends ServiceEntityRepository implements Mus
     /** @return MusicbotQueueItem[] */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('queueItem')
+        /** @var list<MusicbotQueueItem> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('queueItem')
             ->innerJoin('queueItem.instance', 'musicbotInstance')
             ->andWhere('musicbotInstance.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('queueItem.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findOneForCustomer(int $id, User $customer): ?MusicbotQueueItem
     {
-        return $this->createQueryBuilder('queueItem')
+        /** @var MusicbotQueueItem|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('queueItem')
             ->innerJoin('queueItem.instance', 'musicbotInstance')
             ->andWhere('queueItem.id = :id')
             ->andWhere('musicbotInstance.customer = :customer')
@@ -40,9 +44,12 @@ class MusicbotQueueItemRepository extends ServiceEntityRepository implements Mus
             ->setParameter('customer', $customer)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     /** @return MusicbotQueueItem[] */
+    #[\Override]
     public function findQueueForInstanceOrdered(MusicbotInstance $instance): array
     {
         return $this->findBy(['instance' => $instance], ['position' => 'ASC', 'createdAt' => 'ASC']);

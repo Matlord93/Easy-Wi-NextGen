@@ -28,6 +28,7 @@ final class MailTestCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -36,6 +37,7 @@ final class MailTestCommand extends Command
             ->addOption('body', null, InputOption::VALUE_REQUIRED, 'Email body', 'SMTP test email sent via Symfony Mailer.');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $to = (string) $input->getArgument('to');

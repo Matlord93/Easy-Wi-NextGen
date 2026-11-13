@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\BackupSchedule;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<BackupSchedule>
+ */
 final class BackupScheduleRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -20,7 +23,8 @@ final class BackupScheduleRepository extends ServiceEntityRepository
      */
     public function findEnabledBatchAfterId(int $afterId, int $limit): array
     {
-        return $this->createQueryBuilder('schedule')
+        /** @var list<BackupSchedule> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('schedule')
             ->andWhere('schedule.enabled = :enabled')
             ->andWhere('schedule.id > :afterId')
             ->setParameter('enabled', true)
@@ -29,5 +33,7 @@ final class BackupScheduleRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

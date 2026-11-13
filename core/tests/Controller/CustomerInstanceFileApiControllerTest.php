@@ -17,7 +17,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 {
     public function testListUnauthorizedReturnsErrorEnvelope(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('isCustomerDataManagerEnabled')->willReturn(true);
 
         $controller = $this->newControllerWithSettings($settings);
@@ -36,7 +36,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 
     public function testContentUnauthorizedReturnsErrorEnvelope(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('isCustomerDataManagerEnabled')->willReturn(true);
 
         $controller = $this->newControllerWithSettings($settings);
@@ -55,7 +55,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 
     private function newControllerWithSettings(AppSettingsService $settings): CustomerInstanceFileApiController
     {
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturnCallback(static fn (string|\Stringable $id): string => (string) $id);
 
         $reflection = new \ReflectionClass(CustomerInstanceFileApiController::class);
@@ -68,7 +68,6 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
             'translator' => $translator,
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
-            $prop->setAccessible(true);
             $prop->setValue($controller, $value);
         }
 

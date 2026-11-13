@@ -24,10 +24,15 @@ final class CustomerInstanceConsoleHealthProbeTest extends TestCase
     protected function tearDown(): void
     {
         putenv('EASYWI_RUNTIME_DIR');
-        @unlink(sprintf('%s/instances/%d/console.sock', $this->runtimeDir, 1));
-        @rmdir(sprintf('%s/instances/%d', $this->runtimeDir, 1));
-        @rmdir(sprintf('%s/instances', $this->runtimeDir));
-        @rmdir($this->runtimeDir);
+        $socketPath = sprintf('%s/instances/%d/console.sock', $this->runtimeDir, 1);
+        if (is_file($socketPath)) {
+            unlink($socketPath);
+        }
+        foreach ([sprintf('%s/instances/%d', $this->runtimeDir, 1), $this->runtimeDir.'/instances', $this->runtimeDir] as $directory) {
+            if (is_dir($directory)) {
+                rmdir($directory);
+            }
+        }
 
         parent::tearDown();
     }
@@ -75,7 +80,7 @@ final class CustomerInstanceConsoleHealthProbeTest extends TestCase
 
     private function buildController(array $runtimeStatusPayload): CustomerInstanceActionApiController
     {
-        $agentClient = $this->createMock(AgentGameServerClient::class);
+        $agentClient = $this->createStub(AgentGameServerClient::class);
         if ($runtimeStatusPayload === []) {
             $agentClient->method('getInstanceStatus')->willThrowException(new \RuntimeException('offline'));
         } else {
@@ -85,7 +90,6 @@ final class CustomerInstanceConsoleHealthProbeTest extends TestCase
         $reflection = new \ReflectionClass(CustomerInstanceActionApiController::class);
         $controller = $reflection->newInstanceWithoutConstructor();
         $property = $reflection->getProperty('agentGameServerClient');
-        $property->setAccessible(true);
         $property->setValue($controller, $agentClient);
 
         return $controller;
@@ -93,12 +97,11 @@ final class CustomerInstanceConsoleHealthProbeTest extends TestCase
 
     private function invokeProbe(CustomerInstanceActionApiController $controller, int $instanceId): array
     {
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getId')->willReturn($instanceId);
         $instance->method('getQueryStatusCache')->willReturn([]);
 
         $method = new \ReflectionMethod($controller, 'resolveConsoleRuntimeProbe');
-        $method->setAccessible(true);
 
         return $method->invoke($controller, $instance);
     }

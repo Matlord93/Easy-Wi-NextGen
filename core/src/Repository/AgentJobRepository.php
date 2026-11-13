@@ -24,7 +24,8 @@ final class AgentJobRepository extends ServiceEntityRepository
      */
     public function findQueuedForNode(string $nodeId, int $limit = 1): array
     {
-        return $this->createQueryBuilder('job')
+        /** @var list<AgentJob> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('job')
             ->andWhere('job.node = :nodeId')
             ->andWhere('job.status = :status')
             ->setParameter('nodeId', $nodeId)
@@ -33,17 +34,22 @@ final class AgentJobRepository extends ServiceEntityRepository
             ->setMaxResults(max(1, $limit))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findLatestByIdempotencyKey(string $key): ?AgentJob
     {
-        return $this->createQueryBuilder('job')
+        /** @var AgentJob|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('job')
             ->andWhere('job.idempotencyKey = :key')
             ->setParameter('key', $key)
             ->orderBy('job.createdAt', 'DESC')
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     public function countRunningForNode(string $nodeId): int
@@ -63,7 +69,8 @@ final class AgentJobRepository extends ServiceEntityRepository
      */
     public function findRunningBefore(\DateTimeImmutable $cutoff, int $limit = 200): array
     {
-        return $this->createQueryBuilder('job')
+        /** @var list<AgentJob> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('job')
             ->andWhere('job.status = :status')
             ->andWhere('job.startedAt IS NULL OR job.startedAt < :cutoff')
             ->setParameter('status', AgentJobStatus::Running)
@@ -72,6 +79,8 @@ final class AgentJobRepository extends ServiceEntityRepository
             ->setMaxResults(max(1, $limit))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -93,6 +102,9 @@ final class AgentJobRepository extends ServiceEntityRepository
                 ->setParameter('types', $types);
         }
 
-        return $queryBuilder->getQuery()->getResult();
+        /** @var list<AgentJob> $hydratedEntities */
+        $hydratedEntities = $queryBuilder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 }

@@ -27,12 +27,14 @@ final class TemplatesSharedPathsMigrateCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite shared_paths even if already set.');
         $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would change without writing to the database.');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

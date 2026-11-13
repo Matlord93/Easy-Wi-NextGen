@@ -38,33 +38,33 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $agent = new Agent('a',['key_id'=>'k','nonce'=>'n','ciphertext'=>'c'],'A');
         $node = new DatabaseNode('n','mariadb','127.0.0.1',3306,$agent);
 
-        $dbRepo = $this->createMock(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepository::class);
         $dbRepo->method('findOneByCustomerAndName')->willReturn(null);
         $dbRepo->method('findOneByCustomerAndUsername')->willReturn(null);
 
-        $nodeRepo = $this->createMock(DatabaseNodeRepository::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
         $nodeRepo->method('find')->willReturn($node);
 
-        $userRepo = $this->createMock(UserRepository::class);
-        $jobRepo = $this->createMock(JobRepository::class);
+        $userRepo = $this->createStub(UserRepository::class);
+        $jobRepo = $this->createStub(JobRepository::class);
         $jobRepo->method('findActiveByTypeAndPayloadField')->willReturn(null);
 
-        $em = $this->createMock(EntityManagerInterface::class);
+        $em = $this->createStub(EntityManagerInterface::class);
         $em->method('persist');
         $em->method('flush');
 
-        $audit = $this->createMock(AuditLogger::class);
-        $prov = $this->createMock(DatabaseProvisioningService::class);
+        $audit = $this->createStub(AuditLogger::class);
+        $prov = $this->createStub(DatabaseProvisioningService::class);
         $prov->method('buildCreateJobs')->willReturn([new Job('database.create',[])]);
-        $naming = $this->createMock(DatabaseNamingPolicy::class);
+        $naming = $this->createStub(DatabaseNamingPolicy::class);
         $naming->method('validateDatabaseName')->willReturn([]);
         $naming->method('buildCustomerScopedName')->willReturn('u1_demo');
 
-        $env = $this->createMock(EncryptionService::class);
-        $respFactory = $this->createMock(ResponseEnvelopeFactory::class);
+        $env = $this->createStub(EncryptionService::class);
+        $respFactory = $this->createStub(ResponseEnvelopeFactory::class);
         $respFactory->method('success')->willReturn(new JsonResponse([],202));
         $respFactory->method('error')->willReturn(new JsonResponse([],400));
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturn('x');
 
         $c = new DatabaseApiController($dbRepo,$nodeRepo,$userRepo,$jobRepo,$em,$audit,$prov,$naming,$respFactory,$env,new JobPayloadMasker(),$translator);
@@ -85,21 +85,21 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $node = new DatabaseNode('n','mariadb','127.0.0.1',3306,$agent);
         $db = new Database($customer,'mariadb','127.0.0.1',3306,'u1_demo','u1_demo',['key_id'=>'k','nonce'=>'n','ciphertext'=>'c'],$node);
 
-        $dbRepo = $this->createMock(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepository::class);
         $dbRepo->method('find')->willReturn($db);
-        $nodeRepo = $this->createMock(DatabaseNodeRepository::class);
-        $em = $this->createMock(EntityManagerInterface::class);
-        $audit = $this->createMock(AuditLogger::class);
-        $prov = $this->createMock(DatabaseProvisioningService::class);
-        $naming = $this->createMock(DatabaseNamingPolicy::class);
-        $twig = $this->createMock(Environment::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
+        $em = $this->createStub(EntityManagerInterface::class);
+        $audit = $this->createStub(AuditLogger::class);
+        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $naming = $this->createStub(DatabaseNamingPolicy::class);
+        $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturnCallback(fn($tpl,$ctx)=>json_encode($ctx['errors']??[]));
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturn('translated');
-        $tables = $this->createMock(DatabaseTableService::class);
+        $tables = $this->createStub(DatabaseTableService::class);
         $tables->method('importSql')->willThrowException(new \InvalidArgumentException('weird_unexpected_code'));
 
-        $c = new CustomerDatabaseController($dbRepo,$nodeRepo,$this->createMock(JobRepository::class),$em,$audit,$prov,$naming,$twig,$translator,$tables);
+        $c = new CustomerDatabaseController($dbRepo,$nodeRepo,$this->createStub(JobRepository::class),$em,$audit,$prov,$naming,$twig,$translator,$tables);
         $r = new Request();
         $r->attributes->set('current_user',$customer);
         $resp = $c->importDatabase($r, 1);

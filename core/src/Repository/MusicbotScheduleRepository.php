@@ -23,29 +23,36 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
     /** @return MusicbotSchedule[] */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('s')
+        /** @var list<MusicbotSchedule> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('s')
             ->where('s.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('s.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotSchedule[] */
     public function findByInstance(MusicbotInstance $instance): array
     {
-        return $this->createQueryBuilder('s')
+        /** @var list<MusicbotSchedule> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('s')
             ->where('s.instance = :instance')
             ->setParameter('instance', $instance)
             ->orderBy('s.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotSchedule[] */
     public function findByCustomerAndInstance(User $customer, MusicbotInstance $instance): array
     {
-        return $this->createQueryBuilder('s')
+        /** @var list<MusicbotSchedule> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('s')
             ->where('s.customer = :customer')
             ->andWhere('s.instance = :instance')
             ->setParameter('customer', $customer)
@@ -53,12 +60,15 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
             ->orderBy('s.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotSchedule[] */
     public function findDue(\DateTimeImmutable $now): array
     {
-        return $this->createQueryBuilder('s')
+        /** @var list<MusicbotSchedule> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('s')
             ->where('s.enabled = true')
             ->andWhere('s.nextRunAt IS NOT NULL')
             ->andWhere('s.nextRunAt <= :now')
@@ -66,6 +76,8 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
             ->orderBy('s.nextRunAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -85,7 +97,10 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
             $qb->andWhere('s.instance = :instanceId')->setParameter('instanceId', $filters['instance_id']);
         }
 
-        return $qb->getQuery()->getResult();
+        /** @var list<MusicbotSchedule> $hydratedEntities */
+        $hydratedEntities = $qb->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     public function countByCustomer(User $customer): int

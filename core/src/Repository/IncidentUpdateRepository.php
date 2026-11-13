@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\IncidentUpdate;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<IncidentUpdate>
+ */
 final class IncidentUpdateRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -21,11 +24,14 @@ final class IncidentUpdateRepository extends ServiceEntityRepository
      */
     public function findByIncident(Incident $incident): array
     {
-        return $this->createQueryBuilder('update')
+        /** @var list<IncidentUpdate> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('update')
             ->andWhere('update.incident = :incident')
             ->setParameter('incident', $incident)
             ->orderBy('update.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

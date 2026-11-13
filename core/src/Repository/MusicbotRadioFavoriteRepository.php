@@ -23,13 +23,16 @@ class MusicbotRadioFavoriteRepository extends ServiceEntityRepository
     /** @return MusicbotRadioFavorite[] */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('f')
+        /** @var list<MusicbotRadioFavorite> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('f')
             ->join('f.station', 's')
             ->where('f.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('f.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findOneByCustomerAndStation(User $customer, MusicbotRadioStation $station): ?MusicbotRadioFavorite

@@ -17,6 +17,7 @@ final class DatabaseConfigSubscriber implements EventSubscriberInterface
     ) {
     }
 
+    #[\Override]
     public static function getSubscribedEvents(): array
     {
         return [

@@ -13,6 +13,7 @@ final class SshQueryTransport implements QueryTransportInterface
     /**
      * @param QueryCommand[] $commands
      */
+    #[\Override]
     public function execute(array $commands, QueryContext $context): QueryResponse
     {
         if ($commands === []) {

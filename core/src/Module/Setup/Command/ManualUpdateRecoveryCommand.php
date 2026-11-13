@@ -23,6 +23,7 @@ final class ManualUpdateRecoveryCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -30,6 +31,7 @@ final class ManualUpdateRecoveryCommand extends Command
             ->addOption('timeout', null, InputOption::VALUE_REQUIRED, 'Per-command timeout in seconds.', '600');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $timeout = max(30, (int) $input->getOption('timeout'));

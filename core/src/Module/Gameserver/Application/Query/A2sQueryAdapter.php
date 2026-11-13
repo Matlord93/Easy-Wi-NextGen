@@ -8,11 +8,13 @@ use App\Module\Core\Domain\Entity\Instance;
 
 final class A2sQueryAdapter implements QueryAdapterInterface
 {
+    #[\Override]
     public function supports(string $type): bool
     {
         return $type === 'a2s' || $type === 'steam_a2s';
     }
 
+    #[\Override]
     public function query(Instance $instance, QueryContext $context): QueryResult
     {
         return QueryResult::unavailable('A2S query delegated to agent.');

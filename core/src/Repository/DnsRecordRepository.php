@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<DnsRecord>
+ */
 final class DnsRecordRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -30,12 +33,15 @@ final class DnsRecordRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('record')
+        /** @var list<DnsRecord> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('record')
             ->join('record.domain', 'domain')
             ->where('domain.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('record.updatedAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

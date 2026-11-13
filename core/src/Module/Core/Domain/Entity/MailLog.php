@@ -15,26 +15,26 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Index(name: 'idx_mail_logs_level_created_at', columns: ['level', 'created_at'])]
 class MailLog
 {
-    public const LEVEL_INFO = 'info';
-    public const LEVEL_WARNING = 'warning';
-    public const LEVEL_ERROR = 'error';
-    public const LEVEL_CRITICAL = 'critical';
+    public const string LEVEL_INFO = 'info';
+    public const string LEVEL_WARNING = 'warning';
+    public const string LEVEL_ERROR = 'error';
+    public const string LEVEL_CRITICAL = 'critical';
 
-    public const SOURCE_POSTFIX = 'postfix';
-    public const SOURCE_DOVECOT = 'dovecot';
-    public const SOURCE_OPENDKIM = 'opendkim';
-    public const SOURCE_AGENT = 'agent';
-    public const SOURCE_DNS = 'dns';
-    public const SOURCE_RSPAMD = 'rspamd';
+    public const string SOURCE_POSTFIX = 'postfix';
+    public const string SOURCE_DOVECOT = 'dovecot';
+    public const string SOURCE_OPENDKIM = 'opendkim';
+    public const string SOURCE_AGENT = 'agent';
+    public const string SOURCE_DNS = 'dns';
+    public const string SOURCE_RSPAMD = 'rspamd';
 
-    public const EVENT_DELIVERY = 'delivery';
-    public const EVENT_AUTH = 'auth';
-    public const EVENT_TLS = 'tls';
-    public const EVENT_SPAM = 'spam';
-    public const EVENT_BOUNCE = 'bounce';
-    public const EVENT_DNS_CHECK = 'dns_check';
-    public const EVENT_QUEUE = 'queue';
-    public const EVENT_POLICY = 'policy';
+    public const string EVENT_DELIVERY = 'delivery';
+    public const string EVENT_AUTH = 'auth';
+    public const string EVENT_TLS = 'tls';
+    public const string EVENT_SPAM = 'spam';
+    public const string EVENT_BOUNCE = 'bounce';
+    public const string EVENT_DNS_CHECK = 'dns_check';
+    public const string EVENT_QUEUE = 'queue';
+    public const string EVENT_POLICY = 'policy';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

@@ -194,7 +194,12 @@ final class AdminInstanceController
             return $response;
         }); }
         catch (\App\Module\Ports\Application\PortAllocationAborted $error) { return $error->response; }
-        catch (\App\Module\Ports\Application\PortCheckUnavailable $error) { return new Response($error->getMessage(),503); }
+        catch (\App\Module\Ports\Application\PortCheckUnavailable $error) {
+            return new Response(
+                htmlspecialchars($error->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
     }
 
     private function createWithReservedPorts(Request $request): Response

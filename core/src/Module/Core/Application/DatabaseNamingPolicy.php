@@ -6,9 +6,9 @@ namespace App\Module\Core\Application;
 
 class DatabaseNamingPolicy
 {
-    private const NAME_REGEX = '/^[a-z][a-z0-9_]{2,62}$/';
-    private const QUOTED_IDENTIFIER_REGEX = '/[`"\[\]]/';
-    private const RESERVED_WORDS = [
+    private const string NAME_REGEX = '/^[a-z][a-z0-9_]{2,62}$/';
+    private const string QUOTED_IDENTIFIER_REGEX = '/[`"\[\]]/';
+    private const array RESERVED_WORDS = [
         'select', 'insert', 'update', 'delete', 'drop', 'create', 'alter', 'grant', 'revoke',
         'database', 'schema', 'table', 'user', 'role', 'postgres', 'mysql',
     ];

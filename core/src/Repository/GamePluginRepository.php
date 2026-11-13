@@ -50,7 +50,10 @@ final class GamePluginRepository extends ServiceEntityRepository
                 ->setParameter('gameKey', mb_strtolower($gameKey));
         }
 
-        return $queryBuilder->getQuery()->getResult();
+        /** @var list<GamePlugin> $hydratedEntities */
+        $hydratedEntities = $queryBuilder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findDuplicateForGameKey(string $gameKey, string $name, string $version, ?int $excludeId = null): ?GamePlugin
@@ -69,6 +72,9 @@ final class GamePluginRepository extends ServiceEntityRepository
             $qb->andWhere('plugin.id != :excludeId')->setParameter('excludeId', $excludeId);
         }
 
-        return $qb->getQuery()->getOneOrNullResult();
+        /** @var GamePlugin|null $hydratedEntity */
+        $hydratedEntity = $qb->getQuery()->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 }

@@ -249,7 +249,7 @@ final class FileServiceClient
     }
 
     /**
-     * @return array{ok: bool, status_code: int|null, error: string|null, url: string}
+     * @return array{ok: bool, status_code: int|null, error: string|null, url: string, body: array<array-key, mixed>|string|null}
      */
     public function ping(Instance $instance): array
     {

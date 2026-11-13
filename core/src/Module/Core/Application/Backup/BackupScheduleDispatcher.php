@@ -32,7 +32,7 @@ final class BackupScheduleDispatcher
 
             $tz = new \DateTimeZone($plan->timeZone() ?: 'UTC');
             $nowLocal = $now->setTimezone($tz);
-            $cron = CronExpression::factory($expr);
+            $cron = new CronExpression($expr);
             $previousRun = $cron->getPreviousRunDate($nowLocal, 0, true);
 
             // Idempotency key = plan + the cron window being triggered.

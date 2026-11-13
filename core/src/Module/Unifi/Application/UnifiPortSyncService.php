@@ -19,8 +19,8 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class UnifiPortSyncService
 {
-    public const AUTO_PREFIX = 'PANEL';
-    public const MANUAL_PREFIX = 'MANUAL';
+    public const string AUTO_PREFIX = 'PANEL';
+    public const string MANUAL_PREFIX = 'MANUAL';
 
     public function __construct(
         private readonly UnifiSettingsRepository $settingsRepository,

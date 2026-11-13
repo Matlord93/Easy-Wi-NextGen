@@ -13,7 +13,6 @@ final class GdprExportServiceRedactionTest extends TestCase
     {
         $service = (new \ReflectionClass(GdprExportService::class))->newInstanceWithoutConstructor();
         $method = new \ReflectionMethod(GdprExportService::class, 'redactSensitiveData');
-        $method->setAccessible(true);
 
         $input = [
             'api_token' => 'abc',

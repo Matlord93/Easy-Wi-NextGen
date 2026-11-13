@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Entity\Site;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<ForumThread>
+ */
 final class ForumThreadRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -28,6 +31,7 @@ final class ForumThreadRepository extends ServiceEntityRepository
             ->orderBy('thread.isPinned', 'DESC')
             ->addOrderBy('thread.lastActivityAt', 'DESC');
 
+        /** @var list<ForumThread> $items */
         $items = $qb
             ->setFirstResult(max(0, ($page - 1) * $perPage))
             ->setMaxResults($perPage)

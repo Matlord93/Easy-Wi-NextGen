@@ -1573,7 +1573,7 @@ final class CustomerInstanceController
         }
 
         try {
-            $next = CronExpression::factory($cronExpression)->getNextRunDate('now', 0, true, $tz->getName());
+            $next = (new CronExpression($cronExpression))->getNextRunDate('now', 0, true, $tz->getName());
         } catch (\Throwable) {
             return null;
         }

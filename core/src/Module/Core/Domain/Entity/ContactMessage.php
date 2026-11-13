@@ -14,9 +14,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_contact_messages_ip_created', columns: ['ip_address', 'created_at'])]
 class ContactMessage
 {
-    public const STATUS_NEW = 'new';
-    public const STATUS_READ = 'read';
-    public const STATUS_REPLIED = 'replied';
+    public const string STATUS_NEW = 'new';
+    public const string STATUS_READ = 'read';
+    public const string STATUS_REPLIED = 'replied';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

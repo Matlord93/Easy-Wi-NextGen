@@ -39,6 +39,7 @@ final class RunWatchdogChecksCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $now = new \DateTimeImmutable();
@@ -94,7 +95,7 @@ final class RunWatchdogChecksCommand extends Command
                 // Flush in batches to avoid memory pressure.
                 if ($dispatched % 50 === 0) {
                     $this->entityManager->flush();
-                    $this->entityManager->clear(Job::class);
+                    $this->entityManager->clear();
                 }
             }
         } while (count($instances) === self::BATCH_SIZE);

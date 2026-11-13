@@ -21,11 +21,13 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
     ) {
     }
 
+    #[\Override]
     public function type(): string
     {
         return self::TYPE;
     }
 
+    #[\Override]
     public function schedules(): array
     {
         $settings = $this->settingsService->getSettings();
@@ -54,11 +56,13 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
         )];
     }
 
+    #[\Override]
     public function runDue(?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         return $this->runInternal(false, $now);
     }
 
+    #[\Override]
     public function runNow(string $source, string $id, ?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         if ($source !== 'system' || $id !== self::SCHEDULE_ID) {
@@ -114,7 +118,7 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
         }
 
         try {
-            $previous = CronExpression::factory($cronExpression)->getPreviousRunDate($now, 0, true);
+            $previous = (new CronExpression($cronExpression))->getPreviousRunDate($now, 0, true);
             $previousRunAt = \DateTimeImmutable::createFromMutable($previous)->setTimezone(new \DateTimeZone('UTC'));
         } catch (\Throwable) {
             return true;
@@ -143,7 +147,7 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
         }
 
         try {
-            $cron = CronExpression::factory($cronExpression);
+            $cron = new CronExpression($cronExpression);
             $next = $cron->getNextRunDate(new \DateTimeImmutable('now', new \DateTimeZone('UTC')), 0, true);
 
             return \DateTimeImmutable::createFromMutable($next)->setTimezone(new \DateTimeZone('UTC'));

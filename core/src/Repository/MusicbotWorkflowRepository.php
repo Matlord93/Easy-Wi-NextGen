@@ -79,6 +79,9 @@ final class MusicbotWorkflowRepository extends ServiceEntityRepository
             $qb->andWhere('w.enabled = :enabled')->setParameter('enabled', (bool) $filters['enabled']);
         }
 
-        return $qb->getQuery()->getResult();
+        /** @var list<MusicbotWorkflow> $hydratedEntities */
+        $hydratedEntities = $qb->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 }

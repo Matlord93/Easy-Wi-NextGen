@@ -15,7 +15,7 @@ final class WebhookDispatcherTest extends TestCase
 {
     public function testSignsPayloadAndDisablesRedirects(): void
     {
-        $validator = $this->createMock(WebhookUrlValidator::class);
+        $validator = $this->createStub(WebhookUrlValidator::class);
         $validator->method('validate')->willReturn('93.184.216.34');
         $http = new MockHttpClient(function (string $method, string $url, array $options): MockResponse {
             self::assertSame('POST', $method);

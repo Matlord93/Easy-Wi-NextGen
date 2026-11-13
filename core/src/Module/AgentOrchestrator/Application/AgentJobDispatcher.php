@@ -21,6 +21,7 @@ final class AgentJobDispatcher implements AgentJobDispatcherInterface
     /**
      * @param array<string, mixed> $payload
      */
+    #[\Override]
     public function dispatch(\App\Module\Core\Domain\Entity\Agent $node, string $type, array $payload): AgentJob
     {
         $errors = $this->validator->validate($type, $payload);

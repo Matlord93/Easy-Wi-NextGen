@@ -12,6 +12,7 @@ final class DoctrineTs6ServerLookup implements Ts6ServerLookupInterface
     {
     }
 
+    #[\Override]
     public function find(string $externalId): ?array
     {
         $server = $this->repository->find((int) $externalId);

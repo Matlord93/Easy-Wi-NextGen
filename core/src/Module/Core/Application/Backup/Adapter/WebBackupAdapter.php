@@ -4,18 +4,23 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Backup\Adapter;
 
+use Symfony\Component\Process\Process;
+
 final class WebBackupAdapter implements BackupModuleAdapterInterface
 {
+    #[\Override]
     public function module(): string
     {
         return 'web';
     }
 
+    #[\Override]
     public function snapshot(string $resourceId): BackupSnapshot
     {
         return new BackupSnapshot($resourceId, 'webspace-backup.tar');
     }
 
+    #[\Override]
     public function restore(string $resourceId, string $archivePath, bool $dryRun = false): RestoreReport
     {
         if (!is_file($archivePath)) {
@@ -57,8 +62,10 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
      */
     private function validatedEntries(string $archivePath): array
     {
-        $namesOutput = shell_exec(sprintf('tar -tf %s 2>/dev/null', escapeshellarg($archivePath)));
-        if (!is_string($namesOutput) || trim($namesOutput) === '') {
+        $names = new Process(['tar', '-tf', $archivePath], timeout: 60);
+        $names->mustRun();
+        $namesOutput = $names->getOutput();
+        if (trim($namesOutput) === '') {
             throw new \InvalidArgumentException('Unable to inspect archive entries.');
         }
 
@@ -73,8 +80,10 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
             $entries[] = $normalized;
         }
 
-        $verboseOutput = shell_exec(sprintf('tar -tvf %s 2>/dev/null', escapeshellarg($archivePath)));
-        if (is_string($verboseOutput) && $verboseOutput !== '') {
+        $verbose = new Process(['tar', '-tvf', $archivePath], timeout: 60);
+        $verbose->mustRun();
+        $verboseOutput = $verbose->getOutput();
+        if ($verboseOutput !== '') {
             foreach (preg_split('/\R/', trim($verboseOutput)) as $line) {
                 if (!is_string($line) || $line === '' || $line[0] !== 'l') {
                     continue;

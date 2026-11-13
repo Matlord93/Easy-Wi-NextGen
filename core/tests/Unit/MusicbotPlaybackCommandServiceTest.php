@@ -57,7 +57,6 @@ final class MusicbotPlaybackCommandServiceTest extends TestCase
         $instance = new MusicbotInstance($customer, $this->makeNode(), 'TestBot', 'mb-1-abcde', '/opt/mb');
         // Fake the id via reflection so assertions can reference it
         $ref = new \ReflectionProperty($instance, 'id');
-        $ref->setAccessible(true);
         $ref->setValue($instance, $id);
         return $instance;
     }

@@ -1572,9 +1572,6 @@ final class CustomerInstanceActionApiController
         return $this->templateRepository->findSharedStorageVariantForIdentity($instance->getTemplate()) !== null;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     private function dispatchJob(InstanceActionMessage $message, int $status = JsonResponse::HTTP_OK): JsonResponse
     {
         $envelope = $this->messageBus->dispatch($message);
@@ -1803,9 +1800,6 @@ final class CustomerInstanceActionApiController
         };
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     private function backupDownloadName(Instance $instance, \App\Module\Core\Domain\Entity\Backup $backup, string $archivePath): string
     {
         $extension = str_ends_with(strtolower($archivePath), '.tar.gz') ? '.tar.gz' : '.tar.gz';
@@ -1837,7 +1831,7 @@ final class CustomerInstanceActionApiController
         if (in_array($target->getType()->value, ['webdav', 'nextcloud'], true)) {
             $secret = [];
             foreach ($target->getEncryptedCredentials() as $key => $value) {
-                if (is_string($key) && in_array($key, ['password', 'token', 'username'], true) && is_string($value) && $value !== '') {
+                if (is_string($key) && in_array($key, ['password', 'token', 'username'], true) && is_array($value)) {
                     $secret[$key] = $this->encryptionService->decrypt($value);
                 }
             }

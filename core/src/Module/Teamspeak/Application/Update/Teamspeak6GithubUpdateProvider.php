@@ -16,11 +16,13 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
     {
     }
 
+    #[\Override]
     public function supports(string $serverType): bool
     {
         return $serverType === 'ts6';
     }
 
+    #[\Override]
     public function checkForUpdates(string $installedVersion, string $os, string $arch, string $channel = 'stable'): UpdateResult
     {
         $normalizedInstalledVersion = TeamspeakVersionNormalizer::normalize($installedVersion);

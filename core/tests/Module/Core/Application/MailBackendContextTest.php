@@ -16,7 +16,7 @@ final class MailBackendContextTest extends TestCase
             AppSettingsService::KEY_MAIL_ENABLED => true,
             AppSettingsService::KEY_MAIL_BACKEND => 'local',
         ];
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getSettings')->willReturnCallback(static function () use (&$settingsState): array {
             return $settingsState;
         });
@@ -31,7 +31,7 @@ final class MailBackendContextTest extends TestCase
 
     public function testBlockedResponseWhenBackendNone(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getSettings')->willReturn([
             AppSettingsService::KEY_MAIL_ENABLED => true,
             AppSettingsService::KEY_MAIL_BACKEND => 'none',
@@ -48,7 +48,7 @@ final class MailBackendContextTest extends TestCase
 
     public function testInvalidBackendFallsBackToLocal(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getSettings')->willReturn([
             AppSettingsService::KEY_MAIL_ENABLED => true,
             AppSettingsService::KEY_MAIL_BACKEND => 'unknown-backend',
@@ -62,7 +62,7 @@ final class MailBackendContextTest extends TestCase
 
     public function testOperationsAllowedWhenEnabledAndLocal(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getSettings')->willReturn([
             AppSettingsService::KEY_MAIL_ENABLED => true,
             AppSettingsService::KEY_MAIL_BACKEND => 'local',

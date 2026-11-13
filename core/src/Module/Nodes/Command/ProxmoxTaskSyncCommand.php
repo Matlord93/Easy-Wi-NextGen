@@ -21,11 +21,13 @@ final class ProxmoxTaskSyncCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Maximum tasks per pass (1-1000).', '25');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $limit = filter_var($input->getOption('limit'), FILTER_VALIDATE_INT);

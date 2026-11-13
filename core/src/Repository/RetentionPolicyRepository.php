@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\RetentionPolicy;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<RetentionPolicy>
+ */
 final class RetentionPolicyRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -17,10 +20,13 @@ final class RetentionPolicyRepository extends ServiceEntityRepository
 
     public function getCurrent(): ?RetentionPolicy
     {
-        return $this->createQueryBuilder('policy')
+        /** @var RetentionPolicy|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('policy')
             ->orderBy('policy.updatedAt', 'DESC')
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 }

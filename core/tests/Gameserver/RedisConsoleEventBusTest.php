@@ -19,10 +19,10 @@ final class RedisConsoleEventBusTest extends TestCase
     public function testPublishedConsoleBufferExpiresAfterReconnectWindow(): void
     {
         $redis = $this->createMock(\Redis::class);
-        $redis->expects(self::once())->method('rPush')->with('consolebuf:42', self::isType('string'));
+        $redis->expects(self::once())->method('rPush')->with('consolebuf:42', self::isString());
         $redis->expects(self::once())->method('lTrim')->with('consolebuf:42', -500, -1);
         $redis->expects(self::once())->method('expire')->with('consolebuf:42', 900);
-        $redis->expects(self::once())->method('publish')->with('console:42', self::isType('string'));
+        $redis->expects(self::once())->method('publish')->with('console:42', self::isString());
 
         $bus = new RedisConsoleEventBus($redis);
         $bus->publishConsoleEvent(42, ['seq' => 1, 'message' => 'hello']);
@@ -30,9 +30,19 @@ final class RedisConsoleEventBusTest extends TestCase
 
     public function testGetInstancesWithSubscribersFindsInstancesViaTtlKeys(): void
     {
-        $redis = $this->createMock(\Redis::class);
-        $redis->method('keys')->with('console_subscribers:*')->willReturn(['console_subscribers:2']);
-        $redis->method('get')->with('console_subscribers:2')->willReturn('1');
+        $redis = $this->createStub(\Redis::class);
+        $redis->method('keys')->willReturnCallback(function (mixed ...$stubArguments): mixed {
+            $expectedArguments = ['console_subscribers:*'];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return ['console_subscribers:2'];
+        });
+        $redis->method('get')->willReturnCallback(function (mixed ...$stubArguments): mixed {
+            $expectedArguments = ['console_subscribers:2'];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return '1';
+        });
         $redis->method('rawCommand')->willReturn([]);
 
         $bus = new RedisConsoleEventBus($redis);
@@ -86,9 +96,19 @@ final class RedisConsoleEventBusTest extends TestCase
 
     public function testGetInstancesWithSubscribersFallsBackToTtlKeysWhenPubSubChannelsFails(): void
     {
-        $redis = $this->createMock(\Redis::class);
-        $redis->method('keys')->with('console_subscribers:*')->willReturn(['console_subscribers:3']);
-        $redis->method('get')->with('console_subscribers:3')->willReturn('1');
+        $redis = $this->createStub(\Redis::class);
+        $redis->method('keys')->willReturnCallback(function (mixed ...$stubArguments): mixed {
+            $expectedArguments = ['console_subscribers:*'];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return ['console_subscribers:3'];
+        });
+        $redis->method('get')->willReturnCallback(function (mixed ...$stubArguments): mixed {
+            $expectedArguments = ['console_subscribers:3'];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return '1';
+        });
         $redis->method('rawCommand')->willThrowException(new \RedisException('pubsub unavailable'));
 
         $bus = new RedisConsoleEventBus($redis);

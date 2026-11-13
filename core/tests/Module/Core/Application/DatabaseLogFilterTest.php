@@ -46,7 +46,7 @@ final class DatabaseLogFilterTest extends TestCase
 
     private function filter(bool $storeRoutine): DatabaseLogFilter
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('shouldStoreRoutineDatabaseLogs')->willReturn($storeRoutine);
 
         return new DatabaseLogFilter($settings);

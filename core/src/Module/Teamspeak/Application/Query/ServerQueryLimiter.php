@@ -15,6 +15,7 @@ final class ServerQueryLimiter implements ServerQueryLimiterInterface
     {
     }
 
+    #[\Override]
     public function allow(string $cacheKey, int $baseDelaySeconds, int $maxDelaySeconds): ServerQueryLimiterResult
     {
         $now = time();
@@ -56,6 +57,7 @@ final class ServerQueryLimiter implements ServerQueryLimiterInterface
         return new ServerQueryLimiterResult(true, $nextDelay);
     }
 
+    #[\Override]
     public function reset(string $cacheKey): void
     {
         $this->cache->delete(self::CACHE_PREFIX . $cacheKey);

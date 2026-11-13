@@ -22,7 +22,7 @@ final class SinusbotNodeServiceInstallPayloadTest extends TestCase
 {
     private function makeNode(string $installPath, string $instanceRoot, string $instanceMode): SinusbotNode
     {
-        $agent = $this->createMock(Agent::class);
+        $agent = $this->createStub(Agent::class);
         $node = new SinusbotNode(
             'Test',
             $agent,
@@ -56,7 +56,7 @@ final class SinusbotNodeServiceInstallPayloadTest extends TestCase
 
     public function testDefaultNodeModeIsMultiMatchingMigrationDefault(): void
     {
-        $agent = $this->createMock(Agent::class);
+        $agent = $this->createStub(Agent::class);
         $node = new SinusbotNode(
             'Default',
             $agent,

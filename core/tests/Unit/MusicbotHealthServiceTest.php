@@ -43,7 +43,6 @@ final class MusicbotHealthServiceTest extends TestCase
 
         if ($updatedAt !== null) {
             $ref = new \ReflectionProperty(MusicbotInstance::class, 'updatedAt');
-            $ref->setAccessible(true);
             $ref->setValue($instance, $updatedAt);
         }
 

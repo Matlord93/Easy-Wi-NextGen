@@ -13,7 +13,6 @@ final class AgentApiControllerSftpExpiryTest extends TestCase
     {
         $controller = (new \ReflectionClass(AgentApiController::class))->newInstanceWithoutConstructor();
         $method = new \ReflectionMethod(AgentApiController::class, 'resolveSftpPasswordRevealExpiresAt');
-        $method->setAccessible(true);
 
         $completedAt = new \DateTimeImmutable('2026-05-08 10:30:00 UTC');
         $expiresAt = $method->invoke($controller, [
@@ -28,7 +27,6 @@ final class AgentApiControllerSftpExpiryTest extends TestCase
     {
         $controller = (new \ReflectionClass(AgentApiController::class))->newInstanceWithoutConstructor();
         $method = new \ReflectionMethod(AgentApiController::class, 'resolveSftpPasswordRevealExpiresAt');
-        $method->setAccessible(true);
 
         $completedAt = new \DateTimeImmutable('2026-05-08 10:30:00 UTC');
         $expiresAt = $method->invoke($controller, [

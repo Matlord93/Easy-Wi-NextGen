@@ -35,6 +35,7 @@ final class ScheduledTaskRunRepository extends ServiceEntityRepository
 
     public function countCreatedJobsSince(\DateTimeImmutable $since): int
     {
+        /** @var list<ScheduledTaskRun> $runs */
         $runs = $this->createQueryBuilder('run')
             ->andWhere('run.startedAt >= :since')
             ->setParameter('since', $since)

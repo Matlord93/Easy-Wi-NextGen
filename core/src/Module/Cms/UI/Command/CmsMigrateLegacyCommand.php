@@ -33,11 +33,13 @@ final class CmsMigrateLegacyCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Do not persist changes.');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
@@ -104,10 +106,10 @@ final class CmsMigrateLegacyCommand extends Command
 
     private function renderEvents(object $site): string
     {
-        $events = $this->eventRepository->findBy(['site' => $site, 'isPublished' => true], ['startsAt' => 'ASC']);
+        $events = $this->eventRepository->findBy(['site' => $site, 'isPublished' => true], ['startAt' => 'ASC']);
         $html = '<h2>Events</h2><ul>';
         foreach ($events as $event) {
-            $html .= sprintf('<li><strong>%s</strong> (%s)</li>', htmlspecialchars($event->getTitle()), $event->getStartsAt()->format('Y-m-d H:i'));
+            $html .= sprintf('<li><strong>%s</strong> (%s)</li>', htmlspecialchars($event->getTitle()), $event->getStartAt()->format('Y-m-d H:i'));
         }
 
         return $html . '</ul>';

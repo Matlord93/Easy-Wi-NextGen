@@ -80,10 +80,10 @@ final class AgentUpdateQueueServiceTest extends TestCase
     /** @param Job[] $jobs @param array<string,array<string,mixed>> $assets */
     private function createService(array $jobs, array $assets): AgentUpdateQueueService
     {
-        $agentRepository = $this->createMock(AgentRepository::class);
-        $jobRepository = $this->createMock(JobRepository::class);
-        $releaseChecker = $this->createMock(AgentReleaseCheckerInterface::class);
-        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $agentRepository = $this->createStub(AgentRepository::class);
+        $jobRepository = $this->createStub(JobRepository::class);
+        $releaseChecker = $this->createStub(AgentReleaseCheckerInterface::class);
+        $entityManager = $this->createStub(EntityManagerInterface::class);
 
         $jobRepository->method('findLatestByType')->willReturnCallback(static function (string $type) use ($jobs): array {
             return array_values(array_filter($jobs, static fn (Job $job): bool => $job->getType() === $type));

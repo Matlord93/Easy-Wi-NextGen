@@ -6,11 +6,13 @@ namespace App\Module\Teamspeak\Application\Update;
 
 final class Teamspeak3UpdateProvider implements TeamspeakUpdateProviderInterface
 {
+    #[\Override]
     public function supports(string $serverType): bool
     {
         return $serverType === 'ts3';
     }
 
+    #[\Override]
     public function checkForUpdates(string $installedVersion, string $os, string $arch, string $channel = 'stable'): UpdateResult
     {
         return new UpdateResult('ts3', $installedVersion, null, false, 'source_not_configured', 'teamspeak.update.source_not_configured');

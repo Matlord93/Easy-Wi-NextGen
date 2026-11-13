@@ -42,7 +42,7 @@ final class SftpHostTrustTest extends AbstractWebTestCase
         $sftp->expects(self::once())->method('getServerPublicHostKey')->willReturn('ssh-ed25519 '.base64_encode('attacker-key'));
         $sftp->expects(self::never())->method('login');
         $sftp->expects(self::once())->method('disconnect');
-        $connections = $this->createMock(SftpConnectionFactory::class);
+        $connections = $this->createStub(SftpConnectionFactory::class);
         $connections->method('create')->willReturn($sftp);
         try {
             $this->service($connections)->readFile($instance, '', 'server.properties');
@@ -71,7 +71,7 @@ final class SftpHostTrustTest extends AbstractWebTestCase
         });
         $sftp->method('is_dir')->willReturn(true);
         $sftp->expects(self::once())->method('get')->with('/srv/game/test/server.properties')->willReturn('motd=hello');
-        $connections = $this->createMock(SftpConnectionFactory::class);
+        $connections = $this->createStub(SftpConnectionFactory::class);
         $connections->method('create')->willReturn($sftp);
         self::assertSame('motd=hello', $this->service($connections)->readFile($instance, '', 'server.properties'));
     }

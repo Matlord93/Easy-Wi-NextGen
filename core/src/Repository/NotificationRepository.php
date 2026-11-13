@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Notification>
+ */
 final class NotificationRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -32,13 +35,16 @@ final class NotificationRepository extends ServiceEntityRepository
      */
     public function findLatestForRecipient(User $recipient, int $limit = 30): array
     {
-        return $this->createQueryBuilder('notification')
+        /** @var list<Notification> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('notification')
             ->andWhere('notification.recipient = :recipient')
             ->setParameter('recipient', $recipient)
             ->orderBy('notification.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findOneByEventKey(User $recipient, string $eventKey): ?Notification

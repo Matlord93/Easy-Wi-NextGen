@@ -20,7 +20,7 @@ final class ApiDeprecationSubscriberTest extends TestCase
     {
         $request = Request::create('/api/instances');
         $response = new Response();
-        $kernel = $this->createMock(HttpKernelInterface::class);
+        $kernel = $this->createStub(HttpKernelInterface::class);
         $event = new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $response);
 
         $subscriber = new ApiDeprecationSubscriber(new NullLogger());
@@ -35,7 +35,7 @@ final class ApiDeprecationSubscriberTest extends TestCase
     {
         $request = Request::create('/api/v1/auth/login');
         $response = new Response();
-        $kernel = $this->createMock(HttpKernelInterface::class);
+        $kernel = $this->createStub(HttpKernelInterface::class);
         $event = new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $response);
 
         $subscriber = new ApiDeprecationSubscriber(new NullLogger());

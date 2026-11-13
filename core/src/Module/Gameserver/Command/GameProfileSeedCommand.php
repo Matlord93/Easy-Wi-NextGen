@@ -25,6 +25,7 @@ final class GameProfileSeedCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         if (!is_file($this->configPath)) {

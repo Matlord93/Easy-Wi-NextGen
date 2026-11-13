@@ -35,17 +35,17 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         $bootstrapRepo = $this->createMock(AgentBootstrapTokenRepository::class);
         $bootstrapRepo->expects($this->never())->method('findActiveByHash');
 
-        $agentRepo = $this->createMock(AgentRepository::class);
-        $tokenGenerator = $this->createMock(TokenGenerator::class);
-        $auditLogger = $this->createMock(AuditLogger::class);
+        $agentRepo = $this->createStub(AgentRepository::class);
+        $tokenGenerator = $this->createStub(TokenGenerator::class);
+        $auditLogger = $this->createStub(AuditLogger::class);
 
-        $limiter = $this->createMock(LimiterInterface::class);
+        $limiter = $this->createStub(LimiterInterface::class);
         $limiter->method('consume')->willReturn(new RateLimit(1, new DateTimeImmutable(), true, 1));
 
-        $limiterFactory = $this->createMock(LimiterFactoryInterface::class);
+        $limiterFactory = $this->createStub(LimiterFactoryInterface::class);
         $limiterFactory->method('create')->willReturn($limiter);
 
-        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager = $this->createStub(EntityManagerInterface::class);
 
         $bootstrapController = new AgentBootstrapController(
             $bootstrapRepo,
@@ -105,7 +105,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
             ->with($bootstrapTokenHash)
             ->willReturn($bootstrapToken);
 
-        $agentRepo = $this->createMock(AgentRepository::class);
+        $agentRepo = $this->createStub(AgentRepository::class);
         $agentRepo->method('find')->willReturn(null);
 
         $tokenGenerator = $this->createMock(TokenGenerator::class);
@@ -120,16 +120,16 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
                 'encrypted_token' => ['key_id' => 'v1', 'nonce' => 'n', 'ciphertext' => 'c'],
             ]);
 
-        $auditLogger = $this->createMock(AuditLogger::class);
+        $auditLogger = $this->createStub(AuditLogger::class);
         $auditLogger->method('log');
 
-        $limiter = $this->createMock(LimiterInterface::class);
+        $limiter = $this->createStub(LimiterInterface::class);
         $limiter->method('consume')->willReturn(new RateLimit(1, new DateTimeImmutable(), true, 1));
 
-        $limiterFactory = $this->createMock(LimiterFactoryInterface::class);
+        $limiterFactory = $this->createStub(LimiterFactoryInterface::class);
         $limiterFactory->method('create')->willReturn($limiter);
 
-        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager = $this->createStub(EntityManagerInterface::class);
         $entityManager->method('persist');
         $entityManager->method('flush');
 
@@ -178,20 +178,20 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
             ->with($registerTokenHash)
             ->willReturn($registrationToken);
 
-        $encryptionService = $this->createMock(EncryptionService::class);
+        $encryptionService = $this->createStub(EncryptionService::class);
         $encryptionService->method('encrypt')
             ->willReturn(['key_id' => 'v1', 'nonce' => 'n', 'ciphertext' => 'c']);
 
         $signatureVerifier = new AgentSignatureVerifier(new \App\Module\Core\Application\AgentNonceStore($this->createStub(\Doctrine\DBAL\Connection::class)), new NullLogger(), 300, 600);
 
         $createdAgent = null;
-        $agentCreator = $this->createMock(AgentCreator::class);
+        $agentCreator = $this->createStub(AgentCreator::class);
         $agentCreator->method('create')
             ->willReturnCallback(static function (string $id, array $secretPayload, ?string $name) use (&$createdAgent): Agent {
                 return $createdAgent = new Agent($id, $secretPayload, $name);
             });
 
-        $appSettingsService = $this->createMock(AppSettingsService::class);
+        $appSettingsService = $this->createStub(AppSettingsService::class);
 
         $registrationController = new AgentRegistrationController(
             $agentRepo,

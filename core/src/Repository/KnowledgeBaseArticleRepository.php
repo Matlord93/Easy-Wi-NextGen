@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Enum\TicketCategory;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<KnowledgeBaseArticle>
+ */
 final class KnowledgeBaseArticleRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -21,7 +24,8 @@ final class KnowledgeBaseArticleRepository extends ServiceEntityRepository
      */
     public function findVisiblePublicBySite(int $siteId): array
     {
-        return $this->createQueryBuilder('article')
+        /** @var list<KnowledgeBaseArticle> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('article')
             ->andWhere('article.siteId = :siteId')
             ->andWhere('article.visiblePublic = true')
             ->setParameter('siteId', $siteId)
@@ -29,6 +33,8 @@ final class KnowledgeBaseArticleRepository extends ServiceEntityRepository
             ->addOrderBy('article.title', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -36,7 +42,8 @@ final class KnowledgeBaseArticleRepository extends ServiceEntityRepository
      */
     public function findVisiblePublicBySiteAndCategory(int $siteId, TicketCategory $category): array
     {
-        return $this->createQueryBuilder('article')
+        /** @var list<KnowledgeBaseArticle> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('article')
             ->andWhere('article.siteId = :siteId')
             ->andWhere('article.visiblePublic = true')
             ->andWhere('article.category = :category')
@@ -45,5 +52,7 @@ final class KnowledgeBaseArticleRepository extends ServiceEntityRepository
             ->orderBy('article.title', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

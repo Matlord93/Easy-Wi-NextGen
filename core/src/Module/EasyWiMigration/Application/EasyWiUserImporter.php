@@ -77,7 +77,7 @@ final class EasyWiUserImporter
 
             if (!$dryRun && $imported % 100 === 0 && $imported > 0) {
                 $this->entityManager->flush();
-                $this->entityManager->clear(User::class);
+                $this->entityManager->clear();
             }
 
             $offset += count($rows);

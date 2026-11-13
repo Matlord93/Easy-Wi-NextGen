@@ -31,6 +31,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
     ) {
     }
 
+    #[\Override]
     public function sendCommand(ConsoleCommandRequest $request): ConsoleCommandResult
     {
         $instance = $this->resolveInstance($request->instanceId);
@@ -77,6 +78,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         );
     }
 
+    #[\Override]
     public function attachStream(int $instanceId): iterable
     {
         $instance = $this->resolveInstance($instanceId);

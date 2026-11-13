@@ -48,16 +48,19 @@ final class StripePaymentProvider implements PaymentProviderInterface
     ) {
     }
 
+    #[\Override]
     public function getName(): string
     {
         return 'stripe';
     }
 
+    #[\Override]
     public function supportedMethods(): array
     {
         return ['card', 'sepa_debit', 'klarna', 'bancontact', 'ideal'];
     }
 
+    #[\Override]
     public function createPaymentIntent(Invoice $invoice, int $amountCents): PaymentInstruction
     {
         if ($this->secretKey === '') {
@@ -104,6 +107,7 @@ final class StripePaymentProvider implements PaymentProviderInterface
         );
     }
 
+    #[\Override]
     public function webhookHandle(Request $request): ?Response
     {
         $payload   = $request->getContent();
@@ -131,6 +135,7 @@ final class StripePaymentProvider implements PaymentProviderInterface
         return new JsonResponse(['received' => true]);
     }
 
+    #[\Override]
     public function reconcile(?\DateTimeImmutable $since = null): void
     {
         if ($this->secretKey === '') {

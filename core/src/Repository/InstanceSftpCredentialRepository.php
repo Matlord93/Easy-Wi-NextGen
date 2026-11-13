@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<InstanceSftpCredential>
+ */
 class InstanceSftpCredentialRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -32,10 +35,13 @@ class InstanceSftpCredentialRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('credential')
+        /** @var list<InstanceSftpCredential> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('credential')
             ->where('credential.instance IN (:instances)')
             ->setParameter('instances', $instances)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

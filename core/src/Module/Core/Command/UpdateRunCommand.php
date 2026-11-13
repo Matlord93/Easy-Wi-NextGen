@@ -25,11 +25,13 @@ final class UpdateRunCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addArgument('job-id', InputArgument::REQUIRED, 'Update job id');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $jobId = (string) $input->getArgument('job-id');

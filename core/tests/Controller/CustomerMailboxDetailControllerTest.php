@@ -35,14 +35,14 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     public function testCustomerCanOpenMailboxDetail(): void
     {
         $customer = new User('c@example.com', UserType::Customer);
-        $mailbox = $this->createMock(Mailbox::class);
+        $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getCustomer')->willReturn($customer);
         $mailbox->method('getAddress')->willReturn('u@example.com');
         $mailbox->method('getDomain')->willReturn(new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com'));
         $mailbox->method('isEnabled')->willReturn(true);
         $mailbox->method('getQuota')->willReturn(100);
 
-        $mailboxRepo = $this->createMock(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepository::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $controller = $this->buildController($mailboxRepo, new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => '{{ mailbox.address }} {{ username }} {{ password_csrf }}'])));
@@ -61,7 +61,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $customer = new User('c@example.com', UserType::Customer);
         $customer->setId(1);
         $domain = new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com');
-        $mailbox = $this->createMock(Mailbox::class);
+        $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getId')->willReturn(10);
         $mailbox->method('getCustomer')->willReturn($customer);
         $mailbox->method('getAddress')->willReturn('u@example.com');
@@ -70,17 +70,17 @@ final class CustomerMailboxDetailControllerTest extends TestCase
 
         $agent = new \App\Module\Core\Domain\Entity\Agent('a', ['key_id' => 'x', 'nonce' => 'y', 'ciphertext' => 'z']);
         $agent->recordHeartbeat(['mail' => ['mailbox_usage' => ['u@example.com' => ['used_bytes' => 52428800]], 'mailbox_usage_truncated' => false]], '1.0.0', null, ['mail'], null, \App\Module\Core\Domain\Entity\Agent::STATUS_ACTIVE);
-        $webspace = $this->createMock(\App\Module\Core\Domain\Entity\Webspace::class);
+        $webspace = $this->createStub(\App\Module\Core\Domain\Entity\Webspace::class);
         $webspace->method('getNode')->willReturn($agent);
-        $domainStub = $this->createMock(\App\Module\Core\Domain\Entity\Domain::class);
+        $domainStub = $this->createStub(\App\Module\Core\Domain\Entity\Domain::class);
         $domainStub->method('getWebspace')->willReturn($webspace);
         $mailNode = new \App\Module\Core\Domain\Entity\MailNode('n', 'imap', 993, 'smtp', 587, null);
-        $mailDomain = $this->createMock(\App\Module\Core\Domain\Entity\MailDomain::class);
+        $mailDomain = $this->createStub(\App\Module\Core\Domain\Entity\MailDomain::class);
         $mailDomain->method('getNode')->willReturn($mailNode);
         $mailDomain->method('getDomain')->willReturn($domainStub);
 
-        $mailboxRepo = $this->createMock(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
-        $mailDomainRepo = $this->createMock(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
+        $mailboxRepo = $this->createStub(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
+        $mailDomainRepo = $this->createStub(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
         $twig = new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => '{{ quota_usage.available ? quota_usage.used_mb : "missing" }}|{{ quota_usage.percent }}|{{ quota_usage.quota_mb }}']));
         $controller = $this->buildController($mailboxRepo, $twig, null, $mailDomainRepo);
         $r = new Request(); $r->attributes->set('current_user', $customer);
@@ -93,15 +93,15 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     {
         $customer = new User('c@example.com', UserType::Customer);
         $domain = new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com');
-        $mailbox = $this->createMock(Mailbox::class);
+        $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getId')->willReturn(11);
         $mailbox->method('getCustomer')->willReturn($customer);
         $mailbox->method('getAddress')->willReturn('missing@example.com');
         $mailbox->method('getDomain')->willReturn($domain);
         $mailbox->method('getQuota')->willReturn(100);
 
-        $mailboxRepo = $this->createMock(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
-        $mailDomainRepo = $this->createMock(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn(null);
+        $mailboxRepo = $this->createStub(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
+        $mailDomainRepo = $this->createStub(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn(null);
         $twig = new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => '{{ quota_usage.available ? "available" : "missing" }}']));
         $controller = $this->buildController($mailboxRepo, $twig, null, $mailDomainRepo);
         $r = new Request(); $r->attributes->set('current_user', $customer);
@@ -113,7 +113,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     {
         $customer = new User('c@example.com', UserType::Customer);
         $domain = new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com');
-        $mailbox = $this->createMock(Mailbox::class);
+        $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getId')->willReturn(12);
         $mailbox->method('getCustomer')->willReturn($customer);
         $mailbox->method('getAddress')->willReturn('U@example.com');
@@ -122,15 +122,15 @@ final class CustomerMailboxDetailControllerTest extends TestCase
 
         $agent = new \App\Module\Core\Domain\Entity\Agent('a2', ['key_id' => 'x', 'nonce' => 'y', 'ciphertext' => 'z']);
         $agent->recordHeartbeat(['mail' => ['mailbox_usage' => ['u@example.com' => ['used_bytes' => 2097152]]]], '1.0.0', null, ['mail'], null, \App\Module\Core\Domain\Entity\Agent::STATUS_ACTIVE);
-        $webspace = $this->createMock(\App\Module\Core\Domain\Entity\Webspace::class); $webspace->method('getNode')->willReturn($agent);
-        $domainStub = $this->createMock(\App\Module\Core\Domain\Entity\Domain::class); $domainStub->method('getWebspace')->willReturn($webspace);
+        $webspace = $this->createStub(\App\Module\Core\Domain\Entity\Webspace::class); $webspace->method('getNode')->willReturn($agent);
+        $domainStub = $this->createStub(\App\Module\Core\Domain\Entity\Domain::class); $domainStub->method('getWebspace')->willReturn($webspace);
         $mailNode = new \App\Module\Core\Domain\Entity\MailNode('n', 'imap', 993, 'smtp', 587, null);
-        $mailDomain = $this->createMock(\App\Module\Core\Domain\Entity\MailDomain::class);
+        $mailDomain = $this->createStub(\App\Module\Core\Domain\Entity\MailDomain::class);
         $mailDomain->method('getNode')->willReturn($mailNode);
         $mailDomain->method('getDomain')->willReturn($domainStub);
 
-        $mailboxRepo = $this->createMock(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
-        $mailDomainRepo = $this->createMock(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
+        $mailboxRepo = $this->createStub(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
+        $mailDomainRepo = $this->createStub(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
         $twig = new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => '{{ quota_usage.used_mb }}|{{ quota_usage.quota_mb }}|{{ quota_usage.percent }}']));
         $controller = $this->buildController($mailboxRepo, $twig, null, $mailDomainRepo);
         $r = new Request(); $r->attributes->set('current_user', $customer);
@@ -144,10 +144,10 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $owner->setId(1);
         $actor = new User('a@example.com', UserType::Customer);
         $actor->setId(2);
-        $mailbox = $this->createMock(Mailbox::class);
+        $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getCustomer')->willReturn($owner);
 
-        $mailboxRepo = $this->createMock(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepository::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $controller = $this->buildController($mailboxRepo, new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => 'x'])));
@@ -189,10 +189,10 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $actor = new User('a@example.com', UserType::Customer);
         $actor->setId(2);
 
-        $mailbox = $this->createMock(Mailbox::class);
+        $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getCustomer')->willReturn($owner);
 
-        $mailboxRepo = $this->createMock(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepository::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $controller = $this->buildController($mailboxRepo, new Environment(new ArrayLoader(['customer/mail/index.html.twig' => 'Mailbox not found.'])));
@@ -209,10 +209,10 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $customer = new User('c@example.com', UserType::Customer);
         $customer->setId(1);
 
-        $mailbox = $this->createMock(Mailbox::class);
+        $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getCustomer')->willReturn($customer);
 
-        $mailboxRepo = $this->createMock(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepository::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $controller = $this->buildController($mailboxRepo, new Environment(new ArrayLoader(['customer/mail/index.html.twig' => 'Password must be at least 8 characters.'])));
@@ -230,7 +230,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $customer->setId(1);
         $domain = new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com');
         $domain->setId(20);
-        $node = $this->createMock(\App\Module\Core\Domain\Entity\MailNode::class);
+        $node = $this->createStub(\App\Module\Core\Domain\Entity\MailNode::class);
         $node->method('getId')->willReturn(99);
         $mailDomain = new \App\Module\Core\Domain\Entity\MailDomain($domain, $node);
 
@@ -242,18 +242,18 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailbox->method('getAddress')->willReturn('u@example.com');
         $mailbox->expects(self::once())->method('setPassword');
 
-        $mailboxRepo = $this->createMock(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepository::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('persist')->with(self::callback(static fn ($job): bool => $job instanceof \App\Module\Core\Domain\Entity\Job && $job->getType() === 'mailbox.password.reset'));
         $entityManager->expects(self::once())->method('flush');
 
-        $mailDomainRepo = $this->createMock(MailDomainRepository::class);
+        $mailDomainRepo = $this->createStub(MailDomainRepository::class);
         $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
 
         $hasher = new MailPasswordHasher('bcrypt');
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('encrypt')->willReturn(['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
 
         $controller = $this->buildController(
@@ -281,41 +281,41 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         ?EncryptionService $encryptionService = null,
     ): CustomerMailController
     {
-        $csrfManager = $this->createMock(CsrfTokenManagerInterface::class);
+        $csrfManager = $this->createStub(CsrfTokenManagerInterface::class);
         $csrfManager->method('isTokenValid')->willReturn(true);
         $csrfManager->method('getToken')->willReturn(new CsrfToken('mailbox_password_1', 'csrf-token-value'));
 
         return new CustomerMailController(
             $mailboxRepository,
-            $this->createMock(MailAliasRepository::class),
+            $this->createStub(MailAliasRepository::class),
             $this->createDomainRepository(),
-            $mailDomainRepository ?? $this->createMock(MailDomainRepository::class),
-            $this->createMock(JobRepository::class),
-            $this->createMock(MailPolicyRepository::class),
-            $entityManager ?? $this->createMock(EntityManagerInterface::class),
-            $this->createMock(AuditLogger::class),
-            $encryptionService ?? $this->createMock(EncryptionService::class),
+            $mailDomainRepository ?? $this->createStub(MailDomainRepository::class),
+            $this->createStub(JobRepository::class),
+            $this->createStub(MailPolicyRepository::class),
+            $entityManager ?? $this->createStub(EntityManagerInterface::class),
+            $this->createStub(AuditLogger::class),
+            $encryptionService ?? $this->createStub(EncryptionService::class),
             $mailPasswordHasher ?? new MailPasswordHasher(),
             $this->createMailLimitEnforcer(),
             new MailAliasLoopGuard(),
-            $this->createMock(MailDnsCheckService::class),
+            $this->createStub(MailDnsCheckService::class),
             $csrfManager,
             $twig,
-            $this->createMock(TranslatorInterface::class),
+            $this->createStub(TranslatorInterface::class),
         );
     }
 
     private function createMailLimitEnforcer(): MailLimitEnforcer
     {
-        $mailboxStatsProvider = $this->createMock(MailboxStatsProviderInterface::class);
-        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $mailboxStatsProvider = $this->createStub(MailboxStatsProviderInterface::class);
+        $entityManager = $this->createStub(EntityManagerInterface::class);
 
         return new MailLimitEnforcer($mailboxStatsProvider, $entityManager);
     }
 
     private function createDomainRepository(): DomainRepository
     {
-        $repo = $this->createMock(DomainRepository::class);
+        $repo = $this->createStub(DomainRepository::class);
         $repo->method('findByCustomer')->willReturn([]);
         return $repo;
     }

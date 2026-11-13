@@ -61,7 +61,6 @@ final class AdminBackupControllerTargetSecretTest extends TestCase
     {
         $controller = (new \ReflectionClass(AdminBackupController::class))->newInstanceWithoutConstructor();
         $method = new \ReflectionMethod(AdminBackupController::class, 'normalizeTarget');
-        $method->setAccessible(true);
         $normalized = $method->invoke($controller, $target);
 
         self::assertIsArray($normalized);

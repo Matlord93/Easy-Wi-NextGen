@@ -48,6 +48,9 @@ final class PortRangeRepository extends ServiceEntityRepository
                 ->setParameter('excludeId', $excludeId);
         }
 
-        return $qb->getQuery()->getResult();
+        /** @var list<PortRange> $hydratedEntities */
+        $hydratedEntities = $qb->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 }

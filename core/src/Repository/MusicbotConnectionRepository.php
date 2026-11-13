@@ -21,18 +21,22 @@ class MusicbotConnectionRepository extends ServiceEntityRepository
     /** @return MusicbotConnection[] */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('connection')
+        /** @var list<MusicbotConnection> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('connection')
             ->innerJoin('connection.musicbotInstance', 'instance')
             ->andWhere('instance.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('connection.id', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findOneForCustomer(int $id, User $customer): ?MusicbotConnection
     {
-        return $this->createQueryBuilder('connection')
+        /** @var MusicbotConnection|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('connection')
             ->innerJoin('connection.musicbotInstance', 'instance')
             ->andWhere('connection.id = :id')
             ->andWhere('instance.customer = :customer')
@@ -40,6 +44,8 @@ class MusicbotConnectionRepository extends ServiceEntityRepository
             ->setParameter('customer', $customer)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     /** @return MusicbotConnection[] */

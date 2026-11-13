@@ -12,7 +12,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'jobs')]
 class Job
 {
-    private const ALLOWED_TRANSITIONS = [
+    private const array ALLOWED_TRANSITIONS = [
         JobStatus::Queued->value => [JobStatus::Claimed, JobStatus::Running, JobStatus::Cancelled],
         JobStatus::Claimed->value => [JobStatus::Queued, JobStatus::Running, JobStatus::Failed, JobStatus::Cancelled],
         JobStatus::Running->value => [JobStatus::Queued, JobStatus::Succeeded, JobStatus::Failed, JobStatus::Cancelled],

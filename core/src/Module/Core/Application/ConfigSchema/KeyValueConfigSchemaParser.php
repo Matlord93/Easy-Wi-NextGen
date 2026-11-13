@@ -6,11 +6,13 @@ namespace App\Module\Core\Application\ConfigSchema;
 
 final class KeyValueConfigSchemaParser extends AbstractConfigSchemaParser
 {
+    #[\Override]
     public function format(): string
     {
         return 'key_value';
     }
 
+    #[\Override]
     public function parse(string $content, array $schema): ConfigSchemaParseResult
     {
         $parsed = [];
@@ -37,6 +39,7 @@ final class KeyValueConfigSchemaParser extends AbstractConfigSchemaParser
         return $this->buildResult($schema, $parsed, $warnings, false);
     }
 
+    #[\Override]
     public function generate(array $schema, array $values): string
     {
         $fields = $schema['fields'] ?? [];

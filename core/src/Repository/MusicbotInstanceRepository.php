@@ -17,17 +17,20 @@ final class MusicbotInstanceRepository extends ServiceEntityRepository implement
         parent::__construct($registry, MusicbotInstance::class);
     }
 
+    #[\Override]
     public function findById(int $id): ?MusicbotInstance
     {
         return $this->find($id);
     }
 
     /** @return MusicbotInstance[] */
+    #[\Override]
     public function findByCustomer(User $customer): array
     {
         return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
     }
 
+    #[\Override]
     public function findOneForCustomer(int $id, User $customer): ?MusicbotInstance
     {
         return $this->findOneBy(['id' => $id, 'customer' => $customer]);

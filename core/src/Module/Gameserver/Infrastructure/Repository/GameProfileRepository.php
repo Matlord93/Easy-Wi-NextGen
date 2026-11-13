@@ -8,6 +8,9 @@ use App\Module\Gameserver\Domain\Entity\GameProfile;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<GameProfile>
+ */
 final class GameProfileRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

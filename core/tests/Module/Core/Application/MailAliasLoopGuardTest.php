@@ -41,7 +41,7 @@ final class MailAliasLoopGuardTest extends TestCase
 
     private function mockAlias(string $address, array $destinations): MailAlias
     {
-        $alias = $this->createMock(MailAlias::class);
+        $alias = $this->createStub(MailAlias::class);
         $alias->method('getAddress')->willReturn($address);
         $alias->method('getDestinations')->willReturn($destinations);
 

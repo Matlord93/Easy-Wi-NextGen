@@ -25,6 +25,7 @@ final class BbcodeTwigExtension extends AbstractExtension
         )));
     }
 
+    #[\Override]
     public function getFilters(): array
     {
         return [

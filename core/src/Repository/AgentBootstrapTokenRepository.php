@@ -30,7 +30,10 @@ class AgentBootstrapTokenRepository extends ServiceEntityRepository
             ->setParameter('now', new \DateTimeImmutable())
             ->setMaxResults(1);
 
-        return $qb->getQuery()->getOneOrNullResult();
+        /** @var AgentBootstrapToken|null $hydratedEntity */
+        $hydratedEntity = $qb->getQuery()->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     /**
@@ -38,10 +41,13 @@ class AgentBootstrapTokenRepository extends ServiceEntityRepository
      */
     public function findRecent(int $limit): array
     {
-        return $this->createQueryBuilder('token')
+        /** @var list<AgentBootstrapToken> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('token')
             ->orderBy('token.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

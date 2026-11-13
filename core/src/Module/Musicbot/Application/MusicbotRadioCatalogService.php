@@ -19,7 +19,7 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 class MusicbotRadioCatalogService
 {
-    private const HISTORY_KEEP_ROWS = 100;
+    private const int HISTORY_KEEP_ROWS = 100;
 
     public function __construct(
         private readonly MusicbotRadioStationRepository $stationRepository,

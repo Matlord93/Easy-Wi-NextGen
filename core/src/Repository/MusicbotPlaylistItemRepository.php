@@ -21,13 +21,16 @@ class MusicbotPlaylistItemRepository extends ServiceEntityRepository
     /** @return MusicbotPlaylistItem[] */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('playlistItem')
+        /** @var list<MusicbotPlaylistItem> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('playlistItem')
             ->innerJoin('playlistItem.playlist', 'playlist')
             ->andWhere('playlist.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('playlistItem.position', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotPlaylistItem[] */
@@ -38,7 +41,8 @@ class MusicbotPlaylistItemRepository extends ServiceEntityRepository
 
     public function findOneForCustomer(int $id, User $customer): ?MusicbotPlaylistItem
     {
-        return $this->createQueryBuilder('playlistItem')
+        /** @var MusicbotPlaylistItem|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('playlistItem')
             ->innerJoin('playlistItem.playlist', 'playlist')
             ->andWhere('playlistItem.id = :id')
             ->andWhere('playlist.customer = :customer')
@@ -46,5 +50,7 @@ class MusicbotPlaylistItemRepository extends ServiceEntityRepository
             ->setParameter('customer', $customer)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 }

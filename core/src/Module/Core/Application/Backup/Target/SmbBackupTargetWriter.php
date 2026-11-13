@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Backup\Target;
 
 use App\Module\Core\Application\Backup\BackupStorageTarget;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
 /**
  * Uploads backup archives to an SMB/CIFS share via the smbclient CLI.
@@ -20,11 +22,13 @@ use App\Module\Core\Application\Backup\BackupStorageTarget;
  */
 final class SmbBackupTargetWriter implements BackupTargetWriterInterface
 {
+    #[\Override]
     public function supports(BackupStorageTarget $target): bool
     {
         return $target->type() === 'smb';
     }
 
+    #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
         $host     = (string) ($target->config()['host'] ?? '');
@@ -38,8 +42,8 @@ final class SmbBackupTargetWriter implements BackupTargetWriterInterface
         }
 
         // Validate that smbclient is available.
-        $whichOutput = shell_exec('which smbclient 2>/dev/null');
-        if (empty($whichOutput)) {
+        $smbclient = (new ExecutableFinder())->find('smbclient');
+        if ($smbclient === null) {
             throw new \RuntimeException('smbclient binary not found. Install the samba-client package.');
         }
 
@@ -66,22 +70,14 @@ final class SmbBackupTargetWriter implements BackupTargetWriterInterface
                 ? sprintf('mkdir "%s"; cd "%s"; put "%s" "%s"', $remoteDir, $remoteDir, $sourceFile, $archiveName)
                 : sprintf('put "%s" "%s"', $sourceFile, $archiveName);
 
-            $cmd = sprintf(
-                'smbclient %s -A %s -c %s 2>&1',
-                escapeshellarg($uncPath),
-                escapeshellarg($authFile),
-                escapeshellarg($uploadCommand),
-            );
+            $process = new Process([$smbclient, $uncPath, '-A', $authFile, '-c', $uploadCommand], timeout: 900);
+            $process->run();
 
-            $output = [];
-            $exitCode = 0;
-            exec($cmd, $output, $exitCode);
-
-            if ($exitCode !== 0) {
+            if (!$process->isSuccessful()) {
                 throw new \RuntimeException(sprintf(
                     'smbclient upload failed (exit %d): %s',
-                    $exitCode,
-                    implode(' ', $output),
+                    $process->getExitCode() ?? 1,
+                    trim($process->getOutput().' '.$process->getErrorOutput()),
                 ));
             }
         } finally {

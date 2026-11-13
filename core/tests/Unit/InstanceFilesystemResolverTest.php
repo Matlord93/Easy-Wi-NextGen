@@ -14,14 +14,14 @@ final class InstanceFilesystemResolverTest extends TestCase
 {
     public function testResolveInstanceDirUsesWindowsSeparatorWhenBaseDirIsWindowsPath(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $resolver = new InstanceFilesystemResolver($settings);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getInstanceBaseDir')->willReturn('C:\\gameservers');
         $instance->method('getId')->willReturn(11);
 
-        $customer = $this->createMock(User::class);
+        $customer = $this->createStub(User::class);
         $customer->method('getId')->willReturn(5);
         $instance->method('getCustomer')->willReturn($customer);
 

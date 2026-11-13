@@ -14,6 +14,7 @@ use App\Repository\AgentJobRepository;
 use App\Repository\Ts6NodeRepository;
 use App\Repository\Ts6VirtualServerRepository;
 use App\Repository\UserRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -41,6 +42,7 @@ final class AdminTs6ServerController
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly EntityManagerInterface $entityManager,
     ) {
     }
 
@@ -163,7 +165,7 @@ final class AdminTs6ServerController
         }
 
         $server->setCustomerId($customerId);
-        $this->virtualServerRepository->getEntityManager()->flush();
+        $this->entityManager->flush();
         $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_virtual_server_assigned'));
 
         return new Response('', Response::HTTP_FOUND, [

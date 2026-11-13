@@ -8,12 +8,12 @@ use App\Module\Core\Domain\Entity\Database;
 
 class DatabaseTableService
 {
-    private const MAX_LIMIT = 50;
-    private const EXPORT_BATCH = 500;
-    public const IMPORT_MAX_BYTES = 10485760;
-    private const ALLOWED_COLUMN_TYPES = ['INT', 'BIGINT', 'VARCHAR', 'TEXT', 'LONGTEXT', 'DECIMAL', 'DATETIME', 'TIMESTAMP', 'DATE', 'TIME', 'BOOLEAN'];
-    private const NON_EDITABLE_TYPES = ['BLOB', 'BINARY', 'VARBINARY', 'LONGBLOB', 'MEDIUMBLOB', 'TINYBLOB', 'GEOMETRY'];
-    private const MAX_EDIT_VALUE_LENGTH = 20000;
+    private const int MAX_LIMIT = 50;
+    private const int EXPORT_BATCH = 500;
+    public const int IMPORT_MAX_BYTES = 10485760;
+    private const array ALLOWED_COLUMN_TYPES = ['INT', 'BIGINT', 'VARCHAR', 'TEXT', 'LONGTEXT', 'DECIMAL', 'DATETIME', 'TIMESTAMP', 'DATE', 'TIME', 'BOOLEAN'];
+    private const array NON_EDITABLE_TYPES = ['BLOB', 'BINARY', 'VARBINARY', 'LONGBLOB', 'MEDIUMBLOB', 'TINYBLOB', 'GEOMETRY'];
+    private const int MAX_EDIT_VALUE_LENGTH = 20000;
 
     public function __construct(
         private readonly EncryptionService $encryptionService,

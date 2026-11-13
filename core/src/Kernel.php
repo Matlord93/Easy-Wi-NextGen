@@ -13,12 +13,14 @@ class Kernel extends BaseKernel
 {
     use MicroKernelTrait;
 
+    #[\Override]
     public function build(ContainerBuilder $container): void
     {
         parent::build($container);
         $container->addCompilerPass(new RedisExtensionCheckPass());
     }
 
+    #[\Override]
     public function getCacheDir(): string
     {
         $configuredCacheDir = $this->configuredDirectoryFromEnv('EASYWI_CACHE_DIR');
@@ -37,6 +39,7 @@ class Kernel extends BaseKernel
         return $fallbackCacheDir;
     }
 
+    #[\Override]
     public function getLogDir(): string
     {
         $configuredLogDir = $this->configuredDirectoryFromEnv('EASYWI_LOG_DIR');

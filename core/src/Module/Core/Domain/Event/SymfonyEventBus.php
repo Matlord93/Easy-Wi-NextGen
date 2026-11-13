@@ -12,6 +12,7 @@ final class SymfonyEventBus implements EventBusInterface
     {
     }
 
+    #[\Override]
     public function publish(DomainEvent $event): void
     {
         $this->eventDispatcher->dispatch($event, $event->getName());

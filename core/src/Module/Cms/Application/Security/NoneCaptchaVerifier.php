@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 
 final class NoneCaptchaVerifier implements CaptchaVerifierInterface
 {
+    #[\Override]
     public function verify(Request $request, string $context): bool
     {
         return true;

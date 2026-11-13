@@ -13,6 +13,7 @@ use App\Repository\AgentJobRepository;
 use App\Repository\Ts3NodeRepository;
 use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\UserRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -40,6 +41,7 @@ final class AdminTs3ServerController
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly EntityManagerInterface $entityManager,
     ) {
     }
 
@@ -160,7 +162,7 @@ final class AdminTs3ServerController
         }
 
         $server->setCustomerId($customerId);
-        $this->virtualServerRepository->getEntityManager()->flush();
+        $this->entityManager->flush();
         $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts3_virtual_server_assigned'));
 
         return new Response('', Response::HTTP_FOUND, [

@@ -87,7 +87,7 @@ final class PrivacyGdprScheduleHandlerTest extends TestCase
     /** @param array<string,mixed> $marked */
     private function settings(bool $enabled, array &$marked): AppSettingsService
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getSettings')->willReturn([
             AppSettingsService::KEY_PRIVACY_GDPR_JOBS_ENABLED => $enabled,
             AppSettingsService::KEY_PRIVACY_GDPR_JOBS_INTERVAL => '0 3 * * *',

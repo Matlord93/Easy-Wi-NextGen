@@ -18,6 +18,7 @@ final class DunningNotificationSender implements DunningNotificationSenderInterf
     ) {
     }
 
+    #[\Override]
     public function send(DunningReminder $reminder): bool
     {
         $invoice = $reminder->getInvoice();

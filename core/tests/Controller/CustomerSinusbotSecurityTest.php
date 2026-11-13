@@ -30,28 +30,33 @@ final class CustomerSinusbotSecurityTest extends TestCase
         $this->setEntityId($customer, 1);
         $this->setEntityId($otherCustomer, 2);
 
-        $node = $this->createMock(SinusbotNode::class);
+        $node = $this->createStub(SinusbotNode::class);
         $instance = new SinusbotInstance($node, $otherCustomer, 'inst-1', 'user', 3, 'stopped');
         $this->setEntityId($instance, 10);
 
-        $instanceRepo = $this->createMock(SinusbotInstanceRepository::class);
-        $instanceRepo->method('find')->with(10)->willReturn($instance);
+        $instanceRepo = $this->createStub(SinusbotInstanceRepository::class);
+        $instanceRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [10];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
 
         $provisioner = $this->createMock(SinusbotInstanceProvisioner::class);
         $provisioner->expects($this->never())->method('startInstance');
 
-        $csrfManager = $this->createMock(CsrfTokenManagerInterface::class);
+        $csrfManager = $this->createStub(CsrfTokenManagerInterface::class);
         $csrfManager->method('isTokenValid')->willReturn(true);
 
         $controller = new CustomerSinusbotController(
             $instanceRepo,
-            $this->createMock(SinusbotNodeRepository::class),
+            $this->createStub(SinusbotNodeRepository::class),
             $provisioner,
-            $this->createMock(SecretsCrypto::class),
+            $this->createStub(SecretsCrypto::class),
             $csrfManager,
-            $this->createMock(UrlGeneratorInterface::class),
-            $this->createMock(Environment::class),
-            $this->createMock(TranslatorInterface::class),
+            $this->createStub(UrlGeneratorInterface::class),
+            $this->createStub(Environment::class),
+            $this->createStub(TranslatorInterface::class),
         );
 
         $request = Request::create('/customer/infrastructure/sinusbot/instances/10/start', 'POST', ['_token' => 'csrf']);
@@ -64,7 +69,6 @@ final class CustomerSinusbotSecurityTest extends TestCase
     private function setEntityId(object $entity, int $id): void
     {
         $reflection = new \ReflectionProperty($entity, 'id');
-        $reflection->setAccessible(true);
         $reflection->setValue($entity, $id);
     }
 }

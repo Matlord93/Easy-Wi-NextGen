@@ -6,11 +6,13 @@ namespace App\Module\Cms\Application\BlockRenderer;
 
 final class RichTextBlockRenderer extends AbstractTwigBlockRenderer
 {
+    #[\Override]
     public function supports(string $blockType): bool
     {
         return $blockType === 'rich_text';
     }
 
+    #[\Override]
     public function render(array $payload): string
     {
         return $this->renderTemplate('public/blocks/v2/rich_text.html.twig', [

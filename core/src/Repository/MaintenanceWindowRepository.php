@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\MaintenanceWindow;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<MaintenanceWindow>
+ */
 final class MaintenanceWindowRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -20,7 +23,8 @@ final class MaintenanceWindowRepository extends ServiceEntityRepository
      */
     public function findUpcomingPublicBySite(int $siteId, \DateTimeImmutable $now): array
     {
-        return $this->createQueryBuilder('window')
+        /** @var list<MaintenanceWindow> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('window')
             ->andWhere('window.siteId = :siteId')
             ->andWhere('window.visiblePublic = true')
             ->andWhere('window.startAt > :now')
@@ -29,6 +33,8 @@ final class MaintenanceWindowRepository extends ServiceEntityRepository
             ->orderBy('window.startAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -36,7 +42,8 @@ final class MaintenanceWindowRepository extends ServiceEntityRepository
      */
     public function findCurrentPublicBySite(int $siteId, \DateTimeImmutable $now): array
     {
-        return $this->createQueryBuilder('window')
+        /** @var list<MaintenanceWindow> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('window')
             ->andWhere('window.siteId = :siteId')
             ->andWhere('window.visiblePublic = true')
             ->andWhere('window.startAt <= :now')
@@ -46,5 +53,7 @@ final class MaintenanceWindowRepository extends ServiceEntityRepository
             ->orderBy('window.startAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

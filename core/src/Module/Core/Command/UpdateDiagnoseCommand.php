@@ -13,6 +13,8 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
 #[AsCommand(
     name: 'app:diagnose:update',
@@ -29,6 +31,7 @@ final class UpdateDiagnoseCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
@@ -44,7 +47,7 @@ final class UpdateDiagnoseCommand extends Command
         $projectDir = dirname(__DIR__, 4);
         $this->renderDirStatus($io, 'Panel', $projectDir);
         $io->text(sprintf('PHP/Composer user: %s', $this->effectiveUser()));
-        $mountOptions = trim((string) shell_exec('findmnt -T ' . escapeshellarg($projectDir) . ' -n -o OPTIONS 2>/dev/null'));
+        $mountOptions = $this->optionalCommandOutput(['findmnt', '-T', $projectDir, '-n', '-o', 'OPTIONS']);
         $io->text(sprintf('Mount options: %s', $mountOptions !== '' ? $mountOptions : 'unavailable'));
         if (in_array('noexec', explode(',', $mountOptions), true)) {
             $io->warning('Panel path is mounted noexec; updater/helper execution can be blocked by the image policy.');
@@ -150,8 +153,7 @@ final class UpdateDiagnoseCommand extends Command
             return is_file($runnerCommand) && is_executable($runnerCommand) ? $runnerCommand : null;
         }
 
-        $resolved = trim((string) shell_exec('command -v ' . escapeshellarg($runnerCommand) . ' 2>/dev/null'));
-        return $resolved !== '' ? $resolved : null;
+        return (new ExecutableFinder())->find($runnerCommand);
     }
 
     private function effectiveUser(): string
@@ -176,7 +178,7 @@ final class UpdateDiagnoseCommand extends Command
 
         $owner = function_exists('posix_getpwuid') ? posix_getpwuid((int) fileowner($projectDir)) : false;
         $io->text(sprintf('Repository owner: %s', is_array($owner) ? (string) ($owner['name'] ?? 'unknown') : (string) fileowner($projectDir)));
-        $safeDirectories = trim((string) shell_exec('git config --global --get-all safe.directory 2>/dev/null'));
+        $safeDirectories = $this->optionalCommandOutput(['git', 'config', '--global', '--get-all', 'safe.directory']);
         $isSafe = in_array($projectDir, preg_split('/\R/', $safeDirectories) ?: [], true);
         $io->text(sprintf('safe.directory: %s', $isSafe ? 'configured' : 'not configured for this user'));
         $output = [];
@@ -186,6 +188,19 @@ final class UpdateDiagnoseCommand extends Command
             $io->warning('Git status failed: ' . implode(' ', $output) . '. Check repository owner and safe.directory.');
         } else {
             $io->text(sprintf('Git worktree: %s', $output === [] ? 'clean' : 'modified'));
+        }
+    }
+
+    /** @param non-empty-list<string> $command */
+    private function optionalCommandOutput(array $command): string
+    {
+        try {
+            $process = new Process($command, timeout: 10);
+            $process->run();
+
+            return $process->isSuccessful() ? trim($process->getOutput()) : '';
+        } catch (\Symfony\Component\Process\Exception\ExceptionInterface) {
+            return '';
         }
     }
 }

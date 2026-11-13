@@ -43,7 +43,10 @@ final class JobLogRepository extends ServiceEntityRepository
                 ->setParameter('afterId', $afterId);
         }
 
-        return $builder->getQuery()->getResult();
+        /** @var list<JobLog> $hydratedEntities */
+        $hydratedEntities = $builder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -51,13 +54,16 @@ final class JobLogRepository extends ServiceEntityRepository
      */
     public function findLastByJob(Job $job, int $limit = 200): array
     {
-        return $this->createQueryBuilder('log')
+        /** @var list<JobLog> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('log')
             ->andWhere('log.job = :job')
             ->setParameter('job', $job)
             ->orderBy('log.id', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -81,7 +87,10 @@ final class JobLogRepository extends ServiceEntityRepository
                 ->setParameter('afterId', $afterId);
         }
 
-        return $builder->getQuery()->getResult();
+        /** @var list<JobLog> $hydratedEntities */
+        $hydratedEntities = $builder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -94,12 +103,15 @@ final class JobLogRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('log')
+        /** @var list<JobLog> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('log')
             ->andWhere('log.job IN (:jobs)')
             ->setParameter('jobs', $jobs)
             ->orderBy('log.id', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

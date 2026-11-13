@@ -15,14 +15,14 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_agent_jobs_idempotency', columns: ['idempotency_key'])]
 class AgentJob
 {
-    private const REDACTED_KEYS = [
+    private const array REDACTED_KEYS = [
         'bot_token', 'server_password', 'channel_password',
         'api_secret', 'api_key', 'stream_token',
         'runtime_control_token', 'webhook_secret',
         'password', 'token', 'secret',
     ];
 
-    private const SECRET_PATTERN = '/((?:bot_token|server_password|channel_password|api_secret|api_key|stream_token|runtime_control_token|webhook_secret|password|token|secret)["\s]*[:=]["\s]*)([^\s,"\'}\]\r\n]+)/i';
+    private const string SECRET_PATTERN = '/((?:bot_token|server_password|channel_password|api_secret|api_key|stream_token|runtime_control_token|webhook_secret|password|token|secret)["\s]*[:=]["\s]*)([^\s,"\'}\]\r\n]+)/i';
 
     #[ORM\Id]
     #[ORM\Column(length: 36)]

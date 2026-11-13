@@ -18,6 +18,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
     {
     }
 
+    #[\Override]
     public function publishConsoleEvent(int $instanceId, array $payload): void
     {
         $json = json_encode($payload, JSON_THROW_ON_ERROR);
@@ -29,6 +30,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
         $this->redis->exec();
     }
 
+    #[\Override]
     public function replayConsoleEvents(int $instanceId, int $lastSeq): array
     {
         $events = $this->redis->lRange($this->bufferKey($instanceId), 0, -1);
@@ -53,6 +55,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
         return $out;
     }
 
+    #[\Override]
     public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
     {
         $this->refreshSubscriberTtl($instanceId);
@@ -84,6 +87,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
         }
     }
 
+    #[\Override]
     public function incrementSubscriber(int $instanceId): void
     {
         $key = $this->subscriberKey($instanceId);
@@ -91,16 +95,19 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
         $this->redis->expire($key, 60);
     }
 
+    #[\Override]
     public function refreshSubscriberTtl(int $instanceId): void
     {
         $this->redis->expire($this->subscriberKey($instanceId), 60);
     }
 
+    #[\Override]
     public function decrementSubscriber(int $instanceId): void
     {
         $this->redis->decr($this->subscriberKey($instanceId));
     }
 
+    #[\Override]
     public function getSubscriberCount(int $instanceId): int
     {
         $tracked = (int) $this->redis->get($this->subscriberKey($instanceId));
@@ -113,6 +120,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
         return max($tracked, $pubSub);
     }
 
+    #[\Override]
     public function getInstancesWithSubscribers(): array
     {
         $out = [];

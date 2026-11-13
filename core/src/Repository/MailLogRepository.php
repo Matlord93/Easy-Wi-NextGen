@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\MailLog;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<MailLog>
+ */
 final class MailLogRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -38,7 +41,10 @@ final class MailLogRepository extends ServiceEntityRepository
             $qb->andWhere('ml.createdAt <= :to')->setParameter('to', $to);
         }
 
-        return $qb->getQuery()->getResult();
+        /** @var list<MailLog> $hydratedEntities */
+        $hydratedEntities = $qb->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -100,17 +106,21 @@ final class MailLogRepository extends ServiceEntityRepository
      */
     public function findRecent(int $limit = 20): array
     {
-        return $this->createQueryBuilder('ml')
+        /** @var list<MailLog> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('ml')
             ->orderBy('ml.createdAt', 'DESC')
             ->setMaxResults(max(1, min($limit, 100)))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MailLog[] */
     public function findSuspiciousRecent(int $limit = 50): array
     {
-        return $this->createQueryBuilder('ml')
+        /** @var list<MailLog> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('ml')
             ->andWhere('ml.eventType = :spam OR ml.level IN (:levels) OR LOWER(ml.message) LIKE :phishing OR LOWER(ml.message) LIKE :virus OR LOWER(ml.message) LIKE :malware')
             ->setParameter('spam', MailLog::EVENT_SPAM)
             ->setParameter('levels', [MailLog::LEVEL_ERROR, MailLog::LEVEL_CRITICAL])
@@ -121,5 +131,7 @@ final class MailLogRepository extends ServiceEntityRepository
             ->setMaxResults(max(1, min($limit, 200)))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

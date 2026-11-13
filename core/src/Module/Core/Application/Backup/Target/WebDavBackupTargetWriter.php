@@ -14,11 +14,13 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
     {
     }
 
+    #[\Override]
     public function supports(BackupStorageTarget $target): bool
     {
         return in_array($target->type(), ['webdav', 'nextcloud'], true);
     }
 
+    #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
         if (!is_file($sourceFile) || !is_readable($sourceFile)) {

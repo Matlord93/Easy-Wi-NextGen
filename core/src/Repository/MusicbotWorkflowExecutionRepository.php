@@ -22,19 +22,23 @@ final class MusicbotWorkflowExecutionRepository extends ServiceEntityRepository
     /** @return MusicbotWorkflowExecution[] */
     public function findByWorkflow(MusicbotWorkflow $workflow, int $limit = 50): array
     {
-        return $this->createQueryBuilder('e')
+        /** @var list<MusicbotWorkflowExecution> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('e')
             ->andWhere('e.workflow = :workflow')
             ->setParameter('workflow', $workflow)
             ->orderBy('e.triggeredAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotWorkflowExecution[] */
     public function findRecentForCustomer(User $customer, int $limit = 100): array
     {
-        return $this->createQueryBuilder('e')
+        /** @var list<MusicbotWorkflowExecution> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('e')
             ->innerJoin('e.workflow', 'w')
             ->andWhere('w.customer = :customer')
             ->setParameter('customer', $customer)
@@ -42,6 +46,8 @@ final class MusicbotWorkflowExecutionRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotWorkflowExecution[] */

@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\MailNode;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<MailNode>
+ */
 class MailNodeRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

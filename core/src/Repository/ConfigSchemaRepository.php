@@ -24,22 +24,28 @@ final class ConfigSchemaRepository extends ServiceEntityRepository
      */
     public function findByGameDefinition(GameDefinition $gameDefinition): array
     {
-        return $this->createQueryBuilder('schema')
+        /** @var list<ConfigSchema> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('schema')
             ->andWhere('schema.gameDefinition = :gameDefinition')
             ->setParameter('gameDefinition', $gameDefinition)
             ->orderBy('schema.name', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findOneByGameAndKey(GameDefinition $gameDefinition, string $configKey): ?ConfigSchema
     {
-        return $this->createQueryBuilder('schema')
+        /** @var ConfigSchema|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('schema')
             ->andWhere('schema.gameDefinition = :gameDefinition')
             ->andWhere('schema.configKey = :configKey')
             ->setParameter('gameDefinition', $gameDefinition)
             ->setParameter('configKey', $configKey)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 }

@@ -21,6 +21,7 @@ final class DispatchBackupSchedulesCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $plans = $this->planStore->all();

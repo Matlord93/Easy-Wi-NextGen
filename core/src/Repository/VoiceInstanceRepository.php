@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\VoiceInstance;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<VoiceInstance>
+ */
 final class VoiceInstanceRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -19,13 +22,16 @@ final class VoiceInstanceRepository extends ServiceEntityRepository
     /** @return VoiceInstance[] */
     public function findByCustomer(User $customer, int $limit = 100): array
     {
-        return $this->createQueryBuilder('voice')
+        /** @var list<VoiceInstance> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('voice')
             ->andWhere('voice.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('voice.updatedAt', 'DESC')
             ->setMaxResults(max(1, min(200, $limit)))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -38,6 +44,7 @@ final class VoiceInstanceRepository extends ServiceEntityRepository
             return [];
         }
 
+        /** @var list<VoiceInstance> $instances */
         $instances = $this->createQueryBuilder('voice')
             ->andWhere('voice.node IN (:nodeIds)')
             ->setParameter('nodeIds', $nodeIds)
@@ -61,7 +68,8 @@ final class VoiceInstanceRepository extends ServiceEntityRepository
 
     public function findOneLatestByNodeId(int $nodeId): ?VoiceInstance
     {
-        return $this->createQueryBuilder('voice')
+        /** @var VoiceInstance|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('voice')
             ->andWhere('voice.node = :nodeId')
             ->setParameter('nodeId', $nodeId)
             ->orderBy('voice.checkedAt', 'DESC')
@@ -69,5 +77,7 @@ final class VoiceInstanceRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 }

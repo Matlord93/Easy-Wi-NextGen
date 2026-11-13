@@ -16,11 +16,13 @@ final class SecurityStatusScheduleHandler implements ScheduleHandlerInterface
     ) {
     }
 
+    #[\Override]
     public function type(): string
     {
         return 'security.status';
     }
 
+    #[\Override]
     public function schedules(): array
     {
         return [
@@ -30,11 +32,13 @@ final class SecurityStatusScheduleHandler implements ScheduleHandlerInterface
         ];
     }
 
+    #[\Override]
     public function runDue(?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         return $this->queueJobsForAllAgents(['ddos.status.check', 'fail2ban.status.check', 'security.events.collect']);
     }
 
+    #[\Override]
     public function runNow(string $source, string $id, ?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         $jobType = match ($id) {

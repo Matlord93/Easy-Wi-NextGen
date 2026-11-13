@@ -190,7 +190,7 @@ final class PanelUpdateTickProcessorTest extends TestCase
 
     private function mockJobService(string $dir, string $jobId): UpdateJobServiceInterface
     {
-        $jobService = $this->createMock(UpdateJobServiceInterface::class);
+        $jobService = $this->createStub(UpdateJobServiceInterface::class);
         $jobService->method('getJobsDir')->willReturn($dir);
         $jobService->method('getJob')->willReturnCallback(static function (string $id) use ($dir, $jobId): ?array {
             if ($id !== $jobId) {

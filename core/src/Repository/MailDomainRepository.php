@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<MailDomain>
+ */
 class MailDomainRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -40,7 +43,8 @@ class MailDomainRepository extends ServiceEntityRepository
      */
     public function findByOwner(User $owner, int $limit = 100, int $offset = 0): array
     {
-        return $this->createQueryBuilder('md')
+        /** @var list<MailDomain> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('md')
             ->andWhere('md.owner = :owner')
             ->setParameter('owner', $owner)
             ->setMaxResults(max(1, min($limit, 500)))
@@ -48,6 +52,8 @@ class MailDomainRepository extends ServiceEntityRepository
             ->orderBy('md.domainName', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -57,7 +63,8 @@ class MailDomainRepository extends ServiceEntityRepository
     {
         $normalizedStatus = strtolower(trim($status));
 
-        return $this->createQueryBuilder('md')
+        /** @var list<MailDomain> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('md')
             ->andWhere('md.owner = :owner')
             ->andWhere('md.dkimStatus = :status OR md.spfStatus = :status OR md.dmarcStatus = :status OR md.mxStatus = :status OR md.tlsStatus = :status')
             ->setParameter('owner', $owner)
@@ -65,6 +72,8 @@ class MailDomainRepository extends ServiceEntityRepository
             ->orderBy('md.updatedAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -72,7 +81,8 @@ class MailDomainRepository extends ServiceEntityRepository
      */
     public function findStaleDnsChecks(User $owner, \DateTimeImmutable $before, int $limit = 200): array
     {
-        return $this->createQueryBuilder('md')
+        /** @var list<MailDomain> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('md')
             ->andWhere('md.owner = :owner')
             ->andWhere('md.dnsLastCheckedAt IS NULL OR md.dnsLastCheckedAt < :before')
             ->setParameter('owner', $owner)
@@ -81,5 +91,7 @@ class MailDomainRepository extends ServiceEntityRepository
             ->orderBy('md.dnsLastCheckedAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

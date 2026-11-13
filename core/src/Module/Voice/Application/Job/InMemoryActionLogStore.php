@@ -11,6 +11,7 @@ final class InMemoryActionLogStore implements ActionLogStoreInterface
     /** @var list<ActionLog> */
     private array $logs = [];
 
+    #[\Override]
     public function append(ActionLog $log): void
     {
         $this->logs[] = $log;

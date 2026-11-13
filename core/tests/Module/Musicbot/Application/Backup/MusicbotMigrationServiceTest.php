@@ -8,7 +8,7 @@ use App\Module\Musicbot\Application\Backup\MusicbotBackupManifest;
 use App\Module\Musicbot\Application\Backup\MusicbotBackupType;
 use App\Module\Musicbot\Application\Backup\MusicbotMigrationService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 final class MusicbotMigrationServiceTest extends TestCase
@@ -74,7 +74,7 @@ final class MusicbotMigrationServiceTest extends TestCase
 
     public function testComputeNewPathsBuildsCorrectStructure(): void
     {
-        $instance = $this->createMock(MusicbotInstance::class);
+        $instance = $this->createStub(MusicbotInstance::class);
         $instance->method('getServiceName')->willReturn('musicbot-42');
 
         $paths = $this->service->computeNewPaths($instance, '/opt/easywi/musicbot');

@@ -47,6 +47,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         return $this->getLatestVersionForChannel($this->channel, $force);
     }
 
+    #[\Override]
     public function getLatestVersionForChannel(string $channel, bool $force = false): ?string
     {
         if (trim($this->repository) === '') {
@@ -78,6 +79,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
     }
 
     /** @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null */
+    #[\Override]
     public function getReleaseAssetUrlsForChannel(string $assetName, string $channel, ?string $targetVersion = null, bool $force = false): ?array
     {
         if (trim($this->repository) === '') {
@@ -104,6 +106,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         return null;
     }
 
+    #[\Override]
     public function isUpdateAvailable(?string $currentVersion, ?string $latestVersion = null): ?bool
     {
         $current = $this->resolver()->normalizeVersion($currentVersion);
@@ -123,6 +126,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
     }
 
     /** @param array<string, mixed> $releaseInfo */
+    #[\Override]
     public function releaseAssetRequiresPanelProxy(array $releaseInfo): bool
     {
         foreach (['download_url', 'checksums_url', 'signature_url'] as $key) {

@@ -21,6 +21,7 @@ final class InstancePortBlockSubscriber implements EventSubscriber
     ) {
     }
 
+    #[\Override]
     public function getSubscribedEvents(): array
     {
         return [Events::preRemove];

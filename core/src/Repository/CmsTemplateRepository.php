@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\CmsTemplate;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<CmsTemplate>
+ */
 final class CmsTemplateRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

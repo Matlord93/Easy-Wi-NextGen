@@ -11,6 +11,7 @@ final class TeamSpeakQueryClient implements TeamSpeakQueryClientInterface
     ) {
     }
 
+    #[\Override]
     public function execute(QueryRequest $request, QueryContext $context): QueryResponse
     {
         return $this->transport->execute($request->commands(), $context);

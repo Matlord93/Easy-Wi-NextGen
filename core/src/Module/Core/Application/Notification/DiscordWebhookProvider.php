@@ -13,11 +13,13 @@ final class DiscordWebhookProvider implements BotProviderInterface
     ) {
     }
 
+    #[\Override]
     public function getName(): string
     {
         return 'discord';
     }
 
+    #[\Override]
     public function send(BotMessage $message, BotChannel $channel): void
     {
         if ($channel->endpoint === '') {

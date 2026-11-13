@@ -16,7 +16,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 class MailNodeHealthAggregator
 {
     /** @var string[] */
-    private const REQUIRED_KEYS = [
+    private const array REQUIRED_KEYS = [
         'postfix_installed', 'dovecot_installed', 'postmap_available', 'postfix_active', 'dovecot_active',
         'postfix_virtual_mailboxes_file', 'postfix_virtual_domains_file', 'postfix_virtual_aliases_file',
         'dovecot_users_file', 'maildir_writable', 'port_25_listening', 'port_465_listening',
@@ -24,7 +24,7 @@ class MailNodeHealthAggregator
     ];
 
     /** @var string[] */
-    private const CRITICAL_KEYS = [
+    private const array CRITICAL_KEYS = [
         'postfix_installed', 'dovecot_installed', 'postmap_available', 'postfix_active', 'dovecot_active',
         'postfix_virtual_mailboxes_file', 'dovecot_users_file', 'maildir_writable',
         'port_25_listening', 'port_587_listening', 'port_993_listening',

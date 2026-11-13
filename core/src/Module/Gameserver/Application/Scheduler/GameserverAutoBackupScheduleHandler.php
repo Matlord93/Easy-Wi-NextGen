@@ -21,11 +21,13 @@ final class GameserverAutoBackupScheduleHandler implements ScheduleHandlerInterf
     ) {
     }
 
+    #[\Override]
     public function type(): string
     {
         return 'gameserver.auto_backup';
     }
 
+    #[\Override]
     public function schedules(): array
     {
         return array_values(array_filter(array_map(function (BackupSchedule $schedule): ?InternalSchedule {
@@ -56,6 +58,7 @@ final class GameserverAutoBackupScheduleHandler implements ScheduleHandlerInterf
         }, $this->repository->findBy([], ['id' => 'ASC']))));
     }
 
+    #[\Override]
     public function runDue(?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         $queued = $this->runner->runDue($now);
@@ -65,6 +68,7 @@ final class GameserverAutoBackupScheduleHandler implements ScheduleHandlerInterf
             : ScheduleExecutionResult::skipped('No due gameserver backup schedules.');
     }
 
+    #[\Override]
     public function runNow(string $source, string $id, ?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         if ($source !== 'backup_schedule') {
@@ -90,7 +94,7 @@ final class GameserverAutoBackupScheduleHandler implements ScheduleHandlerInterf
         }
 
         try {
-            $cron = CronExpression::factory($cronExpression);
+            $cron = new CronExpression($cronExpression);
             $next = $cron->getNextRunDate(new \DateTimeImmutable('now', new \DateTimeZone($timeZone ?: 'UTC')), 0, true);
             return \DateTimeImmutable::createFromMutable($next)->setTimezone(new \DateTimeZone('UTC'));
         } catch (\Throwable) {

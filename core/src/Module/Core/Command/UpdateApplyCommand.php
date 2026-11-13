@@ -23,12 +23,14 @@ final class UpdateApplyCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
             ->addOption('yes', 'y', InputOption::VALUE_NONE, 'Update ohne weitere Nachfrage installieren.');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         if (!$input->getOption('yes')) {

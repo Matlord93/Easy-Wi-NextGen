@@ -38,6 +38,7 @@ final class FilesDiagnoseCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -48,6 +49,7 @@ final class FilesDiagnoseCommand extends Command
             ->addOption('path', null, InputOption::VALUE_REQUIRED, 'Relative path to probe', '');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

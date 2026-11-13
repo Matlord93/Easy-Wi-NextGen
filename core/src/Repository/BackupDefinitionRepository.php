@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<BackupDefinition>
+ */
 final class BackupDefinitionRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

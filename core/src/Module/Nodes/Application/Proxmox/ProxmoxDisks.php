@@ -9,11 +9,18 @@ final class ProxmoxDisks
 {
     public static function validDevice(string $kind, string $device): bool
     {
-        return match ($kind) {
-            'qemu' => 1 === preg_match('/^(?:ide[0-3]|sata[0-5]|scsi(?:[0-9]|[12][0-9]|30)|virtio(?:[0-9]|1[0-5]))$/D', $device),
-            'lxc' => 'rootfs' === $device || (1 === preg_match('/^mp([0-9]{1,3})$/D', $device, $match) && (int) $match[1] <= 255 && (string) (int) $match[1] === $match[1]),
-            default => false,
-        };
+        if ($kind === 'lxc') {
+            if ($device === 'rootfs') {
+                return true;
+            }
+            if (preg_match('/^mp([0-9]{1,3})$/D', $device, $match) !== 1) {
+                return false;
+            }
+
+            return (int) $match[1] <= 255 && (string) (int) $match[1] === $match[1];
+        }
+
+        return $kind === 'qemu' && preg_match('/^(?:ide[0-3]|sata[0-5]|scsi(?:[0-9]|[12][0-9]|30)|virtio(?:[0-9]|1[0-5]))$/D', $device) === 1;
     }
 
     public static function attached(array $config, string $kind): array

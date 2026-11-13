@@ -149,7 +149,7 @@ final class DatabaseTableEditServiceTest extends TestCase
 
     private function enc(): EncryptionService
     {
-        $enc = $this->createMock(EncryptionService::class);
+        $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
         return $enc;
     }

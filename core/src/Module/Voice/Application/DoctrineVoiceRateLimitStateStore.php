@@ -14,6 +14,7 @@ final class DoctrineVoiceRateLimitStateStore implements VoiceRateLimitStateStore
     {
     }
 
+    #[\Override]
     public function findOneByNodeAndProvider(VoiceNode $node, string $providerType): ?VoiceRateLimitState
     {
         return $this->repository->findOneByNodeAndProvider($node, $providerType);

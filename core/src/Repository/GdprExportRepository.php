@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Enum\GdprExportStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<GdprExport>
+ */
 final class GdprExportRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -22,17 +25,21 @@ final class GdprExportRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('export')
+        /** @var list<GdprExport> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('export')
             ->andWhere('export.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('export.requestedAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findByIdAndCustomer(int $id, User $customer): ?GdprExport
     {
-        return $this->createQueryBuilder('export')
+        /** @var GdprExport|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('export')
             ->andWhere('export.id = :id')
             ->andWhere('export.customer = :customer')
             ->setParameter('id', $id)
@@ -40,6 +47,8 @@ final class GdprExportRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     /**
@@ -51,6 +60,7 @@ final class GdprExportRepository extends ServiceEntityRepository
         $entityManager = $this->getEntityManager();
 
         return $entityManager->wrapInTransaction(function () use ($limit, $entityManager): array {
+            /** @var list<GdprExport> $exports */
             $exports = $this->createQueryBuilder('export')
                 ->andWhere('export.status = :status')
                 ->setParameter('status', GdprExportStatus::Pending)
@@ -76,12 +86,15 @@ final class GdprExportRepository extends ServiceEntityRepository
      */
     public function findExpired(\DateTimeImmutable $now, int $limit = 100): array
     {
-        return $this->createQueryBuilder('export')
+        /** @var list<GdprExport> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('export')
             ->andWhere('export.expiresAt <= :now')
             ->setParameter('now', $now)
             ->orderBy('export.expiresAt', 'ASC')
             ->setMaxResults(max(1, $limit))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

@@ -17,11 +17,13 @@ final class JobStateChangedEvent implements DomainEvent
         $this->occurredAt = new \DateTimeImmutable();
     }
 
+    #[\Override]
     public function getName(): string
     {
         return 'job.state_changed';
     }
 
+    #[\Override]
     public function getPayload(): array
     {
         return [
@@ -33,6 +35,7 @@ final class JobStateChangedEvent implements DomainEvent
         ];
     }
 
+    #[\Override]
     public function getOccurredAt(): \DateTimeImmutable
     {
         return $this->occurredAt;

@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\DownloadItem;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<DownloadItem>
+ */
 final class DownloadItemRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -20,7 +23,8 @@ final class DownloadItemRepository extends ServiceEntityRepository
      */
     public function findVisiblePublicBySite(int $siteId): array
     {
-        return $this->createQueryBuilder('item')
+        /** @var list<DownloadItem> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('item')
             ->andWhere('item.siteId = :siteId')
             ->andWhere('item.visiblePublic = true')
             ->setParameter('siteId', $siteId)
@@ -28,5 +32,7 @@ final class DownloadItemRepository extends ServiceEntityRepository
             ->addOrderBy('item.title', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

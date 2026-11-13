@@ -61,6 +61,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -70,6 +71,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
             ->addOption('max-runtime', null, InputOption::VALUE_REQUIRED, 'Optional maximum runtime in seconds for loop mode.');
     }
 
+    #[\Override]
     public function getSubscribedSignals(): array
     {
         return array_values(array_filter([
@@ -78,6 +80,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         ], static fn (?int $signal): bool => $signal !== null));
     }
 
+    #[\Override]
     public function handleSignal(int $signal, int|false $previousExitCode = 0): int|false
     {
         $this->shouldStop = true;
@@ -85,6 +88,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         return $previousExitCode;
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $lockHandle = $this->acquireProcessLock();
@@ -156,7 +160,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
             }
 
             $nowLocal = $now->setTimezone($timeZoneObj);
-            $cron = CronExpression::factory($cronExpression);
+            $cron = new CronExpression($cronExpression);
             $previousRun = $cron->getPreviousRunDate($nowLocal, 0, true);
 
             $lastQueuedAt = $schedule->getLastQueuedAt();
@@ -356,7 +360,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
                 continue;
             }
 
-            $cron = CronExpression::factory($cronExpression);
+            $cron = new CronExpression($cronExpression);
             $previousRun = $cron->getPreviousRunDate($now->setTimezone($timeZone), 0, true);
             $lastQueuedAt = $schedule->getLastQueuedAt();
             if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZone) >= $previousRun) {

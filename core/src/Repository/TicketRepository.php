@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Enum\TicketStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Ticket>
+ */
 final class TicketRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

@@ -33,12 +33,14 @@ final class ConsoleRelayCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('time-limit', null, InputOption::VALUE_REQUIRED, 'Gracefully recycle after this many seconds.', '3600');
         $this->addOption('memory-limit', null, InputOption::VALUE_REQUIRED, 'Gracefully recycle at this PHP heap size in MiB.', '96');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $seconds = (int) $input->getOption('time-limit');

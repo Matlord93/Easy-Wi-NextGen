@@ -23,6 +23,7 @@ final class MetricsCleanupCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -30,6 +31,7 @@ final class MetricsCleanupCommand extends Command
             ->addOption('batch', null, InputOption::VALUE_REQUIRED, 'Batch size per delete statement.', '5000');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

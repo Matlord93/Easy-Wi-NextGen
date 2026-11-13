@@ -23,6 +23,7 @@ final class MinecraftVersionsImportCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -34,6 +35,7 @@ final class MinecraftVersionsImportCommand extends Command
             ->addOption('deactivate-missing', null, InputOption::VALUE_NONE, $this->trans('minecraft_versions_import_option_deactivate_missing'));
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $channels = (array) $input->getOption('channel');

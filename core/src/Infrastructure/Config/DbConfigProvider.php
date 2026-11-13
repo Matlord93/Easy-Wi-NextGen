@@ -25,6 +25,7 @@ final class DbConfigProvider
         ?string $envPath = null,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%kernel.project_dir%')]
         ?string $projectDir = null,
+        private readonly string $systemConfigPath = self::SYSTEM_DB_CONFIG_PATH,
     ) {
         $this->projectDir = $projectDir;
         $this->configPath = $this->resolveConfigPath($envPath, $projectDir);
@@ -186,7 +187,7 @@ final class DbConfigProvider
 
         $candidates = [
             ...$this->resolveFallbackProjectPaths($projectDir),
-            self::SYSTEM_DB_CONFIG_PATH,
+            $this->systemConfigPath,
             self::DEFAULT_DB_CONFIG_PATH,
         ];
 

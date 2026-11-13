@@ -43,7 +43,7 @@ final class DatabaseTableWriteServiceTest extends TestCase
 
     private function mockEncryption(): EncryptionService
     {
-        $enc = $this->createMock(EncryptionService::class);
+        $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
         return $enc;
     }

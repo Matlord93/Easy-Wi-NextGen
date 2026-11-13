@@ -8,13 +8,15 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\DBAL\LockMode;
-use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Job>
+ */
 class JobRepository extends ServiceEntityRepository
 {
     /** Job types that run silently in the background and are never shown in the UI. */
-    private const BACKGROUND_TYPES = ['instance.query.check'];
+    private const array BACKGROUND_TYPES = ['instance.query.check'];
 
     public function __construct(ManagerRegistry $registry)
     {
@@ -48,11 +50,12 @@ class JobRepository extends ServiceEntityRepository
             ->setMaxResults($perPage)
             ->getQuery();
 
-        $paginator = new Paginator($query);
+        /** @var list<Job> $jobs */
+        $jobs = $query->getResult();
 
         return [
-            'jobs' => iterator_to_array($paginator->getIterator()),
-            'total' => count($paginator),
+            'jobs' => $jobs,
+            'total' => $this->countAll(),
         ];
     }
 
@@ -243,10 +246,6 @@ class JobRepository extends ServiceEntityRepository
 
         return null;
     }
-
-    /**
-     * @param list<string> $types
-     */
 
     public function findLatestActiveByTypeInstanceIdAndScheduleId(string $type, int $instanceId, string $scheduleId, int $limit = 100): ?Job
     {

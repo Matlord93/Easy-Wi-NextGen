@@ -15,6 +15,7 @@ final class ContentVersionStrategy implements VersionStrategyInterface
     {
     }
 
+    #[\Override]
     public function getVersion(string $path): string
     {
         if (str_starts_with($path, '//') || null !== parse_url($path, PHP_URL_SCHEME)) {
@@ -33,6 +34,7 @@ final class ContentVersionStrategy implements VersionStrategyInterface
         return $this->versions[$path] = substr((string) hash_file('sha256', $file), 0, 16);
     }
 
+    #[\Override]
     public function applyVersion(string $path): string
     {
         $version = $this->getVersion($path);

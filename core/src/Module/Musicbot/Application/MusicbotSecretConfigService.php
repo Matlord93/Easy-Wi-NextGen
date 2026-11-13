@@ -47,6 +47,7 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
      * @param array<string, string> $rawSecrets
      * @return array<string, string>
      */
+    #[\Override]
     public function encrypt(array $rawSecrets): array
     {
         $result = [];
@@ -82,6 +83,7 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
      * @param array<string, mixed> $secrets
      * @return array<string, string>
      */
+    #[\Override]
     public function mask(array $secrets): array
     {
         $result = [];
@@ -142,6 +144,7 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
      * @param array<string, mixed> $updates            user-submitted values (plaintext or empty)
      * @return array<string, string>                   merged result, ready to store in DB
      */
+    #[\Override]
     public function mergeSecretUpdates(array $existingEncrypted, array $updates): array
     {
         $result = array_map('strval', $existingEncrypted);

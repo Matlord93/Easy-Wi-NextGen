@@ -12,6 +12,7 @@ final class CmsMaintenanceWindowProvider implements CmsMaintenanceWindowProvider
     {
     }
 
+    #[\Override]
     public function findCurrentPublicBySite(int $siteId, \DateTimeImmutable $now): array
     {
         return $this->repository->findCurrentPublicBySite($siteId, $now);

@@ -49,9 +49,9 @@ final class MailNodeMetricsAggregatorTest extends TestCase
             'mail_warnings' => ['ok'],
         ], '1.0.0', null, ['mail'], null, Agent::STATUS_ACTIVE);
 
-        $domain = $this->createMock(\App\Module\Core\Domain\Entity\Domain::class);
-        $webspace = $this->createMock(\App\Module\Core\Domain\Entity\Webspace::class);
-        $mailDomain = $this->createMock(MailDomain::class);
+        $domain = $this->createStub(\App\Module\Core\Domain\Entity\Domain::class);
+        $webspace = $this->createStub(\App\Module\Core\Domain\Entity\Webspace::class);
+        $mailDomain = $this->createStub(MailDomain::class);
         $mailDomain->method('getNode')->willReturn($mailNode);
         $mailDomain->method('getDomain')->willReturn($domain);
         $domain->method('getWebspace')->willReturn($webspace);

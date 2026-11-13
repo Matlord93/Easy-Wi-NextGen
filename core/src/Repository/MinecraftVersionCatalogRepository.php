@@ -21,6 +21,7 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
     /**
      * @return array<int, string>
      */
+    #[\Override]
     public function findVersionsByChannel(string $channel, bool $activeOnly = true): array
     {
         $qb = $this->createQueryBuilder('catalog')
@@ -45,6 +46,7 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
     /**
      * @return array<string, array<int, string>>
      */
+    #[\Override]
     public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array
     {
         $qb = $this->createQueryBuilder('catalog')
@@ -84,9 +86,11 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
     /**
      * @return array<int, MinecraftVersionCatalog>
      */
+    #[\Override]
     public function findActiveByChannel(string $channel): array
     {
-        return $this->createQueryBuilder('catalog')
+        /** @var list<MinecraftVersionCatalog> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('catalog')
             ->where('catalog.channel = :channel')
             ->andWhere('catalog.isActive = true')
             ->setParameter('channel', $channel)
@@ -95,8 +99,11 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             ->addOrderBy('catalog.build', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
+    #[\Override]
     public function findLatestVersion(string $channel, bool $activeOnly = true): ?string
     {
         $qb = $this->createQueryBuilder('catalog')
@@ -107,6 +114,7 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             $qb->andWhere('catalog.isActive = true');
         }
 
+        /** @var MinecraftVersionCatalog|null $entry */
         $entry = $qb
             ->orderBy('catalog.releasedAt', 'DESC')
             ->addOrderBy('catalog.mcVersion', 'DESC')
@@ -117,6 +125,7 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
         return $entry?->getMcVersion();
     }
 
+    #[\Override]
     public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string
     {
         $qb = $this->createQueryBuilder('catalog')
@@ -129,6 +138,7 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             $qb->andWhere('catalog.isActive = true');
         }
 
+        /** @var MinecraftVersionCatalog|null $entry */
         $entry = $qb
             ->orderBy('catalog.releasedAt', 'DESC')
             ->addOrderBy('catalog.build', 'DESC')
@@ -139,6 +149,7 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
         return $entry?->getBuild();
     }
 
+    #[\Override]
     public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?MinecraftVersionCatalog
     {
         $criteria = [
@@ -163,14 +174,18 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             $qb->andWhere('catalog.isActive = true');
         }
 
-        return $qb
+        /** @var MinecraftVersionCatalog|null $hydratedEntity */
+        $hydratedEntity = $qb
             ->orderBy('catalog.releasedAt', 'DESC')
             ->addOrderBy('catalog.build', 'DESC')
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
+    #[\Override]
     public function versionExists(string $channel, string $version, bool $activeOnly = true): bool
     {
         $qb = $this->createQueryBuilder('catalog')
@@ -189,6 +204,7 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             ->getSingleScalarResult() > 0;
     }
 
+    #[\Override]
     public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool
     {
         $qb = $this->createQueryBuilder('catalog')

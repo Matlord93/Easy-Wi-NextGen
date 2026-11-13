@@ -15,8 +15,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_gdpr_exports_expires', columns: ['expires_at'])]
 class GdprExport
 {
-    private const DOWNLOAD_TOKEN_TTL = '+30 minutes';
-    private const DOWNLOAD_TOKEN_HASH_ALGORITHM = 'sha256';
+    private const string DOWNLOAD_TOKEN_TTL = '+30 minutes';
+    private const string DOWNLOAD_TOKEN_HASH_ALGORITHM = 'sha256';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

@@ -15,15 +15,15 @@ final class InstanceConfigPathResolverTest extends TestCase
 {
     public function testResolverBlocksTraversal(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getInstanceBaseDir')->willReturn('/srv/instances');
         $resolver = new InstanceConfigPathResolver(new InstanceFilesystemResolver($settings));
 
-        $node = $this->createMock(Agent::class);
+        $node = $this->createStub(Agent::class);
         $node->method('getMetadata')->willReturn(['os' => 'linux']);
         $node->method('getLastHeartbeatStats')->willReturn(['os' => 'linux']);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getInstallPath')->willReturn('/srv/instances/gs1');
         $instance->method('getNode')->willReturn($node);
 
@@ -34,15 +34,15 @@ final class InstanceConfigPathResolverTest extends TestCase
 
     public function testResolverSupportsWindowsPaths(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getInstanceBaseDir')->willReturn('C:/EasyWI/instances');
         $resolver = new InstanceConfigPathResolver(new InstanceFilesystemResolver($settings));
 
-        $node = $this->createMock(Agent::class);
+        $node = $this->createStub(Agent::class);
         $node->method('getMetadata')->willReturn(['os' => 'windows']);
         $node->method('getLastHeartbeatStats')->willReturn(['os' => 'windows']);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getInstallPath')->willReturn('C:/EasyWI/instances/gs1');
         $instance->method('getNode')->willReturn($node);
 
@@ -54,15 +54,15 @@ final class InstanceConfigPathResolverTest extends TestCase
 
     public function testResolverBlocksAbsoluteTargetPath(): void
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getInstanceBaseDir')->willReturn('/srv/instances');
         $resolver = new InstanceConfigPathResolver(new InstanceFilesystemResolver($settings));
 
-        $node = $this->createMock(Agent::class);
+        $node = $this->createStub(Agent::class);
         $node->method('getMetadata')->willReturn(['os' => 'linux']);
         $node->method('getLastHeartbeatStats')->willReturn(['os' => 'linux']);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getInstallPath')->willReturn('/srv/instances/gs1');
         $instance->method('getNode')->willReturn($node);
 

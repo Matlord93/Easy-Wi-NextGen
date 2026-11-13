@@ -107,10 +107,10 @@ final class CustomerDatabaseDetailsControllerTest extends TestCase
         $foreignJob = new Job('database.rotate_password', ['database_id' => '8']);
         new JobResult($foreignJob, JobResultStatus::Succeeded, []);
 
-        $dbRepo = $this->createMock(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepository::class);
         $dbRepo->method('find')->willReturn($database);
 
-        $jobRepo = $this->createMock(JobRepository::class);
+        $jobRepo = $this->createStub(JobRepository::class);
         $jobRepo->method('findLatestByType')->willReturnCallback(static function (string $type) use ($includeSuccessfulJob, $job, $foreignJob): array {
             if ($type === 'database.create') {
                 return $includeSuccessfulJob ? [$job] : [];
@@ -120,7 +120,7 @@ final class CustomerDatabaseDetailsControllerTest extends TestCase
         });
 
         $renderedContext = new \ArrayObject();
-        $twig = $this->createMock(Environment::class);
+        $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturnCallback(static function (string $template, array $context) use ($renderedContext): string {
             $renderedContext['template'] = $template;
             $renderedContext['context'] = $context;
@@ -128,20 +128,20 @@ final class CustomerDatabaseDetailsControllerTest extends TestCase
             return 'details-rendered';
         });
 
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturnCallback(static fn (string $key): string => $key);
 
         $controller = new CustomerDatabaseController(
             $dbRepo,
-            $this->createMock(DatabaseNodeRepository::class),
+            $this->createStub(DatabaseNodeRepository::class),
             $jobRepo,
-            $this->createMock(EntityManagerInterface::class),
-            $this->createMock(AuditLogger::class),
-            $this->createMock(DatabaseProvisioningService::class),
-            $this->createMock(DatabaseNamingPolicy::class),
+            $this->createStub(EntityManagerInterface::class),
+            $this->createStub(AuditLogger::class),
+            $this->createStub(DatabaseProvisioningService::class),
+            $this->createStub(DatabaseNamingPolicy::class),
             $twig,
             $translator,
-            $this->createMock(DatabaseTableService::class),
+            $this->createStub(DatabaseTableService::class),
         );
 
         $request = new Request();
@@ -153,7 +153,6 @@ final class CustomerDatabaseDetailsControllerTest extends TestCase
     private function setEntityId(object $entity, int $id): void
     {
         $property = new \ReflectionProperty($entity, 'id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

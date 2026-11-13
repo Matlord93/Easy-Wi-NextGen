@@ -89,36 +89,36 @@ final class DatabaseCredentialRevealFlowTest extends TestCase
         $job = new Job('database.rotate_password', ['database_id' => '7']);
         new JobResult($job, JobResultStatus::Succeeded, []);
 
-        $dbRepo = $this->createMock(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepository::class);
         $dbRepo->method('find')->willReturn($database);
-        $nodeRepo = $this->createMock(DatabaseNodeRepository::class);
-        $userRepo = $this->createMock(UserRepository::class);
-        $jobRepo = $this->createMock(JobRepository::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
+        $userRepo = $this->createStub(UserRepository::class);
+        $jobRepo = $this->createStub(JobRepository::class);
         $jobRepo->method('find')->willReturn($job);
 
-        $conn = $this->createMock(Connection::class);
+        $conn = $this->createStub(Connection::class);
         $conn->method('transactional')->willReturnCallback(static fn(callable $fn) => $fn());
 
-        $em = $this->createMock(EntityManagerInterface::class);
+        $em = $this->createStub(EntityManagerInterface::class);
         $em->method('getConnection')->willReturn($conn);
         $em->method('find')->willReturn($database);
         $em->method('flush');
 
-        $audit = $this->createMock(AuditLogger::class);
-        $prov = $this->createMock(DatabaseProvisioningService::class);
-        $naming = $this->createMock(DatabaseNamingPolicy::class);
+        $audit = $this->createStub(AuditLogger::class);
+        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $naming = $this->createStub(DatabaseNamingPolicy::class);
 
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('decrypt')->willReturnMap([
             [['key_id'=>'k','nonce'=>'n','ciphertext'=>'c'], 'stable-pass'],
             [['key_id'=>'k2','nonce'=>'n2','ciphertext'=>'c2'], 'reveal-pass'],
         ]);
 
-        $respFactory = $this->createMock(ResponseEnvelopeFactory::class);
+        $respFactory = $this->createStub(ResponseEnvelopeFactory::class);
         $respFactory->method('error')->willReturnCallback(static fn(Request $r, string $m, string $code, int $status) => new JsonResponse(['error_code'=>$code], $status));
         $respFactory->method('success')->willReturnCallback(static fn(Request $r, string $id, string $m, int $status, array $extra=[]) => new JsonResponse($extra, $status));
 
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturn('translated');
 
         $controller = new DatabaseApiController($dbRepo, $nodeRepo, $userRepo, $jobRepo, $em, $audit, $prov, $naming, $respFactory, $encryption, new JobPayloadMasker(), $translator);

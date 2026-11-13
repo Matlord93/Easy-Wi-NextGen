@@ -26,16 +26,19 @@ final class InMemoryBackupPlanStore implements BackupPlanStoreInterface
         }
     }
 
+    #[\Override]
     public function find(string $planId): ?BackupPlan
     {
         return $this->plans[$planId] ?? null;
     }
 
+    #[\Override]
     public function all(): iterable
     {
         return array_values($this->plans);
     }
 
+    #[\Override]
     public function saveRun(BackupRun $run, ?\DateInterval $idempotencyTtl = null): void
     {
         $key = $run->planId().':'.$run->runId();
@@ -44,6 +47,7 @@ final class InMemoryBackupPlanStore implements BackupPlanStoreInterface
         $this->idempotencyExpires[$key] = $run->createdAt()->add($ttl);
     }
 
+    #[\Override]
     public function hasRunForIdempotency(string $planId, string $idempotencyKey): bool
     {
         $this->cleanupExpiredState(new \DateTimeImmutable());
@@ -51,6 +55,7 @@ final class InMemoryBackupPlanStore implements BackupPlanStoreInterface
         return array_key_exists($planId.':'.$idempotencyKey, $this->runs);
     }
 
+    #[\Override]
     public function acquireLock(string $scope, \DateTimeImmutable $expiresAt): bool
     {
         $this->cleanupExpiredState(new \DateTimeImmutable());
@@ -64,11 +69,13 @@ final class InMemoryBackupPlanStore implements BackupPlanStoreInterface
         return true;
     }
 
+    #[\Override]
     public function releaseLock(string $scope): void
     {
         unset($this->locks[$scope]);
     }
 
+    #[\Override]
     public function cleanupExpiredState(\DateTimeImmutable $now): void
     {
         foreach ($this->idempotencyExpires as $key => $expiresAt) {

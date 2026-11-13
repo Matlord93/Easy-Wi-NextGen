@@ -1561,6 +1561,7 @@ final class GameTemplateSeedCatalog
                 'bash -lc "set -e; steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 validate +quit; cd {{INSTANCE_DIR}}; export WINEPREFIX=\"{{INSTANCE_DIR}}/.wine\" WINEARCH=win64 WINEDEBUG=-all; if [ ! -d \"$WINEPREFIX\" ]; then wineboot --init >/dev/null 2>&1 || true; wineserver -w >/dev/null 2>&1 || true; fi; if [ ! -f R5/ServerDescription.json ]; then timeout 30s xvfb-run --auto-servernum --server-args=\"-screen 0 1024x768x24\" env WINE_NO_STRICT_PROT=1 taskset -c 0-11 wine R5/Binaries/Win64/WindroseServer-Win64-Shipping.exe -nullrhi -log >/dev/null 2>&1 || true; fi"',
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4129620 +quit',
                 [],
+                [],
                 ['linux'],
             ),
             $this->template(

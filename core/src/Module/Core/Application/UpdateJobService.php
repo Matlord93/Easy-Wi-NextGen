@@ -11,6 +11,7 @@ use Doctrine\Migrations\Configuration\Connection\ExistingConnection;
 use Doctrine\Migrations\Configuration\Migration\ConfigurationArray;
 use Doctrine\Migrations\DependencyFactory;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Uid\Uuid;
 
@@ -66,6 +67,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
     /**
      * @return array<string, mixed>|null
      */
+    #[\Override]
     public function getJob(string $id): ?array
     {
         $path = $this->jobsDir . '/' . $id . '.json';
@@ -268,14 +270,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
 
     private function commandExists(string $command): bool
     {
-        try {
-            $process = new Process(['command', '-v', $command]);
-            $process->run();
-
-            return $process->isSuccessful();
-        } catch (\Throwable) {
-            return false;
-        }
+        return (new ExecutableFinder())->find($command) !== null;
     }
 
     public function markJobFailedToStart(string $jobId, string $message): void
@@ -303,6 +298,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
     /**
      * @return array{pending: int|null, executedUnavailable: int|null, error: string|null}
      */
+    #[\Override]
     public function getMigrationStatus(): array
     {
         if (!$this->configProvider->exists()) {
@@ -365,6 +361,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
         return $this->coreDir;
     }
 
+    #[\Override]
     public function getJobsDir(): string
     {
         return $this->jobsDir;
@@ -449,9 +446,15 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
 
     private function readGitCommit(string $dir): ?string
     {
-        $command = sprintf('git -C %s rev-parse --short HEAD 2>/dev/null', escapeshellarg($dir));
-        $value = trim((string) shell_exec($command));
-        return $value !== '' ? $value : null;
+        try {
+            $process = new Process(['git', '-C', $dir, 'rev-parse', '--short', 'HEAD'], timeout: 10);
+            $process->run();
+            $value = trim($process->getOutput());
+
+            return $process->isSuccessful() && $value !== '' ? $value : null;
+        } catch (\Symfony\Component\Process\Exception\ExceptionInterface) {
+            return null;
+        }
     }
 
     private function buildDependencyFactory(Connection $connection): DependencyFactory

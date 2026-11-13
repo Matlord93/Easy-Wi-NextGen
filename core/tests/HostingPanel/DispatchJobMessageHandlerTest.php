@@ -16,7 +16,7 @@ final class DispatchJobMessageHandlerTest extends TestCase
 {
     public function testIdempotencySkipsDuplicate(): void
     {
-        $repo = $this->createMock(EntityRepository::class);
+        $repo = $this->createStub(EntityRepository::class);
         $repo->method('findOneBy')->willReturn(new Job(new Node('n', 'n.example', '127.0.0.1'), 'backup', 'idem-1', []));
 
         $em = $this->createMock(EntityManagerInterface::class);

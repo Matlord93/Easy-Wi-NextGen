@@ -78,7 +78,6 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
         $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger());
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('runCommand');
-        $method->setAccessible(true);
 
         /** @var array{exitCode:int, stdout:string, stderr:string, output:string} $result */
         $result = $method->invoke($service, [PHP_BINARY, '-r', 'fwrite(STDOUT, "out-line\\n"); fwrite(STDERR, "err-line\\n"); exit(5);'], $appRoot, 30);
@@ -210,7 +209,6 @@ PHP_SCRIPT;
     {
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('cleanupOldReleases');
-        $method->setAccessible(true);
         $method->invoke($service, $currentReleaseDir, $logPath);
     }
 }

@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\Incident;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Incident>
+ */
 final class IncidentRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -20,7 +23,8 @@ final class IncidentRepository extends ServiceEntityRepository
      */
     public function findCurrentPublicBySite(int $siteId, \DateTimeImmutable $now): array
     {
-        return $this->createQueryBuilder('incident')
+        /** @var list<Incident> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('incident')
             ->andWhere('incident.siteId = :siteId')
             ->andWhere('incident.visiblePublic = true')
             ->andWhere('incident.startedAt <= :now')
@@ -31,5 +35,7 @@ final class IncidentRepository extends ServiceEntityRepository
             ->orderBy('incident.startedAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

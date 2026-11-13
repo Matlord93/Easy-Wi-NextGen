@@ -16,11 +16,11 @@ final class MailLimitEnforcerTest extends TestCase
 {
     public function testBlocksWhenAccountLimitIsReached(): void
     {
-        $repo = $this->createMock(MailboxStatsProviderInterface::class);
+        $repo = $this->createStub(MailboxStatsProviderInterface::class);
         $repo->method('countByDomain')->willReturn(2);
         $repo->method('sumQuotaByDomainId')->willReturn(1000);
 
-        $enforcer = new MailLimitEnforcer($repo, $this->createMock(EntityManagerInterface::class));
+        $enforcer = new MailLimitEnforcer($repo, $this->createStub(EntityManagerInterface::class));
         $domain = $this->mockDomain(10);
         $mailDomain = $this->mockMailDomain(new QuotaPolicy('basic', 2, 5000, 2048));
 
@@ -30,11 +30,11 @@ final class MailLimitEnforcerTest extends TestCase
 
     public function testAllowsCreationWithinLimits(): void
     {
-        $repo = $this->createMock(MailboxStatsProviderInterface::class);
+        $repo = $this->createStub(MailboxStatsProviderInterface::class);
         $repo->method('countByDomain')->willReturn(1);
         $repo->method('sumQuotaByDomainId')->willReturn(512);
 
-        $enforcer = new MailLimitEnforcer($repo, $this->createMock(EntityManagerInterface::class));
+        $enforcer = new MailLimitEnforcer($repo, $this->createStub(EntityManagerInterface::class));
         $domain = $this->mockDomain(10);
         $mailDomain = $this->mockMailDomain(new QuotaPolicy('pro', 10, 10000, 4096));
 
@@ -44,7 +44,7 @@ final class MailLimitEnforcerTest extends TestCase
 
     private function mockDomain(int $id): Domain
     {
-        $domain = $this->createMock(Domain::class);
+        $domain = $this->createStub(Domain::class);
         $domain->method('getId')->willReturn($id);
 
         return $domain;
@@ -52,7 +52,7 @@ final class MailLimitEnforcerTest extends TestCase
 
     private function mockMailDomain(QuotaPolicy $policy): MailDomain
     {
-        $mailDomain = $this->createMock(MailDomain::class);
+        $mailDomain = $this->createStub(MailDomain::class);
         $mailDomain->method('getQuotaPolicy')->willReturn($policy);
 
         return $mailDomain;

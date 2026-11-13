@@ -11,6 +11,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Mailbox>
+ */
 class MailboxRepository extends ServiceEntityRepository implements MailboxStatsProviderInterface
 {
     public function __construct(ManagerRegistry $registry)
@@ -31,11 +34,13 @@ class MailboxRepository extends ServiceEntityRepository implements MailboxStatsP
         return $this->findOneBy(['address' => $address]);
     }
 
+    #[\Override]
     public function countByDomain(Domain $domain): int
     {
         return $this->count(['domain' => $domain]);
     }
 
+    #[\Override]
     public function sumQuotaByDomainId(int $domainId): int
     {
         $value = $this->createQueryBuilder('m')

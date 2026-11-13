@@ -10,16 +10,19 @@ use App\Module\Core\Application\Backup\Adapter\RestoreReport;
 
 final class MusicbotBackupAdapter implements BackupModuleAdapterInterface
 {
+    #[\Override]
     public function module(): string
     {
         return 'musicbot';
     }
 
+    #[\Override]
     public function snapshot(string $resourceId): BackupSnapshot
     {
         return new BackupSnapshot($resourceId, 'musicbot-'.$resourceId.'-backup.tar');
     }
 
+    #[\Override]
     public function restore(string $resourceId, string $archivePath, bool $dryRun = false): RestoreReport
     {
         if (!file_exists($archivePath)) {

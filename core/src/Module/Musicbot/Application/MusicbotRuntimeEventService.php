@@ -26,6 +26,7 @@ final class MusicbotRuntimeEventService implements MusicbotRuntimeEventServiceIn
     }
 
     /** @param array<string, mixed> $context */
+    #[\Override]
     public function record(MusicbotInstance $instance, string $type, string $level = 'info', string $message = '', array $context = []): MusicbotRuntimeEvent
     {
         $event = new MusicbotRuntimeEvent($instance, $type, $level, $message, $this->sanitize($context));

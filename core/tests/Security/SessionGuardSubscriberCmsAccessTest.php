@@ -19,8 +19,7 @@ final class SessionGuardSubscriberCmsAccessTest extends TestCase
     {
         $subscriber = (new \ReflectionClass(SessionGuardSubscriber::class))->newInstanceWithoutConstructor();
         $translatorProp = new \ReflectionProperty(SessionGuardSubscriber::class, 'translator');
-        $translatorProp->setAccessible(true);
-        $translatorProp->setValue($subscriber, $this->createMock(TranslatorInterface::class));
+        $translatorProp->setValue($subscriber, $this->createStub(TranslatorInterface::class));
         $method = new \ReflectionMethod(SessionGuardSubscriber::class, 'unauthorizedResponse');
         $response = $method->invoke($subscriber, Request::create('/admin/cms/pages'));
 

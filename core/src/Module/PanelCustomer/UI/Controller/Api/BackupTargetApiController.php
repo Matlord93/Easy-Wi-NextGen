@@ -20,7 +20,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class BackupTargetApiController
 {
-    private const CREDENTIAL_KEYS = ['username', 'password', 'token'];
+    private const CREDENTIAL_KEYS = ['username', 'password', 'token', 'access_key', 'secret_key'];
 
     public function __construct(
         private readonly BackupTargetRepository $backupTargetRepository,
@@ -266,10 +266,47 @@ final class BackupTargetApiController
     {
         return match ($type) {
             BackupDestinationType::Local => $this->normalizeLocalConfig($config),
+            BackupDestinationType::S3 => $this->normalizeS3Config($config),
             BackupDestinationType::Nfs => $this->normalizeNfsConfig($config),
             BackupDestinationType::Smb => $this->normalizeSmbConfig($config),
             BackupDestinationType::Webdav, BackupDestinationType::Nextcloud => $this->normalizeWebdavConfig($config),
         };
+    }
+
+    private function normalizeS3Config(array $config): array
+    {
+        foreach (['bucket', 'region', 'endpoint', 'prefix'] as $key) {
+            if (isset($config[$key]) && !is_string($config[$key])) {
+                return ['error' => new JsonResponse(['error' => sprintf('S3 %s must be a string.', $key)], JsonResponse::HTTP_BAD_REQUEST)];
+            }
+        }
+
+        $bucket = trim($config['bucket'] ?? '');
+        $region = trim($config['region'] ?? 'us-east-1');
+        $endpoint = rtrim(trim($config['endpoint'] ?? ''), '/');
+        $prefix = trim($config['prefix'] ?? '', '/');
+        if (preg_match('/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/D', $bucket) !== 1 || str_contains($bucket, '..')) {
+            return ['error' => new JsonResponse(['error' => 'A valid S3 bucket name is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+        }
+        if (preg_match('/^[a-z0-9-]+$/D', $region) !== 1) {
+            return ['error' => new JsonResponse(['error' => 'A valid S3 region is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+        }
+        if ($endpoint !== '') {
+            $parts = parse_url($endpoint);
+            if ($parts === false || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || !isset($parts['host']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) {
+                return ['error' => new JsonResponse(['error' => 'S3 endpoint must be an HTTP(S) URL without credentials, query or fragment.'], JsonResponse::HTTP_BAD_REQUEST)];
+            }
+        }
+
+        return [
+            'error' => null,
+            'config' => [
+                'bucket' => $bucket,
+                'region' => $region,
+                'endpoint' => $endpoint,
+                'prefix' => $prefix,
+            ],
+        ];
     }
 
     private function normalizeLocalConfig(array $config): array
@@ -414,6 +451,7 @@ final class BackupTargetApiController
     private function validateRequiredCredentials(BackupDestinationType $type, array $encryptedCredentials): ?JsonResponse
     {
         return match ($type) {
+            BackupDestinationType::S3 => $this->requireCredentialPair($encryptedCredentials, 'access_key', 'secret_key', 'S3'),
             BackupDestinationType::Smb => $this->requireCredentialPair($encryptedCredentials, 'username', 'password', 'SMB'),
             BackupDestinationType::Webdav, BackupDestinationType::Nextcloud => $this->requireWebdavCredentials($encryptedCredentials),
             default => null,

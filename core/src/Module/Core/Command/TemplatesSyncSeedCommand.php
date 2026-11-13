@@ -25,6 +25,7 @@ final class TemplatesSyncSeedCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('template', null, InputOption::VALUE_REQUIRED, 'Template game_key to sync.');
@@ -32,6 +33,7 @@ final class TemplatesSyncSeedCommand extends Command
         $this->addOption('field', null, InputOption::VALUE_REQUIRED, 'Field to sync', 'shared_paths');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

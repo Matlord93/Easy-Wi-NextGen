@@ -13,7 +13,6 @@ final class TeamspeakSecureArchiveExtractorTest extends TestCase
     {
         $extractor = new TeamspeakSecureArchiveExtractor();
         $ref = new \ReflectionMethod(TeamspeakSecureArchiveExtractor::class, 'assertSafePath');
-        $ref->setAccessible(true);
         $this->expectException(\RuntimeException::class);
         $ref->invoke($extractor, '../evil');
     }

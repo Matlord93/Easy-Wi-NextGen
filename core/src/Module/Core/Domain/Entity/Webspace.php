@@ -15,9 +15,9 @@ class Webspace implements ResourceEventSource
 {
     use ResourceEventSourceTrait;
 
-    public const STATUS_ACTIVE = 'active';
-    public const STATUS_SUSPENDED = 'suspended';
-    public const STATUS_DELETED = 'deleted';
+    public const string STATUS_ACTIVE = 'active';
+    public const string STATUS_SUSPENDED = 'suspended';
+    public const string STATUS_DELETED = 'deleted';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

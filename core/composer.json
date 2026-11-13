@@ -69,7 +69,7 @@
   },
   "scripts": {
     "lint": [
-      "find . -name \"*.php\" -not -path \"./vendor/*\" -print0 | xargs -0 -n1 php -l",
+      "find . -type d -name vendor -prune -o -path ./var -prune -o -type f -name \"*.php\" -print0 | xargs -0 -r -n1 php -l",
       "php bin/console lint:yaml --parse-tags config",
       "php bin/console lint:twig templates",
       "php bin/console lint:translations --locale=en --locale=de",

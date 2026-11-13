@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Enum\UserType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<User>
+ */
 class UserRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -34,7 +37,8 @@ class UserRepository extends ServiceEntityRepository
      */
     public function findCustomersForReseller(User $reseller): array
     {
-        return $this->createQueryBuilder('user')
+        /** @var list<User> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('user')
             ->andWhere('user.type = :type')
             ->andWhere('user.resellerOwner = :reseller')
             ->setParameter('type', UserType::Customer->value)
@@ -42,6 +46,8 @@ class UserRepository extends ServiceEntityRepository
             ->orderBy('user.email', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**

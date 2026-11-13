@@ -21,11 +21,13 @@ final class GameserverAutoRestartScheduleHandler implements ScheduleHandlerInter
     ) {
     }
 
+    #[\Override]
     public function type(): string
     {
         return 'gameserver.auto_restart';
     }
 
+    #[\Override]
     public function schedules(): array
     {
         return array_values(array_map(function (InstanceSchedule $schedule): InternalSchedule {
@@ -53,6 +55,7 @@ final class GameserverAutoRestartScheduleHandler implements ScheduleHandlerInter
         }, $this->repository->findBy(['action' => InstanceScheduleAction::Restart], ['id' => 'ASC'])));
     }
 
+    #[\Override]
     public function runDue(?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         $queued = $this->runner->runDue($now);
@@ -62,6 +65,7 @@ final class GameserverAutoRestartScheduleHandler implements ScheduleHandlerInter
             : ScheduleExecutionResult::skipped('No due gameserver restart schedules.');
     }
 
+    #[\Override]
     public function runNow(string $source, string $id, ?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         if ($source !== 'instance_schedule') {
@@ -87,7 +91,7 @@ final class GameserverAutoRestartScheduleHandler implements ScheduleHandlerInter
         }
 
         try {
-            $cron = CronExpression::factory($cronExpression);
+            $cron = new CronExpression($cronExpression);
             $next = $cron->getNextRunDate(new \DateTimeImmutable('now', new \DateTimeZone($timeZone ?: 'UTC')), 0, true);
             return \DateTimeImmutable::createFromMutable($next)->setTimezone(new \DateTimeZone('UTC'));
         } catch (\Throwable) {

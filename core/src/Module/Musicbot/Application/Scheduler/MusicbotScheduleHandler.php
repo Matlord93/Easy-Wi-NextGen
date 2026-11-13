@@ -19,12 +19,14 @@ final class MusicbotScheduleHandler implements ScheduleHandlerInterface
     ) {
     }
 
+    #[\Override]
     public function type(): string
     {
         return 'musicbot.schedule';
     }
 
     /** @return InternalSchedule[] */
+    #[\Override]
     public function schedules(): array
     {
         return array_values(array_map(function (MusicbotSchedule $schedule): InternalSchedule {
@@ -50,6 +52,7 @@ final class MusicbotScheduleHandler implements ScheduleHandlerInterface
         }, $this->repository->findBy(['enabled' => true], ['nextRunAt' => 'ASC'])));
     }
 
+    #[\Override]
     public function runDue(?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         $now ??= new \DateTimeImmutable();
@@ -60,6 +63,7 @@ final class MusicbotScheduleHandler implements ScheduleHandlerInterface
             : ScheduleExecutionResult::skipped('No due musicbot schedules.');
     }
 
+    #[\Override]
     public function runNow(string $source, string $id, ?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         if ($source !== 'musicbot_schedule') {

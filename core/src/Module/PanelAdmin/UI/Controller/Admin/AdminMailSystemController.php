@@ -128,11 +128,12 @@ final class AdminMailSystemController
         }
 
         $domainId = (int) $request->request->get('domain_id', 0);
-        $domain = $domainId > 0 ? $this->mailDomainRepository->find($domainId) : null;
-        if ($domain === null) {
+        $binding = $domainId > 0 ? $this->mailDomainRepository->find($domainId) : null;
+        if ($binding === null) {
             return new Response('Domain not found.', Response::HTTP_NOT_FOUND);
         }
 
+        $domain = $binding->getDomain();
         $policy = $this->mailPolicyRepository->findOneByDomain($domain);
         if (!$policy instanceof MailPolicy) {
             $policy = new MailPolicy($domain);
@@ -141,8 +142,10 @@ final class AdminMailSystemController
 
         $policy->apply(
             true,
+            $policy->isSmtpEnabled(),
             min($policy->getMaxRecipients(), 25),
             min($policy->getMaxHourlyEmails(), 200),
+            true,
             false,
             MailPolicy::SPAM_HIGH,
             true,

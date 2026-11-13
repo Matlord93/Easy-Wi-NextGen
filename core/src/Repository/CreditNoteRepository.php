@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\CreditNote;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<CreditNote>
+ */
 final class CreditNoteRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -20,10 +23,13 @@ final class CreditNoteRepository extends ServiceEntityRepository
      */
     public function findRecent(int $limit = 5): array
     {
-        return $this->createQueryBuilder('credit')
+        /** @var list<CreditNote> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('credit')
             ->orderBy('credit.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

@@ -12,6 +12,7 @@ final readonly class SymfonyConsoleCommandLimiter implements ConsoleCommandLimit
     {
     }
 
+    #[\Override]
     public function consume(string $key): bool
     {
         return $this->consoleLimiter->create($key)->consume(1)->isAccepted();

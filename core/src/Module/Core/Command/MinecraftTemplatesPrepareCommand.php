@@ -18,6 +18,7 @@ final class MinecraftTemplatesPrepareCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $result = $this->seeder->seedTemplatesOnly(null, ['minecraft_vanilla_all', 'minecraft_paper_all', 'minecraft_spigot_all', 'minecraft_bedrock', 'minecraft_bungeecord_all'], true);

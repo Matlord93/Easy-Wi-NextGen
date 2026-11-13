@@ -19,7 +19,7 @@ final class TeamspeakAdaptersTest extends TestCase
 {
     public function testTs3NotFoundProbeMapsReasonAndCode(): void
     {
-        $lookup = $this->createMock(Ts3ServerLookupInterface::class);
+        $lookup = $this->createStub(Ts3ServerLookupInterface::class);
         $lookup->method('find')->willReturn(null);
 
         $adapter = new Teamspeak3Adapter($lookup);
@@ -32,7 +32,7 @@ final class TeamspeakAdaptersTest extends TestCase
 
     public function testTs6RejectsInvalidAction(): void
     {
-        $lookup = $this->createMock(Ts6ServerLookupInterface::class);
+        $lookup = $this->createStub(Ts6ServerLookupInterface::class);
         $adapter = new Teamspeak6Adapter($lookup);
         $instance = new VoiceInstance(new User('c2@example.test', UserType::Customer), new VoiceNode('n2', 'ts6', '127.0.0.1', 10022), '111', 'Srv2');
 

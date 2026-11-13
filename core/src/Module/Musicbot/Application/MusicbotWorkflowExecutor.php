@@ -157,12 +157,13 @@ final class MusicbotWorkflowExecutor
         ]);
 
         $result = @file_get_contents($url, false, $context);
+        $responseHeaders = http_get_last_response_headers();
 
         if ($result === false) {
             throw new \RuntimeException(sprintf('Webhook request to "%s" failed.', $url));
         }
 
-        $statusLine = $http_response_header[0] ?? 'Unknown';
+        $statusLine = $responseHeaders[0] ?? 'Unknown';
         preg_match('/HTTP\/\S+\s+(\d+)/', $statusLine, $m);
         $statusCode = (int) ($m[1] ?? 0);
 

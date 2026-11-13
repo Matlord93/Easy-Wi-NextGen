@@ -14,6 +14,7 @@ final class ModuleAccessTwigExtension extends AbstractExtension
     {
     }
 
+    #[\Override]
     public function getFunctions(): array
     {
         return [

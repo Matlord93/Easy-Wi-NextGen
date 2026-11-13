@@ -27,8 +27,8 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     public function testResolveEndpointUsesGameServiceMetadataUrl(): void
     {
         $client = new GrpcConsoleAgentGrpcClient(
-            $this->createMock(InstanceRepository::class),
-            $this->createMock(HttpClientInterface::class),
+            $this->createStub(InstanceRepository::class),
+            $this->createStub(HttpClientInterface::class),
             $this->createHmacHeaderFactory(),
             new AgentEndpointResolver(),
         );
@@ -42,8 +42,8 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     public function testResolveEndpointFallsBackToHeartbeatIpAndPort(): void
     {
         $client = new GrpcConsoleAgentGrpcClient(
-            $this->createMock(InstanceRepository::class),
-            $this->createMock(HttpClientInterface::class),
+            $this->createStub(InstanceRepository::class),
+            $this->createStub(HttpClientInterface::class),
             $this->createHmacHeaderFactory(),
             new AgentEndpointResolver(),
         );
@@ -57,8 +57,8 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     public function testResolveEndpointThrowsWhenNoAddressingDataIsAvailable(): void
     {
         $client = new GrpcConsoleAgentGrpcClient(
-            $this->createMock(InstanceRepository::class),
-            $this->createMock(HttpClientInterface::class),
+            $this->createStub(InstanceRepository::class),
+            $this->createStub(HttpClientInterface::class),
             $this->createHmacHeaderFactory(),
             new AgentEndpointResolver(),
         );
@@ -79,8 +79,13 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
             return new MockResponse('{"ok":true,"data":{"cursor":"","lines":[]}}', ['http_code' => 200]);
         });
         $instance = $this->createInstance(42, 7, 'agent-1');
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(42)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [42];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
         $client = new GrpcConsoleAgentGrpcClient($repo, $http, $this->createHmacHeaderFactory('shared-secret'), new AgentEndpointResolver());
 
         $client->getConsoleLogs(42, 'abc');
@@ -109,8 +114,13 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
             return new MockResponse('{"ok":true,"data":{"cursor":"c1","lines":[{"id":5,"text":"ready","ts":"2026-06-16T18:34:05+00:00","level":"info"}]}}', ['http_code' => 200]);
         });
         $instance = $this->createInstance(42, 7, 'agent-1');
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(42)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [42];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
         $client = new GrpcConsoleAgentGrpcClient($repo, $http, $this->createHmacHeaderFactory('shared-secret'), new AgentEndpointResolver());
 
         $events = [];
@@ -133,8 +143,13 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
             return new MockResponse('{"applied":true,"duplicate":false,"seq":12}', ['http_code' => 200]);
         });
         $instance = $this->createInstance(42, 7, 'agent-1');
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(42)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [42];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
         $client = new GrpcConsoleAgentGrpcClient($repo, $http, $this->createHmacHeaderFactory('shared-secret'), new AgentEndpointResolver());
 
         $client->sendCommand(new \App\Module\Gameserver\Application\Console\ConsoleCommandRequest(42, 'status', 'idem', 123, '7'));
@@ -187,7 +202,6 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     private function resolveEndpoint(GrpcConsoleAgentGrpcClient $client, Agent $agent): string
     {
         $reflection = new \ReflectionMethod($client, 'resolveEndpoint');
-        $reflection->setAccessible(true);
 
         /** @var string $endpoint */
         $endpoint = $reflection->invoke($client, $agent);
@@ -196,7 +210,7 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     }
     private function createHmacHeaderFactory(string $secret = 'unused'): AgentHmacHeaderFactory
     {
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('decrypt')->willReturn($secret);
 
         return new AgentHmacHeaderFactory($encryption);
@@ -218,7 +232,6 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
     private function setEntityId(object $entity, int $id): void
     {
         $reflection = new \ReflectionProperty($entity, 'id');
-        $reflection->setAccessible(true);
         $reflection->setValue($entity, $id);
     }
 

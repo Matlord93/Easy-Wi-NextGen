@@ -29,7 +29,10 @@ final class ApiTokenRepository extends ServiceEntityRepository
             ->setParameter('now', new \DateTimeImmutable())
             ->setMaxResults(1);
 
-        return $qb->getQuery()->getOneOrNullResult();
+        /** @var ApiToken|null $hydratedEntity */
+        $hydratedEntity = $qb->getQuery()->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     public function deleteByCustomer(User $customer): int

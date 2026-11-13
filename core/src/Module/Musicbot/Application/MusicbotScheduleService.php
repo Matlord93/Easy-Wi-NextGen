@@ -175,7 +175,7 @@ final class MusicbotScheduleService
 
         try {
             $tz = new \DateTimeZone($timezone ?: 'UTC');
-            $cron = CronExpression::factory($cronExpression);
+            $cron = new CronExpression($cronExpression);
             $next = $cron->getNextRunDate(new \DateTimeImmutable('now', $tz), 0, true);
 
             return \DateTimeImmutable::createFromMutable($next)->setTimezone(new \DateTimeZone('UTC'));

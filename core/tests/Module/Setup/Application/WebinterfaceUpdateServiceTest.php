@@ -104,7 +104,6 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         ]);
 
         $method = new \ReflectionMethod($service, 'isValidPhpCliBinary');
-        $method->setAccessible(true);
 
         self::assertFalse($method->invoke($service, $phpFpm));
     }
@@ -188,7 +187,6 @@ final class WebinterfaceUpdateServiceTest extends TestCase
     private function invokeBuildConsoleCommand(WebinterfaceUpdateService $service, string $name, array $arguments = []): array
     {
         $method = new \ReflectionMethod($service, 'buildConsoleCommand');
-        $method->setAccessible(true);
 
         return $method->invoke($service, $name, $arguments);
     }

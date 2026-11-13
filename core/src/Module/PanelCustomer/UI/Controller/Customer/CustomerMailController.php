@@ -978,10 +978,13 @@ final class CustomerMailController
             return null;
         }
 
+        $output = $latest->getResult()?->getOutput() ?? [];
+        $error = $output['error_message'] ?? $output['error'] ?? $latest->getLastError();
+
         return [
             'type' => $latest->getType(),
             'status' => $latest->getStatus()->value,
-            'error' => $latest->getResult()?->getErrorMessage(),
+            'error' => is_string($error) ? $error : null,
         ];
     }
 

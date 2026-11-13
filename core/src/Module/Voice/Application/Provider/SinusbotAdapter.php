@@ -8,11 +8,13 @@ use App\Module\Core\Domain\Entity\VoiceInstance;
 
 final class SinusbotAdapter implements VoiceProviderAdapter
 {
+    #[\Override]
     public function supports(string $providerType): bool
     {
         return $providerType === 'sinusbot';
     }
 
+    #[\Override]
     public function query(VoiceInstance $instance): VoiceQueryResult
     {
         return new VoiceQueryResult(
@@ -26,6 +28,7 @@ final class SinusbotAdapter implements VoiceProviderAdapter
         );
     }
 
+    #[\Override]
     public function probeStatus(VoiceInstance $instance): array
     {
         return [
@@ -37,11 +40,13 @@ final class SinusbotAdapter implements VoiceProviderAdapter
         ];
     }
 
+    #[\Override]
     public function performAction(VoiceInstance $instance, string $action): array
     {
         return ['accepted' => false, 'reason' => 'SinusBot actions are not supported in this endpoint.', 'error_code' => 'voice_action_not_supported'];
     }
 
+    #[\Override]
     public function getConnectInfo(VoiceInstance $instance): array
     {
         return [
@@ -50,6 +55,7 @@ final class SinusbotAdapter implements VoiceProviderAdapter
         ];
     }
 
+    #[\Override]
     public function getPlayers(VoiceInstance $instance): array
     {
         return ['online' => null, 'max' => null];

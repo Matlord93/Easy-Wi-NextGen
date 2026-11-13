@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<InvoiceArchive>
+ */
 final class InvoiceArchiveRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -70,12 +73,15 @@ final class InvoiceArchiveRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('archive')
+        /** @var list<InvoiceArchive> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('archive')
             ->innerJoin('archive.invoice', 'invoice')
             ->andWhere('invoice.customer = :customer')
             ->setParameter('customer', $customer)
             ->orderBy('archive.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

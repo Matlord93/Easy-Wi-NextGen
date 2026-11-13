@@ -23,7 +23,7 @@ final class MusicbotRuntimeEventServiceTest extends TestCase
     public function testSanitizeMasksNestedSecrets(): void
     {
         $service = new MusicbotRuntimeEventService(
-            $this->createMock(EntityManagerInterface::class),
+            $this->createStub(EntityManagerInterface::class),
             $this->makeEventRepo(),
         );
 
@@ -57,7 +57,7 @@ final class MusicbotRuntimeEventServiceTest extends TestCase
         $instance = new MusicbotInstance($customer, $agent, 'Musicbot', 'musicbot-demo', '/srv/musicbot/demo');
 
         $service = new MusicbotRuntimeEventService(
-            $this->createMock(EntityManagerInterface::class),
+            $this->createStub(EntityManagerInterface::class),
             $this->makeEventRepo(),
         );
 

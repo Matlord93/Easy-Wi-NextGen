@@ -117,6 +117,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         );
     }
 
+    #[\Override]
     public function applyUpdate(): UpdateResult
     {
         $logPath = $this->resolveLogPath($this->installDir);
@@ -269,6 +270,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
     }
 
+    #[\Override]
     public function awaitAgentReload(string $agentJobId): UpdateResult
     {
         $logPath = $this->resolveLogPath($this->installDir);
@@ -308,6 +310,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return new UpdateResult(false, 'Agent-Reload fehlgeschlagen.', 'reload_failed', $logPath, $this->getInstalledVersion(), null);
     }
 
+    #[\Override]
     public function applyMigrations(): UpdateResult
     {
         $logPath = $this->resolveLogPath($this->installDir);
@@ -2326,8 +2329,24 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function commandExists(string $command): bool
     {
-        $result = trim((string) shell_exec(sprintf('command -v %s 2>/dev/null', escapeshellarg($command))));
-        return $result !== '';
+        return $this->findExecutable($command) !== null;
+    }
+
+    private function findExecutable(string $command): ?string
+    {
+        if (str_contains($command, '/') || str_contains($command, '\\')) {
+            return is_file($command) && is_executable($command) ? $command : null;
+        }
+
+        $path = getenv('PATH');
+        foreach (explode(PATH_SEPARATOR, $path === false ? '' : $path) as $directory) {
+            $candidate = ($directory === '' ? '.' : $directory).DIRECTORY_SEPARATOR.$command;
+            if (is_file($candidate) && is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -2371,8 +2390,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $candidates[] = '/usr/bin/php';
         $candidates[] = '/usr/local/bin/php';
 
-        $phpFromPath = trim((string) shell_exec('command -v php 2>/dev/null'));
-        if ($phpFromPath !== '') {
+        $phpFromPath = $this->findExecutable('php');
+        if ($phpFromPath !== null) {
             $candidates[] = $phpFromPath;
         }
 

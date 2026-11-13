@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Entity\TicketMessage;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<TicketAttachment>
+ */
 final class TicketAttachmentRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -37,12 +40,15 @@ final class TicketAttachmentRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('attachment')
+        /** @var list<TicketAttachment> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('attachment')
             ->andWhere('attachment.message IN (:messages)')
             ->setParameter('messages', $messages)
             ->orderBy('attachment.createdAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**

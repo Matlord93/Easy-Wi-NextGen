@@ -28,6 +28,9 @@ class AgentRegistrationTokenRepository extends ServiceEntityRepository
             ->setParameter('now', new \DateTimeImmutable())
             ->setMaxResults(1);
 
-        return $qb->getQuery()->getOneOrNullResult();
+        /** @var AgentRegistrationToken|null $hydratedEntity */
+        $hydratedEntity = $qb->getQuery()->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 }

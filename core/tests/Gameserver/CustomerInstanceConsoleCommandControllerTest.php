@@ -56,7 +56,8 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
 
     public function testHappyPathCallsGrpcAndReturnsAccepted(): void
     {
-        [$controller, $request, $grpc] = $this->buildControllerAndRequest(true, true, true);
+        $grpc = $this->createMock(ConsoleAgentGrpcClientInterface::class);
+        [$controller, $request] = $this->buildControllerAndRequest(true, true, true, grpc: $grpc);
 
         $grpc->expects(self::once())->method('sendCommand')->willReturn(new ConsoleCommandResult(true, false, 10));
         $response = $controller->send($request, 99);
@@ -74,28 +75,33 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
         self::assertSame('LIFECYCLE_CONFLICT', $payload['error_code']);
     }
 
-    private function buildControllerAndRequest(bool $isOwner, bool $rateAllowed, bool $csrfValid, ?Job $activeJob = null): array
+    private function buildControllerAndRequest(bool $isOwner, bool $rateAllowed, bool $csrfValid, ?Job $activeJob = null, ?ConsoleAgentGrpcClientInterface $grpc = null): array
     {
         $actor = new User('customer@example.test', UserType::Customer);
         $owner = $isOwner ? $actor : new User('owner@example.test', UserType::Customer);
         $this->setEntityId($actor, 11);
         $this->setEntityId($owner, $isOwner ? 11 : 22);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getId')->willReturn(99);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(99)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [99];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $grpc = $this->createMock(ConsoleAgentGrpcClientInterface::class);
-        $jobRepository = $this->createMock(JobRepository::class);
+            return $instance;
+        });
+
+        $grpc ??= $this->createStub(ConsoleAgentGrpcClientInterface::class);
+        $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn($activeJob);
 
-        $auditRepo = $this->createMock(AuditLogRepository::class);
+        $auditRepo = $this->createStub(AuditLogRepository::class);
         $auditRepo->method('findLatestHash')->willReturn(null);
-        $audit = new AuditLogger($auditRepo, new AuditLogHasher(), $this->createMock(EntityManagerInterface::class), new JobPayloadMasker());
+        $audit = new AuditLogger($auditRepo, new AuditLogHasher(), $this->createStub(EntityManagerInterface::class), new JobPayloadMasker());
 
         $limiter = new class ($rateAllowed) implements ConsoleCommandLimiterInterface {
             public function __construct(private readonly bool $allowed)
@@ -107,7 +113,7 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
             }
         };
 
-        $csrfManager = $this->createMock(CsrfTokenManagerInterface::class);
+        $csrfManager = $this->createStub(CsrfTokenManagerInterface::class);
         $csrfManager->method('isTokenValid')->willReturnCallback(static fn (CsrfToken $token): bool => $csrfValid && $token->getValue() === 'csrf-ok');
 
         $controller = new CustomerInstanceConsoleCommandController(
@@ -117,7 +123,7 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
             $grpc,
             $limiter,
             $audit,
-            $this->createMock(EntityManagerInterface::class),
+            $this->createStub(EntityManagerInterface::class),
             $csrfManager,
             'test-secret',
         );
@@ -132,7 +138,6 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

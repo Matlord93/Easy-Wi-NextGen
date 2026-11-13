@@ -11,10 +11,12 @@ use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
+/** @extends AbstractType<Ts6NodeDto> */
 final class Ts6NodeType extends AbstractType
 {
     use NodeFormTypeTrait;
 
+    #[\Override]
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $this->addAgentFields($builder, $options);
@@ -34,6 +36,7 @@ final class Ts6NodeType extends AbstractType
             ->add('voicePort', IntegerType::class);
     }
 
+    #[\Override]
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

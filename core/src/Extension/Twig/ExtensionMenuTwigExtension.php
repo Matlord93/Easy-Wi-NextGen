@@ -14,6 +14,7 @@ final class ExtensionMenuTwigExtension extends AbstractExtension
     {
     }
 
+    #[\Override]
     public function getFunctions(): array
     {
         return [
@@ -22,7 +23,7 @@ final class ExtensionMenuTwigExtension extends AbstractExtension
     }
 
     /**
-     * @return array<int, array{label: string, href: string, iconSvg: ?string}>
+     * @return array<int, array{label: string, href: string, iconSvg: ?string, key: ?string, labelKey: ?string}>
      */
     public function menuItems(string $scope): array
     {

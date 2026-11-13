@@ -35,6 +35,7 @@ final readonly class ProxmoxConnection implements \JsonSerializable
         }
     }
 
+    #[\Override]
     public function jsonSerialize(): array
     {
         return ['baseUrl' => $this->baseUrl, 'tokenId' => $this->tokenId, 'tokenSecret' => '[redacted]', 'verifyTls' => $this->verifyTls];

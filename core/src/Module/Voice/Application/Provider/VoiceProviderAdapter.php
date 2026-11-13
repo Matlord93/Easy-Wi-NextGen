@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\VoiceInstance;
 
 interface VoiceProviderAdapter extends VoiceProviderInterface
 {
+    #[\Override]
     public function query(VoiceInstance $instance): VoiceQueryResult;
 
     /**

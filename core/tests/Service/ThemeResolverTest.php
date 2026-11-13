@@ -55,12 +55,12 @@ final class ThemeResolverTest extends TestCase
     {
         $storage ??= [];
 
-        $repository = $this->createMock(CmsSiteSettingsRepository::class);
+        $repository = $this->createStub(CmsSiteSettingsRepository::class);
         $repository->method('findOneBySite')->willReturnCallback(static function (Site $site) use (&$storage): ?CmsSiteSettings {
             return $storage[spl_object_hash($site)] ?? null;
         });
 
-        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager = $this->createStub(EntityManagerInterface::class);
         $entityManager->method('persist')->willReturnCallback(static function (object $entity) use (&$storage): void {
             if (!$entity instanceof CmsSiteSettings) {
                 return;

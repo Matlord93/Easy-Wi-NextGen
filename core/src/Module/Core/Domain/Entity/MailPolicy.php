@@ -14,9 +14,9 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Index(name: 'idx_mail_policy_owner_domain', columns: ['owner_id', 'domain_id'])]
 class MailPolicy
 {
-    public const SPAM_LOW = 'low';
-    public const SPAM_MED = 'med';
-    public const SPAM_HIGH = 'high';
+    public const string SPAM_LOW = 'low';
+    public const string SPAM_MED = 'med';
+    public const string SPAM_HIGH = 'high';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

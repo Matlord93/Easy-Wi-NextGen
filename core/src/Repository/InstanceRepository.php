@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Instance>
+ */
 class InstanceRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -30,7 +33,8 @@ class InstanceRepository extends ServiceEntityRepository
      */
     public function findScanCandidates(Agent $node, \DateTimeImmutable $threshold, int $limit): array
     {
-        return $this->createQueryBuilder('i')
+        /** @var list<Instance> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('i')
             ->andWhere('i.node = :node')
             ->andWhere('i.diskLastScannedAt IS NULL OR i.diskLastScannedAt < :threshold')
             ->setParameter('node', $node)
@@ -39,6 +43,8 @@ class InstanceRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -46,7 +52,8 @@ class InstanceRepository extends ServiceEntityRepository
      */
     public function findWatchdogEnabledBatchAfterId(int $afterId, int $limit): array
     {
-        return $this->createQueryBuilder('i')
+        /** @var list<Instance> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('i')
             ->andWhere('i.watchdogEnabled = true')
             ->andWhere('i.id > :afterId')
             ->setParameter('afterId', $afterId)
@@ -54,5 +61,7 @@ class InstanceRepository extends ServiceEntityRepository
             ->setMaxResults(max(1, min($limit, 1000)))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

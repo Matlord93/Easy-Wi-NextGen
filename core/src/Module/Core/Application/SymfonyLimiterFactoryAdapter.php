@@ -13,6 +13,7 @@ final class SymfonyLimiterFactoryAdapter implements LimiterFactoryInterface
     {
     }
 
+    #[\Override]
     public function create(?string $key = null): LimiterInterface
     {
         return $this->factory->create($key);

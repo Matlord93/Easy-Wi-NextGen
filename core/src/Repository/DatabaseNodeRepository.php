@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\DatabaseNode;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<DatabaseNode>
+ */
 class DatabaseNodeRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -31,8 +34,11 @@ class DatabaseNodeRepository extends ServiceEntityRepository
                 ->setParameter('engine', $engine);
         }
 
-        return $builder
+        /** @var list<DatabaseNode> $hydratedEntities */
+        $hydratedEntities = $builder
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

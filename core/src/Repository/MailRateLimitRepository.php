@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Entity\Mailbox;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<MailRateLimit>
+ */
 final class MailRateLimitRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -35,6 +38,9 @@ final class MailRateLimitRepository extends ServiceEntityRepository
             $qb->andWhere('d = :domain')->setParameter('domain', $domain);
         }
 
-        return $qb->getQuery()->getResult();
+        /** @var list<MailRateLimit> $hydratedEntities */
+        $hydratedEntities = $qb->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 }

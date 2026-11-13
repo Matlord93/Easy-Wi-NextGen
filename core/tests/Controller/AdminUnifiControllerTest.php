@@ -32,7 +32,7 @@ final class AdminUnifiControllerTest extends TestCase
         $settings = new UnifiSettings();
         $settings->setEnabled(false);
 
-        $settingsRepository = $this->createMock(UnifiSettingsRepository::class);
+        $settingsRepository = $this->createStub(UnifiSettingsRepository::class);
         $settingsRepository->method('getSettings')->willReturn($settings);
 
         $syncService = $this->createMock(UnifiPortSyncService::class);
@@ -40,17 +40,17 @@ final class AdminUnifiControllerTest extends TestCase
 
         $controller = new AdminUnifiController(
             $settingsRepository,
-            $this->createMock(UnifiPolicyRepository::class),
-            $this->createMock(UnifiManualRuleRepository::class),
-            $this->createMock(UnifiAuditLogRepository::class),
-            new AgentRepository($this->createMock(ManagerRegistry::class)),
+            $this->createStub(UnifiPolicyRepository::class),
+            $this->createStub(UnifiManualRuleRepository::class),
+            $this->createStub(UnifiAuditLogRepository::class),
+            new AgentRepository($this->createStub(ManagerRegistry::class)),
             new EncryptionService(null, null),
             new UnifiApiClient(new MockHttpClient()),
             $syncService,
-            $this->createMock(EntityManagerInterface::class),
-            $this->createMock(MessageBusInterface::class),
-            $this->createMock(Environment::class),
-            $this->createMock(TranslatorInterface::class),
+            $this->createStub(EntityManagerInterface::class),
+            $this->createStub(MessageBusInterface::class),
+            $this->createStub(Environment::class),
+            $this->createStub(TranslatorInterface::class),
         );
 
         $admin = new User('admin@example.test', UserType::Admin);

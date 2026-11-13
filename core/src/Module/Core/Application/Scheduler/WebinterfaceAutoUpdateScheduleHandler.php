@@ -17,13 +17,17 @@ final class WebinterfaceAutoUpdateScheduleHandler implements ScheduleHandlerInte
     ) {
     }
 
+    #[\Override]
     public function type(): string { return 'webinterface.auto_update'; }
+    #[\Override]
     public function schedules(): array
     {
         $s = $this->settingsService->getSettings();
         return [new InternalSchedule('system', 'webinterface_auto_update', 'Webinterface Auto Update', $this->type(), 'core', '*/5 * * * *', (bool) $s['autoEnabled'], ['autoMigrate' => (bool) $s['autoMigrate'], 'coreChannel' => $s['coreChannel'], 'agentChannel' => $s['agentChannel']])];
     }
+    #[\Override]
     public function runDue(?\DateTimeImmutable $now = null): ScheduleExecutionResult { return $this->runInternal(); }
+    #[\Override]
     public function runNow(string $source, string $id, ?\DateTimeImmutable $now = null): ScheduleExecutionResult { return $this->runInternal(true); }
 
     private function runInternal(bool $force = false): ScheduleExecutionResult

@@ -10,7 +10,7 @@ use App\Module\Core\Application\Exception\SftpException;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Repository\InstanceSftpCredentialRepository;
-use phpseclib3\Crypt\Common\PublicKey;
+use phpseclib3\Crypt\Common\PrivateKey;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
 
@@ -330,7 +330,7 @@ final class SftpFileService
         throw new SftpException('sftp_misconfigured', 'SFTP password not configured.', 422);
     }
 
-    private function resolveAuthentication(): ?PublicKey
+    private function resolveAuthentication(): ?PrivateKey
     {
         $key = $this->settingsService->getSftpPrivateKey();
         $path = $this->settingsService->getSftpPrivateKeyPath();
@@ -344,10 +344,10 @@ final class SftpFileService
 
         $passphrase = $this->settingsService->getSftpPrivateKeyPassphrase();
         if (is_string($passphrase) && $passphrase !== '') {
-            return PublicKeyLoader::load($key, $passphrase);
+            return PublicKeyLoader::loadPrivateKey($key, $passphrase);
         }
 
-        return PublicKeyLoader::load($key);
+        return PublicKeyLoader::loadPrivateKey($key);
     }
 
     private function resolveFilePath(Instance $instance, SFTP $sftp, string $path, string $name, ?string $remoteRoot = null): string

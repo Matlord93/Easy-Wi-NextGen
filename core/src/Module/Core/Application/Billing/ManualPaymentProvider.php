@@ -10,16 +10,19 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class ManualPaymentProvider implements PaymentProviderInterface
 {
+    #[\Override]
     public function getName(): string
     {
         return 'manual';
     }
 
+    #[\Override]
     public function supportedMethods(): array
     {
         return ['bank_transfer'];
     }
 
+    #[\Override]
     public function createPaymentIntent(Invoice $invoice, int $amountCents): PaymentInstruction
     {
         return new PaymentInstruction(
@@ -33,11 +36,13 @@ final class ManualPaymentProvider implements PaymentProviderInterface
         );
     }
 
+    #[\Override]
     public function webhookHandle(Request $request): ?Response
     {
         return null;
     }
 
+    #[\Override]
     public function reconcile(?\DateTimeImmutable $since = null): void
     {
     }

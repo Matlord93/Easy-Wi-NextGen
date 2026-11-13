@@ -10,6 +10,7 @@ use Symfony\Component\Mime\RawMessage;
 
 final class NullMailer implements MailerInterface
 {
+    #[\Override]
     public function send(RawMessage $message, ?Envelope $envelope = null): void
     {
     }

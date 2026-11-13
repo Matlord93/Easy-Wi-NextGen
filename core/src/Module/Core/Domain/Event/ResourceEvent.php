@@ -16,11 +16,13 @@ final class ResourceEvent implements DomainEvent
         $this->occurredAt = new \DateTimeImmutable();
     }
 
+    #[\Override]
     public function getName(): string
     {
         return $this->name;
     }
 
+    #[\Override]
     public function getPayload(): array
     {
         return [
@@ -30,6 +32,7 @@ final class ResourceEvent implements DomainEvent
         ];
     }
 
+    #[\Override]
     public function getOccurredAt(): \DateTimeImmutable
     {
         return $this->occurredAt;

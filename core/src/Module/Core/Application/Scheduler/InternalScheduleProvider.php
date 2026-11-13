@@ -109,7 +109,7 @@ final class InternalScheduleProvider
         }
 
         try {
-            $cron = CronExpression::factory($cronExpression);
+            $cron = new CronExpression($cronExpression);
             $next = $cron->getNextRunDate(new \DateTimeImmutable('now', new \DateTimeZone($timeZone ?: 'UTC')), 0, true);
             return \DateTimeImmutable::createFromMutable($next)->setTimezone(new \DateTimeZone('UTC'));
         } catch (\Throwable) {

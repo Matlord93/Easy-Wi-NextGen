@@ -15,7 +15,6 @@ final class CustomerInstanceQueryApiControllerErrorMappingTest extends TestCase
         $controller = (new ReflectionClass(CustomerInstanceQueryApiController::class))->newInstanceWithoutConstructor();
 
         $method = new \ReflectionMethod(CustomerInstanceQueryApiController::class, 'resolveQueryErrorCode');
-        $method->setAccessible(true);
 
         $code = $method->invoke($controller, 'missing required values: host');
 
@@ -27,7 +26,6 @@ final class CustomerInstanceQueryApiControllerErrorMappingTest extends TestCase
         $controller = (new ReflectionClass(CustomerInstanceQueryApiController::class))->newInstanceWithoutConstructor();
 
         $method = new \ReflectionMethod(CustomerInstanceQueryApiController::class, 'resolveQueryErrorMessage');
-        $method->setAccessible(true);
 
         $message = $method->invoke($controller, 'missing required values: host', 'INVALID_INSTANCE_HOST', 42);
 
@@ -39,7 +37,6 @@ final class CustomerInstanceQueryApiControllerErrorMappingTest extends TestCase
         $controller = (new ReflectionClass(CustomerInstanceQueryApiController::class))->newInstanceWithoutConstructor();
 
         $method = new \ReflectionMethod(CustomerInstanceQueryApiController::class, 'resolveQueryErrorMessage');
-        $method->setAccessible(true);
 
         $message = $method->invoke($controller, 'invalid input payload', 'INVALID_INPUT', 42);
 
@@ -51,7 +48,6 @@ final class CustomerInstanceQueryApiControllerErrorMappingTest extends TestCase
         $controller = (new ReflectionClass(CustomerInstanceQueryApiController::class))->newInstanceWithoutConstructor();
 
         $method = new \ReflectionMethod(CustomerInstanceQueryApiController::class, 'resolveQueryStatus');
-        $method->setAccessible(true);
 
         $status = $method->invoke($controller, 'offline', 'running', null);
 
@@ -63,7 +59,6 @@ final class CustomerInstanceQueryApiControllerErrorMappingTest extends TestCase
         $controller = (new ReflectionClass(CustomerInstanceQueryApiController::class))->newInstanceWithoutConstructor();
 
         $method = new \ReflectionMethod(CustomerInstanceQueryApiController::class, 'resolveQueryStatus');
-        $method->setAccessible(true);
 
         $status = $method->invoke($controller, null, null, true);
 

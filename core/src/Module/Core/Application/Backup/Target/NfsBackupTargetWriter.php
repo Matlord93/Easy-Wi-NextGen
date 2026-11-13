@@ -17,11 +17,13 @@ use App\Module\Core\Application\Backup\BackupStorageTarget;
  */
 final class NfsBackupTargetWriter implements BackupTargetWriterInterface
 {
+    #[\Override]
     public function supports(BackupStorageTarget $target): bool
     {
         return $target->type() === 'nfs';
     }
 
+    #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
         $basePath = rtrim((string) ($target->config()['path'] ?? ''), '/');

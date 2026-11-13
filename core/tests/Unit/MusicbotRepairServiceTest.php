@@ -25,7 +25,7 @@ final class MusicbotRepairServiceTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
+        $this->dispatcher = $this->createStub(AgentJobDispatcherInterface::class);
         $this->auditLogger = $this->createStub(AuditLogger::class);
         $this->service = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
     }
@@ -73,6 +73,8 @@ final class MusicbotRepairServiceTest extends TestCase
 
     public function testRepairActionDispatchesJob(): void
     {
+        $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
+        $this->service = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
         $this->dispatcher->expects(self::once())
             ->method('dispatch')
             ->willReturn($this->makeJob());

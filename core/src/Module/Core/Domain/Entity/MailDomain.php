@@ -17,10 +17,10 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Index(name: 'idx_mail_domains_dns_last_checked', columns: ['dns_last_checked_at'])]
 class MailDomain
 {
-    public const STATUS_UNKNOWN = 'unknown';
-    public const STATUS_OK = 'ok';
-    public const STATUS_WARNING = 'warning';
-    public const STATUS_ERROR = 'error';
+    public const string STATUS_UNKNOWN = 'unknown';
+    public const string STATUS_OK = 'ok';
+    public const string STATUS_WARNING = 'warning';
+    public const string STATUS_ERROR = 'error';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

@@ -11,6 +11,9 @@ use App\Module\Ports\Domain\Entity\PortPool;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<PortBlock>
+ */
 class PortBlockRepository extends ServiceEntityRepository implements PortBlockFinderInterface
 {
     public function __construct(ManagerRegistry $registry)
@@ -37,11 +40,14 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
             return [];
         }
 
-        return $this->createQueryBuilder('block')
+        /** @var list<PortBlock> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('block')
             ->where('block.instance IN (:instances)')
             ->setParameter('instances', $instances)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -49,7 +55,10 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
      */
     public function findByNode(\App\Module\Core\Domain\Entity\Agent $node): array
     {
-        return $this->createQueryBuilder('block')->join('block.pool', 'pool')->where('pool.node = :node')->setParameter('node', $node)->getQuery()->getResult();
+        /** @var list<PortBlock> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('block')->join('block.pool', 'pool')->where('pool.node = :node')->setParameter('node', $node)->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findByPool(PortPool $pool): array
@@ -62,13 +71,17 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
      */
     public function findAssignedBlocks(): array
     {
-        return $this->createQueryBuilder('block')
+        /** @var list<PortBlock> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('block')
             ->where('block.instance IS NOT NULL')
             ->orderBy('block.startPort', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
+    #[\Override]
     public function findByInstance(Instance $instance): ?PortBlock
     {
         return $this->findOneBy(['instance' => $instance]);

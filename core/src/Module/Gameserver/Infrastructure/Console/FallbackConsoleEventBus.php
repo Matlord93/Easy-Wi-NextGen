@@ -35,6 +35,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         }
     }
 
+    #[\Override]
     public function publishConsoleEvent(int $instanceId, array $payload): void
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {
@@ -42,6 +43,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         }
     }
 
+    #[\Override]
     public function replayConsoleEvents(int $instanceId, int $lastSeq): array
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {
@@ -51,6 +53,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         return [];
     }
 
+    #[\Override]
     public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {
@@ -84,6 +87,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         }
     }
 
+    #[\Override]
     public function incrementSubscriber(int $instanceId): void
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {
@@ -94,6 +98,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         $this->subscriberCounts[$instanceId] = ($this->subscriberCounts[$instanceId] ?? 0) + 1;
     }
 
+    #[\Override]
     public function refreshSubscriberTtl(int $instanceId): void
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {
@@ -101,6 +106,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         }
     }
 
+    #[\Override]
     public function decrementSubscriber(int $instanceId): void
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {
@@ -117,6 +123,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         $this->subscriberCounts[$instanceId] = $current - 1;
     }
 
+    #[\Override]
     public function getSubscriberCount(int $instanceId): int
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {
@@ -126,6 +133,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         return $this->subscriberCounts[$instanceId] ?? 0;
     }
 
+    #[\Override]
     public function getInstancesWithSubscribers(): array
     {
         if ($this->redisBus instanceof RedisConsoleEventBus) {

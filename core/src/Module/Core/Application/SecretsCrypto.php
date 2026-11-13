@@ -8,8 +8,8 @@ use RuntimeException;
 
 class SecretsCrypto
 {
-    private const PREFIX = 'v1';
-    private const OPENSSL_CIPHER = 'aes-256-gcm';
+    private const string PREFIX = 'v1';
+    private const string OPENSSL_CIPHER = 'aes-256-gcm';
 
     /**
      * @var string[]

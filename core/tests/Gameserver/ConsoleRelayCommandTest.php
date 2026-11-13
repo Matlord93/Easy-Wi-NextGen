@@ -18,7 +18,6 @@ final class ConsoleRelayCommandTest extends TestCase
     {
         $command = new ConsoleRelayCommand($this->fakeGrpc([]), $this->fakeBus(), new NullLogger(), null);
         $method = new \ReflectionMethod($command, 'touchHeartbeat');
-        $method->setAccessible(true);
 
         $method->invoke($command);
         $method->invoke($command);
@@ -33,7 +32,7 @@ final class ConsoleRelayCommandTest extends TestCase
         }
 
         $redis = $this->createMock(\Redis::class);
-        $redis->expects(self::atLeast(2))->method('set')->with('console_relay:heartbeat', self::isType('string'));
+        $redis->expects(self::atLeast(2))->method('set')->with('console_relay:heartbeat', self::isString());
 
         $bus = new class implements ConsoleEventBusInterface {
             private int $countCalls = 0;
@@ -57,7 +56,6 @@ final class ConsoleRelayCommandTest extends TestCase
 
         $command = new ConsoleRelayCommand($grpc, $bus, new NullLogger(), $redis);
         $relay = new \ReflectionMethod($command, 'relayInstance');
-        $relay->setAccessible(true);
         $relay->invoke($command, 1);
 
         self::assertTrue(true);

@@ -211,16 +211,10 @@ final class TemplateAuditService
 
     public function resolveUsageTable(): ?string
     {
-        $schemaManager = $this->entityManager->getConnection()->createSchemaManager();
-        $tableNames = array_map('strtolower', $schemaManager->listTableNames());
+        $schema = $this->entityManager->getConnection()->createSchemaManager()->introspectSchema();
 
         foreach (['server_instances', 'instances'] as $table) {
-            if (!in_array($table, $tableNames, true)) {
-                continue;
-            }
-
-            $columns = $schemaManager->listTableColumns($table);
-            if (array_key_exists('template_id', $columns)) {
+            if ($schema->hasTable($table) && $schema->getTable($table)->hasColumn('template_id')) {
                 return $table;
             }
         }

@@ -6,11 +6,13 @@ namespace App\Module\Core\Application\ConfigSchema;
 
 final class IniConfigSchemaParser extends AbstractConfigSchemaParser
 {
+    #[\Override]
     public function format(): string
     {
         return 'ini';
     }
 
+    #[\Override]
     public function parse(string $content, array $schema): ConfigSchemaParseResult
     {
         $parsed = [];
@@ -47,6 +49,7 @@ final class IniConfigSchemaParser extends AbstractConfigSchemaParser
         return $this->buildResult($schema, $parsed, $warnings, true);
     }
 
+    #[\Override]
     public function generate(array $schema, array $values): string
     {
         $fields = $schema['fields'] ?? [];

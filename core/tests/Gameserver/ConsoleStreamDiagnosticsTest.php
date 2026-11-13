@@ -13,7 +13,7 @@ final class ConsoleStreamDiagnosticsTest extends TestCase
 {
     public function testSnapshotMarksRelayStaleWhenHeartbeatMissing(): void
     {
-        $probe = $this->createMock(AgentEndpointProbeInterface::class);
+        $probe = $this->createStub(AgentEndpointProbeInterface::class);
         $probe->method('hasAnyEndpoint')->willReturn(false);
 
         $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, null);
@@ -27,7 +27,7 @@ final class ConsoleStreamDiagnosticsTest extends TestCase
 
     public function testIsRelayRequiredReturnsFalseWithoutRedis(): void
     {
-        $probe = $this->createMock(AgentEndpointProbeInterface::class);
+        $probe = $this->createStub(AgentEndpointProbeInterface::class);
 
         $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, null);
 
@@ -39,10 +39,10 @@ final class ConsoleStreamDiagnosticsTest extends TestCase
         if (!class_exists(\Redis::class)) { self::markTestSkipped("Redis extension is required for the legacy transport test."); }
         // Simulates RedisConnectionFactory returning a non-connected \Redis instance
         // (it catches connection exceptions and returns the object anyway).
-        $redis = $this->createMock(\Redis::class);
+        $redis = $this->createStub(\Redis::class);
         $redis->method('ping')->willThrowException(new \RedisException('Connection refused'));
 
-        $probe = $this->createMock(AgentEndpointProbeInterface::class);
+        $probe = $this->createStub(AgentEndpointProbeInterface::class);
 
         $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, $redis, 20, true);
 
@@ -55,10 +55,10 @@ final class ConsoleStreamDiagnosticsTest extends TestCase
     public function testIsRelayRequiredReturnsTrueWhenRedisResponds(): void
     {
         if (!class_exists(\Redis::class)) { self::markTestSkipped("Redis extension is required for the legacy transport test."); }
-        $redis = $this->createMock(\Redis::class);
+        $redis = $this->createStub(\Redis::class);
         $redis->method('ping')->willReturn(true);
 
-        $probe = $this->createMock(AgentEndpointProbeInterface::class);
+        $probe = $this->createStub(AgentEndpointProbeInterface::class);
 
         $diagnostics = new ConsoleStreamDiagnostics(new NullConsoleAgentGrpcClient(), $probe, $redis, 20, true);
 

@@ -34,14 +34,19 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $this->setEntityId($customer, 10);
         $this->setEntityId($owner, 22);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository = $this->createStub(InstanceRepository::class);
+        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $controller = $this->newControllerWith($instanceRepository, $this->createMock(AppSettingsService::class));
+            return $instance;
+        });
+
+        $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsService::class));
 
         $request = Request::create('/api/instances/7/power', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['action' => 'start']));
         $request->attributes->set('current_user', $customer);
@@ -61,14 +66,19 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository = $this->createStub(InstanceRepository::class);
+        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $controller = $this->newControllerWith($instanceRepository, $this->createMock(AppSettingsService::class));
+            return $instance;
+        });
+
+        $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsService::class));
 
         $request = Request::create('/api/instances/7/power', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['action' => 'launch']));
         $request->attributes->set('current_user', $customer);
@@ -88,19 +98,24 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getId')->willReturn(7);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository = $this->createStub(InstanceRepository::class);
+        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $settings = $this->createMock(AppSettingsService::class);
+            return $instance;
+        });
+
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('isGameserverStartStopAllowed')->willReturn(true);
 
-        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')
             ->willReturnOnConsecutiveCalls(null, new Job('instance.backup.create', ['instance_id' => '7']));
 
@@ -125,19 +140,24 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getId')->willReturn(7);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository = $this->createStub(InstanceRepository::class);
+        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $settings = $this->createMock(AppSettingsService::class);
+            return $instance;
+        });
+
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('isGameserverStartStopAllowed')->willReturn(true);
 
-        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')
             ->willReturn(null);
 
@@ -170,21 +190,20 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         /** @var CustomerInstanceActionApiController $controller */
         $controller = $reflection->newInstanceWithoutConstructor();
 
-        $messageBus = $this->createMock(MessageBusInterface::class);
+        $messageBus = $this->createStub(MessageBusInterface::class);
         $messageBus->method('dispatch')->willReturn(new Envelope(new \stdClass()));
 
         foreach ([
             'instanceRepository' => $instanceRepository,
             'appSettingsService' => $settings,
-            'jobRepository' => $jobRepository ?? $this->createMock(JobRepository::class),
-            'auditLogger' => $auditLogger ?? $this->createMock(AuditLogger::class),
+            'jobRepository' => $jobRepository ?? $this->createStub(JobRepository::class),
+            'auditLogger' => $auditLogger ?? $this->createStub(AuditLogger::class),
             'diskEnforcementService' => $this->buildDiskEnforcementService(),
             'agentGameServerClient' => $agentClient,
             'messageBus' => $messageBus,
-            'translator' => $this->createMock(TranslatorInterface::class),
+            'translator' => $this->createStub(TranslatorInterface::class),
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
-            $prop->setAccessible(true);
             $prop->setValue($controller, $value);
         }
 
@@ -195,7 +214,6 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 
@@ -204,7 +222,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         return new DiskEnforcementService(
             new NodeDiskProtectionService(),
             new InstanceDiskStateResolver(),
-            $this->createMock(TranslatorInterface::class),
+            $this->createStub(TranslatorInterface::class),
         );
     }
 }

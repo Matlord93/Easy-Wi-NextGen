@@ -56,7 +56,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'parseM3u');
-        $method->setAccessible(true);
 
         $m3u = "#EXTM3U\n#EXTINF:-1,My Radio\nhttp://cdn.example.com/stream.mp3\n";
         $result = $method->invoke($resolver, $m3u);
@@ -68,7 +67,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'parseM3u');
-        $method->setAccessible(true);
 
         $m3u = "# comment\n#EXTINF:-1\nnot-a-url\nhttp://valid.example.com/s\n";
         $result = $method->invoke($resolver, $m3u);
@@ -85,7 +83,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'parsePls');
-        $method->setAccessible(true);
 
         $pls = "[playlist]\nFile1=http://icecast.example.net/stream\nTitle1=Station\nNumberOfEntries=1\n";
         $result = $method->invoke($resolver, $pls);
@@ -97,7 +94,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'parsePls');
-        $method->setAccessible(true);
 
         $pls = "[playlist]\nFile1=ftp://bad.example.com/s\nFile2=http://good.example.com/s\n";
         $result = $method->invoke($resolver, $pls);
@@ -114,7 +110,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'parseXspf');
-        $method->setAccessible(true);
 
         $xspf = '<?xml version="1.0" encoding="UTF-8"?>
 <playlist xmlns="http://xspf.org/ns/0/" version="1">
@@ -136,7 +131,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'parseXspf');
-        $method->setAccessible(true);
 
         $result = $method->invoke($resolver, 'NOT XML AT ALL <<<');
         self::assertSame([], $result);
@@ -150,7 +144,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'detectFormat');
-        $method->setAccessible(true);
 
         self::assertSame('m3u', $method->invoke($resolver, 'http://example.com/list.m3u'));
         self::assertSame('m3u', $method->invoke($resolver, 'https://example.com/list.m3u8'));
@@ -160,7 +153,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'detectFormat');
-        $method->setAccessible(true);
 
         self::assertSame('pls', $method->invoke($resolver, 'http://example.com/station.pls'));
     }
@@ -169,7 +161,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'detectFormat');
-        $method->setAccessible(true);
 
         self::assertSame('xspf', $method->invoke($resolver, 'https://example.com/tracks.xspf'));
     }
@@ -178,7 +169,6 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $resolver = $this->makeResolver();
         $method = new \ReflectionMethod($resolver, 'detectFormat');
-        $method->setAccessible(true);
 
         self::assertSame('direct', $method->invoke($resolver, 'http://stream.example.com/live.mp3'));
         self::assertSame('direct', $method->invoke($resolver, 'https://radio.example.com/aac'));

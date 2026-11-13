@@ -29,10 +29,13 @@ final class DdosStatusRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('status')
+        /** @var list<DdosStatus> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('status')
             ->where('status.node IN (:nodes)')
             ->setParameter('nodes', $nodes)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

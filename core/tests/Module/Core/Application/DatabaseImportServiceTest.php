@@ -17,7 +17,7 @@ final class DatabaseImportServiceTest extends TestCase
 {
     public function testImportBlocksDangerousStatementsAndAllowsCreateInsert(): void
     {
-        $enc = $this->createMock(EncryptionService::class);
+        $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
 
         $pdo = new class {
@@ -39,7 +39,7 @@ final class DatabaseImportServiceTest extends TestCase
 
     public function testImportBlocksInvalidExtensionAndCrossDbUse(): void
     {
-        $enc = $this->createMock(EncryptionService::class);
+        $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
         $pdo = new class { public function exec(string $sql): void {} public function prepare(string $sql): object { return new class { public function execute(array $p): void {} public function fetchAll(): array { return []; } }; } };
         $service = new DatabaseTableService($enc, static fn() => $pdo);
@@ -51,7 +51,7 @@ final class DatabaseImportServiceTest extends TestCase
 
     public function testImportBlocksBacktickQualifierDelimiterAndProgrammableObjects(): void
     {
-        $enc = $this->createMock(EncryptionService::class);
+        $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
         $pdo = new class { public function exec(string $sql): void {} public function prepare(string $sql): object { return new class { public function execute(array $p): void {} public function fetchAll(): array { return []; } }; } };
         $service = new DatabaseTableService($enc, static fn() => $pdo);

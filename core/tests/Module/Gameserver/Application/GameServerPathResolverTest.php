@@ -18,10 +18,10 @@ final class GameServerPathResolverTest extends TestCase
     {
         $resolver = new GameServerPathResolver(
             $this->newFilesystemResolver('/srv/default'),
-            $this->createMock(LoggerInterface::class),
+            $this->createStub(LoggerInterface::class),
         );
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getInstallPath')->willReturn('/srv/servers/gs42');
 
         self::assertSame('/srv/servers/gs42', $resolver->resolveRoot($instance));
@@ -38,7 +38,7 @@ final class GameServerPathResolverTest extends TestCase
         $instance->expects(self::once())->method('setInstallPath')->with('/srv/games/gs97');
         $instance->method('getId')->willReturn(7);
 
-        $customer = $this->createMock(User::class);
+        $customer = $this->createStub(User::class);
         $customer->method('getId')->willReturn(9);
         $instance->method('getCustomer')->willReturn($customer);
 
@@ -51,10 +51,10 @@ final class GameServerPathResolverTest extends TestCase
     {
         $resolver = new GameServerPathResolver(
             $this->newFilesystemResolver('/srv/default'),
-            $this->createMock(LoggerInterface::class),
+            $this->createStub(LoggerInterface::class),
         );
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getInstallPath')->willReturn('relative/path');
 
         $this->expectException(\RuntimeException::class);
@@ -65,7 +65,7 @@ final class GameServerPathResolverTest extends TestCase
 
     private function newFilesystemResolver(string $defaultBaseDir): InstanceFilesystemResolver
     {
-        $settings = $this->createMock(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsService::class);
         $settings->method('getInstanceBaseDir')->willReturn($defaultBaseDir);
 
         return new InstanceFilesystemResolver($settings);

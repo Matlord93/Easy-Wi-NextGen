@@ -15,6 +15,7 @@ final class RequestIdSubscriber implements EventSubscriberInterface
     public const HEADER_NAME = 'X-Request-ID';
     private const ATTRIBUTE_NAME = 'request_id';
 
+    #[\Override]
     public static function getSubscribedEvents(): array
     {
         return [

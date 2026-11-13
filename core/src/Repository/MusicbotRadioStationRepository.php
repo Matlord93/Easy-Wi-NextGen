@@ -28,7 +28,8 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     /** @return MusicbotRadioStation[] */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('r')
+        /** @var list<MusicbotRadioStation> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('r')
             ->where('r.customer = :customer')
             ->andWhere('r.isGlobal = false')
             ->setParameter('customer', $customer)
@@ -36,12 +37,15 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->addOrderBy('r.name', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotRadioStation[] */
     public function findFavoritesByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('r')
+        /** @var list<MusicbotRadioStation> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('r')
             ->where('r.customer = :customer')
             ->andWhere('r.isGlobal = false')
             ->andWhere('r.isFavorite = true')
@@ -49,12 +53,15 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->orderBy('r.name', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotRadioStation[] */
     public function findRecentlyPlayed(User $customer, int $limit = 10): array
     {
-        return $this->createQueryBuilder('r')
+        /** @var list<MusicbotRadioStation> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('r')
             ->where('r.customer = :customer')
             ->andWhere('r.lastPlayedAt IS NOT NULL')
             ->setParameter('customer', $customer)
@@ -62,17 +69,22 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findOneForCustomer(int $id, User $customer): ?MusicbotRadioStation
     {
-        return $this->createQueryBuilder('r')
+        /** @var MusicbotRadioStation|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('r')
             ->where('r.id = :id')
             ->andWhere('r.customer = :customer')
             ->setParameter('id', $id)
             ->setParameter('customer', $customer)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     public function countByCustomer(User $customer): int
@@ -149,7 +161,10 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
            ->setMaxResults($limit)
            ->setFirstResult($offset);
 
-        return $qb->getQuery()->getResult();
+        /** @var list<MusicbotRadioStation> $hydratedEntities */
+        $hydratedEntities = $qb->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     public function countCatalog(array $filters = []): int
@@ -196,16 +211,20 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     public function findPopularCatalogStations(array $popularIds, int $limit = 20): array
     {
         if ($popularIds === []) {
-            return $this->createQueryBuilder('r')
+            /** @var list<MusicbotRadioStation> $hydratedEntities */
+            $hydratedEntities = $this->createQueryBuilder('r')
                 ->where('r.isGlobal = true')
                 ->andWhere('r.isActive = true')
                 ->orderBy('r.name', 'ASC')
                 ->setMaxResults($limit)
                 ->getQuery()
                 ->getResult();
+
+            return $hydratedEntities;
         }
 
-        return $this->createQueryBuilder('r')
+        /** @var list<MusicbotRadioStation> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('r')
             ->where('r.isGlobal = true')
             ->andWhere('r.isActive = true')
             ->andWhere('r.id IN (:ids)')
@@ -214,18 +233,23 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotRadioStation[] */
     public function findNewestCatalogStations(int $limit = 20): array
     {
-        return $this->createQueryBuilder('r')
+        /** @var list<MusicbotRadioStation> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('r')
             ->where('r.isGlobal = true')
             ->andWhere('r.isActive = true')
             ->orderBy('r.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return string[] */
@@ -265,13 +289,16 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     /** @return MusicbotRadioStation[] All customer-submitted (private) stations awaiting promotion. */
     public function findPendingCustomerStations(int $limit = 100): array
     {
-        return $this->createQueryBuilder('r')
+        /** @var list<MusicbotRadioStation> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('r')
             ->where('r.isGlobal = false')
             ->andWhere('r.customer IS NOT NULL')
             ->orderBy('r.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /** @return MusicbotRadioStation[] */
@@ -282,6 +309,9 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             $qb->andWhere('r.isActive = true');
         }
 
-        return $qb->orderBy('r.name', 'ASC')->getQuery()->getResult();
+        /** @var list<MusicbotRadioStation> $hydratedEntities */
+        $hydratedEntities = $qb->orderBy('r.name', 'ASC')->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 }

@@ -9,6 +9,9 @@ use App\Module\Core\Domain\Entity\MailForwarding;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<MailForwarding>
+ */
 final class MailForwardingRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)

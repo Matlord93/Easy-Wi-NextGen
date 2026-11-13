@@ -17,7 +17,7 @@ final class DatabaseExportServiceTest extends TestCase
 {
     public function testTableExportContainsCreateAndInsertAndEscapesStrings(): void
     {
-        $enc = $this->createMock(EncryptionService::class);
+        $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
 
         $pdo = new class {

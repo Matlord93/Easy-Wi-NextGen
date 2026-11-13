@@ -15,9 +15,9 @@ class DatabaseProvisioningService
         private readonly EncryptionService $encryptionService,
     ) {
     }
-    private const DEFAULT_MAX_ATTEMPTS = 5;
-    private const DEFAULT_ALLOWED_HOSTS = '%';
-    private const DEFAULT_CONNECTION_POLICY = ConnectionPolicy::Private;
+    private const int DEFAULT_MAX_ATTEMPTS = 5;
+    private const string DEFAULT_ALLOWED_HOSTS = '%';
+    private const ConnectionPolicy DEFAULT_CONNECTION_POLICY = ConnectionPolicy::Private;
 
     /** @return Job[] */
     public function buildCreateJobs(Database $database, string $agentId): array

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Musicbot\Application\Backup;
 
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
+use App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem;
 
 interface MusicbotBackupDataProvider
 {
@@ -14,7 +15,7 @@ interface MusicbotBackupDataProvider
     /** @return list<mixed> */
     public function getPlaylists(MusicbotInstance $instance): array;
 
-    /** @return list<array<string, mixed>> */
+    /** @return list<MusicbotPlaylistItem> */
     public function getPlaylistItems(mixed $playlist): array;
 
     /** @return list<mixed> */

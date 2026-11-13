@@ -39,7 +39,7 @@ final class MusicbotInstallerRegressionTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
+        $this->dispatcher = $this->createStub(AgentJobDispatcherInterface::class);
         $this->auditLogger = $this->createStub(AuditLogger::class);
         $this->installer = new MusicbotInstallerService($this->dispatcher, $this->auditLogger);
         $this->repair = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
@@ -90,6 +90,9 @@ final class MusicbotInstallerRegressionTest extends TestCase
     public function testFreshInstallDispatchesMusicbotInstallJob(): void
     {
         $instance = $this->makeInstance();
+        $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
+        $this->installer = new MusicbotInstallerService($this->dispatcher, $this->auditLogger);
+        $this->repair = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
         $this->dispatcher->expects(self::once())
             ->method('dispatch')
             ->with(self::anything(), 'musicbot.install', self::anything())
@@ -148,6 +151,9 @@ final class MusicbotInstallerRegressionTest extends TestCase
 
     public function testUpdateDispatchesExactlyTwoJobs(): void
     {
+        $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
+        $this->installer = new MusicbotInstallerService($this->dispatcher, $this->auditLogger);
+        $this->repair = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
         $this->dispatcher->expects(self::exactly(2))
             ->method('dispatch')
             ->willReturn($this->makeJob());
@@ -196,6 +202,9 @@ final class MusicbotInstallerRegressionTest extends TestCase
 
     public function testValidateDispatchesHealthCheckJob(): void
     {
+        $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
+        $this->installer = new MusicbotInstallerService($this->dispatcher, $this->auditLogger);
+        $this->repair = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
         $this->dispatcher->expects(self::once())
             ->method('dispatch')
             ->with(self::anything(), 'musicbot.health.check', self::anything())

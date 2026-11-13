@@ -21,6 +21,7 @@ final class DomainEventSubscriber implements EventSubscriber
     {
     }
 
+    #[\Override]
     public function getSubscribedEvents(): array
     {
         return [

@@ -52,7 +52,7 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testPrivateStationHasCustomer(): void
     {
-        $user = $this->createMock(User::class);
+        $user = $this->createStub(User::class);
         $station = new MusicbotRadioStation($user, 'My Radio', 'https://stream.test/live.mp3', false);
         $this->assertSame($user, $station->getCustomer());
         $this->assertFalse($station->isGlobal());
@@ -119,7 +119,7 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testFavoriteEntityConstructor(): void
     {
-        $user = $this->createMock(User::class);
+        $user = $this->createStub(User::class);
         $station = new MusicbotRadioStation($user, 'Test FM', 'https://stream.test/live.mp3', false);
         $fav = new MusicbotRadioFavorite($user, $station);
         $this->assertSame($user, $fav->getCustomer());
@@ -131,7 +131,7 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testHistoryEntityConstructor(): void
     {
-        $user = $this->createMock(User::class);
+        $user = $this->createStub(User::class);
         $station = new MusicbotRadioStation($user, 'Test FM', 'https://stream.test/live.mp3', false);
         $history = new MusicbotRadioHistory($user, $station);
         $this->assertSame($user, $history->getCustomer());
@@ -142,9 +142,9 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testHistoryEntityWithInstance(): void
     {
-        $user = $this->createMock(User::class);
+        $user = $this->createStub(User::class);
         $station = new MusicbotRadioStation($user, 'Test FM', 'https://stream.test/live.mp3', false);
-        $instance = $this->createMock(MusicbotInstance::class);
+        $instance = $this->createStub(MusicbotInstance::class);
         $history = new MusicbotRadioHistory($user, $station, $instance);
         $this->assertSame($instance, $history->getInstance());
     }
@@ -257,7 +257,6 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
         $catalogService = $this->buildCatalogService();
 
         $reflId = new \ReflectionProperty($station, 'id');
-        $reflId->setAccessible(true);
         $reflId->setValue($station, 42);
 
         $normalized = $catalogService->normalize($station, [42]);
@@ -268,34 +267,34 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testFindAccessibleReturnsNullForMissingStation(): void
     {
-        $stationRepo = $this->createMock(MusicbotRadioStationRepository::class);
+        $stationRepo = $this->createStub(MusicbotRadioStationRepository::class);
         $stationRepo->method('find')->willReturn(null);
         $service = $this->buildRadioService(stationRepo: $stationRepo);
-        $customer = $this->createMock(User::class);
+        $customer = $this->createStub(User::class);
         $this->assertNull($service->findAccessible(999, $customer));
     }
 
     public function testFindAccessibleReturnsGlobalStation(): void
     {
         $station = new MusicbotRadioStation(null, 'Global FM', 'https://stream.test/live.mp3', true);
-        $stationRepo = $this->createMock(MusicbotRadioStationRepository::class);
+        $stationRepo = $this->createStub(MusicbotRadioStationRepository::class);
         $stationRepo->method('find')->willReturn($station);
         $service = $this->buildRadioService(stationRepo: $stationRepo);
-        $customer = $this->createMock(User::class);
+        $customer = $this->createStub(User::class);
         $this->assertSame($station, $service->findAccessible(1, $customer));
     }
 
     public function testFindAccessibleRejectsOtherCustomerPrivateStation(): void
     {
-        $owner = $this->createMock(User::class);
+        $owner = $this->createStub(User::class);
         $owner->method('getId')->willReturn(1);
         $station = new MusicbotRadioStation($owner, 'Private FM', 'https://stream.test/live.mp3', false);
 
-        $stationRepo = $this->createMock(MusicbotRadioStationRepository::class);
+        $stationRepo = $this->createStub(MusicbotRadioStationRepository::class);
         $stationRepo->method('find')->willReturn($station);
         $service = $this->buildRadioService(stationRepo: $stationRepo);
 
-        $other = $this->createMock(User::class);
+        $other = $this->createStub(User::class);
         $other->method('getId')->willReturn(2);
         $this->assertNull($service->findAccessible(1, $other));
     }
@@ -337,7 +336,7 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     public function testPromoteToGlobalSetsFlags(): void
     {
-        $user = $this->createMock(User::class);
+        $user = $this->createStub(User::class);
         $station = new MusicbotRadioStation($user, 'My FM', 'https://stream.test/live.mp3', false);
         $this->assertFalse($station->isGlobal());
 
@@ -441,7 +440,6 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
             default => 'parseM3u',
         };
         $ref = new \ReflectionMethod($resolver, $method);
-        $ref->setAccessible(true);
         $urls = $ref->invoke($resolver, $body);
         self::assertIsArray($urls);
         self::assertNotEmpty($urls);
@@ -451,28 +449,28 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
 
     private function buildCatalogService(): MusicbotRadioCatalogService
     {
-        $stationRepo = $this->createMock(MusicbotRadioStationRepository::class);
-        $favoriteRepo = $this->createMock(MusicbotRadioFavoriteRepository::class);
-        $historyRepo = $this->createMock(MusicbotRadioHistoryRepository::class);
-        $quotaService = $this->createMock(\App\Module\Musicbot\Application\MusicbotQuotaService::class);
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $stationRepo = $this->createStub(MusicbotRadioStationRepository::class);
+        $favoriteRepo = $this->createStub(MusicbotRadioFavoriteRepository::class);
+        $historyRepo = $this->createStub(MusicbotRadioHistoryRepository::class);
+        $quotaService = $this->createStub(\App\Module\Musicbot\Application\MusicbotQuotaService::class);
+        $em = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
 
         return new MusicbotRadioCatalogService($stationRepo, $favoriteRepo, $historyRepo, $quotaService, $em);
     }
 
     private function buildRadioService(?MusicbotRadioStationRepository $stationRepo = null): MusicbotRadioService
     {
-        $stationRepo ??= $this->createMock(MusicbotRadioStationRepository::class);
-        $favoriteRepo = $this->createMock(MusicbotRadioFavoriteRepository::class);
-        $queueRepo = $this->createMock(\App\Repository\MusicbotQueueItemRepository::class);
-        $playlistRepo = $this->createMock(\App\Repository\MusicbotPlaylistRepository::class);
-        $playlistItemRepo = $this->createMock(\App\Repository\MusicbotPlaylistItemRepository::class);
-        $trackRepo = $this->createMock(\App\Repository\MusicbotTrackRepository::class);
-        $resolver = $this->createMock(MusicbotRadioPlaylistResolver::class);
-        $urlValidator = $this->createMock(MusicbotWebradioUrlValidator::class);
-        $quotaService = $this->createMock(\App\Module\Musicbot\Application\MusicbotQuotaService::class);
-        $catalogService = $this->createMock(MusicbotRadioCatalogService::class);
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $stationRepo ??= $this->createStub(MusicbotRadioStationRepository::class);
+        $favoriteRepo = $this->createStub(MusicbotRadioFavoriteRepository::class);
+        $queueRepo = $this->createStub(\App\Repository\MusicbotQueueItemRepository::class);
+        $playlistRepo = $this->createStub(\App\Repository\MusicbotPlaylistRepository::class);
+        $playlistItemRepo = $this->createStub(\App\Repository\MusicbotPlaylistItemRepository::class);
+        $trackRepo = $this->createStub(\App\Repository\MusicbotTrackRepository::class);
+        $resolver = $this->createStub(MusicbotRadioPlaylistResolver::class);
+        $urlValidator = $this->createStub(MusicbotWebradioUrlValidator::class);
+        $quotaService = $this->createStub(\App\Module\Musicbot\Application\MusicbotQuotaService::class);
+        $catalogService = $this->createStub(MusicbotRadioCatalogService::class);
+        $em = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
 
         return new MusicbotRadioService(
             $stationRepo, $favoriteRepo, $queueRepo, $playlistRepo, $playlistItemRepo,

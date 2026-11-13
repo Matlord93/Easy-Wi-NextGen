@@ -47,7 +47,8 @@ final class SecurityPolicyRevisionRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('revision')
+        /** @var list<SecurityPolicyRevision> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('revision')
             ->where('revision.node IN (:nodes)')
             ->andWhere('revision.policyType = :policyType')
             ->setParameter('nodes', $nodes)
@@ -55,5 +56,7 @@ final class SecurityPolicyRevisionRepository extends ServiceEntityRepository
             ->orderBy('revision.version', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

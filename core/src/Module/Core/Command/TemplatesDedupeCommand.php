@@ -26,11 +26,13 @@ final class TemplatesDedupeCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('apply', null, InputOption::VALUE_NONE, 'Apply dedupe changes.');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

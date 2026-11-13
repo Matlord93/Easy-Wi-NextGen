@@ -8,6 +8,9 @@ use App\Module\Core\Domain\Entity\ChangelogEntry;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<ChangelogEntry>
+ */
 final class ChangelogEntryRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -30,12 +33,16 @@ final class ChangelogEntryRepository extends ServiceEntityRepository
             $queryBuilder->setMaxResults($limit);
         }
 
-        return $queryBuilder->getQuery()->getResult();
+        /** @var list<ChangelogEntry> $hydratedEntities */
+        $hydratedEntities = $queryBuilder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     public function findPanelUpdateEntry(int $siteId, string $version): ?ChangelogEntry
     {
-        return $this->createQueryBuilder('entry')
+        /** @var ChangelogEntry|null $hydratedEntity */
+        $hydratedEntity = $this->createQueryBuilder('entry')
             ->andWhere('entry.siteId = :siteId')
             ->andWhere('entry.version = :version')
             ->andWhere('entry.title = :title')
@@ -45,6 +52,8 @@ final class ChangelogEntryRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $hydratedEntity;
     }
 
     public static function panelUpdateTitle(string $version): string

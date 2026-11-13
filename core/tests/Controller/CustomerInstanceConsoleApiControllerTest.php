@@ -29,11 +29,16 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $this->setEntityId($customer, 10);
         $this->setEntityId($owner, 20);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
 
         $controller = $this->newControllerWithRepo($repo);
 
@@ -56,11 +61,16 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $this->setEntityId($customer, 10);
         $this->setEntityId($owner, 20);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
 
         $controller = $this->newControllerWithRepo($repo);
 
@@ -80,11 +90,16 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
 
         $controller = $this->newControllerWithRepo($repo);
 
@@ -104,14 +119,19 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getQueryStatusCache')->willReturn(['status' => 'online']);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return $instance;
+        });
 
         $controller = $this->newControllerWithRepo($repo);
 
@@ -132,16 +152,21 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getQueryStatusCache')->willReturn(['status' => 'running']);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $agentClient = $this->createMock(AgentGameServerClient::class);
+            return $instance;
+        });
+
+        $agentClient = $this->createStub(AgentGameServerClient::class);
         $agentClient->method('getInstanceStatus')->willReturn(['status' => 'stopped', 'running' => false]);
         $agentClient->method('getConsoleLogs')->willReturn(['data' => ['session' => ['connected' => false]]]);
 
@@ -165,14 +190,19 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $agentClient = $this->createMock(AgentGameServerClient::class);
+            return $instance;
+        });
+
+        $agentClient = $this->createStub(AgentGameServerClient::class);
         $agentClient->method('getConsoleLogs')->willReturn([
             'cursor' => 'abc:1',
             'lines' => [['id' => 1, 'text' => 'hello', 'ts' => '2026-01-01T00:00:00Z']],
@@ -195,14 +225,19 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $agentClient = $this->createMock(AgentGameServerClient::class);
+            return $instance;
+        });
+
+        $agentClient = $this->createStub(AgentGameServerClient::class);
         $agentClient->method('getConsoleLogs')->willReturn([
             'ok' => true,
             'data' => [
@@ -229,16 +264,21 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $customer = new User('customer@example.test', UserType::Customer);
         $this->setEntityId($customer, 10);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getQueryStatusCache')->willReturn(['status' => 'running']);
 
-        $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
+            $expectedArguments = [7];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
 
-        $agentClient = $this->createMock(AgentGameServerClient::class);
+            return $instance;
+        });
+
+        $agentClient = $this->createStub(AgentGameServerClient::class);
         $agentClient->method('getInstanceStatus')->willReturn(['status' => 'running', 'running' => true]);
         $agentClient->method('getConsoleLogs')->willReturn(['ok' => true, 'data' => ['meta' => ['state' => 'connected']]]);
 
@@ -253,13 +293,12 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
                 return [];
             }
         };
-        $probe = $this->createMock(AgentEndpointProbeInterface::class);
+        $probe = $this->createStub(AgentEndpointProbeInterface::class);
         $diagnostics = new ConsoleStreamDiagnostics($grpcClient, $probe, null);
 
         $controller = $this->newControllerWithRepo($repo, $agentClient);
         $reflection = new \ReflectionClass($controller);
         $prop = $reflection->getProperty('consoleStreamDiagnostics');
-        $prop->setAccessible(true);
         $prop->setValue($controller, $diagnostics);
 
         $request = Request::create('/api/instances/7/console/health', 'GET');
@@ -278,16 +317,13 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $controller = $reflection->newInstanceWithoutConstructor();
 
         $prop = $reflection->getProperty('instanceRepository');
-        $prop->setAccessible(true);
         $prop->setValue($controller, $repo);
 
         $agentProp = $reflection->getProperty('agentGameServerClient');
-        $agentProp->setAccessible(true);
         $agentProp->setValue($controller, $agentClient);
 
         $translatorProp = $reflection->getProperty('translator');
-        $translatorProp->setAccessible(true);
-        $translatorProp->setValue($controller, $this->createMock(TranslatorInterface::class));
+        $translatorProp->setValue($controller, $this->createStub(TranslatorInterface::class));
 
         return $controller;
     }
@@ -296,7 +332,6 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

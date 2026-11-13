@@ -9,9 +9,12 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<AuditLog>
+ */
 class AuditLogRepository extends ServiceEntityRepository
 {
-    private const PAYLOAD_PREVIEW_LENGTH = 4000;
+    private const int PAYLOAD_PREVIEW_LENGTH = 4000;
 
     public function __construct(ManagerRegistry $registry)
     {
@@ -48,7 +51,10 @@ class AuditLogRepository extends ServiceEntityRepository
                 ->setParameter('actor', $actor);
         }
 
-        return $builder->getQuery()->getResult();
+        /** @var list<AuditLog> $hydratedEntities */
+        $hydratedEntities = $builder->getQuery()->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -149,12 +155,15 @@ class AuditLogRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('audit')
+        /** @var list<AuditLog> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('audit')
             ->andWhere('audit.action IN (:actions)')
             ->setParameter('actions', $actions)
             ->orderBy('audit.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 }

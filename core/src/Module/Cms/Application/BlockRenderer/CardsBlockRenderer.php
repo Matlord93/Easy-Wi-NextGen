@@ -6,11 +6,13 @@ namespace App\Module\Cms\Application\BlockRenderer;
 
 final class CardsBlockRenderer extends AbstractTwigBlockRenderer
 {
+    #[\Override]
     public function supports(string $blockType): bool
     {
         return $blockType === 'cards';
     }
 
+    #[\Override]
     public function render(array $payload): string
     {
         $cards = [];

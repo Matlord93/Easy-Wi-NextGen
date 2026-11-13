@@ -18,10 +18,10 @@ final class AgentTokenAuthenticatorTest extends TestCase
         $node = new Node('n1', 'n1.example.test', '127.0.0.1');
         $agent = new Agent($node, 'agent-1', '1.0.0', 'linux', hash('sha256', 'secret-token'));
 
-        $repository = $this->createMock(EntityRepository::class);
+        $repository = $this->createStub(EntityRepository::class);
         $repository->method('findOneBy')->willReturn($agent);
 
-        $em = $this->createMock(EntityManagerInterface::class);
+        $em = $this->createStub(EntityManagerInterface::class);
         $em->method('getRepository')->willReturn($repository);
 
         $auth = new AgentTokenAuthenticator($em);

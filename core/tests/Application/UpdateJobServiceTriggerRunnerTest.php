@@ -48,7 +48,7 @@ final class UpdateJobServiceTriggerRunnerTest extends TestCase
         mkdir($tmp, 0777, true);
 
         $configProvider = $this->createDbConfigProviderFixture();
-        $logger = $this->createMock(LoggerInterface::class);
+        $logger = $this->createStub(LoggerInterface::class);
 
         return new UpdateJobService(
             $configProvider,

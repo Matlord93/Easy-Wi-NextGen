@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Entity\Webspace;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
+/**
+ * @extends ServiceEntityRepository<Webspace>
+ */
 class WebspaceRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -22,7 +25,8 @@ class WebspaceRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer, int $limit = 100): array
     {
-        return $this->createQueryBuilder('webspace')
+        /** @var list<Webspace> $hydratedEntities */
+        $hydratedEntities = $this->createQueryBuilder('webspace')
             ->andWhere('webspace.customer = :customer')
             ->andWhere('webspace.status != :deletedStatus')
             ->setParameter('customer', $customer)
@@ -31,6 +35,8 @@ class WebspaceRepository extends ServiceEntityRepository
             ->setMaxResults(max(1, min(500, $limit)))
             ->getQuery()
             ->getResult();
+
+        return $hydratedEntities;
     }
 
     /**
@@ -72,6 +78,7 @@ class WebspaceRepository extends ServiceEntityRepository
             ->setMaxResults($perPage)
             ->getQuery();
 
+        /** @var list<Webspace> $items */
         $items = $query->getResult();
 
         $total = (int) $this->createQueryBuilder('webspace')

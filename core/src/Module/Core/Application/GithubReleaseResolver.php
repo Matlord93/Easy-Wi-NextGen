@@ -73,7 +73,7 @@ final class GithubReleaseResolver
     }
 
     /**
-     * @param callable(string,string):bool|int $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
+     * @param callable(string,string):(bool|int) $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
      *
      * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
      */
@@ -104,7 +104,7 @@ final class GithubReleaseResolver
     }
 
     /**
-     * @param callable(string,string):bool|int $assetMatcher receives the asset name and release tag.
+     * @param callable(string,string):(bool|int) $assetMatcher receives the asset name and release tag.
      */
     public function describeLatestAssetSelectionFailure(
         string $repository,
@@ -223,7 +223,7 @@ final class GithubReleaseResolver
 
     /**
      * @param array<int, mixed> $releases
-     * @param callable(string,string):bool|int $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
+     * @param callable(string,string):(bool|int) $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
      *
      * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
      */
@@ -282,7 +282,7 @@ final class GithubReleaseResolver
 
     /**
      * @param array<int, mixed> $releases
-     * @param callable(string,string):bool|int $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
+     * @param callable(string,string):(bool|int) $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
      *
      * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
      */
@@ -905,7 +905,7 @@ final class GithubReleaseResolver
 
     /**
      * @param array<int, mixed> $assets
-     * @param callable(string,string):bool|int $assetMatcher
+     * @param callable(string,string):(bool|int) $assetMatcher
      */
     private function findMatchingAssetName(array $assets, string $releaseTag, callable $assetMatcher): ?string
     {
@@ -938,7 +938,7 @@ final class GithubReleaseResolver
 
     /**
      * @param array<int, mixed> $assets
-     * @param callable(string,string):bool|int $assetMatcher
+     * @param callable(string,string):(bool|int) $assetMatcher
      *
      * @return string[]
      */

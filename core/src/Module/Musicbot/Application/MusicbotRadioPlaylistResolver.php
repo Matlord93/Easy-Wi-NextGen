@@ -14,10 +14,10 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 class MusicbotRadioPlaylistResolver
 {
-    private const MAX_REDIRECTS = 5;
-    private const MAX_PLAYLIST_BYTES = 1048576;
+    private const int MAX_REDIRECTS = 5;
+    private const int MAX_PLAYLIST_BYTES = 1048576;
     private readonly HttpClientInterface $http;
-    private const TIMEOUT = 12;
+    private const int TIMEOUT = 12;
 
     public function __construct(
         private readonly MusicbotWebradioUrlValidator $urlValidator,
@@ -181,6 +181,7 @@ class MusicbotRadioPlaylistResolver
         if (str_contains(strtoupper($content), '<!DOCTYPE')) {
             return [];
         }
+        $previousErrorMode = libxml_use_internal_errors(true);
         try {
             $xml = new \SimpleXMLElement($content, LIBXML_NONET);
             $xml->registerXPathNamespace('xspf', 'http://xspf.org/ns/0/');
@@ -193,6 +194,9 @@ class MusicbotRadioPlaylistResolver
             }
         } catch (\Exception) {
             // Invalid XML; fall through with empty result
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrorMode);
         }
 
         return array_values(array_unique($urls));

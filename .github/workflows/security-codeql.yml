@@ -14,6 +14,8 @@ on:
       - '.github/workflows/security-codeql.yml'
       - '.github/actions/configure-go-build-cache/**'
       - '.github/actions/verify-php/**'
+      - 'scripts/normalize-psalm-sarif.php'
+      - 'scripts/tests/test_normalize_psalm_sarif.py'
   pull_request:
     paths:
       - 'core/**'
@@ -26,6 +28,8 @@ on:
       - '.github/workflows/security-codeql.yml'
       - '.github/actions/configure-go-build-cache/**'
       - '.github/actions/verify-php/**'
+      - 'scripts/normalize-psalm-sarif.php'
+      - 'scripts/tests/test_normalize_psalm_sarif.py'
 
 permissions:
   contents: read
@@ -70,24 +74,37 @@ jobs:
 
       - name: Analyze (Go)
         uses: github/codeql-action/analyze@v4.39.3
-        with:
-          fail-on: warning
 
       - name: Verify PHP 8.5 environment
         uses: ./.github/actions/verify-php
+        with:
+          required-extensions: curl, dom, fileinfo, gd, intl, mbstring, pdo_mysql, pdo_sqlite, redis, simplexml, xml, zip
+
+      - name: Install PHP application and locked Psalm tools
+        run: |
+          set -euo pipefail
+          composer install --working-dir=core --no-scripts --no-interaction --no-progress --prefer-dist
+          composer install --working-dir=core/tools/psalm --no-scripts --no-interaction --no-progress --prefer-dist
+          APP_ENV=dev APP_DEBUG=1 php core/bin/console cache:warmup
+
+      - name: Verify SARIF normalization preserves findings
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest scripts/tests/test_normalize_psalm_sarif.py -v
 
       - name: Run Psalm security scan (PHP)
         id: psalm
+        working-directory: core
         run: |
-          set -e
-          composer global require vimeo/psalm --prefer-dist --no-progress --dev
-          PSALM_BIN="$(composer global config bin-dir --absolute)/psalm"
-          cd core
-          composer install --no-scripts --no-progress
+          set -euo pipefail
+          rm -f ../results.sarif
           set +e
-          "$PSALM_BIN" --output-format=github --taint-analysis --report=../results.sarif
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
-          exit 0
+          php -d memory_limit=-1 tools/psalm/vendor/bin/psalm --config=psalm.xml --output-format=github --taint-analysis --report=../results.sarif
+          psalm_exit_code=$?
+          set -e
+          echo "exit_code=$psalm_exit_code" >> "$GITHUB_OUTPUT"
+
+      - name: Normalize Psalm SARIF metadata
+        if: always() && hashFiles('results.sarif') != ''
+        run: php scripts/normalize-psalm-sarif.php results.sarif
 
       - name: Upload Psalm SARIF to GitHub Code Scanning
         if: always() && hashFiles('results.sarif') != ''
@@ -96,6 +113,13 @@ jobs:
           sarif_file: results.sarif
           category: psalm-php
 
-      - name: Fail on Psalm findings
-        if: steps.psalm.outputs.exit_code != '0'
-        run: exit 1
+      - name: Enforce Psalm analysis result
+        if: always()
+        env:
+          PSALM_EXIT_CODE: ${{ steps.psalm.outputs.exit_code }}
+        run: |
+          if [ -z "$PSALM_EXIT_CODE" ]; then
+            echo 'Psalm did not complete; no analysis exit code was produced.' >&2
+            exit 1
+          fi
+          exit "$PSALM_EXIT_CODE"

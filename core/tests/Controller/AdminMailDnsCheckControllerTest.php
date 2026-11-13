@@ -14,15 +14,15 @@ final class AdminMailDnsCheckControllerTest extends TestCase
 {
     public function testNonAdminGets403(): void
     {
-        $c = new AdminMailDnsCheckController($this->createMock(MailDomainRepository::class), $this->createMock(MailDnsCheckService::class));
+        $c = new AdminMailDnsCheckController($this->createStub(MailDomainRepository::class), $this->createStub(MailDnsCheckService::class));
         $r = new Request(); $r->attributes->set('current_user', new User('c@x', UserType::Customer));
         self::assertSame(403, $c->check($r, 1)->getStatusCode());
     }
 
     public function testMissingDomainReturns404(): void
     {
-        $repo = $this->createMock(MailDomainRepository::class); $repo->method('find')->willReturn(null);
-        $c = new AdminMailDnsCheckController($repo, $this->createMock(MailDnsCheckService::class));
+        $repo = $this->createStub(MailDomainRepository::class); $repo->method('find')->willReturn(null);
+        $c = new AdminMailDnsCheckController($repo, $this->createStub(MailDnsCheckService::class));
         $r = new Request(); $r->attributes->set('current_user', new User('a@x', UserType::Superadmin));
         self::assertSame(404, $c->check($r, 2)->getStatusCode());
     }

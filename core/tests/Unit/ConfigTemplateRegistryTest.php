@@ -15,14 +15,14 @@ final class ConfigTemplateRegistryTest extends TestCase
     {
         $registry = new ConfigTemplateRegistry();
 
-        $template = $this->createMock(Template::class);
+        $template = $this->createStub(Template::class);
         $template->method('getGameKey')->willReturn('l4d2');
         $template->method('getSupportedOs')->willReturn(['linux']);
         $template->method('getConfigFiles')->willReturn([
             ['path' => 'left4dead2/cfg/server.cfg', 'description' => 'Server cfg'],
         ]);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getTemplate')->willReturn($template);
 
         $targets = $registry->listTargetsForInstance($instance);
@@ -37,14 +37,14 @@ final class ConfigTemplateRegistryTest extends TestCase
     {
         $registry = new ConfigTemplateRegistry();
 
-        $template = $this->createMock(Template::class);
+        $template = $this->createStub(Template::class);
         $template->method('getGameKey')->willReturn('minecraft_vanilla_all');
         $template->method('getSupportedOs')->willReturn(['linux', 'windows']);
         $template->method('getConfigFiles')->willReturn([
             ['path' => 'server.properties', 'description' => 'Main config'],
         ]);
 
-        $instance = $this->createMock(Instance::class);
+        $instance = $this->createStub(Instance::class);
         $instance->method('getTemplate')->willReturn($template);
 
         $targets = $registry->listTargetsForInstance($instance);

@@ -14,16 +14,19 @@ final readonly class BillingScheduleHandler implements ScheduleHandlerInterface
     {
     }
 
+    #[\Override]
     public function type(): string
     {
         return 'billing.automation';
     }
 
+    #[\Override]
     public function schedules(): array
     {
         return [new InternalSchedule('system', 'billing.automation', 'Billing automation', $this->type(), 'billing', '0 * * * *', (bool) $this->billingSettings->get()['automation_enabled'])];
     }
 
+    #[\Override]
     public function runDue(?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         $now ??= new \DateTimeImmutable();
@@ -35,6 +38,7 @@ final readonly class BillingScheduleHandler implements ScheduleHandlerInterface
         return $this->runNow('system', 'billing.automation', $now);
     }
 
+    #[\Override]
     public function runNow(string $source, string $id, ?\DateTimeImmutable $now = null): ScheduleExecutionResult
     {
         if ($source !== 'system' || $id !== 'billing.automation') {

@@ -100,24 +100,24 @@ final class DatabaseApiControllerJobsRouteTest extends TestCase
         }
         $jobs[] = new Job('database.delete', ['database_id' => '999', 'password' => 'nope']);
 
-        $dbRepo = $this->createMock(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepository::class);
         $dbRepo->method('find')->willReturn($database);
 
-        $jobRepo = $this->createMock(JobRepository::class);
+        $jobRepo = $this->createStub(JobRepository::class);
         $jobRepo->method('findBy')->willReturn($jobs);
 
-        $nodeRepo = $this->createMock(DatabaseNodeRepository::class);
-        $userRepo = $this->createMock(UserRepository::class);
-        $em = $this->createMock(EntityManagerInterface::class);
-        $audit = $this->createMock(AuditLogger::class);
-        $prov = $this->createMock(DatabaseProvisioningService::class);
-        $naming = $this->createMock(DatabaseNamingPolicy::class);
-        $encryption = $this->createMock(EncryptionService::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
+        $userRepo = $this->createStub(UserRepository::class);
+        $em = $this->createStub(EntityManagerInterface::class);
+        $audit = $this->createStub(AuditLogger::class);
+        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $naming = $this->createStub(DatabaseNamingPolicy::class);
+        $encryption = $this->createStub(EncryptionService::class);
 
-        $respFactory = $this->createMock(ResponseEnvelopeFactory::class);
+        $respFactory = $this->createStub(ResponseEnvelopeFactory::class);
         $respFactory->method('error')->willReturnCallback(static fn (Request $r, string $m, string $code, int $status) => new JsonResponse(['error_code' => $code], $status));
 
-        $translator = $this->createMock(TranslatorInterface::class);
+        $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturn('translated');
 
         $controller = new DatabaseApiController($dbRepo, $nodeRepo, $userRepo, $jobRepo, $em, $audit, $prov, $naming, $respFactory, $encryption, new JobPayloadMasker(), $translator);
@@ -138,7 +138,6 @@ final class DatabaseApiControllerJobsRouteTest extends TestCase
         }
 
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

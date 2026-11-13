@@ -22,9 +22,9 @@ final class MailNodeHealthAggregatorTest extends TestCase
     {
         $mailNode = new MailNode('mail-a', 'imap.example.com', 993, 'smtp.example.com', 587, 'https://webmail.example.com');
 
-        $http = $this->createMock(HttpClientInterface::class);
-        $resolver = $this->createMock(AgentEndpointResolver::class);
-        $crypto = $this->createMock(SecretsCrypto::class);
+        $http = $this->createStub(HttpClientInterface::class);
+        $resolver = $this->createStub(AgentEndpointResolver::class);
+        $crypto = $this->createStub(SecretsCrypto::class);
 
         $aggregator = new MailNodeHealthAggregator($http, $resolver, $crypto, new NullLogger());
         $result = $aggregator->aggregate([$mailNode], []);
@@ -41,26 +41,31 @@ final class MailNodeHealthAggregatorTest extends TestCase
         $agent->setStatus(Agent::STATUS_ACTIVE);
         $agent->setServiceBaseUrl('http://127.0.0.1:7456');
 
-        $domain = $this->createMock(\App\Module\Core\Domain\Entity\Domain::class);
-        $webspace = $this->createMock(\App\Module\Core\Domain\Entity\Webspace::class);
-        $mailDomain = $this->createMock(MailDomain::class);
+        $domain = $this->createStub(\App\Module\Core\Domain\Entity\Domain::class);
+        $webspace = $this->createStub(\App\Module\Core\Domain\Entity\Webspace::class);
+        $mailDomain = $this->createStub(MailDomain::class);
         $mailDomain->method('getNode')->willReturn($mailNode);
         $mailDomain->method('getDomain')->willReturn($domain);
         $domain->method('getWebspace')->willReturn($webspace);
         $webspace->method('getNode')->willReturn($agent);
 
-        $response = $this->createMock(ResponseInterface::class);
-        $response->method('getContent')->with(false)->willReturn(json_encode([
+        $response = $this->createStub(ResponseInterface::class);
+        $response->method('getContent')->willReturnCallback(function (mixed ...$stubArguments): mixed {
+            $expectedArguments = [false];
+            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+
+            return json_encode([
             'checks' => ['postfix_installed' => ['ok' => true, 'message' => 'postfix found']],
             'sender' => 'hidden@example.com',
             'subject' => 'secret',
-        ], JSON_THROW_ON_ERROR));
+        ], JSON_THROW_ON_ERROR);
+        });
 
-        $http = $this->createMock(HttpClientInterface::class);
+        $http = $this->createStub(HttpClientInterface::class);
         $http->method('request')->willReturn($response);
-        $resolver = $this->createMock(AgentEndpointResolver::class);
+        $resolver = $this->createStub(AgentEndpointResolver::class);
         $resolver->method('resolveForAgent')->willReturn(new AgentEndpoint('http://127.0.0.1:7456'));
-        $crypto = $this->createMock(SecretsCrypto::class);
+        $crypto = $this->createStub(SecretsCrypto::class);
         $crypto->method('decrypt')->willReturn('');
 
         $aggregator = new MailNodeHealthAggregator($http, $resolver, $crypto, new NullLogger());

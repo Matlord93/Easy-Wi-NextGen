@@ -20,6 +20,7 @@ final class QuerySmokeService implements QuerySmokeRunnerInterface
     /**
      * @return array<string,mixed>
      */
+    #[\Override]
     public function run(Instance $instance, bool $retryOnTimeout = true): array
     {
         $attempts = [];

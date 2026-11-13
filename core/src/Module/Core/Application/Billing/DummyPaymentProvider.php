@@ -10,16 +10,19 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class DummyPaymentProvider implements PaymentProviderInterface
 {
+    #[\Override]
     public function getName(): string
     {
         return 'dummy';
     }
 
+    #[\Override]
     public function supportedMethods(): array
     {
         return ['test_card', 'test_transfer'];
     }
 
+    #[\Override]
     public function createPaymentIntent(Invoice $invoice, int $amountCents): PaymentInstruction
     {
         return new PaymentInstruction(
@@ -34,11 +37,13 @@ final class DummyPaymentProvider implements PaymentProviderInterface
         );
     }
 
+    #[\Override]
     public function webhookHandle(Request $request): ?Response
     {
         return new Response('Dummy provider has no webhooks.', Response::HTTP_NOT_IMPLEMENTED);
     }
 
+    #[\Override]
     public function reconcile(?\DateTimeImmutable $since = null): void
     {
     }

@@ -11,7 +11,7 @@ use App\Module\Core\Domain\Entity\MailNode;
 class MailNodeMetricsAggregator
 {
     /** @var string[] */
-    private const PORT_KEYS = ['25', '465', '587', '110', '143', '993', '995'];
+    private const array PORT_KEYS = ['25', '465', '587', '110', '143', '993', '995'];
 
     /** @param MailNode[] $mailNodes @param MailDomain[] $mailDomains */
     public function aggregate(array $mailNodes, array $mailDomains): array

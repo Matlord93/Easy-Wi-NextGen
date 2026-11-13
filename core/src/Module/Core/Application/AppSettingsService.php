@@ -14,96 +14,96 @@ use Psr\Log\LoggerInterface;
 
 class AppSettingsService implements ConsoleCommandSettings
 {
-    public const KEY_SITE_TITLE = 'site_title';
-    public const KEY_BRANDING_NAME = 'branding_name';
-    public const KEY_BRANDING_LOGO_URL = 'branding_logo_url';
-    public const KEY_SUPPORT_EMAIL = 'support_email';
-    public const KEY_MAIL_FROM_NAME = 'mail_from_name';
-    public const KEY_MAIL_FROM_ADDRESS = 'mail_from_address';
-    public const KEY_MAIL_REPLY_TO = 'mail_reply_to';
-    public const KEY_MAIL_DEFAULT_LOCALE = 'mail_default_locale';
-    public const KEY_MAILER_DSN = 'mailer_dsn';
-    public const KEY_MAILER_VERIFY_TLS = 'mailer_verify_tls';
-    public const KEY_MAIL_ENABLED = 'mail_enabled';
-    public const KEY_MAIL_BACKEND = 'mail_backend';
-    public const KEY_GAMESERVER_DEFAULT_SLOTS = 'gameserver_default_slots';
-    public const KEY_GAMESERVER_MIN_SLOTS = 'gameserver_min_slots';
-    public const KEY_GAMESERVER_MAX_SLOTS = 'gameserver_max_slots';
-    public const KEY_GAMESERVER_SHOW_PORT_RANGE = 'gameserver_show_port_range';
-    public const KEY_GAMESERVER_ALLOW_START_STOP = 'gameserver_allow_start_stop';
-    public const KEY_CUSTOMER_DATA_MANAGER_ENABLED = 'customer_data_manager_enabled';
-    public const KEY_CUSTOMER_FILE_PUSH_ENABLED = 'customer_file_push_enabled';
-    public const KEY_CUSTOMER_CONSOLE_LABEL = 'customer_console_label';
-    public const KEY_CUSTOMER_CONSOLE_ALLOWED_COMMANDS = 'customer_console_allowed_commands';
-    public const KEY_CUSTOMER_LOGS_LABEL = 'customer_logs_label';
-    public const KEY_INSTANCE_BASE_DIR = 'instance_base_dir';
-    public const KEY_SFTP_HOST = 'sftp_host';
-    public const KEY_SFTP_PORT = 'sftp_port';
-    public const KEY_SFTP_USERNAME = 'sftp_username';
-    public const KEY_SFTP_PASSWORD = 'sftp_password';
-    public const KEY_SFTP_PRIVATE_KEY = 'sftp_private_key';
-    public const KEY_SFTP_PRIVATE_KEY_PATH = 'sftp_private_key_path';
-    public const KEY_SFTP_PRIVATE_KEY_PASSPHRASE = 'sftp_private_key_passphrase';
-    public const KEY_INVOICE_LAYOUT = 'invoice_layout_html';
-    public const KEY_INFRA_MONITORING = 'infrastructure_monitoring';
-    public const KEY_INFRA_MONITORING_STATE = 'infrastructure_monitoring_state';
-    public const KEY_INVOICE_DESIGN = 'invoice_design';
-    public const KEY_BILLING_OPTIONS = 'billing_options';
-    public const KEY_BILLING_LAST_RUN_AT = 'billing_last_run_at';
-    public const KEY_SECURITY_SESSION_IDLE_MINUTES = 'security_session_idle_minutes';
-    public const KEY_SECURITY_SESSION_ABSOLUTE_MINUTES = 'security_session_absolute_minutes';
-    public const KEY_SECURITY_2FA_GLOBAL_REQUIRED = 'security_2fa_required_global';
-    public const KEY_SECURITY_2FA_ADMIN_REQUIRED = 'security_2fa_required_admin';
-    public const KEY_SECURITY_2FA_RESELLER_REQUIRED = 'security_2fa_required_reseller';
-    public const KEY_SECURITY_2FA_CUSTOMER_REQUIRED = 'security_2fa_required_customer';
-    public const KEY_CMS_MAINTENANCE_ENABLED = 'cms_maintenance_enabled';
-    public const KEY_CMS_MAINTENANCE_MESSAGE = 'cms_maintenance_message';
-    public const KEY_CMS_MAINTENANCE_GRAPHIC = 'cms_maintenance_graphic';
-    public const KEY_CMS_MAINTENANCE_ALLOWLIST = 'cms_maintenance_allowlist';
-    public const KEY_CMS_MAINTENANCE_STARTS_AT = 'cms_maintenance_starts_at';
-    public const KEY_CMS_MAINTENANCE_ENDS_AT = 'cms_maintenance_ends_at';
-    public const KEY_AGENT_REGISTRATION_TOKEN = 'agent_registration_token';
-    public const KEY_REGISTRATION_ENABLED = 'registration_enabled';
-    public const KEY_ANTI_ABUSE_ENABLE_POW_CONTACT = 'anti_abuse_enable_pow_contact';
-    public const KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION = 'anti_abuse_enable_pow_registration';
-    public const KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION = 'anti_abuse_enable_captcha_registration';
-    public const KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT = 'anti_abuse_enable_captcha_contact';
-    public const KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS = 'anti_abuse_min_submit_seconds';
-    public const KEY_ANTI_ABUSE_POW_DIFFICULTY = 'anti_abuse_pow_difficulty';
-    public const KEY_ANTI_ABUSE_DAILY_IP_LIMIT = 'anti_abuse_daily_ip_limit';
-    public const KEY_BACKUP_DEFAULT_TARGET_ID = 'backup_default_target_id';
-    public const KEY_BACKUP_DEFAULT_RETENTION_COUNT = 'backup_default_retention_count';
-    public const KEY_BACKUP_DEFAULT_RETENTION_AGE_DAYS = 'backup_default_retention_age_days';
-    public const KEY_BACKUP_DEFAULT_COMPRESSION = 'backup_default_compression';
-    public const KEY_BACKUP_STOP_BEFORE = 'backup_stop_before';
-    public const KEY_BACKUP_MAX_SIZE_BYTES = 'backup_max_size_bytes';
-    public const KEY_BACKUP_WEBDAV_VERIFY_TLS = 'backup_webdav_verify_tls';
-    public const KEY_WEBSPACE_DEFAULT_PHP_VERSION = 'webspace_default_php_version';
-    public const KEY_WEBSPACE_DEFAULT_DISK_MB = 'webspace_default_disk_mb';
-    public const KEY_WEBSPACE_DEFAULT_TRAFFIC_MB = 'webspace_default_traffic_mb';
-    public const KEY_METRICS_RETENTION_DAYS = 'metrics_retention_days';
-    public const KEY_METRICS_INSTANCE_RETENTION_DAYS = 'metrics_instance_retention_days';
-    public const KEY_VOICE_PROBE_CACHE_SECONDS = 'voice_probe_cache_seconds';
-    public const KEY_VOICE_PROBE_COOLDOWN_SECONDS = 'voice_probe_cooldown_seconds';
-    public const KEY_SECURITY_MAX_CONCURRENT_SESSIONS = 'security_max_concurrent_sessions';
-    public const KEY_PRIVACY_GDPR_JOBS_ENABLED = 'privacy_gdpr_jobs_enabled';
-    public const KEY_PRIVACY_GDPR_JOBS_INTERVAL = 'privacy_gdpr_jobs_interval';
-    public const KEY_PRIVACY_GDPR_LAST_RUN_AT = 'privacy_gdpr_last_run_at';
-    public const KEY_PRIVACY_GDPR_LAST_STATUS = 'privacy_gdpr_last_status';
-    public const KEY_PRIVACY_GDPR_LAST_ERROR = 'privacy_gdpr_last_error';
-    public const KEY_DATABASE_LOGGING_STORE_ROUTINE = 'database_logging_store_routine';
-    public const KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS = 'database_logging_routine_retention_days';
-    public const KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS = 'database_logging_error_retention_days';
-    public const KEY_SCHEDULER_LAST_HEARTBEAT_AT = 'scheduler_last_heartbeat_at';
-    public const KEY_SCHEDULER_LAST_HEARTBEAT_STATUS = 'scheduler_last_heartbeat_status';
-    public const KEY_MINECRAFT_JAVA_BINARY_8 = 'minecraft_java_binary_8';
-    public const KEY_MINECRAFT_JAVA_BINARY_16 = 'minecraft_java_binary_16';
-    public const KEY_MINECRAFT_JAVA_BINARY_17 = 'minecraft_java_binary_17';
-    public const KEY_MINECRAFT_JAVA_BINARY_21 = 'minecraft_java_binary_21';
-    public const KEY_MINECRAFT_JAVA_BINARY_25 = 'minecraft_java_binary_25';
-    public const KEY_MINECRAFT_AUTO_INSTALL_JAVA = 'minecraft_auto_install_java';
+    public const string KEY_SITE_TITLE = 'site_title';
+    public const string KEY_BRANDING_NAME = 'branding_name';
+    public const string KEY_BRANDING_LOGO_URL = 'branding_logo_url';
+    public const string KEY_SUPPORT_EMAIL = 'support_email';
+    public const string KEY_MAIL_FROM_NAME = 'mail_from_name';
+    public const string KEY_MAIL_FROM_ADDRESS = 'mail_from_address';
+    public const string KEY_MAIL_REPLY_TO = 'mail_reply_to';
+    public const string KEY_MAIL_DEFAULT_LOCALE = 'mail_default_locale';
+    public const string KEY_MAILER_DSN = 'mailer_dsn';
+    public const string KEY_MAILER_VERIFY_TLS = 'mailer_verify_tls';
+    public const string KEY_MAIL_ENABLED = 'mail_enabled';
+    public const string KEY_MAIL_BACKEND = 'mail_backend';
+    public const string KEY_GAMESERVER_DEFAULT_SLOTS = 'gameserver_default_slots';
+    public const string KEY_GAMESERVER_MIN_SLOTS = 'gameserver_min_slots';
+    public const string KEY_GAMESERVER_MAX_SLOTS = 'gameserver_max_slots';
+    public const string KEY_GAMESERVER_SHOW_PORT_RANGE = 'gameserver_show_port_range';
+    public const string KEY_GAMESERVER_ALLOW_START_STOP = 'gameserver_allow_start_stop';
+    public const string KEY_CUSTOMER_DATA_MANAGER_ENABLED = 'customer_data_manager_enabled';
+    public const string KEY_CUSTOMER_FILE_PUSH_ENABLED = 'customer_file_push_enabled';
+    public const string KEY_CUSTOMER_CONSOLE_LABEL = 'customer_console_label';
+    public const string KEY_CUSTOMER_CONSOLE_ALLOWED_COMMANDS = 'customer_console_allowed_commands';
+    public const string KEY_CUSTOMER_LOGS_LABEL = 'customer_logs_label';
+    public const string KEY_INSTANCE_BASE_DIR = 'instance_base_dir';
+    public const string KEY_SFTP_HOST = 'sftp_host';
+    public const string KEY_SFTP_PORT = 'sftp_port';
+    public const string KEY_SFTP_USERNAME = 'sftp_username';
+    public const string KEY_SFTP_PASSWORD = 'sftp_password';
+    public const string KEY_SFTP_PRIVATE_KEY = 'sftp_private_key';
+    public const string KEY_SFTP_PRIVATE_KEY_PATH = 'sftp_private_key_path';
+    public const string KEY_SFTP_PRIVATE_KEY_PASSPHRASE = 'sftp_private_key_passphrase';
+    public const string KEY_INVOICE_LAYOUT = 'invoice_layout_html';
+    public const string KEY_INFRA_MONITORING = 'infrastructure_monitoring';
+    public const string KEY_INFRA_MONITORING_STATE = 'infrastructure_monitoring_state';
+    public const string KEY_INVOICE_DESIGN = 'invoice_design';
+    public const string KEY_BILLING_OPTIONS = 'billing_options';
+    public const string KEY_BILLING_LAST_RUN_AT = 'billing_last_run_at';
+    public const string KEY_SECURITY_SESSION_IDLE_MINUTES = 'security_session_idle_minutes';
+    public const string KEY_SECURITY_SESSION_ABSOLUTE_MINUTES = 'security_session_absolute_minutes';
+    public const string KEY_SECURITY_2FA_GLOBAL_REQUIRED = 'security_2fa_required_global';
+    public const string KEY_SECURITY_2FA_ADMIN_REQUIRED = 'security_2fa_required_admin';
+    public const string KEY_SECURITY_2FA_RESELLER_REQUIRED = 'security_2fa_required_reseller';
+    public const string KEY_SECURITY_2FA_CUSTOMER_REQUIRED = 'security_2fa_required_customer';
+    public const string KEY_CMS_MAINTENANCE_ENABLED = 'cms_maintenance_enabled';
+    public const string KEY_CMS_MAINTENANCE_MESSAGE = 'cms_maintenance_message';
+    public const string KEY_CMS_MAINTENANCE_GRAPHIC = 'cms_maintenance_graphic';
+    public const string KEY_CMS_MAINTENANCE_ALLOWLIST = 'cms_maintenance_allowlist';
+    public const string KEY_CMS_MAINTENANCE_STARTS_AT = 'cms_maintenance_starts_at';
+    public const string KEY_CMS_MAINTENANCE_ENDS_AT = 'cms_maintenance_ends_at';
+    public const string KEY_AGENT_REGISTRATION_TOKEN = 'agent_registration_token';
+    public const string KEY_REGISTRATION_ENABLED = 'registration_enabled';
+    public const string KEY_ANTI_ABUSE_ENABLE_POW_CONTACT = 'anti_abuse_enable_pow_contact';
+    public const string KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION = 'anti_abuse_enable_pow_registration';
+    public const string KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION = 'anti_abuse_enable_captcha_registration';
+    public const string KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT = 'anti_abuse_enable_captcha_contact';
+    public const string KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS = 'anti_abuse_min_submit_seconds';
+    public const string KEY_ANTI_ABUSE_POW_DIFFICULTY = 'anti_abuse_pow_difficulty';
+    public const string KEY_ANTI_ABUSE_DAILY_IP_LIMIT = 'anti_abuse_daily_ip_limit';
+    public const string KEY_BACKUP_DEFAULT_TARGET_ID = 'backup_default_target_id';
+    public const string KEY_BACKUP_DEFAULT_RETENTION_COUNT = 'backup_default_retention_count';
+    public const string KEY_BACKUP_DEFAULT_RETENTION_AGE_DAYS = 'backup_default_retention_age_days';
+    public const string KEY_BACKUP_DEFAULT_COMPRESSION = 'backup_default_compression';
+    public const string KEY_BACKUP_STOP_BEFORE = 'backup_stop_before';
+    public const string KEY_BACKUP_MAX_SIZE_BYTES = 'backup_max_size_bytes';
+    public const string KEY_BACKUP_WEBDAV_VERIFY_TLS = 'backup_webdav_verify_tls';
+    public const string KEY_WEBSPACE_DEFAULT_PHP_VERSION = 'webspace_default_php_version';
+    public const string KEY_WEBSPACE_DEFAULT_DISK_MB = 'webspace_default_disk_mb';
+    public const string KEY_WEBSPACE_DEFAULT_TRAFFIC_MB = 'webspace_default_traffic_mb';
+    public const string KEY_METRICS_RETENTION_DAYS = 'metrics_retention_days';
+    public const string KEY_METRICS_INSTANCE_RETENTION_DAYS = 'metrics_instance_retention_days';
+    public const string KEY_VOICE_PROBE_CACHE_SECONDS = 'voice_probe_cache_seconds';
+    public const string KEY_VOICE_PROBE_COOLDOWN_SECONDS = 'voice_probe_cooldown_seconds';
+    public const string KEY_SECURITY_MAX_CONCURRENT_SESSIONS = 'security_max_concurrent_sessions';
+    public const string KEY_PRIVACY_GDPR_JOBS_ENABLED = 'privacy_gdpr_jobs_enabled';
+    public const string KEY_PRIVACY_GDPR_JOBS_INTERVAL = 'privacy_gdpr_jobs_interval';
+    public const string KEY_PRIVACY_GDPR_LAST_RUN_AT = 'privacy_gdpr_last_run_at';
+    public const string KEY_PRIVACY_GDPR_LAST_STATUS = 'privacy_gdpr_last_status';
+    public const string KEY_PRIVACY_GDPR_LAST_ERROR = 'privacy_gdpr_last_error';
+    public const string KEY_DATABASE_LOGGING_STORE_ROUTINE = 'database_logging_store_routine';
+    public const string KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS = 'database_logging_routine_retention_days';
+    public const string KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS = 'database_logging_error_retention_days';
+    public const string KEY_SCHEDULER_LAST_HEARTBEAT_AT = 'scheduler_last_heartbeat_at';
+    public const string KEY_SCHEDULER_LAST_HEARTBEAT_STATUS = 'scheduler_last_heartbeat_status';
+    public const string KEY_MINECRAFT_JAVA_BINARY_8 = 'minecraft_java_binary_8';
+    public const string KEY_MINECRAFT_JAVA_BINARY_16 = 'minecraft_java_binary_16';
+    public const string KEY_MINECRAFT_JAVA_BINARY_17 = 'minecraft_java_binary_17';
+    public const string KEY_MINECRAFT_JAVA_BINARY_21 = 'minecraft_java_binary_21';
+    public const string KEY_MINECRAFT_JAVA_BINARY_25 = 'minecraft_java_binary_25';
+    public const string KEY_MINECRAFT_AUTO_INSTALL_JAVA = 'minecraft_auto_install_java';
 
-    private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
+    private const string DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
 <div style="font-family: DejaVu Sans, sans-serif; color: #18212f;">
   <h1>{{ company.name }}</h1>
   <p>{{ company.address|nl2br }}<br>{{ company.email }}<br>{{ labels.vat_id }}: {{ company.vat_id }}</p>
@@ -127,7 +127,7 @@ class AppSettingsService implements ConsoleCommandSettings
 </div>
 TWIG;
 
-    private const DEFAULTS = [
+    private const array DEFAULTS = [
         self::KEY_SITE_TITLE => 'Easy-Wi NextGen',
         self::KEY_BRANDING_NAME => 'Easy-Wi NextGen',
         self::KEY_BRANDING_LOGO_URL => null,
@@ -218,7 +218,7 @@ TWIG;
         self::KEY_MINECRAFT_AUTO_INSTALL_JAVA => true,
     ];
 
-    private const SECRET_KEYS = [
+    private const array SECRET_KEYS = [
         self::KEY_SFTP_PASSWORD,
         self::KEY_SFTP_PRIVATE_KEY,
         self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE,
@@ -226,7 +226,7 @@ TWIG;
         self::KEY_MAILER_DSN,
     ];
 
-    private const RESET_ON_DECRYPT_FAILURE_KEYS = [
+    private const array RESET_ON_DECRYPT_FAILURE_KEYS = [
         self::KEY_SFTP_PASSWORD,
         self::KEY_SFTP_PRIVATE_KEY,
         self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE,
@@ -544,6 +544,7 @@ TWIG;
     /**
      * @return string[]
      */
+    #[\Override]
     public function getCustomerConsoleAllowedCommands(): array
     {
         $settings = $this->getSettings();

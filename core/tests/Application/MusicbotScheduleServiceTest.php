@@ -187,13 +187,13 @@ final class MusicbotScheduleServiceTest extends TestCase
         $schedule = $this->makeSchedule();
         $schedule->setNextRunAt(new \DateTimeImmutable('2025-01-01 00:00:00'));
 
-        $jobMock = $this->createMock(AgentJob::class);
+        $jobMock = $this->createStub(AgentJob::class);
         $jobMock->method('getId')->willReturn('job-abc');
 
         $scheduleDispatcher = $this->createMock(MusicbotScheduleDispatcherInterface::class);
         $scheduleDispatcher->expects($this->once())->method('dispatch')->willReturn($jobMock);
 
-        $scheduleRepository = $this->createMock(MusicbotScheduleRepository::class);
+        $scheduleRepository = $this->createStub(MusicbotScheduleRepository::class);
         $scheduleRepository->method('findDue')->willReturn([$schedule]);
 
         $em = $this->createMock(EntityManagerInterface::class);
@@ -212,10 +212,10 @@ final class MusicbotScheduleServiceTest extends TestCase
         $schedule = $this->makeSchedule();
         $schedule->setNextRunAt(new \DateTimeImmutable('2025-01-01 00:00:00'));
 
-        $scheduleDispatcher = $this->createMock(MusicbotScheduleDispatcherInterface::class);
+        $scheduleDispatcher = $this->createStub(MusicbotScheduleDispatcherInterface::class);
         $scheduleDispatcher->method('dispatch')->willThrowException(new \RuntimeException('Agent unreachable.'));
 
-        $scheduleRepository = $this->createMock(MusicbotScheduleRepository::class);
+        $scheduleRepository = $this->createStub(MusicbotScheduleRepository::class);
         $scheduleRepository->method('findDue')->willReturn([$schedule]);
 
         $em = $this->createMock(EntityManagerInterface::class);
@@ -230,7 +230,7 @@ final class MusicbotScheduleServiceTest extends TestCase
 
     public function testRunDueReturnsEmptyWhenNoSchedulesDue(): void
     {
-        $scheduleRepository = $this->createMock(MusicbotScheduleRepository::class);
+        $scheduleRepository = $this->createStub(MusicbotScheduleRepository::class);
         $scheduleRepository->method('findDue')->willReturn([]);
 
         $em = $this->createMock(EntityManagerInterface::class);
@@ -318,10 +318,10 @@ final class MusicbotScheduleServiceTest extends TestCase
             // Build MusicbotRuntimeEventService without its constructor (final class).
             $reRef = new \ReflectionClass(\App\Module\Musicbot\Application\MusicbotRuntimeEventService::class);
             $runtimeService = $reRef->newInstanceWithoutConstructor();
-            $reRef->getProperty('entityManager')->setValue($runtimeService, $this->createMock(EntityManagerInterface::class));
+            $reRef->getProperty('entityManager')->setValue($runtimeService, $this->createStub(EntityManagerInterface::class));
             $ref->getProperty('runtimeEventService')->setValue($service, $runtimeService);
 
-            $ref->getProperty('auditLogger')->setValue($service, $this->createMock(AuditLogger::class));
+            $ref->getProperty('auditLogger')->setValue($service, $this->createStub(AuditLogger::class));
         }
 
         return $service;
@@ -338,13 +338,13 @@ final class MusicbotScheduleServiceTest extends TestCase
         $service = $ref->newInstanceWithoutConstructor();
 
         $emProp = $ref->getProperty('entityManager');
-        $emProp->setValue($service, $this->createMock(EntityManagerInterface::class));
+        $emProp->setValue($service, $this->createStub(EntityManagerInterface::class));
 
         $repoProp = $ref->getProperty('scheduleRepository');
-        $repoProp->setValue($service, $this->createMock(MusicbotScheduleRepository::class));
+        $repoProp->setValue($service, $this->createStub(MusicbotScheduleRepository::class));
 
         $dispProp = $ref->getProperty('scheduleDispatcher');
-        $dispProp->setValue($service, $this->createMock(MusicbotScheduleDispatcherInterface::class));
+        $dispProp->setValue($service, $this->createStub(MusicbotScheduleDispatcherInterface::class));
 
         return $service;
     }

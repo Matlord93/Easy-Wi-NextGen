@@ -20,6 +20,7 @@ final class BillingAutomationCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $result = $this->automation->run();

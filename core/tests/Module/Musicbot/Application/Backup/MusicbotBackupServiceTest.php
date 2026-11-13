@@ -14,19 +14,19 @@ use App\Module\Musicbot\Application\MusicbotSecretConfigServiceInterface;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 final class MusicbotBackupServiceTest extends TestCase
 {
     private MusicbotBackupService $service;
-    private MockObject&MusicbotSecretConfigServiceInterface $secretService;
-    private MockObject&MusicbotBackupDataProvider $dataProvider;
+    private Stub&MusicbotSecretConfigServiceInterface $secretService;
+    private Stub&MusicbotBackupDataProvider $dataProvider;
 
     protected function setUp(): void
     {
-        $this->secretService = $this->createMock(MusicbotSecretConfigServiceInterface::class);
-        $this->dataProvider = $this->createMock(MusicbotBackupDataProvider::class);
+        $this->secretService = $this->createStub(MusicbotSecretConfigServiceInterface::class);
+        $this->dataProvider = $this->createStub(MusicbotBackupDataProvider::class);
         $this->rebuildService();
     }
 
@@ -53,7 +53,7 @@ final class MusicbotBackupServiceTest extends TestCase
         $instance = $this->buildMockInstance();
         $options = MusicbotBackupOptions::fromArray(['type' => 'customer'], false);
 
-        $connection = $this->createMock(MusicbotConnection::class);
+        $connection = $this->createStub(MusicbotConnection::class);
         $connection->method('getPlatform')->willReturn(MusicbotPlatform::Teamspeak);
         $connection->method('isEnabled')->willReturn(true);
         $connection->method('getConnectionConfig')->willReturn(['host' => 'ts.example.com']);
@@ -79,7 +79,7 @@ final class MusicbotBackupServiceTest extends TestCase
         $instance = $this->buildMockInstance();
         $options = MusicbotBackupOptions::fromArray(['type' => 'admin', 'mask_secrets' => false], true);
 
-        $connection = $this->createMock(MusicbotConnection::class);
+        $connection = $this->createStub(MusicbotConnection::class);
         $connection->method('getPlatform')->willReturn(MusicbotPlatform::Teamspeak);
         $connection->method('isEnabled')->willReturn(true);
         $connection->method('getConnectionConfig')->willReturn(['host' => 'ts.example.com']);
@@ -213,9 +213,9 @@ final class MusicbotBackupServiceTest extends TestCase
         self::assertArrayHasKey('volume', $config);
     }
 
-    private function buildDataProviderWithConnections(array $connections): MockObject&MusicbotBackupDataProvider
+    private function buildDataProviderWithConnections(array $connections): Stub&MusicbotBackupDataProvider
     {
-        $dp = $this->createMock(MusicbotBackupDataProvider::class);
+        $dp = $this->createStub(MusicbotBackupDataProvider::class);
         $dp->method('getConnections')->willReturn($connections);
         $dp->method('getPlaylists')->willReturn([]);
         $dp->method('getRadioStations')->willReturn([]);
@@ -234,13 +234,13 @@ final class MusicbotBackupServiceTest extends TestCase
         );
     }
 
-    private function buildMockInstance(array $instanceConfig = ['volume' => 80]): MockObject&MusicbotInstance
+    private function buildMockInstance(array $instanceConfig = ['volume' => 80]): Stub&MusicbotInstance
     {
         $customer = new \App\Module\Core\Domain\Entity\User('customer@example.com', UserType::Customer);
-        $node = $this->createMock(\App\Module\Core\Domain\Entity\Agent::class);
+        $node = $this->createStub(\App\Module\Core\Domain\Entity\Agent::class);
         $node->method('getId')->willReturn('node-1');
 
-        $instance = $this->createMock(MusicbotInstance::class);
+        $instance = $this->createStub(MusicbotInstance::class);
         $instance->method('getId')->willReturn(42);
         $instance->method('getName')->willReturn('Test Bot');
         $instance->method('getStatus')->willReturn(\App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus::Running);

@@ -15,6 +15,7 @@ final class MusicbotScheduleDispatcher implements MusicbotScheduleDispatcherInte
     ) {
     }
 
+    #[\Override]
     public function dispatch(MusicbotSchedule $schedule): AgentJob
     {
         $instance = $schedule->getInstance();

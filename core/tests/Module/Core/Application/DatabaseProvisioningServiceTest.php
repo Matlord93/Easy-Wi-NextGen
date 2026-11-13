@@ -43,7 +43,7 @@ final class DatabaseProvisioningServiceTest extends TestCase
 
     private function newService(): DatabaseProvisioningService
     {
-        $encryptionService = $this->createMock(EncryptionService::class);
+        $encryptionService = $this->createStub(EncryptionService::class);
         $encryptionService->method('decrypt')->willReturn('admin-secret');
 
         return new DatabaseProvisioningService($encryptionService);

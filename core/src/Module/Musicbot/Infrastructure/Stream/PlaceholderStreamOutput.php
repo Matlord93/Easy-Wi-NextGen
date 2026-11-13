@@ -18,11 +18,13 @@ use App\Module\Musicbot\Domain\Entity\MusicbotStreamSettings;
  */
 final class PlaceholderStreamOutput implements StreamOutputInterface
 {
+    #[\Override]
     public function isAvailable(): bool
     {
         return false;
     }
 
+    #[\Override]
     public function start(MusicbotStreamSettings $settings): array
     {
         return [
@@ -32,6 +34,7 @@ final class PlaceholderStreamOutput implements StreamOutputInterface
         ];
     }
 
+    #[\Override]
     public function stop(MusicbotStreamSettings $settings): array
     {
         return [
@@ -40,6 +43,7 @@ final class PlaceholderStreamOutput implements StreamOutputInterface
         ];
     }
 
+    #[\Override]
     public function getStatus(MusicbotStreamSettings $settings): array
     {
         return [
