@@ -3,6 +3,7 @@ package vmconsole
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -62,16 +63,17 @@ func fakeRFBAuth(s io.ReadWriter, password string) error {
 }
 
 type gatewayFixture struct {
-	gateway  *httptest.Server
-	upstream *httptest.Server
-	broker   *httptest.Server
-	revoked  atomic.Bool
-	claimed  atomic.Bool
-	checks   atomic.Int32
-	input    chan string
+	gateway       *httptest.Server
+	upstream      *httptest.Server
+	broker        *httptest.Server
+	revoked       atomic.Bool
+	claimed       atomic.Bool
+	checks        atomic.Int32
+	skipTLSVerify atomic.Bool
+	input         chan string
 }
 
-func newGatewayFixture(t *testing.T, lifetime time.Duration) *gatewayFixture {
+func newGatewayFixture(t *testing.T, lifetime time.Duration, configure ...func(*Gateway)) *gatewayFixture {
 	t.Helper()
 	f := &gatewayFixture{input: make(chan string, 1)}
 	f.upstream = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -114,12 +116,63 @@ func newGatewayFixture(t *testing.T, lifetime time.Duration) *gatewayFixture {
 			http.Error(w, "reused", 403)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(Target{Session: "11111111-1111-4111-8111-111111111111", ExpiresAt: time.Now().Add(5 * time.Second).Unix(), URL: strings.Replace(f.upstream.URL, "https:", "wss:", 1), Authorization: "PVEAPIToken=synthetic-upstream-secret", Password: "synthetic-vnc-password"})
+		_ = json.NewEncoder(w).Encode(Target{Session: "11111111-1111-4111-8111-111111111111", ExpiresAt: time.Now().Add(5 * time.Second).Unix(), URL: strings.Replace(f.upstream.URL, "https:", "wss:", 1), Authorization: "PVEAPIToken=synthetic-upstream-secret", Password: "synthetic-vnc-password", SkipTLSVerify: f.skipTLSVerify.Load()})
 	}))
 	g := &Gateway{PanelURL: f.broker.URL, Origin: "https://panel.test", Secret: "synthetic-gateway-secret", Client: f.broker.Client(), Dialer: &websocket.Dialer{TLSClientConfig: f.upstream.Client().Transport.(*http.Transport).TLSClientConfig}, Recheck: 30 * time.Millisecond, Lifetime: lifetime}
+	for _, fn := range configure {
+		fn(g)
+	}
 	f.gateway = httptest.NewServer(g)
 	t.Cleanup(func() { f.gateway.Close(); f.upstream.Close(); f.broker.Close() })
 	return f
+}
+
+func TestGatewayTLSOptOutIsLimitedToTheBrokerTarget(t *testing.T) {
+	for _, withConfig := range []bool{false, true} {
+		name := "nil TLS config"
+		if withConfig {
+			name = "existing TLS config"
+		}
+		t.Run(name, func(t *testing.T) {
+			var base *websocket.Dialer
+			f := newGatewayFixture(t, time.Second, func(g *Gateway) {
+				base = &websocket.Dialer{HandshakeTimeout: time.Second}
+				if withConfig {
+					base.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+				}
+				g.Dialer = base
+			})
+			// The test upstream has a self-signed certificate. Verification must
+			// fail before and after the explicitly unverified console succeeds.
+			for _, skip := range []bool{false, true, false} {
+				f.claimed.Store(false)
+				f.skipTLSVerify.Store(skip)
+				ws, response, err := f.dial("https://panel.test")
+				if !skip {
+					if ws != nil {
+						ws.Close()
+					}
+					if err == nil || response == nil || response.StatusCode != http.StatusBadGateway {
+						t.Fatal("untrusted upstream accepted without broker opt-out")
+					}
+					response.Body.Close()
+					continue
+				}
+				if err != nil {
+					t.Fatalf("explicit broker opt-out failed: %v", err)
+				}
+				ws.SetReadDeadline(time.Now().Add(time.Second))
+				if err := Authenticate(&Stream{Conn: ws}, ""); err != nil {
+					ws.Close()
+					t.Fatal(err)
+				}
+				ws.Close()
+			}
+			if base.TLSClientConfig != nil && base.TLSClientConfig.InsecureSkipVerify {
+				t.Fatal("per-target opt-out mutated shared TLS configuration")
+			}
+		})
+	}
 }
 func (f *gatewayFixture) dial(origin string) (*websocket.Conn, *http.Response, error) {
 	d := websocket.Dialer{Subprotocols: []string{"binary", "easywi-console." + strings.Repeat("a", 64)}}

@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"easywi/agent/internal/liveconsole"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,7 +20,7 @@ import (
 
 var consoleAllowedChars = regexp.MustCompile(`^[\p{L}\p{N}\p{P}\p{S}\p{Zs}]+$`)
 
-var instanceRuntimeDir = "/run/easywi/instances"
+var instanceRuntimeDir = liveconsole.RuntimeDir()
 
 type tokenBucketLimiter struct {
 	mu      sync.Mutex
@@ -45,6 +49,16 @@ func (l *tokenBucketLimiter) Allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if len(l.history) >= 4096 {
+		for k, times := range l.history {
+			if len(times) == 0 || !times[len(times)-1].After(cutoff) {
+				delete(l.history, k)
+			}
+		}
+		if _, exists := l.history[key]; !exists && len(l.history) >= 4096 {
+			return false
+		}
+	}
 	entries := l.history[key][:0]
 	for _, ts := range l.history[key] {
 		if ts.After(cutoff) {
@@ -98,7 +112,9 @@ func writeConsoleCommandToSocket(socketPath, command string) error {
 	var err error
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		conn, err = net.DialTimeout("unix", socketPath, 500*time.Millisecond)
+		dialCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		conn, err = liveconsole.DialLocal(dialCtx, socketPath)
+		cancel()
 		if err == nil {
 			break
 		}
@@ -113,11 +129,33 @@ func writeConsoleCommandToSocket(socketPath, command string) error {
 	defer func() {
 		_ = conn.Close()
 	}()
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		return err
+	}
+	var hello struct {
+		Version  int    `json:"v"`
+		Instance string `json:"instance_id"`
+	}
+	expected := filepath.Base(filepath.Dir(socketPath))
+	if err := json.NewDecoder(io.LimitReader(conn, 512)).Decode(&hello); err != nil || hello.Version != 1 || hello.Instance != expected {
+		return errors.New("console endpoint identity mismatch; restart this game with the updated wrapper")
+	}
 	if err := conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 		return err
 	}
-	_, err = conn.Write([]byte(command + "\n"))
-	return err
+	if err := json.NewEncoder(conn).Encode(map[string]string{"instance_id": expected, "command": command}); err != nil {
+		return err
+	}
+	var ack struct {
+		Accepted bool `json:"accepted"`
+	}
+	if err := json.NewDecoder(io.LimitReader(conn, 512)).Decode(&ack); err != nil {
+		return err
+	}
+	if !ack.Accepted {
+		return errors.New("console command queue is full or unavailable")
+	}
+	return nil
 }
 
 func shouldRetryConsoleConnect(err error) bool {

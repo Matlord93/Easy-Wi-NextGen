@@ -74,13 +74,16 @@ jobs:
               if 'core/.env' not in archive.getnames():
                   print('core/.env missing from easywi-core.tar.gz', file=sys.stderr)
                   sys.exit(1)
+              for path in ('core/tools/console/configure-live-console.py', 'core/tools/console/live-console.conf.template', 'core/public/js/gameserver/console-live.js'):
+                  if path not in archive.getnames():
+                      raise SystemExit(path + ' missing from core archive')
               for name in ('minecraft-server.json', 'paper-versions.json', 'bedrock-server.json'):
                   if 'core/resources/minecraft/' + name not in archive.getnames():
                       raise SystemExit(name + ' missing from core archive')
           PYTAR
           unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" core/.env >/dev/null \
             || { echo 'core/.env missing from easywi-webinterface zip' >&2; exit 1; }
-          for f in core/resources/minecraft/bedrock-server.json core/resources/minecraft/minecraft-server.json core/resources/minecraft/paper-versions.json; do
+          for f in core/resources/minecraft/bedrock-server.json core/resources/minecraft/minecraft-server.json core/resources/minecraft/paper-versions.json core/tools/console/configure-live-console.py core/tools/console/live-console.conf.template core/public/js/gameserver/console-live.js; do
             unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" "$f" >/dev/null \
               || { echo "$f missing from easywi-webinterface zip" >&2; exit 1; }
           done

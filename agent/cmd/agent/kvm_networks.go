@@ -296,6 +296,9 @@ func (e *kvmEngine) inventory() (map[string]any, error) {
 			data, _ := json.Marshal(g)
 			_ = json.Unmarshal(data, &v)
 			v["managed"] = true
+			if cloud, err := e.cloudInitView(g); err == nil {
+				v["cloud_init"] = cloud
+			}
 			var definition kvmDomain
 			if raw, err := e.virsh("dumpxml", id, "--inactive"); err == nil && xml.Unmarshal(raw, &definition) == nil {
 				v["console_enabled"] = e.consoleConfigured(g, definition)

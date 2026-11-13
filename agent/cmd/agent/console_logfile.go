@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"easywi/agent/internal/liveconsole"
 	"fmt"
 	"io"
 	"os"
@@ -67,7 +68,7 @@ func appendConsoleLogLines(instanceID string, lines []string) error {
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
 		return fmt.Errorf("create console log dir: %w", err)
 	}
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := liveconsole.OpenLog(logPath, false)
 	if err != nil {
 		return fmt.Errorf("open console log for append: %w", err)
 	}
@@ -78,7 +79,7 @@ func appendConsoleLogLines(instanceID string, lines []string) error {
 		if line == "" {
 			continue
 		}
-		if _, err := f.WriteString(line + "\n"); err != nil {
+		if _, err := f.Write([]byte(line + "\n")); err != nil {
 			return fmt.Errorf("append console log line: %w", err)
 		}
 	}
@@ -99,33 +100,35 @@ func startLogFileStream(ctx context.Context, logFilePath string) (*startedJourna
 		return nil, fmt.Errorf("open console log for reading: %w", err)
 	}
 
+	// Seek near the end so a reconnecting browser sees recent history without
+	// replaying the entire file.
+	if stat, statErr := f.Stat(); statErr == nil && stat.Size() > consoleLogTailBytes {
+		_, _ = f.Seek(-consoleLogTailBytes, io.SeekEnd)
+		// Skip the partial first line that the seek likely landed in the middle of.
+		skipBuf := make([]byte, 1)
+		for {
+			n, e := f.Read(skipBuf)
+			if n > 0 && skipBuf[0] == '\n' {
+				break
+			}
+			if e != nil {
+				break
+			}
+		}
+	}
+
 	pr, pw := io.Pipe()
+	stopCancel := context.AfterFunc(ctx, func() { _ = pw.CloseWithError(ctx.Err()) })
 	doneCh := make(chan struct{})
 
 	go func() {
 		defer close(doneCh)
+		defer stopCancel()
 		defer func() { _ = pw.Close() }()
 
 		// currentF tracks the open file; reassigned when a truncation is detected.
 		currentF := f
 		defer func() { _ = currentF.Close() }()
-
-		// Seek near the end so a reconnecting browser sees recent history without
-		// replaying the entire file.
-		if stat, statErr := currentF.Stat(); statErr == nil && stat.Size() > consoleLogTailBytes {
-			_, _ = currentF.Seek(-consoleLogTailBytes, io.SeekEnd)
-			// Skip the partial first line that the seek likely landed in the middle of.
-			skipBuf := make([]byte, 1)
-			for {
-				n, e := currentF.Read(skipBuf)
-				if n > 0 && skipBuf[0] == '\n' {
-					break
-				}
-				if e != nil {
-					break
-				}
-			}
-		}
 
 		readBuf := make([]byte, 16*1024)
 		pending := make([]byte, 0, 4096)
@@ -145,6 +148,13 @@ func startLogFileStream(ctx context.Context, logFilePath string) (*startedJourna
 				for {
 					idx := bytes.IndexByte(pending, '\n')
 					if idx < 0 {
+						if len(pending) > 16*1024 {
+							if _, writeErr := pw.Write(append(append([]byte(nil), pending[:16*1024]...), '\n')); writeErr != nil {
+								return
+							}
+							pending = append(pending[:0], pending[16*1024:]...)
+							continue
+						}
 						break
 					}
 					line := pending[:idx+1]

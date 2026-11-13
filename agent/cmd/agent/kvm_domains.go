@@ -30,9 +30,7 @@ type kvmDomain struct {
 			Machine string `xml:"machine,attr"`
 			Value   string `xml:",chardata"`
 		} `xml:"type"`
-		Boot struct {
-			Dev string `xml:"dev,attr"`
-		} `xml:"boot"`
+		Boot []kvmBootDevice `xml:"boot"`
 	} `xml:"os"`
 	Features struct {
 		ACPI *struct{} `xml:"acpi"`
@@ -46,6 +44,7 @@ type kvmDomain struct {
 	OnCrash    string `xml:"on_crash"`
 	Devices    struct {
 		Graphics   []kvmGraphics     `xml:"graphics"`
+		Channels   []kvmAgentChannel `xml:"channel"`
 		Disks      []kvmXMLDisk      `xml:"disk"`
 		Interfaces []kvmXMLInterface `xml:"interface"`
 		Serial     struct {
@@ -62,6 +61,20 @@ type kvmDomain struct {
 			} `xml:"target"`
 		} `xml:"console"`
 	} `xml:"devices"`
+}
+type kvmBootDevice struct {
+	Dev string `xml:"dev,attr"`
+}
+type kvmAgentChannel struct {
+	Type   string `xml:"type,attr"`
+	Source struct {
+		Mode string `xml:"mode,attr"`
+		Path string `xml:"path,attr,omitempty"`
+	} `xml:"source"`
+	Target struct {
+		Type string `xml:"type,attr"`
+		Name string `xml:"name,attr"`
+	} `xml:"target"`
 }
 type kvmXMLMemory struct {
 	Unit  string `xml:"unit,attr"`
@@ -105,7 +118,10 @@ func (e *kvmEngine) domain(g kvmGuest) kvmDomain {
 	d.OS.Type.Arch = "x86_64"
 	d.OS.Type.Machine = "pc"
 	d.OS.Type.Value = "hvm"
-	d.OS.Boot.Dev = "hd"
+	d.OS.Boot = []kvmBootDevice{{"hd"}}
+	if g.NetworkBootFirst {
+		d.OS.Boot = []kvmBootDevice{{"network"}, {"hd"}}
+	}
 	d.Features.ACPI = &struct{}{}
 	d.Features.APIC = &struct{}{}
 	d.Clock.Offset = "utc"
@@ -127,6 +143,13 @@ func (e *kvmEngine) domain(g kvmGuest) kvmDomain {
 	// libvirt generates a socket in its private domain runtime directory.
 	// QEMU needs no write access to the managed disk/manifest directory.
 	d.Devices.Graphics = []kvmGraphics{graphics}
+	if g.GuestAgentEnabled {
+		channel := kvmAgentChannel{Type: "unix"}
+		channel.Source.Mode = "bind"
+		channel.Target.Type = "virtio"
+		channel.Target.Name = "org.qemu.guest_agent.0"
+		d.Devices.Channels = []kvmAgentChannel{channel}
+	}
 	nic := kvmXMLInterface{Type: g.NetworkType}
 	nic.Model.Type = "virtio"
 	nic.MAC.Address = kvmGuestMAC(g.ID)
@@ -181,6 +204,20 @@ func (e *kvmEngine) verifyXML(g kvmGuest, data []byte) error {
 	}
 	if len(d.Devices.Disks) != 2 || len(d.Devices.Interfaces) != 1 {
 		return errors.New("managed VM device configuration changed")
+	}
+	if len(d.Devices.Channels) > 0 {
+		if !g.GuestAgentEnabled || len(d.Devices.Channels) != 1 {
+			return errors.New("unmanaged guest agent channel")
+		}
+		c := d.Devices.Channels[0]
+		if c.Type != "unix" || c.Source.Mode != "bind" || c.Target.Type != "virtio" || c.Target.Name != "org.qemu.guest_agent.0" {
+			return errors.New("invalid guest agent channel")
+		}
+		if c.Source.Path != "" && !regexp.MustCompile(`^/(?:var/lib|run)/libvirt/qemu/channel/target/domain-[0-9]+-easywi-kvm-`+regexp.QuoteMeta(g.ID)+`/org\.qemu\.guest_agent\.0$`).MatchString(c.Source.Path) {
+			return errors.New("external guest agent socket rejected")
+		}
+	} else if g.GuestAgentEnabled {
+		return errors.New("guest agent channel missing")
 	}
 	found := 0
 	for _, disk := range d.Devices.Disks {
@@ -244,6 +281,13 @@ func (e *kvmEngine) validateSnapshot(g kvmGuest, name string) error {
 	// Preserve the original inner XML so forbidden devices/extensions are not
 	// silently removed by unmarshalling into a restricted domain struct.
 	data := []byte("<domain type=" + strconv.Quote(snapshot.Domain.Type) + ">" + snapshot.Domain.Inner + "</domain>")
+	// Historical snapshots can precede guest-agent preparation. Validate their
+	// own channel presence; restore redefines the current manifest afterwards.
+	var historical kvmDomain
+	if xml.Unmarshal(data, &historical) != nil {
+		return errors.New("invalid snapshot domain")
+	}
+	g.GuestAgentEnabled = len(historical.Devices.Channels) > 0
 	return e.verifyXML(g, data)
 }
 
@@ -337,7 +381,7 @@ func (e *kvmEngine) createGuest(p map[string]any) (map[string]any, error) {
 	if err := os.Chmod(image, 0600); err != nil {
 		return nil, err
 	}
-	g := kvmGuest{ID: id, Label: label, Template: template, VCPUs: cpu, MemoryMiB: ram, DiskGiB: disk, Network: network, NetworkType: networkType, Hostname: host, Username: user, CreatedAt: kvmNow()}
+	g := kvmGuest{ID: id, Label: label, Template: template, VCPUs: cpu, MemoryMiB: ram, DiskGiB: disk, Network: network, NetworkType: networkType, Hostname: host, Username: user, CreatedAt: kvmNow(), GuestAgentEnabled: true}
 	if err := e.cloudInit(g, keys); err != nil {
 		return nil, err
 	}
@@ -353,6 +397,9 @@ func (e *kvmEngine) createGuest(p map[string]any) (map[string]any, error) {
 func (e *kvmEngine) cloudInit(g kvmGuest, keys []string) error {
 	user := map[string]any{"name": g.Username, "lock_passwd": true, "shell": "/bin/bash", "sudo": []string{"ALL=(ALL) NOPASSWD:ALL"}, "ssh_authorized_keys": keys}
 	config := map[string]any{"hostname": g.Hostname, "manage_etc_hosts": true, "disable_root": true, "ssh_pwauth": false, "users": []any{user}, "ssh_deletekeys": true}
+	if g.GuestAgentEnabled {
+		config["packages"] = []string{"qemu-guest-agent"}
+	}
 	data, err := yaml.Marshal(config)
 	if err != nil {
 		return err

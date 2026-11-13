@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"net"
 	"os"
@@ -33,8 +34,12 @@ func TestWriteConsoleCommandToSocket(t *testing.T) {
 		defer func() {
 			_ = conn.Close()
 		}()
+		_ = json.NewEncoder(conn).Encode(map[string]any{"v": 1, "instance_id": filepath.Base(filepath.Dir(socketPath))})
 		line, _ := bufio.NewReader(conn).ReadString('\n')
-		received <- line
+		var request map[string]string
+		_ = json.Unmarshal([]byte(line), &request)
+		_ = json.NewEncoder(conn).Encode(map[string]bool{"accepted": true})
+		received <- request["command"] + "\n"
 	}()
 
 	if err := writeConsoleCommandToSocket(socketPath, "help"); err != nil {
@@ -100,8 +105,12 @@ func TestWriteConsoleCommandToSocketRetriesUntilSocketReady(t *testing.T) {
 		defer func() {
 			_ = conn.Close()
 		}()
+		_ = json.NewEncoder(conn).Encode(map[string]any{"v": 1, "instance_id": filepath.Base(filepath.Dir(socketPath))})
 		line, _ := bufio.NewReader(conn).ReadString('\n')
-		received <- line
+		var request map[string]string
+		_ = json.Unmarshal([]byte(line), &request)
+		_ = json.NewEncoder(conn).Encode(map[string]bool{"accepted": true})
+		received <- request["command"] + "\n"
 	}()
 
 	if err := writeConsoleCommandToSocket(socketPath, "status"); err != nil {

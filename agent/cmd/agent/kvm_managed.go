@@ -40,17 +40,19 @@ type kvmTemplate struct {
 	CreatedAt   string `json:"created_at"`
 }
 type kvmGuest struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Template    string `json:"template"`
-	VCPUs       int    `json:"vcpus"`
-	MemoryMiB   int    `json:"memory_mib"`
-	DiskGiB     int    `json:"disk_gib"`
-	Network     string `json:"network"`
-	NetworkType string `json:"network_type"`
-	Hostname    string `json:"hostname"`
-	Username    string `json:"username"`
-	CreatedAt   string `json:"created_at"`
+	ID                string `json:"id"`
+	Label             string `json:"label"`
+	Template          string `json:"template"`
+	VCPUs             int    `json:"vcpus"`
+	MemoryMiB         int    `json:"memory_mib"`
+	DiskGiB           int    `json:"disk_gib"`
+	Network           string `json:"network"`
+	NetworkType       string `json:"network_type"`
+	Hostname          string `json:"hostname"`
+	Username          string `json:"username"`
+	CreatedAt         string `json:"created_at"`
+	GuestAgentEnabled bool   `json:"guest_agent_enabled,omitempty"`
+	NetworkBootFirst  bool   `json:"network_boot_first,omitempty"`
 }
 type kvmBackup struct {
 	ID        string `json:"id"`
@@ -76,7 +78,7 @@ func kvmCapabilities() map[string]any {
 			missing = append(missing, b)
 		}
 	}
-	return map[string]any{"version": 1, "console_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
+	return map[string]any{"version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "disk_grow_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
 }
 
 func newKVMEngine(ctx context.Context) (*kvmEngine, error) {
@@ -121,6 +123,9 @@ func newKVMEngine(ctx context.Context) (*kvmEngine, error) {
 }
 
 func handleKVMManaged(job jobs.Job) orchestratorResult {
+	if payloadValue(job.Payload, "action") == "vm.agent_status" {
+		return handleKVMGuestAgentStatus(job)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	e, err := newKVMEngine(ctx)
@@ -245,6 +250,31 @@ func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, er
 		return nil, err
 	}
 	switch action {
+	case "vm.disk_grow":
+		return e.growDisk(g, p)
+	case "vm.cloud_init":
+		return e.updateCloudInit(g, p)
+	case "vm.guest_agent", "vm.boot_order":
+		old := g
+		if action == "vm.guest_agent" {
+			g.GuestAgentEnabled = true
+		} else {
+			order := payloadValue(p, "boot_order")
+			if order != "disk" && order != "network" {
+				return nil, errors.New("invalid boot order")
+			}
+			g.NetworkBootFirst = order == "network"
+		}
+		if err := e.define(g); err != nil {
+			return nil, err
+		}
+		if err := kvmWriteJSON(e.guestFile(id, "manifest.json"), g); err != nil {
+			if rollback := e.define(old); rollback != nil {
+				return nil, fmt.Errorf("%w: definition rollback failed", errKVMUnconfirmed)
+			}
+			return nil, err
+		}
+		return map[string]any{"vm_id": id}, nil
 	case "vm.console.configure":
 		return map[string]any{"vm_id": id}, e.define(g)
 	case "vm.limits":

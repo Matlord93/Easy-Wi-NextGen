@@ -44,6 +44,7 @@ type consoleSession struct {
 
 	mu           sync.Mutex
 	buffer       []consoleLine
+	bufferBytes  int
 	nextID       int64
 	lastAccess   time.Time
 	restarts     int
@@ -130,6 +131,9 @@ func (m *consoleSessionManager) getOrCreate(instanceID, unitName string) *consol
 		s.mu.Unlock()
 		return s
 	}
+	if len(m.sessions) >= 128 {
+		return nil
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &consoleSession{
 		instanceID: instanceID,
@@ -163,14 +167,21 @@ func (m *consoleSessionManager) stopAll() {
 func (m *consoleSessionManager) cleanupLoop(key string, s *consoleSession) {
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
-	for range t.C {
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-t.C:
+		}
 		s.mu.Lock()
 		expired := time.Since(s.lastAccess) > m.ttl
 		s.mu.Unlock()
 		if expired {
 			s.cancel()
 			m.mu.Lock()
-			delete(m.sessions, key)
+			if m.sessions[key] == s {
+				delete(m.sessions, key)
+			}
 			m.mu.Unlock()
 			return
 		}
@@ -189,8 +200,10 @@ func (s *consoleSession) appendLine(stream, text, level string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
+	if len(text) > 16*1024 {
+		text = strings.ToValidUTF8(text[:16*1024], "�")
+	}
 	s.nextID++
-	s.lastAccess = now
 	s.windowBytes += int64(len(text))
 	if now.Sub(s.windowAt) >= time.Second {
 		s.bytesPerSec = s.windowBytes
@@ -198,11 +211,14 @@ func (s *consoleSession) appendLine(stream, text, level string) {
 		s.windowAt = now
 	}
 	s.buffer = append(s.buffer, consoleLine{ID: s.nextID, TS: now.UTC().Format(time.RFC3339), Stream: stream, Text: text, Level: level})
-	if len(s.buffer) > 1000 {
-		dropped := len(s.buffer) - 1000
-		s.droppedLines += int64(dropped)
-		s.buffer = s.buffer[len(s.buffer)-1000:]
+	s.bufferBytes += len(text)
+	for len(s.buffer) > 1000 || s.bufferBytes > 256*1024 {
+		s.bufferBytes -= len(s.buffer[0].Text)
+		s.buffer[0] = consoleLine{}
+		s.buffer = s.buffer[1:]
+		s.droppedLines++
 	}
+
 }
 
 func (s *consoleSession) snapshotAfterCursor(cursorRaw string) consoleSnapshot {
@@ -404,6 +420,10 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			return true
 		}
 		s := globalConsoleSessions.getOrCreate(instanceID, unit)
+		if s == nil {
+			writeAccessEnvelope(w, 503, accessEnvelope{OK: false, ErrorCode: "CONSOLE_CAPACITY", Message: "console reader capacity reached", RequestID: requestID})
+			return true
+		}
 		resume := strings.TrimSpace(r.URL.Query().Get("cursor"))
 		if resume == "" {
 			resume = strings.TrimSpace(r.URL.Query().Get("last_offset"))
@@ -463,6 +483,10 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			return true
 		}
 		s := globalConsoleSessions.getOrCreate(instanceID, unit)
+		if s == nil {
+			writeAccessEnvelope(w, 503, accessEnvelope{OK: false, ErrorCode: "CONSOLE_CAPACITY", Message: "console reader capacity reached", RequestID: requestID})
+			return true
+		}
 		snapshot := s.snapshotAfterCursor("")
 		writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{
 			"unit_name":          unit,
@@ -513,6 +537,10 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			return true
 		}
 		s := globalConsoleSessions.getOrCreate(instanceID, unit)
+		if s == nil {
+			writeAccessEnvelope(w, 503, accessEnvelope{OK: false, ErrorCode: "CONSOLE_CAPACITY", Message: "console reader capacity reached", RequestID: requestID})
+			return true
+		}
 		s.appendLine("meta", "> "+redactCommandForMeta(command), "info")
 		writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{"accepted": true, "sent_at": time.Now().UTC().Format(time.RFC3339), "correlation_id": correlationID}})
 		return true

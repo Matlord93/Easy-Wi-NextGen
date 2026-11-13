@@ -643,6 +643,9 @@ func collectStats(version string, roles []string) map[string]any {
 			}
 		}
 	}
+	if usage := collectKVMUsage(); usage != nil {
+		stats["kvm_usage"] = usage
+	}
 	return stats
 }
 

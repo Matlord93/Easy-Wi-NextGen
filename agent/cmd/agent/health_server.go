@@ -16,6 +16,7 @@ import (
 	"easywi/agent/internal/config"
 	"easywi/agent/internal/fileapi"
 	"easywi/agent/internal/gamesvcembed"
+	"easywi/agent/internal/liveconsole"
 	"easywi/agent/internal/sinusbotsvcembed"
 )
 
@@ -73,6 +74,7 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 	})
 
 	mux := http.NewServeMux()
+	mux.Handle("/v1/console/live/", &liveconsole.Server{Agent: cfg.AgentID, Secret: cfg.Secret, SocketPath: systemdConsoleSocketPath})
 	mux.HandleFunc("/v1/kvm/console/", withBearerAuth(cfg.Secret, handleKVMConsoleHTTP))
 	mux.Handle("/v1/servers/", fileServer.Handler())
 	mux.HandleFunc("/v1/webspaces/", makeWebspaceCompatHandler(fileServer.Handler(), cfg.FileBaseDir))

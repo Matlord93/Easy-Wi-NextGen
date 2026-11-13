@@ -28,6 +28,7 @@ type Target struct {
 	URL           string `json:"url"`
 	Authorization string `json:"authorization"`
 	Password      string `json:"password"`
+	SkipTLSVerify bool   `json:"skip_tls_verify,omitempty"`
 }
 type Gateway struct {
 	PanelURL string
@@ -116,7 +117,18 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = limited
 	}
 	headers := http.Header{"Authorization": []string{target.Authorization}}
-	upstream, _, err := g.Dialer.DialContext(ctx, target.URL, headers)
+	// Only the trusted panel broker can select this per-target setting. Clone
+	// both structs to keep other consoles and panel requests isolated.
+	dialer := *g.Dialer
+	if target.SkipTLSVerify {
+		if dialer.TLSClientConfig == nil {
+			dialer.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		} else {
+			dialer.TLSClientConfig = dialer.TLSClientConfig.Clone()
+		}
+		dialer.TLSClientConfig.InsecureSkipVerify = true // #nosec G402 -- explicit per-connection administrator setting from the trusted broker.
+	}
+	upstream, _, err := dialer.DialContext(ctx, target.URL, headers)
 	if err != nil {
 		http.Error(w, "Console upstream unavailable", 502)
 		return
