@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use Symfony\Component\HttpFoundation\IpUtils;
+
 class MusicbotWebradioUrlValidator
 {
+    public const BLOCKED_NETWORKS = [...IpUtils::PRIVATE_SUBNETS, '224.0.0.0/4', 'ff00::/8'];
     private const BLOCKED_SCHEMES = ['file', 'ftp', 'ftps', 'data', 'javascript'];
     private const ALLOWED_SCHEMES = ['http', 'https'];
 
@@ -30,6 +33,9 @@ class MusicbotWebradioUrlValidator
         if ($url === '') {
             throw new \InvalidArgumentException('Stream URL must not be empty.');
         }
+        if (preg_match('/[\x00-\x20\x7f\\\\]/', $url)) {
+            throw new \InvalidArgumentException('Stream URL is not a valid URL.');
+        }
 
         $parsed = parse_url($url);
         if ($parsed === false || !isset($parsed['scheme'])) {
@@ -48,7 +54,7 @@ class MusicbotWebradioUrlValidator
             throw new \InvalidArgumentException('Stream URL is not a valid URL.');
         }
 
-        $host = strtolower(trim($parsed['host'], '[]'));
+        $host = rtrim(strtolower(trim($parsed['host'], '[]')), '.');
 
         if (in_array($host, self::BLOCKED_HOSTNAMES, true)) {
             throw new \InvalidArgumentException('Stream URLs pointing to localhost are not allowed.');
@@ -64,6 +70,13 @@ class MusicbotWebradioUrlValidator
             if (str_starts_with($host, $prefix)) {
                 throw new \InvalidArgumentException('Stream URLs pointing to private or reserved IP addresses are not allowed.');
             }
+        }
+        if (false !== filter_var($host, FILTER_VALIDATE_IP)) {
+            if (false === filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) || IpUtils::checkIp($host, self::BLOCKED_NETWORKS)) {
+                throw new \InvalidArgumentException('Stream URLs pointing to private or reserved IP addresses are not allowed.');
+            }
+        } elseif (false === filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) || preg_match('/^(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+))*$/iD', $host)) {
+            throw new \InvalidArgumentException('Stream URL host is not valid. Non-standard IP notation is not allowed.');
         }
 
         // Reject suspiciously long URLs (> 2 048 chars)

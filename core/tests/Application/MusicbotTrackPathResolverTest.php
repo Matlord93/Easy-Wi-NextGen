@@ -48,6 +48,7 @@ final class MusicbotTrackPathResolverTest extends TestCase
         mkdir($dir . '/project/var/musicbot/tracks', 0770, true);
         mkdir($dir . '/instance/data/tracks', 0770, true);
         $customer = new User('customer@example.test', UserType::Customer);
+        (new \ReflectionProperty(User::class, 'id'))->setValue($customer, 2);
         $agent = new Agent('agent-uuid-1', ['token' => 'hash'], 'Test Agent');
         $instance = new MusicbotInstance($customer, $agent, 'Bot', 'musicbot-test', $dir . '/instance');
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Infrastructure\Filesystem\ConfinedLocalPath;
+
 use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Domain\Entity\Instance;
 
@@ -26,8 +28,12 @@ final class InstanceConfigPathResolver
 
         $os = $this->resolveOs($instance);
         $relativePath = trim(str_replace('\\', '/', $relativePath));
-        if ($relativePath === '' || $this->isAbsolutePath($relativePath, $os)) {
+        if ($relativePath === '' || $this->isAbsolutePath($relativePath, $os) || str_contains($relativePath, ':') || preg_match('/[\x00-\x1f\x7f]/', $relativePath.$root)) {
             throw new \RuntimeException('PATH_TRAVERSAL');
+        }
+        $plainRoot = str_replace('\\', '/', $root);
+        if (str_starts_with($plainRoot, '//') || ('windows' === $os ? 1 !== preg_match('#^[A-Za-z]:/[^:]*$#D', $plainRoot) : (!str_starts_with($plainRoot, '/') || str_contains($plainRoot, ':')))) {
+            throw new \RuntimeException('ROOT_INVALID');
         }
         $relativePath = trim($relativePath, '/');
         foreach (explode('/', $relativePath) as $segment) {
@@ -42,6 +48,9 @@ final class InstanceConfigPathResolver
         if (!$this->isWithinRoot($absolute, $rootNormalized, $os)) {
             throw new \RuntimeException('PATH_TRAVERSAL');
         }
+        if (('windows' === $os) === ('\\' === DIRECTORY_SEPARATOR) && null === ConfinedLocalPath::resolve($rootNormalized, $relativePath)) {
+            throw new \RuntimeException('PATH_TRAVERSAL');
+        }
 
         return [
             'root' => $rootNormalized,
@@ -50,6 +59,40 @@ final class InstanceConfigPathResolver
             'os' => $os,
             'source_rule' => 'instance_root_plus_relative',
         ];
+    }
+
+    /** @return array{exists: bool, size: ?int} */
+    public function stat(Instance $instance, string $relative): array
+    {
+        $resolved = $this->resolve($instance, $relative);
+        $path = ConfinedLocalPath::resolve($resolved['root'], $resolved['relative'], true);
+        $exists = null !== $path && is_file($path);
+        $size = $exists ? filesize($path) : false;
+
+        return ['exists' => $exists, 'size' => false === $size ? null : $size];
+    }
+
+    public function read(Instance $instance, string $relative): ?string
+    {
+        $resolved = $this->resolve($instance, $relative);
+        $path = ConfinedLocalPath::resolve($resolved['root'], $resolved['relative'], true);
+        if (null === $path || !is_file($path)) {
+            return null;
+        }
+        $stream = @fopen($path, 'rb');
+        if (false === $stream) {
+            throw new \RuntimeException('CONFIG_NOT_READABLE');
+        }
+        try {
+            $content = stream_get_contents($stream, 256 * 1024 + 1);
+            if (false === $content || strlen($content) > 256 * 1024) {
+                throw new \RuntimeException('CONFIG_TOO_LARGE');
+            }
+
+            return $content;
+        } finally {
+            fclose($stream);
+        }
     }
 
     private function resolveOs(Instance $instance): string

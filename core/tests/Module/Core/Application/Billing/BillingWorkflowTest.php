@@ -194,6 +194,16 @@ final class BillingWorkflowTest extends KernelTestCase
         self::getContainer()->get(InvoiceLayoutRenderer::class)->render($this->invoice(), Request::create('/'), "{{ source('/etc/passwd') }}");
     }
 
+    public function testInvoiceValuesStayEscapedAndLiteralPhpIsNotExecuted(): void
+    {
+        $invoice = $this->invoice();
+        $invoice->setBillingDetails(['locale' => 'de', 'customer' => ['name' => '<img src=x onerror=alert(1)>'], 'company' => ['name' => 'Company']]);
+        $html = self::getContainer()->get(InvoiceLayoutRenderer::class)->render($invoice, Request::create('/'), '{{ customer.name }} <?php echo "executed"; ?>');
+        self::assertStringContainsString('&lt;img', $html);
+        self::assertStringNotContainsString('<img', $html);
+        self::assertStringContainsString('<?php echo "executed"; ?>', $html);
+    }
+
     public function testCsvProtectsSpreadsheetFormulasAndContainsTaxBreakdown(): void
     {
         $invoice = $this->invoice('=SUM(1,1)');

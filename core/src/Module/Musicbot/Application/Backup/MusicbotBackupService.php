@@ -77,7 +77,7 @@ final class MusicbotBackupService
 
     public function serializeToJson(MusicbotBackupManifest $manifest): string
     {
-        $json = json_encode($manifest->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        $json = json_encode($manifest->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         if ($json === false) {
             throw new \RuntimeException('Failed to serialize backup manifest to JSON.');
         }

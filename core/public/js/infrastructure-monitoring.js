@@ -6,7 +6,7 @@
     const node = (name, attrs, value) => { const el = document.createElementNS(NS,name); for (const [k,v] of Object.entries(attrs || {})) el.setAttribute(k,String(v)); if (value !== undefined) el.textContent=value; return el; };
     document.querySelectorAll('[data-monitor-history]').forEach(root => {
         const form=root.querySelector('form'), select=form.elements.namedItem('hours'), status=root.querySelector('[data-monitor-status]');
-        let controller,generation=0;
+        let controller,generation=0,refreshTimer;
         const date = time => new Intl.DateTimeFormat(root.dataset.locale,{dateStyle:'short',timeStyle:'short',timeZone:root.dataset.timezone}).format(new Date(time*1000));
         function number(value,percent) {
             if (value >= 1e15) return value.toExponential(2)+(percent?' %':' B/s');
@@ -40,10 +40,29 @@
             else url.searchParams.set('hours',select.value);
             return url;
         }
-        async function load(){controller?.abort();const activeController=new AbortController();controller=activeController;const current=++generation,timeout=setTimeout(()=>activeController.abort(),10000);try{const url=query(),csv=new URL(url);csv.searchParams.set('format','csv');root.querySelector('[data-monitor-export]').href=csv.href;url.searchParams.set('format','json');const response=await fetch(url,{credentials:'same-origin',cache:'no-store',redirect:'error',signal:activeController.signal});if(!response.ok)throw new Error(root.dataset.failed);const payload=await response.json();if(current===generation)draw(payload);}catch(_){if(current===generation)status.textContent=root.dataset.failed;}finally{clearTimeout(timeout);}}
+        function schedule(){
+            clearTimeout(refreshTimer);
+            // A fixed custom interval never changes; a year does not need minute polling.
+            if(select.value==='custom')return;
+            const hours=Number(select.value),delay=hours<=24?60000:hours<=168?300000:hours<=744?900000:3600000;
+            refreshTimer=setTimeout(()=>{if(document.hidden)schedule();else load();},delay);
+        }
+        async function load(){
+            clearTimeout(refreshTimer);controller?.abort();
+            const activeController=new AbortController();controller=activeController;
+            const current=++generation,timeout=setTimeout(()=>activeController.abort(),45000);
+            status.textContent=root.dataset.loading;root.setAttribute('aria-busy','true');
+            try{
+                const url=query(),csv=new URL(url);csv.searchParams.set('format','csv');root.querySelector('[data-monitor-export]').href=csv.href;url.searchParams.set('format','json');
+                const response=await fetch(url,{credentials:'same-origin',cache:'no-store',redirect:'error',signal:activeController.signal});
+                if(!response.ok)throw new Error(root.dataset.failed);
+                const payload=await response.json();if(current===generation)draw(payload);
+            }catch(_){if(current===generation)status.textContent=root.dataset.failed;}
+            finally{clearTimeout(timeout);if(current===generation){root.removeAttribute('aria-busy');schedule();}}
+        }
         select.addEventListener('change',()=>{root.querySelectorAll('[data-monitor-custom]').forEach(el=>{el.hidden=select.value!=='custom';});});
         form.addEventListener('submit',event=>{event.preventDefault();load();});
         const existing=new URL(location.href).searchParams.get('hours');if([...select.options].some(o=>o.value===existing))select.value=existing;
-        load();setInterval(()=>{if(!document.hidden)load();},60000);
+        load();
     });
 })();

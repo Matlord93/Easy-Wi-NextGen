@@ -153,17 +153,24 @@ final class MusicbotYoutubeService
     private function runYtDlpJson(MusicbotInstance $instance, array $targets, bool $playlist): array
     {
         if (!$this->resolver->isAvailable()) { throw new \RuntimeException('yt-dlp fehlt. Bitte Musicbot-Repair ausführen oder yt-dlp installieren.'); }
-        $args = [$this->binary, '--dump-json', '--no-warnings', '--ignore-errors'];
+        $args = [$this->binary, '--ignore-config', '--dump-json', '--no-warnings', '--ignore-errors', '--skip-download', '--playlist-end', (string) self::MAX_IMPORT_ITEMS];
         if (!$playlist) { $args[] = '--no-playlist'; }
         $cookies = $this->cookiesForInstance($instance);
         $cookieFile = null;
         if ($cookies !== '') {
             $cookieFile = tempnam(sys_get_temp_dir(), 'easywi-ytdlp-cookies-');
-            if ($cookieFile !== false) { file_put_contents($cookieFile, $cookies); $args[] = '--cookies'; $args[] = $cookieFile; }
+            if ($cookieFile === false) { throw new \RuntimeException('Cannot create temporary cookie file.'); }
+            if (file_put_contents($cookieFile, $cookies) !== strlen($cookies)) { @unlink($cookieFile); throw new \RuntimeException('Cannot write temporary cookie file.'); }
+            @chmod($cookieFile, 0600);
+            $args[] = '--cookies'; $args[] = $cookieFile;
         }
+        $args[] = '--';
         foreach ($targets as $target) { $args[] = $target; }
-        $result = $this->runProcess($args);
-        if ($cookieFile !== null && is_file($cookieFile)) { @unlink($cookieFile); }
+        try {
+            $result = $this->runProcess($args);
+        } finally {
+            if ($cookieFile !== null) { @unlink($cookieFile); }
+        }
         if ($result['exit_code'] !== 0 && trim($result['stdout']) === '') { throw new \RuntimeException($this->humanizeYtDlpError($result['stderr'], $result['exit_code'])); }
         $rows = [];
         foreach (explode("\n", trim($result['stdout'])) as $line) {
@@ -177,17 +184,7 @@ final class MusicbotYoutubeService
     /** @param array<int, string> $args @return array{exit_code:int, stdout:string, stderr:string} */
     private function runProcess(array $args): array
     {
-        $process = proc_open($args, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        if (!is_resource($process)) { throw new \RuntimeException('yt-dlp konnte nicht gestartet werden.'); }
-        fclose($pipes[0]);
-        $stdout = ''; $stderr = ''; $deadline = time() + self::YTDLP_TIMEOUT_SECONDS;
-        while (!feof($pipes[1]) || !feof($pipes[2])) {
-            if (time() > $deadline) { proc_terminate($process); break; }
-            $out = fread($pipes[1], 8192); if ($out !== false) { $stdout .= $out; }
-            $err = fread($pipes[2], 4096); if ($err !== false) { $stderr .= $err; }
-        }
-        fclose($pipes[1]); fclose($pipes[2]);
-        return ['exit_code' => proc_close($process), 'stdout' => $stdout, 'stderr' => $stderr];
+        return MusicbotProcessRunner::run($args, self::YTDLP_TIMEOUT_SECONDS);
     }
 
     /** @param array<string, mixed> $entry */

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\TypedStreamResponse;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
@@ -21,7 +23,6 @@ use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -395,12 +396,14 @@ final class CustomerDatabaseController
 
         $filename = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $database->getName()) . '.sql';
         $lines = $this->databaseTableService->exportDatabaseSql($database);
-        $response = new StreamedResponse(static function () use ($lines): void {
+        $response = new TypedStreamResponse('application/sql; charset=UTF-8', static function (\Closure $write) use ($lines): void {
             foreach ($lines as $line) {
-                echo $line . "\n";
+                $write($line . "\n");
             }
         });
         $response->headers->set('Content-Type', 'application/sql; charset=UTF-8');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('Cache-Control', 'private, no-store');
         $response->headers->set('Content-Disposition', sprintf('attachment; filename="%s"', $filename));
 
         return $response;
@@ -425,12 +428,14 @@ final class CustomerDatabaseController
         }
 
         $filename = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $database->getName() . '_' . $table) . '.sql';
-        $response = new StreamedResponse(static function () use ($lines): void {
+        $response = new TypedStreamResponse('application/sql; charset=UTF-8', static function (\Closure $write) use ($lines): void {
             foreach ($lines as $line) {
-                echo $line . "\n";
+                $write($line . "\n");
             }
         });
         $response->headers->set('Content-Type', 'application/sql; charset=UTF-8');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('Cache-Control', 'private, no-store');
         $response->headers->set('Content-Disposition', sprintf('attachment; filename="%s"', $filename));
 
         return $response;

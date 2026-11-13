@@ -15,15 +15,21 @@ installation job, including the upstream checksum when available.
 2. Deploy the updated panel, clear/warm the Symfony production cache, and run the normal Doctrine migrations, including
    `Version20261022090000` (nullable catalog metadata) and
    `Version20261022140000` (game-specific port pools).
-3. From `core`, run `php bin/console minecraft:templates:prepare`. This adds missing
-   Minecraft templates, including Spigot and BungeeCord, and preserves existing
-   template customizations. The catalog synchronizer also prepares missing
-   templates automatically.
-4. Run `php bin/console catalog:sync:minecraft` for the initial import. Keep the
-   existing `app:run-schedules` scheduler running: it dispatches catalog refreshes
-   in the background when due, normally hourly. The admin catalog page displays
-   provider results and can queue another refresh. Inspect
-   `core/var/minecraft-catalog/sync.log` if a background import fails.
+3. Open **Administration → Minecraft** and choose a version. Missing Minecraft
+   templates and the bundled Vanilla, Paper and Bedrock catalog are prepared on
+   first use. No JSON upload, manually maintained version entry or initial CLI
+   import is required. Release builds include these seed files under
+   `core/resources/minecraft/`; source checkouts use the canonical `minecraft/`
+   directory automatically.
+4. Keep the existing `app:run-schedules` scheduler running. Official providers are
+   refreshed in a background worker, normally hourly. Opening a version selector
+   also dispatches a refresh when due. Spigot and BungeeCord are discovered from
+   their official providers. Open selectors receive new versions automatically;
+   stable releases are selected by default, with previews available explicitly.
+   Inspect `core/var/minecraft-catalog/sync.log` and application logs if a provider
+   remains unavailable. Failed sources preserve their existing catalog. Failed
+   initial checks retry after one minute; a successful catalog is checked hourly.
+
 5. Create a test instance on each target node and verify console output,
    connectivity, allocated ports and a restart before enabling it for customers.
 
@@ -31,6 +37,40 @@ The new managed workflow is Linux-only. Windows retains its existing installatio
 path. Nothing automatically replaces existing worlds or upgrades running server
 versions when the catalog refreshes. Server upgrades continue through the panel's
 explicit update/version-lock and automation controls.
+
+## Installation fails with START_EXECUTABLE_OUTSIDE_GAME_DIR
+
+If the log shows successful artifact preparation followed by
+`START_EXECUTABLE_OUTSIDE_GAME_DIR path=/var/cache/easywi-java/.../bin/java`,
+the server download has completed. The failure is in start-executable validation:
+older agents incorrectly require the managed Java runtime to be inside the game
+directory. The runtime intentionally lives in the protected Java cache.
+
+Deploy and restart the agent containing the managed-Java path validation fix,
+then retry the installation. The validator permits only the selected Java major's
+exact provisioned binary (including an administrator-configured
+`EASYWI_JAVA_CACHE_DIR`), and still checks that it exists and is executable.
+Other external executables remain rejected. Do not move the JDK into the customer
+directory or disable the path check globally.
+
+## Installation only prints the managed-install message
+
+`steam_app_id_missing` and `uses_steamcmd=false` are expected for Minecraft.
+The former `echo "Minecraft artifact installation managed by agent"` command
+does not download anything: the Linux agent must prepare the selected artifact
+before invoking the shell command. A full install log should contain
+`Minecraft: preparing the required Java runtime` and download/cache progress.
+If those are absent and the server files are missing, check the assigned job for
+`minecraft_managed=true`, `minecraft_channel`, and `minecraft_download_url`, and
+check that the running agent binary matches the deployed release. Build/deploy
+and restart the current Linux agent, wait for a fresh capability heartbeat, then
+queue a new installation. A stale capability heartbeat alone does not prove the
+currently running binary supports managed installation.
+
+The panel now checks for a nonempty, readable `server.jar` (or executable
+`bedrock_server`) in the installation working directory. Missing artifacts fail
+with `MINECRAFT_ARTIFACT_MISSING` instead of succeeding after an echo. This check
+does not replace the agent's download, checksum, Java or selected-version checks.
 
 ## Catalog sources and limits
 
@@ -45,7 +85,9 @@ explicit update/version-lock and automation controls.
   exposes current downloads, not a complete historical archive. Previously
   imported catalog rows are retained, but upstream may remove old artifacts.
 
-Imports preserve manually maintained entries and deliberately disabled entries.
+Automatic refreshes preserve existing custom entries and deliberately disabled entries.
+The catalog pages expose version selection and a read-only list; legacy manual
+form URLs redirect without modifying records.
 A provider failure retains its previous catalog and reports the error separately.
 Availability depends on the artifacts still being provided upstream; the panel
 cannot manufacture releases that an upstream no longer hosts.

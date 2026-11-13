@@ -14,9 +14,20 @@ use Twig\Environment;
 use Twig\Extension\SandboxExtension;
 use Twig\Loader\ArrayLoader;
 use Twig\Sandbox\SecurityPolicy;
+use Twig\Node\Node;
+use Twig\Node\Expression\FilterExpression;
+use Twig\Node\Expression\FunctionExpression;
+use Twig\Node\Expression\TestExpression;
+use Twig\Node\Expression\Binary\RangeBinary;
+use Twig\Source;
+use Twig\Node\Expression\GetAttrExpression;
+use Twig\Template;
 
 final class InvoiceLayoutRenderer
 {
+    private const TAGS = ['if', 'for', 'set'];
+    private const FILTERS = ['escape', 'e', 'date', 'number_format', 'default', 'replace', 'title', 'upper', 'lower', 'nl2br', 'length', 'join', 'trim', 'round', 'abs'];
+    private const TESTS = ['defined', 'empty', 'null', 'none', 'true', 'false', 'even', 'odd', 'iterable', 'same as', 'sequence', 'mapping', 'number', 'string'];
     public function __construct(
         private readonly CustomerProfileRepository $profileRepository,
         private readonly SiteResolver $siteResolver,
@@ -68,7 +79,8 @@ final class InvoiceLayoutRenderer
         $context['date_format'] = str_starts_with($locale, 'de') ? 'd.m.Y' : 'Y-m-d';
         $context['invoice']['tax_notice'] = $this->translator->trans('billing.notice.'.$context['invoice']['tax_mode'], [], 'billing', $locale);
         try {
-            return $this->environment()->createTemplate($layout)->render($context);
+            $twig = $this->environment();
+            return $twig->createTemplate($this->checkedLayout($twig, $layout))->render($context);
         } catch (\Twig\Error\Error $exception) {
             throw new \InvalidArgumentException('billing.invalid_layout', 0, $exception);
         }
@@ -80,7 +92,8 @@ final class InvoiceLayoutRenderer
             throw new \InvalidArgumentException('billing.invalid_layout');
         }
         try {
-            $this->environment()->createTemplate($layout)->render([]);
+            $twig = $this->environment();
+            $twig->createTemplate($this->checkedLayout($twig, $layout))->render([]);
         } catch (\Twig\Error\Error $exception) {
             throw new \InvalidArgumentException('billing.invalid_layout', 0, $exception);
         }
@@ -94,15 +107,55 @@ final class InvoiceLayoutRenderer
     private function environment(): Environment
     {
         $twig = new Environment(new ArrayLoader(), ['autoescape' => 'html', 'strict_variables' => false]);
-        $twig->addExtension(new SandboxExtension(new SecurityPolicy(
-            ['if', 'for', 'set'],
-            ['escape', 'e', 'date', 'number_format', 'default', 'replace', 'title', 'upper', 'lower', 'nl2br', 'length', 'join', 'trim', 'round', 'abs'],
-            [],
-            [],
-            [],
-        ), true));
+        $policy = new SecurityPolicy(self::TAGS, self::FILTERS, [], [], [], self::TESTS);
+        if (method_exists($policy, 'setStrict')) {
+            $policy->setStrict(true);
+        }
+        $twig->addExtension(new SandboxExtension($policy, true));
 
         return $twig;
+    }
+
+    /**
+     * Only the parsed, allow-listed invoice language may reach Twig's compiler.
+     * This removes PHP-evaluation taint only: HTML and invoice values remain
+     * subject to autoescaping and the always-enabled runtime sandbox.
+     *
+     * @psalm-taint-escape eval
+     */
+    private function checkedLayout(Environment $twig, string $layout): string
+    {
+        if ('' === trim($layout) || strlen($layout) > 100000) {
+            throw new \InvalidArgumentException('billing.invalid_layout');
+        }
+        $tree = $twig->parse($twig->tokenize(new Source($layout, 'invoice-layout')));
+        $this->checkNode($tree);
+
+        return $layout;
+    }
+
+    private function checkNode(Node $node): void
+    {
+        $tag = $node->getNodeTag();
+        $allowed = !$tag || in_array($tag, self::TAGS, true);
+        if ($node instanceof FilterExpression) {
+            $allowed = $allowed && in_array($node->getAttribute('name'), self::FILTERS, true);
+        }
+        if ($node instanceof TestExpression) {
+            $allowed = $allowed && in_array($node->getAttribute('name'), self::TESTS, true);
+        }
+        if ($node instanceof FunctionExpression || $node instanceof RangeBinary || $node->hasAttribute('sandboxed_function_name')) {
+            $allowed = false;
+        }
+        if ($node instanceof GetAttrExpression && Template::METHOD_CALL === $node->getAttribute('type')) {
+            $allowed = false;
+        }
+        if (!$allowed) {
+            throw new \Twig\Error\SyntaxError('This construct is not permitted in invoice layouts.', $node->getTemplateLine());
+        }
+        foreach ($node as $child) {
+            $this->checkNode($child);
+        }
     }
 
     private function parties(Invoice $invoice, Request $request): array

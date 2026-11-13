@@ -31,7 +31,7 @@ final class MusicbotWebradioUrlValidatorTest extends TestCase
         yield 'https stream' => ['https://stream.example.com/radio'];
         yield 'http with port' => ['http://cdn.example.com:8000/stream'];
         yield 'https with path' => ['https://icecast.example.net/stream/128kbps'];
-        yield 'public ip' => ['http://203.0.113.5:8080/live'];
+        yield 'public ip' => ['http://8.8.8.8:8080/live'];
     }
 
     #[DataProvider('blockedUrlProvider')]
@@ -59,13 +59,22 @@ final class MusicbotWebradioUrlValidatorTest extends TestCase
         yield 'private 172.31.x' => ['http://172.31.255.255/stream', 'private or reserved'];
         yield 'link-local 169.254.x' => ['http://169.254.1.1/meta', 'private or reserved'];
         yield 'ipv6 loopback' => ['http://[::1]/stream', 'loopback'];
+        yield 'ipv6 unique-local' => ['http://[fd00::123]/stream', 'private or reserved'];
+        yield 'ipv6 mapped private' => ['http://[::ffff:127.0.0.1]/stream', 'private or reserved'];
+        yield 'ipv6 link-local alternate' => ['http://[feb0::1]/stream', 'private or reserved'];
+        yield 'cgnat' => ['http://100.64.0.1/stream', 'private or reserved'];
+        yield 'integer ipv4' => ['http://2130706433/stream', 'non-standard'];
+        yield 'hex ipv4' => ['http://0x7f000001/stream', 'non-standard'];
+        yield 'octal ipv4' => ['http://0177.0.0.1/stream', 'non-standard'];
+        yield 'multicast' => ['http://224.0.0.1/stream', 'private or reserved'];
+        yield 'localhost trailing dot' => ['http://localhost./stream', 'localhost'];
         yield 'no host' => ['http:///nohost', 'not a valid URL'];
         yield 'too long' => ['https://example.com/' . str_repeat('a', 2048), 'too long'];
     }
 
     public function testAcceptsPortInPublicUrl(): void
     {
-        $this->validator->validate('http://203.0.113.10:8000/stream.ogg');
+        $this->validator->validate('http://8.8.4.4:8000/stream.ogg');
         $this->addToAssertionCount(1);
     }
 

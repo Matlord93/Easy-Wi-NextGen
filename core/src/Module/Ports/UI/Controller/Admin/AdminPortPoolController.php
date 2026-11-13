@@ -194,7 +194,7 @@ final class AdminPortPoolController
                 $this->auditLogger->log($actor, 'port_pool.scope_updated', ['port_pool_id' => $pool->getId(), 'game_scope' => $pool->getGameScope()]);
             });
         } catch (\InvalidArgumentException $error) {
-            return new Response($error->getMessage(), 400);
+            return new Response(htmlspecialchars($error->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), 400, ['Content-Type' => 'text/html; charset=UTF-8', 'X-Content-Type-Options' => 'nosniff']);
         }
 
         return new \Symfony\Component\HttpFoundation\RedirectResponse('/admin/port-pools');

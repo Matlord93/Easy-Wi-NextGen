@@ -79,8 +79,9 @@ final class CustomerInstanceConfigApiController
             if (($target['relative_path'] ?? '') !== '') {
                 try {
                     $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
-                    $exists = is_file($resolved['absolute']);
-                    $size = $exists ? filesize($resolved['absolute']) : null;
+                    $info = $this->instanceConfigPathResolver->stat($instance, (string) $target['relative_path']);
+                    $exists = $info['exists'];
+                    $size = $info['size'];
                 } catch (\Throwable) {
                     $resolved = null;
                 }
@@ -121,11 +122,7 @@ final class CustomerInstanceConfigApiController
             }
 
             $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
-            $content = '';
-            if (is_file($resolved['absolute'])) {
-                $raw = @file_get_contents($resolved['absolute']);
-                $content = is_string($raw) ? $raw : '';
-            }
+            $content = $this->instanceConfigPathResolver->read($instance, (string) $target['relative_path']) ?? '';
 
             return $this->envelopeOk($request, [
                 'target' => $target,
@@ -185,12 +182,12 @@ final class CustomerInstanceConfigApiController
             }
 
             $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
-            $absolutePath = (string) $resolved['absolute'];
-            if (!$create && !is_file($absolutePath)) {
+            $existingContent = $this->instanceConfigPathResolver->read($instance, (string) $target['relative_path']);
+            if (!$create && null === $existingContent) {
                 return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
             }
 
-            $existingContent = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
+            $existingContent ??= '';
             $variables = $this->buildConfigVariables($instance, is_array($payload['values'] ?? null) ? $payload['values'] : []);
             $content = $this->renderTemplateContent($target, $payload, $existingContent, $variables);
             if (strlen($content) > 256 * 1024) {

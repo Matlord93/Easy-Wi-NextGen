@@ -72,52 +72,20 @@ final class MusicbotYoutubeResolverService
 
         $cmd = [
             $this->binary,
+            '--ignore-config',
             '--get-url',
             '--format', 'bestaudio/best',
             '--no-playlist',
             '--no-warnings',
             '--quiet',
             // No cookies, no authentication — intentionally.
+            '--',
             $youtubeUrl,
         ];
 
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
-        $process = proc_open($cmd, $descriptors, $pipes);
-        if (!is_resource($process)) {
-            throw new \RuntimeException('youtube_resolver: failed to start yt-dlp process.');
-        }
-
-        fclose($pipes[0]);
-
-        $stdout = '';
-        $stderr = '';
-        $deadline = time() + self::RESOLVE_TIMEOUT_SECONDS;
-
-        while (!feof($pipes[1]) || !feof($pipes[2])) {
-            if (time() > $deadline) {
-                proc_terminate($process);
-                fclose($pipes[1]);
-                fclose($pipes[2]);
-                proc_close($process);
-                throw new \RuntimeException('youtube_resolver: yt-dlp timed out after ' . self::RESOLVE_TIMEOUT_SECONDS . 's.');
-            }
-            $chunk = fread($pipes[1], 8192);
-            if ($chunk !== false) {
-                $stdout .= $chunk;
-            }
-            $errChunk = fread($pipes[2], 2048);
-            if ($errChunk !== false) {
-                $stderr .= $errChunk;
-            }
-        }
-
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exitCode = proc_close($process);
+        $result = MusicbotProcessRunner::run($cmd, self::RESOLVE_TIMEOUT_SECONDS);
+        $stdout = $result['stdout'];
+        $exitCode = $result['exit_code'];
 
         if ($exitCode !== 0) {
             $this->logger->warning('youtube_resolver: yt-dlp exited with code {code}', [
@@ -139,8 +107,12 @@ final class MusicbotYoutubeResolverService
 
     public function isAvailable(): bool
     {
-        $result = shell_exec(sprintf('%s --version 2>/dev/null', escapeshellcmd($this->binary)));
+        try {
+            $result = MusicbotProcessRunner::run([$this->binary, '--ignore-config', '--version'], 5, 65536);
 
-        return $result !== null && trim((string) $result) !== '';
+            return 0 === $result['exit_code'] && '' !== trim($result['stdout']);
+        } catch (\RuntimeException) {
+            return false;
+        }
     }
 }

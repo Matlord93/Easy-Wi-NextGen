@@ -24,7 +24,7 @@ final readonly class InfrastructureCollector
         $now ??= new \DateTimeImmutable();
         $options = $this->settings->get();
         $state = $this->settings->state();
-        $result = ['samples' => 0, 'unavailable' => 0, 'pruned' => 0, 'skipped' => false];
+        $result = ['samples' => 0, 'unavailable' => 0, 'pruned' => 0, 'rollups_backfilled' => 0, 'skipped' => false];
         if (!$options['enabled'] || (!$force && ($state['last_minute'] ?? null) === intdiv($now->getTimestamp(), 60))) {
             return array_replace($result, ['skipped' => true]);
         }
@@ -106,6 +106,11 @@ final readonly class InfrastructureCollector
                 }
             }
             $result['pruned'] = $this->history->prune((int) $options['retention_days'], $now);
+            if (empty($state['rollups_initialized']) && microtime(true) - $started < 20) {
+                $backfill = $this->history->backfill(100, $now);
+                $result['rollups_backfilled'] = $backfill['created'];
+                $state['rollups_initialized'] = !$backfill['pending'];
+            }
             $state['last_minute'] = intdiv($now->getTimestamp(), 60);
             $state['last_run_at'] = $now->format(DATE_ATOM);
             $state['last_result'] = $result;

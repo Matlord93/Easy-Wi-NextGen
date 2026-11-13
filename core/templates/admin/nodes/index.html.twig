@@ -332,6 +332,7 @@
                         hx-target="#nodes-table-wrap"
                         hx-swap="innerHTML"
                     >
+                        <input type="hidden" name="_token" value="{{ csrf_token('node-agent-settings-' ~ selectedNode.id) }}">
                         <div class="nodes-form-grid" style="margin-bottom:16px;">
                             <div class="form-field">
                                 <label class="form-label" for="agent-base-url">{{ t('admin_nodes_agent_base_url_label', page_locale()) }}</label>

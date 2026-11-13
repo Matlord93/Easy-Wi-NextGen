@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use Symfony\Component\HttpClient\HttpClient;
+use Symfony\Component\HttpClient\NoPrivateNetworkHttpClient;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
+
 /**
  * Resolves playlist file formats (M3U, PLS, XSPF) to direct stream URLs.
  * Follows HTTP redirects and selects the first reachable stream URL.
@@ -11,12 +15,16 @@ namespace App\Module\Musicbot\Application;
 class MusicbotRadioPlaylistResolver
 {
     private const MAX_REDIRECTS = 5;
-    private const CONNECT_TIMEOUT = 8;
+    private const MAX_PLAYLIST_BYTES = 1048576;
+    private readonly HttpClientInterface $http;
     private const TIMEOUT = 12;
 
     public function __construct(
         private readonly MusicbotWebradioUrlValidator $urlValidator,
+        ?HttpClientInterface $httpClient = null,
     ) {
+        // Validates and pins DNS before connecting, including every redirect.
+        $this->http = new NoPrivateNetworkHttpClient($httpClient ?? HttpClient::create(), MusicbotWebradioUrlValidator::BLOCKED_NETWORKS);
     }
 
     /**
@@ -94,40 +102,42 @@ class MusicbotRadioPlaylistResolver
 
     private function fetchContent(string $url): string
     {
-        $ch = curl_init($url);
-        if ($ch === false) {
-            throw new \RuntimeException('Failed to initialise HTTP client.');
-        }
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => self::MAX_REDIRECTS,
-            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT,
-            CURLOPT_TIMEOUT        => self::TIMEOUT,
-            CURLOPT_USERAGENT      => 'EasyWI-Musicbot/1.0 (playlist-resolver)',
-            CURLOPT_SSL_VERIFYPEER => true,
+        $this->urlValidator->validate($url);
+        $response = $this->http->request('GET', $url, [
+            'max_redirects' => self::MAX_REDIRECTS,
+            'timeout' => self::TIMEOUT,
+            'max_duration' => self::TIMEOUT,
+            'buffer' => false,
+            'headers' => ['User-Agent' => 'EasyWI-Musicbot/1.0 (playlist-resolver)'],
+            'on_progress' => static function (int $downloaded, int $size, array $info): void {
+                if ($downloaded > self::MAX_PLAYLIST_BYTES && empty($info['canceled'])) {
+                    throw new \RuntimeException('Playlist exceeds the 1 MiB limit.');
+                }
+            },
         ]);
+        try {
+            $status = $response->getStatusCode();
+            if ($status < 200 || $status >= 300) {
+                throw new \RuntimeException(sprintf('Playlist URL returned HTTP %d.', $status));
+            }
+            $body = '';
+            foreach ($this->http->stream($response) as $chunk) {
+                if ($chunk->isTimeout()) {
+                    throw new \RuntimeException('Playlist request timed out.');
+                }
+                $body .= $chunk->getContent();
+                if (strlen($body) > self::MAX_PLAYLIST_BYTES) {
+                    throw new \RuntimeException('Playlist exceeds the 1 MiB limit.');
+                }
+            }
+            if ('' === $body) {
+                throw new \RuntimeException('Playlist file was empty.');
+            }
 
-        $body = curl_exec($ch);
-        $errno = curl_errno($ch);
-        $error = curl_error($ch);
-        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($errno !== 0) {
-            throw new \RuntimeException(sprintf('HTTP request failed: %s', $error));
+            return $body;
+        } finally {
+            $response->cancel();
         }
-
-        if ($httpCode < 200 || $httpCode >= 300) {
-            throw new \RuntimeException(sprintf('Playlist URL returned HTTP %d.', $httpCode));
-        }
-
-        if (!is_string($body) || $body === '') {
-            throw new \RuntimeException('Playlist file was empty.');
-        }
-
-        return $body;
     }
 
     /** @return string[] */
@@ -168,8 +178,11 @@ class MusicbotRadioPlaylistResolver
     private function parseXspf(string $content): array
     {
         $urls = [];
+        if (str_contains(strtoupper($content), '<!DOCTYPE')) {
+            return [];
+        }
         try {
-            $xml = new \SimpleXMLElement($content);
+            $xml = new \SimpleXMLElement($content, LIBXML_NONET);
             $xml->registerXPathNamespace('xspf', 'http://xspf.org/ns/0/');
             $locations = $xml->xpath('//xspf:location') ?: $xml->xpath('//location') ?: [];
             foreach ($locations as $loc) {
@@ -190,41 +203,34 @@ class MusicbotRadioPlaylistResolver
      */
     private function probeStreamHeaders(string $url): array
     {
-        $ch = curl_init($url);
-        if ($ch === false) {
-            return ['content_type' => null, 'bitrate' => null, 'stream_name' => null, 'genre' => null];
+        $empty = ['content_type' => null, 'bitrate' => null, 'stream_name' => null, 'genre' => null];
+        $response = null;
+        try {
+            $this->urlValidator->validate($url);
+            $response = $this->http->request('GET', $url, [
+                'max_redirects' => self::MAX_REDIRECTS,
+                'timeout' => 5,
+                'max_duration' => 5,
+                'buffer' => false,
+                'headers' => ['Range' => 'bytes=0-0', 'Icy-MetaData' => '1', 'User-Agent' => 'EasyWI-Musicbot/1.0 (stream-probe)'],
+            ]);
+            $status = $response->getStatusCode();
+            if ($status < 200 || $status >= 300) {
+                return $empty;
+            }
+            $headers = $response->getHeaders(false);
+
+            return [
+                'content_type' => $headers['content-type'][0] ?? null,
+                'bitrate' => isset($headers['icy-br'][0]) ? (int) $headers['icy-br'][0] : null,
+                'stream_name' => $headers['icy-name'][0] ?? null,
+                'genre' => $headers['icy-genre'][0] ?? null,
+            ];
+        } catch (\Symfony\Contracts\HttpClient\Exception\ExceptionInterface|\InvalidArgumentException) {
+            return $empty;
+        } finally {
+            // A live stream can ignore Range; never wait for or buffer its body.
+            $response?->cancel();
         }
-
-        $responseHeaders = [];
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_NOBODY         => false,
-            CURLOPT_RANGE          => '0-0',
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => self::MAX_REDIRECTS,
-            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT,
-            CURLOPT_TIMEOUT        => 5,
-            CURLOPT_USERAGENT      => 'EasyWI-Musicbot/1.0 (stream-probe)',
-            CURLOPT_HTTPHEADER     => ['Icy-MetaData: 1'],
-            CURLOPT_HEADERFUNCTION => static function ($ch, string $header) use (&$responseHeaders): int {
-                $len = strlen($header);
-                if (str_contains($header, ':')) {
-                    [$name, $value] = explode(':', $header, 2);
-                    $responseHeaders[strtolower(trim($name))] = trim($value);
-                }
-
-                return $len;
-            },
-        ]);
-
-        curl_exec($ch);
-        curl_close($ch);
-
-        return [
-            'content_type' => $responseHeaders['content-type'] ?? null,
-            'bitrate'      => isset($responseHeaders['icy-br']) ? (int) $responseHeaders['icy-br'] : null,
-            'stream_name'  => $responseHeaders['icy-name'] ?? null,
-            'genre'        => $responseHeaders['icy-genre'] ?? null,
-        ];
     }
 }

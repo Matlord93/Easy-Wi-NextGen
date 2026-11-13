@@ -19,7 +19,6 @@ use App\Repository\MusicbotInstanceRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -104,11 +103,11 @@ final class MusicbotBackupApiController
             'backup_type' => $options->type->value,
         ]);
 
-        $response = new StreamedResponse(function () use ($json): void {
-            echo $json;
-        });
+        $response = new JsonResponse($json, Response::HTTP_OK, [], true);
 
         $response->headers->set('Content-Type', 'application/json');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('Cache-Control', 'private, no-store');
         $response->headers->set('Content-Disposition', 'attachment; filename="'.$filename.'"');
         $response->headers->set('Content-Length', (string) strlen($json));
 

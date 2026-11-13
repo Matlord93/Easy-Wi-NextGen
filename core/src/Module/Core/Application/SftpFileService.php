@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Filesystem\ConfiguredKeyFile;
+
 use App\Module\Core\Application\Exception\SftpException;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\GameServerPathResolver;
@@ -332,8 +334,8 @@ final class SftpFileService
     {
         $key = $this->settingsService->getSftpPrivateKey();
         $path = $this->settingsService->getSftpPrivateKeyPath();
-        if ((!is_string($key) || $key === '') && is_string($path) && $path !== '' && is_file($path)) {
-            $key = (string) file_get_contents($path);
+        if ((!is_string($key) || $key === '') && is_string($path) && $path !== '') {
+            $key = ConfiguredKeyFile::read($path);
         }
 
         if (!is_string($key) || $key === '') {

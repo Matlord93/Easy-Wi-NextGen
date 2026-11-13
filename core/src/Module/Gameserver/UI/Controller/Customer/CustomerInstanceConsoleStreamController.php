@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Http\TypedStreamResponse;
+use App\Module\Gameserver\Application\ConsoleSseEncoder;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
@@ -55,11 +58,11 @@ final class CustomerInstanceConsoleStreamController
             (int) $request->query->get('last_event_id', '0'),
         );
 
-        $response = new StreamedResponse(function () use ($id, $lastEventId): void {
+        $response = new TypedStreamResponse('text/event-stream', function (\Closure $write) use ($id, $lastEventId): void {
             try {
                 $degraded = $this->resolveDegradedCause();
                 if ($degraded !== null) {
-                    $this->writeEvent([
+                    $this->writeEvent($write, [
                         'type' => 'status',
                         'status' => $degraded['status'],
                         'message' => $degraded['message'],
@@ -73,7 +76,7 @@ final class CustomerInstanceConsoleStreamController
                 $this->eventBus->incrementSubscriber($id);
 
                 foreach ($this->eventBus->replayConsoleEvents($id, $lastEventId) as $event) {
-                    $this->writeEvent($event);
+                    $this->writeEvent($write, $event);
                 }
 
                 while ((time() - $startedAt) < $this->maxDurationSeconds) {
@@ -87,14 +90,14 @@ final class CustomerInstanceConsoleStreamController
                     }
                     $this->eventBus->consumeConsoleEvents(
                         $id,
-                        function (array $event): void {
-                            $this->writeEvent($event);
+                        function (array $event) use ($write): void {
+                            $this->writeEvent($write, $event);
                         },
                         fn (): bool => (time() - $startedAt) >= $this->maxDurationSeconds,
                     );
 
                     if ((time() - $lastPing) >= $this->pingIntervalSeconds) {
-                        $this->writeEvent(['type' => 'ping', 'ts' => (new \DateTimeImmutable())->format(DATE_ATOM)], 'ping', null);
+                        $this->writeEvent($write, ['type' => 'ping', 'ts' => (new \DateTimeImmutable())->format(DATE_ATOM)], 'ping', null);
                         $lastPing = time();
                     }
                     usleep(200000);
@@ -105,7 +108,7 @@ final class CustomerInstanceConsoleStreamController
                 if ($this->debug) {
                     $message .= ' : ' . $e->getMessage() . sprintf(' (%s:%d)', $e->getFile(), $e->getLine());
                 }
-                $this->writeEvent([
+                $this->writeEvent($write, [
                     'type' => 'status',
                     'status' => 'stream_unavailable',
                     'message' => $message,
@@ -121,6 +124,7 @@ final class CustomerInstanceConsoleStreamController
         });
 
         $response->headers->set('Content-Type', 'text/event-stream');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Cache-Control', 'no-cache');
         $response->headers->set('Connection', 'keep-alive');
         $response->headers->set('X-Accel-Buffering', 'no');
@@ -171,14 +175,9 @@ final class CustomerInstanceConsoleStreamController
         return $user;
     }
 
-    private function writeEvent(array $payload, string $event = 'chunk', ?int $id = null): void
+    private function writeEvent(\Closure $write, array $payload, string $event = 'chunk', ?int $id = null): void
     {
-        $seq = $id ?? (int) ($payload['seq'] ?? 0);
-        if ($seq > 0) {
-            echo sprintf("id: %d\n", $seq);
-        }
-        echo sprintf("event: %s\n", $event ?: (string) ($payload['type'] ?? 'chunk'));
-        echo 'data: '.json_encode($payload, JSON_UNESCAPED_SLASHES)."\n\n";
+        $write(ConsoleSseEncoder::encode($payload, $event, $id));
         if (function_exists('ob_flush')) {
             @ob_flush();
         }

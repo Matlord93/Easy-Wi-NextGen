@@ -200,7 +200,7 @@ final class CustomerWebspaceController
             $errors[] = 'Subdomain is required.';
         }
         if ($errors !== []) {
-            return new Response(implode(' ', $errors), Response::HTTP_BAD_REQUEST);
+            return new Response(htmlspecialchars(implode(' ', $errors), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), Response::HTTP_BAD_REQUEST, ['Content-Type' => 'text/html; charset=UTF-8', 'X-Content-Type-Options' => 'nosniff']);
         }
 
         $existing = $domain->getServerAliases();

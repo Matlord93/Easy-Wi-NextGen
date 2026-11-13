@@ -73,10 +73,11 @@ final class MusicbotTrackService
         }
 
         $safeBaseName = $this->normalizeBaseName($title ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-        $relativePath = sprintf('customer-%d/%s-%s.%s', $customer->getId() ?? 0, substr($sha256, 0, 16), $safeBaseName, $extension);
-        $targetPath = $instance instanceof MusicbotInstance
-            ? $this->pathResolver->instanceTrackRoot($instance) . '/' . $relativePath
-            : $this->projectDir . '/var/musicbot/tracks/' . $relativePath;
+        if ($instance && $instance->getCustomer()->getId() !== $customer->getId()) {
+            throw new \RuntimeException('Musicbot instance does not belong to the current customer.');
+        }
+        $filename = sprintf('%s-%s.%s', substr($sha256, 0, 16), $safeBaseName, $extension);
+        $targetPath = $this->pathResolver->uploadPath($instance, $customer->getId() ?? 0, $filename);
         $targetDir = dirname($targetPath);
         if (!$this->ensureWritableDirectory($targetDir)) {
             $message = sprintf('Could not create customer track storage directory at %s: %s', $targetDir, error_get_last()['message'] ?? 'directory is not writable');
@@ -129,19 +130,15 @@ final class MusicbotTrackService
     public function deleteTrack(User $customer, MusicbotTrack $track): void
     {
         $this->assertCustomerOwnsTrack($customer, $track);
-        $filePath = $track->getFilePath();
+        $absolutePath = $this->pathResolver->customerTrackFile($track);
         $this->entityManager->remove($track);
         $this->entityManager->flush();
 
-        if ($filePath !== null) {
-            $absolutePath = $track->getInstance() instanceof MusicbotInstance
-                ? $this->pathResolver->resolveTrackFile($track, $track->getInstance())
-                : (str_starts_with($filePath, 'var/musicbot/tracks/customer-') ? $this->projectDir . '/' . $filePath : null);
-            if ($absolutePath !== null && is_file($absolutePath)) {
-                @unlink($absolutePath);
-            }
+        if ($absolutePath !== null && is_file($absolutePath)) {
+            @unlink($absolutePath);
         }
     }
+
 
     public function addWebradioTrack(User $customer, string $title, string $streamUrl): MusicbotTrack
     {

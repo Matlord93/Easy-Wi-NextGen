@@ -88,4 +88,34 @@ $r2 = new Request();
         $node = new DatabaseNode('n', 'mariadb', '127.0.0.1', 3306, $agent);
         return new Database($owner, 'mariadb', '127.0.0.1', 3306, 'u2_demo', 'u2_demo', ['key_id'=>'k','nonce'=>'n','ciphertext'=>'c'], $node);
     }
+
+    public function testSqlExportIsANosniffAttachmentAndPreservesSqlQuotes(): void
+    {
+        $owner = new User('owner@test', UserType::Customer);
+        $database = $this->newDatabase($owner);
+        $repository = $this->createStub(DatabaseRepository::class);
+        $repository->method('find')->willReturn($database);
+        $tables = $this->createStub(DatabaseTableService::class);
+        $line = "INSERT INTO t VALUES ('</script><img src=x onerror=alert(1)>', '\"quoted\"');";
+        $tables->method('exportDatabaseSql')->willReturn([$line]);
+        $controller = new CustomerDatabaseController(
+            $repository, $this->createStub(DatabaseNodeRepository::class), $this->createStub(JobRepository::class),
+            $this->createStub(EntityManagerInterface::class), $this->createStub(AuditLogger::class),
+            $this->createStub(DatabaseProvisioningService::class), $this->createStub(DatabaseNamingPolicy::class),
+            $this->createStub(Environment::class), $this->createStub(TranslatorInterface::class), $tables,
+        );
+        $request = new Request();
+        $request->attributes->set('current_user', $owner);
+        $response = $controller->exportDatabase($request, 1);
+        self::assertSame('application/sql; charset=UTF-8', $response->headers->get('Content-Type'));
+        self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+        self::assertStringStartsWith('attachment;', $response->headers->get('Content-Disposition'));
+        ob_start();
+        try {
+            $response->sendContent();
+            self::assertSame($line."\n", ob_get_contents());
+        } finally {
+            ob_end_clean();
+        }
+    }
 }

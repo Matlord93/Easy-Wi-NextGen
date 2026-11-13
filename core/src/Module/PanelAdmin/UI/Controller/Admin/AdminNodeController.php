@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\ConfiguredAgentEndpoint;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AuditLogger;
@@ -71,6 +75,7 @@ final class AdminNodeController
         private readonly TranslatorInterface $translator,
         #[Autowire(param: 'app.admin_authorized_keys_path')]
         private readonly string $adminAuthorizedKeysPath,
+        private readonly CsrfTokenManagerInterface $csrf,
     ) {
     }
 
@@ -484,6 +489,9 @@ final class AdminNodeController
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
+        if (!$this->csrf->isTokenValid(new CsrfToken('node-agent-settings-'.$id, (string) $request->request->get('_token', '')))) {
+            return new Response('Invalid CSRF token.', Response::HTTP_FORBIDDEN);
+        }
 
         $node = $this->agentRepository->find($id);
         if ($node === null) {
@@ -495,6 +503,14 @@ final class AdminNodeController
         $jobConcurrency = (int) $request->request->get('job_concurrency', $node->getJobConcurrency());
         $clearToken = $request->request->getBoolean('clear_agent_token');
         $instanceBaseDirsRaw = (string) $request->request->get('instance_base_dirs', '');
+
+        if ('' !== $agentBaseUrl) {
+            try {
+                ConfiguredAgentEndpoint::socketAddress($agentBaseUrl);
+            } catch (\InvalidArgumentException) {
+                return $this->renderNodesTable(null, 'Agent URL must be an absolute http/https address without credentials, query or fragment.');
+            }
+        }
 
         $node->setAgentBaseUrl($agentBaseUrl !== '' ? $agentBaseUrl : null);
         $node->setJobConcurrency($jobConcurrency);
@@ -1067,25 +1083,11 @@ final class AdminNodeController
             return null;
         }
 
-        $parts = parse_url($agentBaseUrl);
-        if (!is_array($parts)) {
-            return sprintf('Agent Base URL "%s" could not be parsed.', $agentBaseUrl);
+        try {
+            $target = ConfiguredAgentEndpoint::socketAddress($agentBaseUrl);
+        } catch (\InvalidArgumentException) {
+            return 'Invalid agent base URL.';
         }
-
-        $scheme = $parts['scheme'] ?? '';
-        $host = $parts['host'] ?? '';
-        $port = $parts['port'] ?? null;
-
-        if ($scheme === '' || $host === '') {
-            return sprintf('Agent Base URL "%s" must include scheme and host.', $agentBaseUrl);
-        }
-
-        if ($port === null) {
-            $port = $scheme === 'https' ? 443 : 80;
-        }
-
-        $transport = $scheme === 'https' ? 'ssl' : 'tcp';
-        $target = sprintf('%s://%s:%d', $transport, $host, $port);
 
         $errno = 0;
         $errstr = '';
