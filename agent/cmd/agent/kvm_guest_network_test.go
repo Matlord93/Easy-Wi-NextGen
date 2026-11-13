@@ -3,25 +3,26 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 )
 
+// Shared with the Core's VmGuestNetworkReportTest. Keep the fixture in the
+// agent module so agent-only checkouts can run the contract test.
+//
+//go:embed testdata/vm-guest-network.json
+var kvmGuestNetworkProtocolCases []byte
+
 func TestKVMGuestNetworkSharedProtocolContract(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "..", "core", "tests", "Fixtures", "vm-guest-network.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	var cases []struct {
 		Name     string `json:"name"`
 		Input    any    `json:"input"`
 		Expected any    `json:"expected"`
 	}
-	if err = json.Unmarshal(data, &cases); err != nil {
+	if err := json.Unmarshal(kvmGuestNetworkProtocolCases, &cases); err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range cases {
