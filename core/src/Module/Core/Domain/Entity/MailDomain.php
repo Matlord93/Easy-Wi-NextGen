@@ -8,6 +8,11 @@ use App\Repository\MailDomainRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailDomainRepository::class)]
 #[ORM\Table(name: 'mail_domains')]
 #[ORM\UniqueConstraint(name: 'uniq_mail_domain_owner_domain', columns: ['owner_id', 'domain'])]

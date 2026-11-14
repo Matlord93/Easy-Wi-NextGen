@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
 final class MathCaptchaService
 {
+    /** @return array{question:string} */
     public function issueChallenge(SessionInterface $session, string $formKey): array
     {
         $left = random_int(1, 9);

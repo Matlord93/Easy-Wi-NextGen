@@ -28,7 +28,7 @@ final class InfrastructureMonitoringCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $output->writeln(json_encode($this->collector->run((bool) $input->getOption('force')), JSON_THROW_ON_ERROR));
+        $output->writeln(json_encode($this->collector->run($input->getOption('force')), JSON_THROW_ON_ERROR));
 
         return Command::SUCCESS;
     }

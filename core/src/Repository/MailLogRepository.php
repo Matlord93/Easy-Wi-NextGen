@@ -35,16 +35,13 @@ final class MailLogRepository extends ServiceEntityRepository
             $qb->andWhere('ml.level = :level')->setParameter('level', strtolower(trim($level)));
         }
         if ($from !== null) {
-            $qb->andWhere('ml.createdAt >= :from')->setParameter('from', $from);
+            $qb->andWhere('ml.createdAt >= :from')->setParameter('from', $from, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE);
         }
         if ($to !== null) {
-            $qb->andWhere('ml.createdAt <= :to')->setParameter('to', $to);
+            $qb->andWhere('ml.createdAt <= :to')->setParameter('to', $to, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE);
         }
 
-        /** @var list<MailLog> $hydratedEntities */
-        $hydratedEntities = $qb->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($qb->getQuery(), \App\Module\Core\Domain\Entity\MailLog::class);
     }
 
     /**
@@ -55,7 +52,7 @@ final class MailLogRepository extends ServiceEntityRepository
         $rows = $this->createQueryBuilder('ml')
             ->select('ml.level AS level, COUNT(ml.id) AS total')
             ->andWhere('ml.createdAt >= :since')
-            ->setParameter('since', $since)
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->groupBy('ml.level')
             ->getQuery()
             ->getArrayResult();
@@ -85,7 +82,7 @@ final class MailLogRepository extends ServiceEntityRepository
         $rows = $this->createQueryBuilder('ml')
             ->select('ml.source AS source, COUNT(ml.id) AS total')
             ->andWhere('ml.createdAt >= :since')
-            ->setParameter('since', $since)
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->groupBy('ml.source')
             ->getQuery()
             ->getArrayResult();
@@ -106,21 +103,16 @@ final class MailLogRepository extends ServiceEntityRepository
      */
     public function findRecent(int $limit = 20): array
     {
-        /** @var list<MailLog> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('ml')
+        return EntityQueryResult::all($this->createQueryBuilder('ml')
             ->orderBy('ml.createdAt', 'DESC')
             ->setMaxResults(max(1, min($limit, 100)))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MailLog::class);
     }
 
     /** @return MailLog[] */
     public function findSuspiciousRecent(int $limit = 50): array
     {
-        /** @var list<MailLog> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('ml')
+        return EntityQueryResult::all($this->createQueryBuilder('ml')
             ->andWhere('ml.eventType = :spam OR ml.level IN (:levels) OR LOWER(ml.message) LIKE :phishing OR LOWER(ml.message) LIKE :virus OR LOWER(ml.message) LIKE :malware')
             ->setParameter('spam', MailLog::EVENT_SPAM)
             ->setParameter('levels', [MailLog::LEVEL_ERROR, MailLog::LEVEL_CRITICAL])
@@ -129,9 +121,6 @@ final class MailLogRepository extends ServiceEntityRepository
             ->setParameter('malware', '%malware%')
             ->orderBy('ml.createdAt', 'DESC')
             ->setMaxResults(max(1, min($limit, 200)))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MailLog::class);
     }
 }

@@ -38,14 +38,10 @@ final class BackupRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<Backup> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('backup')
+        return EntityQueryResult::all($this->createQueryBuilder('backup')
             ->andWhere('backup.definition IN (:definitions)')
             ->setParameter('definitions', $definitions)
             ->orderBy('backup.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Backup::class);
     }
 }

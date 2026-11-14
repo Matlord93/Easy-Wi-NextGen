@@ -12,6 +12,7 @@ use Doctrine\ORM\Events;
 
 final class MailUserProjector implements EventSubscriber
 {
+    /** @return list<string> */
     #[\Override]
     public function getSubscribedEvents(): array
     {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Security;
 
+use App\Infrastructure\Config\JsonMap;
+
 final class SecretKeyLoader
 {
     private const DEFAULT_KEY_PATH = '/etc/easywi/secret.key';
@@ -65,8 +67,8 @@ final class SecretKeyLoader
 
     private function extractKeyMaterial(string $contents): string
     {
-        $decoded = json_decode($contents, true);
-        if (is_array($decoded)) {
+        $decoded = JsonMap::decode($contents);
+        if ($decoded !== null) {
             if (isset($decoded['keys']) && is_array($decoded['keys'])) {
                 $activeKeyId = isset($decoded['active_key_id']) && is_string($decoded['active_key_id'])
                     ? trim($decoded['active_key_id'])
@@ -76,8 +78,8 @@ final class SecretKeyLoader
                     return trim($decoded['keys'][$activeKeyId]);
                 }
 
-                foreach ($decoded['keys'] as $value) {
-                    if (is_string($value) && trim($value) !== '') {
+                foreach (array_filter($decoded['keys'], 'is_string') as $value) {
+                    if (trim($value) !== '') {
                         return trim($value);
                     }
                 }

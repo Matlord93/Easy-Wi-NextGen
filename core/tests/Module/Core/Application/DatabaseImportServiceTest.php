@@ -20,18 +20,18 @@ final class DatabaseImportServiceTest extends TestCase
         $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
 
-        $pdo = new class {
+        $pdo = new class extends \PDO { public function __construct() {}
             public array $executed = [];
-            public function exec(string $sql): void { $this->executed[] = $sql; }
-            public function prepare(string $sql): object { return new class { public function execute(array $p): void {} public function fetchAll(): array { return []; } }; }
+            public function exec(string $sql): int|false { $this->executed[] = $sql;  return 0; }
+            public function prepare(string $sql, array $options = []): \PDOStatement|false { return new class extends \PDOStatement { public function __construct() {} public function execute(?array $p = null): bool { $p ??= [];  return true; } public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array { return []; } }; }
         };
 
         $service = new DatabaseTableService($enc, static fn() => $pdo);
         $db = $this->db();
 
         $ok = "-- cmt\nCREATE TABLE `t` (`id` int, `txt` varchar(255)); INSERT INTO `t` (`id`,`txt`) VALUES (1,'a;b');";
-        $res = $service->importSql($db, 'dump.sql', $ok);
-        self::assertSame(2, $res['executed']);
+        $service->importSql($db, 'dump.sql', $ok);
+        self::assertCount(2, $pdo->executed);
 
         $this->expectException(\InvalidArgumentException::class);
         $service->importSql($db, 'dump.sql', '/*x*/ GrAnT ALL ON *.* TO x;');
@@ -41,7 +41,7 @@ final class DatabaseImportServiceTest extends TestCase
     {
         $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
-        $pdo = new class { public function exec(string $sql): void {} public function prepare(string $sql): object { return new class { public function execute(array $p): void {} public function fetchAll(): array { return []; } }; } };
+        $pdo = new class extends \PDO { public function __construct() {} public function exec(string $sql): int|false { return 0; } public function prepare(string $sql, array $options = []): \PDOStatement|false { return new class extends \PDOStatement { public function __construct() {} public function execute(?array $p = null): bool { $p ??= [];  return true; } public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array { return []; } }; } };
         $service = new DatabaseTableService($enc, static fn() => $pdo);
         $db = $this->db();
 
@@ -53,7 +53,7 @@ final class DatabaseImportServiceTest extends TestCase
     {
         $enc = $this->createStub(EncryptionService::class);
         $enc->method('decrypt')->willReturn('pw');
-        $pdo = new class { public function exec(string $sql): void {} public function prepare(string $sql): object { return new class { public function execute(array $p): void {} public function fetchAll(): array { return []; } }; } };
+        $pdo = new class extends \PDO { public function __construct() {} public function exec(string $sql): int|false { return 0; } public function prepare(string $sql, array $options = []): \PDOStatement|false { return new class extends \PDOStatement { public function __construct() {} public function execute(?array $p = null): bool { $p ??= [];  return true; } public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array { return []; } }; } };
         $service = new DatabaseTableService($enc, static fn() => $pdo);
         $db = $this->db();
 

@@ -6,7 +6,7 @@ namespace App\Module\Gameserver\Application;
 
 final class JavaBinaryConfig
 {
-    /** @param array<string, string> $overrides Keys are Java versions ('8','17','21'), values are binary names or paths */
+    /** @param array<array-key, string> $overrides Keys are Java versions ('8','17','21'), values are binary names or paths */
     public function __construct(
         private readonly array $overrides = [],
         public readonly bool $autoInstallJava = false,
@@ -25,7 +25,7 @@ final class JavaBinaryConfig
             ?? 'java'.$version;
     }
 
-    /** @return array<string, string> map of version → binary */
+    /** @return array<array-key, string> map of version → binary */
     public function allBinaries(): array
     {
         $result = MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION;

@@ -14,11 +14,9 @@ use Doctrine\Persistence\ManagerRegistry;
 final class TeamspeakUpdateLogRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry) { parent::__construct($registry, TeamspeakUpdateLog::class); }
+    /** @return list<\App\Module\Core\Domain\Entity\TeamspeakUpdateLog> */
     public function findLatestForInstance(string $instanceType, int $instanceId, int $limit = 10): array
     {
-        /** @var list<TeamspeakUpdateLog> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('l')->andWhere('l.instanceType=:t')->andWhere('l.instanceId=:i')->setParameter('t',$instanceType)->setParameter('i',$instanceId)->orderBy('l.startedAt','DESC')->setMaxResults($limit)->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($this->createQueryBuilder('l')->andWhere('l.instanceType=:t')->andWhere('l.instanceId=:i')->setParameter('t',$instanceType)->setParameter('i',$instanceId)->orderBy('l.startedAt','DESC')->setMaxResults($limit)->getQuery(), \App\Module\Core\Domain\Entity\TeamspeakUpdateLog::class);
     }
 }

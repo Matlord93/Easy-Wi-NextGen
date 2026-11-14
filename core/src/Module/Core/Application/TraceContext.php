@@ -24,7 +24,7 @@ final class TraceContext
 
     public function correlationId(Request $request): string
     {
-        $header = trim((string) ($request->headers->get(self::CORRELATION_HEADER) ?? ''));
+        $header = trim(($request->headers->get(self::CORRELATION_HEADER) ?? ''));
         if ($this->isValidUuid($header)) {
             return $header;
         }
@@ -52,7 +52,7 @@ final class TraceContext
 
     private function resolveHeaderOrAttribute(Request $request, string $header, string $attribute): string
     {
-        $headerValue = trim((string) ($request->headers->get($header) ?? ''));
+        $headerValue = trim(($request->headers->get($header) ?? ''));
         if ($this->isValidUuid($headerValue)) {
             return $headerValue;
         }

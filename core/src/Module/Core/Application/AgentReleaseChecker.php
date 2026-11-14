@@ -72,13 +72,17 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         return $latest;
     }
 
-    /** @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null */
+    /**
+     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
+     */
     public function getReleaseAssetUrls(string $assetName, ?string $targetVersion = null): ?array
     {
         return $this->getReleaseAssetUrlsForChannel($assetName, $this->channel, $targetVersion);
     }
 
-    /** @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null */
+    /**
+     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
+     */
     #[\Override]
     public function getReleaseAssetUrlsForChannel(string $assetName, string $channel, ?string $targetVersion = null, bool $force = false): ?array
     {

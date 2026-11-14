@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application\Console;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\AgentCredentialsResolver;
 use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Domain\Entity\Instance;
@@ -15,7 +16,10 @@ final readonly class LiveConsoleAccess
     {
     }
 
-    /** Only the private Nginx auth subrequest receives these values. */
+    /**
+     * Only the private Nginx auth subrequest receives these values.
+     * @return array{target: string, authorization: string}
+     */
     public function issue(Instance $instance, User $actor, string $origin, int $until): array
     {
         $base = rtrim($this->endpoints->resolveForAgent($instance->getNode())->getBaseUrl(), '/');
@@ -37,7 +41,7 @@ final readonly class LiveConsoleAccess
         ];
         $payload = $this->encode(json_encode($claims, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         $signature = $this->encode(hash_hmac('sha256', 'easywi-console-live-v1.'.$payload, $credentials->getSecret(), true));
-        return ['target' => $base.'/v1/console/live/'.$instance->getId(), 'authorization' => 'Bearer '.$payload.'.'.$signature];
+        return ['target' => $base.'/v1/console/live/'.EntityIdentifier::require($instance->getId()), 'authorization' => 'Bearer '.$payload.'.'.$signature];
     }
 
     private function encode(string $value): string

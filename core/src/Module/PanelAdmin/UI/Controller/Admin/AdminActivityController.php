@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AuditLogRepository;
 use Symfony\Component\HttpFoundation\Request;
@@ -39,7 +41,7 @@ final class AdminActivityController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 

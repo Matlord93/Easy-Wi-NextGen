@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application\Backup;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Musicbot\Application\MusicbotSecretConfigServiceInterface;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 
@@ -87,7 +89,7 @@ final class MusicbotBackupService
 
     public function deserializeFromJson(string $json): MusicbotBackupManifest
     {
-        $raw = json_decode($json, true);
+        $raw = JsonArray::decode($json);
         if (!is_array($raw)) {
             throw new \InvalidArgumentException('Invalid backup JSON: could not decode.');
         }
@@ -230,7 +232,10 @@ final class MusicbotBackupService
         return $result;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{enabled?: bool, mode?: string, avoid_repeats?: bool, min_queue_size?: int, shuffle?:
+     * bool, repeat?: bool, idle_seconds?: int, volume_override?: int|null}
+     */
     private function exportAutoDj(MusicbotInstance $instance): array
     {
         $settings = $this->dataProvider->getAutoDjSettings($instance);
@@ -329,7 +334,10 @@ final class MusicbotBackupService
         return $result;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{max_musicbots?: int|null, max_playlists?: int|null, max_tracks?: int|null,
+     * max_storage_mb?: int|null, max_upload_size_mb?: int|null, max_plugins?: int|null}
+     */
     private function exportCustomerLimits(MusicbotInstance $instance): array
     {
         $limits = $this->dataProvider->getCustomerLimits($instance);

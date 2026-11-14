@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
@@ -122,7 +124,7 @@ final class InfrastructureMonitoringController extends AbstractController
 
     private function page(Request $request, InfrastructureTarget $target, bool $admin, ?string $error = null): Response
     {
-        $format = (string) $request->query->get('format', 'html');
+        $format = $request->query->getString('format', 'html');
         if (!in_array($format, ['html', 'json', 'csv'], true)) {
             return new Response('Invalid format.', 400);
         }
@@ -143,6 +145,7 @@ final class InfrastructureMonitoringController extends AbstractController
         return $this->render('monitoring/history.html.twig', ['target' => $target, 'admin' => $admin, 'options' => $this->settings->get(), 'policy' => $this->alerts->policy($target), 'error' => $error, 'activeNav' => 'monitoring'], new Response(status: $error ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
     }
 
+    /** @return list<int|mixed> */
     private function range(Request $request): array
     {
         if ($request->query->has('from') || $request->query->has('to')) {
@@ -192,7 +195,7 @@ final class InfrastructureMonitoringController extends AbstractController
 
     private function actor(Request $request, bool $admin): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || ($admin ? !$actor->isAdmin() : !$actor->isCustomer())) {
             throw new AccessDeniedHttpException();
         }

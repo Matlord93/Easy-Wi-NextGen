@@ -46,7 +46,7 @@ class AgentV1Controller extends AbstractController
             return $this->json(['error' => 'unauthorized'], 401);
         }
 
-        $idempotencyKey = (string) $request->headers->get('Idempotency-Key', '');
+        $idempotencyKey = $request->headers->get('Idempotency-Key', '');
         if ($idempotencyKey === '') {
             return $this->json(['error' => 'missing idempotency key'], 400);
         }
@@ -71,7 +71,7 @@ class AgentV1Controller extends AbstractController
             return null;
         }
 
-        $token = preg_replace('/^Bearer\s+/i', '', trim((string) $request->headers->get('Authorization', ''))) ?? '';
+        $token = preg_replace('/^Bearer\s+/i', '', trim($request->headers->get('Authorization', ''))) ?? '';
         return $authenticator->authenticate($agentUuid, $token);
     }
 }

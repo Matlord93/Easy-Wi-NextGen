@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use Symfony\Component\HttpFoundation\Request;
 
 final class CookieConsentService
@@ -66,7 +67,7 @@ final class CookieConsentService
         $payload = $raw;
         if (is_string($raw)) {
             $decoded = json_decode(rawurldecode($raw), true);
-            $payload = is_array($decoded) ? $decoded : [];
+            $payload = JsonArray::orEmpty($decoded);
         }
 
         $defaults = $this->defaultConsent();

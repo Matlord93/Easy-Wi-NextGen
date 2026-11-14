@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\WebspaceNode;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
@@ -66,7 +69,7 @@ final class AdminWebspaceNodeController
         $this->entityManager->persist($node);
         $this->entityManager->flush();
 
-        return $this->responseEnvelopeFactory->success($request, 'node-'.$node->getId(), 'Webspace node created.', JsonResponse::HTTP_CREATED, [
+        return $this->responseEnvelopeFactory->success($request, 'node-'.EntityIdentifier::require($node->getId()), 'Webspace node created.', JsonResponse::HTTP_CREATED, [
             'status' => 'succeeded',
             'details' => ['node_id' => $node->getId()],
         ]);
@@ -106,7 +109,7 @@ final class AdminWebspaceNodeController
 
         $this->entityManager->flush();
 
-        return $this->responseEnvelopeFactory->success($request, 'node-'.$node->getId(), 'Webspace node updated.', 200, ['status' => 'succeeded']);
+        return $this->responseEnvelopeFactory->success($request, 'node-'.EntityIdentifier::require($node->getId()), 'Webspace node updated.', 200, ['status' => 'succeeded']);
     }
 
     #[Route('/{id}/toggle', name: 'admin_webspace_nodes_toggle_v1', methods: ['POST'])]
@@ -124,7 +127,7 @@ final class AdminWebspaceNodeController
         $node->setEnabled(!$node->isEnabled());
         $this->entityManager->flush();
 
-        return $this->responseEnvelopeFactory->success($request, 'node-'.$node->getId(), 'Node toggled.', 200, ['status' => 'succeeded', 'details' => ['enabled' => $node->isEnabled()]]);
+        return $this->responseEnvelopeFactory->success($request, 'node-'.EntityIdentifier::require($node->getId()), 'Node toggled.', 200, ['status' => 'succeeded', 'details' => ['enabled' => $node->isEnabled()]]);
     }
 
     #[Route('/{id}/test', name: 'admin_webspace_nodes_test_v1', methods: ['POST'])]
@@ -162,7 +165,7 @@ final class AdminWebspaceNodeController
 
         $ok = $phpModeOk;
         foreach ($checks as $check) {
-            $ok = $ok && (bool) ($check['exists'] ?? false);
+            $ok = $ok && ($check['exists'] ?? false);
         }
         foreach ($commands as $command) {
             $ok = $ok && (($command['exit_code'] ?? 1) === 0);
@@ -258,7 +261,7 @@ final class AdminWebspaceNodeController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\MailUserRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailUserRepository::class)]
 #[ORM\Table(name: 'mail_users')]
 #[ORM\UniqueConstraint(name: 'uniq_mail_users_address', columns: ['address'])]

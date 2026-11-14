@@ -9,6 +9,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotScheduleAction;
 use App\Repository\MusicbotScheduleRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotScheduleRepository::class)]
 #[ORM\Table(name: 'musicbot_schedules')]
 #[ORM\Index(name: 'idx_musicbot_schedules_customer', columns: ['customer_id'])]

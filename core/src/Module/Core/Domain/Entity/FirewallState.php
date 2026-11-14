@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\FirewallStateRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: FirewallStateRepository::class)]
 #[ORM\Table(name: 'firewall_states')]
 class FirewallState
@@ -20,6 +25,7 @@ class FirewallState
     #[ORM\JoinColumn(nullable: false, unique: true)]
     private Agent $node;
 
+    /** @var int[] */
     #[ORM\Column(type: 'json')]
     private array $ports;
 

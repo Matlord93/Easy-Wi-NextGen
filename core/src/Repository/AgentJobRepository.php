@@ -24,32 +24,24 @@ final class AgentJobRepository extends ServiceEntityRepository
      */
     public function findQueuedForNode(string $nodeId, int $limit = 1): array
     {
-        /** @var list<AgentJob> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('job')
+        return EntityQueryResult::all($this->createQueryBuilder('job')
             ->andWhere('job.node = :nodeId')
             ->andWhere('job.status = :status')
             ->setParameter('nodeId', $nodeId)
             ->setParameter('status', AgentJobStatus::Queued)
             ->orderBy('job.createdAt', 'ASC')
             ->setMaxResults(max(1, $limit))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\AgentOrchestrator\Domain\Entity\AgentJob::class);
     }
 
     public function findLatestByIdempotencyKey(string $key): ?AgentJob
     {
-        /** @var AgentJob|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('job')
+        return EntityQueryResult::one($this->createQueryBuilder('job')
             ->andWhere('job.idempotencyKey = :key')
             ->setParameter('key', $key)
             ->orderBy('job.createdAt', 'DESC')
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\AgentOrchestrator\Domain\Entity\AgentJob::class);
     }
 
     public function countRunningForNode(string $nodeId): int
@@ -69,18 +61,14 @@ final class AgentJobRepository extends ServiceEntityRepository
      */
     public function findRunningBefore(\DateTimeImmutable $cutoff, int $limit = 200): array
     {
-        /** @var list<AgentJob> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('job')
+        return EntityQueryResult::all($this->createQueryBuilder('job')
             ->andWhere('job.status = :status')
             ->andWhere('job.startedAt IS NULL OR job.startedAt < :cutoff')
             ->setParameter('status', AgentJobStatus::Running)
-            ->setParameter('cutoff', $cutoff)
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('job.startedAt', 'ASC')
             ->setMaxResults(max(1, $limit))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\AgentOrchestrator\Domain\Entity\AgentJob::class);
     }
 
     /**
@@ -102,9 +90,6 @@ final class AgentJobRepository extends ServiceEntityRepository
                 ->setParameter('types', $types);
         }
 
-        /** @var list<AgentJob> $hydratedEntities */
-        $hydratedEntities = $queryBuilder->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($queryBuilder->getQuery(), \App\Module\AgentOrchestrator\Domain\Entity\AgentJob::class);
     }
 }

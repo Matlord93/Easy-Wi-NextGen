@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 
@@ -33,7 +34,7 @@ class AgentEndpointResolver
         }
 
         $metadata = $agent->getMetadata();
-        $metadata = is_array($metadata) ? $metadata : [];
+        $metadata = JsonArray::orEmpty($metadata);
 
         $heartbeatIp = trim((string) $agent->getLastHeartbeatIp());
         if ($heartbeatIp !== '') {

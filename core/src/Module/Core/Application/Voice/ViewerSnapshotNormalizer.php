@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Voice;
 
+use App\Infrastructure\Config\JsonArray;
 final class ViewerSnapshotNormalizer
 {
     /**
      * @param array<string,mixed> $payload
-     * @return array{server: array<string,mixed>, channels: array<int,array<string,mixed>>, clients: array<int,array<string,mixed>>}
+     * @return array{server: array<string,mixed>, channels: array<int,array<string,mixed>>, clients:
+     * array<int,array<string,mixed>>}
      */
     public static function normalize(array $payload): array
     {
         $snapshot = self::extractSnapshot($payload);
-        $server = is_array($snapshot['server'] ?? null) ? $snapshot['server'] : [];
+        $server = JsonArray::orEmpty($snapshot['server'] ?? null);
         $channels = self::normalizeChannels(self::asArray($snapshot['channels'] ?? []));
         $clients = self::normalizeClients(self::asArray($snapshot['clients'] ?? []));
 
@@ -35,7 +37,10 @@ final class ViewerSnapshotNormalizer
         return $payload;
     }
 
-    /** @param array<int,mixed> $channels @return array<int,array<string,mixed>> */
+    /**
+     * @param array<int,mixed> $channels
+     * @return array<int,array<string,mixed>>
+     */
     private static function normalizeChannels(array $channels): array
     {
         $out = [];
@@ -55,7 +60,10 @@ final class ViewerSnapshotNormalizer
         return $out;
     }
 
-    /** @param array<int,mixed> $clients @return array<int,array<string,mixed>> */
+    /**
+     * @param array<int,mixed> $clients
+     * @return array<int,array<string,mixed>>
+     */
     private static function normalizeClients(array $clients): array
     {
         $out = [];
@@ -77,7 +85,10 @@ final class ViewerSnapshotNormalizer
         return $out;
     }
 
-    /** @param array<string,mixed> $row @param array<int,string> $keys */
+    /**
+     * @param array<string,mixed> $row
+     * @param array<int,string> $keys
+     */
     private static function firstString(array $row, array $keys): string
     {
         foreach ($keys as $key) {
@@ -92,7 +103,10 @@ final class ViewerSnapshotNormalizer
         return '';
     }
 
-    /** @param array<string,mixed> $row @param array<int,string> $keys */
+    /**
+     * @param array<string,mixed> $row
+     * @param array<int,string> $keys
+     */
     private static function firstIntOrNull(array $row, array $keys): ?int
     {
         foreach ($keys as $key) {

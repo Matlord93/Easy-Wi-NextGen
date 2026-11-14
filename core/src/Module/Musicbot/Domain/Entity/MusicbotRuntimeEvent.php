@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\MusicbotRuntimeEventRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotRuntimeEventRepository::class)]
 #[ORM\Table(name: 'musicbot_runtime_events')]
 #[ORM\Index(name: 'idx_musicbot_runtime_events_instance_created', columns: ['musicbot_instance_id', 'created_at'])]

@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Enum\ConsentType;
 use App\Repository\ConsentLogRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ConsentLogRepository::class)]
 #[ORM\Table(name: 'consent_logs')]
 class ConsentLog

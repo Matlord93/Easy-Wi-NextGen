@@ -24,7 +24,13 @@ final class UpdateResult
     ) {
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{server_type: string, installed_version: null|string, available_version: null|string,
+     * update_available: bool, status: string, message_key: null|string, message_params: array<string,
+     * null|scalar>, asset_url: null|string, asset_name: null|string, asset_size: int|null, release_tag:
+     * null|string, release_notes: null|string, checksum: array{algorithm: null|string, value: null|string,
+     * source: null|string}|null}
+     */
     public function toArray(): array
     {
         return [

@@ -26,7 +26,7 @@ final class ThemeResolver
     public function resolveThemeKey(Site $site): string
     {
         $settings = $this->settingsProvider->findForSite($site);
-        $settingsTheme = trim((string) ($settings?->getActiveTheme() ?? ''));
+        $settingsTheme = trim(($settings?->getActiveTheme() ?? ''));
         if ($settingsTheme !== '') {
             return $this->normalizeThemeKey($settingsTheme);
         }

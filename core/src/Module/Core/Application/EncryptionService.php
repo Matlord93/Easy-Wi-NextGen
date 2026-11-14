@@ -66,7 +66,7 @@ class EncryptionService
     {
         $this->assertAeadAvailable();
 
-        $keyId = (string) ($payload['key_id'] ?? '');
+        $keyId = ($payload['key_id'] ?? '');
         if ($keyId === '') {
             throw new RuntimeException('Missing encryption key id.');
         }

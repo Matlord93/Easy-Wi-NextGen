@@ -11,6 +11,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\Ts3InstanceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: Ts3InstanceRepository::class)]
 #[ORM\Table(name: 'ts3_instances')]
 class Ts3Instance implements ResourceEventSource
@@ -57,6 +62,7 @@ class Ts3Instance implements ResourceEventSource
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $databaseUsername = null;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string}|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $databasePassword = null;
 

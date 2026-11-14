@@ -22,7 +22,6 @@ final class TeamMemberRepository extends ServiceEntityRepository
     /** @return list<TeamMember> */
     public function findActiveBySite(Site $site): array
     {
-        /** @var list<TeamMember> $rows */
         $rows = $this->findBy(['site' => $site, 'isActive' => true], ['teamName' => 'ASC', 'sortOrder' => 'ASC', 'name' => 'ASC']);
 
         return $rows;
@@ -31,7 +30,6 @@ final class TeamMemberRepository extends ServiceEntityRepository
     /** @return list<TeamMember> */
     public function findBySite(Site $site): array
     {
-        /** @var list<TeamMember> $rows */
         $rows = $this->findBy(['site' => $site], ['teamName' => 'ASC', 'sortOrder' => 'ASC', 'name' => 'ASC']);
 
         return $rows;
@@ -44,7 +42,7 @@ final class TeamMemberRepository extends ServiceEntityRepository
             ->select('DISTINCT m.teamName AS teamName')
             ->andWhere('m.site = :site')
             ->andWhere('m.teamName IS NOT NULL')
-            ->setParameter('site', $site)
+            ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
             ->orderBy('m.teamName', 'ASC')
             ->getQuery()
             ->getArrayResult();

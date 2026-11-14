@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
@@ -63,7 +65,7 @@ final class CustomerFileManagerController extends AbstractController
         $customer = $this->requireCustomer($request);
 
         $webspaces = $this->webspaceRepository->findByCustomer($customer);
-        $selectedId = (string) $request->query->get('webspace', '');
+        $selectedId = $request->query->getString('webspace', '');
         $webspace = $this->resolveWebspace($webspaces, $selectedId);
         if ($webspace === null) {
             return $this->render('customer/files/index.html.twig', [
@@ -79,7 +81,7 @@ final class CustomerFileManagerController extends AbstractController
             ]);
         }
 
-        $pathInput = (string) $request->query->get('path', '');
+        $pathInput = $request->query->getString('path', '');
         $path = '';
         $entries = [];
         $listError = null;
@@ -210,8 +212,8 @@ final class CustomerFileManagerController extends AbstractController
     {
         $customer = $this->requireCustomer($request);
 
-        $path = (string) $request->query->get('path', '');
-        $webspaceId = (string) $request->query->get('webspace', '');
+        $path = $request->query->getString('path', '');
+        $webspaceId = $request->query->getString('webspace', '');
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
 
         try {
@@ -284,8 +286,8 @@ final class CustomerFileManagerController extends AbstractController
     {
         $customer = $this->requireCustomer($request);
 
-        $path = (string) $request->query->get('path', '');
-        $webspaceId = (string) $request->query->get('webspace', '');
+        $path = $request->query->getString('path', '');
+        $webspaceId = $request->query->getString('webspace', '');
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
         $form = $this->createForm(RenameFileType::class, [
             'path' => $path,
@@ -334,8 +336,8 @@ final class CustomerFileManagerController extends AbstractController
     {
         $customer = $this->requireCustomer($request);
 
-        $path = (string) $request->query->get('path', '');
-        $webspaceId = (string) $request->query->get('webspace', '');
+        $path = $request->query->getString('path', '');
+        $webspaceId = $request->query->getString('webspace', '');
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
         $normalized = '';
         $content = '';
@@ -409,7 +411,7 @@ final class CustomerFileManagerController extends AbstractController
     public function health(Request $request): JsonResponse
     {
         $customer = $this->requireCustomer($request);
-        $webspaceId = trim((string) $request->query->get('webspace', ''));
+        $webspaceId = trim($request->query->getString('webspace', ''));
         // Ownership must be checked before configuration checks or network access.
         $webspace = $webspaceId !== '' ? $this->findCustomerWebspace($customer, $webspaceId) : null;
         $sftpHost = $this->settingsService->getSftpHost();
@@ -432,7 +434,7 @@ final class CustomerFileManagerController extends AbstractController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('customer_files_error_unauthorized', [], 'portal'));
         }
@@ -457,7 +459,9 @@ final class CustomerFileManagerController extends AbstractController
     }
 
     /**
-     * @return array<int, array{id: int, domain: string, system_username: string, ftp_enabled: bool, sftp_enabled: bool, ftp_host: string, ftp_port: int, sftp_port: int, root_path: string, docroot: string}>
+     * @return array<int, array{id: int, domain: string, system_username: string, ftp_enabled: bool,
+     * sftp_enabled: bool, ftp_host: string, ftp_port: int, sftp_port: int, root_path: string, docroot:
+     * string}>
      */
     private function normalizeWebspaces(array $webspaces): array
     {
@@ -465,7 +469,8 @@ final class CustomerFileManagerController extends AbstractController
     }
 
     /**
-     * @return array{id: int, domain: string, system_username: string, ftp_enabled: bool, sftp_enabled: bool, ftp_host: string, ftp_port: int, sftp_port: int, root_path: string, docroot: string}
+     * @return array{id: int, domain: string, system_username: string, ftp_enabled: bool, sftp_enabled:
+     * bool, ftp_host: string, ftp_port: int, sftp_port: int, root_path: string, docroot: string}
      */
     private function normalizeWebspace(Webspace $webspace): array
     {
@@ -579,15 +584,16 @@ final class CustomerFileManagerController extends AbstractController
 
     /**
      * @param array<int, array{name: string, path: string, type: string, size: ?int, last_modified: ?int}> $entries
-     * @return array<int, array{name: string, path: string, type: string, size: ?int, last_modified: ?int, editable: bool}>
+     * @return array<int, array{name: string, path: string, type: string, size: ?int, last_modified: ?int,
+     * editable: bool}>
      */
     private function normalizeSftpEntries(array $entries): array
     {
         $normalized = [];
         foreach ($entries as $entry) {
-            $name = (string) ($entry['name'] ?? '');
-            $path = (string) ($entry['path'] ?? '');
-            $type = (string) ($entry['type'] ?? 'file');
+            $name = ($entry['name'] ?? '');
+            $path = ($entry['path'] ?? '');
+            $type = ($entry['type'] ?? 'file');
             if ($name === '' || $path === '') {
                 continue;
             }
@@ -598,7 +604,7 @@ final class CustomerFileManagerController extends AbstractController
                 'name' => $name,
                 'path' => $normalizedPath,
                 'type' => $normalizedType,
-                'size' => $normalizedType === 'file' ? (int) ($entry['size'] ?? 0) : null,
+                'size' => $normalizedType === 'file' ? ($entry['size'] ?? 0) : null,
                 'last_modified' => $this->parseModifiedAt($entry['last_modified'] ?? null),
                 'editable' => $normalizedType === 'file' && $this->isEditable($normalizedPath),
             ];

@@ -19,7 +19,7 @@ final class DbConfigProviderPathResolutionTest extends TestCase
 
         mkdir(dirname($projectFallbackPath), 0777, true);
         file_put_contents($projectFallbackPath, '{}');
-        $systemPath = $baseDir.'/system-db.json';
+        $systemPath = $baseDir . '/system-db.json';
         file_put_contents($systemPath, '{}');
 
         try {
@@ -37,13 +37,13 @@ final class DbConfigProviderPathResolutionTest extends TestCase
 
     public function testFallsBackToSystemPathWhenNoProjectConfigExists(): void
     {
-        $baseDir = sys_get_temp_dir().'/easywi-db-system-'.bin2hex(random_bytes(5));
+        $baseDir = sys_get_temp_dir() . '/easywi-db-provider-' . bin2hex(random_bytes(5));
         mkdir($baseDir);
-        $systemPath = $baseDir.'/system-db.json';
+        $systemPath = $baseDir . '/system-db.json';
         file_put_contents($systemPath, '{}');
 
         try {
-            $provider = $this->createProvider(null, $baseDir.'/no-project', $systemPath);
+            $provider = $this->createProvider(null, $baseDir . '/core', $systemPath);
             self::assertSame($systemPath, $provider->getConfigPath());
         } finally {
             unlink($systemPath);

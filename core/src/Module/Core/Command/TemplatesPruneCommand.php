@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\TemplateAuditService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -36,7 +37,7 @@ final class TemplatesPruneCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $apply = (bool) $input->getOption('apply');
+        $apply = $input->getOption('apply');
         $templates = $this->auditService->getTemplates();
         $usageTable = $this->auditService->resolveUsageTable();
         $usageCounts = $usageTable !== null ? $this->auditService->getUsageCounts($usageTable) : [];
@@ -67,7 +68,7 @@ final class TemplatesPruneCommand extends Command
 
         $io->text('Prune candidates (broken + unused):');
         foreach ($candidates as $template) {
-            $io->writeln(sprintf('- #%d %s', $template->getId(), $template->getGameKey()));
+            $io->writeln(sprintf('- #%d %s', EntityIdentifier::require($template->getId()), $template->getGameKey()));
             if ($apply && $usageTable !== null) {
                 $this->entityManager->remove($template);
             }

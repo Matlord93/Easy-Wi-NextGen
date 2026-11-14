@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace App\Module\Unifi\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Message\UnifiSyncManualRulesMessage;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Unifi\Application\UnifiApiClient;
 use App\Module\Unifi\Application\UnifiApiException;
-use App\Module\Unifi\Application\UnifiPortSyncService;
+use App\Module\Unifi\Application\UnifiSynchronizerInterface;
 use App\Module\Unifi\Domain\Entity\UnifiManualRule;
 use App\Module\Unifi\Domain\Entity\UnifiPolicy;
 use App\Module\Unifi\Infrastructure\Repository\UnifiAuditLogRepository;
 use App\Module\Unifi\Infrastructure\Repository\UnifiManualRuleRepository;
 use App\Module\Unifi\Infrastructure\Repository\UnifiPolicyRepository;
-use App\Module\Unifi\Infrastructure\Repository\UnifiSettingsRepository;
+use App\Module\Unifi\Application\UnifiSettingsProviderInterface;
 use App\Repository\AgentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -30,14 +32,14 @@ use Twig\Environment;
 final class AdminUnifiController
 {
     public function __construct(
-        private readonly UnifiSettingsRepository $settingsRepository,
+        private readonly UnifiSettingsProviderInterface $settingsRepository,
         private readonly UnifiPolicyRepository $policyRepository,
         private readonly UnifiManualRuleRepository $manualRuleRepository,
         private readonly UnifiAuditLogRepository $auditLogRepository,
         private readonly AgentRepository $agentRepository,
         private readonly EncryptionService $encryptionService,
         private readonly UnifiApiClient $apiClient,
-        private readonly UnifiPortSyncService $syncService,
+        private readonly UnifiSynchronizerInterface $syncService,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly Environment $twig,
@@ -383,7 +385,7 @@ final class AdminUnifiController
         ]));
     }
 
-    private function renderConnectionResult(User $admin, $settings, array $resultCodes): Response
+    private function renderConnectionResult(User $admin, \App\Module\Unifi\Domain\Entity\UnifiSettings $settings, array $resultCodes): Response
     {
         $nodes = $this->agentRepository->findBy([], ['name' => 'ASC']);
 
@@ -399,17 +401,17 @@ final class AdminUnifiController
     }
 
     /**
-     * @param array<string, mixed> $input
+     * @param array<array-key, mixed> $input
      * @return array<string, string>
      */
     private function parseNodeTargets(array $input): array
     {
         $targets = [];
-        foreach ($input as $nodeId => $value) {
+        foreach (array_filter($input, 'is_string') as $nodeId => $value) {
             if (!is_string($nodeId)) {
                 continue;
             }
-            $value = trim((string) $value);
+            $value = trim($value);
             if ($value === '') {
                 continue;
             }
@@ -425,7 +427,7 @@ final class AdminUnifiController
     private function parsePorts(string $value): array
     {
         $ports = [];
-        foreach (preg_split('/[\s,]+/', $value) as $part) {
+        foreach (preg_split('/[\s,]+/', $value) ?: [] as $part) {
             $part = trim($part);
             if ($part === '' || !is_numeric($part)) {
                 continue;
@@ -445,12 +447,14 @@ final class AdminUnifiController
     private function parseRanges(string $value): array
     {
         $ranges = [];
-        foreach (preg_split('/[\n,]+/', $value) as $part) {
+        foreach (preg_split('/[\n,]+/', $value) ?: [] as $part) {
             $part = trim($part);
             if ($part === '' || !str_contains($part, '-')) {
                 continue;
             }
-            [$start, $end] = array_map('trim', explode('-', $part, 2));
+            $range = explode('-', $part, 2);
+            $start = trim($range[0]);
+            $end = trim($range[1] ?? '');
             if (!is_numeric($start) || !is_numeric($end)) {
                 continue;
             }
@@ -470,7 +474,7 @@ final class AdminUnifiController
     private function parseTags(string $value): array
     {
         $tags = [];
-        foreach (preg_split('/[\s,]+/', $value) as $tag) {
+        foreach (preg_split('/[\s,]+/', $value) ?: [] as $tag) {
             $tag = trim($tag);
             if ($tag === '') {
                 continue;
@@ -482,7 +486,7 @@ final class AdminUnifiController
     }
 
     /**
-     * @param array<int, mixed> $protocols
+     * @param array<array-key, mixed> $protocols
      * @return string[]
      */
     private function normalizeProtocols(array $protocols): array
@@ -503,7 +507,8 @@ final class AdminUnifiController
     }
 
     /**
-     * @return array{name: string, protocol: string, port: int, target_ip: string, target_port: int, enabled: bool, description: ?string, errors: string[], values: array<string, mixed>}
+     * @return array{name: string, protocol: string, port: int, target_ip: string, target_port: int,
+     * enabled: bool, description: ?string, errors: string[], values: array<string, mixed>}
      */
     private function normalizeRuleForm(Request $request): array
     {
@@ -562,7 +567,7 @@ final class AdminUnifiController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new \RuntimeException('Forbidden.');
         }

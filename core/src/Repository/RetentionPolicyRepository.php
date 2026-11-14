@@ -20,13 +20,9 @@ final class RetentionPolicyRepository extends ServiceEntityRepository
 
     public function getCurrent(): ?RetentionPolicy
     {
-        /** @var RetentionPolicy|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('policy')
+        return EntityQueryResult::one($this->createQueryBuilder('policy')
             ->orderBy('policy.updatedAt', 'DESC')
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\Core\Domain\Entity\RetentionPolicy::class);
     }
 }

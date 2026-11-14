@@ -30,11 +30,11 @@ final class SetupEnvBootstrapCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $checkOnly = (bool) $input->getOption('check-only');
+        $checkOnly = $input->getOption('check-only');
         $check = $this->bootstrap->checkStatus($this->projectDir);
-        $path = (string) $check['env_path'];
+        $path = $check['env_path'];
         $missing = $check['missing_keys'];
-        $writable = (bool) $check['writable'];
+        $writable = $check['writable'];
 
         if ($checkOnly) {
             if (!$writable) {

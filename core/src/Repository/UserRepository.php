@@ -37,17 +37,13 @@ class UserRepository extends ServiceEntityRepository
      */
     public function findCustomersForReseller(User $reseller): array
     {
-        /** @var list<User> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('user')
+        return EntityQueryResult::all($this->createQueryBuilder('user')
             ->andWhere('user.type = :type')
             ->andWhere('user.resellerOwner = :reseller')
             ->setParameter('type', UserType::Customer->value)
-            ->setParameter('reseller', $reseller)
+            ->setParameter('reseller', QueryParameter::entityId($reseller->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('user.email', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\User::class);
     }
 
     /**

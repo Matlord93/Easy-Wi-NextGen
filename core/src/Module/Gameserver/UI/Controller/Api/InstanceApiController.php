@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Api;
 
+use App\Repository\QueryParameter;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
@@ -62,7 +65,7 @@ final class InstanceApiController
     #[Route(path: '/api/v1/admin/instances', name: 'admin_instances_create_api_v1', methods: ['POST'])]
     public function createInstance(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) { return $this->createWithReservedPorts($request); }
         $input = $request->toArray();
         try { return $this->entityManager->wrapInTransaction(function () use ($request, $input): JsonResponse {
@@ -79,7 +82,7 @@ final class InstanceApiController
 
     private function createWithReservedPorts(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -376,7 +379,7 @@ final class InstanceApiController
     #[Route(path: '/api/v1/admin/instances/{id}', name: 'admin_instances_delete_v1', methods: ['DELETE'])]
     public function deleteInstance(Request $request, int $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -444,19 +447,19 @@ final class InstanceApiController
     private function removeDependentRecords(Instance $instance): void
     {
         $this->entityManager->createQuery(sprintf('DELETE FROM %s schedule WHERE schedule.instance = :instance', InstanceSchedule::class))
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->execute();
 
         $this->entityManager->createQuery(sprintf('DELETE FROM %s allocation WHERE allocation.instance = :instance', PortAllocation::class))
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->execute();
 
         $this->entityManager->createQuery(sprintf('DELETE FROM %s rental WHERE rental.instance = :instance', ShopRental::class))
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->execute();
 
         $this->entityManager->createQuery(sprintf('UPDATE %s shopOrder SET shopOrder.instance = null WHERE shopOrder.instance = :instance', ShopOrder::class))
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->execute();
     }
 
@@ -464,7 +467,7 @@ final class InstanceApiController
     #[Route(path: '/api/v1/admin/instances/{id}/update-settings', name: 'admin_instances_update_settings_v1', methods: ['POST'])]
     public function updateInstanceSettings(Request $request, int $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -559,7 +562,7 @@ final class InstanceApiController
     #[Route(path: '/api/v1/customer/instances', name: 'customer_instances_api_v1', methods: ['GET'])]
     public function listInstances(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }

@@ -33,15 +33,11 @@ final class DnsRecordRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<DnsRecord> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('record')
+        return EntityQueryResult::all($this->createQueryBuilder('record')
             ->join('record.domain', 'domain')
             ->where('domain.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('record.updatedAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\DnsRecord::class);
     }
 }

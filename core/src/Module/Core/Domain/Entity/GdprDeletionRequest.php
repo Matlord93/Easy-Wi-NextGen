@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Enum\GdprDeletionStatus;
 use App\Repository\GdprDeletionRequestRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: GdprDeletionRequestRepository::class)]
 #[ORM\Table(name: 'gdpr_deletion_requests')]
 #[ORM\Index(name: 'idx_gdpr_deletion_customer', columns: ['customer_id'])]

@@ -40,23 +40,21 @@ final class UserSessionRepository extends ServiceEntityRepository
 
     public function deleteExpiredBefore(\DateTimeImmutable $cutoff): int
     {
-        return $this->createQueryBuilder('session')
+        return EntityQueryResult::affected($this->createQueryBuilder('session')
             ->delete()
             ->andWhere('session.expiresAt IS NOT NULL')
             ->andWhere('session.expiresAt < :cutoff')
-            ->setParameter('cutoff', $cutoff)
-            ->getQuery()
-            ->execute();
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->getQuery());
     }
 
     public function deleteByUser(User $user): int
     {
-        return $this->createQueryBuilder('session')
+        return EntityQueryResult::affected($this->createQueryBuilder('session')
             ->delete()
             ->andWhere('session.user = :user')
-            ->setParameter('user', $user)
-            ->getQuery()
-            ->execute();
+            ->setParameter('user', QueryParameter::entityId($user->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->getQuery());
     }
 
     /**
@@ -68,17 +66,13 @@ final class UserSessionRepository extends ServiceEntityRepository
     {
         $now = new \DateTimeImmutable();
 
-        /** @var list<UserSession> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('session')
+        return EntityQueryResult::all($this->createQueryBuilder('session')
             ->andWhere('session.user = :user')
             ->andWhere('session.revokedAt IS NULL')
             ->andWhere('session.expiresAt IS NULL OR session.expiresAt > :now')
-            ->setParameter('user', $user)
-            ->setParameter('now', $now)
+            ->setParameter('user', QueryParameter::entityId($user->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->setParameter('now', $now, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('session.createdAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\UserSession::class);
     }
 }

@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\TenantRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: TenantRepository::class)]
 #[ORM\Table(name: 'tenants')]
 class Tenant

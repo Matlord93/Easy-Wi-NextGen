@@ -25,13 +25,12 @@ final class ForumPostRepository extends ServiceEntityRepository
     public function findVisibleByThreadWithAuthor(ForumThread $thread): array
     {
         /** @var list<ForumPost> $rows */
-        $rows = $this->createQueryBuilder('post')
+        $rows = EntityQueryResult::all($this->createQueryBuilder('post')
             ->leftJoin('post.authorUser', 'author')->addSelect('author')
             ->andWhere('post.thread = :thread')
-            ->setParameter('thread', $thread)
+            ->setParameter('thread', QueryParameter::entityId($thread->getId(), \App\Module\Core\Domain\Entity\ForumThread::class))
             ->orderBy('post.createdAt', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\ForumPost::class);
 
         return $rows;
     }
@@ -44,7 +43,7 @@ final class ForumPostRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('post')
             ->leftJoin('post.authorUser', 'author')->addSelect('author')
             ->andWhere('post.thread = :thread')
-            ->setParameter('thread', $thread)
+            ->setParameter('thread', QueryParameter::entityId($thread->getId(), \App\Module\Core\Domain\Entity\ForumThread::class))
             ->orderBy('post.createdAt', 'ASC');
 
         /** @var list<ForumPost> $items */
@@ -57,7 +56,7 @@ final class ForumPostRepository extends ServiceEntityRepository
         $total = (int) $this->createQueryBuilder('post_count')
             ->select('COUNT(post_count.id)')
             ->andWhere('post_count.thread = :thread')
-            ->setParameter('thread', $thread)
+            ->setParameter('thread', QueryParameter::entityId($thread->getId(), \App\Module\Core\Domain\Entity\ForumThread::class))
             ->getQuery()
             ->getSingleScalarResult();
 

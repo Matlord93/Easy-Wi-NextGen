@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
@@ -72,7 +73,12 @@ final class MusicbotRuntimeConfigBuilder
         return $this->secretConfigService->sanitizePayload($this->build($instance));
     }
 
-    /** @param MusicbotConnection[] $connections @return array<string, mixed> */
+    /**
+     * @param MusicbotConnection[] $connections
+     * @return array{enabled: bool, application_id?: string, guild_id?: string, voice_channel_id?: string,
+     * text_channel_id?: string, command_mode?: string, slash_commands_enabled?: bool, reconnect_policy?:
+     * string, bot_token?: string}
+     */
     private function buildDiscordConfig(array $connections): array
     {
         $connection = $this->findConnection($connections, MusicbotPlatform::Discord);
@@ -97,7 +103,10 @@ final class MusicbotRuntimeConfigBuilder
         ];
     }
 
-    /** @param MusicbotConnection[] $connections @return array<string, mixed> */
+    /**
+     * @param MusicbotConnection[] $connections
+     * @return array<string, mixed>
+     */
     private function buildTeamspeakConfig(MusicbotInstance $instance, array $connections): array
     {
         $connection = $this->findConnection($connections, MusicbotPlatform::Teamspeak);
@@ -140,7 +149,7 @@ final class MusicbotRuntimeConfigBuilder
             ],
             'command_prefix' => (string) ($config['command_prefix'] ?? '!'),
             'commands_enabled' => (bool) ($config['commands_enabled'] ?? true),
-            'command_catalog' => TeamspeakCommandCatalog::build(is_array($config['command_config'] ?? null) ? $config['command_config'] : []),
+            'command_catalog' => TeamspeakCommandCatalog::build(JsonArray::orEmpty($config['command_config'] ?? null)),
             'chat_scopes' => $this->normalizeChatScopes($config['chat_scopes'] ?? ['channel', 'private']),
             'role_bindings' => [
                 'user' => (array) ($config['allowed_server_groups'] ?? []),
@@ -163,7 +172,10 @@ final class MusicbotRuntimeConfigBuilder
     }
 
 
-    /** @param array<string, mixed> $runtimeConfig @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $runtimeConfig
+     * @return array<string, mixed>
+     */
     private function mergeTeamspeakBackendConfig(MusicbotInstance $instance, array $runtimeConfig): array
     {
         $selectedBackendType = (string) ($runtimeConfig['backend_type'] ?? 'placeholder');
@@ -227,7 +239,10 @@ final class MusicbotRuntimeConfigBuilder
         return $runtimeConfig;
     }
 
-    /** @param array<string, mixed> $runtimeConfig @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $runtimeConfig
+     * @return array<string, mixed>
+     */
     private function mergeExternalClientBridgeConfig(
         MusicbotInstance $instance,
         \App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig $backendConfig,
@@ -275,7 +290,10 @@ final class MusicbotRuntimeConfigBuilder
         return $runtimeConfig;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{enabled: bool, public_slug?: string, access_mode?: string, stream_title?: null|string,
+     * bitrate?: int, format?: string, has_token?: bool}
+     */
     private function buildStreamConfig(MusicbotInstance $instance): array
     {
         $settings = $this->streamSettingsRepository->findByInstance($instance);

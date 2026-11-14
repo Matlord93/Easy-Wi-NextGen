@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Billing\UI\Controller;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\Billing\ElectronicInvoiceData;
 use App\Module\Core\Application\Billing\ElectronicInvoiceService;
 use App\Module\Core\Application\Billing\ElectronicInvoiceValidator;
@@ -41,11 +43,15 @@ final readonly class ElectronicInvoiceController
     public function generate(Request $request, int $id, string $format): Response
     {
         $invoice = $this->invoice($request, $id);
+        $actor = RequestActor::user($request);
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            throw new AccessDeniedHttpException();
+        }
         if (!$this->csrf->isTokenValid(new CsrfToken('einvoice-'.$id.'-'.$format, (string) $request->request->get('_token')))) {
             throw new AccessDeniedHttpException();
         }
         try {
-            $this->service->generate($invoice, $format, $request->attributes->get('current_user'));
+            $this->service->generate($invoice, $format, $actor);
         } catch (\InvalidArgumentException $exception) {
             return $this->page($request, $invoice, $this->safeError($exception), 422);
         } catch (\RuntimeException $exception) {
@@ -64,7 +70,7 @@ final readonly class ElectronicInvoiceController
             if ($format !== $archive->getFormat()) {
                 continue;
             }
-            $name = preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()).'-'.$format.('zugferd' === $format ? '.pdf' : '.xml');
+            $name = (preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()) ?? 'invoice').'-'.$format.('zugferd' === $format ? '.pdf' : '.xml');
 
             return new Response($archive->getContents(), 200, ['Content-Type' => 'zugferd' === $format ? 'application/pdf' : 'application/xml; charset=UTF-8', 'Content-Disposition' => HeaderUtils::makeDisposition('attachment', $name), 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff', 'X-Content-SHA256' => $archive->getSha256()]);
         }
@@ -73,7 +79,7 @@ final readonly class ElectronicInvoiceController
 
     private function invoice(Request $request, int $id): Invoice
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         $admin = str_starts_with($request->getPathInfo(), '/admin/');
         if (!$user instanceof User || ($admin ? !$user->isAdmin() : UserType::Customer !== $user->getType())) {
             throw new AccessDeniedHttpException();

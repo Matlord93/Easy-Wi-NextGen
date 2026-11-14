@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Ports\Infrastructure\Repository\PortRangeRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: PortRangeRepository::class)]
 #[ORM\Table(name: 'port_ranges')]
 class PortRange

@@ -9,6 +9,10 @@ use App\Module\Ports\Domain\Entity\PortPool;
 
 final class GamePortPoolPolicy
 {
+    /**
+     * @param array<array-key, PortPool> $pools
+     * @return list<PortPool>
+     */
     public static function select(array $pools, Template $template): array
     {
         $family = in_array($template->getInstallResolver()['type'] ?? '', ['minecraft_vanilla', 'papermc_paper', 'minecraft_spigot', 'minecraft_bedrock', 'minecraft_bungeecord'], true) ? 'minecraft' : 'other';
@@ -24,6 +28,7 @@ final class GamePortPoolPolicy
         return [];
     }
 
+    /** @param array<array-key, PortPool> $allPools */
     public static function allows(PortPool $pool, Template $template, array $allPools): bool
     {
         return in_array($pool, self::select($allPools, $template), true);

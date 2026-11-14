@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -39,7 +41,8 @@ final class FileServiceClient
     }
 
     /**
-     * @return array{root_path: string, path: string, entries: array<int, array<string, mixed>>, warnings: array<int, array<string, mixed>>, total: int, offset: int, limit: int, truncated: bool}
+     * @return array{root_path: string, path: string, entries: array<int, array<string, mixed>>, warnings:
+     * array<int, array<string, mixed>>, total: int, offset: int, limit: int, truncated: bool}
      */
     public function list(Instance $instance, string $path, int $limit = 1000, int $offset = 0): array
     {
@@ -57,9 +60,9 @@ final class FileServiceClient
         return [
             'root_path' => (string) ($payload['root_path'] ?? ''),
             'path' => (string) ($payload['path'] ?? ''),
-            'entries' => is_array($payload['entries'] ?? null) ? $payload['entries'] : [],
-            'warnings' => is_array($payload['warnings'] ?? null) ? $payload['warnings'] : [],
-            'total' => (int) ($payload['total'] ?? count(is_array($payload['entries'] ?? null) ? $payload['entries'] : [])),
+            'entries' => JsonArray::orEmpty($payload['entries'] ?? null),
+            'warnings' => JsonArray::orEmpty($payload['warnings'] ?? null),
+            'total' => (int) ($payload['total'] ?? count(JsonArray::orEmpty($payload['entries'] ?? null))),
             'offset' => (int) ($payload['offset'] ?? $offset),
             'limit' => (int) ($payload['limit'] ?? $limit),
             'truncated' => (bool) ($payload['truncated'] ?? false),
@@ -249,7 +252,8 @@ final class FileServiceClient
     }
 
     /**
-     * @return array{ok: bool, status_code: int|null, error: string|null, url: string, body: array<array-key, mixed>|string|null}
+     * @return array{ok: bool, status_code: int|null, error: string|null, url: string, body:
+     * array<array-key, mixed>|string|null}
      */
     public function ping(Instance $instance): array
     {
@@ -372,7 +376,7 @@ final class FileServiceClient
         } catch (\Throwable $exception) {
             throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
         }
-        return is_array($payload) ? $payload : [];
+        return JsonArray::orEmpty($payload);
     }
 
     private function requestMultipart(Instance $instance, string $endpoint, FormDataPart $formData): void
@@ -469,7 +473,7 @@ final class FileServiceClient
             ]);
         }
 
-        return is_array($payload) ? $payload : [];
+        return JsonArray::orEmpty($payload);
     }
 
     /**
@@ -688,7 +692,7 @@ final class FileServiceClient
 
     private function buildEndpoint(Instance $instance, string $suffix): string
     {
-        return sprintf('/v1/servers/%s%s', $instance->getId(), $suffix);
+        return sprintf('/v1/servers/%s%s', EntityIdentifier::require($instance->getId()), $suffix);
     }
 
     private function normalizeRelativePath(string $path): string

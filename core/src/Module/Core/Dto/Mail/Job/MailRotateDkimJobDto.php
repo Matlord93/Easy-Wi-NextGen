@@ -14,7 +14,7 @@ final readonly class MailRotateDkimJobDto
     ) {
     }
 
-    /** @return array<string,mixed> */
+    /** @return array{node_id: string, domain: string, selector: string, activate_immediately: bool} */
     public function toPayload(): array
     {
         return [

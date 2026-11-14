@@ -27,7 +27,6 @@ final class TemplateRepository extends ServiceEntityRepository implements Shared
             return null;
         }
 
-        /** @var list<Template> $matches */
         $matches = $this->findBy([
             'displayName' => $displayName,
             'gameKey' => $gameKey,

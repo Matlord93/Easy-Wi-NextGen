@@ -85,7 +85,14 @@ final class MusicbotPlanLimitResolver
         return $override < 0 ? PHP_INT_MAX : $override;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{max_musicbots: int, max_tracks: int, max_storage_mb: int, max_playlists: int,
+     * max_playlist_items: int, max_plugins: int, max_queue_items: int, max_connections: int,
+     * max_upload_size_mb: int, allow_teamspeak: bool, allow_discord: bool, allow_stream: bool, allow_api:
+     * bool, allow_teamspeak6_profile: bool, allow_webradio: bool, allow_youtube: bool,
+     * allow_teamspeak_commands: bool, allow_playlists: bool, allow_autodj: bool, allow_plugins: bool,
+     * allow_workflows: bool, allow_scheduler: bool}
+     */
     public static function planDefaults(): array
     {
         return self::DEFAULTS;

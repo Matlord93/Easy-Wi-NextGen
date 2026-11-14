@@ -12,7 +12,10 @@ final readonly class DockerGameComposeRenderer
     {
     }
 
-    /** @param array<string, int> $hostPorts @param array<string, string> $environment */
+    /**
+     * @param array<string, int> $hostPorts
+     * @param array<string, string> $environment
+     */
     public function render(string $templateKey, string $project, array $hostPorts, array $environment = [], bool $sharedStorage = false): string
     {
         if (1 !== preg_match('/^[a-z0-9][a-z0-9-]{0,62}$/', $project)) {

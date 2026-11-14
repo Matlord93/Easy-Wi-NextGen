@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\SecurityPolicyRevisionRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: SecurityPolicyRevisionRepository::class)]
 #[ORM\Table(name: 'security_policy_revisions')]
 #[ORM\Index(columns: ['node_id', 'policy_type'], name: 'idx_security_policy_node_type')]

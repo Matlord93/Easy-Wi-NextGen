@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Enum\DunningStatus;
 use App\Repository\DunningReminderRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: DunningReminderRepository::class)]
 #[ORM\Table(name: 'dunning_reminders')]
 class DunningReminder

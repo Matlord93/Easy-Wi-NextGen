@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -21,7 +23,7 @@ final class AdminMailHealthPageController
     #[Route(path: '/health', name: 'admin_mail_health', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -36,7 +38,7 @@ final class AdminMailHealthPageController
     #[Route(path: '/matrix', name: 'admin_mail_matrix', methods: ['GET'])]
     public function matrix(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }

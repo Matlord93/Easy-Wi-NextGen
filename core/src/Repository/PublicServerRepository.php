@@ -23,17 +23,13 @@ final class PublicServerRepository extends ServiceEntityRepository
      */
     public function findDueForCheck(\DateTimeImmutable $now, int $limit): array
     {
-        /** @var list<PublicServer> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('server')
+        return EntityQueryResult::all($this->createQueryBuilder('server')
             ->andWhere('server.nextCheckAt IS NULL OR server.nextCheckAt <= :now')
-            ->setParameter('now', $now)
+            ->setParameter('now', $now, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('server.nextCheckAt', 'ASC')
             ->addOrderBy('server.id', 'ASC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\PublicServer::class);
     }
 
     /**
@@ -66,10 +62,7 @@ final class PublicServerRepository extends ServiceEntityRepository
             $builder->setMaxResults($limit);
         }
 
-        /** @var list<PublicServer> $hydratedEntities */
-        $hydratedEntities = $builder->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($builder->getQuery(), \App\Module\Core\Domain\Entity\PublicServer::class);
     }
 
     /**

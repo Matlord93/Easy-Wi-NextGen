@@ -27,7 +27,7 @@ final class ScheduledTaskRunRepository extends ServiceEntityRepository
             ->select('COUNT(run.id)')
             ->andWhere('run.startedAt >= :since')
             ->andWhere('run.status = :status')
-            ->setParameter('since', $since)
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->setParameter('status', 'failed')
             ->getQuery()
             ->getSingleScalarResult();
@@ -35,12 +35,10 @@ final class ScheduledTaskRunRepository extends ServiceEntityRepository
 
     public function countCreatedJobsSince(\DateTimeImmutable $since): int
     {
-        /** @var list<ScheduledTaskRun> $runs */
-        $runs = $this->createQueryBuilder('run')
+        $runs = EntityQueryResult::all($this->createQueryBuilder('run')
             ->andWhere('run.startedAt >= :since')
-            ->setParameter('since', $since)
-            ->getQuery()
-            ->getResult();
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->getQuery(), \App\Module\Core\Domain\Entity\ScheduledTaskRun::class);
 
         $count = 0;
         foreach ($runs as $run) {
@@ -60,7 +58,7 @@ final class ScheduledTaskRunRepository extends ServiceEntityRepository
             ->andWhere('run.type = :type')
             ->andWhere('run.startedAt < :cutoff')
             ->setParameter('type', 'scheduler.heartbeat')
-            ->setParameter('cutoff', $cutoff)
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
             ->execute();
     }

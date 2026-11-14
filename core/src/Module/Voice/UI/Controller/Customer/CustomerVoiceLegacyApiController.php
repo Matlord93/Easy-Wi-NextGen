@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Voice\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Ts3\Ts3ViewerService;
@@ -199,7 +201,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $serverGroupId = max(1, (int) ($body['server_group_id'] ?? 6));
 
         if ($type === 'ts3') {
@@ -365,7 +367,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $publicHost = isset($body['public_host']) ? trim((string) $body['public_host']) : null;
         $publicHost = $publicHost !== '' ? $publicHost : null;
 
@@ -408,7 +410,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $enabled = (bool) ($body['enabled'] ?? true);
         $cacheTtlMs = max(500, (int) ($body['cache_ttl_ms'] ?? 1500));
         $domainAllowlist = isset($body['domain_allowlist']) ? trim((string) $body['domain_allowlist']) : null;
@@ -490,7 +492,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $cacheKey = trim((string) $request->query->get('key', ''));
+        $cacheKey = trim($request->query->getString('key', ''));
         if ($cacheKey === '') {
             return $this->responseEnvelopeFactory->error($request, 'Missing cache key.', 'voice_snapshot_key_missing', 400);
         }
@@ -505,7 +507,7 @@ final class CustomerVoiceLegacyApiController
             return ['status' => 'pending'];
         });
 
-        $status = is_array($payload) ? strtolower((string) ($payload['status'] ?? 'pending')) : 'pending';
+        $status = is_array($payload) ? strtolower(($payload['status'] ?? 'pending')) : 'pending';
         $agentError = $this->extractAgentError($payload);
         $snapshotContent = $this->extractSnapshotContent($payload);
         $payloadKeys = is_array($payload) ? array_keys($payload) : [];
@@ -562,7 +564,7 @@ final class CustomerVoiceLegacyApiController
         }
 
         if ($snapshotContent === null || $snapshotContent === '') {
-            $body = json_decode((string) $request->getContent(), true) ?? [];
+            $body = json_decode($request->getContent(), true) ?? [];
             $snapshotContent = isset($body['snapshot']) ? trim((string) $body['snapshot']) : null;
         }
 
@@ -598,7 +600,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $reason = trim((string) ($body['reason'] ?? ''));
 
         if ($type === 'ts3') {
@@ -624,7 +626,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $message = trim((string) ($body['message'] ?? ''));
         if ($message === '') {
             return $this->responseEnvelopeFactory->error($request, 'Message is required.', 'voice_poke_message_required', 400);
@@ -653,7 +655,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $banParams = ['clid' => $clid];
         $banParams['duration'] = max(0, (int) ($body['duration'] ?? $body['time'] ?? 0));
         $banParams['reason'] = trim((string) ($body['reason'] ?? 'Banned via panel'));
@@ -681,7 +683,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $banParams = [];
         foreach (['ip', 'uid', 'name', 'time', 'banreason'] as $field) {
             if (isset($body[$field]) && (string) $body[$field] !== '') {
@@ -734,7 +736,7 @@ final class CustomerVoiceLegacyApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -759,6 +761,10 @@ final class CustomerVoiceLegacyApiController
         return null;
     }
 
+    /**
+     * @return array{id: int|null, name: string, provider_type: string, status: string, players_online:
+     * null, players_max: int|null, connect: array{host: string, port: int|null}, actions_enabled: bool}
+     */
     private function normalizeServer(Ts3VirtualServer|Ts6VirtualServer $server, string $type): array
     {
         $host = $server->getPublicHost() ?? $server->getNode()->getQueryConnectIp();

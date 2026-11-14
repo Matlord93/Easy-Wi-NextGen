@@ -16,6 +16,7 @@ final class DummyPaymentProvider implements PaymentProviderInterface
         return 'dummy';
     }
 
+    /** @return list<string> */
     #[\Override]
     public function supportedMethods(): array
     {

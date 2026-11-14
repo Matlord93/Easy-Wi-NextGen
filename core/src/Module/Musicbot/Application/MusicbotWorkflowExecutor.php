@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Musicbot\Application\MusicbotAutoDjService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -128,7 +129,7 @@ final class MusicbotWorkflowExecutor
         $this->validateWebhookUrl($url);
 
         $payload = array_merge(
-            is_array($config['payload'] ?? null) ? $config['payload'] : [],
+            JsonArray::orEmpty($config['payload'] ?? null),
             ['workflow_id' => $workflow->getId(), 'workflow_name' => $workflow->getName(), 'trigger_context' => $context],
         );
 
@@ -206,7 +207,7 @@ final class MusicbotWorkflowExecutor
             throw new \InvalidArgumentException('Webhook URL must use HTTPS.');
         }
 
-        $host = strtolower(trim((string) ($parsed['host'] ?? ''), '[]'));
+        $host = strtolower(trim(($parsed['host'] ?? ''), '[]'));
         if ($host === '') {
             throw new \InvalidArgumentException('Webhook URL has no host.');
         }

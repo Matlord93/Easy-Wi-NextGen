@@ -10,17 +10,17 @@ use App\Module\Core\Application\Billing\InvoicePdfRenderer;
 use horstoeko\zugferd\ZugferdDocumentPdfBuilder;
 use PHPUnit\Framework\TestCase;
 
-/** Real offline standards checks, opt in after installing the pinned validators. */
+/** Real offline standards checks using the pinned local validators. */
 final class ElectronicInvoiceStandardsTest extends TestCase
 {
     private function validator(): ElectronicInvoiceValidator
     {
         $directory = getenv('EASYWI_TEST_EINVOICE_VALIDATORS');
         if (false === $directory || '' === $directory) {
-            self::markTestSkipped('Set EASYWI_TEST_EINVOICE_VALIDATORS to run local KoSIT/veraPDF acceptance.');
+            $directory = dirname(__DIR__, 5).'/var/einvoice-validator';
         }
         $validator = new ElectronicInvoiceValidator($directory);
-        self::assertTrue($validator->ready('zugferd'), 'Install the pinned local invoice validators.');
+        self::assertTrue($validator->ready('zugferd'), 'Run python3 ../scripts/setup-einvoice-validation.py before the test suite.');
 
         return $validator;
     }

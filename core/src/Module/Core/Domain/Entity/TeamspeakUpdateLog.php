@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\TeamspeakUpdateLogRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: TeamspeakUpdateLogRepository::class)]
 #[ORM\Table(name: 'teamspeak_update_logs')]
 class TeamspeakUpdateLog

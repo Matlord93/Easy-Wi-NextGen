@@ -91,7 +91,11 @@ final class MusicbotPlaybackCommandService
         }
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{source_type: string, source?: array{type: string, uri?: string, youtube_url?: string},
+     * queue_item_id: string, track_id: string, radio_url?: string, url?: string, youtube_url?: string,
+     * file_path?: string, path?: string}
+     */
     private function resolvePlayPayload(MusicbotInstance $instance): array
     {
         $queue = $this->queueItemRepository->findQueueForInstanceOrdered($instance);

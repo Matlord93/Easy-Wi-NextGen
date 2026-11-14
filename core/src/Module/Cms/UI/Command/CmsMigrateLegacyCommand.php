@@ -6,6 +6,7 @@ namespace App\Module\Cms\UI\Command;
 
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Core\Domain\Entity\CmsPage;
+use App\Module\Core\Domain\Entity\Site;
 use App\Repository\CmsEventRepository;
 use App\Repository\CmsPageRepository;
 use App\Repository\CmsPostRepository;
@@ -43,7 +44,7 @@ final class CmsMigrateLegacyCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $dryRun = (bool) $input->getOption('dry-run');
+        $dryRun = $input->getOption('dry-run');
 
         foreach ($this->siteRepository->findAll() as $site) {
             $this->upsertPage($site, 'blog', 'Blog / News', $this->renderBlog($site), $dryRun);
@@ -60,7 +61,7 @@ final class CmsMigrateLegacyCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function upsertPage(object $site, string $slug, string $title, string $content, bool $dryRun): void
+    private function upsertPage(Site $site, string $slug, string $title, string $content, bool $dryRun): void
     {
         $page = $this->pageRepository->findOneBy(['site' => $site, 'slug' => $slug]);
         if (!$page instanceof CmsPage) {
@@ -93,18 +94,18 @@ final class CmsMigrateLegacyCommand extends Command
         }
     }
 
-    private function renderBlog(object $site): string
+    private function renderBlog(Site $site): string
     {
         $posts = $this->postRepository->findBy(['site' => $site, 'isPublished' => true], ['publishedAt' => 'DESC']);
         $html = '<h2>Blog</h2><ul>';
         foreach ($posts as $post) {
-            $html .= sprintf('<li><strong>%s</strong><br>%s</li>', htmlspecialchars($post->getTitle()), htmlspecialchars($post->getExcerpt()));
+            $html .= sprintf('<li><strong>%s</strong><br>%s</li>', htmlspecialchars($post->getTitle()), htmlspecialchars(($post->getExcerpt() ?? '')));
         }
 
         return $html . '</ul>';
     }
 
-    private function renderEvents(object $site): string
+    private function renderEvents(Site $site): string
     {
         $events = $this->eventRepository->findBy(['site' => $site, 'isPublished' => true], ['startAt' => 'ASC']);
         $html = '<h2>Events</h2><ul>';
@@ -115,7 +116,7 @@ final class CmsMigrateLegacyCommand extends Command
         return $html . '</ul>';
     }
 
-    private function renderTeams(object $site): string
+    private function renderTeams(Site $site): string
     {
         $members = $this->teamRepository->findBy(['site' => $site, 'isActive' => true], ['sortOrder' => 'ASC']);
         $html = '<h2>Teams</h2><ul>';

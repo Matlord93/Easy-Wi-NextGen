@@ -71,6 +71,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
             ->addOption('max-runtime', null, InputOption::VALUE_REQUIRED, 'Optional maximum runtime in seconds for loop mode.');
     }
 
+    /** @return list<int> */
     #[\Override]
     public function getSubscribedSignals(): array
     {
@@ -97,7 +98,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
             return Command::SUCCESS;
         }
 
-        $loop = (bool) $input->getOption('loop') && !(bool) $input->getOption('once');
+        $loop = $input->getOption('loop') && !$input->getOption('once');
         $sleepSeconds = max(1, (int) $input->getOption('sleep'));
         $maxRuntimeValue = $input->getOption('max-runtime');
         $maxRuntimeSeconds = is_numeric($maxRuntimeValue) ? max(1, (int) $maxRuntimeValue) : null;
@@ -139,7 +140,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         do {
             $instanceSchedules = $this->instanceScheduleRepository->findEnabledBatchAfterId($lastInstanceScheduleId, self::DEFAULT_BATCH_SIZE);
             foreach ($instanceSchedules as $schedule) {
-                $lastInstanceScheduleId = max($lastInstanceScheduleId, (int) ($schedule->getId() ?? 0));
+                $lastInstanceScheduleId = max($lastInstanceScheduleId, ($schedule->getId() ?? 0));
                 $instance = $schedule->getInstance();
                 $action = $schedule->getAction();
 
@@ -330,7 +331,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         do {
             $backupSchedules = $this->backupScheduleRepository->findEnabledBatchAfterId($lastBackupScheduleId, self::DEFAULT_BATCH_SIZE);
             foreach ($backupSchedules as $schedule) {
-                $lastBackupScheduleId = max($lastBackupScheduleId, (int) ($schedule->getId() ?? 0));
+                $lastBackupScheduleId = max($lastBackupScheduleId, ($schedule->getId() ?? 0));
                 $definition = $schedule->getDefinition();
                 if ($definition->getTargetType() !== BackupTargetType::Game) {
                     continue;
@@ -511,8 +512,8 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
-            'install_path' => (string) ($instance->getInstallPath() ?? ''),
-            'base_dir' => (string) ($instance->getInstanceBaseDir() ?? ''),
+            'install_path' => ($instance->getInstallPath() ?? ''),
+            'base_dir' => ($instance->getInstanceBaseDir() ?? ''),
         ], $extraPayload);
 
         $job = new Job($type, $payload);

@@ -6,7 +6,10 @@ namespace App\Module\Gameserver\Domain;
 
 final readonly class DockerGameTemplate
 {
-    /** @param array<string, int> $ports @param array<string, string> $environment */
+    /**
+     * @param array<string, int> $ports
+     * @param array<string, string> $environment
+     */
     public function __construct(
         public string $key,
         public string $name,

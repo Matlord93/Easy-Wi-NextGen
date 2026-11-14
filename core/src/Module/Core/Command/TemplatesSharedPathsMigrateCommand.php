@@ -38,8 +38,8 @@ final class TemplatesSharedPathsMigrateCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $force = (bool) $input->getOption('force');
-        $dryRun = (bool) $input->getOption('dry-run');
+        $force = $input->getOption('force');
+        $dryRun = $input->getOption('dry-run');
 
         if ($dryRun) {
             $io->note('Dry-run mode — no changes will be written.');
@@ -48,7 +48,6 @@ final class TemplatesSharedPathsMigrateCommand extends Command
         $sharedPathsByGameKey = $this->buildSharedPathIndex();
 
         $em = $this->registry->getManager();
-        /** @var list<Template> $templates */
         $templates = $em->getRepository(Template::class)->findAll();
 
         $updated = 0;

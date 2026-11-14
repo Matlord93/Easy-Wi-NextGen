@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
@@ -36,7 +38,7 @@ final class AdminSearchController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $query = trim((string) $request->query->get('q', ''));
+        $query = trim($request->query->getString('q', ''));
         $results = $query === '' ? [] : $this->performSearch($query);
 
         $template = $request->headers->get('HX-Request') ? 'admin/search/_results.html.twig' : 'admin/search/index.html.twig';
@@ -50,7 +52,7 @@ final class AdminSearchController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 

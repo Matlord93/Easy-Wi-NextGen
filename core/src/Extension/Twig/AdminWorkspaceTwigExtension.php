@@ -17,6 +17,11 @@ final class AdminWorkspaceTwigExtension extends AbstractExtension
     #[\Override]
     public function getFunctions(): array
     {
-        return [new TwigFunction('admin_workspace_context', $this->guide->context(...))];
+        return [new TwigFunction('admin_workspace_context', [$this, 'context'])];
+    }
+
+    public function context(string $activeNav): array
+    {
+        return $this->guide->context($activeNav);
     }
 }

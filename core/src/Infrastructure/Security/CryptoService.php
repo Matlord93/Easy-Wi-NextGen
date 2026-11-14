@@ -41,7 +41,7 @@ final class CryptoService
         $ciphertext = $this->decodeBase64Field($payload['ciphertext'] ?? null, 'ciphertext');
         $key = $this->keyLoader->loadKey();
 
-        $backend = (string) ($payload['backend'] ?? '');
+        $backend = $payload['backend'] ?? '';
         if ($backend === 'openssl' || array_key_exists('tag', $payload)) {
             return $this->decryptWithOpenSsl($payload, $nonce, $ciphertext, $key);
         }
@@ -72,6 +72,7 @@ final class CryptoService
         return $decoded;
     }
 
+    /** @return array{backend: string, nonce: string, ciphertext: string, tag: string} */
     private function encryptWithOpenSsl(string $plaintext, string $key): array
     {
         if (!\function_exists('openssl_encrypt')) {
@@ -94,7 +95,7 @@ final class CryptoService
     }
 
     /**
-     * @param array{tag?: string} $payload
+     * @param array{nonce?: string, ciphertext?: string, backend?: string, tag?: string} $payload
      */
     private function decryptWithOpenSsl(array $payload, string $nonce, string $ciphertext, string $key): string
     {

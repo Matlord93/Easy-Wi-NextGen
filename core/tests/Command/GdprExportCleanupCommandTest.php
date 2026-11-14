@@ -4,41 +4,30 @@ declare(strict_types=1);
 
 namespace App\Tests\Command;
 
-use App\Module\Core\Application\PrivacyGdprBackgroundJobService;
+use App\Module\Core\Application\PrivacyGdprBackgroundJobRunnerInterface;
 use App\Module\Core\Command\GdprExportCleanupCommand;
-use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Tools\SchemaTool;
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
-final class GdprExportCleanupCommandTest extends KernelTestCase
+final class GdprExportCleanupCommandTest extends TestCase
 {
-    public function testCleansAnEmptyQueueWithTheRequestedLimit(): void
+    #[DataProvider('cases')]
+    public function testExecutesExportJob(array $options, int $limit, int $count, string $message): void
     {
-        $previous = [$_SERVER['DATABASE_URL'] ?? null, $_ENV['DATABASE_URL'] ?? null];
-        $_SERVER['DATABASE_URL'] = $_ENV['DATABASE_URL'] = 'sqlite:///:memory:';
-        self::ensureKernelShutdown();
+        $runner = $this->createMock(PrivacyGdprBackgroundJobRunnerInterface::class);
+        $runner->expects($this->once())->method('deleteExpiredExportsOnly')->with($limit)->willReturn($count);
+        $tester = new CommandTester(new GdprExportCleanupCommand($runner));
 
-        try {
-            self::bootKernel();
-            $container = self::getContainer();
-            $entityManager = $container->get(EntityManagerInterface::class);
-            (new SchemaTool($entityManager))->createSchema($entityManager->getMetadataFactory()->getAllMetadata());
-            $command = new GdprExportCleanupCommand($container->get(PrivacyGdprBackgroundJobService::class));
-            $tester = new CommandTester($command);
+        self::assertSame(Command::SUCCESS, $tester->execute($options));
+        self::assertStringContainsString($message, $tester->getDisplay());
+    }
 
-            self::assertSame(0, $tester->execute(['--limit' => '0']));
-            self::assertStringContainsString('No expired GDPR exports to delete.', $tester->getDisplay());
-            self::assertSame('100', $command->getDefinition()->getOption('limit')->getDefault());
-        } finally {
-            self::ensureKernelShutdown();
-            foreach (['SERVER', 'ENV'] as $index => $global) {
-                if ($previous[$index] === null) {
-                    unset($GLOBALS['_'.$global]['DATABASE_URL']);
-                } else {
-                    $GLOBALS['_'.$global]['DATABASE_URL'] = $previous[$index];
-                }
-            }
-        }
+    public static function cases(): iterable
+    {
+        yield 'default empty queue' => [[], 100, 0, 'No expired GDPR exports to delete.'];
+        yield 'explicit batch' => [['--limit' => '7'], 7, 3, 'Deleted 3 expired GDPR export(s).'];
+        yield 'minimum batch' => [['--limit' => '0'], 1, 0, 'No expired GDPR exports to delete.'];
     }
 }

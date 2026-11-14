@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Extension\Twig;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AppSettingsService;
@@ -72,7 +74,7 @@ final class PortalContextTwigExtension extends AbstractExtension
     public function currentUser(): ?User
     {
         $request = $this->requestStack->getCurrentRequest();
-        $actor = $request?->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User ? $actor : null;
     }
@@ -88,7 +90,7 @@ final class PortalContextTwigExtension extends AbstractExtension
     public function unreadNotifications(): int
     {
         $request = $this->requestStack->getCurrentRequest();
-        $actor = $request?->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         if (!$actor instanceof User) {
             return 0;
@@ -103,7 +105,7 @@ final class PortalContextTwigExtension extends AbstractExtension
     public function adminUpdateStatus(): ?array
     {
         $request = $this->requestStack->getCurrentRequest();
-        $actor = $request?->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return null;

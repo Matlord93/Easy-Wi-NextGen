@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\DdosStatusRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: DdosStatusRepository::class)]
 #[ORM\Table(name: 'ddos_statuses')]
 #[ORM\UniqueConstraint(name: 'uniq_ddos_status_node', columns: ['node_id'])]
@@ -30,12 +35,15 @@ class DdosStatus
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $connectionCount = null;
 
+    /** @var int[] */
     #[ORM\Column(type: 'json')]
     private array $ports = [];
 
+    /** @var string[] */
     #[ORM\Column(type: 'json')]
     private array $protocols = [];
 
+    /** @var array<int, array{port: int, syn_recv: int, attack_active: bool}> */
     #[ORM\Column(name: 'port_stats', type: 'json')]
     private array $portStats = [];
 

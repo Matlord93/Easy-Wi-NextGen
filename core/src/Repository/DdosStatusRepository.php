@@ -29,13 +29,9 @@ final class DdosStatusRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<DdosStatus> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('status')
+        return EntityQueryResult::all($this->createQueryBuilder('status')
             ->where('status.node IN (:nodes)')
             ->setParameter('nodes', $nodes)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\DdosStatus::class);
     }
 }

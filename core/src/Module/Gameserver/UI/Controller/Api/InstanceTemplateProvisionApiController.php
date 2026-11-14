@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
@@ -25,7 +27,7 @@ final class InstanceTemplateProvisionApiController
     #[Route(path: '/api/admin/instances/{id}/provision-template', name: 'admin_instances_provision_template_api', methods: ['POST'])]
     public function __invoke(string $id, Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }

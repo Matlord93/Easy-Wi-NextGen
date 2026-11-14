@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 
 final class MusicbotConfigApplyPayloadBuilder
@@ -17,7 +18,7 @@ final class MusicbotConfigApplyPayloadBuilder
     public function build(MusicbotInstance $instance): array
     {
         $config = $this->runtimeConfigBuilder->build($instance);
-        $teamspeak = is_array($config['teamspeak'] ?? null) ? $config['teamspeak'] : [];
+        $teamspeak = JsonArray::orEmpty($config['teamspeak'] ?? null);
 
         $profile = $this->nonEmptyString($teamspeak['profile'] ?? null, 'ts3');
         $backendType = $this->normalizeBackendType($teamspeak['backend_type'] ?? null);

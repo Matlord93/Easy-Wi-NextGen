@@ -8,6 +8,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowExecutionStatus;
 use App\Repository\MusicbotWorkflowExecutionRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotWorkflowExecutionRepository::class)]
 #[ORM\Table(name: 'musicbot_workflow_executions')]
 #[ORM\Index(name: 'idx_musicbot_wf_exec_workflow', columns: ['workflow_id'])]

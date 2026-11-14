@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Console;
 
+use App\Repository\QueryParameter;
 use App\Module\Core\Application\AgentCredentialsResolver;
 use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Application\AuditLogger;
@@ -47,7 +48,7 @@ final readonly class VmConsoleBroker
 
     public function assertGateway(Request $request): void
     {
-        if (!$this->configured() || !hash_equals($this->gatewaySecret, (string) $request->headers->get('X-EasyWI-Console-Gateway', ''))) {
+        if (!$this->configured() || !hash_equals($this->gatewaySecret, $request->headers->get('X-EasyWI-Console-Gateway', ''))) {
             throw new AccessDeniedHttpException();
         }
     }
@@ -77,6 +78,7 @@ final readonly class VmConsoleBroker
         return null;
     }
 
+    /** @return array{ticket: string, websocket_path: string, expires_in: int} */
     public function mint(string $provider, int $id, User $actor, Request $request): array
     {
         if (!$this->configured()) {
@@ -85,7 +87,7 @@ final readonly class VmConsoleBroker
         $assignment = $this->assignment($provider, $id, $actor);
         $this->assertAssignmentAvailable($assignment, $actor);
         $sessionHash = $this->sessionHash($request, $actor);
-        $recent = $this->em->getRepository(VmConsoleSession::class)->createQueryBuilder('s')->select('COUNT(s.id)')->where('s.customer = :actor')->andWhere('s.createdAt > :cutoff')->setParameter('actor', $actor)->setParameter('cutoff', new \DateTimeImmutable('-1 minute'))->getQuery()->getSingleScalarResult();
+        $recent = $this->em->getRepository(VmConsoleSession::class)->createQueryBuilder('s')->select('COUNT(s.id)')->where('s.customer = :actor')->andWhere('s.createdAt > :cutoff')->setParameter('actor', QueryParameter::entityId($actor->getId(), \App\Module\Core\Domain\Entity\User::class))->setParameter('cutoff', new \DateTimeImmutable('-1 minute'), \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)->getQuery()->getSingleScalarResult();
         if ((int) $recent >= 5) {
             throw new TooManyRequestsHttpException(60);
         }

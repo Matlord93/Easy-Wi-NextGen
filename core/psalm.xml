@@ -1,27 +1,31 @@
 <?xml version="1.0"?>
 <psalm
-    xmlns="https://getpsalm.org/schema/config"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="https://getpsalm.org/schema/config tools/psalm/vendor/vimeo/psalm/config.xsd"
     errorLevel="1"
+    cacheDirectory="var/psalm"
     phpVersion="8.5"
-    findUnusedCode="true"
+    resolveFromConfigFile="true"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://getpsalm.org/schema/config"
+    xsi:schemaLocation="https://getpsalm.org/schema/config ../tools/psalm/vendor/vimeo/psalm/config.xsd"
     findUnusedBaselineEntry="true"
-    findUnusedIssueHandlerSuppression="true"
-    autoloader="vendor/autoload.php"
-    cacheDirectory="var/cache/psalm"
+    findUnusedCode="true"
 >
     <projectFiles>
         <directory name="src" />
+        <file name="bin/console" />
+        <file name="public/index.php" />
+        <ignoreFiles>
+            <directory name="vendor" />
+        </ignoreFiles>
     </projectFiles>
     <extraFiles>
         <directory name="migrations" />
     </extraFiles>
     <plugins>
+        <plugin filename="../tools/psalm/plugins/DoctrineMappingPlugin.php" />
         <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
-            <symfonyMajorVersion>8</symfonyMajorVersion>
             <containerXml>var/cache/dev/App_KernelDevDebugContainer.xml</containerXml>
+            <symfonyMajorVersion>8</symfonyMajorVersion>
         </pluginClass>
-        <pluginClass class="Psalm\PhpUnitPlugin\Plugin" />
     </plugins>
 </psalm>

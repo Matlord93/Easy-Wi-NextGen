@@ -127,7 +127,10 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
         }
     }
 
-    /** @param array<int,array<string,mixed>> $releases @return list<array<string,mixed>> */
+    /**
+     * @param array<int,array<string,mixed>> $releases
+     * @return list<array<string,mixed>>
+     */
     private function sortReleases(array $releases): array
     {
         $normalized = array_values(array_filter($releases, static fn(mixed $release): bool => is_array($release)));

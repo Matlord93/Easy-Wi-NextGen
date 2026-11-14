@@ -53,7 +53,7 @@ final class UnifiRule
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{name: string, proto: string, dst_port: int, fwd: string, fwd_port: int, enabled: bool}
      */
     public function toPayload(): array
     {

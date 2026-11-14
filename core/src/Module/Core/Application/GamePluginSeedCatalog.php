@@ -127,7 +127,8 @@ final class GamePluginSeedCatalog
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{template_game_key: string, name: string, version: string, checksum: string,
+     * download_url: string, description: null|string, install_mode: string, extract_subdir: null|string}
      */
     private function plugin(
         string $templateGameKey,

@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ServerSftpAccessRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ServerSftpAccessRepository::class)]
 #[ORM\Table(name: 'server_sftp_access')]
 #[ORM\UniqueConstraint(name: 'uniq_server_sftp_access_server', columns: ['server_id'])]
@@ -30,6 +35,7 @@ class ServerSftpAccess
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $passwordSetAt = null;
 
+    /** @var list<string> */
     #[ORM\Column(name: 'ssh_keys', type: 'json')]
     private array $keys = [];
 

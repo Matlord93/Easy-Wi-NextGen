@@ -238,7 +238,8 @@ final class AgentUpdateQueueService
     /**
      * @param Agent[] $agents
      *
-     * @return array{eligible: array<int, Agent>, blocked: array<int, array<string, string>>, skipped: array<int, array<string, string>>}
+     * @return array{eligible: array<int, Agent>, blocked: list<array<string, string|null>>, skipped:
+     * list<array<string, string|null>>}
      */
     public function analyzeManualUpdateCandidates(array $agents, ?string $latestVersion, string $channel): array
     {
@@ -272,7 +273,7 @@ final class AgentUpdateQueueService
                 $skipped[] = [
                     'agentId' => $agent->getId(),
                     'agentName' => $agent->getName() ?? '',
-                    'reason' => (string) ($analysis['reason'] ?? 'release_check_failed'),
+                    'reason' => ($analysis['reason'] ?? 'release_check_failed'),
                     'expectedAssetName' => $expectedAssetName,
                 ];
                 continue;

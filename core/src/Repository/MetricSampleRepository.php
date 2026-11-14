@@ -21,7 +21,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array<int, array{id: int, recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}>
+     * @return array<int, array{id: int, recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent:
+     * ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}>
      */
     public function findRecentSamplesForAgentSince(Agent $agent, \DateTimeImmutable $since, int $page, int $perPage): array
     {
@@ -39,8 +40,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
             ->select('COUNT(sample.id)')
             ->andWhere('sample.agent = :agent')
             ->andWhere('sample.recordedAt >= :since')
-            ->setParameter('agent', $agent)
-            ->setParameter('since', $since)
+            ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -50,7 +51,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
         $row = $this->createQueryBuilder('sample')
             ->select('sample.recordedAt AS recordedAt')
             ->andWhere('sample.agent = :agent')
-            ->setParameter('agent', $agent)
+            ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->orderBy('sample.recordedAt', 'DESC')
             ->addOrderBy('sample.id', 'DESC')
             ->setMaxResults(1)
@@ -67,7 +68,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array{count: int, cpu_avg: ?float, cpu_max: ?float, memory_avg: ?float, memory_max: ?float, disk_avg: ?float, disk_max: ?float}
+     * @return array{count: int, cpu_avg: ?float, cpu_max: ?float, memory_avg: ?float, memory_max: ?float,
+     * disk_avg: ?float, disk_max: ?float}
      */
     public function fetchAggregateSnapshotForAgentSince(Agent $agent, \DateTimeImmutable $since): array
     {
@@ -82,8 +84,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
             ->addSelect('MAX(sample.diskPercent) as disk_max')
             ->andWhere('sample.agent = :agent')
             ->andWhere('sample.recordedAt >= :since')
-            ->setParameter('agent', $agent)
-            ->setParameter('since', $since)
+            ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
             ->getSingleResult();
 
@@ -99,7 +101,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array<int, array{recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}>
+     * @return array<int, array{recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float,
+     * diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}>
      */
     public function findSparklineSeriesForAgentSince(Agent $agent, \DateTimeImmutable $since, int $limit = 240): array
     {
@@ -115,8 +118,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
             )
             ->andWhere('sample.agent = :agent')
             ->andWhere('sample.recordedAt >= :since')
-            ->setParameter('agent', $agent)
-            ->setParameter('since', $since)
+            ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('sample.recordedAt', 'ASC')
             ->setMaxResults(max(2, min(500, $limit)))
             ->getQuery()
@@ -142,8 +145,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
             )
             ->andWhere('sample.agent = :agent')
             ->andWhere('sample.recordedAt >= :since')
-            ->setParameter('agent', $agent)
-            ->setParameter('since', $since)
+            ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('sample.recordedAt', 'DESC')
             ->setFirstResult(($page - 1) * $perPage)
             ->setMaxResults($perPage);

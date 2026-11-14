@@ -67,7 +67,9 @@ final class CoreReleaseChecker
         return $latest;
     }
 
-    /** @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null */
+    /**
+     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
+     */
     public function getReleasePackageForChannel(string $channel, ?string $targetVersion = null, bool $force = false): ?array
     {
         if (trim($this->repository) === '') {

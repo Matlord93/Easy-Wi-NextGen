@@ -9,6 +9,11 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'hp_job')]
 #[ORM\UniqueConstraint(name: 'uniq_hp_job_idempotency', columns: ['idempotency_key'])]
@@ -35,7 +40,9 @@ class Job
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Node $node;
 
-    /** @var Collection<int, JobRun> */
+    /**
+     * @var Collection<int, JobRun>
+     */
     #[ORM\OneToMany(mappedBy: 'job', targetEntity: JobRun::class, cascade: ['persist'])]
     private Collection $runs;
 

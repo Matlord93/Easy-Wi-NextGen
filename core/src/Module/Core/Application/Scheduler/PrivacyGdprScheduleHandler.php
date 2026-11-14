@@ -27,6 +27,7 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
         return self::TYPE;
     }
 
+    /** @return list<\App\Module\Core\Application\Scheduler\InternalSchedule> */
     #[\Override]
     public function schedules(): array
     {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailPolicy;
@@ -47,7 +49,7 @@ final class AdminMailSystemController
     #[Route(path: '/', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -117,7 +119,7 @@ final class AdminMailSystemController
     #[Route(path: '/security/contain-domain', name: 'admin_mail_security_contain_domain', methods: ['POST'])]
     public function containDomain(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -128,12 +130,12 @@ final class AdminMailSystemController
         }
 
         $domainId = (int) $request->request->get('domain_id', 0);
-        $binding = $domainId > 0 ? $this->mailDomainRepository->find($domainId) : null;
-        if ($binding === null) {
+        $mailDomain = $domainId > 0 ? $this->mailDomainRepository->find($domainId) : null;
+        if ($mailDomain === null) {
             return new Response('Domain not found.', Response::HTTP_NOT_FOUND);
         }
+        $domain = $mailDomain->getDomain();
 
-        $domain = $binding->getDomain();
         $policy = $this->mailPolicyRepository->findOneByDomain($domain);
         if (!$policy instanceof MailPolicy) {
             $policy = new MailPolicy($domain);
@@ -141,14 +143,14 @@ final class AdminMailSystemController
         }
 
         $policy->apply(
-            true,
-            $policy->isSmtpEnabled(),
-            min($policy->getMaxRecipients(), 25),
-            min($policy->getMaxHourlyEmails(), 200),
-            true,
-            false,
-            MailPolicy::SPAM_HIGH,
-            true,
+            requireTls: true,
+            smtpEnabled: $policy->isSmtpEnabled(),
+            maxRecipients: min($policy->getMaxRecipients(), 25),
+            maxHourlyEmails: min($policy->getMaxHourlyEmails(), 200),
+            abusePolicyEnabled: true,
+            allowExternalForwarding: false,
+            spamProtectionLevel: MailPolicy::SPAM_HIGH,
+            greylistingEnabled: true,
         );
 
         $this->auditLogger->log($actor, 'mail.security.containment_applied', [

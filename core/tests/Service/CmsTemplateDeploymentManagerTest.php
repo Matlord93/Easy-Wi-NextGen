@@ -23,13 +23,14 @@ final class CmsTemplateDeploymentManagerTest extends TestCase
         file_put_contents($v1.'/index.html', 'v1');
         file_put_contents($v2.'/index.html', 'v2');
 
-        $manager->deploy('team', $v1);
+        $firstRelease = $manager->deploy('team', $v1);
         usleep(1000);
         $manager->deploy('team', $v2);
 
         $rollbackTarget = $manager->rollback('team');
 
-        self::assertStringContainsString('/releases/', $rollbackTarget);
+        self::assertSame($firstRelease, $rollbackTarget);
+        self::assertSame('v1', file_get_contents($root.'/team/current/index.html'));
         self::assertSame($rollbackTarget, readlink($root.'/team/current'));
     }
 }

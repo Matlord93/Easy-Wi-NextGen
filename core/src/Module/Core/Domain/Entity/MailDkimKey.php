@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\MailDkimKeyRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailDkimKeyRepository::class)]
 #[ORM\Table(name: 'mail_dkim_keys')]
 #[ORM\UniqueConstraint(name: 'uniq_mail_dkim_domain_selector', columns: ['domain_id', 'selector'])]

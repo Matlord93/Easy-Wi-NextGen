@@ -29,13 +29,9 @@ final class DdosPolicyRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<DdosPolicy> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('policy')
+        return EntityQueryResult::all($this->createQueryBuilder('policy')
             ->where('policy.node IN (:nodes)')
             ->setParameter('nodes', $nodes)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\DdosPolicy::class);
     }
 }

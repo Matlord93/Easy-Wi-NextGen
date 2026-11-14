@@ -38,13 +38,8 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($owner);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
-        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsService::class));
 
@@ -70,13 +65,8 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
-        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsService::class));
 
@@ -104,13 +94,8 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
-        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(7)->willReturn($instance);
 
         $settings = $this->createStub(AppSettingsService::class);
         $settings->method('isGameserverStartStopAllowed')->willReturn(true);
@@ -146,13 +131,8 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
-        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(7)->willReturn($instance);
 
         $settings = $this->createStub(AppSettingsService::class);
         $settings->method('isGameserverStartStopAllowed')->willReturn(true);
@@ -204,6 +184,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
             'translator' => $this->createStub(TranslatorInterface::class),
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
+            $prop->setAccessible(true);
             $prop->setValue($controller, $value);
         }
 
@@ -214,6 +195,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
+        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 

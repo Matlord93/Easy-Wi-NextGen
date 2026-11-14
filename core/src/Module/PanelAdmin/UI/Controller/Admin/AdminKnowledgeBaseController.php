@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\KnowledgeBaseArticle;
@@ -111,7 +114,7 @@ final class AdminKnowledgeBaseController
     #[Route(path: '', name: 'admin_docs_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -160,7 +163,7 @@ final class AdminKnowledgeBaseController
     #[Route(path: '/{id}', name: 'admin_docs_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -219,7 +222,7 @@ final class AdminKnowledgeBaseController
     #[Route(path: '/{id}/delete', name: 'admin_docs_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -249,6 +252,11 @@ final class AdminKnowledgeBaseController
         return $response;
     }
 
+    /**
+     * @return array{errors: list<string>, title: string, slug: string, content: string, category:
+     * App\Module\Core\Domain\Enum\TicketCategory::Abuse|App\Module\Core\Domain\Enum\TicketCategory::Billing|App\Module\Core\Domain\Enum\TicketCategory::General|App\Module\Core\Domain\Enum\TicketCategory::Technical,
+     * visible_public: bool}
+     */
     private function parsePayload(Request $request, int $siteId, ?int $ignoreId = null): array
     {
         $errors = [];
@@ -289,15 +297,7 @@ final class AdminKnowledgeBaseController
         ];
     }
 
-    private function isSlugAvailable(string $slug, int $siteId, ?int $ignoreId = null): bool
-    {
-        $existing = $this->kbRepository->findOneBy(['slug' => $slug, 'siteId' => $siteId]);
-        if ($existing === null) {
-            return true;
-        }
 
-        return $ignoreId !== null && $existing->getId() === $ignoreId;
-    }
 
     private function buildFormContext(?KnowledgeBaseArticle $article = null, ?array $override = null): array
     {
@@ -312,7 +312,7 @@ final class AdminKnowledgeBaseController
             'action' => $article === null ? 'create' : 'update',
             'submit_label' => $article === null ? 'admin_docs_create_submit' : 'admin_docs_update_submit',
             'submit_color' => $article === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $article === null ? '/admin/docs' : sprintf('/admin/docs/%d', $article->getId()),
+            'action_url' => $article === null ? '/admin/docs' : sprintf('/admin/docs/%d', EntityIdentifier::require($article->getId())),
         ];
 
         if ($override !== null) {
@@ -341,6 +341,7 @@ final class AdminKnowledgeBaseController
 
     /**
      * @param KnowledgeBaseArticle[] $articles
+      * @return array{total: int, public: int, hidden: int}
      */
     private function buildSummary(array $articles): array
     {
@@ -394,8 +395,18 @@ final class AdminKnowledgeBaseController
 
     private function isAdmin(Request $request): bool
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
 
         return $user instanceof User && $user->isAdmin();
     }
+
+    private function isSlugAvailable(string $slug, int $siteId, ?int $ignoreId = null): bool
+    {
+        $existing = $this->kbRepository->findOneBy(['slug' => $slug, 'siteId' => $siteId]);
+        if ($existing === null) {
+            return true;
+        }
+        return $ignoreId !== null && $existing->getId() === $ignoreId;
+    }
+
 }

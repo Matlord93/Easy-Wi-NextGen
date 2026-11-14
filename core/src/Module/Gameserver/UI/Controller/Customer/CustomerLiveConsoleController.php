@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
@@ -40,7 +43,7 @@ final readonly class CustomerLiveConsoleController
         if (strlen($this->proxySecret ?? '') < 32 || !hash_equals($this->proxySecret, (string) $request->headers->get('X-EasyWI-Console-Proxy'))) {
             return $deny(403);
         }
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return $deny(401);
         }
@@ -53,7 +56,7 @@ final readonly class CustomerLiveConsoleController
         if (!$parsed || !in_array($parsed['scheme'] ?? '', ['http', 'https'], true) || empty($parsed['host']) || isset($parsed['user']) || isset($parsed['query']) || isset($parsed['fragment']) || ($parsed['path'] ?? '') !== '' || !hash_equals($origin, (string) $request->headers->get('X-EasyWI-Console-Origin'))) {
             return $deny(403);
         }
-        if (!$this->connections->create('live-connect:'.$actor->getId().':'.$id)->consume()->isAccepted()) {
+        if (!$this->connections->create('live-connect:'.EntityIdentifier::require($actor->getId()).':'.$id)->consume()->isAccepted()) {
             return $deny(429);
         }
         $until = time() + 300;

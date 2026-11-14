@@ -18,7 +18,7 @@ final class CmsTemplateDeploymentManager
             throw new \RuntimeException('Unable to initialize release storage.');
         }
 
-        $releaseName = date('YmdHis').'-'.substr(hash('sha256', $versionSourcePath.microtime(true)), 0, 8);
+        $releaseName = (new \DateTimeImmutable())->format('YmdHis.u').'-'.bin2hex(random_bytes(4));
         $releaseDir = $releases.'/'.$releaseName;
 
         $this->copyDir($versionSourcePath, $releaseDir);
@@ -30,7 +30,11 @@ final class CmsTemplateDeploymentManager
     public function rollback(string $templateKey): string
     {
         $releases = $this->templateBaseDir($templateKey).'/releases';
-        $candidates = array_values(array_filter(scandir($releases) ?: [], static fn (string $entry): bool => $entry !== '.' && $entry !== '..'));
+        $entries = scandir($releases);
+        if ($entries === false) {
+            throw new \RuntimeException('Cannot read deployment releases.');
+        }
+        $candidates = array_values(array_filter($entries, static fn (string $entry): bool => $entry !== '.' && $entry !== '..'));
         rsort($candidates);
         if (count($candidates) < 2) {
             throw new \RuntimeException('No rollback candidate found.');
@@ -84,6 +88,7 @@ final class CmsTemplateDeploymentManager
             \RecursiveIteratorIterator::SELF_FIRST,
         );
 
+        /** @var \SplFileInfo $item CURRENT_AS_FILEINFO is the native default. */
         foreach ($iterator as $item) {
             $relative = substr($item->getPathname(), strlen($source) + 1);
             $target = $destination.'/'.$relative;

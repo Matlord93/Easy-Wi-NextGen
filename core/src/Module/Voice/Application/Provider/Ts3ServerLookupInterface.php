@@ -6,6 +6,6 @@ namespace App\Module\Voice\Application\Provider;
 
 interface Ts3ServerLookupInterface
 {
-    /** @return array{status:string,public_host:?string,voice_port:?int}|null */
+    /** @return array{status:string,public_host:?string,voice_port:?int,node_public_ip?:?string}|null */
     public function find(string $externalId): ?array;
 }

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
@@ -67,7 +70,7 @@ final class CustomerInstanceFileApiController
             $this->assertDataManagerEnabled($request);
             $customer = $this->requireCustomer($request);
             $instance = $this->findCustomerInstance($request, $customer, $id);
-            $path = trim((string) $request->query->get('path', ''));
+            $path = trim($request->query->getString('path', ''));
             $limit = $this->parseListLimit($request);
             $offset = $this->parseListOffset($request);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
@@ -77,7 +80,7 @@ final class CustomerInstanceFileApiController
         try {
             $listing = $this->fileService->list($instance, $path, $limit, $offset);
         } catch (\RuntimeException $exception) {
-            return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt, $this->canExposeTechnicalDetails($customer));
+            return $this->handleListingError($request, EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $source, $exception, $startedAt, $this->canExposeTechnicalDetails($customer));
         }
 
         $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
@@ -113,10 +116,10 @@ final class CustomerInstanceFileApiController
             'entries' => $files,
             'files' => $files,
             'warnings' => $warnings,
-            'total' => (int) ($listing['total'] ?? count($files)),
-            'offset' => (int) ($listing['offset'] ?? 0),
-            'limit' => (int) ($listing['limit'] ?? self::LIST_DEFAULT_LIMIT),
-            'truncated' => (bool) ($listing['truncated'] ?? false),
+            'total' => ($listing['total'] ?? count($files)),
+            'offset' => ($listing['offset'] ?? 0),
+            'limit' => ($listing['limit'] ?? self::LIST_DEFAULT_LIMIT),
+            'truncated' => ($listing['truncated'] ?? false),
             'request_id' => $this->getRequestId($request),
         ]);
     }
@@ -160,7 +163,7 @@ final class CustomerInstanceFileApiController
             $this->assertDataManagerEnabled($request);
             $customer = $this->requireCustomer($request);
             $instance = $this->findCustomerInstance($request, $customer, $id);
-            $path = trim((string) $request->query->get('path', ''));
+            $path = trim($request->query->getString('path', ''));
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
             return $this->handleHttpError($request, $exception);
         }
@@ -188,8 +191,8 @@ final class CustomerInstanceFileApiController
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
-        $path = trim((string) $request->query->get('path', ''));
-        $name = trim((string) $request->query->get('name', ''));
+        $path = trim($request->query->getString('path', ''));
+        $name = trim($request->query->getString('name', ''));
         if ($name === '') {
             throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_file_name'));
         }
@@ -197,7 +200,7 @@ final class CustomerInstanceFileApiController
         try {
             $content = $this->fileService->downloadFile($instance, $path, $name);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'download', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'download', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
             ]);
         }
@@ -221,8 +224,8 @@ final class CustomerInstanceFileApiController
         if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
             return $blocked;
         }
-        $path = trim((string) $request->query->get('path', ''));
-        $name = trim((string) $request->query->get('name', ''));
+        $path = trim($request->query->getString('path', ''));
+        $name = trim($request->query->getString('name', ''));
         if ($name === '') {
             throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_file_name'));
         }
@@ -231,7 +234,7 @@ final class CustomerInstanceFileApiController
             $content = $this->fileService->readFileForEditor($instance, $path, $name);
             $this->assertEditorContent($request, $content);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'read', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'read', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
             ]);
         }
@@ -251,7 +254,7 @@ final class CustomerInstanceFileApiController
             $this->assertDataManagerEnabled($request);
             $customer = $this->requireCustomer($request);
             $instance = $this->findCustomerInstance($request, $customer, $id);
-            $path = trim((string) $request->query->get('path', ''));
+            $path = trim($request->query->getString('path', ''));
             if ($path === '') {
                 throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_file_path'));
             }
@@ -262,7 +265,7 @@ final class CustomerInstanceFileApiController
         try {
             $payload = $this->fileService->readFileContent($instance, $path);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'content', $customer->getId(), $instance->getId(), $path, $exception);
+            return $this->handleActionError($request, 'content', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception);
         }
 
         return $this->jsonResponse($request, [
@@ -302,7 +305,7 @@ final class CustomerInstanceFileApiController
         try {
             $saved = $this->fileService->writeFileContent($instance, $path, $content, $etag);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'content_save', $customer->getId(), $instance->getId(), $path, $exception);
+            return $this->handleActionError($request, 'content_save', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception);
         }
 
         $this->auditLogger->log($customer, 'instance.files.saved', [
@@ -378,7 +381,7 @@ final class CustomerInstanceFileApiController
         try {
             $this->fileService->uploadFile($instance, $path, $upload);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'upload', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'upload', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $upload->getClientOriginalName(),
             ]);
         }
@@ -437,7 +440,7 @@ final class CustomerInstanceFileApiController
             $this->assertEditorContent($request, $content);
             $this->fileService->writeFile($instance, $path, $name, $content);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'save', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'save', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
             ]);
         }
@@ -477,7 +480,7 @@ final class CustomerInstanceFileApiController
         try {
             $this->fileService->makeDirectory($instance, $path, $name);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'mkdir', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'mkdir', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
             ]);
         }
@@ -521,7 +524,7 @@ final class CustomerInstanceFileApiController
         try {
             $this->fileService->rename($instance, $path, $name, $newName);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'rename', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'rename', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
                 'new_name' => $newName,
             ]);
@@ -563,7 +566,7 @@ final class CustomerInstanceFileApiController
         try {
             $this->fileService->delete($instance, $path, $name);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'delete', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'delete', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
             ]);
         }
@@ -606,7 +609,7 @@ final class CustomerInstanceFileApiController
         try {
             $this->fileService->chmod($instance, $path, $name, $mode);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'chmod', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'chmod', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
                 'mode' => $mode,
             ]);
@@ -657,7 +660,7 @@ final class CustomerInstanceFileApiController
         try {
             $this->fileService->extract($instance, $path, $name, $destination);
         } catch (\RuntimeException $exception) {
-            return $this->handleActionError($request, 'extract', $customer->getId(), $instance->getId(), $path, $exception, [
+            return $this->handleActionError($request, 'extract', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
                 'destination' => $destination,
             ]);
@@ -676,7 +679,7 @@ final class CustomerInstanceFileApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (
             !$actor instanceof User
             || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
@@ -751,7 +754,7 @@ final class CustomerInstanceFileApiController
             'instance.backup.restore',
             'instance.config.apply',
             'instance.settings.update',
-        ], (int) ($instance->getId() ?? 0));
+        ], ($instance->getId() ?? 0));
         if (!$active instanceof Job) {
             return null;
         }
@@ -960,7 +963,7 @@ final class CustomerInstanceFileApiController
 
     private function consumeLimiter(RateLimiterFactory $limiterFactory, Request $request, Instance $instance, User $customer): bool
     {
-        $identifier = sprintf('instance-%s-user-%s-%s', $instance->getId(), $customer->getId(), $request->getClientIp() ?? 'local');
+        $identifier = sprintf('instance-%s-user-%s-%s', EntityIdentifier::require($instance->getId()), EntityIdentifier::require($customer->getId()), $request->getClientIp() ?? 'local');
         $limiter = $limiterFactory->create($identifier);
         $limit = $limiter->consume(1);
 
@@ -1016,10 +1019,14 @@ final class CustomerInstanceFileApiController
 
     /**
      * @param array{name: string, size: int, mode: string, modified_at: string, is_dir: bool} $entry
+      * @return array{name: bool|string, size: int, size_human: string, mode: string, modified_at: string,
+      * is_dir: bool, is_symlink: bool, link_broken: bool, name_valid_utf8: bool, metadata_available: bool,
+      * actions_supported: bool, error_code: null|string, error_message?: null|string, link_target?:
+      * null|string}
      */
     private function normalizeEntry(array $entry, bool $exposeTechnicalDetails = false): array
     {
-        $name = (string) ($entry['name'] ?? '');
+        $name = ($entry['name'] ?? '');
         if (!$this->isUtf8($name)) {
             $this->logger->warning('instance.files.invalid_utf8_response_name', [
                 'entry_error_code' => $entry['error_code'] ?? null,
@@ -1027,14 +1034,14 @@ final class CustomerInstanceFileApiController
             $name = mb_convert_encoding($name, 'UTF-8', 'UTF-8');
         }
 
-        $size = (int) ($entry['size'] ?? 0);
+        $size = ($entry['size'] ?? 0);
         $normalized = [
             'name' => $name,
             'size' => $size,
             'size_human' => $this->formatBytes($size),
-            'mode' => (string) ($entry['mode'] ?? '????'),
-            'modified_at' => (string) ($entry['modified_at'] ?? ''),
-            'is_dir' => (bool) ($entry['is_dir'] ?? false),
+            'mode' => ($entry['mode'] ?? '????'),
+            'modified_at' => ($entry['modified_at'] ?? ''),
+            'is_dir' => ($entry['is_dir'] ?? false),
             'is_symlink' => (bool) ($entry['is_symlink'] ?? false),
             'link_broken' => (bool) ($entry['link_broken'] ?? false),
             'name_valid_utf8' => (bool) ($entry['name_valid_utf8'] ?? true),
@@ -1057,7 +1064,7 @@ final class CustomerInstanceFileApiController
         $raw = $request->query->get('limit', self::LIST_DEFAULT_LIMIT);
         $limit = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['default' => self::LIST_DEFAULT_LIMIT]]);
 
-        return max(1, min(self::LIST_MAX_LIMIT, (int) $limit));
+        return max(1, min(self::LIST_MAX_LIMIT, $limit));
     }
 
     private function parseListOffset(Request $request): int
@@ -1065,7 +1072,7 @@ final class CustomerInstanceFileApiController
         $raw = $request->query->get('offset', 0);
         $offset = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['default' => 0]]);
 
-        return max(0, (int) $offset);
+        return max(0, $offset);
     }
 
     /**

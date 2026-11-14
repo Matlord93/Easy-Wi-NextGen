@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use App\Module\Core\Domain\Entity\Job;
@@ -28,7 +29,7 @@ final class InstanceSftpProvisioner
             return null;
         }
 
-        $username = sprintf('sftp%d', $instance->getId());
+        $username = sprintf('sftp%d', EntityIdentifier::require($instance->getId()));
         $oneTimePassword = bin2hex(random_bytes(18));
         $installPath = $this->resolveInstallPath($instance);
         $credential = new InstanceSftpCredential($instance, $username, $this->encryptionService->encrypt($oneTimePassword));
@@ -81,7 +82,7 @@ final class InstanceSftpProvisioner
 
     private function resolveBaseDir(Instance $instance, string $installPath): string
     {
-        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        $baseDir = trim(($instance->getInstanceBaseDir() ?? ''));
         if ($baseDir !== '') {
             return rtrim($baseDir, '/\\');
         }

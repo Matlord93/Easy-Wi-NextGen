@@ -20,17 +20,17 @@ final class DatabaseTableServiceTest extends TestCase
         $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('decrypt')->willReturn('operational-password');
 
-        $statement = new class {
+        $statement = new class extends \PDOStatement { public function __construct() {}
             public array $params = [];
-            public function execute(array $params): void { $this->params = $params; }
-            public function fetchAll(): array {
+            public function execute(?array $params = null): bool { $params ??= [];  $this->params = $params;  return true; }
+            public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array {
                 return [['name' => 'users', 'engine' => 'InnoDB', 'rows_count' => 2]];
             }
         };
 
-        $pdo = new class($statement) {
-            public function __construct(private object $statement) {}
-            public function prepare(string $sql): object { return $this->statement; }
+        $pdo = new class($statement) extends \PDO {
+            public function __construct(private \PDOStatement $statement) {}
+            public function prepare(string $sql, array $options = []): \PDOStatement|false { return $this->statement; }
         };
 
         $service = new DatabaseTableService($encryption, static fn(string $dsn, string $user, string $pass) => $pdo);

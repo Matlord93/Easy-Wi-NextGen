@@ -38,24 +38,14 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
             $status = $newStatus;
         });
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
-        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(7)->willReturn($instance);
 
         $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
-        $agentClient = $this->createStub(AgentGameServerClient::class);
-        $agentClient->method('getInstanceStatus')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [$instance];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return ['status' => 'running'];
-        });
+        $agentClient = $this->createMock(AgentGameServerClient::class);
+        $agentClient->method('getInstanceStatus')->with($instance)->willReturn(['status' => 'running']);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('persist')->with($instance);
@@ -89,13 +79,8 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getId')->willReturn(7);
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
-        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(7)->willReturn($instance);
 
         $activeJob = new Job('instance.start', ['instance_id' => '7']);
         $jobRepository = $this->createStub(JobRepository::class);
@@ -138,6 +123,7 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
             'auditLogger' => $auditLogger,
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
+            $prop->setAccessible(true);
             $prop->setValue($controller, $value);
         }
 
@@ -148,6 +134,7 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
+        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

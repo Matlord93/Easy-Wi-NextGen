@@ -136,6 +136,7 @@ final class MusicbotStreamService
     /**
      * Generates a new random stream token, stores its hash, and returns the plaintext token.
      * The plaintext is shown once — only the hash is persisted.
+      * @return array{token: string, settings: \App\Module\Musicbot\Domain\Entity\MusicbotStreamSettings}
      */
     public function rotateToken(User $customer, MusicbotInstance $instance): array
     {
@@ -178,7 +179,12 @@ final class MusicbotStreamService
         ]);
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{id: int|null, instance_id: int|null, enabled: bool, public_slug: string, access_mode:
+     * string, stream_title: null|string, bitrate: int, format: string, current_mount_path: null|string,
+     * has_token: bool, stream_ready: bool, stream_url_placeholder: string, placeholder_notice: string,
+     * backend: string, backend_available: bool, created_at: string, updated_at: string}
+     */
     public function normalize(MusicbotStreamSettings $settings): array
     {
         return [

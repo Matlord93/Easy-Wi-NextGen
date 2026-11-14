@@ -22,7 +22,8 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
 
     /**
      * @param Instance[] $instances
-     * @return array<int, array{cpu_percent: ?float, mem_used_bytes: ?int, tasks_current: ?int, collected_at: \DateTimeImmutable, error_code: ?string}>
+     * @return array<int, array{cpu_percent: ?float, mem_used_bytes: ?int, tasks_current: ?int,
+     * collected_at: \DateTimeImmutable, error_code: ?string}>
      */
     public function findLatestByInstances(array $instances): array
     {
@@ -74,17 +75,13 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
 
     public function findLatestForInstance(Instance $instance): ?InstanceMetricSample
     {
-        /** @var InstanceMetricSample|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('sample')
+        return EntityQueryResult::one($this->createQueryBuilder('sample')
             ->andWhere('sample.instance = :instance')
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->orderBy('sample.collectedAt', 'DESC')
             ->addOrderBy('sample.id', 'DESC')
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\Core\Domain\Entity\InstanceMetricSample::class);
     }
 
     /**
@@ -135,8 +132,8 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->addSelect('MAX(sample.memUsedBytes) AS mem_max')
             ->andWhere('sample.instance = :instance')
             ->andWhere('sample.collectedAt >= :since')
-            ->setParameter('instance', $instance)
-            ->setParameter('since', $since)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
             ->getSingleResult();
 
@@ -150,7 +147,8 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array<int, array{id:int, collectedAt:\DateTimeImmutable, cpuPercent:?float, memUsedBytes:?int, tasksCurrent:?int, errorCode:?string}>
+     * @return array<int, array{id:int, collectedAt:\DateTimeImmutable, cpuPercent:?float,
+     * memUsedBytes:?int, tasksCurrent:?int, errorCode:?string}>
      */
     public function findRecentForInstanceSince(Instance $instance, \DateTimeImmutable $since, int $page, int $perPage): array
     {
@@ -168,8 +166,8 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             )
             ->andWhere('sample.instance = :instance')
             ->andWhere('sample.collectedAt >= :since')
-            ->setParameter('instance', $instance)
-            ->setParameter('since', $since)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('sample.collectedAt', 'DESC')
             ->addOrderBy('sample.id', 'DESC')
             ->setFirstResult(($page - 1) * $perPage)
@@ -191,8 +189,8 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             )
             ->andWhere('sample.instance = :instance')
             ->andWhere('sample.collectedAt >= :since')
-            ->setParameter('instance', $instance)
-            ->setParameter('since', $since)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('sample.collectedAt', 'ASC')
             ->setMaxResults(max(2, min(500, $limit)))
             ->getQuery()
@@ -205,14 +203,16 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->select('COUNT(sample.id)')
             ->andWhere('sample.instance = :instance')
             ->andWhere('sample.collectedAt >= :since')
-            ->setParameter('instance', $instance)
-            ->setParameter('since', $since)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
             ->getSingleScalarResult();
     }
 
     /**
-     * @return array<int, array{sample_id:int, instance_id:int, customer_id:string, customer_email:string, node_id:string, node_name:?string, cpu_percent:?float, mem_used_bytes:?int, booked_cpu_cores:int, booked_ram_mb:int, collected_at:\DateTimeImmutable, error_code:?string}>
+     * @return array<int, array{sample_id:int, instance_id:int, customer_id:string, customer_email:string,
+     * node_id:string, node_name:?string, cpu_percent:?float, mem_used_bytes:?int, booked_cpu_cores:int,
+     * booked_ram_mb:int, collected_at:\DateTimeImmutable, error_code:?string}>
      */
     public function findAdminBrowseRows(
         \DateTimeImmutable $since,
@@ -235,7 +235,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->join('inst.customer', 'customer')
             ->join('inst.node', 'node')
             ->andWhere('sample.collectedAt >= :since')
-            ->setParameter('since', $since);
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE);
 
         $this->applyAdminBrowseFilters($qb, $nodeId, $customer, $instanceId);
 
@@ -272,7 +272,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->join('inst.customer', 'customer')
             ->join('inst.node', 'node')
             ->andWhere('sample.collectedAt >= :since')
-            ->setParameter('since', $since)
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('sample.collectedAt', 'DESC')
             ->addOrderBy('sample.id', 'DESC')
             ->setFirstResult(($page - 1) * $perPage)
@@ -285,12 +285,11 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
 
     public function deleteOlderThan(\DateTimeImmutable $threshold): int
     {
-        return $this->createQueryBuilder('sample')
+        return EntityQueryResult::affected($this->createQueryBuilder('sample')
             ->delete()
             ->andWhere('sample.collectedAt < :threshold')
-            ->setParameter('threshold', $threshold)
-            ->getQuery()
-            ->execute();
+            ->setParameter('threshold', $threshold, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->getQuery());
     }
 
     /**
@@ -308,7 +307,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             $rows = $this->createQueryBuilder('sample')
                 ->select('sample.id AS id')
                 ->andWhere('sample.instance = :instance')
-                ->setParameter('instance', $instance)
+                ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
                 ->orderBy('sample.collectedAt', 'DESC')
                 ->addOrderBy('sample.id', 'DESC')
                 ->setFirstResult($maximumSamples)

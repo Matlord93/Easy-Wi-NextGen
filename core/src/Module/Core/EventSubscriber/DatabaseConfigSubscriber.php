@@ -17,6 +17,7 @@ final class DatabaseConfigSubscriber implements EventSubscriberInterface
     ) {
     }
 
+    /** @return array{'kernel.request': array{0: string, 1: int}} */
     #[\Override]
     public static function getSubscribedEvents(): array
     {

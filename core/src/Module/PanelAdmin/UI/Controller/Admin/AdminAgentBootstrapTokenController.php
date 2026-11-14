@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\TokenGenerator;
 use App\Module\Core\Domain\Entity\AgentBootstrapToken;
@@ -48,7 +50,7 @@ final class AdminAgentBootstrapTokenController
     #[Route(path: '', name: 'admin_agent_bootstrap_tokens_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -131,7 +133,7 @@ final class AdminAgentBootstrapTokenController
     #[Route(path: '/{id}/revoke', name: 'admin_agent_bootstrap_tokens_revoke', methods: ['POST'])]
     public function revoke(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -213,7 +215,7 @@ final class AdminAgentBootstrapTokenController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

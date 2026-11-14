@@ -20,7 +20,6 @@ final class TeamGroupRepository extends ServiceEntityRepository
     /** @return list<TeamGroup> */
     public function findBySite(Site $site): array
     {
-        /** @var list<TeamGroup> $rows */
         $rows = $this->findBy(['site' => $site], ['sortOrder' => 'ASC', 'name' => 'ASC']);
         return $rows;
     }

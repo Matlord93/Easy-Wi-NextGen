@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Agent;
@@ -124,7 +125,7 @@ final class FilesAgentDiagnoseCommand extends Command
         $headers = $this->fileServiceClient->getMaskedAuthHeaders(
             $instance,
             'GET',
-            sprintf('/v1/servers/%s/files', $instance->getId()),
+            sprintf('/v1/servers/%s/files', EntityIdentifier::require($instance->getId())),
             ['path' => $path],
         );
         $headerLines = [];
@@ -228,7 +229,8 @@ final class FilesAgentDiagnoseCommand extends Command
     }
 
     /**
-     * @return array{status: string, url: string|null, latency_ms: int|null, status_code: int|null, body: array<array-key, mixed>|null}
+     * @return array{status: string, url: string|null, latency_ms: ?int, status_code: ?int, body:
+     * array<array-key, mixed>|null}
      */
     private function probeAgentHealth(Agent $agent): array
     {

@@ -55,12 +55,12 @@ final class EasyWiImportCommand extends Command
         }
 
         $config = new EasyWiConnectionConfig(
-            host: (string) $input->getOption('host'),
+            host: $input->getOption('host'),
             port: (int) $input->getOption('port'),
             dbName: $dbname,
-            username: (string) $input->getOption('user'),
-            password: (string) $input->getOption('password'),
-            tablePrefix: (string) $input->getOption('prefix'),
+            username: $input->getOption('user'),
+            password: $input->getOption('password'),
+            tablePrefix: $input->getOption('prefix'),
         );
 
         // ── Probe mode ──
@@ -80,15 +80,15 @@ final class EasyWiImportCommand extends Command
             return Command::SUCCESS;
         }
 
-        $rawEntities = (string) $input->getOption('entities');
-        $entities = array_filter(array_map('trim', explode(',', $rawEntities)));
+        $rawEntities = $input->getOption('entities');
+        $entities = array_values(array_filter(array_map('trim', explode(',', $rawEntities))));
         $invalid = array_diff($entities, self::ALL_ENTITIES);
         if ($invalid !== []) {
             $io->error(sprintf('Unknown entities: %s. Valid: %s', implode(', ', $invalid), implode(', ', self::ALL_ENTITIES)));
             return Command::FAILURE;
         }
 
-        $dryRun = (bool) $input->getOption('dry-run');
+        $dryRun = $input->getOption('dry-run');
         if ($dryRun) {
             $io->note('DRY-RUN mode — no data will be written.');
         }

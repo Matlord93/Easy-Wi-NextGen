@@ -30,7 +30,10 @@ final class MusicbotPluginActionService
         private readonly AgentJobDispatcher $jobDispatcher,
     ) {}
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     public function execute(User $customer, MusicbotInstance $instance, string $action, array $payload): array
     {
         $this->assertOwnership($customer, $instance);
@@ -71,7 +74,7 @@ final class MusicbotPluginActionService
         return $item + ['playback_job_id' => $job->getId()];
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{queue_item_id: int|null, track_id: int|null} */
     private function queueTrack(User $customer, MusicbotInstance $instance, int $trackId): array
     {
         $track = $this->trackRepository->findOneForCustomer($trackId, $customer);
@@ -80,7 +83,7 @@ final class MusicbotPluginActionService
         return ['queue_item_id' => $queueItem->getId(), 'track_id' => $track->getId()];
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{queued_tracks: int, playback_job_id: null|string} */
     private function playPlaylist(User $customer, MusicbotInstance $instance, int $playlistId, bool $shuffle): array
     {
         $playlist = $this->playlistRepository->findOneForCustomer($playlistId, $customer);
@@ -90,7 +93,7 @@ final class MusicbotPluginActionService
         return ['queued_tracks' => count($items), 'playback_job_id' => $job?->getId()];
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{queue_item_id: int|null, track_id: int|null, playback_job_id: string} */
     private function playRadio(User $customer, MusicbotInstance $instance, string $url): array
     {
         $this->quotaService->assertWebradioAllowed($customer);
@@ -100,7 +103,7 @@ final class MusicbotPluginActionService
         return ['queue_item_id' => $queueItem->getId(), 'track_id' => $track->getId(), 'playback_job_id' => $job->getId()];
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{queue_item_id: int|null, track_id: int|null, source_type: string, playback_job_id: string} */
     private function playYoutube(User $customer, MusicbotInstance $instance, string $url): array
     {
         $this->quotaService->assertYoutubeAllowed($customer);
@@ -110,20 +113,20 @@ final class MusicbotPluginActionService
         return ['queue_item_id' => $queueItem->getId(), 'track_id' => $track->getId(), 'source_type' => MusicbotTrackSourceType::Youtube->value, 'playback_job_id' => $job->getId()];
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{cleared: bool} */
     private function clearQueue(User $customer, MusicbotInstance $instance): array { $this->queueService->clearQueue($customer, $instance); return ['cleared' => true]; }
 
-    /** @return array<string, mixed> */
+    /** @return array{volume: int} */
     private function setVolume(User $customer, MusicbotInstance $instance, int $volume): array { $this->playbackCommandService->storeVolume($customer, $instance, $volume); return ['volume' => $volume]; }
 
-    /** @return array<string, mixed> */
+    /** @return array{job_id: string} */
     private function sendChatMessage(User $customer, MusicbotInstance $instance, string $message): array
     {
         $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.chat.message', ['instance_id' => (string) $instance->getId(), 'customer_id' => (string) $customer->getId(), 'service_name' => $instance->getServiceName(), 'install_path' => $instance->getInstallPath(), 'message' => mb_substr($message, 0, 500)]);
         return ['job_id' => $job->getId()];
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{job_id: string} */
     private function reconnect(User $customer, MusicbotInstance $instance): array
     {
         $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.playback.action', ['instance_id' => (string) $instance->getId(), 'customer_id' => (string) $customer->getId(), 'service_name' => $instance->getServiceName(), 'install_path' => $instance->getInstallPath(), 'action' => 'reload_config', 'reconnect_if_required' => true]);

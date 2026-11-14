@@ -23,16 +23,12 @@ final class DownloadItemRepository extends ServiceEntityRepository
      */
     public function findVisiblePublicBySite(int $siteId): array
     {
-        /** @var list<DownloadItem> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('item')
+        return EntityQueryResult::all($this->createQueryBuilder('item')
             ->andWhere('item.siteId = :siteId')
             ->andWhere('item.visiblePublic = true')
             ->setParameter('siteId', $siteId)
             ->orderBy('item.sortOrder', 'ASC')
             ->addOrderBy('item.title', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\DownloadItem::class);
     }
 }

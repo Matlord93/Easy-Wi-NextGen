@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\AgentOrchestrator\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentJobRepository;
@@ -25,7 +28,7 @@ final class AgentJobController
     #[Route(path: '/nodes/{id}/jobs', name: 'admin_nodes_agent_jobs_create', methods: ['POST'])]
     public function createJob(Request $request, string $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
         }
@@ -37,7 +40,7 @@ final class AgentJobController
 
         $payload = $request->toArray();
         $type = trim((string) ($payload['type'] ?? ''));
-        $jobPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
+        $jobPayload = JsonArray::orEmpty($payload['payload'] ?? null);
 
         if ($type === '') {
             return new JsonResponse(['error' => 'Job type is required.'], JsonResponse::HTTP_BAD_REQUEST);
@@ -55,7 +58,7 @@ final class AgentJobController
     #[Route(path: '/agent-jobs/{id}', name: 'admin_agent_jobs_show', methods: ['GET'])]
     public function showJob(Request $request, string $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
         }

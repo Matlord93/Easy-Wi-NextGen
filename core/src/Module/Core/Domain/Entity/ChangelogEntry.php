@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ChangelogEntryRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ChangelogEntryRepository::class)]
 #[ORM\Table(name: 'changelog_entries')]
 #[ORM\Index(name: 'idx_changelog_entries_site_id', columns: ['site_id'])]

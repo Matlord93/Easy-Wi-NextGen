@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Sinusbot\AgentBadResponseException;
@@ -145,10 +150,10 @@ final class AdminSinusbotNodeController
             $this->entityManager->flush();
 
             $this->nodeService->install($node);
-            $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_created'));
+            FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_node_created'));
 
             return new Response('', Response::HTTP_FOUND, [
-                'Location' => sprintf('/admin/sinusbot/nodes/%d', $node->getId()),
+                'Location' => sprintf('/admin/sinusbot/nodes/%d', EntityIdentifier::require($node->getId())),
             ]);
         }
 
@@ -178,7 +183,7 @@ final class AdminSinusbotNodeController
             }
         }
         if ($syncError !== null) {
-            $request->getSession()->getFlashBag()->add('error', $syncError);
+            FlashMessages::add($request, 'error', $syncError);
         }
 
         $instancePasswords = [];
@@ -213,7 +218,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_install_' . $id);
 
         $this->nodeService->install($node);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_install_queued'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_node_install_queued'));
 
         return $this->redirectToNode($node);
     }
@@ -226,7 +231,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_refresh_' . $id);
 
         $this->nodeService->refreshStatus($node);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_status_refreshed'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_node_status_refreshed'));
 
         return $this->redirectToNode($node);
     }
@@ -239,7 +244,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_start_' . $id);
 
         $this->nodeService->start($node);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_service_started'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_node_service_started'));
 
         return $this->redirectToNode($node);
     }
@@ -252,7 +257,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_stop_' . $id);
 
         $this->nodeService->stop($node);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_service_stopped'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_node_service_stopped'));
 
         return $this->redirectToNode($node);
     }
@@ -265,7 +270,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_restart_' . $id);
 
         $this->nodeService->restart($node);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_node_service_restarted'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_node_service_restarted'));
 
         return $this->redirectToNode($node);
     }
@@ -280,7 +285,7 @@ final class AdminSinusbotNodeController
         $this->entityManager->remove($node);
         $this->entityManager->flush();
 
-        $request->getSession()->getFlashBag()->add('success', 'admin_sinusbot_node_deleted');
+        FlashMessages::add($request, 'success', 'admin_sinusbot_node_deleted');
 
         return new Response('', Response::HTTP_FOUND, [
             'Location' => '/admin/sinusbot/nodes',
@@ -309,7 +314,7 @@ final class AdminSinusbotNodeController
             }
         }
         if ($syncError !== null) {
-            $request->getSession()->getFlashBag()->add('error', $syncError);
+            FlashMessages::add($request, 'error', $syncError);
         }
 
         $instancePasswords = [];
@@ -338,7 +343,7 @@ final class AdminSinusbotNodeController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -386,7 +391,7 @@ final class AdminSinusbotNodeController
     private function redirectToNode(SinusbotNode $node): Response
     {
         return new Response('', Response::HTTP_FOUND, [
-            'Location' => sprintf('/admin/sinusbot/nodes/%d', $node->getId()),
+            'Location' => sprintf('/admin/sinusbot/nodes/%d', EntityIdentifier::require($node->getId())),
         ]);
     }
 
@@ -511,7 +516,7 @@ final class AdminSinusbotNodeController
         $customers = $this->userRepository->findCustomers();
 
         foreach ($customers as $customer) {
-            $label = sprintf('%s (%d)', $customer->getEmail(), $customer->getId());
+            $label = sprintf('%s (%d)', $customer->getEmail(), EntityIdentifier::require($customer->getId()));
             $choices[$label] = $customer->getId();
         }
 

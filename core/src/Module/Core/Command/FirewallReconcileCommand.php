@@ -47,7 +47,7 @@ final class FirewallReconcileCommand extends Command
         foreach ($this->firewallStateRepository->findAll() as $state) {
             $ports = [];
             foreach ($state->getPorts() as $port) {
-                $ports[(int) $port] = true;
+                $ports[$port] = true;
             }
             $currentByAgent[$state->getNode()->getId()] = $ports;
         }

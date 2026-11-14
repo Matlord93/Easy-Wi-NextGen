@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
@@ -66,7 +70,7 @@ final class CustomerSinusbotController
         $this->validateCsrf($request, 'sinusbot_start_' . $id);
 
         $this->provisioner->startInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('customer_sinusbot_instance_started'));
+        FlashMessages::add($request, 'success', $this->translator->trans('customer_sinusbot_instance_started'));
 
         return $this->redirectToIndex();
     }
@@ -79,7 +83,7 @@ final class CustomerSinusbotController
         $this->validateCsrf($request, 'sinusbot_stop_' . $id);
 
         $this->provisioner->stopInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('customer_sinusbot_instance_stopped'));
+        FlashMessages::add($request, 'success', $this->translator->trans('customer_sinusbot_instance_stopped'));
 
         return $this->redirectToIndex();
     }
@@ -92,7 +96,7 @@ final class CustomerSinusbotController
         $this->validateCsrf($request, 'sinusbot_reset_password_' . $id);
 
         $password = $this->provisioner->resetPassword($instance);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('customer_sinusbot_instance_password_reset'));
+        FlashMessages::add($request, 'success', $this->translator->trans('customer_sinusbot_instance_password_reset'));
 
         return $this->renderWithPassword($instance, $password);
     }
@@ -128,7 +132,7 @@ final class CustomerSinusbotController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\UserSessionRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: UserSessionRepository::class)]
 #[ORM\Table(name: 'user_sessions')]
 #[ORM\Index(name: 'idx_user_sessions_token_hash', columns: ['token_hash'])]

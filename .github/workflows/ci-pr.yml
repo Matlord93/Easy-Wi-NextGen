@@ -45,7 +45,7 @@ jobs:
       - name: Verify PHP 8.5 environment
         uses: ./.github/actions/verify-php
         with:
-          required-extensions: mbstring,intl,pdo,pdo_mysql,pdo_pgsql,openssl
+          required-extensions: mbstring,intl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,openssl,sodium,redis,zip,dom,xml,xmlwriter,fileinfo,curl,gd
 
       - name: Cache Composer
         uses: actions/cache@v6
@@ -134,6 +134,9 @@ jobs:
       - name: Lint (optional)
         run: |
           if composer run --list -q | grep -q "lint"; then composer run lint; else echo "No lint script"; fi
+
+      - name: Prepare complete Core test suite
+        uses: ./.github/actions/setup-core-test-tools
 
       - name: Tests (optional)
         run: |

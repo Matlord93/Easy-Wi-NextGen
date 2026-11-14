@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ForumCategoryRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ForumCategoryRepository::class)]
 #[ORM\Table(name: 'forum_categories')]
 #[ORM\UniqueConstraint(name: 'uniq_forum_categories_site_slug', columns: ['site_id', 'slug'])]

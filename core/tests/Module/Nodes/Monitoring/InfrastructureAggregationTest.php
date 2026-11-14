@@ -34,4 +34,35 @@ final class InfrastructureAggregationTest extends TestCase
         self::assertSame([], $merged['memory_sources']);
         self::assertArrayNotHasKey('interval_max_seconds', $merged);
     }
+
+    public function testArchivedJsonPreservesKnownZeroAndWeightedStatistics(): void
+    {
+        $point = Aggregation::merge(
+            Aggregation::sample('load', 100, ['cpu_percent' => 0, 'source' => 'agent_heartbeat']),
+            Aggregation::sample('load', 200, ['cpu_percent' => 40, 'memory_percent' => 10, 'source' => 'proxmox_status']),
+        );
+        $restored = Aggregation::fromJson(json_encode($point, JSON_THROW_ON_ERROR));
+
+        self::assertSame($point, $restored);
+        self::assertSame(0.0, $restored['metrics']['cpu_percent']['min']);
+        self::assertSame(20.0, $restored['metrics']['cpu_percent']['average']);
+    }
+
+    public function testMalformedArchivedMetricIsRejectedInsteadOfBecomingZero(): void
+    {
+        $point = Aggregation::sample('load', 100, ['cpu_percent' => 30]);
+        $point['metrics']['cpu_percent']['average'] = 'not a measurement';
+        $this->expectException(\UnexpectedValueException::class);
+
+        Aggregation::fromJson(json_encode($point, JSON_THROW_ON_ERROR));
+    }
+
+    public function testArchivedUnknownSourcesAreRejected(): void
+    {
+        $point = Aggregation::sample('load', 100, ['cpu_percent' => 30]);
+        $point['sources'] = ['credential-bearing-secret'];
+        $this->expectException(\UnexpectedValueException::class);
+
+        Aggregation::fromJson(json_encode($point, JSON_THROW_ON_ERROR));
+    }
 }

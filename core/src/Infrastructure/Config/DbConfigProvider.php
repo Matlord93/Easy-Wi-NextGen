@@ -11,7 +11,6 @@ use App\Infrastructure\Security\SecretKeyLoader;
 final class DbConfigProvider
 {
     private const DEFAULT_DB_CONFIG_PATH = 'var/easywi/db.json';
-    private const SYSTEM_DB_CONFIG_PATH = '/etc/easywi/db.json';
     private const FALLBACK_DB_CONFIG_DIR = 'var/easywi';
     private const INSTALLER_FALLBACK_DB_CONFIG_DIR = 'srv/setup/state';
 
@@ -25,7 +24,7 @@ final class DbConfigProvider
         ?string $envPath = null,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%kernel.project_dir%')]
         ?string $projectDir = null,
-        private readonly string $systemConfigPath = self::SYSTEM_DB_CONFIG_PATH,
+        private readonly string $systemConfigPath = '/etc/easywi/db.json',
     ) {
         $this->projectDir = $projectDir;
         $this->configPath = $this->resolveConfigPath($envPath, $projectDir);
@@ -65,14 +64,23 @@ final class DbConfigProvider
             throw new \RuntimeException('Unable to read database configuration file.');
         }
 
-        $decoded = json_decode($contents, true);
-        if (!is_array($decoded)) {
+        $decoded = JsonMap::decode($contents);
+        if ($decoded === null) {
             throw new \RuntimeException('Database configuration file contains invalid JSON.');
         }
 
-        $plaintext = $this->crypto->decrypt($decoded);
-        $payload = json_decode($plaintext, true);
-        if (!is_array($payload)) {
+        $strings = JsonMap::strings($decoded);
+        $encrypted = [
+            'nonce' => $strings['nonce'] ?? '',
+            'ciphertext' => $strings['ciphertext'] ?? '',
+            'backend' => $strings['backend'] ?? '',
+        ];
+        if (array_key_exists('tag', $decoded)) {
+            $encrypted['tag'] = $strings['tag'] ?? '';
+        }
+        $plaintext = $this->crypto->decrypt($encrypted);
+        $payload = JsonMap::decode($plaintext);
+        if ($payload === null) {
             throw new \RuntimeException('Database configuration payload is invalid.');
         }
 
@@ -90,15 +98,13 @@ final class DbConfigProvider
 
         $required = ['host', 'dbname', 'user'];
         foreach ($required as $field) {
-            $value = $payload[$field] ?? null;
-            if (!is_string($value) || trim($value) === '') {
+            if (!self::nonEmptyString($payload[$field] ?? null)) {
                 $errors[] = sprintf('missing_%s', $field);
             }
         }
 
         if (array_key_exists('port', $payload) && $payload['port'] !== null) {
-            $port = $payload['port'];
-            if (!is_int($port) && (!is_string($port) || !ctype_digit($port))) {
+            if (self::port($payload['port']) === null) {
                 $errors[] = 'invalid_port';
             }
         }
@@ -144,14 +150,11 @@ final class DbConfigProvider
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, mixed>
+     * @return array<string, string|int>
      */
     public function toConnectionParams(array $payload): array
     {
-        $port = $payload['port'] ?? null;
-        if (is_string($port) && ctype_digit($port)) {
-            $port = (int) $port;
-        }
+        $port = self::port($payload['port'] ?? null);
 
         return array_filter([
             'driver' => 'pdo_mysql',
@@ -255,5 +258,19 @@ final class DbConfigProvider
     private function isPathWritable(string $path): bool
     {
         return WritablePathProbe::fileTarget($path);
+    }
+
+    private static function nonEmptyString(mixed $value): bool
+    {
+        return is_string($value) && trim($value) !== '';
+    }
+
+    private static function port(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        return is_string($value) && ctype_digit($value) ? (int) $value : null;
     }
 }

@@ -12,6 +12,11 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: 'users')]
 #[ORM\UniqueConstraint(name: 'uniq_users_email', columns: ['email'])]
@@ -153,6 +158,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->type = $type->value;
     }
 
+    /** @return list<string> */
     #[\Override]
     public function getRoles(): array
     {

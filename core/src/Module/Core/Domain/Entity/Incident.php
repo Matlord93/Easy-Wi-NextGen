@@ -9,6 +9,11 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: IncidentRepository::class)]
 #[ORM\Table(name: 'incidents')]
 #[ORM\Index(name: 'idx_incidents_site_id', columns: ['site_id'])]

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -78,8 +81,8 @@ final class CustomerInstanceQueryApiController
 
         $snapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, true);
 
-        $normalized = is_array($snapshot['result'] ?? null) ? $snapshot['result'] : [];
-        $reported = is_array($normalized['reported'] ?? null) ? $normalized['reported'] : [];
+        $normalized = JsonArray::orEmpty($snapshot['result'] ?? null);
+        $reported = JsonArray::orEmpty($normalized['reported'] ?? null);
 
         $debug = $this->buildDebugContext($instance, $spec, $normalized);
 
@@ -126,7 +129,7 @@ final class CustomerInstanceQueryApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -175,13 +178,17 @@ final class CustomerInstanceQueryApiController
 
     /**
      * @param array<string, mixed> $normalized
-     * @return array<string, mixed>
+     * @return array{resolved_host: null|string, resolved_port: int|null, resolved_protocol: null|string,
+     * host_source: string, resolved_host_source: string, port_source: string, timeout_ms: int,
+     * network_mode: string, instance_game_port: int|null, instance_query_port: int|null,
+     * template_query_port: int|null, template_query_protocol: null|string, last_error_code: string,
+     * last_error_message: null|string, last_query_at: null|string, request_id: null}
      */
     private function buildDebugContext(Instance $instance, InstanceQuerySpec $spec, array $normalized): array
     {
         $setupVars = $instance->getSetupVars();
         $requirements = $instance->getTemplate()->getRequirements();
-        $queryConfig = is_array($requirements['query'] ?? null) ? $requirements['query'] : [];
+        $queryConfig = JsonArray::orEmpty($requirements['query'] ?? null);
 
         return [
             'resolved_host' => $spec->getHost(),

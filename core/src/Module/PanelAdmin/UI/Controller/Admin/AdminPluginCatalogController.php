@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\GamePluginSeedCatalog;
 use App\Module\Core\Application\GameTemplateSeeder;
@@ -150,7 +155,7 @@ final class AdminPluginCatalogController
     #[Route(path: '', name: 'admin_plugins_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -206,7 +211,7 @@ final class AdminPluginCatalogController
     #[Route(path: '/{id}', name: 'admin_plugins_update', methods: ['POST'], requirements: ['id' => '\d+'])]
     public function update(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -280,7 +285,7 @@ final class AdminPluginCatalogController
     #[Route(path: '/{id}/delete', name: 'admin_plugins_delete', methods: ['POST'], requirements: ['id' => '\d+'])]
     public function delete(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -315,7 +320,7 @@ final class AdminPluginCatalogController
     #[Route(path: '/seed', name: 'admin_plugins_seed', methods: ['POST'])]
     public function seedCatalog(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -350,7 +355,7 @@ final class AdminPluginCatalogController
     #[Route(path: '/import', name: 'admin_plugins_import', methods: ['POST'])]
     public function import(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -360,7 +365,7 @@ final class AdminPluginCatalogController
             return $this->renderImportWithErrors($payload, ['Import payload is required.'], Response::HTTP_BAD_REQUEST);
         }
 
-        $decoded = json_decode($payload, true);
+        $decoded = JsonArray::decode($payload);
         if (!is_array($decoded)) {
             return $this->renderImportWithErrors($payload, ['Import payload must be valid JSON.'], Response::HTTP_BAD_REQUEST);
         }
@@ -436,6 +441,10 @@ final class AdminPluginCatalogController
         return $response;
     }
 
+    /**
+     * @return array{errors: list<string>, game_key: string, name: string, version: string, checksum:
+     * string, download_url: string, description: null|string}
+     */
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -491,7 +500,7 @@ final class AdminPluginCatalogController
             'action' => $plugin === null ? 'create' : 'update',
             'submit_label' => $plugin === null ? 'admin_plugins_create_button' : 'admin_plugins_update_button',
             'submit_color' => $plugin === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $plugin === null ? '/admin/plugins' : sprintf('/admin/plugins/%d', $plugin->getId()),
+            'action_url' => $plugin === null ? '/admin/plugins' : sprintf('/admin/plugins/%d', EntityIdentifier::require($plugin->getId())),
         ];
 
         if ($override !== null) {
@@ -645,6 +654,7 @@ final class AdminPluginCatalogController
 
     /**
      * @param GamePlugin[] $plugins
+      * @return array{total: int, game_keys: int}
      */
     private function buildSummary(array $plugins): array
     {
@@ -689,6 +699,10 @@ final class AdminPluginCatalogController
         }, $plugins);
     }
 
+    /**
+     * @return array{id: int|null, name: string, version: string, checksum: string, download_url: string,
+     * description: null|string, template: array{id: int|null, name: string, game_key: string}}
+     */
     private function normalizePlugin(GamePlugin $plugin): array
     {
         return [
@@ -706,6 +720,7 @@ final class AdminPluginCatalogController
         ];
     }
 
+    /** @return list<array{game_key: string, label: string}> */
     private function normalizeTemplates(array $templates): array
     {
         $distinct = [];
@@ -738,7 +753,8 @@ final class AdminPluginCatalogController
 
 
     /**
-     * @return array<int, array{game_key:string,name:string,version:string,checksum:string,download_url:string,description:string}>
+     * @return array<int,
+     * array{game_key:string,name:string,version:string,checksum:string,download_url:string,description:string}>
      */
     private function buildRecommendedSeedEntries(): array
     {
@@ -757,7 +773,7 @@ final class AdminPluginCatalogController
 
     private function isAdmin(Request $request): bool
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
 
         return $user instanceof User && $user->isAdmin();
     }

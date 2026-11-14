@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 
+/** @psalm-api Hydrated and persisted through Doctrine metadata. */
 #[ORM\Entity, ORM\Table(name: 'kvm_guest_assignments')]
 #[ORM\UniqueConstraint(name: 'uniq_kvm_guest_owner', columns: ['node_id', 'vm_uuid'])]
 class KvmGuestAssignment

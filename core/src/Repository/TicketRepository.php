@@ -25,14 +25,13 @@ final class TicketRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        return $this->createQueryBuilder('ticket')
+        return EntityQueryResult::all($this->createQueryBuilder('ticket')
             ->addSelect('customer')
             ->innerJoin('ticket.customer', 'customer')
             ->andWhere('ticket.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('ticket.lastMessageAt', 'DESC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Ticket::class);
     }
 
     /**
@@ -40,13 +39,12 @@ final class TicketRepository extends ServiceEntityRepository
      */
     public function findForAdminList(): array
     {
-        return $this->createQueryBuilder('ticket')
+        return EntityQueryResult::all($this->createQueryBuilder('ticket')
             ->addSelect('customer', 'assignedTo')
             ->innerJoin('ticket.customer', 'customer')
             ->leftJoin('ticket.assignedTo', 'assignedTo')
             ->orderBy('ticket.lastMessageAt', 'DESC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Ticket::class);
     }
 
     /**
@@ -59,28 +57,26 @@ final class TicketRepository extends ServiceEntityRepository
      */
     public function findVisibleForAdminQueue(User $admin): array
     {
-        return $this->createQueryBuilder('ticket')
+        return EntityQueryResult::all($this->createQueryBuilder('ticket')
             ->addSelect('customer', 'assignedTo')
             ->innerJoin('ticket.customer', 'customer')
             ->leftJoin('ticket.assignedTo', 'assignedTo')
             ->andWhere('(ticket.status = :openStatus AND ticket.assignedTo IS NULL) OR (ticket.status IN (:activeStatuses) AND ticket.assignedTo = :admin)')
             ->setParameter('openStatus', TicketStatus::Open)
             ->setParameter('activeStatuses', [TicketStatus::Open, TicketStatus::Pending])
-            ->setParameter('admin', $admin)
+            ->setParameter('admin', QueryParameter::entityId($admin->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('ticket.lastMessageAt', 'DESC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Ticket::class);
     }
 
     public function deleteClosedBefore(\DateTimeImmutable $cutoff): int
     {
-        return $this->createQueryBuilder('ticket')
+        return EntityQueryResult::affected($this->createQueryBuilder('ticket')
             ->delete()
             ->andWhere('ticket.status = :status')
             ->andWhere('ticket.updatedAt < :cutoff')
             ->setParameter('status', TicketStatus::Closed)
-            ->setParameter('cutoff', $cutoff)
-            ->getQuery()
-            ->execute();
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->getQuery());
     }
 }

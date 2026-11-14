@@ -77,6 +77,19 @@ final class MusicbotHealthServiceTest extends TestCase
         ];
     }
 
+    public function testMalformedHealthFlagsDoNotReportHealthyServices(): void
+    {
+        $runtime = $this->fullHealthyRuntime();
+        $runtime['health']['binary_present'] = ['unexpected'];
+        $runtime['runtime_ready'] = 'yes';
+        $runtime['teamspeak'] = ['connected' => ['unexpected']];
+        $report = $this->service->check($this->makeInstance(runtimePayload: $runtime));
+
+        self::assertSame('unknown', $report['checks']['binary_present']['status']);
+        self::assertSame('unknown', $report['checks']['runtime_ready']['status']);
+        self::assertSame('unknown', $report['checks']['teamspeak_connected']['status']);
+    }
+
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     public function testHealthyInstanceIsHealthy(): void

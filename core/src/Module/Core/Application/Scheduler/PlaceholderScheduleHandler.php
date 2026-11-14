@@ -6,6 +6,7 @@ namespace App\Module\Core\Application\Scheduler;
 
 abstract class PlaceholderScheduleHandler implements ScheduleHandlerInterface
 {
+    /** @return list<\App\Module\Core\Application\Scheduler\InternalSchedule> */
     #[\Override]
     public function schedules(): array
     {

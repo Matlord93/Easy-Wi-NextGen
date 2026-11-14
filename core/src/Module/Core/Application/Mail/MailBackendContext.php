@@ -33,7 +33,8 @@ final class MailBackendContext
     }
 
     /**
-     * @return array{error: string, error_code: string, ui_hint: string, mail_enabled: bool, mail_backend: string}|null
+     * @return array{error: string, error_code: string, ui_hint: string, mail_enabled: bool, mail_backend:
+     * string}|null
      */
     public function blockedResponsePayload(string $resource): ?array
     {

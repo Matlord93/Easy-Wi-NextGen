@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\MailboxRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailboxRepository::class)]
 #[ORM\Table(name: 'mailboxes')]
 #[ORM\UniqueConstraint(name: 'uniq_mailboxes_address', columns: ['address'])]
@@ -38,6 +43,7 @@ class Mailbox implements ResourceEventSource
     #[ORM\Column(length: 255)]
     private string $passwordHash;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string} */
     #[ORM\Column(type: 'json')]
     private array $secretPayload;
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
@@ -177,7 +179,7 @@ final class Ts3InstanceApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
         }
@@ -283,6 +285,7 @@ final class Ts3InstanceApiController
         ];
     }
 
+    /** @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, port?: int} */
     private function validatePort(mixed $value, string $field): array
     {
         if ($value === null || $value === '' || !is_numeric($value)) {
@@ -311,6 +314,10 @@ final class Ts3InstanceApiController
         };
     }
 
+    /**
+     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, payload?: array{action:
+     * string, slots?: string, backup_path?: string, restore_path?: string}}
+     */
     private function buildActionPayload(string $action, array $payload): array
     {
         $extra = [
@@ -357,6 +364,10 @@ final class Ts3InstanceApiController
         return $this->jobDispatcher->dispatch($instance->getNode(), $type, $payload);
     }
 
+    /**
+     * @return array{id: int|null, name: string, customer_id: int|null, node_id: string, voice_port: int,
+     * query_port: int, file_port: int, db_mode: string, status: string, updated_at: string}
+     */
     private function normalizeInstance(Ts3Instance $instance): array
     {
         return [

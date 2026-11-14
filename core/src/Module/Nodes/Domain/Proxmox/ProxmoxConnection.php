@@ -35,6 +35,7 @@ final readonly class ProxmoxConnection implements \JsonSerializable
         }
     }
 
+    /** @return array{baseUrl: string, tokenId: string, tokenSecret: string, verifyTls: bool} */
     #[\Override]
     public function jsonSerialize(): array
     {

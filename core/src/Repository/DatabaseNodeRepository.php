@@ -34,11 +34,7 @@ class DatabaseNodeRepository extends ServiceEntityRepository
                 ->setParameter('engine', $engine);
         }
 
-        /** @var list<DatabaseNode> $hydratedEntities */
-        $hydratedEntities = $builder
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($builder
+            ->getQuery(), \App\Module\Core\Domain\Entity\DatabaseNode::class);
     }
 }

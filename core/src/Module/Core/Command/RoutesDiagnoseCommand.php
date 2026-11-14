@@ -61,7 +61,7 @@ final class RoutesDiagnoseCommand extends Command
             ];
         }
 
-        usort($rows, static fn (array $a, array $b): int => strcmp((string) $a[0], (string) $b[0]));
+        usort($rows, static fn (array $a, array $b): int => strcmp($a[0], $b[0]));
 
         $io->title('Route diagnostics');
         $io->text('Active file flow: Core -> FileServiceClient -> Agent file API.');

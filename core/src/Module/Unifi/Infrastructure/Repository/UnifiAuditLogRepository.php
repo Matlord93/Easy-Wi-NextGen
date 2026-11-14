@@ -11,7 +11,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<UnifiAuditLog>
  */
-class UnifiAuditLogRepository extends ServiceEntityRepository
+final class UnifiAuditLogRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

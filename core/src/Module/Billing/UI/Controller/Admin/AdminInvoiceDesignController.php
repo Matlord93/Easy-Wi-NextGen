@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Billing\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\Billing\BillingSettings;
 use App\Module\Core\Application\Billing\InvoiceDesign;
@@ -133,7 +135,7 @@ final readonly class AdminInvoiceDesignController
 
     private function actor(Request $request, bool $write): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin() || ($write && !$this->csrf->isTokenValid(new CsrfToken('billing', (string) $request->request->get('_token'))))) {
             throw new AccessDeniedHttpException();
         }

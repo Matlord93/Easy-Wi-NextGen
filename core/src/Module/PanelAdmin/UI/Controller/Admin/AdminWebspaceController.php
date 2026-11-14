@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailPasswordHasher;
@@ -68,7 +71,7 @@ final class AdminWebspaceController
     #[Route(path: '', name: 'admin_webspaces_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -143,7 +146,7 @@ final class AdminWebspaceController
         $this->entityManager->persist($webspace);
         $this->entityManager->flush();
 
-        $systemUsername = sprintf('ws%d', $webspace->getId());
+        $systemUsername = sprintf('ws%d', EntityIdentifier::require($webspace->getId()));
         $webspace->setSystemUsername($systemUsername);
         $this->entityManager->persist($webspace);
 
@@ -227,7 +230,7 @@ final class AdminWebspaceController
     #[Route(path: '/{id}/domains', name: 'admin_webspaces_domain_add', methods: ['POST'])]
     public function addDomain(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -277,7 +280,7 @@ final class AdminWebspaceController
     #[Route(path: '/{id}/domains/{domainId}', name: 'admin_webspaces_domain_update', methods: ['POST'])]
     public function updateDomain(Request $request, string $id, int $domainId): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -305,7 +308,7 @@ final class AdminWebspaceController
     #[Route(path: '/{id}/domains/{domainId}/delete', name: 'admin_webspaces_domain_delete', methods: ['POST'])]
     public function deleteDomain(Request $request, string $id, int $domainId): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -331,7 +334,7 @@ final class AdminWebspaceController
     #[Route(path: '/{id}/domains/{domainId}/ssl/{action}', name: 'admin_webspaces_domain_ssl', requirements: ['action' => 'issue|renew|disable'], methods: ['POST'])]
     public function sslAction(Request $request, string $id, int $domainId, string $action): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -367,7 +370,7 @@ final class AdminWebspaceController
     #[Route(path: '/{id}/mailboxes', name: 'admin_webspaces_mailbox_create', methods: ['POST'])]
     public function createMailbox(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -431,7 +434,7 @@ final class AdminWebspaceController
     #[Route(path: '/{id}/delete', name: 'admin_webspaces_delete', methods: ['POST'])]
     public function delete(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -494,7 +497,7 @@ final class AdminWebspaceController
 
     private function updateStatus(Request $request, string $id, string $status, string $auditEvent, string $notice): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -586,6 +589,11 @@ final class AdminWebspaceController
         ];
     }
 
+    /**
+     * @return array{id: int|null, name: string, type: string, status: string, apply_status: string,
+     * target_path: null|string, redirect_https: bool, redirect_www: bool, server_aliases: string,
+     * ssl_expires_at: \DateTimeImmutable|null, mail_enabled: bool}
+     */
     private function normalizeDomainRow(Domain $domain): array
     {
         return [
@@ -605,7 +613,7 @@ final class AdminWebspaceController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }
@@ -741,7 +749,7 @@ final class AdminWebspaceController
             'webspace_id' => (string) $webspace->getId(),
             'domain_id' => (string) $domain->getId(),
             'domain' => $domain->getName(),
-            'target_path' => (string) ($domain->getTargetPath() ?? ''),
+            'target_path' => ($domain->getTargetPath() ?? ''),
             'runtime' => $webspace->getRuntime(),
             'web_root' => $webspace->getPath(),
             'docroot' => $webspace->getDocroot(),

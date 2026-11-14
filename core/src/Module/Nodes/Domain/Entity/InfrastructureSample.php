@@ -6,6 +6,7 @@ namespace App\Module\Nodes\Domain\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
+/** @psalm-api Hydrated and persisted through Doctrine metadata. */
 #[ORM\Entity, ORM\Table(name: 'infrastructure_samples')]
 #[ORM\Index(name: 'idx_infra_sample_retention', columns: ['bucket'])]
 class InfrastructureSample

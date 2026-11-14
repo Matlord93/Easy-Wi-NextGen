@@ -26,6 +26,7 @@ class PortLeaseManager
         return $this->reserve($pool, fn (): array => $this->buildBlocksInRange($pool, $customer, $startPort, $endPort, $size));
     }
 
+    /** @return list<\App\Module\Ports\Domain\Entity\PortBlock> */
     private function buildBlocksInRange(PortPool $pool, User $customer, int $startPort, int $endPort, int $size): array
     {
         if ($size <= 0) {

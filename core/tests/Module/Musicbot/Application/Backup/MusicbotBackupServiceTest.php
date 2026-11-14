@@ -14,14 +14,13 @@ use App\Module\Musicbot\Application\MusicbotSecretConfigServiceInterface;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
-use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 final class MusicbotBackupServiceTest extends TestCase
 {
     private MusicbotBackupService $service;
-    private Stub&MusicbotSecretConfigServiceInterface $secretService;
-    private Stub&MusicbotBackupDataProvider $dataProvider;
+    private MusicbotSecretConfigServiceInterface $secretService;
+    private MusicbotBackupDataProvider $dataProvider;
 
     protected function setUp(): void
     {
@@ -213,7 +212,7 @@ final class MusicbotBackupServiceTest extends TestCase
         self::assertArrayHasKey('volume', $config);
     }
 
-    private function buildDataProviderWithConnections(array $connections): Stub&MusicbotBackupDataProvider
+    private function buildDataProviderWithConnections(array $connections): MusicbotBackupDataProvider
     {
         $dp = $this->createStub(MusicbotBackupDataProvider::class);
         $dp->method('getConnections')->willReturn($connections);
@@ -234,7 +233,7 @@ final class MusicbotBackupServiceTest extends TestCase
         );
     }
 
-    private function buildMockInstance(array $instanceConfig = ['volume' => 80]): Stub&MusicbotInstance
+    private function buildMockInstance(array $instanceConfig = ['volume' => 80]): MusicbotInstance
     {
         $customer = new \App\Module\Core\Domain\Entity\User('customer@example.com', UserType::Customer);
         $node = $this->createStub(\App\Module\Core\Domain\Entity\Agent::class);

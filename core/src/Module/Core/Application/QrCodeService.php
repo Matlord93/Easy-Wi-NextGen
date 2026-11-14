@@ -55,7 +55,6 @@ final class QrCodeService
     {
         $result = (new Builder(
             writer: $writer,
-            writerOptions: [],
             data: $data,
             encoding: new Encoding('UTF-8'),
             errorCorrectionLevel: ErrorCorrectionLevel::Low,

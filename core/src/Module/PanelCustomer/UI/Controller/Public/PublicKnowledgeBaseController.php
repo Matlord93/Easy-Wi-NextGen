@@ -110,7 +110,8 @@ final class PublicKnowledgeBaseController
 
     /**
      * @param KnowledgeBaseArticle[] $articles
-     * @return array<int, array{key: string, label: string, items: array<int, array{title: string, slug: string, excerpt: string}>}>
+     * @return array<int, array{key: string, label: string, items: array<int, array{title: string, slug:
+     * string, excerpt: string}>}>
      */
     private function groupByCategory(array $articles): array
     {
@@ -149,6 +150,7 @@ final class PublicKnowledgeBaseController
         return mb_substr($text, 0, 140) . '…';
     }
 
+    /** @return array{title: string, content: string, category: string} */
     private function normalizeArticle(KnowledgeBaseArticle $article): array
     {
         return [

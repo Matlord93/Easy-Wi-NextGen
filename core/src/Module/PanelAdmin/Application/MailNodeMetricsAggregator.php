@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailNode;
@@ -13,7 +14,10 @@ class MailNodeMetricsAggregator
     /** @var string[] */
     private const array PORT_KEYS = ['25', '465', '587', '110', '143', '993', '995'];
 
-    /** @param MailNode[] $mailNodes @param MailDomain[] $mailDomains */
+    /**
+     * @param MailNode[] $mailNodes
+     * @param MailDomain[] $mailDomains
+     */
     public function aggregate(array $mailNodes, array $mailDomains): array
     {
         $agentsByMailNode = $this->mapAgentsByMailNode($mailDomains);
@@ -45,7 +49,7 @@ class MailNodeMetricsAggregator
 
     private function sanitizeMetrics(array $mail): array
     {
-        $ports = is_array($mail['ports'] ?? null) ? $mail['ports'] : [];
+        $ports = JsonArray::orEmpty($mail['ports'] ?? null);
 
         return [
             'postfix_active' => (bool) ($mail['postfix_active'] ?? false),
@@ -57,7 +61,7 @@ class MailNodeMetricsAggregator
             'domain_count' => $this->toInt($mail['domain_count'] ?? 0),
             'alias_count' => $this->toInt($mail['alias_count'] ?? 0),
             'maildir_disk_bytes' => $this->toInt($mail['maildir_disk_bytes'] ?? 0),
-            'mailbox_usage' => $this->normalizeMailboxUsage(is_array($mail['mailbox_usage'] ?? null) ? $mail['mailbox_usage'] : []),
+            'mailbox_usage' => $this->normalizeMailboxUsage(JsonArray::orEmpty($mail['mailbox_usage'] ?? null)),
             'mailbox_usage_truncated' => (bool) ($mail['mailbox_usage_truncated'] ?? false),
             'ports' => $this->normalizePorts($ports),
         ];
@@ -82,6 +86,7 @@ class MailNodeMetricsAggregator
         return $normalized;
     }
 
+    /** @return array{995: bool, 993: bool, 143: bool, 110: bool, 587: bool, 465: bool, 25: bool} */
     private function normalizePorts(array $ports): array
     {
         $normalized = [];
@@ -96,7 +101,10 @@ class MailNodeMetricsAggregator
         return is_numeric($value) ? (int) $value : 0;
     }
 
-    /** @param MailDomain[] $mailDomains @return array<int,Agent> */
+    /**
+     * @param MailDomain[] $mailDomains
+     * @return array<int,Agent>
+     */
     private function mapAgentsByMailNode(array $mailDomains): array
     {
         $map = [];

@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use App\Infrastructure\Runtime\MemoryLimit;
+use App\Infrastructure\Runtime\RuntimeEnvironment;
 use App\Kernel;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -35,7 +36,7 @@ if (is_file(dirname(__DIR__).'/.env')) {
 
 $input = new ArgvInput();
 
-$env = $input->getParameterOption(['--env', '-e'], $_SERVER['APP_ENV'] ?? $_ENV['APP_ENV'] ?? 'dev', true);
+$env = RuntimeEnvironment::name($input->getParameterOption(['--env', '-e'], $_SERVER['APP_ENV'] ?? $_ENV['APP_ENV'] ?? 'dev', true));
 $debug = (bool)($_SERVER['APP_DEBUG'] ?? $_ENV['APP_DEBUG'] ?? ($env !== 'prod'));
 
 if ($debug) {

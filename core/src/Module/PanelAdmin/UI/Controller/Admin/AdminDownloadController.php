@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\DownloadItem;
@@ -107,7 +110,7 @@ final class AdminDownloadController
     #[Route(path: '', name: 'admin_downloads_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -156,7 +159,7 @@ final class AdminDownloadController
     #[Route(path: '/{id}', name: 'admin_downloads_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -220,7 +223,7 @@ final class AdminDownloadController
     #[Route(path: '/{id}/delete', name: 'admin_downloads_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -250,6 +253,10 @@ final class AdminDownloadController
         return $response;
     }
 
+    /**
+     * @return array{errors: list<string>, title: string, description: null|string, url: string, version:
+     * null|string, file_size: null|string, visible_public: bool, sort_order: int}
+     */
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -298,7 +305,7 @@ final class AdminDownloadController
             'action' => $item === null ? 'create' : 'update',
             'submit_label' => $item === null ? 'Create Download' : 'Update Download',
             'submit_color' => $item === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $item === null ? '/admin/downloads' : sprintf('/admin/downloads/%d', $item->getId()),
+            'action_url' => $item === null ? '/admin/downloads' : sprintf('/admin/downloads/%d', EntityIdentifier::require($item->getId())),
         ];
 
         if ($override !== null) {
@@ -328,6 +335,7 @@ final class AdminDownloadController
 
     /**
      * @param DownloadItem[] $items
+      * @return array{total: int, public: int, hidden: int}
      */
     private function buildSummary(array $items): array
     {
@@ -370,7 +378,7 @@ final class AdminDownloadController
 
     private function isAdmin(Request $request): bool
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
 
         return $user instanceof User && $user->isAdmin();
     }

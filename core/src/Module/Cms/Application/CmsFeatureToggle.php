@@ -41,7 +41,7 @@ final class CmsFeatureToggle
 
         foreach (self::DEFAULTS as $key => $_default) {
             if (array_key_exists($key, $stored)) {
-                $resolved[$key] = (bool) $stored[$key];
+                $resolved[$key] = $stored[$key];
             }
         }
 

@@ -131,7 +131,7 @@ final class PublicRegistrationController
                     return new Response('Too many requests. Please try again later.', Response::HTTP_TOO_MANY_REQUESTS);
                 }
 
-                $portalLanguage = strtolower(trim((string) $request->getLocale()));
+                $portalLanguage = strtolower(trim($request->getLocale()));
                 $password = (string) ($payload['password'] ?? '');
                 $passwordConfirm = (string) ($payload['password_confirm'] ?? '');
 
@@ -232,7 +232,7 @@ final class PublicRegistrationController
             return new Response('Verification link expired or invalid.', Response::HTTP_BAD_REQUEST);
         }
 
-        $token = trim((string) $request->query->get('token', ''));
+        $token = trim($request->query->getString('token', ''));
         if ($token === '') {
             return new Response('Invalid verification link.', Response::HTTP_BAD_REQUEST);
         }

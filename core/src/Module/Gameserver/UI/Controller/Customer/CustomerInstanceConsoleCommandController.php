@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Job;
@@ -66,7 +68,7 @@ final class CustomerInstanceConsoleCommandController
             return $this->responseEnvelopeFactory->error($request, 'Instance is not running.', 'INSTANCE_OFFLINE', JsonResponse::HTTP_CONFLICT);
         }
 
-        $blockingJob = $this->findBlockingLifecycleJob((int) ($instance->getId() ?? 0));
+        $blockingJob = $this->findBlockingLifecycleJob(($instance->getId() ?? 0));
         if ($blockingJob instanceof Job) {
             $this->audit($actor, 'command_blocked', $id, null, 'lifecycle_blocked');
             return $this->responseEnvelopeFactory->error(
@@ -79,7 +81,7 @@ final class CustomerInstanceConsoleCommandController
             );
         }
 
-        $body = json_decode((string) $request->getContent(), true);
+        $body = json_decode($request->getContent(), true);
         $command = $this->normalizeCommand((string) ($body['command'] ?? ''));
         if ($command === '' || strlen($command) > 1024) {
             $this->audit($actor, 'command_blocked', $id, $command, 'invalid_length');
@@ -126,7 +128,7 @@ final class CustomerInstanceConsoleCommandController
             return new JsonResponse([
                 'status' => 'queued',
                 'message' => 'Command queued (fallback).',
-                'request_id' => (string) ($request->headers->get('X-Request-ID') ?? ''),
+                'request_id' => ($request->headers->get('X-Request-ID') ?? ''),
                 'accepted' => true,
                 'applied' => false,
                 'duplicate' => false,
@@ -143,7 +145,7 @@ final class CustomerInstanceConsoleCommandController
         return new JsonResponse([
             'status' => 'queued',
             'message' => 'Command sent.',
-            'request_id' => (string) ($request->headers->get('X-Request-ID') ?? ''),
+            'request_id' => ($request->headers->get('X-Request-ID') ?? ''),
             'accepted' => true,
             'applied' => $result->applied,
             'duplicate' => $result->duplicate,
@@ -154,7 +156,7 @@ final class CustomerInstanceConsoleCommandController
 
     private function requireUser(Request $request): User
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User) {
             throw new AccessDeniedHttpException('Authentication required.');
         }
@@ -173,7 +175,7 @@ final class CustomerInstanceConsoleCommandController
 
     private function requiresCsrf(Request $request): bool
     {
-        if (str_starts_with(strtolower((string) $request->headers->get('Authorization', '')), 'bearer ')) {
+        if (str_starts_with(strtolower($request->headers->get('Authorization', '')), 'bearer ')) {
             return false;
         }
 
@@ -182,7 +184,7 @@ final class CustomerInstanceConsoleCommandController
 
     private function isCsrfValid(Request $request, int $instanceId, string $fallbackBodyToken): bool
     {
-        $token = trim((string) ($request->headers->get('X-CSRF-Token') ?? $fallbackBodyToken));
+        $token = trim(($request->headers->get('X-CSRF-Token') ?? $fallbackBodyToken));
         if ($token === '') {
             return false;
         }
@@ -229,8 +231,8 @@ final class CustomerInstanceConsoleCommandController
         $job = new Job('instance.console.command', [
             'instance_id' => (string) ($instance->getId() ?? 0),
             'customer_id' => (string) ($actor->getId() ?? 0),
-            'node_id' => (string) $instance->getNode()->getId(),
-            'agent_id' => (string) $instance->getNode()->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'agent_id' => $instance->getNode()->getId(),
             'command' => $command,
             'idempotency_key' => $idempotency,
         ]);

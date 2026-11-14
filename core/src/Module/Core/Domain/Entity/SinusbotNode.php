@@ -8,6 +8,11 @@ use App\Module\Core\Application\SecretsCrypto;
 use App\Repository\SinusbotNodeRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: SinusbotNodeRepository::class)]
 #[ORM\Table(name: 'sinusbot_nodes')]
 class SinusbotNode

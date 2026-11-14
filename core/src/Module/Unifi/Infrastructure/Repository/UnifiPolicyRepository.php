@@ -11,7 +11,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<UnifiPolicy>
  */
-class UnifiPolicyRepository extends ServiceEntityRepository
+final class UnifiPolicyRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

@@ -15,11 +15,48 @@ use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceConsoleStreamCo
 use App\Repository\InstanceRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\EventStreamResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 {
+    public function testEventJsonEscapesMarkupAndSubstitutesInvalidUtf8(): void
+    {
+        $controller = (new \ReflectionClass(CustomerInstanceConsoleStreamController::class))->newInstanceWithoutConstructor();
+        $write = new \ReflectionMethod(CustomerInstanceConsoleStreamController::class, 'writeEvent');
+        $message = '<script>alert("x")</script> & test';
+        ob_start();
+        ob_start();
+        $write->invoke($controller, new EventStreamResponse(), ['message' => $message, 'invalid' => "\xff"]);
+        ob_end_flush();
+        $content = (string) ob_get_clean();
+
+        self::assertStringNotContainsString('<script>', $content);
+        self::assertSame(1, preg_match('/^data: (.+)$/m', $content, $match));
+        $decoded = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame($message, $decoded['message']);
+        self::assertSame("\u{fffd}", $decoded['invalid']);
+    }
+
+    public function testEventNamesCannotInjectAdditionalSseFrames(): void
+    {
+        $controller = (new \ReflectionClass(CustomerInstanceConsoleStreamController::class))->newInstanceWithoutConstructor();
+        $write = new \ReflectionMethod(CustomerInstanceConsoleStreamController::class, 'writeEvent');
+        ob_start();
+        try {
+            $write->invoke($controller, new EventStreamResponse(), ['message' => "first\nsecond"], "chunk\nevent: injected", 7);
+            $content = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, preg_match_all('/^event: /m', $content));
+        self::assertStringContainsString("id: 7\n", $content);
+        self::assertSame(1, preg_match('/^data: (.+)$/m', $content, $matches));
+        self::assertSame(['message' => "first\nsecond"], json_decode($matches[1], true, flags: JSON_THROW_ON_ERROR));
+    }
+
     public function testUnauthorizedThrows403(): void
     {
         $controller = $this->controllerWith(new class () implements ConsoleEventBusInterface {
@@ -104,10 +141,12 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
         self::assertStringStartsWith('text/event-stream', (string) $response->headers->get('Content-Type'));
 
         ob_start();
-        ob_start();
-        $response->sendContent();
-        ob_end_clean();
-        $content = (string) ob_get_clean();
+        try {
+            $response->sendContent();
+            $content = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
 
         self::assertSame(41, $eventBus->lastReplaySeq);
         self::assertStringContainsString('id: 42', $content);
@@ -211,10 +250,12 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 
         $response = $controller->stream($request, 1);
         ob_start();
-        ob_start();
-        $response->sendContent();
-        ob_end_clean();
-        $content = (string) ob_get_clean();
+        try {
+            $response->sendContent();
+            $content = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
 
         self::assertStringContainsString('event: status', $content);
         self::assertStringContainsString('backend_not_configured', $content);
@@ -262,10 +303,12 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 
         $response = $controller->stream($request, 1);
         ob_start();
-        ob_start();
-        $response->sendContent();
-        ob_end_clean();
-        $content = (string) ob_get_clean();
+        try {
+            $response->sendContent();
+            $content = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
 
         self::assertStringContainsString('event: status', $content);
         self::assertStringContainsString('stream_unavailable', $content);
@@ -278,13 +321,8 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
         $this->setEntityId($customer, $owner ? 5 : 7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createStub(InstanceRepository::class);
-        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [1];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(1)->willReturn($instance);
 
         return new CustomerInstanceConsoleStreamController($repo, $eventBus, $this->createStub(TranslatorInterface::class), $maxDurationSeconds, 1, $diagnostics, null, false);
     }
@@ -293,6 +331,7 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
+        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

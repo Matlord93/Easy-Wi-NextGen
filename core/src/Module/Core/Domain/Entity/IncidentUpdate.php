@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\IncidentUpdateRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: IncidentUpdateRepository::class)]
 #[ORM\Table(name: 'incident_updates')]
 #[ORM\Index(name: 'idx_incident_updates_incident_id', columns: ['incident_id'])]

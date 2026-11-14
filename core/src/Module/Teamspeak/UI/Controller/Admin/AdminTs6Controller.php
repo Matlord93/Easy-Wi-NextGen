@@ -73,7 +73,7 @@ final class AdminTs6Controller
             'instances' => $this->normalizeInstances($instances),
             'customers' => $this->userRepository->findCustomers(),
             'nodes_for_form' => $nodes,
-            'notice' => $this->resolveNoticeKey((string) $request->query->get('notice', '')),
+            'notice' => $this->resolveNoticeKey($request->query->getString('notice', '')),
             'virtual_servers_enabled' => $this->moduleRegistry->isEnabled(ModuleKey::TsVirtual->value),
         ]));
     }

@@ -51,10 +51,7 @@ class AuditLogRepository extends ServiceEntityRepository
                 ->setParameter('actor', $actor);
         }
 
-        /** @var list<AuditLog> $hydratedEntities */
-        $hydratedEntities = $builder->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($builder->getQuery(), \App\Module\Core\Domain\Entity\AuditLog::class);
     }
 
     /**
@@ -140,7 +137,7 @@ class AuditLogRepository extends ServiceEntityRepository
             ->andWhere('audit.action IN (:actions)')
             ->andWhere('audit.createdAt < :cutoff')
             ->setParameter('actions', $actions)
-            ->setParameter('cutoff', $cutoff)
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
             ->execute();
     }
@@ -155,15 +152,11 @@ class AuditLogRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<AuditLog> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('audit')
+        return EntityQueryResult::all($this->createQueryBuilder('audit')
             ->andWhere('audit.action IN (:actions)')
             ->setParameter('actions', $actions)
             ->orderBy('audit.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\AuditLog::class);
     }
 }

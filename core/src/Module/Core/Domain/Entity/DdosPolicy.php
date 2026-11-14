@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\DdosPolicyRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: DdosPolicyRepository::class)]
 #[ORM\Table(name: 'ddos_policies')]
 #[ORM\UniqueConstraint(name: 'uniq_ddos_policy_node', columns: ['node_id'])]
@@ -21,9 +26,11 @@ class DdosPolicy
     #[ORM\JoinColumn(name: 'node_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private Agent $node;
 
+    /** @var int[] */
     #[ORM\Column(type: 'json')]
     private array $ports = [];
 
+    /** @var string[] */
     #[ORM\Column(type: 'json')]
     private array $protocols = [];
 

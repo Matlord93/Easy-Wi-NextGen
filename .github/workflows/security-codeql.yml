@@ -5,6 +5,7 @@ on:
     branches: [ main, Dev, Beta ]
     paths:
       - 'core/**'
+      - 'tools/psalm/**'
       - 'agent/**'
       - 'installer/**'
       - 'docs/**'
@@ -19,6 +20,7 @@ on:
   pull_request:
     paths:
       - 'core/**'
+      - 'tools/psalm/**'
       - 'agent/**'
       - 'installer/**'
       - 'docs/**'
@@ -84,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           composer install --working-dir=core --no-scripts --no-interaction --no-progress --prefer-dist
-          composer install --working-dir=core/tools/psalm --no-scripts --no-interaction --no-progress --prefer-dist
+          composer install --working-dir=tools/psalm --no-scripts --no-interaction --no-progress --prefer-dist
           APP_ENV=dev APP_DEBUG=1 php core/bin/console cache:warmup
 
       - name: Verify SARIF normalization preserves findings
@@ -97,7 +99,7 @@ jobs:
           set -euo pipefail
           rm -f ../results.sarif
           set +e
-          php -d memory_limit=-1 tools/psalm/vendor/bin/psalm --config=psalm.xml --output-format=github --taint-analysis --report=../results.sarif
+          php -d memory_limit=-1 ../tools/psalm/vendor/bin/psalm --config=psalm.xml --no-diff --output-format=github --taint-analysis --report=../results.sarif
           psalm_exit_code=$?
           set -e
           echo "exit_code=$psalm_exit_code" >> "$GITHUB_OUTPUT"

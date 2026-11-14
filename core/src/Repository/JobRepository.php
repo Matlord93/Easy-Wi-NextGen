@@ -28,13 +28,12 @@ class JobRepository extends ServiceEntityRepository
      */
     public function findLatest(int $limit = 50): array
     {
-        return $this->createQueryBuilder('job')
+        return EntityQueryResult::all($this->createQueryBuilder('job')
             ->andWhere('job.type NOT IN (:hidden)')
             ->setParameter('hidden', self::BACKGROUND_TYPES)
             ->orderBy('job.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
     }
 
     /**
@@ -75,7 +74,7 @@ class JobRepository extends ServiceEntityRepository
             ->select('COUNT(job.id)')
             ->andWhere('job.status = :status')
             ->andWhere('job.type NOT IN (:hidden)')
-            ->setParameter('status', $status)
+            ->setParameter('status', $status->value)
             ->setParameter('hidden', self::BACKGROUND_TYPES)
             ->getQuery()
             ->getSingleScalarResult();
@@ -86,13 +85,12 @@ class JobRepository extends ServiceEntityRepository
      */
     public function findQueuedForDispatch(int $limit = 20): array
     {
-        return $this->createQueryBuilder('job')
+        return EntityQueryResult::all($this->createQueryBuilder('job')
             ->andWhere('job.status = :status')
             ->setParameter('status', JobStatus::Queued)
             ->orderBy('job.createdAt', 'ASC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
     }
 
     /**
@@ -109,7 +107,7 @@ class JobRepository extends ServiceEntityRepository
 
         $query->setLockMode(LockMode::PESSIMISTIC_WRITE);
 
-        return $query->getResult();
+        return EntityQueryResult::all($query, \App\Module\Core\Domain\Entity\Job::class);
     }
 
     /**
@@ -117,13 +115,12 @@ class JobRepository extends ServiceEntityRepository
      */
     public function findLatestByType(string $type, int $limit = 100): array
     {
-        return $this->createQueryBuilder('job')
+        return EntityQueryResult::all($this->createQueryBuilder('job')
             ->andWhere('job.type = :type')
             ->setParameter('type', $type)
             ->orderBy('job.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
     }
 
     public function countRunningByAgentAndTypes(string $agentId, array $types): int
@@ -184,16 +181,15 @@ class JobRepository extends ServiceEntityRepository
      */
     public function findRunningWithExpiredLock(\DateTimeImmutable $now, int $limit = 200): array
     {
-        return $this->createQueryBuilder('job')
+        return EntityQueryResult::all($this->createQueryBuilder('job')
             ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockExpiresAt IS NOT NULL')
             ->andWhere('job.lockExpiresAt < :now')
             ->setParameter('statuses', [JobStatus::Running->value, JobStatus::Claimed->value])
-            ->setParameter('now', $now)
+            ->setParameter('now', $now, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('job.lockExpiresAt', 'ASC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
     }
 
 

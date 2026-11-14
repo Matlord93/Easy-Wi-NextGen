@@ -73,15 +73,17 @@ final class PublicCmsUnifiedRegressionTest extends WebTestCase
         $site->setMaintenanceEndsAt(null);
         $em->flush();
 
-        $client->request('GET', '/');
+        foreach (['/', '/teams'] as $path) {
+            $client->request('GET', $path);
 
-        self::assertResponseStatusCodeSame(503);
-        $html = (string) $client->getResponse()->getContent();
-        self::assertStringContainsString('Erste Zeile<br>', $html);
-        self::assertStringContainsString('<strong>Wichtig</strong>', $html);
-        self::assertStringContainsString('<a href="https://example.com" target="_blank" rel="noopener noreferrer">Status</a>', $html);
-        self::assertStringContainsString('/images/maintenance-custom.png', $html);
-        self::assertSame("default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'", $client->getResponse()->headers->get('Content-Security-Policy'));
+            self::assertResponseStatusCodeSame(503);
+            $html = (string) $client->getResponse()->getContent();
+            self::assertStringContainsString('Erste Zeile<br>', $html);
+            self::assertStringContainsString('<strong>Wichtig</strong>', $html);
+            self::assertStringContainsString('<a href="https://example.com" target="_blank" rel="noopener noreferrer">Status</a>', $html);
+            self::assertStringContainsString('/images/maintenance-custom.png', $html);
+            self::assertSame("default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'", $client->getResponse()->headers->get('Content-Security-Policy'));
+        }
     }
 
     private function seedCmsSite(): void

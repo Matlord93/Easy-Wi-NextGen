@@ -43,17 +43,13 @@ class MailDomainRepository extends ServiceEntityRepository
      */
     public function findByOwner(User $owner, int $limit = 100, int $offset = 0): array
     {
-        /** @var list<MailDomain> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('md')
+        return EntityQueryResult::all($this->createQueryBuilder('md')
             ->andWhere('md.owner = :owner')
-            ->setParameter('owner', $owner)
+            ->setParameter('owner', QueryParameter::entityId($owner->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->setMaxResults(max(1, min($limit, 500)))
             ->setFirstResult(max(0, $offset))
             ->orderBy('md.domainName', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MailDomain::class);
     }
 
     /**
@@ -63,17 +59,13 @@ class MailDomainRepository extends ServiceEntityRepository
     {
         $normalizedStatus = strtolower(trim($status));
 
-        /** @var list<MailDomain> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('md')
+        return EntityQueryResult::all($this->createQueryBuilder('md')
             ->andWhere('md.owner = :owner')
             ->andWhere('md.dkimStatus = :status OR md.spfStatus = :status OR md.dmarcStatus = :status OR md.mxStatus = :status OR md.tlsStatus = :status')
-            ->setParameter('owner', $owner)
+            ->setParameter('owner', QueryParameter::entityId($owner->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->setParameter('status', $normalizedStatus)
             ->orderBy('md.updatedAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MailDomain::class);
     }
 
     /**
@@ -81,17 +73,13 @@ class MailDomainRepository extends ServiceEntityRepository
      */
     public function findStaleDnsChecks(User $owner, \DateTimeImmutable $before, int $limit = 200): array
     {
-        /** @var list<MailDomain> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('md')
+        return EntityQueryResult::all($this->createQueryBuilder('md')
             ->andWhere('md.owner = :owner')
             ->andWhere('md.dnsLastCheckedAt IS NULL OR md.dnsLastCheckedAt < :before')
-            ->setParameter('owner', $owner)
-            ->setParameter('before', $before)
+            ->setParameter('owner', QueryParameter::entityId($owner->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->setParameter('before', $before, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->setMaxResults(max(1, min($limit, 1000)))
             ->orderBy('md.dnsLastCheckedAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MailDomain::class);
     }
 }

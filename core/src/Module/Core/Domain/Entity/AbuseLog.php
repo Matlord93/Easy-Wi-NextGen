@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\AbuseLogRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: AbuseLogRepository::class)]
 #[ORM\Table(name: 'abuse_log')]
 #[ORM\Index(name: 'idx_abuse_log_type_created', columns: ['type', 'created_at'])]

@@ -51,7 +51,7 @@ final class RunWatchdogChecksCommand extends Command
             $instances = $this->instanceRepository->findWatchdogEnabledBatchAfterId($lastId, self::BATCH_SIZE);
 
             foreach ($instances as $instance) {
-                $lastId = max($lastId, (int) ($instance->getId() ?? 0));
+                $lastId = max($lastId, ($instance->getId() ?? 0));
 
                 // Only check instances that are supposed to be running.
                 if ($instance->getStatus() !== InstanceStatus::Running) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Command;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Gameserver\Application\Query\QuerySmokeRunnerInterface;
 use App\Module\Gameserver\Application\Query\TemplateEngineFamilyResolver;
 use App\Repository\InstanceRepository;
@@ -40,10 +41,10 @@ final class GameserverQuerySmokeCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $json = (bool) $input->getOption('json');
-        $failFast = (bool) $input->getOption('fail-fast');
+        $json = $input->getOption('json');
+        $failFast = $input->getOption('fail-fast');
 
-        $engines = array_values(array_filter(array_map('trim', explode(',', (string) $input->getOption('engines')))));
+        $engines = array_values(array_filter(array_map('trim', explode(',', $input->getOption('engines')))));
         $maxPerEngine = max(1, (int) $input->getOption('max-per-engine'));
         $selected = $this->selectInstances((string) $input->getOption('instances'), $engines, $maxPerEngine);
 
@@ -66,7 +67,7 @@ final class GameserverQuerySmokeCommand extends Command
         } else {
             $rows = [];
             foreach ($report as $item) {
-                $debug = is_array($item['debug'] ?? null) ? $item['debug'] : [];
+                $debug = JsonArray::orEmpty($item['debug'] ?? null);
                 $rows[] = [
                     $item['engine'] ?? '',
                     (string) ($item['instance_id'] ?? ''),
@@ -96,7 +97,7 @@ final class GameserverQuerySmokeCommand extends Command
         $all = $this->instanceRepository->findAll();
         if (trim($instanceIds) !== '') {
             $wanted = array_map('intval', array_filter(array_map('trim', explode(',', $instanceIds))));
-            return array_values(array_filter($all, static fn ($i) => in_array((int) ($i->getId() ?? 0), $wanted, true)));
+            return array_values(array_filter($all, static fn ($i) => in_array(($i->getId() ?? 0), $wanted, true)));
         }
 
         $counts = [];

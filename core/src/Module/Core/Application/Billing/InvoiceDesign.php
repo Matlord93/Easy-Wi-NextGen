@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AppSettingsService;
 
 final readonly class InvoiceDesign
@@ -12,6 +13,11 @@ final readonly class InvoiceDesign
     {
     }
 
+    /**
+     * @return array{accent: string, text_color: string, font: string, font_size: int, margin_mm: int,
+     * spacing: string, header_align: string, style: string, heading: string, intro: string, footer_text:
+     * string, logo_data_uri: string, logo_width: int, show_tax_column: bool}
+     */
     public static function defaults(): array
     {
         return ['accent' => '#4f46e5', 'text_color' => '#18212f', 'font' => 'sans', 'font_size' => 10,
@@ -23,7 +29,7 @@ final readonly class InvoiceDesign
     {
         $stored = $this->settings->getSettings()[AppSettingsService::KEY_INVOICE_DESIGN] ?? [];
         try {
-            $options = self::normalize(array_replace(self::defaults(), is_array($stored['options'] ?? null) ? $stored['options'] : []));
+            $options = self::normalize(array_replace(self::defaults(), JsonArray::orEmpty($stored['options'] ?? null)));
         } catch (\InvalidArgumentException) {
             $options = self::defaults();
         }

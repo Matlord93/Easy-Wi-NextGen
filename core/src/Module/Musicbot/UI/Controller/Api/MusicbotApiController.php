@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Api;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Agent;
@@ -267,7 +270,7 @@ final class MusicbotApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::YoutubeManage);
         try {
-            $results = $this->youtubeService->search($customer, $instance, (string) $request->query->get('q', ''), (string) $request->query->get('type', 'song'), (int) $request->query->get('limit', 10));
+            $results = $this->youtubeService->search($customer, $instance, $request->query->getString('q', ''), $request->query->getString('type', 'song'), (int) $request->query->get('limit', 10));
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
@@ -1142,7 +1145,7 @@ final class MusicbotApiController
                 trim((string) ($payload['timezone'] ?? 'UTC')),
                 (bool) ($payload['enabled'] ?? true),
                 $action,
-                is_array($payload['payload'] ?? null) ? $payload['payload'] : [],
+                JsonArray::orEmpty($payload['payload'] ?? null),
             );
         } catch (MusicbotQuotaExceededException $e) {
             return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
@@ -1409,11 +1412,11 @@ final class MusicbotApiController
                 $instance,
                 trim((string) ($payload['name'] ?? '')),
                 $triggerType,
-                is_array($payload['trigger_config'] ?? null) ? $payload['trigger_config'] : [],
+                JsonArray::orEmpty($payload['trigger_config'] ?? null),
                 ($payload['description'] ?? null) !== null ? (string) $payload['description'] : null,
                 (bool) ($payload['enabled'] ?? true),
-                is_array($payload['conditions'] ?? null) ? $payload['conditions'] : [],
-                is_array($payload['actions'] ?? null) ? $payload['actions'] : [],
+                JsonArray::orEmpty($payload['conditions'] ?? null),
+                JsonArray::orEmpty($payload['actions'] ?? null),
             );
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             return $this->error($e->getMessage(), 422);
@@ -1782,7 +1785,7 @@ final class MusicbotApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('api', 'Unauthorized.');
         }
@@ -1806,7 +1809,7 @@ final class MusicbotApiController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('Forbidden.');
         }
@@ -1869,7 +1872,10 @@ final class MusicbotApiController
         ];
     }
 
-    /** @param MusicbotQueueItem[] $queue @return array<string, mixed>|null */
+    /**
+     * @param MusicbotQueueItem[] $queue
+     * @return array<string, mixed>|null
+     */
     private function queueItemForNowPlaying(array $queue): ?array
     {
         $item = null;
@@ -1926,7 +1932,10 @@ final class MusicbotApiController
         ));
     }
 
-    /** @param MusicbotQueueItem[] $queue @return array<int, array<string, mixed>> */
+    /**
+     * @param MusicbotQueueItem[] $queue
+     * @return array<int, array<string, mixed>>
+     */
     private function normalizeQueue(array $queue): array
     {
         return array_map(fn (MusicbotQueueItem $item): array => $this->normalizeQueueItem($item), $queue);
@@ -1951,7 +1960,13 @@ final class MusicbotApiController
         return ['id' => $track->getId(), 'title' => $track->getTitle(), 'artist' => $track->getArtist(), 'duration_seconds' => $track->getDurationSeconds(), 'source_type' => $track->getSourceType()->value, 'mime_type' => $track->getMimeType(), 'metadata' => $track->getMetadata()];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{id: int|null, platform: string, enabled: bool, status: string, last_connected_at:
+     * null|string, last_error: null|string, secrets: array<string, string>, profile?: string, backend?:
+     * string, capability_status?: string, config?: array{application_id: string, guild_id: string,
+     * voice_channel_id: string, command_mode: string, slash_commands_enabled: bool, reconnect_policy:
+     * string}, slash_commands_status?: string}
+     */
     private function normalizeConnection(MusicbotConnection $connection): array
     {
         $secrets = $connection->getSecretConfig();
@@ -2124,13 +2139,19 @@ final class MusicbotApiController
         return $this->jobDispatcher->dispatch($instance->getNode(), $type, array_merge($this->baseJobPayload($instance, $instance->getCustomer()), $extra));
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{instance_id: string, customer_id: string, node_id: string, service_name: string,
+     * install_dir: string, install_path: string, config_file_permissions: string}
+     */
     private function baseJobPayload(MusicbotInstance $instance, User $customer): array
     {
         return ['instance_id' => (string) $instance->getId(), 'customer_id' => (string) $customer->getId(), 'node_id' => $instance->getNode()->getId(), 'service_name' => $instance->getServiceName(), 'install_dir' => $instance->getInstallPath(), 'install_path' => $instance->getInstallPath(), 'config_file_permissions' => '0600'];
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     private function parseAdminInstancePayload(array $payload): array
     {
         $errors = [];
@@ -2148,7 +2169,7 @@ final class MusicbotApiController
             $errors[] = 'name is required.';
         }
 
-        $teamspeak = is_array($payload['teamspeak'] ?? null) ? $payload['teamspeak'] : [];
+        $teamspeak = JsonArray::orEmpty($payload['teamspeak'] ?? null);
         $profile = MusicbotTeamspeakProfile::tryFrom((string) ($payload['teamspeak_profile'] ?? $teamspeak['profile'] ?? MusicbotTeamspeakProfile::Ts3->value));
         if (!$profile instanceof MusicbotTeamspeakProfile) {
             $errors[] = 'teamspeak_profile must be ts3 or ts6.';

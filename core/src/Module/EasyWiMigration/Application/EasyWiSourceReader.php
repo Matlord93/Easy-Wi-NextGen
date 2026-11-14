@@ -28,85 +28,13 @@ final class EasyWiSourceReader
         $this->prefix = $config->tablePrefix;
     }
 
-    /** @return list<array<string,mixed>> */
+    /** @return list<array<string, scalar|null>> */
     public function fetchUsers(int $offset = 0, int $limit = 500): array
     {
         return $this->query(
             "SELECT id, email, password, firstname, lastname, company, street, zip, city, country,
                     phone, created, last_login, language, reseller_id, type
              FROM {$this->prefix}users
-             ORDER BY id ASC
-             LIMIT :limit OFFSET :offset",
-            ['limit' => $limit, 'offset' => $offset],
-        );
-    }
-
-    /** @return list<array<string,mixed>> */
-    public function fetchGameservers(int $offset = 0, int $limit = 500): array
-    {
-        return $this->query(
-            "SELECT id, user_id, name, ip, port, slots, game, status, created
-             FROM {$this->prefix}gameserver
-             ORDER BY id ASC
-             LIMIT :limit OFFSET :offset",
-            ['limit' => $limit, 'offset' => $offset],
-        );
-    }
-
-    /** @return list<array<string,mixed>> */
-    public function fetchVoiceServers(int $offset = 0, int $limit = 500): array
-    {
-        return $this->query(
-            "SELECT id, user_id, name, ip, port, slots, type, status, created
-             FROM {$this->prefix}voice
-             ORDER BY id ASC
-             LIMIT :limit OFFSET :offset",
-            ['limit' => $limit, 'offset' => $offset],
-        );
-    }
-
-    /** @return list<array<string,mixed>> */
-    public function fetchWebspaces(int $offset = 0, int $limit = 500): array
-    {
-        return $this->query(
-            "SELECT id, user_id, domain, path, status, created
-             FROM {$this->prefix}webspace
-             ORDER BY id ASC
-             LIMIT :limit OFFSET :offset",
-            ['limit' => $limit, 'offset' => $offset],
-        );
-    }
-
-    /** @return list<array<string,mixed>> */
-    public function fetchDomains(int $offset = 0, int $limit = 500): array
-    {
-        return $this->query(
-            "SELECT id, user_id, webspace_id, name, status, created
-             FROM {$this->prefix}domains
-             ORDER BY id ASC
-             LIMIT :limit OFFSET :offset",
-            ['limit' => $limit, 'offset' => $offset],
-        );
-    }
-
-    /** @return list<array<string,mixed>> */
-    public function fetchMailboxes(int $offset = 0, int $limit = 500): array
-    {
-        return $this->query(
-            "SELECT id, user_id, address, password, quota, status, created
-             FROM {$this->prefix}mailboxes
-             ORDER BY id ASC
-             LIMIT :limit OFFSET :offset",
-            ['limit' => $limit, 'offset' => $offset],
-        );
-    }
-
-    /** @return list<array<string,mixed>> */
-    public function fetchInvoices(int $offset = 0, int $limit = 500): array
-    {
-        return $this->query(
-            "SELECT id, user_id, number, amount, currency, status, created, paid_at
-             FROM {$this->prefix}invoices
              ORDER BY id ASC
              LIMIT :limit OFFSET :offset",
             ['limit' => $limit, 'offset' => $offset],
@@ -130,8 +58,8 @@ final class EasyWiSourceReader
     }
 
     /**
-     * @param array<string,mixed> $params
-     * @return list<array<string,mixed>>
+     * @param array<string, int|string> $params
+     * @return list<array<string, scalar|null>>
      */
     private function query(string $sql, array $params = []): array
     {
@@ -144,6 +72,32 @@ final class EasyWiSourceReader
             );
         }
         $stmt->execute();
-        return $stmt->fetchAll() ?: [];
+        $fetched = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $rows = array_filter($fetched, 'is_array');
+        if (count($rows) !== count($fetched)) {
+            throw new \UnexpectedValueException('Legacy database returned an invalid row.');
+        }
+        $result = [];
+        foreach ($rows as $row) {
+            $record = [];
+            foreach (array_keys($row) as $key) {
+                if (!is_string($key)) {
+                    throw new \UnexpectedValueException('Legacy database returned an invalid column name.');
+                }
+                $record[$key] = self::scalar($row[$key]);
+            }
+            $result[] = $record;
+        }
+
+        return $result;
     }
+    private static function scalar(mixed $value): string|int|float|bool|null
+    {
+        if (!is_scalar($value) && $value !== null) {
+            throw new \UnexpectedValueException('Legacy database returned an unsupported column.');
+        }
+
+        return $value;
+    }
+
 }

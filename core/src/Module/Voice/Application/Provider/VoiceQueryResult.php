@@ -17,7 +17,9 @@ final class VoiceQueryResult
     ) {
     }
 
-    /** @return array{status:string,players:?int,max:?int,channels:?int,checked_at:string,reason:?string,error_code:?string} */
+    /**
+     * @return array{status:string,players:?int,max:?int,channels:?int,checked_at:string,reason:?string,error_code:?string}
+     */
     public function toArray(): array
     {
         return [

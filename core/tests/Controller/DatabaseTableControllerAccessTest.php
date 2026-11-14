@@ -7,7 +7,7 @@ namespace App\Tests\Controller;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\DatabaseTableService;
+use App\Module\Core\Application\DatabaseTableServiceInterface as DatabaseTableService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -110,12 +110,17 @@ $r2 = new Request();
         self::assertSame('application/sql; charset=UTF-8', $response->headers->get('Content-Type'));
         self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
         self::assertStringStartsWith('attachment;', $response->headers->get('Content-Disposition'));
+        $bufferLevel = ob_get_level();
+        ob_start();
         ob_start();
         try {
             $response->sendContent();
+            ob_end_flush();
             self::assertSame($line."\n", ob_get_contents());
         } finally {
-            ob_end_clean();
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
         }
     }
 }

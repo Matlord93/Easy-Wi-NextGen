@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
@@ -118,7 +121,7 @@ final class AdminUserManagementController
             'customer_access_enabled' => $user->isCustomerAccessEnabled(),
         ]);
 
-        return new RedirectResponse('/admin/users?created=' . $user->getId());
+        return new RedirectResponse('/admin/users?created=' . EntityIdentifier::require($user->getId()));
     }
 
     #[Route(path: '/{id}/details', name: 'admin_users_update', methods: ['POST'])]
@@ -184,7 +187,7 @@ final class AdminUserManagementController
 
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/users?updated=' . $user->getId());
+        return new RedirectResponse('/admin/users?updated=' . EntityIdentifier::require($user->getId()));
     }
 
     #[Route(path: '/{id}/ssh-key/approve', name: 'admin_user_ssh_key_approve', methods: ['POST'])]
@@ -209,11 +212,11 @@ final class AdminUserManagementController
             $user->setAdminSshPublicKeyPending(null);
             $this->entityManager->flush();
 
-            return new RedirectResponse('/admin/users?updated=' . $user->getId());
+            return new RedirectResponse('/admin/users?updated=' . EntityIdentifier::require($user->getId()));
         }
 
         if (!$this->isValidSshPublicKey($pendingKey)) {
-            return new RedirectResponse('/admin/users?updated=' . $user->getId());
+            return new RedirectResponse('/admin/users?updated=' . EntityIdentifier::require($user->getId()));
         }
 
         try {
@@ -230,7 +233,7 @@ final class AdminUserManagementController
 
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/users?updated=' . $user->getId());
+        return new RedirectResponse('/admin/users?updated=' . EntityIdentifier::require($user->getId()));
     }
 
     #[Route(path: '/{id}/ssh-key/reject', name: 'admin_user_ssh_key_reject', methods: ['POST'])]
@@ -258,7 +261,7 @@ final class AdminUserManagementController
 
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/users?updated=' . $user->getId());
+        return new RedirectResponse('/admin/users?updated=' . EntityIdentifier::require($user->getId()));
     }
 
     #[Route(path: '/{id}/ssh-access', name: 'admin_user_ssh_access_update', methods: ['POST'])]
@@ -284,7 +287,7 @@ final class AdminUserManagementController
 
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/users?updated=' . $user->getId());
+        return new RedirectResponse('/admin/users?updated=' . EntityIdentifier::require($user->getId()));
     }
 
     #[Route(path: '/{id}/preferences', name: 'admin_user_preferences_update', methods: ['POST'])]
@@ -333,7 +336,7 @@ final class AdminUserManagementController
 
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/users?preferences_updated=' . $user->getId());
+        return new RedirectResponse('/admin/users?preferences_updated=' . EntityIdentifier::require($user->getId()));
     }
 
     #[Route(path: '/{id}/impersonate', name: 'admin_users_impersonate', methods: ['POST'])]
@@ -380,7 +383,7 @@ final class AdminUserManagementController
 
     private function requireAdmin(Request $request): ?User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return null;
         }
@@ -390,7 +393,7 @@ final class AdminUserManagementController
 
     private function requireSuperadmin(Request $request): ?User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Superadmin) {
             return null;
         }
@@ -460,22 +463,23 @@ final class AdminUserManagementController
 
     private function canImpersonate(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->getType() === UserType::Superadmin;
     }
 
     private function canManageSshKeys(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->getType() === UserType::Superadmin;
     }
 
     private function canManageUsers(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->getType() === UserType::Superadmin;
     }
 
+    /** @return list<string> */
     private function validateUserPayload(
         string $email,
         string $password,

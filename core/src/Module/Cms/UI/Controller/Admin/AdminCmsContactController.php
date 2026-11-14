@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ContactMessage;
 use App\Module\Core\Domain\Entity\User;
@@ -135,7 +137,7 @@ final class AdminCmsContactController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

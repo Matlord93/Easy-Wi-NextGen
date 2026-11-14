@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\JobLogRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: JobLogRepository::class)]
 #[ORM\Table(name: 'job_logs')]
 #[ORM\Index(name: 'idx_job_logs_job', columns: ['job_id'])]

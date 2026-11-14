@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Monitoring;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AppSettingsService;
 
 final readonly class InfrastructureMonitoringSettings
@@ -16,7 +17,7 @@ final readonly class InfrastructureMonitoringSettings
     {
         $stored = $this->settings->getSettings()[AppSettingsService::KEY_INFRA_MONITORING] ?? [];
 
-        return array_replace(['enabled' => true, 'retention_days' => 30, 'proxmox_batch_size' => 32, 'alerts_enabled' => true, 'hold_seconds' => 180, 'offline_seconds' => 180, 'cpu_percent' => 90, 'memory_percent' => 90, 'disk_percent' => 90], is_array($stored) ? $stored : []);
+        return array_replace(['enabled' => true, 'retention_days' => 30, 'proxmox_batch_size' => 32, 'alerts_enabled' => true, 'hold_seconds' => 180, 'offline_seconds' => 180, 'cpu_percent' => 90, 'memory_percent' => 90, 'disk_percent' => 90], JsonArray::orEmpty($stored));
     }
 
     public function save(array $input): void
@@ -39,7 +40,7 @@ final readonly class InfrastructureMonitoringSettings
     {
         $state = $this->settings->getSettings()[AppSettingsService::KEY_INFRA_MONITORING_STATE] ?? [];
 
-        return is_array($state) ? $state : [];
+        return JsonArray::orEmpty($state);
     }
 
     public function updateState(array $state): void

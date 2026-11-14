@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ForumMemberBan;
 use App\Module\Core\Domain\Entity\ForumPost;
@@ -56,7 +58,7 @@ final class AdminCmsForumController
             return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
-        $reportStatus = (string) $request->query->get('report_status', ForumPostReport::STATUS_OPEN);
+        $reportStatus = $request->query->getString('report_status', ForumPostReport::STATUS_OPEN);
         if (!in_array($reportStatus, [ForumPostReport::STATUS_OPEN, ForumPostReport::STATUS_RESOLVED], true)) {
             $reportStatus = ForumPostReport::STATUS_OPEN;
         }
@@ -170,7 +172,7 @@ final class AdminCmsForumController
         }
 
         $post = $this->postRepository->find($id);
-        $admin = $request->attributes->get('current_user');
+        $admin = RequestActor::user($request);
         if ($post instanceof ForumPost && $post->getSite()->getId() === $site->getId()) {
             $post->setDeleted(!$post->isDeleted(), $admin instanceof User ? $admin : null);
             $this->entityManager->flush();
@@ -191,7 +193,7 @@ final class AdminCmsForumController
         }
 
         $report = $this->reportRepository->find($id);
-        $admin = $request->attributes->get('current_user');
+        $admin = RequestActor::user($request);
         if (!$report instanceof ForumPostReport || !$admin instanceof User) {
             return new RedirectResponse('/admin/cms/forum');
         }
@@ -256,7 +258,7 @@ final class AdminCmsForumController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

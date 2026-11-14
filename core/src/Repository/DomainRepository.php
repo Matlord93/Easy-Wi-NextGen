@@ -24,15 +24,11 @@ class DomainRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer, int $limit = 200): array
     {
-        /** @var list<Domain> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('domain')
+        return EntityQueryResult::all($this->createQueryBuilder('domain')
             ->andWhere('domain.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('domain.createdAt', 'DESC')
             ->setMaxResults(max(1, min(500, $limit)))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Domain::class);
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Notification;
 use App\Module\Core\Domain\Entity\User;
@@ -82,7 +84,7 @@ final class CustomerNotificationController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
@@ -95,6 +97,10 @@ final class CustomerNotificationController
         return array_map([$this, 'normalizeNotification'], $notifications);
     }
 
+    /**
+     * @return array{id: int|null, title: string, body: string, category: string, action_url: null|string,
+     * created_at: \DateTimeImmutable, read_at: \DateTimeImmutable|null}
+     */
     private function normalizeNotification(Notification $notification): array
     {
         return [

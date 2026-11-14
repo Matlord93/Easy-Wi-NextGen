@@ -11,9 +11,10 @@ use App\Repository\InvoicePreferencesRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
-use Twig\Extension\SandboxExtension;
+use Twig\Sandbox\Sandbox;
 use Twig\Loader\ArrayLoader;
 use Twig\Sandbox\SecurityPolicy;
+
 use Twig\Node\Node;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\FunctionExpression;
@@ -79,8 +80,7 @@ final class InvoiceLayoutRenderer
         $context['date_format'] = str_starts_with($locale, 'de') ? 'd.m.Y' : 'Y-m-d';
         $context['invoice']['tax_notice'] = $this->translator->trans('billing.notice.'.$context['invoice']['tax_mode'], [], 'billing', $locale);
         try {
-            $twig = $this->environment();
-            return $twig->createTemplate($this->checkedLayout($twig, $layout))->render($context);
+            return $this->sandbox()->createTemplate($this->checkedLayout($layout))->render($context);
         } catch (\Twig\Error\Error $exception) {
             throw new \InvalidArgumentException('billing.invalid_layout', 0, $exception);
         }
@@ -92,8 +92,7 @@ final class InvoiceLayoutRenderer
             throw new \InvalidArgumentException('billing.invalid_layout');
         }
         try {
-            $twig = $this->environment();
-            $twig->createTemplate($this->checkedLayout($twig, $layout))->render([]);
+            $this->sandbox()->createTemplate($this->checkedLayout($layout))->render([]);
         } catch (\Twig\Error\Error $exception) {
             throw new \InvalidArgumentException('billing.invalid_layout', 0, $exception);
         }
@@ -104,16 +103,20 @@ final class InvoiceLayoutRenderer
         return '<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; style-src &apos;unsafe-inline&apos;; img-src data:; font-src data:; form-action &apos;none&apos;; base-uri &apos;none&apos;"><style>body{background:#fff;color:#18212f;font-family:sans-serif;padding:20px;overflow-wrap:anywhere}</style></head><body>'.$html.'</body></html>';
     }
 
-    private function environment(): Environment
+    private function sandbox(): Sandbox
     {
         $twig = new Environment(new ArrayLoader(), ['autoescape' => 'html', 'strict_variables' => false]);
-        $policy = new SecurityPolicy(self::TAGS, self::FILTERS, [], [], [], self::TESTS);
-        if (method_exists($policy, 'setStrict')) {
-            $policy->setStrict(true);
-        }
-        $twig->addExtension(new SandboxExtension($policy, true));
+        $policy = new SecurityPolicy(
+            ['if', 'for', 'set'],
+            ['escape', 'e', 'date', 'number_format', 'default', 'replace', 'title', 'upper', 'lower', 'nl2br', 'length', 'join', 'trim', 'round', 'abs'],
+            [],
+            [],
+            [],
+            ['defined', 'empty', 'null', 'none'],
+        );
+        $policy->setStrict(true);
 
-        return $twig;
+        return new Sandbox($twig, $policy);
     }
 
     /**
@@ -123,11 +126,12 @@ final class InvoiceLayoutRenderer
      *
      * @psalm-taint-escape eval
      */
-    private function checkedLayout(Environment $twig, string $layout): string
+    private function checkedLayout(string $layout): string
     {
         if ('' === trim($layout) || strlen($layout) > 100000) {
             throw new \InvalidArgumentException('billing.invalid_layout');
         }
+        $twig = new Environment(new ArrayLoader(), ['autoescape' => 'html']);
         $tree = $twig->parse($twig->tokenize(new Source($layout, 'invoice-layout')));
         $this->checkNode($tree);
 

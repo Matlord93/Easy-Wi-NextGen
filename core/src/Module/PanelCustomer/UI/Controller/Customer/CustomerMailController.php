@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailAliasLoopGuard;
@@ -312,7 +316,7 @@ final class CustomerMailController
 
         $this->entityManager->flush();
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => sprintf('/mail/mailboxes/%d?password_scheduled=1', $mailbox->getId())]);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => sprintf('/mail/mailboxes/%d?password_scheduled=1', EntityIdentifier::require($mailbox->getId()))]);
     }
 
     #[Route(path: '/{id}/delete', name: 'customer_mail_delete', methods: ['POST'])]
@@ -373,7 +377,7 @@ final class CustomerMailController
             'pop3' => ['host' => $clientHost, 'port' => 995, 'encryption' => 'SSL'],
             'smtp' => ['host' => $smtpHost, 'port' => 587, 'encryption' => 'STARTTLS'],
             'last_job' => $lastJob,
-            'password_csrf' => $this->csrfTokenManager->getToken('mailbox_password_' . $mailbox->getId())->getValue(),
+            'password_csrf' => $this->csrfTokenManager->getToken('mailbox_password_' . EntityIdentifier::require($mailbox->getId()))->getValue(),
             'password_scheduled' => $request->query->get('password_scheduled') === '1',
             'quota_usage' => $this->buildQuotaUsage($mailDomain?->getDomain()?->getWebspace()?->getNode()?->getLastHeartbeatStats(), $mailbox->getAddress(), $mailbox->getQuota()),
             'dns_check' => $dnsCheck,
@@ -590,7 +594,7 @@ final class CustomerMailController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -765,6 +769,9 @@ final class CustomerMailController
     /**
      * @param Mailbox[] $mailboxes
      * @param MailAlias[] $aliases
+      * @return array{mailbox_create: string, alias_create: string, mailboxes: array<int, array{quota:
+      * string, status: string, password: string, delete: string}>, aliases: array<int, array{destinations:
+      * string, status: string, delete: string}>}
      */
     private function csrfTokens(array $mailboxes, array $aliases): array
     {
@@ -829,6 +836,9 @@ final class CustomerMailController
 
     /**
      * @param \App\Module\Core\Domain\Entity\Domain[] $domains
+      * @return list<array{domain: string, imap: array{host: string, port: int, encryption: string}, smtp:
+      * array{host: string, port: int, encryption: string}, pop3: array{host: string, port: int,
+      * encryption: string}, dns: array{spf: string, dkim: string, dmarc: string}}|mixed>
      */
     private function buildClientSettings(array $domains): array
     {
@@ -841,7 +851,7 @@ final class CustomerMailController
             }
             $node = $webspace->getNode();
             $metadata = $node->getMetadata();
-            $metadata = is_array($metadata) ? $metadata : [];
+            $metadata = JsonArray::orEmpty($metadata);
             $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
             if ($mailDomain !== null) {
                 $mailNode = $mailDomain->getNode();
@@ -909,6 +919,7 @@ final class CustomerMailController
         return $settings;
     }
 
+    /** @return list<array{domain: string, url: string}> */
     private function buildRoundcubeBindings(array $domains): array
     {
         $bindings = [];
@@ -938,11 +949,15 @@ final class CustomerMailController
         return $default;
     }
 
-    /** @param array<string,mixed>|null $stats */
+    /**
+     * @param array<string,mixed>|null $stats
+     * @return array{available: bool, used_bytes: int, used_mb: float, quota_mb: int, percent: float,
+     * percent_bar: float, truncated: bool}
+     */
     private function buildQuotaUsage(?array $stats, string $address, int $quotaMb): array
     {
-        $mail = is_array($stats['mail'] ?? null) ? $stats['mail'] : [];
-        $usageMap = is_array($mail['mailbox_usage'] ?? null) ? $mail['mailbox_usage'] : [];
+        $mail = JsonArray::orEmpty($stats['mail'] ?? null);
+        $usageMap = JsonArray::orEmpty($mail['mailbox_usage'] ?? null);
         $lookupAddress = strtolower($address);
         $entry = is_array($usageMap[$lookupAddress] ?? null) ? $usageMap[$lookupAddress] : (is_array($usageMap[$address] ?? null) ? $usageMap[$address] : null);
         if ($entry === null) {

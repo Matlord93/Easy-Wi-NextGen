@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Module\Gameserver\Application\MinecraftJavaVersionResolver;
 use App\Repository\MinecraftVersionCatalogRepository;
@@ -123,7 +125,10 @@ final class MinecraftVersionImportService
         return $summary;
     }
 
-    /** @return array<int, array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}> */
+    /**
+     * @return array<int,
+     * array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}>
+     */
     private function readChannel(string $channel): array
     {
         return match ($channel) {
@@ -134,10 +139,13 @@ final class MinecraftVersionImportService
         };
     }
 
-    /** @return array<int, array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}> */
+    /**
+     * @return array<int,
+     * array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}>
+     */
     private function readVanilla(): array
     {
-        $data = json_decode($this->readFile($this->vanillaPath), true);
+        $data = JsonArray::decode($this->readFile($this->vanillaPath));
         if (!is_array($data)) {
             throw new \RuntimeException($this->trans('minecraft_versions_import_error_vanilla_invalid'));
         }
@@ -156,10 +164,13 @@ final class MinecraftVersionImportService
         return $items;
     }
 
-    /** @return array<int, array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}> */
+    /**
+     * @return array<int,
+     * array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}>
+     */
     private function readPaper(): array
     {
-        $data = json_decode($this->readFile($this->paperPath), true);
+        $data = JsonArray::decode($this->readFile($this->paperPath));
         if (!is_array($data)) {
             throw new \RuntimeException($this->trans('minecraft_versions_import_error_paper_invalid'));
         }
@@ -185,10 +196,13 @@ final class MinecraftVersionImportService
         return $items;
     }
 
-    /** @return array<int, array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}> */
+    /**
+     * @return array<int,
+     * array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}>
+     */
     private function readBedrock(): array
     {
-        $data = json_decode($this->readFile($this->bedrockPath), true);
+        $data = JsonArray::decode($this->readFile($this->bedrockPath));
         if (!is_array($data)) {
             throw new \RuntimeException($this->trans('minecraft_versions_import_error_bedrock_invalid'));
         }
@@ -225,7 +239,9 @@ final class MinecraftVersionImportService
         return (string) file_get_contents($path);
     }
 
-    /** @return array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}} */
+    /**
+     * @return array{channel:string,mcVersion:string,build:?string,downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}}
+     */
     private function item(string $channel, string $mcVersion, ?string $build, string $downloadUrl, ?string $sha256, ?string $javaVersion = null, string $releaseType = 'release'): array
     {
         if ($javaVersion === null && $channel !== 'bedrock') {

@@ -124,7 +124,16 @@ final class ConfigTemplateRegistry
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{apply_mode: string, template_content?: string, fields: array{0?: array{key: string,
+     * label: string, type: string, min: int, max: int, readonly?: bool}, 1?: array{key: string, label:
+     * string, type: string, secret?: bool}, 2?: array{key: string, label: string, type: string, secret?:
+     * bool, min?: int, max?: int}, 3?: array{key: string, label: string, type: string}, 4?: array{key:
+     * string, label: string, type: string}, 5?: array{key: string, label: string, type: string, min?: int,
+     * max?: int, secret?: bool}, 6?: array{key: string, label: string, type: string, min?: int, max?:
+     * int}, 7?: array{key: string, label: string, type: string}, 8?: array{key: string, label: string,
+     * type: string, allowed?: list<string>}, 9?: array{key: string, label: string, type: string, allowed?:
+     * list<string>}, 10?: array{key: string, label: string, type: string}, 11?: array{key: string, label:
+     * string, type: string}}, raw_mode?: bool}
      */
     private function schemaForPath(string $family, string $path): array
     {

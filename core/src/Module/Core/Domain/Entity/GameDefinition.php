@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\GameDefinitionRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: GameDefinitionRepository::class)]
 #[ORM\Table(name: 'game_definitions')]
 #[ORM\UniqueConstraint(name: 'uniq_game_definitions_key', columns: ['game_key'])]

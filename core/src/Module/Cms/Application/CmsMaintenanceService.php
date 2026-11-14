@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Cms\Application;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\Site;
 use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,7 +17,8 @@ final class CmsMaintenanceService
     }
 
     /**
-     * @return array{active: bool, scope: string|null, message: string, graphic_path: string, starts_at: ?\DateTimeImmutable, ends_at: ?\DateTimeImmutable}
+     * @return array{active: bool, scope: string|null, message: string, graphic_path: string, starts_at:
+     * ?\DateTimeImmutable, ends_at: ?\DateTimeImmutable}
      */
     public function resolve(Request $request, Site $site): array
     {
@@ -24,9 +26,9 @@ final class CmsMaintenanceService
 
         $global = [
             'enabled' => (bool) ($settings[AppSettingsService::KEY_CMS_MAINTENANCE_ENABLED] ?? false),
-            'message' => (string) ($settings[AppSettingsService::KEY_CMS_MAINTENANCE_MESSAGE] ?? ''),
-            'graphic_path' => (string) ($settings[AppSettingsService::KEY_CMS_MAINTENANCE_GRAPHIC] ?? ''),
-            'allowlist' => (string) ($settings[AppSettingsService::KEY_CMS_MAINTENANCE_ALLOWLIST] ?? ''),
+            'message' => ScalarValue::text($settings[AppSettingsService::KEY_CMS_MAINTENANCE_MESSAGE] ?? null),
+            'graphic_path' => ScalarValue::text($settings[AppSettingsService::KEY_CMS_MAINTENANCE_GRAPHIC] ?? null),
+            'allowlist' => ScalarValue::text($settings[AppSettingsService::KEY_CMS_MAINTENANCE_ALLOWLIST] ?? null),
             'starts_at' => $this->parseDateTime($settings[AppSettingsService::KEY_CMS_MAINTENANCE_STARTS_AT] ?? null),
             'ends_at' => $this->parseDateTime($settings[AppSettingsService::KEY_CMS_MAINTENANCE_ENDS_AT] ?? null),
         ];

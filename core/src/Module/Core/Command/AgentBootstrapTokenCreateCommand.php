@@ -45,7 +45,7 @@ final class AgentBootstrapTokenCreateCommand extends Command
         $token = trim((string) $input->getOption('token'));
         $tokenData = $token !== '' ? $this->tokenGenerator->fromToken($token) : $this->tokenGenerator->generate();
 
-        $name = trim((string) $input->getOption('name'));
+        $name = trim($input->getOption('name'));
         if ($name === '') {
             $name = 'Installer bootstrap token';
         }

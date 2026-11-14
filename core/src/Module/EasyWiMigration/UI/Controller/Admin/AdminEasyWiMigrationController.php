@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\EasyWiMigration\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\EasyWiMigration\Application\EasyWiConnectionConfig;
 use App\Module\EasyWiMigration\Application\EasyWiMigrationService;
@@ -72,7 +74,7 @@ final class AdminEasyWiMigrationController
         }
 
         $payload = $request->toArray();
-        $rawEntities = (array) ($payload['entities'] ?? self::ALL_ENTITIES);
+        $rawEntities = array_filter((array) ($payload['entities'] ?? self::ALL_ENTITIES), 'is_string');
         $entities = array_values(array_intersect($rawEntities, self::ALL_ENTITIES));
         $dryRun = (bool) ($payload['dry_run'] ?? true);
 
@@ -128,7 +130,7 @@ final class AdminEasyWiMigrationController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 }

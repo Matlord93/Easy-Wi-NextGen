@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Kvm;
 
+use App\Repository\QueryParameter;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
@@ -43,7 +44,7 @@ final readonly class KvmPanelService
             ->where('j.node = :node')
             ->andWhere('j.type = :type')
             ->andWhere('j.resultPayload IS NOT NULL')
-            ->setParameter('node', $node)
+            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('type', 'kvm.managed')
             ->orderBy('j.createdAt', 'DESC')
             ->getQuery()->toIterable();

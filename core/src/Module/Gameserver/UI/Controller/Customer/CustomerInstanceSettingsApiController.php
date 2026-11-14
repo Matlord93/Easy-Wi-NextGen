@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupSchedule;
@@ -636,7 +638,7 @@ final class CustomerInstanceSettingsApiController
             $knownPaths[$filePath] = true;
             $override = $overrides[$filePath] ?? null;
             $exists = is_array($override);
-            $updatedAt = $exists ? (string) ($override['last_updated_at'] ?? $override['updated_at'] ?? '') : $schema->getUpdatedAt()->format(DATE_ATOM);
+            $updatedAt = $exists ? ($override['last_updated_at'] ?? $override['updated_at'] ?? '') : $schema->getUpdatedAt()->format(DATE_ATOM);
 
             $configs[] = [
                 'id' => (string) $schema->getId(),
@@ -690,11 +692,11 @@ final class CustomerInstanceSettingsApiController
                 'editable' => true,
                 'exists' => true,
                 'source' => 'instance',
-                'updated_at' => (string) ($override['last_updated_at'] ?? $override['updated_at'] ?? ''),
+                'updated_at' => ($override['last_updated_at'] ?? $override['updated_at'] ?? ''),
             ];
         }
 
-        usort($configs, static fn (array $a, array $b): int => strcasecmp((string) $a['name'], (string) $b['name']));
+        usort($configs, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
 
         return $configs;
     }
@@ -713,7 +715,7 @@ final class CustomerInstanceSettingsApiController
             $overrides = $instance->getConfigOverrides();
             $filePath = (string) $config['file_path'];
             $override = $overrides[$filePath] ?? null;
-            $content = is_array($override) ? (string) ($override['content'] ?? '') : '';
+            $content = is_array($override) ? ($override['content'] ?? '') : '';
             if (!is_array($override) && MinecraftCatalogService::channelFromResolver($instance) !== null && in_array($filePath, ['server.properties', 'config.yml'], true)) {
                 if ($this->fileService === null) { throw new \Symfony\Component\HttpKernel\Exception\HttpException(503, 'Node file service is unavailable.'); }
                 try { $remote = $this->fileService->readFileContent($instance, $filePath); $content = $remote['content']; }
@@ -788,7 +790,7 @@ final class CustomerInstanceSettingsApiController
 
     private function inferFormatFromPath(string $filePath): string
     {
-        $extension = strtolower((string) pathinfo($filePath, PATHINFO_EXTENSION));
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
 
         return $this->isSupportedFormat($extension) ? $extension : 'txt';
     }
@@ -887,7 +889,7 @@ final class CustomerInstanceSettingsApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

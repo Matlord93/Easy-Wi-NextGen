@@ -21,11 +21,16 @@ jobs:
         uses: ./.github/actions/ensure-runner-user
       - name: Verify PHP 8.5 environment
         uses: ./.github/actions/verify-php
+        with:
+          required-extensions: mbstring,intl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,openssl,sodium,redis,zip,dom,xml,xmlwriter,fileinfo,curl,gd
       - run: composer validate --strict
       - run: bash ../scripts/ci-dependency-bootstrap.sh composer --no-scripts
         env:
           COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
           SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
+      - name: Prepare complete Core test suite
+        uses: ./.github/actions/setup-core-test-tools
+
       - run: php bin/phpunit --testsuite default
 
   agent:

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\CoreReleaseChecker;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -106,7 +108,7 @@ final class WebinterfaceUpdateSettingsService
             return self::DEFAULT_SETTINGS;
         }
 
-        $decoded = json_decode($contents, true);
+        $decoded = JsonArray::decode($contents);
         if (!is_array($decoded)) {
             return self::DEFAULT_SETTINGS;
         }

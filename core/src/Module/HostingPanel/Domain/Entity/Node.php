@@ -8,6 +8,11 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'hp_node')]
 class Node
@@ -32,7 +37,9 @@ class Node
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastSeenAt = null;
 
-    /** @var Collection<int, Agent> */
+    /**
+     * @var Collection<int, Agent>
+     */
     #[ORM\OneToMany(mappedBy: 'node', targetEntity: Agent::class)]
     private Collection $agents;
 

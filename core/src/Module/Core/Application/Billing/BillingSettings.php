@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AppSettingsService;
 
 final readonly class BillingSettings
@@ -23,7 +24,7 @@ final readonly class BillingSettings
             'company_footer' => '', 'tax_mode' => 'standard', 'tax_rate' => '19.00',
             'automation_enabled' => false, 'reminders_enabled' => false,
             'reminder_grace_days' => 7, 'reminder_fees' => ['0.00', '0.00', '0.00'],
-        ], is_array($stored) ? $stored : []);
+        ], JsonArray::orEmpty($stored));
     }
 
     public function save(array $input): void

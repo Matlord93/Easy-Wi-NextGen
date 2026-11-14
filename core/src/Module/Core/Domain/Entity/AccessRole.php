@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Enum\Permission;
 use App\Repository\AccessRoleRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: AccessRoleRepository::class)]
 #[ORM\Table(name: 'access_roles')]
 #[ORM\UniqueConstraint(name: 'uniq_access_role_site_name', columns: ['site_id', 'name'])]

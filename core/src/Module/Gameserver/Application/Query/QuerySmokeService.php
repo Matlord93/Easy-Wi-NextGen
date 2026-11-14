@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application\Query;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
@@ -54,7 +55,7 @@ final class QuerySmokeService implements QuerySmokeRunnerInterface
     private function runAttempt(Instance $instance, int $attempt): array
     {
         $portBlock = $this->portBlockRepository->findByInstance($instance);
-        $requestId = sprintf('query-smoke-%d-%d-%d', (int) ($instance->getId() ?? 0), $attempt, time());
+        $requestId = sprintf('query-smoke-%d-%d-%d', ($instance->getId() ?? 0), $attempt, time());
 
         try {
             $spec = $this->instanceQueryService->resolveQuerySpec($instance, $portBlock);
@@ -70,8 +71,8 @@ final class QuerySmokeService implements QuerySmokeRunnerInterface
         }
 
         $snapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, true);
-        $result = is_array($snapshot['result'] ?? null) ? $snapshot['result'] : [];
-        $reported = is_array($result['reported'] ?? null) ? $result['reported'] : [];
+        $result = JsonArray::orEmpty($snapshot['result'] ?? null);
+        $reported = JsonArray::orEmpty($result['reported'] ?? null);
         $errorMessage = is_string($result['error'] ?? null) ? (string) $result['error'] : null;
         $ok = $errorMessage === null && (($result['online'] ?? null) !== false);
 

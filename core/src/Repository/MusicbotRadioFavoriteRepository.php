@@ -23,16 +23,12 @@ class MusicbotRadioFavoriteRepository extends ServiceEntityRepository
     /** @return MusicbotRadioFavorite[] */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<MusicbotRadioFavorite> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('f')
+        return EntityQueryResult::all($this->createQueryBuilder('f')
             ->join('f.station', 's')
             ->where('f.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('f.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioFavorite::class);
     }
 
     public function findOneByCustomerAndStation(User $customer, MusicbotRadioStation $station): ?MusicbotRadioFavorite
@@ -46,7 +42,7 @@ class MusicbotRadioFavoriteRepository extends ServiceEntityRepository
         $rows = $this->createQueryBuilder('f')
             ->select('IDENTITY(f.station) AS station_id')
             ->where('f.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->getQuery()
             ->getScalarResult();
 

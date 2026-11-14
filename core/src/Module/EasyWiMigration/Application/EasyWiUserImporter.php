@@ -34,7 +34,7 @@ final class EasyWiUserImporter
                     $email = strtolower(trim((string) ($row['email'] ?? '')));
                     if ($email === '') {
                         $failed++;
-                        $errors[] = sprintf('Row %s: missing email.', $row['id'] ?? '?');
+                        $errors[] = sprintf('Row %s: missing email.', self::rowId($row['id'] ?? null));
                         continue;
                     }
 
@@ -69,7 +69,7 @@ final class EasyWiUserImporter
                     $imported++;
                 } catch (\Throwable $e) {
                     $failed++;
-                    $id = $row['id'] ?? '?';
+                    $id = self::rowId($row['id'] ?? null);
                     $errors[] = sprintf('Row %s: %s', $id, $e->getMessage());
                     $this->logger->warning('easywi.migration.user_failed', ['id' => $id, 'error' => $e->getMessage()]);
                 }
@@ -88,6 +88,11 @@ final class EasyWiUserImporter
         }
 
         return new EasyWiMigrationResult('users', $imported, $skipped, $failed, $errors);
+    }
+
+    private static function rowId(mixed $id): string
+    {
+        return is_int($id) || is_string($id) ? (string) $id : '?';
     }
 
     private function resolveUserType(string $legacyType): UserType

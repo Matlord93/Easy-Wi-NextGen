@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\MusicbotPluginRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotPluginRepository::class)]
 #[ORM\Table(name: 'musicbot_plugins')]
 #[ORM\Index(name: 'idx_musicbot_plugins_customer', columns: ['customer_id'])]
@@ -53,7 +58,10 @@ class MusicbotPlugin
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
-    /** @param array<string, mixed> $config @param array<string, mixed> $permissions */
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $permissions
+     */
     public function __construct(string $identifier, string $name, string $version, ?User $customer = null, ?MusicbotInstance $instance = null, array $config = [], array $permissions = [])
     {
         $this->identifier = $identifier;

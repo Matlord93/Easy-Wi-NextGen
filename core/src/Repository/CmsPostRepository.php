@@ -31,7 +31,7 @@ final class CmsPostRepository extends ServiceEntityRepository
             ->leftJoin('p.tags', 'tag')->addSelect('tag')
             ->andWhere('p.site = :site')
             ->andWhere('p.isPublished = :published')
-            ->setParameter('site', $site)
+            ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
             ->setParameter('published', true)
             ->orderBy('p.publishedAt', 'DESC')
             ->addOrderBy('p.updatedAt', 'DESC')
@@ -55,7 +55,7 @@ final class CmsPostRepository extends ServiceEntityRepository
         }
 
         /** @var list<CmsPost> $rows */
-        $rows = $qb->getQuery()->getResult();
+        $rows = EntityQueryResult::all($qb->getQuery(), \App\Module\Core\Domain\Entity\CmsPost::class);
 
         return $rows;
     }

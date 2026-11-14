@@ -35,7 +35,7 @@ class DatabaseProvisioningService
         return $this->createJob('database.delete', $this->buildPayload($database, $agentId));
     }
 
-    /** @return array<string,string> */
+    /** @return array<string,string|null> */
     private function buildPayload(Database $database, string $agentId): array
     {
         $payload = [

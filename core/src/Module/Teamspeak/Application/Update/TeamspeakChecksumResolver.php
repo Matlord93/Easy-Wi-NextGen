@@ -6,7 +6,10 @@ namespace App\Module\Teamspeak\Application\Update;
 
 final class TeamspeakChecksumResolver
 {
-    /** @param array<string,mixed> $asset @param array<int,array<string,mixed>> $assets */
+    /**
+     * @param array<string,mixed> $asset
+     * @param array<int,array<string,mixed>> $assets
+     */
     public function resolve(array $asset, array $assets, string $releaseBody): ChecksumInfo
     {
         $digest = (string) ($asset['digest'] ?? '');

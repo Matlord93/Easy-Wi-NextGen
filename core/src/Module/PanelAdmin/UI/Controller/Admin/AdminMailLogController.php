@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DomainRepository;
 use App\Repository\MailLogRepository;
@@ -25,15 +27,15 @@ final class AdminMailLogController
     #[Route(path: '', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
-        $domainName = trim((string) $request->query->get('domain', ''));
-        $level = trim((string) $request->query->get('level', ''));
-        $fromRaw = trim((string) $request->query->get('from', ''));
-        $toRaw = trim((string) $request->query->get('to', ''));
+        $domainName = trim($request->query->getString('domain', ''));
+        $level = trim($request->query->getString('level', ''));
+        $fromRaw = trim($request->query->getString('from', ''));
+        $toRaw = trim($request->query->getString('to', ''));
         $limit = (int) $request->query->get('limit', 200);
 
         $domain = $domainName !== '' ? $this->domainRepository->findOneBy(['name' => strtolower($domainName)]) : null;

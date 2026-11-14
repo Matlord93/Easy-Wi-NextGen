@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\GamePluginRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: GamePluginRepository::class)]
 #[ORM\Table(name: 'game_plugins')]
 #[ORM\Index(name: 'idx_game_plugins_template', columns: ['template_id'])]

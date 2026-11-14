@@ -53,7 +53,11 @@ final class MusicbotRuntimeEventService implements MusicbotRuntimeEventServiceIn
         return $this->eventRepository->findErrorsForInstance($instance, $limit);
     }
 
-    /** @param array<string, mixed> $context @return array<string, mixed> */
+    /**
+     * @template TKey of array-key
+     * @param array<TKey, mixed> $context
+     * @return array<TKey, mixed>
+     */
     public function sanitize(array $context): array
     {
         $sanitized = [];

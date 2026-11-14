@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\AgentOrchestrator\UI\Controller\Agent;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
 use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
 use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
@@ -270,7 +271,7 @@ final class AgentJobController
 
         $snapshot = [
             'status' => 'ok',
-            'groups' => is_array($resultPayload['groups'] ?? null) ? $resultPayload['groups'] : [],
+            'groups' => JsonArray::orEmpty($resultPayload['groups'] ?? null),
         ];
 
         $this->cache->delete($cacheKey);

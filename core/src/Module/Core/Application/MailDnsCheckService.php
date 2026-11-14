@@ -6,6 +6,11 @@ class MailDnsCheckService
 {
     public function __construct(private readonly DnsResolverInterface $resolver) {}
 
+    /**
+     * @return array{domain: string, overall_ok: bool, checks: array{mx: array{ok: bool, message: string},
+     * spf: array{ok: bool, message: string}, dmarc: array{ok: bool, message: string}, dkim: array{ok: bool,
+     * message: string}, mailhost?: array{ok: bool, message: string}}}
+     */
     public function check(string $domain, ?string $mailHost = null, ?string $dkimSelector = null): array
     {
         $mx = $this->resolver->query($domain, DNS_MX);

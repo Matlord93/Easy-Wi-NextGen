@@ -27,7 +27,7 @@ final class ForumThreadRepository extends ServiceEntityRepository
     {
         $qb = $this->createQueryBuilder('thread')
             ->andWhere('thread.board = :board')
-            ->setParameter('board', $board)
+            ->setParameter('board', QueryParameter::entityId($board->getId(), \App\Module\Core\Domain\Entity\ForumBoard::class))
             ->orderBy('thread.isPinned', 'DESC')
             ->addOrderBy('thread.lastActivityAt', 'DESC');
 
@@ -41,7 +41,7 @@ final class ForumThreadRepository extends ServiceEntityRepository
         $total = (int) $this->createQueryBuilder('thread_count')
             ->select('COUNT(thread_count.id)')
             ->andWhere('thread_count.board = :board')
-            ->setParameter('board', $board)
+            ->setParameter('board', QueryParameter::entityId($board->getId(), \App\Module\Core\Domain\Entity\ForumBoard::class))
             ->getQuery()
             ->getSingleScalarResult();
 
@@ -53,31 +53,29 @@ final class ForumThreadRepository extends ServiceEntityRepository
     {
         $needle = '%' . mb_strtolower($query) . '%';
 
-        return $this->createQueryBuilder('thread')
+        return EntityQueryResult::all($this->createQueryBuilder('thread')
             ->leftJoin('thread.board', 'board')->addSelect('board')
             ->leftJoin('App\\Module\\Core\\Domain\\Entity\\ForumPost', 'post', 'WITH', 'post.thread = thread')
             ->andWhere('thread.site = :site')
             ->andWhere('LOWER(thread.title) LIKE :needle OR LOWER(post.content) LIKE :needle')
-            ->setParameter('site', $site)
+            ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
             ->setParameter('needle', $needle)
             ->orderBy('thread.lastActivityAt', 'DESC')
             ->setMaxResults($limit)
             ->groupBy('thread.id')
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\ForumThread::class);
     }
 
     /** @return list<ForumThread> */
     public function findLatestActiveBySite(Site $site, int $limit = 3): array
     {
-        return $this->createQueryBuilder('thread')
+        return EntityQueryResult::all($this->createQueryBuilder('thread')
             ->leftJoin('thread.board', 'board')->addSelect('board')
             ->leftJoin('thread.authorUser', 'authorUser')->addSelect('authorUser')
             ->andWhere('thread.site = :site')
-            ->setParameter('site', $site)
+            ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
             ->orderBy('thread.lastActivityAt', 'DESC')
             ->setMaxResults(max(1, $limit))
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\ForumThread::class);
     }
 }

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-use App\Infrastructure\Filesystem\ConfiguredKeyFile;
 
 use App\Module\Core\Application\Exception\SftpException;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Repository\InstanceSftpCredentialRepository;
+use App\Infrastructure\Security\PrivateKeyFileReader;
 use phpseclib3\Crypt\Common\PrivateKey;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
@@ -26,11 +26,13 @@ final class SftpFileService
         private readonly EncryptionService $encryptionService,
         private readonly SftpConnectionFactory $connections = new SftpConnectionFactory(),
         private readonly SshHostKeyVerifier $hostKeys = new SshHostKeyVerifier(),
+        private readonly PrivateKeyFileReader $privateKeys = new PrivateKeyFileReader(),
     ) {
     }
 
     /**
-     * @return array{root_path: string, path: string, entries: array<int, array{name: string, size: int, mode: string, modified_at: string, is_dir: bool}>}
+     * @return array{root_path: string, path: string, entries: array<int, array{name: string, size: int,
+     * mode: string, modified_at: string, is_dir: bool}>}
      */
     public function list(Instance $instance, string $path): array
     {
@@ -335,7 +337,7 @@ final class SftpFileService
         $key = $this->settingsService->getSftpPrivateKey();
         $path = $this->settingsService->getSftpPrivateKeyPath();
         if ((!is_string($key) || $key === '') && is_string($path) && $path !== '') {
-            $key = ConfiguredKeyFile::read($path);
+            $key = $this->privateKeys->read($path);
         }
 
         if (!is_string($key) || $key === '') {

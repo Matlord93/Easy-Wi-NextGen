@@ -88,7 +88,7 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
     {
         $result = [];
         foreach ($secrets as $key => $value) {
-            $result[(string) $key] = ($value !== '' && $value !== null) ? self::MASK : '';
+            $result[$key] = ($value !== '' && $value !== null) ? self::MASK : '';
         }
 
         return $result;
@@ -154,7 +154,7 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
             if ($strVal === '' || $strVal === self::MASK) {
                 continue;
             }
-            $result[(string) $key] = $this->encryptValue($strVal);
+            $result[$key] = $this->encryptValue($strVal);
         }
 
         return $result;
@@ -164,8 +164,9 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
      * Strip known-secret keys from a job payload array before persisting to the database.
      * Recurses into nested arrays. Use this to sanitize AgentJob payloads or resultPayloads.
      *
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @template TKey of array-key
+     * @param array<TKey, mixed> $payload
+     * @return array<TKey, mixed>
      */
     public function sanitizePayload(array $payload): array
     {

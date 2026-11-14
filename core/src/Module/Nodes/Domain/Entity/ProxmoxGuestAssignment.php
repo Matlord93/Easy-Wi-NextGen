@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'proxmox_guest_assignments')]
 #[ORM\UniqueConstraint(name: 'uniq_proxmox_guest', columns: ['cluster_id', 'vm_id'])]

@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Job;
@@ -21,7 +23,7 @@ final class AdminMailboxPolicyController
     #[Route(path:'/{id}/policy', methods:['POST'])]
     public function update(Request $request, int $id): JsonResponse
     {
-        $actor=$request->attributes->get('current_user'); if(!$actor instanceof User || !$actor->isAdmin()) return new JsonResponse(['error'=>'Forbidden'],403);
+        $actor=RequestActor::user($request); if(!$actor instanceof User || !$actor->isAdmin()) return new JsonResponse(['error'=>'Forbidden'],403);
         if($request->headers->get('X-Admin-Request') !== '1') return new JsonResponse(['error'=>'Invalid request origin.'],403);
         $mailbox=$this->mailboxRepository->find($id); if($mailbox===null) return new JsonResponse(['error'=>'Mailbox not found'],404);
         try { $p=$request->toArray(); } catch (\Throwable) { return new JsonResponse(['error'=>'Invalid JSON payload'],400); }

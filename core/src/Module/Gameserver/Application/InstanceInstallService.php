@@ -29,7 +29,8 @@ final class InstanceInstallService
     }
 
     /**
-     * @return array{is_ready: bool, error_code?: string, missing?: array<int, array{key: string, label: string, type: string}>}
+     * @return array{is_ready: bool, error_code?: string, missing?: array<int, array{key: string, label:
+     * string, type: string}>}
      */
     public function getInstallStatus(Instance $instance): array
     {
@@ -116,7 +117,8 @@ final class InstanceInstallService
     }
 
     /**
-     * @return array{ok: bool, error_code?: string, missing?: array<int, array{key: string, label: string, type: string}>, payload?: array<string, mixed>}
+     * @return array{ok: bool, error_code?: string, message?: string, missing?: array<int, array{key:
+     * string, label: string, type: string}>, payload?: array<string, mixed>}
      */
     public function prepareInstall(Instance $instance, bool $useSharedStorage = false): array
     {
@@ -204,7 +206,8 @@ final class InstanceInstallService
     }
 
     /**
-     * @return array{ports: array<int, int>, reservations: array<int, array{role: string, protocol: string, port: int}>, port_block_id: string|null}
+     * @return array{ports: array<int, int>, reservations: array<int, array{role: string, protocol: string,
+     * port: int}>, port_block_id: string|null}
      */
     private function allocateDefaultPorts(Instance $instance): array
     {

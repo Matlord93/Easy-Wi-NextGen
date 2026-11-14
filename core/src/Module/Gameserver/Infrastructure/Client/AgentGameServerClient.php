@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Infrastructure\Client;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -323,7 +324,7 @@ class AgentGameServerClient
         $headers = ($this->hmacHeaderFactory ?? new AgentHmacHeaderFactory($this->encryptionService))->create($instance, $method, $requestUri, $body);
 
         $metadata = $instance->getNode()->getMetadata();
-        $metadata = is_array($metadata) ? $metadata : [];
+        $metadata = JsonArray::orEmpty($metadata);
         $bearerToken = trim((string) ($metadata['gamesvc_bearer_token'] ?? ''));
         if ($bearerToken !== '') {
             $headers['Authorization'] = 'Bearer ' . $bearerToken;
@@ -340,7 +341,7 @@ class AgentGameServerClient
         }
 
         $metadata = $node->getMetadata();
-        $metadata = is_array($metadata) ? $metadata : [];
+        $metadata = JsonArray::orEmpty($metadata);
 
         $url = $metadata['gamesvc_url'] ?? null;
         if (is_string($url) && trim($url) !== '') {
@@ -376,7 +377,7 @@ class AgentGameServerClient
         $normalized = sprintf('%s://%s', $parsed['scheme'], $parsed['host']);
 
         if (isset($parsed['port'])) {
-            $normalized .= sprintf(':%d', (int) $parsed['port']);
+            $normalized .= sprintf(':%d', $parsed['port']);
         }
 
         $path = isset($parsed['path']) ? trim($parsed['path']) : '';

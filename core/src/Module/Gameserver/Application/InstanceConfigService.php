@@ -39,6 +39,30 @@ final class InstanceConfigService
         return $payload;
     }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     /**
      * @param array<string, int> $ports
      * @param array<string, mixed> $payload
@@ -49,7 +73,6 @@ final class InstanceConfigService
         if ($profile->getEnforceModePorts() === EnforceMode::EnforceByArgs) {
             return $this->buildArgsPayload($profile->getGameKey(), $ports, $payload);
         }
-
         return $this->buildConfigPayload($profile->getGameKey(), $ports, $payload);
     }
 
@@ -62,7 +85,6 @@ final class InstanceConfigService
         if ($profile->getEnforceModeSlots() === EnforceMode::EnforceByArgs) {
             return $this->buildArgsSlotPayload($profile->getGameKey(), $slots, $payload);
         }
-
         return $this->buildConfigSlotPayload($profile->getGameKey(), $slots, $payload);
     }
 
@@ -74,18 +96,8 @@ final class InstanceConfigService
     private function buildArgsPayload(string $gameKey, array $ports, array $payload): array
     {
         return match ($gameKey) {
-            'cs2', 'cs2_windows', 'csgo_legacy', 'csgo_legacy_windows', 'css', 'css_windows', 'tf2', 'tf2_windows', 'hl2dm', 'hl2dm_windows',
-            'l4d', 'l4d_windows', 'l4d2', 'l4d2_windows', 'dods', 'dods_windows', 'garrys_mod' => $this->withArgs($payload, [
-                '-port', (string) ($ports['GAME_PORT'] ?? 27015),
-                '+ip', '0.0.0.0',
-                '+hostport', (string) ($ports['GAME_PORT'] ?? 27015),
-                '+clientport', (string) ($ports['GAME_PORT'] ?? 27015),
-            ]),
-            'rust', 'rust_windows' => $this->withArgs($payload, [
-                '-port', (string) ($ports['GAME_PORT'] ?? 28015),
-                '+rcon.port', (string) ($ports['RCON_PORT'] ?? 28016),
-                '+query.port', (string) ($ports['QUERY_PORT'] ?? 28017),
-            ]),
+            'cs2', 'cs2_windows', 'csgo_legacy', 'csgo_legacy_windows', 'css', 'css_windows', 'tf2', 'tf2_windows', 'hl2dm', 'hl2dm_windows', 'l4d', 'l4d_windows', 'l4d2', 'l4d2_windows', 'dods', 'dods_windows', 'garrys_mod' => $this->withArgs($payload, ['-port', (string) ($ports['GAME_PORT'] ?? 27015), '+ip', '0.0.0.0', '+hostport', (string) ($ports['GAME_PORT'] ?? 27015), '+clientport', (string) ($ports['GAME_PORT'] ?? 27015)]),
+            'rust', 'rust_windows' => $this->withArgs($payload, ['-port', (string) ($ports['GAME_PORT'] ?? 28015), '+rcon.port', (string) ($ports['RCON_PORT'] ?? 28016), '+query.port', (string) ($ports['QUERY_PORT'] ?? 28017)]),
             default => $payload,
         };
     }
@@ -98,28 +110,16 @@ final class InstanceConfigService
     private function buildConfigPayload(string $gameKey, array $ports, array $payload): array
     {
         return match ($gameKey) {
-            'seven_days_to_die' => $this->withConfig($payload, 'serverconfig.xml', [
-                'SERVER_PORT' => (string) ($ports['GAME_PORT'] ?? 26900),
-                'TELNET_PORT' => (string) ($ports['TELNET_PORT'] ?? 8081),
-                'CONTROL_PANEL_PORT' => (string) ($ports['CONTROL_PANEL_PORT'] ?? 8082),
-            ]),
+            'seven_days_to_die' => $this->withConfig($payload, 'serverconfig.xml', ['SERVER_PORT' => (string) ($ports['GAME_PORT'] ?? 26900), 'TELNET_PORT' => (string) ($ports['TELNET_PORT'] ?? 8081), 'CONTROL_PANEL_PORT' => (string) ($ports['CONTROL_PANEL_PORT'] ?? 8082)]),
             // NOTE: SERVER_PORT here is a legacy config-enforcement key used by the
             // ConfigTemplateRegistry / properties apply_mode system (EnforceByConfig).
             // It is distinct from the sniper's {{PORT_GAME}} template variable, which is
             // injected by renderTemplateStrict() in the Go agent at start time.
             // Do NOT rename to PORT_GAME here without also updating ConfigTemplateRegistry
             // and the config-push pathway.
-            'minecraft_vanilla_all', 'minecraft_paper_all', 'minecraft_spigot_all' => $this->withConfig($payload, 'server.properties', [
-                'SERVER_PORT' => (string) ($ports['GAME_PORT'] ?? 25565),
-                'RCON_PORT' => (string) ($ports['RCON_PORT'] ?? 25575),
-            ]),
-            'minecraft_bedrock' => $this->withConfig($payload, 'server.properties', [
-                'SERVER_PORT' => (string) ($ports['GAME_PORT'] ?? 19132),
-            ]),
-            'fivem', 'fivem_windows' => $this->withConfig($payload, 'server.cfg', [
-                'GAME_TCP' => (string) ($ports['GAME_TCP'] ?? 30120),
-                'GAME_UDP' => (string) ($ports['GAME_UDP'] ?? 30120),
-            ]),
+            'minecraft_vanilla_all', 'minecraft_paper_all', 'minecraft_spigot_all' => $this->withConfig($payload, 'server.properties', ['SERVER_PORT' => (string) ($ports['GAME_PORT'] ?? 25565), 'RCON_PORT' => (string) ($ports['RCON_PORT'] ?? 25575)]),
+            'minecraft_bedrock' => $this->withConfig($payload, 'server.properties', ['SERVER_PORT' => (string) ($ports['GAME_PORT'] ?? 19132)]),
+            'fivem', 'fivem_windows' => $this->withConfig($payload, 'server.cfg', ['GAME_TCP' => (string) ($ports['GAME_TCP'] ?? 30120), 'GAME_UDP' => (string) ($ports['GAME_UDP'] ?? 30120)]),
             default => $payload,
         };
     }
@@ -132,8 +132,7 @@ final class InstanceConfigService
     {
         return match ($gameKey) {
             'cs2', 'cs2_windows' => $this->withArgs($payload, ['-maxplayers', (string) $slots]),
-            'csgo_legacy', 'csgo_legacy_windows', 'css', 'css_windows', 'tf2', 'tf2_windows', 'hl2dm', 'hl2dm_windows',
-            'l4d', 'l4d_windows', 'l4d2', 'l4d2_windows', 'dods', 'dods_windows', 'garrys_mod' => $this->withArgs($payload, ['+maxplayers', (string) $slots]),
+            'csgo_legacy', 'csgo_legacy_windows', 'css', 'css_windows', 'tf2', 'tf2_windows', 'hl2dm', 'hl2dm_windows', 'l4d', 'l4d_windows', 'l4d2', 'l4d2_windows', 'dods', 'dods_windows', 'garrys_mod' => $this->withArgs($payload, ['+maxplayers', (string) $slots]),
             'rust', 'rust_windows' => $this->withArgs($payload, ['+server.maxplayers', (string) $slots]),
             default => $payload,
         };
@@ -146,18 +145,10 @@ final class InstanceConfigService
     private function buildConfigSlotPayload(string $gameKey, int $slots, array $payload): array
     {
         return match ($gameKey) {
-            'minecraft_vanilla_all', 'minecraft_paper_all', 'minecraft_spigot_all' => $this->withConfig($payload, 'server.properties', [
-                'MAX_PLAYERS' => (string) $slots,
-            ]),
-            'minecraft_bedrock' => $this->withConfig($payload, 'server.properties', [
-                'MAX_PLAYERS' => (string) $slots,
-            ]),
-            'seven_days_to_die' => $this->withConfig($payload, 'serverconfig.xml', [
-                'SERVER_MAX_PLAYERS' => (string) $slots,
-            ]),
-            'fivem', 'fivem_windows' => $this->withConfig($payload, 'server.cfg', [
-                'SV_MAXCLIENTS' => (string) $slots,
-            ]),
+            'minecraft_vanilla_all', 'minecraft_paper_all', 'minecraft_spigot_all' => $this->withConfig($payload, 'server.properties', ['MAX_PLAYERS' => (string) $slots]),
+            'minecraft_bedrock' => $this->withConfig($payload, 'server.properties', ['MAX_PLAYERS' => (string) $slots]),
+            'seven_days_to_die' => $this->withConfig($payload, 'serverconfig.xml', ['SERVER_MAX_PLAYERS' => (string) $slots]),
+            'fivem', 'fivem_windows' => $this->withConfig($payload, 'server.cfg', ['SV_MAXCLIENTS' => (string) $slots]),
             default => $payload,
         };
     }
@@ -172,11 +163,8 @@ final class InstanceConfigService
         foreach ($allocations as $allocation) {
             $ports[$allocation->getRoleKey()] = $allocation->getPort();
         }
-
         return $ports;
     }
-
-
 
     /**
      * @param array<string, mixed> $payload
@@ -188,20 +176,16 @@ final class InstanceConfigService
         if ($startParams === '') {
             return $payload;
         }
-
         $tokens = $this->tokenizeCommandLine($startParams);
         if ($tokens === []) {
             return $payload;
         }
-
         $command = array_shift($tokens);
         if (!is_string($command) || trim($command) === '') {
             return $payload;
         }
-
         $payload['command'] = $command;
         $payload['args'] = array_values(array_merge($payload['args'] ?? [], $tokens));
-
         return $payload;
     }
 
@@ -213,27 +197,22 @@ final class InstanceConfigService
         if (trim($commandLine) === '') {
             return [];
         }
-
         if (!preg_match_all("/\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|\\S+/", $commandLine, $matches)) {
             return [];
         }
-
         $tokens = [];
         foreach ($matches[0] as $token) {
-            $token = trim((string) $token);
+            $token = trim($token);
             if ($token === '') {
                 continue;
             }
-
             $first = $token[0] ?? '';
             $last = $token[strlen($token) - 1] ?? '';
-            if (("'" === $first && "'" === $last) || ('"' === $first && '"' === $last)) {
+            if ("'" === $first && "'" === $last || '"' === $first && '"' === $last) {
                 $token = substr($token, 1, -1);
             }
-
             $tokens[] = $token;
         }
-
         return $tokens;
     }
 
@@ -246,7 +225,6 @@ final class InstanceConfigService
     {
         $payload['command'] = $payload['command'] ?? 'start-server';
         $payload['args'] = array_values(array_merge($payload['args'] ?? [], $args));
-
         return $payload;
     }
 
@@ -261,20 +239,12 @@ final class InstanceConfigService
         foreach ($payload['config'] as $index => $entry) {
             if (($entry['template'] ?? null) === $templatePath) {
                 $merged = array_merge($entry['values'] ?? [], $values);
-                $payload['config'][$index] = [
-                    'template' => $templatePath,
-                    'values' => $merged,
-                ];
-
+                $payload['config'][$index] = ['template' => $templatePath, 'values' => $merged];
                 return $payload;
             }
         }
-
-        $payload['config'][] = [
-            'template' => $templatePath,
-            'values' => $values,
-        ];
-
+        $payload['config'][] = ['template' => $templatePath, 'values' => $values];
         return $payload;
     }
+
 }

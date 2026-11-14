@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Form\PortRangeFormType;
@@ -49,7 +51,7 @@ final class AdminNodePortRangeController
     #[Route(path: '', name: 'admin_node_port_ranges_create', methods: ['POST'])]
     public function create(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -105,7 +107,7 @@ final class AdminNodePortRangeController
     #[Route(path: '/{rangeId}/update', name: 'admin_node_port_ranges_update', methods: ['POST'])]
     public function update(Request $request, string $id, int $rangeId): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -161,7 +163,7 @@ final class AdminNodePortRangeController
     #[Route(path: '/{rangeId}/delete', name: 'admin_node_port_ranges_delete', methods: ['POST'])]
     public function delete(Request $request, string $id, int $rangeId): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -217,6 +219,10 @@ final class AdminNodePortRangeController
         ]));
     }
 
+    /**
+     * @return array{id: int|null, purpose: string, protocol: string, start_port: int, end_port: int,
+     * enabled: bool, created_at: \DateTimeImmutable, updated_at: \DateTimeImmutable}
+     */
     private function normalizeRange(PortRange $range): array
     {
         return [
@@ -246,7 +252,7 @@ final class AdminNodePortRangeController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

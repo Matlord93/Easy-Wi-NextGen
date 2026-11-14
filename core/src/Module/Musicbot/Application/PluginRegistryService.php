@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Musicbot\Application\Dto\PluginManifest;
 use App\Module\Musicbot\Domain\Enum\MusicbotPluginPermission;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -66,7 +68,7 @@ final class PluginRegistryService
             throw new \InvalidArgumentException('Plugin manifest path is outside the plugin registry.');
         }
 
-        $data = json_decode((string) file_get_contents($realPath), true);
+        $data = JsonArray::decode((string) file_get_contents($realPath));
         if (!is_array($data)) {
             throw new \InvalidArgumentException('Plugin manifest must be JSON.');
         }
@@ -83,7 +85,7 @@ final class PluginRegistryService
         $platforms = $this->validateStringList($data['supported_platforms'] ?? [], ['teamspeak', 'discord', 'both'], 'platform');
         $events = $this->validateStringList($data['events'] ?? $data['plugin_api']['hooks'] ?? [], $this->supportedEvents(), 'event');
         $actions = $this->validateStringList($data['actions'] ?? [], $this->supportedActions(), 'action');
-        $settingsSchema = is_array($data['settings_schema'] ?? null) ? $data['settings_schema'] : (is_array($data['config_schema'] ?? null) ? $data['config_schema'] : []);
+        $settingsSchema = is_array($data['settings_schema'] ?? null) ? $data['settings_schema'] : (JsonArray::orEmpty($data['config_schema'] ?? null));
 
         return new PluginManifest(
             $identifier,
@@ -94,7 +96,7 @@ final class PluginRegistryService
             $permissions,
             $platforms,
             is_array($data['config_schema'] ?? null) ? $data['config_schema'] : $settingsSchema,
-            is_array($data['panel_extensions'] ?? null) ? $data['panel_extensions'] : [],
+            JsonArray::orEmpty($data['panel_extensions'] ?? null),
             $this->validateStringList($data['required_features'] ?? [], ['playlists', 'webradio', 'youtube', 'uploads', 'autodj', 'plugins'], 'feature'),
             $permissions,
             $settingsSchema,
@@ -194,7 +196,11 @@ final class PluginRegistryService
         return ['play_track', 'play_playlist', 'play_radio', 'play_youtube', 'queue_track', 'clear_queue', 'set_volume', 'send_chat_message', 'reconnect', 'trigger_autodj'];
     }
 
-    /** @param mixed $value @param string[] $allowed @return string[] */
+    /**
+     * @param mixed $value
+     * @param string[] $allowed
+     * @return string[]
+     */
     private function validateStringList(mixed $value, array $allowed, string $label): array
     {
         if (!is_array($value)) {

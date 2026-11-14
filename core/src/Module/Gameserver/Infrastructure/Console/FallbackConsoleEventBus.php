@@ -133,6 +133,7 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
         return $this->subscriberCounts[$instanceId] ?? 0;
     }
 
+    /** @return list<int> */
     #[\Override]
     public function getInstancesWithSubscribers(): array
     {

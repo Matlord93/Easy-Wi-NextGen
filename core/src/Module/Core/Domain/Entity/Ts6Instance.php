@@ -10,6 +10,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\Ts6InstanceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: Ts6InstanceRepository::class)]
 #[ORM\Table(name: 'ts6_instances')]
 class Ts6Instance implements ResourceEventSource

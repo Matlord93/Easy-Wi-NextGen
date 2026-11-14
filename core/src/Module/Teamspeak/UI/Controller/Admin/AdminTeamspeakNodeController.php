@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\Ts3NodeRepository;
 use App\Repository\Ts6NodeRepository;
@@ -37,7 +39,7 @@ final class AdminTeamspeakNodeController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', 'Unauthorized.');
         }

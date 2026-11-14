@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace App\Module\Nodes\Application\Monitoring;
 
 use App\Module\Nodes\Application\InfrastructureUsage;
+use App\Infrastructure\Config\JsonArray;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Exception\RetryableException;
 
-/** Minute samples are independent of browser sessions. Never substitute missing values. */
+/**
+ * Minute samples are independent of browser sessions. Never substitute missing values.
+ * @psalm-import-type AggregatePoint from InfrastructureAggregation
+ * @psalm-import-type HistoryPoint from InfrastructureHistorySeries
+ */
 final readonly class InfrastructureHistoryStore
 {
     public const LOAD = ['cpu_percent', 'memory_percent', 'disk_percent', 'memory_used_bytes', 'memory_total_bytes', 'disk_used_bytes', 'disk_total_bytes'];
@@ -26,7 +31,7 @@ final readonly class InfrastructureHistoryStore
         foreach (['load' => self::LOAD, 'io' => self::IO] as $stream => $fields) {
             $timestamp = 'load' === $stream ? $data['observed_at'] : $data['io_observed_at'];
             $stale = 'load' === $stream ? $data['stale'] : $data['io_stale'];
-            if (!$timestamp || $stale) {
+            if ($timestamp === null || $stale) {
                 continue;
             }
             $values = array_intersect_key($data, array_flip($fields));
@@ -37,7 +42,7 @@ final readonly class InfrastructureHistoryStore
             $values['memory_source'] = 'load' === $stream ? $data['memory_source'] : null;
             $values['interval_seconds'] = 'io' === $stream ? $data['io_interval_seconds'] : null;
             $observed = (new \DateTimeImmutable($timestamp))->getTimestamp();
-            if (null !== $target->visibleSince && ($observed <= $target->visibleSince || ('io' === $stream && $observed - ($data['io_interval_seconds'] ?? 0) <= $target->visibleSince))) {
+            if (null !== $target->visibleSince && ($observed <= $target->visibleSince || ('io' === $stream && (float) $observed - ($data['io_interval_seconds'] ?? 0.0) <= $target->visibleSince))) {
                 continue;
             }
             $written += (int) $this->write($target->key, $stream, $observed, $values);
@@ -46,42 +51,37 @@ final readonly class InfrastructureHistoryStore
         return $written;
     }
 
-    /** At most 1200 aggregate points, even for a year-long request. */
+    /**
+     * At most 1200 aggregate points, even for a year-long request.
+     * @return array{from: int, to: int, resolution_seconds: int, points: list<HistoryPoint>}
+     */
     public function history(InfrastructureTarget $target, int $from, int $to): array
     {
         if ($from < 0 || $to <= $from || $to - $from > 366 * 86400 || $to > time() + 30) {
             throw new \InvalidArgumentException('monitor.invalid_range');
         }
         $long = $to - $from > 86400;
-        $resolution = $long ? max(3600, (int) ceil(($to - $from) / 599 / 3600) * 3600) : max(60, (int) ceil(($to - $from) / 600 / 60) * 60);
+        $resolution = $long ? max(3600, (int) ceil((float) ($to - $from) / 599.0 / 3600.0) * 3600) : max(60, (int) ceil((float) ($to - $from) / 600.0 / 60.0) * 60);
         $effectiveFrom = max($from, ($target->visibleSince ?? -1) + 1);
-        $groups = [];
-        $append = static function (string $stream, array $point) use (&$groups, $from, $resolution, $long): void {
-            if (0 === $point['samples']) {
-                return;
-            }
-            $observed = $point['first_observed_at'];
-            $bucket = $long ? max($from, intdiv($observed, $resolution) * $resolution) : intdiv($observed - $from, $resolution) * $resolution + $from;
-            $id = $stream.':'.$bucket;
-            $groups[$id] = InfrastructureAggregation::merge($groups[$id] ?? InfrastructureAggregation::empty(), $point) + ['stream' => $stream, 'timestamp' => $bucket, 'resolution_seconds' => $resolution];
-        };
+        $series = new InfrastructureHistorySeries($from, $resolution, $long);
+        $append = $series->append(...);
         $completeFrom = intdiv($effectiveFrom + 3599, 3600) * 3600;
         $completeTo = intdiv($to, 3600) * 3600;
         if (!$long || $completeFrom >= $completeTo) {
             foreach ($this->raw($target->key, $effectiveFrom, $to) as $row) {
-                $append($row['stream'], InfrastructureAggregation::sample($row['stream'], (int) $row['observed_at'], json_decode($row['payload'], true, 32, JSON_THROW_ON_ERROR)));
+                $append(self::rowString($row, 'stream'), InfrastructureAggregation::sample(self::rowString($row, 'stream'), self::rowInteger($row, 'observed_at'), self::samplePayload(self::rowString($row, 'payload'))));
             }
         } else {
             foreach (['load', 'io'] as $stream) {
                 $ranges = $effectiveFrom < $completeFrom ? [[$effectiveFrom, $completeFrom]] : [];
                 $next = $completeFrom;
                 foreach ($this->rows('SELECT bucket, payload FROM infrastructure_rollups WHERE resource_key = ? AND stream = ? AND bucket >= ? AND bucket < ? ORDER BY bucket', [$target->key, $stream, $completeFrom, $completeTo]) as $row) {
-                    $hour = (int) $row['bucket'];
+                    $hour = self::rowInteger($row, 'bucket');
                     if ($next < $hour) {
                         $ranges[] = [$next, $hour];
                     }
                     $next = $hour + 3600;
-                    $append($stream, json_decode($row['payload'], true, 32, JSON_THROW_ON_ERROR));
+                    $append($stream, InfrastructureAggregation::fromJson(self::rowString($row, 'payload')));
                 }
                 if ($next < $completeTo) {
                     $ranges[] = [$next, $completeTo];
@@ -91,26 +91,15 @@ final readonly class InfrastructureHistoryStore
                 }
                 // Missing archives fall back to the untouched raw rows. Merge adjacent
                 // gaps so an existing year without archives does not cause 8760 queries.
-                $merged = [];
-                foreach ($ranges as [$start, $end]) {
-                    $last = array_key_last($merged);
-                    if (null !== $last && $merged[$last][1] === $start) {
-                        $merged[$last][1] = $end;
-                    } else {
-                        $merged[] = [$start, $end];
-                    }
-                }
+                $merged = self::mergeRanges($ranges);
                 foreach ($merged as [$start, $end]) {
                     foreach ($this->raw($target->key, $start, $end, $stream) as $row) {
-                        $append($stream, InfrastructureAggregation::sample($stream, (int) $row['observed_at'], json_decode($row['payload'], true, 32, JSON_THROW_ON_ERROR)));
+                        $append($stream, InfrastructureAggregation::sample($stream, self::rowInteger($row, 'observed_at'), self::samplePayload(self::rowString($row, 'payload'))));
                     }
                 }
             }
         }
-        $points = array_values($groups);
-        usort($points, static fn (array $a, array $b): int => [$a['timestamp'], $a['stream']] <=> [$b['timestamp'], $b['stream']]);
-
-        return ['from' => $from, 'to' => $to, 'resolution_seconds' => $resolution, 'points' => $points];
+        return ['from' => $from, 'to' => $to, 'resolution_seconds' => $resolution, 'points' => $series->points()];
     }
 
     public function prune(int $days, ?\DateTimeImmutable $now = null): int
@@ -122,13 +111,17 @@ final readonly class InfrastructureHistoryStore
 
         $removed = 0;
         foreach (['infrastructure_samples', 'infrastructure_rollups'] as $table) {
-            $removed += $this->db->executeStatement('DELETE FROM '.$table.' WHERE (resource_key, stream, bucket) IN (SELECT resource_key, stream, bucket FROM (SELECT resource_key, stream, bucket FROM '.$table.' WHERE bucket < ? ORDER BY bucket LIMIT 10000) expired_samples)', [$cutoff]);
+            $affected = $this->db->executeStatement('DELETE FROM '.$table.' WHERE (resource_key, stream, bucket) IN (SELECT resource_key, stream, bucket FROM (SELECT resource_key, stream, bucket FROM '.$table.' WHERE bucket < ? ORDER BY bucket LIMIT 10000) expired_samples)', [$cutoff]);
+            $removed += self::rowInteger(['affected_rows' => $affected], 'affected_rows');
         }
 
         return $removed;
     }
 
-    /** Bounded, one-time conversion of older raw history; raw data is retained. */
+    /**
+     * Bounded, one-time conversion of older raw history; raw data is retained.
+     * @return array{created: int, pending: bool}
+     */
     public function backfill(int $limit = 100, ?\DateTimeImmutable $now = null): array
     {
         if ($limit < 1 || $limit > 1000) {
@@ -140,7 +133,7 @@ final readonly class InfrastructureHistoryStore
         foreach ($candidates as $candidate) {
             $this->db->beginTransaction();
             try {
-                $key = [$candidate['resource_key'], $candidate['stream'], (int) $candidate['hour_bucket']];
+                $key = [self::rowString($candidate, 'resource_key'), self::rowString($candidate, 'stream'), self::rowInteger($candidate, 'hour_bucket')];
                 if (!$this->db->fetchOne('SELECT 1 FROM infrastructure_rollups WHERE resource_key = ? AND stream = ? AND bucket = ?', $key)) {
                     $summary = $this->hour($key[0], $key[1], $key[2]);
                     if ($summary['samples'] > 0) {
@@ -171,8 +164,8 @@ final readonly class InfrastructureHistoryStore
             try {
                 $this->db->insert('infrastructure_samples', ['resource_key' => $resource, 'stream' => $stream, 'bucket' => $minute, 'observed_at' => $observed, 'payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
                 $row = $this->db->fetchAssociative('SELECT payload FROM infrastructure_rollups WHERE resource_key = ? AND stream = ? AND bucket = ?'.$lock, [$resource, $stream, $hour]);
-                $summary = $row ? InfrastructureAggregation::merge(json_decode($row['payload'], true, 32, JSON_THROW_ON_ERROR), InfrastructureAggregation::sample($stream, $observed, $payload)) : $this->hour($resource, $stream, $hour);
-                if ($row) {
+                $summary = $row !== false ? InfrastructureAggregation::merge(InfrastructureAggregation::fromJson(self::rowString($row, 'payload')), InfrastructureAggregation::sample($stream, $observed, $payload)) : $this->hour($resource, $stream, $hour);
+                if ($row !== false) {
                     $this->db->update('infrastructure_rollups', ['payload' => json_encode($summary, JSON_THROW_ON_ERROR)], ['resource_key' => $resource, 'stream' => $stream, 'bucket' => $hour]);
                 } else {
                     $this->db->insert('infrastructure_rollups', ['resource_key' => $resource, 'stream' => $stream, 'bucket' => $hour, 'payload' => json_encode($summary, JSON_THROW_ON_ERROR)]);
@@ -196,16 +189,18 @@ final readonly class InfrastructureHistoryStore
         throw new \LogicException('Unable to archive an infrastructure sample.');
     }
 
+    /** @return AggregatePoint */
     private function hour(string $resource, string $stream, int $hour): array
     {
         $summary = InfrastructureAggregation::empty();
         foreach ($this->raw($resource, $hour, $hour + 3600, $stream) as $row) {
-            $summary = InfrastructureAggregation::merge($summary, InfrastructureAggregation::sample($stream, (int) $row['observed_at'], json_decode($row['payload'], true, 32, JSON_THROW_ON_ERROR)));
+            $summary = InfrastructureAggregation::merge($summary, InfrastructureAggregation::sample($stream, self::rowInteger($row, 'observed_at'), self::samplePayload(self::rowString($row, 'payload'))));
         }
 
         return $summary;
     }
 
+    /** @return \Generator<int, array<string, mixed>> */
     private function raw(string $resource, int $from, int $to, ?string $stream = null): \Generator
     {
         $sql = 'SELECT stream, observed_at, payload FROM infrastructure_samples WHERE resource_key = ? AND bucket >= ? AND bucket < ? AND observed_at >= ? AND observed_at < ?';
@@ -218,12 +213,16 @@ final readonly class InfrastructureHistoryStore
         return $this->rows($sql.' ORDER BY bucket, stream', $parameters);
     }
 
-    /** PDO MySQL otherwise buffers every raw row before DBAL yields the first one. */
+    /**
+     * PDO MySQL otherwise buffers every raw row before DBAL yields the first one.
+     * @param list<mixed> $parameters
+     * @return \Generator<int, array<string, mixed>>
+     */
     private function rows(string $sql, array $parameters): \Generator
     {
         $native = $this->db->getNativeConnection();
         $mysql = $native instanceof \PDO && 'mysql' === $native->getAttribute(\PDO::ATTR_DRIVER_NAME);
-        $buffered = $mysql ? $native->getAttribute(\Pdo\Mysql::ATTR_USE_BUFFERED_QUERY) : null;
+        $buffered = $mysql ? (bool) $native->getAttribute(\Pdo\Mysql::ATTR_USE_BUFFERED_QUERY) : null;
         $result = null;
         try {
             if ($mysql) {
@@ -238,4 +237,57 @@ final readonly class InfrastructureHistoryStore
             }
         }
     }
+    /**
+     * @param list<array{0: int, 1: int}> $ranges
+     * @return list<array{0: int, 1: int}>
+     */
+    private static function mergeRanges(array $ranges): array
+    {
+        $merged = [];
+        foreach ($ranges as [$start, $end]) {
+            $previous = array_pop($merged);
+            if ($previous !== null && $previous[1] === $start) {
+                $merged[] = [$previous[0], $end];
+            } else {
+                if ($previous !== null) {
+                    $merged[] = $previous;
+                }
+                $merged[] = [$start, $end];
+            }
+        }
+
+        return $merged;
+    }
+
+    /** @return array<array-key, mixed> */
+    private static function samplePayload(string $json): array
+    {
+        return JsonArray::fromValue(json_decode($json, true, 32, JSON_THROW_ON_ERROR))
+            ?? throw new \UnexpectedValueException('Invalid infrastructure sample payload.');
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function rowString(array $row, string $field): string
+    {
+        if (!isset($row[$field]) || !is_string($row[$field])) {
+            throw new \UnexpectedValueException('Invalid infrastructure database field: '.$field);
+        }
+
+        return $row[$field];
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function rowInteger(array $row, string $field): int
+    {
+        if (!isset($row[$field]) || (!is_int($row[$field]) && !is_string($row[$field]))) {
+            throw new \UnexpectedValueException('Invalid infrastructure database field: '.$field);
+        }
+        $value = filter_var($row[$field], FILTER_VALIDATE_INT);
+        if (!is_int($value)) {
+            throw new \UnexpectedValueException('Invalid infrastructure database integer: '.$field);
+        }
+
+        return $value;
+    }
+
 }

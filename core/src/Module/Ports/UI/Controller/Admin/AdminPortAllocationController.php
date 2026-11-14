@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Infrastructure\Repository\PortAllocationRepository;
@@ -30,7 +32,7 @@ final class AdminPortAllocationController
     #[Route(path: '/{id}/ports', name: 'admin_instances_ports', methods: ['GET'])]
     public function show(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }

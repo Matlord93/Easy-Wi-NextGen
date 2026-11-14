@@ -22,6 +22,7 @@ final class ResourceEvent implements DomainEvent
         return $this->name;
     }
 
+    /** @return array{resource_type: string, resource_id: string, occurred_at: string} */
     #[\Override]
     public function getPayload(): array
     {

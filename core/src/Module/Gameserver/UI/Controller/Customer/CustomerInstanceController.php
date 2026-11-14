@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Config\ScalarValue;
+
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
@@ -105,9 +112,9 @@ final class CustomerInstanceController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $activeTab = $this->resolveTab((string) $request->query->get('tab', 'overview'));
-        $tabNotice = $this->resolveNoticeKey((string) $request->query->get('notice', ''));
-        $tabError = $this->resolveErrorKey((string) $request->query->get('error', ''));
+        $activeTab = $this->resolveTab($request->query->getString('tab', 'overview'));
+        $tabNotice = $this->resolveNoticeKey($request->query->getString('notice', ''));
+        $tabError = $this->resolveErrorKey($request->query->getString('error', ''));
 
         return $this->renderInstanceDetail($instance, $customer, $activeTab, $tabNotice, $tabError, [], Response::HTTP_OK);
     }
@@ -200,7 +207,7 @@ final class CustomerInstanceController
                 continue;
             }
 
-            $setupVars[$key] = $entry['type'] === 'number' ? (string) $value : $value;
+            $setupVars[$key] = $entry['type'] === 'number' ? $value : $value;
 
             switch ($key) {
                 case 'SERVER_NAME':
@@ -298,18 +305,18 @@ final class CustomerInstanceController
         $enabled = $request->request->getBoolean('enabled');
 
         if ($enabled && $cronExpression === '') {
-            return $this->redirectToTab($instance->getId(), 'restart_planner', null, 'customer_instance_restart_planner_error_cron_required');
+            return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'restart_planner', null, 'customer_instance_restart_planner_error_cron_required');
         }
 
         if ($enabled && !CronExpression::isValidExpression($cronExpression)) {
-            return $this->redirectToTab($instance->getId(), 'restart_planner', null, 'customer_instance_restart_planner_error_cron_invalid');
+            return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'restart_planner', null, 'customer_instance_restart_planner_error_cron_invalid');
         }
 
         $timeZone = $timeZone === '' ? 'UTC' : $timeZone;
         try {
             new \DateTimeZone($timeZone);
         } catch (\Exception) {
-            return $this->redirectToTab($instance->getId(), 'restart_planner', null, 'customer_instance_restart_planner_error_timezone');
+            return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'restart_planner', null, 'customer_instance_restart_planner_error_timezone');
         }
 
         $schedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Restart);
@@ -342,7 +349,7 @@ final class CustomerInstanceController
 
         $this->entityManager->flush();
 
-        return $this->redirectToTab($instance->getId(), 'restart_planner', 'customer_instance_restart_planner_saved', null);
+        return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'restart_planner', 'customer_instance_restart_planner_saved', null);
     }
 
     #[Route(path: '/{id}/install', name: 'customer_instance_install', methods: ['POST'])]
@@ -427,22 +434,22 @@ final class CustomerInstanceController
         $instance = $this->findCustomerInstance($customer, $id);
 
         if (!$request->request->getBoolean('confirm')) {
-            return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_confirm');
+            return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'reinstall', null, 'customer_instance_reinstall_error_confirm');
         }
 
         $blocked = $this->guardSetupRequirements($instance, SetupChecker::ACTION_INSTALL);
         if ($blocked !== null) {
-            return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
+            return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
         }
 
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
-            return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
+            return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
         }
 
         $useSharedStorage = $request->request->getBoolean('use_shared_storage', false);
         if ($useSharedStorage && !$this->supportsSharedStorage($instance)) {
-            return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instances_shared_storage_not_supported');
+            return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'reinstall', null, 'customer_instances_shared_storage_not_supported');
         }
 
         $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage);
@@ -464,7 +471,7 @@ final class CustomerInstanceController
 
         $this->entityManager->flush();
 
-        return $this->redirectToTab($instance->getId(), 'reinstall', 'customer_instance_reinstall_queued', null);
+        return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'reinstall', 'customer_instance_reinstall_queued', null);
     }
 
     #[Route(path: '/{id}/update', name: 'customer_instance_update', methods: ['POST'])]
@@ -544,21 +551,21 @@ final class CustomerInstanceController
         $policy = InstanceUpdatePolicy::tryFrom($policyRaw);
         if ($policy === null) {
             if ($detailMode) {
-                return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+                return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'settings', null, 'customer_instance_settings_error');
             }
             throw new BadRequestHttpException('Invalid update policy.');
         }
 
         if ($policy === InstanceUpdatePolicy::Auto && $cronExpression === '') {
             if ($detailMode) {
-                return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+                return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'settings', null, 'customer_instance_settings_error');
             }
             return $this->renderInstanceCard($instance, null, 'Auto updates require a cron schedule.');
         }
 
         if ($policy === InstanceUpdatePolicy::Auto && !CronExpression::isValidExpression($cronExpression)) {
             if ($detailMode) {
-                return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+                return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'settings', null, 'customer_instance_settings_error');
             }
             return $this->renderInstanceCard($instance, null, 'Cron expression is invalid.');
         }
@@ -568,7 +575,7 @@ final class CustomerInstanceController
             new \DateTimeZone($timeZone);
         } catch (\Exception) {
             if ($detailMode) {
-                return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+                return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'settings', null, 'customer_instance_settings_error');
             }
             return $this->renderInstanceCard($instance, null, 'Time zone is invalid.');
         }
@@ -586,7 +593,7 @@ final class CustomerInstanceController
             $validationError = $this->minecraftCatalogService->validateSelection($channel, $lockedVersion, $lockedBuildId);
             if ($validationError !== null) {
                 if ($detailMode) {
-                    return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+                    return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'settings', null, 'customer_instance_settings_error');
                 }
                 return $this->renderInstanceCard($instance, null, $validationError);
             }
@@ -631,7 +638,7 @@ final class CustomerInstanceController
         $this->entityManager->flush();
 
         if ($detailMode) {
-            return $this->redirectToTab($instance->getId(), 'settings', 'customer_instance_settings_saved', null);
+            return $this->redirectToTab(EntityIdentifier::require($instance->getId()), 'settings', 'customer_instance_settings_saved', null);
         }
 
         return $this->renderInstanceCard($instance, 'Update settings saved.', null);
@@ -808,10 +815,10 @@ final class CustomerInstanceController
         }
 
         if ($notice !== null) {
-            $request->getSession()->getFlashBag()->add('success', $notice);
+            FlashMessages::add($request, 'success', $notice);
         }
         if ($error !== null) {
-            $request->getSession()->getFlashBag()->add('error', $error);
+            FlashMessages::add($request, 'error', $error);
         }
 
         return new RedirectResponse($this->urlGenerator->generate('customer_instance_tasks_page', ['id' => $instance->getId()]));
@@ -833,7 +840,7 @@ final class CustomerInstanceController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (
             !$actor instanceof User
             || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
@@ -869,7 +876,7 @@ final class CustomerInstanceController
 
     private function resolveSharedKeyForInstance(Instance $instance): string
     {
-        $id = (int) ($instance->getId() ?? 0);
+        $id = ($instance->getId() ?? 0);
         if ($id <= 0) {
             return '';
         }
@@ -941,7 +948,7 @@ final class CustomerInstanceController
         $instanceStatus = $instance->getStatus();
         $runtimeState = $this->resolveRuntimeState($instance, $querySnapshot);
         $instanceMetric = $this->instanceMetricSampleRepository->findLatestForInstance($instance);
-        $bookedRamBytes = (int) $instance->getRamLimit() * 1024 * 1024;
+        $bookedRamBytes = $instance->getRamLimit() * 1024 * 1024;
         $usedRamBytes = $instanceMetric?->getMemUsedBytes();
         $ramPercent = ($usedRamBytes !== null && $bookedRamBytes > 0) ? (($usedRamBytes / $bookedRamBytes) * 100) : null;
         $metricsRuntimeStatus = $this->inferRuntimeStatusFromMetrics($instanceMetric);
@@ -1375,6 +1382,7 @@ final class CustomerInstanceController
         return $this->renderInstanceCard($instance, null, $message);
     }
 
+    /** @return list<array{path: string, dir: string, name: string, description: string}> */
     private function normalizeConfigFiles(array $configFiles): array
     {
         $normalized = [];
@@ -1399,7 +1407,8 @@ final class CustomerInstanceController
 
 
     /**
-     * @return array<string, mixed>
+     * @return array{post_install_file_patches?: list<array{path: string, mode: string, line: string,
+     * after: string, before: string, reapply_on_update: bool}>}
      */
     private function buildCs2MetamodPatchForUpdate(Instance $instance): array
     {
@@ -1418,7 +1427,7 @@ final class CustomerInstanceController
             if (!is_array($entry)) {
                 continue;
             }
-            $name = strtolower(trim((string) ($entry['name'] ?? '')));
+            $name = strtolower(trim(($entry['name'] ?? '')));
             if (str_contains($name, 'metamod')) {
                 $hasMetamod = true;
                 break;
@@ -1441,6 +1450,7 @@ final class CustomerInstanceController
         ];
     }
 
+    /** @return array{enabled: bool, base_url: string, root_path: string} */
     private function normalizeFastdlSettings(array $settings): array
     {
         return [
@@ -1464,7 +1474,7 @@ final class CustomerInstanceController
                 if (!is_array($entry)) {
                     continue;
                 }
-                $name = strtolower(trim((string) ($entry['name'] ?? '')));
+                $name = strtolower(trim(($entry['name'] ?? '')));
                 if ($name === '') {
                     continue;
                 }
@@ -1491,6 +1501,12 @@ final class CustomerInstanceController
         }, $plugins);
     }
 
+    /**
+     * @return list<array{id: int|null, label: null|string, schedule: array{cron_expression: string,
+     * retention_days: int, retention_count: int, enabled: bool, time_zone: string, compression: string,
+     * stop_before: bool, backup_target_id: int|null, last_run_at: null|string, last_status: null|string,
+     * last_error_code: null|string, next_run_at: null|string}|null}>
+     */
     private function normalizeBackupDefinitions(User $customer, Instance $instance): array
     {
         $definitions = $this->backupDefinitionRepository->findByCustomer($customer);
@@ -1543,19 +1559,21 @@ final class CustomerInstanceController
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{target_id: null|string, retention_count: int, retention_days: int, compression:
+     * string, stop_before: bool}
      */
     private function normalizeBackupDefaults(): array
     {
         $settings = $this->appSettingsService->getSettings();
+        $targetId = $settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID] ?? null;
 
         return [
-            'target_id' => is_scalar($settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID] ?? null)
-                ? (string) $settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID]
+            'target_id' => is_scalar($targetId)
+                ? (string) $targetId
                 : null,
-            'retention_count' => (int) ($settings[AppSettingsService::KEY_BACKUP_DEFAULT_RETENTION_COUNT] ?? 7),
-            'retention_days' => (int) ($settings[AppSettingsService::KEY_BACKUP_DEFAULT_RETENTION_AGE_DAYS] ?? 30),
-            'compression' => (string) ($settings[AppSettingsService::KEY_BACKUP_DEFAULT_COMPRESSION] ?? 'gzip'),
+            'retention_count' => ScalarValue::integer($settings[AppSettingsService::KEY_BACKUP_DEFAULT_RETENTION_COUNT] ?? null, 7),
+            'retention_days' => ScalarValue::integer($settings[AppSettingsService::KEY_BACKUP_DEFAULT_RETENTION_AGE_DAYS] ?? null, 30),
+            'compression' => ScalarValue::text($settings[AppSettingsService::KEY_BACKUP_DEFAULT_COMPRESSION] ?? null, 'gzip'),
             'stop_before' => (bool) ($settings[AppSettingsService::KEY_BACKUP_STOP_BEFORE] ?? false),
         ];
     }
@@ -1611,6 +1629,7 @@ final class CustomerInstanceController
         ], $backups);
     }
 
+    /** @return list<array{id: string, type: string, status: string, created_at: \DateTimeImmutable}> */
     private function normalizeJobsForInstance(Instance $instance): array
     {
         $jobs = $this->jobRepository->findLatest(100);
@@ -1632,6 +1651,7 @@ final class CustomerInstanceController
         return array_slice($filtered, 0, 25);
     }
 
+    /** @return list<array{key: string, label: string, href: string, label_is_key?: bool}> */
     private function buildTabs(int $instanceId): array
     {
         $tabs = [
@@ -2052,7 +2072,7 @@ final class CustomerInstanceController
         ];
 
         return array_values(array_filter($entries, static function (array $entry) use ($envKeys, $usesSteamLogin): bool {
-            $key = strtoupper((string) $entry['key']);
+            $key = strtoupper($entry['key']);
             if (in_array($key, ['STEAM_LOGIN_MODE', 'STEAM_ACCOUNT', 'STEAM_PASSWORD'], true)) {
                 return $usesSteamLogin || isset($envKeys[$key]);
             }
@@ -2104,7 +2124,7 @@ final class CustomerInstanceController
 
     private function prefersJsonResponse(Request $request): bool
     {
-        $accept = strtolower((string) $request->headers->get('Accept', ''));
+        $accept = strtolower($request->headers->get('Accept', ''));
         if (str_contains($accept, 'application/json')) {
             return true;
         }
@@ -2114,7 +2134,7 @@ final class CustomerInstanceController
 
     private function isHtmxRequest(Request $request): bool
     {
-        return strtolower((string) $request->headers->get('HX-Request', '')) === 'true';
+        return strtolower($request->headers->get('HX-Request', '')) === 'true';
     }
 
     private function resolveInstallErrorMessage(?string $errorCode): string
@@ -2128,6 +2148,11 @@ final class CustomerInstanceController
         };
     }
 
+    /**
+     * @return array{host: null|string, address: null|string, ipv6: null|string, ipv6_address: null|string,
+     * quick_connect: null|string, port_block: array{start: int, end: int}|null, assigned_ports:
+     * list<array{label: string, port: int}>}
+     */
     private function buildConnectionData(Instance $instance, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock, array $ports): array
     {
         $host = $instance->getNode()->getLastHeartbeatIp();
@@ -2186,7 +2211,8 @@ final class CustomerInstanceController
     }
 
     /**
-     * @return array<int, array{name: string, port: int, protocol: string, bind_ip: ?string, is_auto: bool, purpose: ?string, created_at: string}>
+     * @return array<int, array{name: string, port: int, protocol: string, bind_ip: ?string, is_auto: bool,
+     * purpose: ?string, created_at: string}>
      */
     private function normalizeInstancePorts(Instance $instance): array
     {

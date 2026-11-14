@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\Application;
 
+use App\Repository\QueryParameter;
 use App\Module\Core\Domain\Entity\CmsEvent;
 use App\Module\Core\Domain\Entity\ForumThread;
 use App\Module\Core\Domain\Entity\PublicServer;
@@ -43,7 +44,7 @@ final class HomepageStatsProvider
 
         $upcomingEvents = array_filter($events, fn (CmsEvent $e): bool => $e->getStartAt() >= $now);
         usort($upcomingEvents, fn (CmsEvent $a, CmsEvent $b): int => $a->getStartAt() <=> $b->getStartAt());
-        $upcomingEvents = array_values(array_slice($upcomingEvents, 0, 3));
+        $upcomingEvents = array_slice($upcomingEvents, 0, 3);
 
         $forumThreadCount = $this->countForumThreads($site);
         $latestForumThreads = $this->forumThreadRepository->findLatestActiveBySite($site, 3);
@@ -106,7 +107,7 @@ final class HomepageStatsProvider
             return (int) $this->forumThreadRepository->createQueryBuilder('t')
                 ->select('COUNT(t.id)')
                 ->andWhere('t.site = :site')
-                ->setParameter('site', $site)
+                ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
                 ->getQuery()
                 ->getSingleScalarResult();
         } catch (\Throwable) {
@@ -116,24 +117,28 @@ final class HomepageStatsProvider
 
     /**
      * @param PublicServer[] $servers
-     * @return array<int, array<string, mixed>>
+     * @return list<array<string, mixed>>
      */
     private function normalizeServers(array $servers): array
     {
         return array_map(function (PublicServer $server): array {
             $statusCache = $server->getStatusCache();
-            $statusValue = $statusCache['status'] ?? ($statusCache['online'] ?? null);
 
             return [
                 'name' => $server->getName(),
                 'game_key' => $server->getGameKey(),
                 'address' => sprintf('%s:%d', $server->getIp(), $server->getPort()),
-                'status' => $this->normalizeStatus($statusValue),
+                'status' => $this->normalizeStatus($statusCache['status'] ?? $statusCache['online'] ?? null),
                 'players_current' => is_numeric($statusCache['players'] ?? null) ? (int) $statusCache['players'] : null,
                 'players_max' => is_numeric($statusCache['max_players'] ?? null) ? (int) $statusCache['max_players'] : null,
-                'map' => is_string($statusCache['map'] ?? null) ? $statusCache['map'] : null,
+                'map' => self::optionalText($statusCache['map'] ?? null),
             ];
-        }, $servers);
+        }, array_values($servers));
+    }
+
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     private function normalizeStatus(mixed $statusValue): string

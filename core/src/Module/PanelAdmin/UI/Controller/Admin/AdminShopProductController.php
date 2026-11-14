@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ShopProduct;
@@ -122,7 +124,7 @@ final class AdminShopProductController
     #[Route(path: '', name: 'admin_shop_products_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -183,7 +185,7 @@ final class AdminShopProductController
     #[Route(path: '/{id}', name: 'admin_shop_products_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -242,7 +244,7 @@ final class AdminShopProductController
     #[Route(path: '/{id}/delete', name: 'admin_shop_products_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -268,6 +270,11 @@ final class AdminShopProductController
         return new Response('', Response::HTTP_NO_CONTENT);
     }
 
+    /**
+     * @return array{name: string, description: string, image_url: null|string, price_monthly_cents: int,
+     * category_id: int, template_id: int, node_id: string, cpu_limit: int, ram_limit: int, disk_limit: int,
+     * is_active: bool, is_public_active: bool, is_customer_active: bool, errors: list<string>}
+     */
     private function parsePayload(Request $request): array
     {
         $name = trim((string) $request->request->get('name'));
@@ -385,6 +392,7 @@ final class AdminShopProductController
         ], $categories);
     }
 
+    /** @return list<array{id: int|null, name: string}> */
     private function normalizeTemplates(): array
     {
         return array_map(static fn ($template): array => [
@@ -393,6 +401,7 @@ final class AdminShopProductController
         ], $this->templateRepository->findAll());
     }
 
+    /** @return list<array{id: string, name: null|string}> */
     private function normalizeNodes(): array
     {
         return array_map(static fn ($node): array => [
@@ -403,7 +412,7 @@ final class AdminShopProductController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 }

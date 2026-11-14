@@ -25,14 +25,10 @@ final class InvoiceRepository extends ServiceEntityRepository
      */
     public function findRecent(int $limit = 10): array
     {
-        /** @var list<Invoice> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('invoice')
+        return EntityQueryResult::all($this->createQueryBuilder('invoice')
             ->orderBy('invoice.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Invoice::class);
     }
 
     public function countByStatus(InvoiceStatus $status): int
@@ -40,7 +36,7 @@ final class InvoiceRepository extends ServiceEntityRepository
         return (int) $this->createQueryBuilder('invoice')
             ->select('COUNT(invoice.id)')
             ->andWhere('invoice.status = :status')
-            ->setParameter('status', $status)
+            ->setParameter('status', $status->value)
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -50,15 +46,11 @@ final class InvoiceRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<Invoice> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('invoice')
+        return EntityQueryResult::all($this->createQueryBuilder('invoice')
             ->andWhere('invoice.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('invoice.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Invoice::class);
     }
 
     /**
@@ -66,17 +58,13 @@ final class InvoiceRepository extends ServiceEntityRepository
      */
     public function findDunnable(\DateTimeImmutable $now): array
     {
-        /** @var list<Invoice> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('invoice')
+        return EntityQueryResult::all($this->createQueryBuilder('invoice')
             ->andWhere('invoice.status IN (:statuses)')
             ->andWhere('invoice.dueDate <= :now')
             ->setParameter('statuses', [InvoiceStatus::Open->value, InvoiceStatus::PastDue->value])
-            ->setParameter('now', $now)
+            ->setParameter('now', $now, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('invoice.dueDate', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Invoice::class);
     }
 
     /**
@@ -93,13 +81,10 @@ final class InvoiceRepository extends ServiceEntityRepository
             $queryBuilder
                 ->andWhere('invoice.createdAt >= :start')
                 ->andWhere('invoice.createdAt < :end')
-                ->setParameter('start', $start)
-                ->setParameter('end', $end);
+                ->setParameter('start', $start, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+                ->setParameter('end', $end, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE);
         }
 
-        /** @var list<Invoice> $hydratedEntities */
-        $hydratedEntities = $queryBuilder->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($queryBuilder->getQuery(), \App\Module\Core\Domain\Entity\Invoice::class);
     }
 }

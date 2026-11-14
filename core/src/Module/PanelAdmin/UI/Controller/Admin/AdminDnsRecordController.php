@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DnsRecordHelper;
 use App\Module\Core\Domain\Entity\DnsRecord;
@@ -107,7 +110,7 @@ final class AdminDnsRecordController
     #[Route(path: '', name: 'admin_dns_records_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -163,7 +166,7 @@ final class AdminDnsRecordController
     #[Route(path: '/{id}', name: 'admin_dns_records_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -229,7 +232,7 @@ final class AdminDnsRecordController
     #[Route(path: '/{id}/delete', name: 'admin_dns_records_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -261,6 +264,10 @@ final class AdminDnsRecordController
         return $response;
     }
 
+    /**
+     * @return array{domain: \App\Module\Core\Domain\Entity\Domain|null, name: string, type: string,
+     * content: string, ttl: int, priority: int|null, errors: array<array-key, string>}
+     */
     private function parsePayload(Request $request): array
     {
         $domainId = $request->request->get('domain_id');
@@ -312,7 +319,7 @@ final class AdminDnsRecordController
             'action' => $record === null ? 'create' : 'update',
             'submit_label' => $record === null ? 'Create Record' : 'Update Record',
             'submit_color' => $record === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $record === null ? '/admin/dns/records' : sprintf('/admin/dns/records/%d', $record->getId()),
+            'action_url' => $record === null ? '/admin/dns/records' : sprintf('/admin/dns/records/%d', EntityIdentifier::require($record->getId())),
         ];
 
         if ($override !== null) {
@@ -367,6 +374,7 @@ final class AdminDnsRecordController
 
     /**
      * @param DnsRecord[] $records
+      * @return array{total: int, byType: array<string, int>}
      */
     private function buildSummary(array $records): array
     {
@@ -407,7 +415,7 @@ final class AdminDnsRecordController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

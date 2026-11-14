@@ -43,7 +43,7 @@ final class MinecraftCatalogService
     public function resolveVersion(string $channel, ?string $version): ?string
     {
         $this->synchronizer?->ensureAvailable();
-        $normalized = trim((string) ($version ?? ''));
+        $normalized = trim(($version ?? ''));
         if ($normalized === '' || strtolower($normalized) === 'latest') {
             $entries = $this->catalogRepository->findActiveByChannel($channel);
             usort($entries, fn (MinecraftVersionCatalog $a, MinecraftVersionCatalog $b): int => $this->compareVersions($b->getMcVersion(), $a->getMcVersion()));
@@ -88,12 +88,12 @@ final class MinecraftCatalogService
             return $this->trans('minecraft_catalog_error_no_versions');
         }
 
-        $versionInput = trim((string) ($version ?? ''));
+        $versionInput = trim(($version ?? ''));
         if ($versionInput !== '' && strtolower($versionInput) !== 'latest' && !$this->catalogRepository->versionExists($channel, $versionInput, true)) {
             return $this->trans('minecraft_catalog_error_version_unavailable');
         }
 
-        $buildInput = trim((string) ($build ?? ''));
+        $buildInput = trim(($build ?? ''));
         if (in_array($channel, ['paper', 'bungeecord'], true) && $buildInput !== '' && !$this->catalogRepository->buildExists($channel, $resolvedVersion, $buildInput, true)) {
             return $this->trans('minecraft_catalog_error_build_unavailable');
         }
@@ -151,14 +151,20 @@ final class MinecraftCatalogService
         return $this->translator?->trans($key, [], 'portal') ?? $key;
     }
 
-    /** @param array<int, string> $versions @return array<int, string> */
+    /**
+     * @param array<int, string> $versions
+     * @return array<int, string>
+     */
     private function sortVersions(array $versions): array
     {
         usort($versions, fn (string $a, string $b): int => $this->compareVersions($b, $a));
         return $versions;
     }
 
-    /** @param array<string, array<int, string>> $builds @return array<string, array<int, string>> */
+    /**
+     * @param array<string, array<int, string>> $builds
+     * @return array<string, array<int, string>>
+     */
     private function sortBuilds(array $builds): array
     {
         uksort($builds, fn (string $a, string $b): int => $this->compareVersions($b, $a));

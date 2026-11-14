@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -128,6 +130,10 @@ final class PortBlockApiController
         return new JsonResponse($response, JsonResponse::HTTP_CREATED);
     }
 
+    /**
+     * @return array{id: string, pool_id: int|null, customer_id: int|null, instance_id: int|null,
+     * start_port: int, end_port: int, assigned_at: null|string, released_at: null|string}
+     */
     private function normalizeBlock(PortBlock $block): array
     {
         $instance = $block->getInstance();
@@ -146,7 +152,7 @@ final class PortBlockApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
         }

@@ -13,6 +13,7 @@ final class NodePortAvailability
     {
     }
 
+    /** @return list<int> */
     public function blockedPorts(Agent $node, array $ports): array
     {
         $checks = [];

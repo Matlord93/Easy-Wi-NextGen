@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Security;
 
+use App\Infrastructure\Config\JsonMap;
+
 final class EncryptionKeyLoader
 {
     private const DEFAULT_KEY_PATH = '/etc/easywi/secret.key';
@@ -27,7 +29,7 @@ final class EncryptionKeyLoader
 
     public function isReadable(): bool
     {
-        return is_readable($this->keyPath);
+        return is_readable($this->getKeyPath());
     }
 
     /**
@@ -36,9 +38,9 @@ final class EncryptionKeyLoader
     public function loadKeyring(): array
     {
 
-        $envKeyring = trim((string) ($_ENV['APP_ENCRYPTION_KEYS'] ?? $_SERVER['APP_ENCRYPTION_KEYS'] ?? ''));
+        $envKeyring = trim(($_ENV['APP_ENCRYPTION_KEYS'] ?? $_SERVER['APP_ENCRYPTION_KEYS'] ?? ''));
         if ($envKeyring !== '') {
-            $activeFromEnv = trim((string) ($_ENV['ACTIVE_ENCRYPTION_KEY_ID'] ?? $_SERVER['ACTIVE_ENCRYPTION_KEY_ID'] ?? $_ENV['APP_ENCRYPTION_ACTIVE_KEY_ID'] ?? $_SERVER['APP_ENCRYPTION_ACTIVE_KEY_ID'] ?? ''));
+            $activeFromEnv = trim(($_ENV['ACTIVE_ENCRYPTION_KEY_ID'] ?? $_SERVER['ACTIVE_ENCRYPTION_KEY_ID'] ?? $_ENV['APP_ENCRYPTION_ACTIVE_KEY_ID'] ?? $_SERVER['APP_ENCRYPTION_ACTIVE_KEY_ID'] ?? ''));
             if ($activeFromEnv === '') {
                 $activeFromEnv = trim((string) strtok($envKeyring, ':'));
             }
@@ -50,7 +52,7 @@ final class EncryptionKeyLoader
             return ['active_key_id' => '', 'keyring' => ''];
         }
 
-        $contents = file_get_contents($this->keyPath);
+        $contents = file_get_contents($this->getKeyPath());
         if ($contents === false) {
             return ['active_key_id' => '', 'keyring' => ''];
         }
@@ -60,17 +62,14 @@ final class EncryptionKeyLoader
             return ['active_key_id' => '', 'keyring' => ''];
         }
 
-        $decoded = json_decode($contents, true);
-        if (is_array($decoded)) {
+        $decoded = JsonMap::decode($contents);
+        if ($decoded !== null) {
             $keyring = '';
             if (isset($decoded['keyring']) && is_string($decoded['keyring'])) {
                 $keyring = trim($decoded['keyring']);
             } elseif (isset($decoded['keys']) && is_array($decoded['keys'])) {
                 $entries = [];
-                foreach ($decoded['keys'] as $keyId => $value) {
-                    if (!is_string($keyId) || !is_string($value)) {
-                        continue;
-                    }
+                foreach (JsonMap::strings($decoded['keys']) as $keyId => $value) {
                     $keyId = trim($keyId);
                     $value = trim($value);
                     if ($keyId !== '' && $value !== '') {

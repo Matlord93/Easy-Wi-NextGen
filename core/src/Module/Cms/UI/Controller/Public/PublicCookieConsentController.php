@@ -19,7 +19,7 @@ final class PublicCookieConsentController
     #[Route(path: '/cookie-consent', name: 'public_cookie_consent_save', methods: ['POST'])]
     public function save(Request $request): JsonResponse
     {
-        $payload = json_decode($request->getContent(), true);
+        $payload = \App\Infrastructure\Config\JsonArray::decode($request->getContent());
         if (!is_array($payload)) {
             $payload = $request->request->all();
         }

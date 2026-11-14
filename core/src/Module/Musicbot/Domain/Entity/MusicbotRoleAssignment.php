@@ -9,6 +9,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotRoleSubjectType;
 use App\Repository\MusicbotRoleAssignmentRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotRoleAssignmentRepository::class)]
 #[ORM\Table(name: 'musicbot_role_assignments')]
 #[ORM\Index(name: 'idx_mra_role', columns: ['role_id'])]

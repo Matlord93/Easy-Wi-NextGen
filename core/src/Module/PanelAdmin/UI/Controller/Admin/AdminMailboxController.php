@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailLimitEnforcer;
@@ -111,7 +114,7 @@ final class AdminMailboxController
     #[Route(path: '', name: 'admin_mailboxes_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -201,7 +204,7 @@ final class AdminMailboxController
     #[Route(path: '/{id}', name: 'admin_mailboxes_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -298,7 +301,7 @@ final class AdminMailboxController
 
     private function setMailboxStatus(Request $request, int $id, bool $enabled): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -335,6 +338,10 @@ final class AdminMailboxController
         ]));
     }
 
+    /**
+     * @return array{domain: \App\Module\Core\Domain\Entity\Domain|null, local_part: string, password:
+     * string, quota: int, enabled: bool, errors: list<string>}
+     */
     private function parsePayload(Request $request, bool $requireIdentity, ?Mailbox $mailbox = null): array
     {
         $domainId = $request->request->get('domain_id');
@@ -425,7 +432,7 @@ final class AdminMailboxController
             'action' => $mailbox === null ? 'create' : 'update',
             'submit_label' => $mailbox === null ? 'Create Mailbox' : 'Update Mailbox',
             'submit_color' => $mailbox === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $mailbox === null ? '/admin/mailboxes' : sprintf('/admin/mailboxes/%d', $mailbox->getId()),
+            'action_url' => $mailbox === null ? '/admin/mailboxes' : sprintf('/admin/mailboxes/%d', EntityIdentifier::require($mailbox->getId())),
         ];
 
         if ($override !== null) {
@@ -474,6 +481,7 @@ final class AdminMailboxController
 
     /**
      * @param Mailbox[] $mailboxes
+      * @return array{total: int, enabled: int, disabled: int, quotaTotal: int}
      */
     private function buildSummary(array $mailboxes): array
     {
@@ -522,7 +530,7 @@ final class AdminMailboxController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

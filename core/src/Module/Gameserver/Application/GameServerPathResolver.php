@@ -49,7 +49,7 @@ final class GameServerPathResolver
             return $path;
         }
 
-        $baseDir = trim((string) ($server->getInstanceBaseDir() ?? ''));
+        $baseDir = trim(($server->getInstanceBaseDir() ?? ''));
         if ($baseDir === '' || !str_starts_with($baseDir, '/')) {
             return $path;
         }

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Ticket;
@@ -90,7 +93,7 @@ final class TicketApiController
         ]);
         if ($actor->getType() === UserType::Customer) {
             $this->notificationService->notifyAdmins(
-                sprintf('ticket.created.%s', $ticket->getId()),
+                sprintf('ticket.created.%s', EntityIdentifier::require($ticket->getId())),
                 $this->translator->trans('ticket_notification_created_title', ['%id%' => $ticket->getId()]),
                 $this->translator->trans('ticket_notification_created_body', ['%email%' => $ticket->getCustomer()->getEmail(), '%subject%' => $ticket->getSubject()]),
                 'tickets',
@@ -99,7 +102,7 @@ final class TicketApiController
         } elseif ($actor->isAdmin()) {
             $this->notificationService->notify(
                 $ticket->getCustomer(),
-                sprintf('ticket.created.%s', $ticket->getId()),
+                sprintf('ticket.created.%s', EntityIdentifier::require($ticket->getId())),
                 $this->translator->trans('ticket_notification_opened_title', ['%id%' => $ticket->getId()]),
                 $ticket->getSubject(),
                 'tickets',
@@ -145,7 +148,7 @@ final class TicketApiController
         ]);
         if ($actor->getType() === UserType::Customer) {
             $this->notificationService->notifyAdmins(
-                sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
+                sprintf('ticket.message.%s.%s', EntityIdentifier::require($ticket->getId()), EntityIdentifier::require($message->getId())),
                 $this->translator->trans('ticket_notification_reply_admin_title', ['%id%' => $ticket->getId()]),
                 $this->translator->trans('ticket_notification_reply_admin_body', ['%email%' => $actor->getEmail()]),
                 'tickets',
@@ -154,7 +157,7 @@ final class TicketApiController
         } elseif ($actor->isAdmin()) {
             $this->notificationService->notify(
                 $ticket->getCustomer(),
-                sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
+                sprintf('ticket.message.%s.%s', EntityIdentifier::require($ticket->getId()), EntityIdentifier::require($message->getId())),
                 $this->translator->trans('ticket_notification_reply_customer_title', ['%id%' => $ticket->getId()]),
                 $this->translator->trans('ticket_notification_reply_customer_body'),
                 'tickets',
@@ -227,7 +230,7 @@ final class TicketApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
         }
@@ -244,6 +247,14 @@ final class TicketApiController
         }
     }
 
+    /**
+     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, customer?:
+     * \App\Module\Core\Domain\Entity\User, subject?: string, category?:
+     * App\Module\Core\Domain\Enum\TicketCategory::Abuse|App\Module\Core\Domain\Enum\TicketCategory::Billing|App\Module\Core\Domain\Enum\TicketCategory::General|App\Module\Core\Domain\Enum\TicketCategory::Technical,
+     * priority?:
+     * App\Module\Core\Domain\Enum\TicketPriority::High|App\Module\Core\Domain\Enum\TicketPriority::Low|App\Module\Core\Domain\Enum\TicketPriority::Normal|App\Module\Core\Domain\Enum\TicketPriority::Urgent,
+     * message?: string}
+     */
     private function validateCreatePayload(User $actor, array $payload): array
     {
         $subject = trim((string) ($payload['subject'] ?? ''));
@@ -295,6 +306,11 @@ final class TicketApiController
         ];
     }
 
+    /**
+     * @return array{id: int|null, subject: string, category: string, priority: string, status: string,
+     * customer: array{id: int|null, email: string}, created_at: string, updated_at: string,
+     * last_message_at: string}
+     */
     private function normalizeTicket(Ticket $ticket): array
     {
         return [
@@ -313,6 +329,10 @@ final class TicketApiController
         ];
     }
 
+    /**
+     * @return array{id: int|null, ticket_id: int|null, author: array{id: int|null, email: string, type:
+     * string}, body: string, created_at: string}
+     */
     private function normalizeMessage(TicketMessage $message): array
     {
         return [

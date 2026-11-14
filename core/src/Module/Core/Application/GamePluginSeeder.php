@@ -22,7 +22,8 @@ final class GamePluginSeeder
     }
 
     /**
-     * @return array{plugins: int, updated: int, skipped_missing_template: int, entries: int, missing_game_keys: array<int, string>}
+     * @return array{plugins: int, updated: int, skipped_missing_template: int, entries: int,
+     * missing_game_keys: array<int, string>}
      */
     public function seed(?EntityManagerInterface $entityManager = null, bool $updateExisting = false): array
     {

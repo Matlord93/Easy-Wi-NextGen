@@ -116,30 +116,30 @@ final class DatabaseTableEditServiceTest extends TestCase
     {
         $capture ??= new SqlCapture();
 
-        $pdo = new class($columns, $row, $capture) {
+        $pdo = new class($columns, $row, $capture) extends \PDO {
             public function __construct(private array $columns, private ?array $row, private SqlCapture $capture) {}
-            public function prepare(string $sql): object
+            public function prepare(string $sql, array $options = []): \PDOStatement|false
             {
                 if (str_contains($sql, 'FROM information_schema.COLUMNS')) {
-                    return new class($this->columns) {
+                    return new class($this->columns) extends \PDOStatement {
                         public function __construct(private array $columns) {}
-                        public function execute(array $params): void {}
-                        public function fetchAll(): array { return $this->columns; }
+                        public function execute(?array $params = null): bool { $params ??= [];  return true; }
+                        public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array { return $this->columns; }
                     };
                 }
                 if (str_starts_with($sql, 'SELECT *')) {
                     $this->capture->selectSql = $sql;
-                    return new class($this->row, $this->capture) {
+                    return new class($this->row, $this->capture) extends \PDOStatement {
                         public function __construct(private ?array $row, private SqlCapture $capture) {}
-                        public function execute(array $params): void { $this->capture->selectParams = $params; }
-                        public function fetch(int $mode): array|false { return $this->row ?? false; }
+                        public function execute(?array $params = null): bool { $params ??= [];  $this->capture->selectParams = $params;  return true; }
+                        public function fetch(int $mode = \PDO::FETCH_DEFAULT, int $cursorOrientation = \PDO::FETCH_ORI_NEXT, int $cursorOffset = 0): array|false { return $this->row ?? false; }
                     };
                 }
 
                 $this->capture->updateSql = $sql;
-                return new class($this->capture) {
+                return new class($this->capture) extends \PDOStatement {
                     public function __construct(private SqlCapture $capture) {}
-                    public function execute(array $params): void { $this->capture->updateParams = $params; }
+                    public function execute(?array $params = null): bool { $params ??= [];  $this->capture->updateParams = $params;  return true; }
                 };
             }
         };

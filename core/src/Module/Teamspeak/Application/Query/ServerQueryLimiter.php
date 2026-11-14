@@ -30,8 +30,8 @@ final class ServerQueryLimiter implements ServerQueryLimiterInterface
         });
 
         if (is_array($state)) {
-            $nextAllowedAt = (int) ($state['next_allowed_at'] ?? 0);
-            $delay = (int) ($state['delay'] ?? $baseDelaySeconds);
+            $nextAllowedAt = ($state['next_allowed_at'] ?? 0);
+            $delay = ($state['delay'] ?? $baseDelaySeconds);
         } else {
             $nextAllowedAt = 0;
             $delay = $baseDelaySeconds;

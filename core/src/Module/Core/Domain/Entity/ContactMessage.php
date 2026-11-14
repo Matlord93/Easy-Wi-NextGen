@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ContactMessageRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ContactMessageRepository::class)]
 #[ORM\Table(name: 'contact_messages')]
 #[ORM\Index(name: 'idx_contact_messages_site_status', columns: ['site_id', 'status'])]

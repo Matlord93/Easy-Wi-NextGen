@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\MailService;
@@ -162,7 +165,7 @@ final class CustomerTicketController
             'author_id' => $actor->getId(),
         ]);
         $this->notificationService->notifyAdmins(
-            sprintf('ticket.created.%s', $ticket->getId()),
+            sprintf('ticket.created.%s', EntityIdentifier::require($ticket->getId())),
             $this->translator->trans('ticket_notification_created_title', ['%id%' => $ticket->getId()]),
             $this->translator->trans('ticket_notification_created_body', ['%email%' => $ticket->getCustomer()->getEmail(), '%subject%' => $ticket->getSubject()]),
             'tickets',
@@ -250,8 +253,8 @@ final class CustomerTicketController
             'author_id' => $actor->getId(),
         ]);
         $this->notificationService->notifyAdmins(
-            sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
-            sprintf('Ticket reply · #%s', $ticket->getId()),
+            sprintf('ticket.message.%s.%s', EntityIdentifier::require($ticket->getId()), EntityIdentifier::require($message->getId())),
+            sprintf('Ticket reply · #%s', EntityIdentifier::require($ticket->getId())),
             sprintf('%s replied', $actor->getEmail()),
             'tickets',
             '/admin/tickets',
@@ -270,7 +273,7 @@ final class CustomerTicketController
                 'customer_email' => $actor->getEmail(),
                 'reply_message'  => $messageBody,
                 'replied_at'     => $message->getCreatedAt()->format('d.m.Y H:i'),
-                'ticket_url'     => '/admin/tickets/' . $ticket->getId(),
+                'ticket_url'     => '/admin/tickets/' . EntityIdentifier::require($ticket->getId()),
             ],
             null,
             true,
@@ -438,7 +441,8 @@ final class CustomerTicketController
     /**
      * @param TicketMessage[] $messages
      *
-     * @return array<int, array<int, array{id: int|null, name: string, size: int, mime_type: string, download_url: string}>>
+     * @return array<int, array<int, array{id: int|null, name: string, size: int, mime_type: string,
+     * download_url: string}>>
      */
     private function normalizeAttachmentsByMessage(array $messages, string $downloadPrefix): array
     {
@@ -454,7 +458,7 @@ final class CustomerTicketController
                 'name' => $attachment->getOriginalName(),
                 'size' => $attachment->getSizeBytes(),
                 'mime_type' => $attachment->getMimeType(),
-                'download_url' => sprintf('%s/%s/download', $downloadPrefix, $attachment->getId()),
+                'download_url' => sprintf('%s/%s/download', $downloadPrefix, EntityIdentifier::require($attachment->getId())),
             ];
         }
 
@@ -468,7 +472,7 @@ final class CustomerTicketController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -476,6 +480,10 @@ final class CustomerTicketController
         return $actor;
     }
 
+    /**
+     * @return array{total: int, open: int, in_progress: int, pending: int, resolved: int, closed: int,
+     * high_priority: int, resolved_today: int}
+     */
     private function buildSummary(array $tickets): array
     {
         $open = 0;
@@ -527,7 +535,7 @@ final class CustomerTicketController
                 return false;
             }
             if ($filters['q'] !== '') {
-                $haystack = strtolower(sprintf('%s %s %s', $ticket->getId(), $ticket->getSubject(), $ticket->getCategory()->value));
+                $haystack = strtolower(sprintf('%s %s %s', EntityIdentifier::require($ticket->getId()), $ticket->getSubject(), $ticket->getCategory()->value));
                 if (!str_contains($haystack, strtolower($filters['q']))) {
                     return false;
                 }
@@ -537,11 +545,12 @@ final class CustomerTicketController
         }));
     }
 
+    /** @return array{q: string, status: string} */
     private function ticketFilters(Request $request): array
     {
         return [
-            'q' => trim((string) $request->query->get('q', '')),
-            'status' => strtolower(trim((string) $request->query->get('status', ''))),
+            'q' => trim($request->query->getString('q', '')),
+            'status' => strtolower(trim($request->query->getString('status', ''))),
         ];
     }
 
@@ -550,6 +559,10 @@ final class CustomerTicketController
         return array_map(fn (Ticket $ticket) => $this->normalizeTicket($ticket), $tickets);
     }
 
+    /**
+     * @return array{id: int|null, subject: string, category: string, status: string, priority: string,
+     * created_at: \DateTimeImmutable, last_message_at: \DateTimeImmutable, updated_at: \DateTimeImmutable}
+     */
     private function normalizeTicket(Ticket $ticket): array
     {
         return [
@@ -594,6 +607,13 @@ final class CustomerTicketController
         return array_merge($defaults, $overrides ?? []);
     }
 
+    /**
+     * @return array{errors: list<string>, subject: string, category:
+     * App\Module\Core\Domain\Enum\TicketCategory::Abuse|App\Module\Core\Domain\Enum\TicketCategory::Billing|App\Module\Core\Domain\Enum\TicketCategory::General|App\Module\Core\Domain\Enum\TicketCategory::Technical,
+     * priority:
+     * App\Module\Core\Domain\Enum\TicketPriority::High|App\Module\Core\Domain\Enum\TicketPriority::Low|App\Module\Core\Domain\Enum\TicketPriority::Normal|App\Module\Core\Domain\Enum\TicketPriority::Urgent,
+     * message: string}
+     */
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -635,6 +655,7 @@ final class CustomerTicketController
         ]), $status);
     }
 
+    /** @return array{open: string, pending: string, resolved: string, closed: string} */
     private function statusStyles(): array
     {
         return [
@@ -645,6 +666,7 @@ final class CustomerTicketController
         ];
     }
 
+    /** @return array{low: string, normal: string, high: string, urgent: string} */
     private function priorityStyles(): array
     {
         return [
@@ -656,7 +678,9 @@ final class CustomerTicketController
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{ticket_id: int|null, ticket_subject: string, ticket_category: string, ticket_priority:
+     * string, ticket_created_at: string, ticket_message: string, ticket_url: string, customer_name:
+     * string, customer_email: string}
      */
     private function buildTicketMailContext(Ticket $ticket, string $messageBody): array
     {
@@ -669,7 +693,7 @@ final class CustomerTicketController
             'ticket_priority'   => ucfirst(strtolower($ticket->getPriority()->value)),
             'ticket_created_at' => $ticket->getCreatedAt()->format('d.m.Y H:i'),
             'ticket_message'    => $messageBody,
-            'ticket_url'        => '/tickets/' . $ticket->getId(),
+            'ticket_url'        => '/tickets/' . EntityIdentifier::require($ticket->getId()),
             'customer_name'     => $customer->getName() ?? $customer->getEmail(),
             'customer_email'    => $customer->getEmail(),
         ];

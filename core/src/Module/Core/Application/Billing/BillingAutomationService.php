@@ -14,6 +14,7 @@ final readonly class BillingAutomationService
     {
     }
 
+    /** @return array{invoices: int, reminders: int} */
     public function run(?\DateTimeImmutable $now = null): array
     {
         $now ??= new \DateTimeImmutable();

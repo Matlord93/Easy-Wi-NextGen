@@ -15,7 +15,7 @@ final readonly class MailCheckDnsJobDto
     ) {
     }
 
-    /** @return array<string,mixed> */
+    /** @return array{node_id: string, domain: string, dkim_selector: string, expected_mx: list<string>} */
     public function toPayload(): array
     {
         return [

@@ -109,11 +109,11 @@ final class MetricsLiveBuffer
 
     private function liveKey(Agent $agent): string
     {
-        return sprintf('metrics.live.%s', (string) $agent->getId());
+        return sprintf('metrics.live.%s', $agent->getId());
     }
 
     private function lastWrittenKey(Agent $agent): string
     {
-        return sprintf('metrics.last_written.%s', (string) $agent->getId());
+        return sprintf('metrics.last_written.%s', $agent->getId());
     }
 }

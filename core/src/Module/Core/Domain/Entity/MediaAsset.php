@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\MediaAssetRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MediaAssetRepository::class)]
 #[ORM\Table(name: 'media_assets')]
 #[ORM\Index(name: 'idx_media_assets_site_id', columns: ['site_id'])]

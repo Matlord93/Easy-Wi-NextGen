@@ -59,7 +59,7 @@ final class ConsoleSmokeCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $instanceId = (int) $input->getArgument('instance-id');
-        $sendCommand = trim((string) ($input->getOption('send') ?? ''));
+        $sendCommand = trim(($input->getOption('send') ?? ''));
         $maxLines = max(1, (int) ($input->getOption('lines') ?? 10));
 
         $io->title(sprintf('Console smoke-test – Instance #%d', $instanceId));

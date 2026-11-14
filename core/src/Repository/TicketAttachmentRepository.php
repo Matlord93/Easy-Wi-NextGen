@@ -40,15 +40,11 @@ final class TicketAttachmentRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<TicketAttachment> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('attachment')
+        return EntityQueryResult::all($this->createQueryBuilder('attachment')
             ->andWhere('attachment.message IN (:messages)')
             ->setParameter('messages', $messages)
             ->orderBy('attachment.createdAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\TicketAttachment::class);
     }
 
     /**

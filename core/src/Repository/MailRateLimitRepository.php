@@ -38,9 +38,6 @@ final class MailRateLimitRepository extends ServiceEntityRepository
             $qb->andWhere('d = :domain')->setParameter('domain', $domain);
         }
 
-        /** @var list<MailRateLimit> $hydratedEntities */
-        $hydratedEntities = $qb->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($qb->getQuery(), \App\Module\Core\Domain\Entity\MailRateLimit::class);
     }
 }

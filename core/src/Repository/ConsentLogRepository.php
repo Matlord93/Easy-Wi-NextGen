@@ -29,15 +29,14 @@ final class ConsentLogRepository extends ServiceEntityRepository
 
     public function redactByUser(User $user, string $ip, string $userAgent): int
     {
-        return $this->createQueryBuilder('log')
+        return EntityQueryResult::affected($this->createQueryBuilder('log')
             ->update()
             ->set('log.ip', ':ip')
             ->set('log.userAgent', ':userAgent')
             ->andWhere('log.user = :user')
             ->setParameter('ip', $ip)
             ->setParameter('userAgent', $userAgent)
-            ->setParameter('user', $user)
-            ->getQuery()
-            ->execute();
+            ->setParameter('user', QueryParameter::entityId($user->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->getQuery());
     }
 }

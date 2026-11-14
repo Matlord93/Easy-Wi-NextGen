@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\Scheduler\CentralSchedulerRunner;
 use App\Module\Core\Application\Scheduler\InternalSchedule;
 use App\Module\Core\Application\AppSettingsService;
@@ -188,7 +190,8 @@ final class AdminScheduleController
 
     /**
      * @param array<int,array<string,mixed>> $schedules
-     * @return array<string,mixed>
+     * @return array{scheduler_running: bool, last_heartbeat: \DateTimeImmutable|null, due_tasks: int,
+     * failed_24h: int, created_jobs_24h: int}
      */
     private function buildSummary(array $schedules): array
     {
@@ -233,7 +236,7 @@ final class AdminScheduleController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

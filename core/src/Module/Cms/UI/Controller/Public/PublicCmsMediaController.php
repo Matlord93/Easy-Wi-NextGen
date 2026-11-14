@@ -63,7 +63,12 @@ final class PublicCmsMediaController
         ] + $this->themeContext($site, 'media', 'Media')));
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{active_theme: string, template_key: string, page: array{slug: string, title: string},
+     * cms_navigation: list<array{label: string, url: string, external: bool}>, cms_footer_links:
+     * list<array{label: string, url: string, external: bool}>, cms_branding: array{logo_path: string,
+     * primary_color: string, socials: array<string, string>}}
+     */
     private function themeContext(Site $site, string $slug, string $title): array
     {
         $templateKey = $this->themeResolver->resolveThemeKey($site);

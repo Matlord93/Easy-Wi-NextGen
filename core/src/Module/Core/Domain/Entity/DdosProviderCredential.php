@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\DdosProviderCredentialRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: DdosProviderCredentialRepository::class)]
 #[ORM\Table(name: 'ddos_provider_credentials')]
 #[ORM\UniqueConstraint(name: 'uniq_ddos_provider_customer', columns: ['customer_id', 'provider'])]
@@ -24,6 +29,7 @@ class DdosProviderCredential
     #[ORM\Column(length: 60)]
     private string $provider;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string} */
     #[ORM\Column(type: 'json')]
     private array $encryptedApiKey;
 

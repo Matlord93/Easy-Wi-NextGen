@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\ModuleRegistry;
@@ -69,7 +71,7 @@ final class CustomerTs6Controller
             'virtual_servers' => $this->normalizeVirtualServers($virtualServers),
             'virtual_servers_enabled' => $this->moduleRegistry->isEnabled(ModuleKey::TsVirtual->value),
             'commands' => $this->loadServerQueryDocs($this->projectDir . '/modules/teamspeak/ts6/serverquerydocs'),
-            'notice' => $this->resolveNoticeKey((string) $request->query->get('notice', '')),
+            'notice' => $this->resolveNoticeKey($request->query->getString('notice', '')),
         ]));
     }
 
@@ -166,7 +168,7 @@ final class CustomerTs6Controller
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

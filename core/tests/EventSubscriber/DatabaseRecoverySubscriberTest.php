@@ -60,12 +60,11 @@ final class DatabaseRecoverySubscriberTest extends TestCase
 
     private function createSubscriber(?int $pendingMigrations, string $recoveryPath, ?string $error = null): DatabaseRecoverySubscriber
     {
-        $urlGenerator = $this->createStub(UrlGeneratorInterface::class);
-        $urlGenerator->method('generate')->willReturnCallback(static function (string $route) use ($recoveryPath): string {
-            self::assertSame('system_recovery_database', $route);
-
-            return $recoveryPath;
-        });
+        $urlGenerator = $this->createMock(UrlGeneratorInterface::class);
+        $urlGenerator
+            ->method('generate')
+            ->with('system_recovery_database')
+            ->willReturn($recoveryPath);
 
         $migrationStatusProvider = $this->createStub(MigrationStatusProviderInterface::class);
         $migrationStatusProvider

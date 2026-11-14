@@ -24,14 +24,10 @@ final class IncidentUpdateRepository extends ServiceEntityRepository
      */
     public function findByIncident(Incident $incident): array
     {
-        /** @var list<IncidentUpdate> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('update')
+        return EntityQueryResult::all($this->createQueryBuilder('update')
             ->andWhere('update.incident = :incident')
-            ->setParameter('incident', $incident)
+            ->setParameter('incident', QueryParameter::entityId($incident->getId(), \App\Module\Core\Domain\Entity\Incident::class))
             ->orderBy('update.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\IncidentUpdate::class);
     }
 }

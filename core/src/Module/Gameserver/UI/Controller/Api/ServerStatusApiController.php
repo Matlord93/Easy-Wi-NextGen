@@ -28,7 +28,7 @@ final class ServerStatusApiController
     #[Route(path: '/agent/status-batch', name: 'api_agent_status_batch', methods: ['POST'])]
     public function statusBatch(Request $request): JsonResponse
     {
-        $body = (string) $request->getContent();
+        $body = $request->getContent();
         if (!$this->validator->isValid($body, $request->headers->get('X-Timestamp'), $request->headers->get('X-Signature'))) {
             return new JsonResponse(['ok' => false, 'error' => 'invalid_signature'], 401);
         }

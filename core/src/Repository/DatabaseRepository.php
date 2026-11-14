@@ -22,16 +22,12 @@ class DatabaseRepository extends ServiceEntityRepository
     /** @return Database[] */
     public function findByCustomer(User $customer, int $limit = 100): array
     {
-        /** @var list<Database> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('database')
+        return EntityQueryResult::all($this->createQueryBuilder('database')
             ->andWhere('database.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('database.updatedAt', 'DESC')
             ->setMaxResults(max(1, min(500, $limit)))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Database::class);
     }
 
     public function findOneByCustomerAndName(User $customer, string $engine, string $name): ?Database

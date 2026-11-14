@@ -23,6 +23,7 @@ final class RequestDrivenScheduleTriggerSubscriber implements EventSubscriberInt
     ) {
     }
 
+    /** @return array{'kernel.terminate': string} */
     #[\Override]
     public static function getSubscribedEvents(): array
     {

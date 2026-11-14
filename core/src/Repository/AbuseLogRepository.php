@@ -27,7 +27,7 @@ final class AbuseLogRepository extends ServiceEntityRepository
             ->andWhere('a.createdAt >= :since')
             ->setParameter('type', $type)
             ->setParameter('ip', $ipHash)
-            ->setParameter('since', $since)
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
             ->getSingleScalarResult();
     }

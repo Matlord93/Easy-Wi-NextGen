@@ -73,15 +73,11 @@ final class InvoiceArchiveRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<InvoiceArchive> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('archive')
+        return EntityQueryResult::all($this->createQueryBuilder('archive')
             ->innerJoin('archive.invoice', 'invoice')
             ->andWhere('invoice.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('archive.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\InvoiceArchive::class);
     }
 }

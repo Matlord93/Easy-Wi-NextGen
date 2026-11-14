@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\NotificationPreferenceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: NotificationPreferenceRepository::class)]
 #[ORM\Table(name: 'notification_preferences')]
 #[ORM\UniqueConstraint(name: 'uniq_notification_preference_user_category', columns: ['recipient_id', 'category'])]

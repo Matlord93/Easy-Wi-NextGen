@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\BlogCategory;
@@ -22,7 +24,13 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
+/**
+ * @psalm-type BlogForm = array{errors:list<string>,title:string,slug:string,excerpt:?string,
+ *   content:string,seo_title:?string,seo_description:?string,featured_image_path:?string,
+ *   category_id:?int,tag_ids:list<int>,is_published:bool}
+ */
 #[Route(path: '/admin/cms/blog')]
+
 final class AdminCmsBlogController
 {
     public function __construct(
@@ -62,7 +70,7 @@ final class AdminCmsBlogController
     #[Route(path: '/categories', name: 'admin_cms_blog_categories_create', methods: ['POST'])]
     public function createCategory(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -99,7 +107,7 @@ final class AdminCmsBlogController
     #[Route(path: '/categories/{id}/delete', name: 'admin_cms_blog_categories_delete', methods: ['POST'])]
     public function deleteCategory(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -123,7 +131,7 @@ final class AdminCmsBlogController
     #[Route(path: '/tags', name: 'admin_cms_blog_tags_create', methods: ['POST'])]
     public function createTag(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -160,7 +168,7 @@ final class AdminCmsBlogController
     #[Route(path: '/tags/{id}/delete', name: 'admin_cms_blog_tags_delete', methods: ['POST'])]
     public function deleteTag(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -202,7 +210,7 @@ final class AdminCmsBlogController
     #[Route(path: '', name: 'admin_cms_blog_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -267,7 +275,7 @@ final class AdminCmsBlogController
     #[Route(path: '/{id}', name: 'admin_cms_blog_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -319,7 +327,7 @@ final class AdminCmsBlogController
     #[Route(path: '/{id}/delete', name: 'admin_cms_blog_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -349,7 +357,7 @@ final class AdminCmsBlogController
 
     private function isCmsUser(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }
@@ -421,7 +429,7 @@ final class AdminCmsBlogController
             'errors' => [],
             'action' => $post === null ? 'create' : 'update',
             'submit_label' => $post === null ? 'cms_blog_create' : 'cms_blog_update',
-            'action_url' => $post === null ? '/admin/cms/blog' : sprintf('/admin/cms/blog/%d', $post->getId()),
+            'action_url' => $post === null ? '/admin/cms/blog' : sprintf('/admin/cms/blog/%d', ($post->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.'))),
         ];
 
         if ($overrides !== null) {
@@ -431,6 +439,7 @@ final class AdminCmsBlogController
         return $context;
     }
 
+    /** @return BlogForm */
     private function parsePayload(Request $request, Site $site, ?CmsPost $existingPost = null): array
     {
         $errors = [];
@@ -476,6 +485,7 @@ final class AdminCmsBlogController
         ];
     }
 
+    /** @param BlogForm $formData */
     private function renderFormWithErrors(array $formData, int $statusCode, ?CmsPost $post = null, ?Site $site = null): Response
     {
         return new Response($this->twig->render('admin/cms/blog/form.html.twig', [
@@ -497,7 +507,7 @@ final class AdminCmsBlogController
     }
 
     /**
-     * @param array<string,mixed> $formData
+     * @param BlogForm $formData
      */
     private function applyBlogV2Fields(CmsPost $post, Site $site, array $formData): void
     {
@@ -516,9 +526,6 @@ final class AdminCmsBlogController
 
         $post->clearTags();
         foreach (($formData['tag_ids'] ?? []) as $tagId) {
-            if (!is_int($tagId)) {
-                continue;
-            }
             $tag = $this->tagRepository->find($tagId);
             if ($tag instanceof BlogTag && $tag->getSite()->getId() === $site->getId()) {
                 $post->addTag($tag);

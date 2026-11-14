@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\Application\Query;
 
+use App\Infrastructure\Config\JsonArray;
+
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
 use phpseclib3\Net\SSH2;
@@ -87,7 +89,9 @@ final class SshQueryTransport implements QueryTransportInterface
 
     /**
      * @param QueryCommand[] $commands
-     * @return array<string, mixed>
+     * @return array{ts_version: string, sid: int, query_host: string, query_port: int, query_user:
+     * null|string, query_password: null|string, commands: list<array{command: string, args:
+     * array<int|string, null|scalar>}>}
      */
     private function buildPayload(array $commands, QueryContext $context): array
     {
@@ -118,7 +122,7 @@ final class SshQueryTransport implements QueryTransportInterface
      */
     private function parseResult(string $output): array
     {
-        $decoded = json_decode($output, true);
+        $decoded = JsonArray::decode($output);
         if (!is_array($decoded)) {
             return [
                 'success' => false,
@@ -132,13 +136,13 @@ final class SshQueryTransport implements QueryTransportInterface
         if (isset($decoded['error']) && is_array($decoded['error'])) {
             $code = is_string($decoded['error']['code'] ?? null) ? $decoded['error']['code'] : 'runner_error';
             $message = is_string($decoded['error']['message'] ?? null) ? $decoded['error']['message'] : 'Query runner error.';
-            $details = is_array($decoded['error']['details'] ?? null) ? $decoded['error']['details'] : [];
+            $details = JsonArray::orEmpty($decoded['error']['details'] ?? null);
             $error = new QueryError($code, $message, $details);
         }
 
         return [
             'success' => (bool) ($decoded['ok'] ?? $decoded['success'] ?? false),
-            'payload' => is_array($decoded['payload'] ?? null) ? $decoded['payload'] : [],
+            'payload' => JsonArray::orEmpty($decoded['payload'] ?? null),
             'error' => $error,
             'actionId' => is_string($decoded['actionId'] ?? null) ? $decoded['actionId'] : null,
         ];

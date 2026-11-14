@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\MetricsLiveBuffer;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
@@ -48,7 +50,7 @@ final class AdminMetricsController
             return new JsonResponse(['error' => 'Forbidden.'], Response::HTTP_FORBIDDEN);
         }
 
-        $agentId = trim((string) $request->query->get('agent', ''));
+        $agentId = trim($request->query->getString('agent', ''));
         if ($agentId === '') {
             return new JsonResponse(['error' => 'agent parameter required.'], Response::HTTP_BAD_REQUEST);
         }
@@ -56,7 +58,7 @@ final class AdminMetricsController
         $agents = $this->agentRepository->findBy([]);
         $agent = null;
         foreach ($agents as $a) {
-            if ((string) $a->getId() === $agentId) {
+            if ($a->getId() === $agentId) {
                 $agent = $a;
                 break;
             }
@@ -71,7 +73,7 @@ final class AdminMetricsController
         $lastSeenAt = $agent->getLastHeartbeatAt();
 
         return new JsonResponse([
-            'agent_id' => (string) $agent->getId(),
+            'agent_id' => $agent->getId(),
             'agent_name' => $agent->getName(),
             'last_seen_at' => $lastSeenAt?->format(\DateTimeInterface::ATOM),
             'online' => $lastSeenAt !== null && (time() - $lastSeenAt->getTimestamp()) <= $this->heartbeatGraceSeconds,
@@ -87,18 +89,18 @@ final class AdminMetricsController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $tab = (string) $request->query->get('tab', 'host');
+        $tab = $request->query->getString('tab', 'host');
         if (!in_array($tab, ['host', 'instances'], true)) {
             $tab = 'host';
         }
 
-        $window = (string) $request->query->get('window', '60m');
+        $window = $request->query->getString('window', '60m');
         $since = $this->resolveSince($window);
         $page = max(1, (int) $request->query->get('page', 1));
         $perPage = max(1, min(200, (int) $request->query->get('per_page', 100)));
-        $nodeFilter = trim((string) $request->query->get('node', ''));
-        $customerFilter = trim((string) $request->query->get('customer', ''));
-        $selectedInstanceId = trim((string) $request->query->get('instance', ''));
+        $nodeFilter = trim($request->query->getString('node', ''));
+        $customerFilter = trim($request->query->getString('customer', ''));
+        $selectedInstanceId = trim($request->query->getString('instance', ''));
         $selectedInstance = ctype_digit($selectedInstanceId) ? $this->instanceRepository->find((int) $selectedInstanceId) : null;
         $selectedInstanceView = $selectedInstance === null ? null : [
             'id' => $selectedInstance->getId(),
@@ -121,7 +123,7 @@ final class AdminMetricsController
             $loadError = 'agents';
         }
 
-        $selectedAgent = $this->resolveSelectedAgent($agents, (string) $request->query->get('agent', ''), $selectedInstanceId);
+        $selectedAgent = $this->resolveSelectedAgent($agents, $request->query->getString('agent', ''), $selectedInstanceId);
 
         $recentSamples = [];
         $sparklineSamples = [];
@@ -295,7 +297,7 @@ final class AdminMetricsController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 

@@ -18,6 +18,7 @@ final class ApiExceptionSubscriber implements EventSubscriberInterface
     ) {
     }
 
+    /** @return array{'kernel.exception': array{0: string, 1: int}} */
     #[\Override]
     public static function getSubscribedEvents(): array
     {

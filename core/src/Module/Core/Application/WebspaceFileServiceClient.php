@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Webspace;
@@ -42,7 +44,8 @@ final class WebspaceFileServiceClient
     }
 
     /**
-     * @return array{resolved_root: string|null, candidate_root: string|null, agent_root: string|null, path: string, docroot: string}
+     * @return array{resolved_root: string|null, candidate_root: string|null, agent_root: string|null,
+     * path: string, docroot: string}
      */
     public function debugRootResolution(Webspace $webspace): array
     {
@@ -59,7 +62,8 @@ final class WebspaceFileServiceClient
     }
 
     /**
-     * @return array{root_path: string, path: string, entries: array<int, array{name: string, size: int, mode: string, modified_at: string, is_dir: bool}>}
+     * @return array{root_path: string, path: string, entries: array<int, array{name: string, size: int,
+     * mode: string, modified_at: string, is_dir: bool}>}
      */
     public function list(Webspace $webspace, string $path): array
     {
@@ -73,7 +77,7 @@ final class WebspaceFileServiceClient
         return [
             'root_path' => (string) ($payload['root_path'] ?? ''),
             'path' => (string) ($payload['path'] ?? ''),
-            'entries' => is_array($payload['entries'] ?? null) ? $payload['entries'] : [],
+            'entries' => JsonArray::orEmpty($payload['entries'] ?? null),
         ];
     }
 
@@ -279,7 +283,7 @@ final class WebspaceFileServiceClient
         } catch (\Throwable $exception) {
             throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
         }
-        return is_array($payload) ? $payload : [];
+        return JsonArray::orEmpty($payload);
     }
 
     private function requestMultipart(Webspace $webspace, string $endpoint, FormDataPart $formData): void
@@ -444,8 +448,8 @@ final class WebspaceFileServiceClient
             $message = $errorCode === 'AGENT_BASEDIR_MISMATCH'
                 ? sprintf(
                     'Agent file_base_dir mismatch: webspace root "%s" is outside agent root "%s".',
-                    (string) ($resolution['candidate_root'] ?? ''),
-                    (string) ($resolution['agent_root'] ?? ''),
+                    ($resolution['candidate_root'] ?? ''),
+                    ($resolution['agent_root'] ?? ''),
                 )
                 : 'Canonical server root is invalid or missing.';
 
@@ -547,7 +551,7 @@ final class WebspaceFileServiceClient
 
     private function buildEndpoint(Webspace $webspace, string $suffix): string
     {
-        return sprintf('/v1/servers/webspace-%s%s', $webspace->getId(), $suffix);
+        return sprintf('/v1/servers/webspace-%s%s', EntityIdentifier::require($webspace->getId()), $suffix);
     }
 
     private function resolveServerRoot(Webspace $webspace): string

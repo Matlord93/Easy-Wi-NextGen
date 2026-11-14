@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Domain\Entity\Instance;
@@ -200,7 +203,7 @@ final class CustomerInstanceAddonsApiController
             'plugin_extract_subdir' => $addon->getExtractSubdir() ?? '',
         ] + $this->buildCs2MetamodGameInfoPatchPayload($instance, $addon, $action);
 
-        $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), $customer->getId(), $instance->getId(), $payload);
+        $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $payload);
 
         $result = $this->dispatch($message);
         if (!is_array($result) || !is_string($result['job_id'] ?? null)) {
@@ -218,7 +221,8 @@ final class CustomerInstanceAddonsApiController
 
 
     /**
-     * @return array<string, mixed>
+     * @return array{post_install_file_patches?: list<array{path: string, mode: string, line: string,
+     * after: string, before: string, reapply_on_update: bool}>}
      */
     private function buildCs2MetamodGameInfoPatchPayload(Instance $instance, \App\Module\Core\Domain\Entity\GamePlugin $addon, string $action): array
     {
@@ -252,7 +256,7 @@ final class CustomerInstanceAddonsApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)) {
             throw new UnauthorizedHttpException('session', 'Unauthorized.');
         }
@@ -323,7 +327,7 @@ final class CustomerInstanceAddonsApiController
 
     private function resolveRequestId(Request $request): string
     {
-        $header = trim((string) ($request->headers->get('X-Request-ID') ?? ''));
+        $header = trim(($request->headers->get('X-Request-ID') ?? ''));
         if ($header !== '') {
             return $header;
         }

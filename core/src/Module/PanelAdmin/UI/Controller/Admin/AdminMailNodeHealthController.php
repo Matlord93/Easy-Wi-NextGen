@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailNode;
@@ -59,7 +61,7 @@ final class AdminMailNodeHealthController
     #[Route(path: '/{id}/repair', methods: ['POST'])]
     public function repair(int $id, Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden'], JsonResponse::HTTP_FORBIDDEN);
         }
@@ -141,7 +143,7 @@ final class AdminMailNodeHealthController
     #[Route(path: '/{id}/roundcube/{action}', methods: ['POST'])]
     public function roundcubeAction(int $id, string $action, Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden'], JsonResponse::HTTP_FORBIDDEN);
         }
@@ -187,7 +189,7 @@ final class AdminMailNodeHealthController
     }
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

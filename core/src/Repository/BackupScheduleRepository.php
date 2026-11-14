@@ -23,17 +23,13 @@ final class BackupScheduleRepository extends ServiceEntityRepository
      */
     public function findEnabledBatchAfterId(int $afterId, int $limit): array
     {
-        /** @var list<BackupSchedule> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('schedule')
+        return EntityQueryResult::all($this->createQueryBuilder('schedule')
             ->andWhere('schedule.enabled = :enabled')
             ->andWhere('schedule.id > :afterId')
             ->setParameter('enabled', true)
             ->setParameter('afterId', $afterId)
             ->orderBy('schedule.id', 'ASC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\BackupSchedule::class);
     }
 }

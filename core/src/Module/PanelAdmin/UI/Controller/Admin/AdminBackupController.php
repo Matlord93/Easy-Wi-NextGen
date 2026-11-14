@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
@@ -276,7 +280,7 @@ final class AdminBackupController
 
             $this->auditLogger->log($admin, 'admin.backup.target.tested', ['target_id' => $target->getId(), 'result' => 'ok', 'request_id' => $this->resolveRequestId($request)]);
 
-            return $this->responseEnvelopeFactory->success($request, sprintf('target-test-%d', $target->getId()), 'Local target test succeeded.', JsonResponse::HTTP_OK, ['details' => $resultDetails]);
+            return $this->responseEnvelopeFactory->success($request, sprintf('target-test-%d', EntityIdentifier::require($target->getId())), 'Local target test succeeded.', JsonResponse::HTTP_OK, ['details' => $resultDetails]);
         }
 
         if (!in_array($target->getType(), [BackupDestinationType::Webdav, BackupDestinationType::Nextcloud], true)) {
@@ -340,7 +344,7 @@ final class AdminBackupController
             return $this->responseEnvelopeFactory->error($request, 'WebDAV target connection failed.', 'backup_target_connection_failed', JsonResponse::HTTP_CONFLICT, 5, ['details' => $resultDetails]);
         }
 
-        return $this->responseEnvelopeFactory->success($request, sprintf('target-test-%d', $target->getId()), 'WebDAV target test succeeded.', JsonResponse::HTTP_OK, ['details' => $resultDetails]);
+        return $this->responseEnvelopeFactory->success($request, sprintf('target-test-%d', EntityIdentifier::require($target->getId())), 'WebDAV target test succeeded.', JsonResponse::HTTP_OK, ['details' => $resultDetails]);
     }
 
     #[Route(path: '/api/settings', name: 'admin_settings_backups_update', methods: ['POST'])]
@@ -394,7 +398,7 @@ final class AdminBackupController
         }
 
         $definition = $this->resolveDefinition($instance, $target);
-        $message = new InstanceActionMessage('instance.backup.create', $admin->getId(), $instance->getId(), [
+        $message = new InstanceActionMessage('instance.backup.create', EntityIdentifier::require($admin->getId()), EntityIdentifier::require($instance->getId()), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'agent_id' => $instance->getNode()->getId(),
@@ -437,7 +441,7 @@ final class AdminBackupController
             return $this->responseEnvelopeFactory->error($request, 'Another backup action is already running.', 'backup_action_in_progress', JsonResponse::HTTP_CONFLICT, 10);
         }
 
-        $message = new InstanceActionMessage('instance.backup.restore', $admin->getId(), $instance->getId(), [
+        $message = new InstanceActionMessage('instance.backup.restore', EntityIdentifier::require($admin->getId()), EntityIdentifier::require($instance->getId()), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'agent_id' => $instance->getNode()->getId(),
@@ -492,7 +496,7 @@ final class AdminBackupController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -511,7 +515,7 @@ final class AdminBackupController
             throw new BadRequestHttpException($this->translator->trans('error_invalid_json'), $exception);
         }
 
-        return is_array($payload) ? $payload : [];
+        return JsonArray::orEmpty($payload);
     }
 
     /** @return array<string,mixed> */
@@ -520,7 +524,7 @@ final class AdminBackupController
         $envelope = $this->messageBus->dispatch($message);
         $handled = $envelope->last(HandledStamp::class);
         $result = $handled?->getResult();
-        return is_array($result) ? $result : [];
+        return JsonArray::orEmpty($result);
     }
 
     private function hasWebdavSecret(?BackupTarget $target): bool
@@ -591,8 +595,8 @@ final class AdminBackupController
         ]);
 
         $result = @file_get_contents($url, false, $context);
-        $headers = http_get_last_response_headers() ?? [];
-        $statusLine = is_string($headers[0] ?? null) ? (string) $headers[0] : '';
+        $headers = JsonArray::orEmpty($http_response_header);
+        $statusLine = is_string($headers[0] ?? null) ? $headers[0] : '';
 
         return [$statusLine, is_string($result) ? substr($result, 0, 128) : null];
     }
@@ -604,19 +608,19 @@ final class AdminBackupController
             return '';
         }
 
-        $host = (string) ($parts['host'] ?? '');
+        $host = ($parts['host'] ?? '');
         if ($host === '') {
             return '';
         }
 
-        $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
 
         return $host . $port;
     }
 
     private function resolveRequestId(Request $request): string
     {
-        $header = trim((string) ($request->headers->get('X-Request-ID') ?? ''));
+        $header = trim(($request->headers->get('X-Request-ID') ?? ''));
         if ($header !== '') {
             return $header;
         }

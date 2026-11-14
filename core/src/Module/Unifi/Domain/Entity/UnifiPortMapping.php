@@ -7,6 +7,11 @@ namespace App\Module\Unifi\Domain\Entity;
 use App\Module\Unifi\Infrastructure\Repository\UnifiPortMappingRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: UnifiPortMappingRepository::class)]
 #[ORM\Table(name: 'unifi_port_mappings')]
 class UnifiPortMapping

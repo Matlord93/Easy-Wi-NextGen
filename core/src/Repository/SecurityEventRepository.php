@@ -32,11 +32,11 @@ final class SecurityEventRepository extends ServiceEntityRepository
         $builder = $this->createQueryBuilder('event');
 
         if ($from !== null) {
-            $builder->andWhere('event.occurredAt >= :from')->setParameter('from', $from);
+            $builder->andWhere('event.occurredAt >= :from')->setParameter('from', $from, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE);
         }
 
         if ($to !== null) {
-            $builder->andWhere('event.occurredAt <= :to')->setParameter('to', $to);
+            $builder->andWhere('event.occurredAt <= :to')->setParameter('to', $to, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE);
         }
 
         if ($ip !== null && $ip !== '') {
@@ -51,13 +51,9 @@ final class SecurityEventRepository extends ServiceEntityRepository
             $builder->andWhere('event.source = :source')->setParameter('source', $source);
         }
 
-        /** @var list<SecurityEvent> $hydratedEntities */
-        $hydratedEntities = $builder
+        return EntityQueryResult::all($builder
             ->orderBy('event.occurredAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\SecurityEvent::class);
     }
 }

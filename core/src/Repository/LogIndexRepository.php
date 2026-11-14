@@ -37,12 +37,11 @@ final class LogIndexRepository extends ServiceEntityRepository
 
     public function deleteOlderThan(\DateTimeImmutable $cutoff): int
     {
-        return $this->createQueryBuilder('log')
+        return EntityQueryResult::affected($this->createQueryBuilder('log')
             ->delete()
             ->andWhere('log.updatedAt < :cutoff')
-            ->setParameter('cutoff', $cutoff)
-            ->getQuery()
-            ->execute();
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->getQuery());
     }
 
     /**
@@ -54,14 +53,13 @@ final class LogIndexRepository extends ServiceEntityRepository
             return 0;
         }
 
-        return $this->createQueryBuilder('log')
+        return EntityQueryResult::affected($this->createQueryBuilder('log')
             ->delete()
             ->andWhere('log.updatedAt < :cutoff')
             ->andWhere('log.source IN (:sources)')
-            ->setParameter('cutoff', $cutoff)
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->setParameter('sources', array_values(array_unique($sources)))
-            ->getQuery()
-            ->execute();
+            ->getQuery());
     }
 
     /**
@@ -72,13 +70,13 @@ final class LogIndexRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('log')
             ->delete()
             ->andWhere('log.updatedAt < :cutoff')
-            ->setParameter('cutoff', $cutoff);
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE);
 
         if ($sources !== []) {
             $qb->andWhere('log.source NOT IN (:sources)')
                 ->setParameter('sources', array_values(array_unique($sources)));
         }
 
-        return $qb->getQuery()->execute();
+        return EntityQueryResult::affected($qb->getQuery());
     }
 }

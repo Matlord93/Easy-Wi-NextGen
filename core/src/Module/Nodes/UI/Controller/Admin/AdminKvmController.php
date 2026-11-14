@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Agent;
@@ -213,7 +215,7 @@ final class AdminKvmController extends AbstractController
 
     private function actor(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new AccessDeniedHttpException();
         }

@@ -92,6 +92,10 @@ final class MusicbotMigrationService
         );
     }
 
+    /**
+     * @return array{install_path: string, service_name: string, data_path: string, uploads_path: string,
+     * playlists_path: string, settings_path: string}
+     */
     public function computeNewPaths(MusicbotInstance $instance, string $newInstallBase): array
     {
         $serviceName = $instance->getServiceName();

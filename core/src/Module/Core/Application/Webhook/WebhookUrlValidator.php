@@ -12,7 +12,7 @@ class WebhookUrlValidator
         if (!is_array($parts) || 'https' !== ($parts['scheme'] ?? null) || !isset($parts['host']) || isset($parts['user']) || isset($parts['pass'])) {
             throw new \InvalidArgumentException('Webhook URLs must use HTTPS and must not contain credentials.');
         }
-        $host = strtolower((string) $parts['host']);
+        $host = strtolower($parts['host']);
         $addresses = [];
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             $addresses[] = $host;

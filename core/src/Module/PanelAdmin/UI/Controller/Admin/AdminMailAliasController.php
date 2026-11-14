@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Domain\Entity\Job;
@@ -110,7 +113,7 @@ final class AdminMailAliasController
     #[Route(path: '', name: 'admin_mail_aliases_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -167,7 +170,7 @@ final class AdminMailAliasController
     #[Route(path: '/{id}', name: 'admin_mail_aliases_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -239,7 +242,7 @@ final class AdminMailAliasController
     #[Route(path: '/{id}/delete', name: 'admin_mail_aliases_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -270,7 +273,7 @@ final class AdminMailAliasController
 
     private function setAliasStatus(Request $request, int $id, bool $enabled): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -309,6 +312,10 @@ final class AdminMailAliasController
         ]));
     }
 
+    /**
+     * @return array{domain: \App\Module\Core\Domain\Entity\Domain|null, local_part: string, destinations:
+     * array<array-key, string>, destinations_input: string, enabled: bool, errors: list<string>}
+     */
     private function parsePayload(Request $request, bool $requireIdentity, ?MailAlias $alias = null): array
     {
         $domainId = $request->request->get('domain_id');
@@ -376,7 +383,7 @@ final class AdminMailAliasController
             'action' => $alias === null ? 'create' : 'update',
             'submit_label' => $alias === null ? 'Create Alias' : 'Update Alias',
             'submit_color' => $alias === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $alias === null ? '/admin/mail-aliases' : sprintf('/admin/mail-aliases/%d', $alias->getId()),
+            'action_url' => $alias === null ? '/admin/mail-aliases' : sprintf('/admin/mail-aliases/%d', EntityIdentifier::require($alias->getId())),
         ];
 
         if ($override !== null) {
@@ -422,6 +429,7 @@ final class AdminMailAliasController
 
     /**
      * @param MailAlias[] $aliases
+      * @return array{total: int, enabled: int, disabled: int, destinations: int}
      */
     private function buildSummary(array $aliases): array
     {
@@ -486,7 +494,7 @@ final class AdminMailAliasController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

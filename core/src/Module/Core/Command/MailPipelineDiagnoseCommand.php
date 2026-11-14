@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
@@ -267,7 +268,7 @@ final class MailPipelineDiagnoseCommand extends Command
                 continue;
             }
 
-            $hints[] = sprintf('Hint: Bind domain "%s" in panel Mail Platform (domain_id=%d).', $domainName, $domain->getId());
+            $hints[] = sprintf('Hint: Bind domain "%s" in panel Mail Platform (domain_id=%d).', $domainName, EntityIdentifier::require($domain->getId()));
         }
 
         return $hints;

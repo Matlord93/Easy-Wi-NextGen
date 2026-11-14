@@ -34,7 +34,7 @@ final class JobLogRepository extends ServiceEntityRepository
     {
         $builder = $this->createQueryBuilder('log')
             ->andWhere('log.job = :job')
-            ->setParameter('job', $job)
+            ->setParameter('job', QueryParameter::entityId($job->getId(), \App\Module\Core\Domain\Entity\Job::class))
             ->orderBy('log.id', 'ASC')
             ->setMaxResults($limit);
 
@@ -43,10 +43,7 @@ final class JobLogRepository extends ServiceEntityRepository
                 ->setParameter('afterId', $afterId);
         }
 
-        /** @var list<JobLog> $hydratedEntities */
-        $hydratedEntities = $builder->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($builder->getQuery(), \App\Module\Core\Domain\Entity\JobLog::class);
     }
 
     /**
@@ -54,16 +51,12 @@ final class JobLogRepository extends ServiceEntityRepository
      */
     public function findLastByJob(Job $job, int $limit = 200): array
     {
-        /** @var list<JobLog> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('log')
+        return EntityQueryResult::all($this->createQueryBuilder('log')
             ->andWhere('log.job = :job')
-            ->setParameter('job', $job)
+            ->setParameter('job', QueryParameter::entityId($job->getId(), \App\Module\Core\Domain\Entity\Job::class))
             ->orderBy('log.id', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\JobLog::class);
     }
 
     /**
@@ -87,10 +80,7 @@ final class JobLogRepository extends ServiceEntityRepository
                 ->setParameter('afterId', $afterId);
         }
 
-        /** @var list<JobLog> $hydratedEntities */
-        $hydratedEntities = $builder->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($builder->getQuery(), \App\Module\Core\Domain\Entity\JobLog::class);
     }
 
     /**
@@ -103,15 +93,11 @@ final class JobLogRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<JobLog> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('log')
+        return EntityQueryResult::all($this->createQueryBuilder('log')
             ->andWhere('log.job IN (:jobs)')
             ->setParameter('jobs', $jobs)
             ->orderBy('log.id', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\JobLog::class);
     }
 }

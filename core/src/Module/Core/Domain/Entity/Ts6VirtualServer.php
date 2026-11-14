@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\Ts6VirtualServerRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: Ts6VirtualServerRepository::class)]
 #[ORM\Table(name: 'ts6_virtual_servers')]
 class Ts6VirtualServer

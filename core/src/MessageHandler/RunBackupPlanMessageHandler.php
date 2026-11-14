@@ -29,7 +29,7 @@ final class RunBackupPlanMessageHandler
             return;
         }
 
-        $lockTtlSeconds = max(30, (int) ($plan->options()['lock_ttl_seconds'] ?? 900));
+        $lockTtlSeconds = max(30, self::ttl($plan->options()['lock_ttl_seconds'] ?? null, 900));
         $lockExpiresAt = new \DateTimeImmutable(sprintf('+%d seconds', $lockTtlSeconds));
 
         $planLockScope = 'plan:'.$plan->id();
@@ -54,7 +54,7 @@ final class RunBackupPlanMessageHandler
             }
 
             $run = $this->backupAgent->run($plan, $idempotencyKey);
-            $ttlSeconds = max(60, (int) ($plan->options()['idempotency_ttl_seconds'] ?? 86400));
+            $ttlSeconds = max(60, self::ttl($plan->options()['idempotency_ttl_seconds'] ?? null, 86400));
             $this->planStore->saveRun($run, new \DateInterval(sprintf('PT%dS', $ttlSeconds)));
 
             $this->auditLogger->log(null, 'backup.plan.run', [
@@ -72,4 +72,11 @@ final class RunBackupPlanMessageHandler
             $this->planStore->releaseLock($planLockScope);
         }
     }
+    private static function ttl(mixed $value, int $default): int
+    {
+        $validated = filter_var($value, FILTER_VALIDATE_INT);
+
+        return is_int($validated) ? $validated : $default;
+    }
+
 }

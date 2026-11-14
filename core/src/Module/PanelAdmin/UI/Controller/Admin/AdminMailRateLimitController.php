@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DomainRepository;
 use App\Repository\MailRateLimitRepository;
@@ -23,12 +25,12 @@ final class AdminMailRateLimitController
     #[Route(path: '', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden'], JsonResponse::HTTP_FORBIDDEN);
         }
 
-        $domainName = strtolower(trim((string) $request->query->get('domain', '')));
+        $domainName = strtolower(trim($request->query->getString('domain', '')));
         $domain = $domainName !== '' ? $this->domainRepository->findOneBy(['name' => $domainName]) : null;
         $limit = (int) $request->query->get('limit', 200);
 

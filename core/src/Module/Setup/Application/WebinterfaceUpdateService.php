@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\Application;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\CoreReleaseChecker;
@@ -51,7 +53,6 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly string $excludes,
         private readonly string $fallbackVersion,
         private readonly string $releaseRepository,
-        private readonly string $releaseChannel,
         private readonly string $kernelEnvironment,
         private readonly bool $kernelDebug,
         private readonly ?string $phpCliBinary = null,
@@ -64,11 +65,11 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly ?AgentRepository $agentRepository = null,
         private readonly ?string $reloadAgentId = null,
         private readonly ?AgentJobRepository $agentJobRepository = null,
-        private readonly ?string $projectDir = null,
+        ?string $projectDir = null,
     ) {
         // The running kernel, rather than a stale installer default or an unused
         // current link, identifies the application that the web server serves.
-        $this->installDir = $projectDir !== null ? (realpath($projectDir) ?: $projectDir) : $installDir;
+        $this->installDir = $projectDir !== null ? self::canonicalOrOriginal($projectDir) : $installDir;
     }
 
     private readonly string $installDir;
@@ -440,6 +441,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
     }
 
+    /** @return array{manifest: UpdateManifest|null, error: string|null, cache_status: array<string, mixed>} */
     private function fetchManifest(bool $force = false): array
     {
         $manifest = $this->fetchManifestFromGithubRelease($force);
@@ -468,12 +470,6 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     }
 
     /** @return array<string, mixed> */
-    public function getUpdateCheckCacheStatus(): array
-    {
-        return $this->githubReleaseCacheStatus();
-    }
-
-    /** @return array<string, mixed> */
     private function githubReleaseCacheStatus(): array
     {
         if ($this->coreReleaseChecker === null) {
@@ -491,7 +487,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 return null;
             }
 
-            $payload = json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR);
+            $payload = JsonArray::fromValue(json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR));
         } catch (\Throwable) {
             return null;
         }
@@ -549,16 +545,17 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             return null;
         }
 
+        $fields = JsonMap::strings($payload);
         $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
-        $latestPayload = $payload['latest'] ?? null;
+        $latestPayload = JsonArray::fromValue($payload['latest'] ?? null);
         $latest = '';
         if (is_array($latestPayload)) {
-            $latest = is_string($latestPayload[$channel] ?? null) ? trim($latestPayload[$channel]) : '';
-        } elseif (is_string($latestPayload)) {
-            $latest = trim($latestPayload);
+            $latest = trim(JsonMap::strings($latestPayload)[$channel] ?? '');
+        } elseif (isset($fields['latest'])) {
+            $latest = trim($fields['latest']);
         }
-        if ($latest === '' && is_string($payload['version'] ?? null)) {
-            $latest = trim($payload['version']);
+        if ($latest === '' && isset($fields['version'])) {
+            $latest = trim($fields['version']);
         }
         if ($latest === '') {
             return null;
@@ -566,29 +563,30 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         // New structured feed format: {latest:{stable,beta,dev}, releases:[{version, channel, artifacts:{core_novendor_targz:{url,sha256}}, changelog}]}
         if (is_array($payload['releases'] ?? null)) {
-            return $this->createManifestFromReleaseFeed($latest, $payload['releases'], $channel);
+            return $this->createManifestFromReleaseFeed($latest, JsonArray::orEmpty($payload['releases']), $channel);
         }
 
         // Legacy flat format: {latest, asset_url, sha256, notes, delta}
-        $assetUrl = is_string($payload['asset_url'] ?? null) ? trim($payload['asset_url']) : '';
-        if ($assetUrl === '' && is_string($payload['download_url'] ?? null)) {
-            $assetUrl = trim($payload['download_url']);
+        $assetUrl = isset($fields['asset_url']) ? trim($fields['asset_url']) : '';
+        if ($assetUrl === '' && isset($fields['download_url'])) {
+            $assetUrl = trim($fields['download_url']);
         }
-        $sha256 = is_string($payload['sha256'] ?? null) ? trim($payload['sha256']) : null;
-        $notes = is_string($payload['notes'] ?? null) ? trim($payload['notes']) : null;
-        $checksumsUrl = is_string($payload['checksums_url'] ?? null) ? trim($payload['checksums_url']) : null;
-        $signatureUrl = is_string($payload['signature_url'] ?? null) ? trim($payload['signature_url']) : null;
-        $assetName = is_string($payload['asset_name'] ?? null) ? trim($payload['asset_name']) : $this->assetNameFromUrl($assetUrl);
-        $manifestChannel = is_string($payload['channel'] ?? null) ? $this->normalizeReleaseChannel($payload['channel']) : $channel;
-        $deltaPayload = is_array($payload['delta'] ?? null) ? $payload['delta'] : null;
-        $deltaFrom = is_array($deltaPayload) && is_string($deltaPayload['from'] ?? null) ? trim($deltaPayload['from']) : null;
-        $deltaAssetUrl = is_array($deltaPayload) && is_string($deltaPayload['asset_url'] ?? null) ? trim($deltaPayload['asset_url']) : null;
-        $deltaSha256 = is_array($deltaPayload) && is_string($deltaPayload['sha256'] ?? null) ? trim($deltaPayload['sha256']) : null;
+        $sha256 = isset($fields['sha256']) ? trim($fields['sha256']) : null;
+        $notes = isset($fields['notes']) ? trim($fields['notes']) : null;
+        $checksumsUrl = isset($fields['checksums_url']) ? trim($fields['checksums_url']) : null;
+        $signatureUrl = isset($fields['signature_url']) ? trim($fields['signature_url']) : null;
+        $assetName = isset($fields['asset_name']) ? trim($fields['asset_name']) : $this->assetNameFromUrl($assetUrl);
+        $manifestChannel = isset($fields['channel']) ? $this->normalizeReleaseChannel($fields['channel']) : $channel;
+        $deltaPayload = JsonArray::fromValue($payload['delta'] ?? null);
+        $deltaFields = JsonMap::strings($deltaPayload);
+        $deltaFrom = isset($deltaFields['from']) ? trim($deltaFields['from']) : null;
+        $deltaAssetUrl = isset($deltaFields['asset_url']) ? trim($deltaFields['asset_url']) : null;
+        $deltaSha256 = isset($deltaFields['sha256']) ? trim($deltaFields['sha256']) : null;
         $deltaDeletes = [];
         if (is_array($deltaPayload) && is_array($deltaPayload['delete'] ?? null)) {
-            $deltaDeletes = array_values(array_filter(array_map(static function ($value): ?string {
+            $deltaDeletes = array_values(array_filter(array_map(static function (mixed $value): ?string {
                 return is_string($value) ? trim($value) : null;
-            }, $deltaPayload['delete']), static fn (?string $value): bool => $value !== null && $value !== ''));
+            }, JsonArray::orEmpty($deltaPayload['delete'])), static fn (?string $value): bool => $value !== null && $value !== ''));
         }
 
         if ($assetUrl === '') {
@@ -613,13 +611,13 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
 
     /**
-     * @param array<string, mixed> $artifacts
-     * @return array<string, mixed>|null
+     * @param array<array-key, mixed> $artifacts
+     * @return array<array-key, mixed>|null
      */
     private function selectReleaseFeedCoreArtifact(array $artifacts): ?array
     {
         foreach (['webinterface_zip', 'core_zip', 'core_novendor_zip', 'core_novendor_targz'] as $key) {
-            $artifact = $artifacts[$key] ?? null;
+            $artifact = JsonArray::fromValue($artifacts[$key] ?? null);
             if (is_array($artifact)) {
                 return $artifact;
             }
@@ -629,7 +627,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     }
 
     /**
-     * @param array<int, mixed> $releases
+     * @param array<array-key, mixed> $releases
      */
     private function createManifestFromReleaseFeed(string $latest, array $releases, string $channel): ?UpdateManifest
     {
@@ -638,23 +636,25 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 continue;
             }
 
-            $version = is_string($release['version'] ?? null) ? trim($release['version']) : '';
-            $releaseChannel = is_string($release['channel'] ?? null) ? $this->normalizeReleaseChannel($release['channel']) : 'stable';
+            $releaseFields = JsonMap::strings($release);
+            $version = trim($releaseFields['version'] ?? '');
+            $releaseChannel = isset($releaseFields['channel']) ? $this->normalizeReleaseChannel($releaseFields['channel']) : 'stable';
             if ($version !== $latest || $releaseChannel !== $channel) {
                 continue;
             }
 
-            $artifacts = is_array($release['artifacts'] ?? null) ? $release['artifacts'] : [];
+            $artifacts = JsonArray::orEmpty($release['artifacts'] ?? null);
             $artifact = $this->selectReleaseFeedCoreArtifact($artifacts);
             if ($artifact === null) {
                 continue;
             }
 
-            $assetUrl = is_string($artifact['url'] ?? null) ? trim($artifact['url']) : '';
-            $sha256 = is_string($artifact['sha256'] ?? null) ? trim($artifact['sha256']) : null;
-            $notes = is_string($release['changelog'] ?? null) ? trim($release['changelog']) : null;
-            $checksumsUrl = is_string($artifact['checksums_url'] ?? null) ? trim($artifact['checksums_url']) : null;
-            $assetName = is_string($artifact['asset_name'] ?? null) ? trim($artifact['asset_name']) : $this->assetNameFromUrl($assetUrl);
+            $artifactFields = JsonMap::strings($artifact);
+            $assetUrl = trim($artifactFields['url'] ?? '');
+            $sha256 = isset($artifactFields['sha256']) ? trim($artifactFields['sha256']) : null;
+            $notes = isset($releaseFields['changelog']) ? trim($releaseFields['changelog']) : null;
+            $checksumsUrl = isset($artifactFields['checksums_url']) ? trim($artifactFields['checksums_url']) : null;
+            $assetName = isset($artifactFields['asset_name']) ? trim($artifactFields['asset_name']) : $this->assetNameFromUrl($assetUrl);
 
             if ($assetUrl === '') {
                 continue;
@@ -680,36 +680,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     }
 
 
-    /**
-     * @param array<string, mixed> $release
-     */
-    private function detectGithubReleaseChannel(array $release): string
-    {
-        foreach (['body', 'name'] as $field) {
-            $value = $release[$field] ?? null;
-            if (!is_string($value) || trim($value) === '') {
-                continue;
-            }
-            if (preg_match('/(?:^|\R)\s*(?:easywi[-_ ]?)?channel\s*[:=]\s*(stable|beta|dev|alpha)\b/i', $value, $matches) === 1) {
-                return $this->normalizeReleaseChannel($matches[1]);
-            }
-        }
 
-        $isPrerelease = ($release['prerelease'] ?? false) === true;
-        if (!$isPrerelease) {
-            return 'stable';
-        }
-
-        $tagLower = strtolower((string) ($release['tag_name'] ?? $release['name'] ?? ''));
-        if (preg_match('/(?:^|[._\-+])(?:dev|alpha|snapshot|nightly)(?:$|[._\-+])/', $tagLower) === 1) {
-            return 'dev';
-        }
-        if (preg_match('/(?:^|[._\-+])(?:beta|preview|rc)(?:$|[._\-+])/', $tagLower) === 1) {
-            return 'beta';
-        }
-
-        return 'beta';
-    }
 
     private function normalizeReleaseChannel(string $channel): string
     {
@@ -720,53 +691,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         };
     }
 
-    private function findAssetUrlByName(array $assets, string $assetName): ?string
-    {
-        foreach ($assets as $asset) {
-            if (!is_array($asset)) {
-                continue;
-            }
 
-            $name = is_string($asset['name'] ?? null) ? $asset['name'] : null;
-            if ($name !== $assetName) {
-                continue;
-            }
 
-            $url = is_string($asset['browser_download_url'] ?? null) ? trim($asset['browser_download_url']) : '';
-            if ($url !== '') {
-                return $url;
-            }
-        }
 
-        return null;
-    }
-
-    private function findWebinterfaceArchiveAssetUrl(array $assets, string $version): ?string
-    {
-        $expected = 'easywi-webinterface-' . ltrim($version, 'vV') . '.zip';
-
-        foreach ($assets as $asset) {
-            if (!is_array($asset)) {
-                continue;
-            }
-
-            $name = is_string($asset['name'] ?? null) ? trim($asset['name']) : '';
-            if ($name === '') {
-                continue;
-            }
-
-            if ($name !== $expected && !preg_match('/^easywi-webinterface-[^\/]+\.zip$/i', $name)) {
-                continue;
-            }
-
-            $url = is_string($asset['browser_download_url'] ?? null) ? trim($asset['browser_download_url']) : '';
-            if ($url !== '') {
-                return $url;
-            }
-        }
-
-        return null;
-    }
 
     private function assetNameFromUrl(?string $url): ?string
     {
@@ -832,6 +759,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return $contents !== '' ? $contents : null;
     }
 
+    /** @return resource|null */
     private function acquireLock(): mixed
     {
         $handle = @fopen($this->lockFile, 'c+');
@@ -847,6 +775,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return $handle;
     }
 
+    /** @param resource|null $handle */
     private function releaseLock(mixed $handle): void
     {
         if (is_resource($handle)) {
@@ -942,7 +871,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
 
         $basename = basename($filename);
-        if ($basename === '' || $basename === '.' || $basename === '..') {
+        if (in_array($basename, ['', '.', '..'], true)) {
             return null;
         }
 
@@ -1010,7 +939,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     {
         $token = $this->githubToken !== null ? trim($this->githubToken) : '';
         if ($token === '') {
-            $token = trim((string) ($_SERVER['APP_GITHUB_TOKEN'] ?? $_ENV['APP_GITHUB_TOKEN'] ?? $_SERVER['GITHUB_TOKEN'] ?? $_ENV['GITHUB_TOKEN'] ?? ''));
+            $token = trim(($_SERVER['APP_GITHUB_TOKEN'] ?? $_ENV['APP_GITHUB_TOKEN'] ?? $_SERVER['GITHUB_TOKEN'] ?? $_ENV['GITHUB_TOKEN'] ?? ''));
         }
 
         return $token;
@@ -1355,7 +1284,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $output = trim((string) $stdout . PHP_EOL . (string) $stderr);
 
         return [
-            'exitCode' => is_int($exitCode) ? $exitCode : 1,
+            'exitCode' => $exitCode,
             'output' => $output,
         ];
     }
@@ -1380,8 +1309,12 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     {
         $entries = [];
         foreach (new \RecursiveIteratorIterator($phar) as $entry) {
-            $path = method_exists($entry, 'getRelativePathname') ? $entry->getRelativePathname() : $entry->getPathName();
-            if (!$entry instanceof \SplFileInfo || !is_string($path) || !$this->isSafeArchivePath($path)) {
+            if (!$entry instanceof \SplFileInfo) {
+                $this->log($logPath, 'Archiv enthält einen ungültigen Eintrag.');
+                return null;
+            }
+            $path = method_exists($entry, 'getRelativePathname') ? $entry->getRelativePathname() : $entry->getPathname();
+            if (!is_string($path) || !$this->isSafeArchivePath($path)) {
                 $this->log($logPath, 'Archiv enthält einen unsicheren Pfad.');
                 return null;
             }
@@ -1421,6 +1354,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         );
         foreach ($iterator as $item) {
             if (!$item instanceof \SplFileInfo) {
+                throw new \UnexpectedValueException('Filesystem iterator returned an invalid entry.');
+            }
+            if (!$item instanceof \SplFileInfo) {
                 continue;
             }
 
@@ -1430,7 +1366,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function resolveExtractedRoot(string $stagingDir): string
     {
-        $entries = array_values(array_filter(scandir($stagingDir) ?: [], static function (string $entry): bool {
+        $entries = array_values(array_filter(self::directoryEntries($stagingDir), static function (string $entry): bool {
             return $entry !== '.' && $entry !== '..';
         }));
 
@@ -1475,6 +1411,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             (is_dir($this->releasesDir) ? is_writable($this->releasesDir) : is_writable(dirname($this->releasesDir)));
     }
 
+    /** @param list<string> $excludes */
     private function deployWithSymlink(string $sourceDir, string $version, string $logPath, array $excludes): bool
     {
         if (!preg_match('/^[0-9A-Za-z][0-9A-Za-z._+-]*$/D', $version)) {
@@ -1559,7 +1496,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             return;
         }
 
-        $currentTarget = realpath($currentReleaseDir) ?: $currentReleaseDir;
+        $currentTarget = self::canonicalOrOriginal($currentReleaseDir);
         $entries = [];
         foreach (new \DirectoryIterator($releasesRoot) as $fileInfo) {
             if (!$fileInfo->isDir() || $fileInfo->isDot()) {
@@ -1574,7 +1511,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             $entries[] = [
                 'name' => $name,
                 'path' => $fileInfo->getPathname(),
-                'realpath' => realpath($fileInfo->getPathname()) ?: $fileInfo->getPathname(),
+                'realpath' => self::canonicalOrOriginal($fileInfo->getPathname()),
                 'mtime' => $fileInfo->getMTime(),
             ];
         }
@@ -1651,7 +1588,10 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         );
 
         foreach ($iterator as $item) {
-            if ($item instanceof \SplFileInfo && $item->isFile()) {
+            if (!$item instanceof \SplFileInfo) {
+                throw new \UnexpectedValueException('Filesystem iterator returned an invalid entry.');
+            }
+            if ($item->isFile()) {
                 $size += (int) $item->getSize();
             }
         }
@@ -1659,6 +1599,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return $size;
     }
 
+    /** @param list<string> $excludes */
     private function deployInPlace(string $sourceDir, string $version, string $logPath, array $excludes): bool
     {
         $initialInstall = $this->isInitialInstall();
@@ -1675,6 +1616,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
     }
 
+    /** @param list<string> $excludes */
     private function deployInPlaceUnderMaintenance(string $sourceDir, string $version, string $logPath, array $excludes, bool $initialInstall): bool
     {
         if (!$this->commandExists('rsync')) {
@@ -1765,21 +1707,23 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     {
         $this->lastDispatchedReloadJobId = null;
 
-        if ($this->agentJobDispatcher === null || $this->agentRepository === null || ($this->reloadAgentId ?? '') === '') {
+        $reloadAgentId = $this->reloadAgentId;
+        if ($this->agentJobDispatcher === null || $this->agentRepository === null || $reloadAgentId === null || $reloadAgentId === '') {
             $this->log($logPath, 'Hinweis: APP_CORE_UPDATE_RELOAD_AGENT_ID nicht konfiguriert – PHP-FPM/nginx-Reload wird vom Agenten nicht automatisch ausgeführt.');
             return;
         }
 
-        $agent = $this->agentRepository->findOneBy(['id' => $this->reloadAgentId]);
+        $agent = $this->agentRepository->findOneBy(['id' => $reloadAgentId]);
         if ($agent === null) {
-            $this->log($logPath, 'Hinweis: Agent-Node ' . $this->reloadAgentId . ' nicht gefunden – kein Reload-Job versendet.');
+            $this->log($logPath, 'Hinweis: Agent-Node ' . $reloadAgentId . ' nicht gefunden – kein Reload-Job versendet.');
             return;
         }
 
         try {
             $job = $this->agentJobDispatcher->dispatch($agent, 'web.stack_reload', []);
-            $this->lastDispatchedReloadJobId = $job->getId();
-            $this->log($logPath, 'web.stack_reload-Job ' . $this->lastDispatchedReloadJobId . ' an Agent ' . $this->reloadAgentId . ' übermittelt.');
+            $jobId = \App\Infrastructure\Doctrine\EntityIdentifier::require($job->getId());
+            $this->lastDispatchedReloadJobId = $jobId;
+            $this->log($logPath, 'web.stack_reload-Job ' . $jobId . ' an Agent ' . $reloadAgentId . ' übermittelt.');
         } catch (\Throwable $e) {
             $this->log($logPath, 'Fehler beim Versenden des web.stack_reload-Jobs: ' . $e->getMessage());
         }
@@ -1803,7 +1747,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             return true;
         }
 
-        $entries = array_filter(scandir($this->installDir) ?: [], static fn (string $entry): bool => $entry !== '.' && $entry !== '..');
+        $entries = array_filter(self::directoryEntries($this->installDir), static fn (string $entry): bool => $entry !== '.' && $entry !== '..');
         return $entries === [];
     }
 
@@ -1933,7 +1877,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         ];
 
         foreach ($paths as $name => $path) {
-            $current = trim((string) (getenv($name) ?: ''));
+            $current = trim((self::environmentValue($name)));
             if ($current !== '' && is_dir($current) && is_writable($current)) {
                 continue;
             }
@@ -1963,7 +1907,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             return;
         }
 
-        foreach (glob($cacheDir . '/' . $this->kernelEnvironment . '*', GLOB_ONLYDIR) ?: [] as $staleCacheDir) {
+        foreach (self::matchingDirectories($cacheDir . '/' . $this->kernelEnvironment . '*') as $staleCacheDir) {
             if (basename($staleCacheDir) === 'composer') {
                 continue;
             }
@@ -1981,7 +1925,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
 
         $missing = implode(', ', $check['missing_keys']);
-        $envPath = (string) ($check['env_path'] ?? rtrim($appRoot, '/\\') . '/.env.local');
+        $envPath = ($check['env_path'] ?? rtrim($appRoot, '/\\') . '/.env.local');
         $this->log(
             $logPath,
             sprintf(
@@ -2036,10 +1980,14 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     private function resolveCurrentDir(): ?string
     {
         if ($this->activatedReleaseDir !== null) { return $this->activatedReleaseDir; }
-        if ($this->canUseSymlinkStrategy()) { return realpath($this->currentSymlink) ?: null; }
+        if ($this->canUseSymlinkStrategy()) {
+            $resolved = realpath($this->currentSymlink);
+            return $resolved !== false ? $resolved : null;
+        }
         return is_dir($this->installDir) ? $this->installDir : null;
     }
 
+    /** @return list<string> */
     private function parseExcludes(): array
     {
         $raw = array_map('trim', explode(',', $this->excludes));
@@ -2080,11 +2028,12 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return true;
     }
 
+    /** @param list<string> $excludes */
     private function copyExcludedPaths(string $sourceDir, string $targetDir, array $excludes): void
     {
         $wildcardExcludes = [];
         foreach ($excludes as $exclude) {
-            $relativePath = ltrim(rtrim(str_replace('\\', '/', trim((string) $exclude)), '/'), '/');
+            $relativePath = ltrim(rtrim(str_replace('\\', '/', trim($exclude)), '/'), '/');
             if ($relativePath === '') {
                 continue;
             }
@@ -2111,6 +2060,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         );
 
         foreach ($iterator as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                throw new \UnexpectedValueException('Filesystem iterator returned an invalid entry.');
+            }
             $relativePath = ltrim(str_replace('\\', '/', $iterator->getSubPathname()), '/');
             if (!$this->matchesExclude($relativePath, $wildcardExcludes)) {
                 continue;
@@ -2146,6 +2098,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         copy($sourcePath, $destinationPath);
     }
 
+    /** @param list<string> $excludes */
     private function matchesExclude(string $relativePath, array $excludes): bool
     {
         $normalized = ltrim(str_replace('\\', '/', $relativePath), '/');
@@ -2219,6 +2172,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return true;
     }
 
+    /** @param list<string> $excludes */
     private function removeDeletedPaths(string $baseDir, array $paths, array $excludes, string $logPath): void
     {
         foreach ($paths as $path) {
@@ -2250,6 +2204,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
     }
 
+    /** @param list<string> $excludes */
     private function copyDirectory(string $sourceDir, string $targetDir, array $excludes): void
     {
         $iterator = new \RecursiveIteratorIterator(
@@ -2258,6 +2213,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         );
 
         foreach ($iterator as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                throw new \UnexpectedValueException('Filesystem iterator returned an invalid entry.');
+            }
             $relativePath = ltrim(str_replace('\\', '/', $iterator->getSubPathname()), '/');
             if ($this->matchesExclude($relativePath, $excludes)) {
                 continue;
@@ -2288,6 +2246,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         );
 
         foreach ($iterator as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                throw new \UnexpectedValueException('Filesystem iterator returned an invalid entry.');
+            }
             if ($item->isLink()) {
                 unlink($item->getPathname());
             } elseif ($item->isDir()) {
@@ -2368,13 +2329,13 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $candidates = [];
         $configured = trim($this->phpCliBinary ?? '');
         if ($configured === '') {
-            $configured = trim((string) ($_SERVER['EASYWI_PHP_BIN'] ?? $_ENV['EASYWI_PHP_BIN'] ?? getenv('EASYWI_PHP_BIN') ?: ''));
+            $configured = trim(($_SERVER['EASYWI_PHP_BIN'] ?? $_ENV['EASYWI_PHP_BIN'] ?? self::environmentValue('EASYWI_PHP_BIN')));
         }
         if ($configured !== '') {
             $candidates[] = $configured;
         }
 
-        $phpCliBinary = trim((string) ($_SERVER['PHP_CLI_BINARY'] ?? $_ENV['PHP_CLI_BINARY'] ?? getenv('PHP_CLI_BINARY') ?: ''));
+        $phpCliBinary = trim(($_SERVER['PHP_CLI_BINARY'] ?? $_ENV['PHP_CLI_BINARY'] ?? self::environmentValue('PHP_CLI_BINARY')));
         if ($phpCliBinary !== '') {
             $candidates[] = $phpCliBinary;
         }
@@ -2466,7 +2427,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $exitCode = proc_close($process);
 
         return [
-            'exitCode' => is_int($exitCode) ? $exitCode : 1,
+            'exitCode' => $exitCode,
             'output' => trim((string) $stdout . (string) $stderr),
         ];
     }
@@ -2556,16 +2517,18 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         $stdout = '';
         $stderr = '';
-        $deadline = microtime(true) + $timeoutSeconds;
+        $deadline = microtime(true) + (float) $timeoutSeconds;
         $exitCode = 1;
 
         do {
-            $stdout .= stream_get_contents($pipes[1]);
-            $stderr .= stream_get_contents($pipes[2]);
+            $stdoutChunk = stream_get_contents($pipes[1]);
+            $stdout .= $stdoutChunk !== false ? $stdoutChunk : '';
+            $stderrChunk = stream_get_contents($pipes[2]);
+            $stderr .= $stderrChunk !== false ? $stderrChunk : '';
             $status = proc_get_status($process);
 
             if (!$status['running']) {
-                $exitCode = is_int($status['exitcode']) && $status['exitcode'] >= 0 ? $status['exitcode'] : 1;
+                $exitCode = $status['exitcode'] >= 0 ? $status['exitcode'] : 1;
                 break;
             }
 
@@ -2579,8 +2542,10 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             usleep(100000);
         } while (true);
 
-        $stdout .= stream_get_contents($pipes[1]);
-        $stderr .= stream_get_contents($pipes[2]);
+        $stdoutChunk = stream_get_contents($pipes[1]);
+            $stdout .= $stdoutChunk !== false ? $stdoutChunk : '';
+        $stderrChunk = stream_get_contents($pipes[2]);
+            $stderr .= $stderrChunk !== false ? $stderrChunk : '';
 
         foreach ($pipes as $pipe) {
             fclose($pipe);
@@ -2601,24 +2566,10 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         ];
     }
 
-    /**
-     * @return array<string, string>|null
-     */
-    private function currentProcessEnvironment(): ?array
+    /** @return array<string, string> */
+    private function currentProcessEnvironment(): array
     {
-        $environment = getenv();
-        if (!is_array($environment)) {
-            return null;
-        }
-
-        /** @var array<string, string> $stringEnvironment */
-        $stringEnvironment = array_filter(
-            $environment,
-            static fn (mixed $value, mixed $key): bool => is_string($key) && is_string($value),
-            ARRAY_FILTER_USE_BOTH,
-        );
-
-        return $stringEnvironment;
+        return getenv();
     }
 
     /**
@@ -2636,11 +2587,11 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         ];
         $summary = sprintf('%s exit code: %s', $label, (string) $result['exitCode']);
         $this->log($logPath, $summary);
-        if (($result['stdout'] ?? '') !== '') {
-            $this->log($logPath, $label . ' stdout: ' . substr((string) $result['stdout'], 0, 4000));
+        if (isset($result['stdout']) && $result['stdout'] !== '') {
+            $this->log($logPath, $label . ' stdout: ' . substr($result['stdout'], 0, 4000));
         }
-        if (($result['stderr'] ?? '') !== '') {
-            $this->log($logPath, $label . ' stderr: ' . substr((string) $result['stderr'], 0, 4000));
+        if (isset($result['stderr']) && $result['stderr'] !== '') {
+            $this->log($logPath, $label . ' stderr: ' . substr($result['stderr'], 0, 4000));
         }
         if (($result['stdout'] ?? '') === '' && ($result['stderr'] ?? '') === '' && $result['output'] !== '') {
             $this->log($logPath, $label . ' output: ' . substr($result['output'], 0, 4000));
@@ -2657,11 +2608,11 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     }
 
     /**
-     * @param array{exitCode: int, stdout?: string, stderr?: string, output: string} $result
+     * @param array{exitCode: int, stdout?: string, stderr?: string, output: string, command?: string} $result
      */
     private function formatCommandFailure(string $label, array $result): string
     {
-        $detail = trim((string) ($result['output'] ?? ''));
+        $detail = trim(($result['output'] ?? ''));
         if ($detail === '') {
             $detail = 'Keine Ausgabe.';
         }
@@ -2687,6 +2638,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return trim($label, '_') ?: 'message';
     }
 
+    /** @param list<string> $excludes */
     private function runRsync(string $source, string $destination, array $excludes, string $logPath, bool $delete = false): bool
     {
         $args = ['-a', '--checksum'];
@@ -2709,4 +2661,31 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
         return $result['exitCode'] === 0;
     }
+
+    /** @return list<string> */
+    private static function directoryEntries(string $directory): array
+    {
+        $entries = scandir($directory);
+        return $entries !== false ? $entries : [];
+    }
+
+    /** @return list<string> */
+    private static function matchingDirectories(string $pattern): array
+    {
+        $entries = glob($pattern, GLOB_ONLYDIR);
+        return $entries !== false ? $entries : [];
+    }
+
+    private static function canonicalOrOriginal(string $path): string
+    {
+        $resolved = realpath($path);
+        return $resolved !== false ? $resolved : $path;
+    }
+
+    private static function environmentValue(string $name): string
+    {
+        $value = getenv($name);
+        return $value !== false ? $value : '';
+    }
+
 }

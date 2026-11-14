@@ -53,7 +53,7 @@ class SftpFilesystemService
                 'name' => basename($item->path()),
                 'path' => $item->path(),
                 'type' => $item->type(),
-                'size' => $item->isFile() ? $item->fileSize() : null,
+                'size' => $item instanceof \League\Flysystem\FileAttributes ? $item->fileSize() : null,
                 'last_modified' => $item->lastModified(),
             ];
         }

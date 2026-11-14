@@ -17,11 +17,11 @@ final class UrlSafetyGuard
         }
 
         $parts = parse_url($trimmed);
-        if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https') {
+        if (!is_array($parts) || strtolower(($parts['scheme'] ?? '')) !== 'https') {
             throw new \InvalidArgumentException('Backup target URL must use https.');
         }
 
-        $host = strtolower((string) ($parts['host'] ?? ''));
+        $host = strtolower(($parts['host'] ?? ''));
         if ($host === '' || $host === 'localhost') {
             throw new \InvalidArgumentException('Backup target host is invalid.');
         }

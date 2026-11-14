@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Infrastructure\Repository;
 
+use App\Repository\QueryParameter;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Domain\Entity\PortAllocation;
@@ -47,7 +48,7 @@ final class PortAllocationRepository extends ServiceEntityRepository
             ->where('allocation.node = :node')
             ->andWhere('allocation.proto = :proto')
             ->andWhere('allocation.port BETWEEN :start AND :end')
-            ->setParameter('node', $node)
+            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('proto', $proto)
             ->setParameter('start', $start)
             ->setParameter('end', $end);
@@ -69,7 +70,7 @@ final class PortAllocationRepository extends ServiceEntityRepository
         $qb
             ->select('allocation.poolTag as pool_tag, COUNT(allocation.id) as allocated')
             ->where('allocation.node = :node')
-            ->setParameter('node', $node)
+            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->groupBy('allocation.poolTag');
 
         $results = [];

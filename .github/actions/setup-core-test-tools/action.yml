@@ -1,0 +1,23 @@
+name: Set up Core test tools
+description: Installs the pinned offline invoice validators required by the complete PHPUnit suite.
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    - name: Set up Java 21
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '21'
+    - name: Cache pinned invoice validators
+      uses: actions/cache@v6
+      with:
+        path: core/var/einvoice-validator
+        key: ${{ runner.os }}-${{ runner.arch }}-einvoice-${{ hashFiles('scripts/setup-einvoice-validation.py') }}
+    - name: Install and verify local invoice validators
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: python3 scripts/setup-einvoice-validation.py --destination core/var/einvoice-validator

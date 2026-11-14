@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Enum\BackupDestinationType;
 use App\Repository\BackupTargetRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: BackupTargetRepository::class)]
 #[ORM\Table(name: 'backup_targets')]
 class BackupTarget

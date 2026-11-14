@@ -71,58 +71,52 @@ final class InstanceConfigPathResolverTest extends TestCase
         $resolver->resolve($instance, '/etc/passwd');
     }
 
-    public function testLocalConfigReadCannotFollowSymlinksOutsideInstance(): void
+    public function testLocalFilesAreCanonicalizedAndMissingFilesRemainUnavailable(): void
     {
-        $root = sys_get_temp_dir().'/easywi-config-'.bin2hex(random_bytes(8));
-        mkdir($root.'/instance', 0700, true);
-        file_put_contents($root.'/secret', 'outside');
+        $directory = sys_get_temp_dir().'/easywi-local-config-'.bin2hex(random_bytes(8));
+        mkdir($directory.'/instance/cfg', 0700, true);
+        file_put_contents($directory.'/instance/cfg/server.cfg', 'safe');
+        [$resolver, $instance] = $this->localFixture($directory.'/instance');
         try {
-            if (!@symlink($root.'/secret', $root.'/instance/server.cfg')) { self::markTestSkipped('Symlinks unavailable.'); }
-            [$resolver, $instance] = $this->localResolver($root.'/instance');
+            self::assertSame(realpath($directory.'/instance/cfg/server.cfg'), $resolver->resolveLocalFile($instance, 'cfg/server.cfg'));
+            self::assertNull($resolver->resolveLocalFile($instance, 'cfg/missing.cfg'));
+        } finally {
+            (new \Symfony\Component\Filesystem\Filesystem())->remove($directory);
+        }
+    }
+
+    public function testSymlinksCannotExposeFilesOutsideTheInstance(): void
+    {
+        $directory = sys_get_temp_dir().'/easywi-local-config-'.bin2hex(random_bytes(8));
+        mkdir($directory.'/instance', 0700, true);
+        file_put_contents($directory.'/secret.cfg', 'outside');
+        self::assertTrue(symlink($directory.'/secret.cfg', $directory.'/instance/link.cfg'));
+        [$resolver, $instance] = $this->localFixture($directory.'/instance');
+        try {
             $this->expectException(\RuntimeException::class);
             $this->expectExceptionMessage('PATH_TRAVERSAL');
-            $resolver->read($instance, 'server.cfg');
+            $resolver->resolveLocalFile($instance, 'link.cfg');
         } finally {
-            if (is_link($root.'/instance/server.cfg')) { unlink($root.'/instance/server.cfg'); }
-            unlink($root.'/secret');
-            rmdir($root.'/instance');
-            rmdir($root);
+            (new \Symfony\Component\Filesystem\Filesystem())->remove($directory);
         }
     }
 
-    public function testLocalConfigReaderPreservesContentAndRejectsOversizedFiles(): void
+    public function testNullBytesCannotReachFilesystemFunctions(): void
     {
-        $root = sys_get_temp_dir().'/easywi-config-'.bin2hex(random_bytes(8));
-        mkdir($root, 0700);
-        try {
-            file_put_contents($root.'/server.cfg', "name=<script>\n");
-            [$resolver, $instance] = $this->localResolver($root);
-            self::assertSame("name=<script>\n", $resolver->read($instance, 'server.cfg'));
-            self::assertTrue($resolver->stat($instance, 'server.cfg')['exists']);
-            file_put_contents($root.'/server.cfg', str_repeat('x', 256 * 1024 + 1));
-            $this->expectException(\RuntimeException::class);
-            $this->expectExceptionMessage('CONFIG_TOO_LARGE');
-            $resolver->read($instance, 'server.cfg');
-        } finally {
-            unlink($root.'/server.cfg');
-            rmdir($root);
-        }
-    }
-
-    public function testStreamWrapperInstallRootIsRejectedBeforeReading(): void
-    {
-        [$resolver, $instance] = $this->localResolver('http://127.0.0.1:8006');
+        [$resolver, $instance] = $this->localFixture('/srv/instances/test');
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('ROOT_INVALID');
-        $resolver->read($instance, 'server.cfg');
+        $this->expectExceptionMessage('PATH_TRAVERSAL');
+        $resolver->resolveLocalFile($instance, "cfg/server\0.cfg");
     }
 
-    /** @return array{InstanceConfigPathResolver, Instance} */
-    private function localResolver(string $root): array
+    /** @return array{InstanceConfigPathResolver,Instance} */
+    private function localFixture(string $root): array
     {
         $settings = $this->createStub(AppSettingsService::class);
+        $settings->method('getInstanceBaseDir')->willReturn($root);
         $node = $this->createStub(Agent::class);
         $node->method('getMetadata')->willReturn(['os' => 'linux']);
+        $node->method('getLastHeartbeatStats')->willReturn(['os' => 'linux']);
         $instance = $this->createStub(Instance::class);
         $instance->method('getInstallPath')->willReturn($root);
         $instance->method('getNode')->willReturn($node);

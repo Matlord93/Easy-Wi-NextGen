@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Enum\GdprExportStatus;
 use App\Repository\GdprExportRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: GdprExportRepository::class)]
 #[ORM\Table(name: 'gdpr_exports')]
 #[ORM\Index(name: 'idx_gdpr_exports_customer', columns: ['customer_id'])]
@@ -36,6 +41,7 @@ class GdprExport
     #[ORM\Column]
     private int $fileSize;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string} */
     #[ORM\Column(type: 'json')]
     private array $encryptedPayload;
 

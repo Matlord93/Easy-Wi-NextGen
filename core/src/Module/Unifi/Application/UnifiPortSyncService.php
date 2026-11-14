@@ -13,17 +13,16 @@ use App\Module\Unifi\Domain\Entity\UnifiPortMapping;
 use App\Module\Unifi\Infrastructure\Repository\UnifiManualRuleRepository;
 use App\Module\Unifi\Infrastructure\Repository\UnifiPolicyRepository;
 use App\Module\Unifi\Infrastructure\Repository\UnifiPortMappingRepository;
-use App\Module\Unifi\Infrastructure\Repository\UnifiSettingsRepository;
 use App\Repository\InstanceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
-class UnifiPortSyncService
+final class UnifiPortSyncService implements UnifiSynchronizerInterface
 {
     public const string AUTO_PREFIX = 'PANEL';
     public const string MANUAL_PREFIX = 'MANUAL';
 
     public function __construct(
-        private readonly UnifiSettingsRepository $settingsRepository,
+        private readonly UnifiSettingsProviderInterface $settingsRepository,
         private readonly UnifiPolicyRepository $policyRepository,
         private readonly UnifiManualRuleRepository $manualRuleRepository,
         private readonly UnifiPortMappingRepository $mappingRepository,
@@ -37,8 +36,11 @@ class UnifiPortSyncService
     }
 
     /**
-     * @return array{status: string, request_id: string, diff: array{create: UnifiRule[], update: array<int, array{rule: UnifiRule, currentId: string}>, delete: array<int, array{currentId: string, name: string}>}, errors: array<int, array{code: string, message: string}>}
+     * @return array{status: string, request_id: string, diff: array{create: UnifiRule[], update:
+     * array<int, array{rule: UnifiRule, currentId: string}>, delete: array<int, array{currentId: string,
+     * name: string}>}, errors: array<int, array{code: string, message: string}>}
      */
+    #[\Override]
     public function preview(?int $instanceId = null, ?string $requestId = null): array
     {
         $requestId = $requestId ?? $this->generateRequestId();
@@ -77,8 +79,11 @@ class UnifiPortSyncService
     }
 
     /**
-     * @return array{status: string, request_id: string, diff: array{create: UnifiRule[], update: array<int, array{rule: UnifiRule, currentId: string}>, delete: array<int, array{currentId: string, name: string}>}, errors: array<int, array{code: string, message: string}>}
+     * @return array{status: string, request_id: string, diff: array{create: UnifiRule[], update:
+     * array<int, array{rule: UnifiRule, currentId: string}>, delete: array<int, array{currentId: string,
+     * name: string}>}, errors: array<int, array{code: string, message: string}>}
      */
+    #[\Override]
     public function sync(?int $instanceId = null, bool $dryRun = false, ?string $requestId = null): array
     {
         $requestId = $requestId ?? $this->generateRequestId();
@@ -340,8 +345,8 @@ class UnifiPortSyncService
         }
 
         foreach ($allowedRanges as $range) {
-            $start = (int) ($range['start'] ?? 0);
-            $end = (int) ($range['end'] ?? 0);
+            $start = $range['start'];
+            $end = $range['end'];
             if ($start > 0 && $end > 0 && $port >= $start && $port <= $end) {
                 return true;
             }
@@ -362,7 +367,7 @@ class UnifiPortSyncService
 
     private function extractRuleId(array $response): ?string
     {
-        $data = $response['data'] ?? null;
+        $data = self::responseData($response['data'] ?? null);
         if (is_array($data) && isset($data[0]) && is_array($data[0])) {
             return (string) ($data[0]['_id'] ?? $data[0]['id'] ?? '');
         }
@@ -372,6 +377,12 @@ class UnifiPortSyncService
         }
 
         return null;
+    }
+
+    /** @return array<array-key, mixed>|null */
+    private static function responseData(mixed $data): ?array
+    {
+        return is_array($data) ? $data : null;
     }
 
     private function upsertMapping(UnifiRule $rule, ?string $ruleId, ?string $status, ?string $error): void

@@ -28,9 +28,9 @@ final class AgentSignatureVerifier
             throw new UnauthorizedHttpException('hmac', 'unknown_agent');
         }
 
-        $timestamp = trim((string) $request->headers->get('X-Timestamp', ''));
-        $nonce = trim((string) $request->headers->get('X-Nonce', ''));
-        $signature = strtolower(trim((string) $request->headers->get('X-Signature', '')));
+        $timestamp = trim($request->headers->get('X-Timestamp', ''));
+        $nonce = trim($request->headers->get('X-Nonce', ''));
+        $signature = strtolower(trim($request->headers->get('X-Signature', '')));
 
         if ($timestamp === '' || $signature === '') {
             throw new UnauthorizedHttpException('hmac', 'missing_headers');
@@ -141,7 +141,7 @@ final class AgentSignatureVerifier
         }
 
         $segments = array_filter(array_map('trim', explode(',', $normalized)), static fn (string $segment): bool => $segment !== '');
-        $normalized = $segments !== [] ? (string) reset($segments) : $normalized;
+        $normalized = $segments !== [] ? reset($segments) : $normalized;
 
         return trim($normalized, "\"'");
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
@@ -30,7 +31,7 @@ final class WebspaceSftpProvisioner
 
         $username = $webspace->getSystemUsername();
         if ($username === '') {
-            $username = sprintf('ws%d', $webspace->getId());
+            $username = sprintf('ws%d', EntityIdentifier::require($webspace->getId()));
         }
 
         $password = bin2hex(random_bytes(12));

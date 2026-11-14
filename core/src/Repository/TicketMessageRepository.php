@@ -25,14 +25,13 @@ final class TicketMessageRepository extends ServiceEntityRepository
      */
     public function findByTicket(Ticket $ticket): array
     {
-        return $this->createQueryBuilder('message')
+        return EntityQueryResult::all($this->createQueryBuilder('message')
             ->addSelect('author')
             ->innerJoin('message.author', 'author')
             ->andWhere('message.ticket = :ticket')
-            ->setParameter('ticket', $ticket)
+            ->setParameter('ticket', QueryParameter::entityId($ticket->getId(), \App\Module\Core\Domain\Entity\Ticket::class))
             ->orderBy('message.createdAt', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\TicketMessage::class);
     }
 
     /**
@@ -40,28 +39,26 @@ final class TicketMessageRepository extends ServiceEntityRepository
      */
     public function findPublicByTicket(Ticket $ticket): array
     {
-        return $this->createQueryBuilder('message')
+        return EntityQueryResult::all($this->createQueryBuilder('message')
             ->addSelect('author')
             ->innerJoin('message.author', 'author')
             ->andWhere('message.ticket = :ticket')
             ->andWhere('message.internal = false')
-            ->setParameter('ticket', $ticket)
+            ->setParameter('ticket', QueryParameter::entityId($ticket->getId(), \App\Module\Core\Domain\Entity\Ticket::class))
             ->orderBy('message.createdAt', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\TicketMessage::class);
     }
 
     public function deleteForClosedTicketsBefore(\DateTimeImmutable $cutoff): int
     {
-        return $this->createQueryBuilder('message')
+        return EntityQueryResult::affected($this->createQueryBuilder('message')
             ->delete()
             ->andWhere('message.ticket IN (
                 SELECT t.id FROM App\\Module\\Core\\Domain\\Entity\\Ticket t
                 WHERE t.status = :status AND t.updatedAt < :cutoff
             )')
             ->setParameter('status', TicketStatus::Closed)
-            ->setParameter('cutoff', $cutoff)
-            ->getQuery()
-            ->execute();
+            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->getQuery());
     }
 }

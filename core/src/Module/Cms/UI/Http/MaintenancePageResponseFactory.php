@@ -9,13 +9,13 @@ use Twig\Environment;
 
 final class MaintenancePageResponseFactory
 {
-    private const CSP_POLICY = "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'";
+    private const string CSP_POLICY = "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'";
 
     public function __construct(private readonly Environment $twig)
     {
     }
 
-    /** @param array{message:string,graphic_path:string,starts_at:?\DateTimeImmutable,ends_at:?\DateTimeImmutable,scope:?string} $maintenance */
+    /** @param array{message:string,graphic_path:string,starts_at:?\DateTimeImmutable,ends_at:?\DateTimeImmutable,scope:?string,active?:bool} $maintenance */
     public function create(array $maintenance): Response
     {
         $response = new Response($this->twig->render('public/maintenance.html.twig', [

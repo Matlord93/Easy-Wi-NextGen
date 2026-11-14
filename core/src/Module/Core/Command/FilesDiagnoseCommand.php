@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Gameserver\Application\GameServerPathResolver;
@@ -53,7 +55,7 @@ final class FilesDiagnoseCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $path = trim((string) $input->getOption('path'));
+        $path = trim($input->getOption('path'));
         $instanceId = $input->getOption('instance-id') ?? $input->getOption('server') ?? $input->getOption('server-id');
         $webspaceId = $input->getOption('webspace-id');
         $settings = $this->settingsService->getSettings();
@@ -87,15 +89,15 @@ final class FilesDiagnoseCommand extends Command
             $hasTarget = true;
             $instance = $this->instanceRepository->find($instanceId);
             if ($instance === null) {
-                $io->error(sprintf('Instance %s not found.', (string) $instanceId));
+                $io->error(sprintf('Instance %s not found.', $instanceId));
                 $overallOk = false;
             } else {
                 $io->section('Instance file manager');
                 $io->text('File API: Core -> Agent (HTTP) -> File operations.');
-                $io->text(sprintf('Instance ID: %d | Node ID: %d', $instance->getId(), $instance->getNode()->getId()));
+                $io->text(sprintf('Instance ID: %d | Node ID: %d', EntityIdentifier::require($instance->getId()), $instance->getNode()->getId()));
 
                 $metadata = $instance->getNode()->getMetadata();
-                $metadata = is_array($metadata) ? $metadata : [];
+                $metadata = JsonArray::orEmpty($metadata);
                 $agentBaseUrl = $instance->getNode()->getServiceBaseUrl();
                 $io->definitionList(
                     ['agent_base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : '<unset>'],
@@ -152,12 +154,12 @@ final class FilesDiagnoseCommand extends Command
             $hasTarget = true;
             $webspace = $this->webspaceRepository->find($webspaceId);
             if ($webspace === null) {
-                $io->error(sprintf('Webspace %s not found.', (string) $webspaceId));
+                $io->error(sprintf('Webspace %s not found.', $webspaceId));
                 $overallOk = false;
             } else {
                 $io->section('Webspace file manager');
                 $io->text('Uses SftpFilesystemService (Flysystem SFTP adapter).');
-                $io->text(sprintf('Webspace ID: %d | Path: %s', $webspace->getId(), $webspace->getPath()));
+                $io->text(sprintf('Webspace ID: %d | Path: %s', EntityIdentifier::require($webspace->getId()), $webspace->getPath()));
 
                 $webspaceCredential = $this->webspaceSftpCredentialRepository->findOneByWebspace($webspace);
                 $io->text(sprintf(

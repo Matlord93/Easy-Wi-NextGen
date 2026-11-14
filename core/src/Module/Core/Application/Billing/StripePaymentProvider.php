@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Enum\PaymentStatus;
 use App\Repository\InvoiceRepository;
@@ -54,6 +56,7 @@ final class StripePaymentProvider implements PaymentProviderInterface
         return 'stripe';
     }
 
+    /** @return list<string> */
     #[\Override]
     public function supportedMethods(): array
     {
@@ -118,7 +121,7 @@ final class StripePaymentProvider implements PaymentProviderInterface
             return new JsonResponse(['error' => 'Invalid signature.'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $event = json_decode($payload, true);
+        $event = JsonArray::decode($payload);
         if (!is_array($event)) {
             return new JsonResponse(['error' => 'Invalid JSON.'], Response::HTTP_BAD_REQUEST);
         }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\User;
@@ -32,7 +34,7 @@ final class PublicProfileController
     #[Route(path: '/profile', name: 'public_profile', methods: ['GET'])]
     public function show(Request $request): Response
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User) {
             return new RedirectResponse('/login');
         }
@@ -49,7 +51,7 @@ final class PublicProfileController
     #[Route(path: '/profile/edit', name: 'public_profile_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request): Response
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User) {
             return new RedirectResponse('/login');
         }

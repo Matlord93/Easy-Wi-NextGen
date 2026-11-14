@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Enum\TicketPriority;
 use App\Repository\TicketTemplateRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: TicketTemplateRepository::class)]
 #[ORM\Table(name: 'ticket_templates')]
 #[ORM\Index(name: 'idx_ticket_templates_admin', columns: ['admin_id'])]

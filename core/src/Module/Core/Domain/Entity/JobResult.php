@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'job_results')]
 class JobResult

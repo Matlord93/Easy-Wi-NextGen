@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: WebspaceRepository::class)]
 #[ORM\Table(name: 'webspaces')]
 class Webspace implements ResourceEventSource

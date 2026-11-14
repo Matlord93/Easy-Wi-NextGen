@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Application\AuditLogger;
@@ -276,7 +281,7 @@ final class AdminMusicbotController
             'requested_by' => (string) $actor->getId(),
             'dry_run' => false,
         ];
-        unset($payload['server_password'], $payload['channel_password'], $payload['bot_token']);
+        $payload = array_diff_key($payload, array_flip(['server_password', 'channel_password', 'bot_token']));
 
         $job = $this->jobDispatcher->dispatch($node, $jobType, $payload);
         $config->setLastCheckedAt(new \DateTimeImmutable());
@@ -370,7 +375,7 @@ final class AdminMusicbotController
         ]);
         $this->entityManager->flush();
 
-        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/admin/musicbots/%d', $instance->getId())]);
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/admin/musicbots/%d', EntityIdentifier::require($instance->getId()))]);
     }
 
     #[Route(path: '/{id}', name: 'admin_musicbot_show', requirements: ['id' => '\\d+'], methods: ['GET'])]
@@ -381,7 +386,7 @@ final class AdminMusicbotController
 
         $runtimePayload = $this->runtimeStatusNormalizer->normalizePayload($this->sanitizeForTemplate($instance->getRuntimePayload() ?? []));
         $playbackStatus = $runtimePayload['playback_status'] ?? $this->runtimeStatusNormalizer->buildPlaybackStatus($runtimePayload);
-        if ((string) ($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') === '1') {
+        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') === '1') {
             error_log('[musicbot-status-flow] '.json_encode(['stage' => 'admin.controller.payload.passed_to_twig', 'instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($runtimePayload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
         }
 
@@ -422,7 +427,7 @@ final class AdminMusicbotController
         ]);
         $this->entityManager->flush();
 
-        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/admin/musicbots/%d', $instance->getId())]);
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/admin/musicbots/%d', EntityIdentifier::require($instance->getId()))]);
     }
 
 
@@ -512,7 +517,7 @@ final class AdminMusicbotController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException($this->translator->trans('error_forbidden'));
         }
@@ -614,7 +619,7 @@ final class AdminMusicbotController
             'official_client_download_url' => $config->getOfficialClientDownloadUrl(),
             'official_client_install_path' => $config->getOfficialClientInstallPath(),
         ] as $key => $value) {
-            if (trim((string) $value) === '') {
+            if (trim($value) === '') {
                 $missing[] = $key;
             }
         }
@@ -631,7 +636,7 @@ final class AdminMusicbotController
             'sdk_client_download_url' => $config->getSdkClientDownloadUrl(),
             'sdk_client_install_path' => $config->getSdkClientInstallPath(),
         ] as $key => $value) {
-            if (trim((string) $value) === '') {
+            if (trim($value) === '') {
                 $missing[] = $key;
             }
         }
@@ -741,7 +746,13 @@ final class AdminMusicbotController
     }
 
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{profile: string, backend: string, backend_type: string, backend_path: string,
+     * identity_path: string, library_path: string, opus_library_path: string, binary_path: string,
+     * command_prefix: string, commands_enabled: bool, events_enabled: bool, allowed_server_groups:
+     * list<string>, dj_server_groups: list<string>, admin_server_groups: list<string>, host: string, port:
+     * int, nickname: string, channel_id: string}
+     */
     private function parseTeamspeakConfig(Request $request, array &$errors): array
     {
         $profile = MusicbotTeamspeakProfile::tryFrom((string) $request->request->get('teamspeak_profile', MusicbotTeamspeakProfile::Ts3->value));
@@ -785,7 +796,7 @@ final class AdminMusicbotController
         return in_array($backendType, ['placeholder', 'client_library', 'native_sdk', 'external_client_bridge', 'disabled'], true) ? $backendType : 'placeholder';
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{server_password: string, channel_password: string} */
     private function parseTeamspeakSecretConfig(Request $request): array
     {
         return [
@@ -819,7 +830,10 @@ final class AdminMusicbotController
     }
 
 
-    /** @param MusicbotInstance[] $instances @return array<int, array<string, mixed>> */
+    /**
+     * @param MusicbotInstance[] $instances
+     * @return array<int, array<string, mixed>>
+     */
     private function buildIndexRows(array $instances): array
     {
         return array_map(function (MusicbotInstance $instance): array {
@@ -832,7 +846,10 @@ final class AdminMusicbotController
         }, $instances);
     }
 
-    /** @param MusicbotConnection[] $connections @return array<int, array<string, mixed>> */
+    /**
+     * @param MusicbotConnection[] $connections
+     * @return array<int, array<string, mixed>>
+     */
     private function buildConnectionRows(array $connections): array
     {
         return array_map(function (MusicbotConnection $connection): array {
@@ -849,7 +866,10 @@ final class AdminMusicbotController
         }, $connections);
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{length: int, currentTrack: \App\Module\Musicbot\Domain\Entity\MusicbotTrack|null,
+     * items: array<array-key, \App\Module\Musicbot\Domain\Entity\MusicbotQueueItem>}
+     */
     private function buildQueueSummary(MusicbotInstance $instance): array
     {
         $queue = $this->queueItemRepository->findQueueForInstanceOrdered($instance);
@@ -915,10 +935,13 @@ final class AdminMusicbotController
 
     private function flash(Request $request, string $type, string $message): void
     {
-        if ($request->hasSession()) { $request->getSession()->getFlashBag()->add($type, $message); }
+        if ($request->hasSession()) { FlashMessages::add($request, $type, $message); }
     }
 
-    /** @param MusicbotInstance[] $instances @return array<string, int> */
+    /**
+     * @param MusicbotInstance[] $instances
+     * @return array<string, int>
+     */
     private function buildSummary(array $instances): array
     {
         $summary = ['total' => count($instances), 'running' => 0, 'stopped' => 0, 'error' => 0, 'provisioning' => 0, 'nodes' => 0];
@@ -939,7 +962,10 @@ final class AdminMusicbotController
     }
 
 
-    /** @param array<string, mixed>|null $override @return array<string, mixed> */
+    /**
+     * @param array<string, mixed>|null $override
+     * @return array<string, mixed>
+     */
     private function buildFormContext(?array $override = null): array
     {
         $data = [
@@ -979,6 +1005,10 @@ final class AdminMusicbotController
         return $override !== null ? array_merge($data, $override) : $data;
     }
 
+    /**
+     * The generated service name is also one directory component under the fixed musicbot root.
+     * @psalm-taint-escape file
+     */
     private function buildServiceName(string $name): string
     {
         $slug = strtolower((string) preg_replace('/[^a-zA-Z0-9]+/', '-', $name));

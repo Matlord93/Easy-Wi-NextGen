@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Infrastructure\Redis;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 
 final class RedisConsoleEventBus implements ConsoleEventBusInterface
@@ -43,7 +45,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
             if (!is_string($raw)) {
                 continue;
             }
-            $payload = json_decode($raw, true);
+            $payload = JsonArray::decode($raw);
             if (!is_array($payload)) {
                 continue;
             }
@@ -120,6 +122,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
         return max($tracked, $pubSub);
     }
 
+    /** @return list<int> */
     #[\Override]
     public function getInstancesWithSubscribers(): array
     {

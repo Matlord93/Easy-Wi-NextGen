@@ -117,13 +117,20 @@ final class VoiceQueryEngine
         throw new VoiceQueryException('Query engine exhausted unexpectedly.');
     }
 
+
+
+
+
+
+
+
+
     private function applyRateLimit(string $serverId): void
     {
         $last = $this->lastExecutionMs[$serverId] ?? null;
         if ($last === null) {
             return;
         }
-
         $elapsed = $this->nowMs() - $last;
         if ($elapsed < $this->minIntervalMs) {
             $this->sleepMs($this->minIntervalMs - $elapsed);
@@ -135,7 +142,6 @@ final class VoiceQueryEngine
         if ($this->clockMs instanceof \Closure) {
             return (int) ($this->clockMs)();
         }
-
         return (int) floor(microtime(true) * 1000);
     }
 
@@ -145,7 +151,6 @@ final class VoiceQueryEngine
             ($this->sleep)($durationMs);
             return;
         }
-
         usleep($durationMs * 1000);
     }
 
@@ -154,18 +159,16 @@ final class VoiceQueryEngine
         if ($error instanceof VoiceQueryException) {
             return true;
         }
-
         if (!$error instanceof \RuntimeException) {
             return false;
         }
-
         $message = strtolower($error->getMessage());
         foreach (['timeout', 'timed out', 'temporar', 'rate-limit', 'rate limit', 'locked', 'unavailable', 'connection reset'] as $marker) {
             if (str_contains($message, $marker)) {
                 return true;
             }
         }
-
         return false;
     }
+
 }

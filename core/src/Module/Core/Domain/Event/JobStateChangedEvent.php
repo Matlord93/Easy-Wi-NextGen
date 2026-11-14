@@ -23,6 +23,10 @@ final class JobStateChangedEvent implements DomainEvent
         return 'job.state_changed';
     }
 
+    /**
+     * @return array{job_id: string, job_type: string, previous_status: string, current_status: string,
+     * occurred_at: string}
+     */
     #[\Override]
     public function getPayload(): array
     {

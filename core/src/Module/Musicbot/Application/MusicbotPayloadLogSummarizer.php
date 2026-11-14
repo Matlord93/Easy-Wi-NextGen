@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 /**
  * Builds small, safe log contexts for large Musicbot runtime/job payloads.
  *
@@ -12,7 +13,10 @@ namespace App\Module\Musicbot\Application;
  */
 final class MusicbotPayloadLogSummarizer
 {
-    /** @param array<string, mixed>|null $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed>|null $payload
+     * @return array<string, mixed>
+     */
     public static function summarizeJobPayload(?array $payload): array
     {
         $payload ??= [];
@@ -29,7 +33,12 @@ final class MusicbotPayloadLogSummarizer
         return $summary;
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{teamspeak_connected: bool|null|string, runtime_ready: bool|null|string,
+     * audio_backend_ready: bool|null|string, audio_backend_status: null|string, output_backend:
+     * null|string, queue_count: int|null, playback_state: null|string, updated_at: null|string}
+     */
     public static function summarizeRuntimePayload(array $payload): array
     {
         $runtime = self::runtimePayload($payload);
@@ -58,7 +67,12 @@ final class MusicbotPayloadLogSummarizer
         ];
     }
 
-    /** @param array<string, mixed> $status @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $status
+     * @return array{teamspeak_connected: bool|null|string, audio_backend_ready: bool|null|string,
+     * audio_backend_status: null|string, audio_backend_message: null|string, output_backend: null|string,
+     * queue_count: int|null, playback_state: null|string, updated_at: null|string}
+     */
     public static function summarizePlaybackStatus(array $status): array
     {
         return [
@@ -94,16 +108,22 @@ final class MusicbotPayloadLogSummarizer
         return 'complete_runtime';
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     private static function runtimePayload(array $payload): array
     {
         return is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     private static function arrayAt(array $payload, string $key): array
     {
-        return is_array($payload[$key] ?? null) ? $payload[$key] : [];
+        return JsonArray::orEmpty($payload[$key] ?? null);
     }
 
     private static function nullableBoolValue(mixed $value): bool|string|null
@@ -130,7 +150,11 @@ final class MusicbotPayloadLogSummarizer
         return mb_substr($text, 0, 160);
     }
 
-    /** @param array<string, mixed> $runtime @param array<string, mixed> $playback @param array<string, mixed> $queue */
+    /**
+     * @param array<string, mixed> $runtime
+     * @param array<string, mixed> $playback
+     * @param array<string, mixed> $queue
+     */
     private static function queueCount(array $runtime, array $playback, array $queue): ?int
     {
         foreach ([$runtime['queue_count'] ?? null, $runtime['queue_length'] ?? null, $playback['queue_count'] ?? null, $playback['queue_length'] ?? null] as $value) {

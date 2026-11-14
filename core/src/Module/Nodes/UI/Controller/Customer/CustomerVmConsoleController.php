@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\Console\VmConsoleBroker;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -67,7 +69,7 @@ final class CustomerVmConsoleController extends AbstractController
 
     private function actor(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isCustomer()) {
             throw new AccessDeniedHttpException();
         }

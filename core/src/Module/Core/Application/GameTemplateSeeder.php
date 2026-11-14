@@ -19,7 +19,8 @@ final class GameTemplateSeeder
     }
 
     /**
-     * @return array{templates: int, templates_updated: int, plugins: int, plugins_updated: int, skipped_missing_template: int, missing_game_keys: array<int, string>}
+     * @return array{templates: int, templates_updated: int, plugins: int, plugins_updated: int,
+     * skipped_missing_template: int, missing_game_keys: array<int, string>}
      */
     public function seed(?EntityManagerInterface $entityManager = null, bool $updateExisting = false): array
     {
@@ -247,7 +248,9 @@ final class GameTemplateSeeder
      * @param array<int, array<string, mixed>> $envVars
      * @param array<int, array<string, mixed>> $requirementVars
      * @param array<int, array<string, mixed>> $requirementSecrets
-     * @return array<string, mixed>
+     * @return array{required_vars: array<int, string>, required_secrets: array<int, string>,
+     * steam_install_mode: string, customer_allowed_vars: array<int, string>, customer_allowed_secrets:
+     * array<int, string>, query?: array<string, string>}
      */
     private function buildRequirements(
         string $gameKey,

@@ -7,7 +7,8 @@ namespace App\Module\AgentOrchestrator\Application;
 final class AgentJobValidator
 {
     /**
-     * @return string[]
+     * @param array<array-key, mixed> $payload
+     * @return list<string>
      */
     public function validate(string $type, array $payload): array
     {
@@ -86,9 +87,9 @@ final class AgentJobValidator
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @param string[] $keys
-     * @return string[]
+     * @param array<array-key, mixed> $payload
+     * @param list<string> $keys
+     * @return list<string>
      */
     private function requireKeys(array $payload, array $keys): array
     {

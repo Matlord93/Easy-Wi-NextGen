@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\MusicbotCustomerLimitsRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotCustomerLimitsRepository::class)]
 #[ORM\Table(name: 'musicbot_customer_limits')]
 #[ORM\UniqueConstraint(name: 'uniq_musicbot_customer_limits_customer', columns: ['customer_id'])]

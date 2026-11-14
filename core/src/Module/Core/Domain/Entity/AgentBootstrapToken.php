@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\AgentBootstrapTokenRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: AgentBootstrapTokenRepository::class)]
 #[ORM\Table(name: 'agent_bootstrap_tokens')]
 #[ORM\Index(name: 'idx_agent_bootstrap_tokens_token_hash', columns: ['token_hash'])]
@@ -30,6 +35,7 @@ class AgentBootstrapToken
     #[ORM\Column(name: 'token_hash', length: 64)]
     private string $tokenHash;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string} */
     #[ORM\Column(type: 'json')]
     private array $encryptedToken;
 

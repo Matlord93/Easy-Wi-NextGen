@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\MailPolicy;
 use App\Module\Core\Domain\Entity\User;
@@ -50,7 +52,7 @@ final class AdminMailPolicyController
     #[Route(path: '/domains/{id}', methods: ['PUT'])]
     public function upsertPolicy(Request $request, int $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden'], JsonResponse::HTTP_FORBIDDEN);
         }
@@ -73,14 +75,14 @@ final class AdminMailPolicyController
         }
 
         $policy->apply(
-            $dto->requireTls,
-            $policy->isSmtpEnabled(),
-            $dto->maxRecipients,
-            $dto->maxHourlyEmails,
-            $policy->isAbusePolicyEnabled(),
-            $dto->allowExternalForwarding,
-            $dto->spamProtectionLevel,
-            $dto->greylistingEnabled,
+            requireTls: $dto->requireTls,
+            smtpEnabled: $policy->isSmtpEnabled(),
+            maxRecipients: $dto->maxRecipients,
+            maxHourlyEmails: $dto->maxHourlyEmails,
+            abusePolicyEnabled: $policy->isAbusePolicyEnabled(),
+            allowExternalForwarding: $dto->allowExternalForwarding,
+            spamProtectionLevel: $dto->spamProtectionLevel,
+            greylistingEnabled: $dto->greylistingEnabled,
         );
 
         $this->auditLogger->log($actor, 'mail.policy_updated', [
@@ -96,7 +98,7 @@ final class AdminMailPolicyController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

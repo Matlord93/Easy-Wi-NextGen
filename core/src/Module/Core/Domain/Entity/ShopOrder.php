@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Enum\ShopOrderType;
 use App\Repository\ShopOrderRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ShopOrderRepository::class)]
 #[ORM\Table(name: 'shop_orders')]
 class ShopOrder

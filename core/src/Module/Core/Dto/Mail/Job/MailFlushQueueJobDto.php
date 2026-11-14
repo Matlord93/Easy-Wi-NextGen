@@ -12,7 +12,7 @@ final readonly class MailFlushQueueJobDto
     ) {
     }
 
-    /** @return array<string,mixed> */
+    /** @return array{node_id: string, reason: null|string} */
     public function toPayload(): array
     {
         return [

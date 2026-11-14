@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\InvoiceArchiveRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: InvoiceArchiveRepository::class)]
 #[ORM\Table(name: 'invoice_archives')]
 #[ORM\Index(name: 'idx_invoice_archives_year', columns: ['archived_year'])]

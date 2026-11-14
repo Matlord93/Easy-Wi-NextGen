@@ -35,13 +35,9 @@ class InstanceSftpCredentialRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<InstanceSftpCredential> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('credential')
+        return EntityQueryResult::all($this->createQueryBuilder('credential')
             ->where('credential.instance IN (:instances)')
             ->setParameter('instances', $instances)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\InstanceSftpCredential::class);
     }
 }

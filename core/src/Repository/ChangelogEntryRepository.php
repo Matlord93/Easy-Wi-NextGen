@@ -33,16 +33,12 @@ final class ChangelogEntryRepository extends ServiceEntityRepository
             $queryBuilder->setMaxResults($limit);
         }
 
-        /** @var list<ChangelogEntry> $hydratedEntities */
-        $hydratedEntities = $queryBuilder->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($queryBuilder->getQuery(), \App\Module\Core\Domain\Entity\ChangelogEntry::class);
     }
 
     public function findPanelUpdateEntry(int $siteId, string $version): ?ChangelogEntry
     {
-        /** @var ChangelogEntry|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('entry')
+        return EntityQueryResult::one($this->createQueryBuilder('entry')
             ->andWhere('entry.siteId = :siteId')
             ->andWhere('entry.version = :version')
             ->andWhere('entry.title = :title')
@@ -50,10 +46,7 @@ final class ChangelogEntryRepository extends ServiceEntityRepository
             ->setParameter('version', $version)
             ->setParameter('title', self::panelUpdateTitle($version))
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\Core\Domain\Entity\ChangelogEntry::class);
     }
 
     public static function panelUpdateTitle(string $version): string

@@ -24,7 +24,7 @@ final class AdminConsoleDiagnosticsController extends AbstractController
     {
         $data = $this->diagnostics->snapshot();
 
-        if (str_contains(strtolower((string) $request->headers->get('Accept', '')), 'application/json')) {
+        if (str_contains(strtolower($request->headers->get('Accept', '')), 'application/json')) {
             return new JsonResponse($data);
         }
 

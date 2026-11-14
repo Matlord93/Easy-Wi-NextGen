@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\MusicbotQueueItemRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotQueueItemRepository::class)]
 #[ORM\Table(name: 'musicbot_queue_items')]
 #[ORM\Index(name: 'idx_musicbot_queue_instance_position', columns: ['instance_id', 'position'])]

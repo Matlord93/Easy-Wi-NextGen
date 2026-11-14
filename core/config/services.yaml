@@ -93,6 +93,8 @@ parameters:
   app.mail_password_hash_algorithm: '%env(default:app.mail_password_hash_algorithm_default:APP_MAIL_PASSWORD_HASH_ALGORITHM)%'
 
 services:
+  App\Module\Unifi\Application\UnifiSettingsProviderInterface: '@App\Module\Unifi\Infrastructure\Repository\UnifiSettingsRepository'
+  App\Module\Unifi\Application\UnifiSynchronizerInterface: '@App\Module\Unifi\Application\UnifiPortSyncService'
   App\Module\Core\Application\Billing\DunningNotificationSenderInterface: '@App\Module\Core\Application\Billing\DunningNotificationSender'
   _defaults:
     autowire: true
@@ -132,11 +134,6 @@ services:
   App\Module\Core\Application\EncryptionService:
     factory: ['@App\Infrastructure\Security\EncryptionServiceFactory', 'create']
 
-  App\Infrastructure\Database\DynamicConnectionFactory:
-    decorates: doctrine.dbal.connection_factory
-    arguments:
-      $inner: '@App\Infrastructure\Database\DynamicConnectionFactory.inner'
-      $configProvider: '@App\Infrastructure\Config\DbConfigProvider'
 
   Symfony\Component\Mailer\MailerInterface: '@App\Module\Core\Application\NullMailer'
 
@@ -165,6 +162,8 @@ services:
     arguments:
       $defaultServicePort: '%app.agent_service_port%'
       $defaultServiceScheme: 'http'
+
+  App\Module\Core\Application\DatabaseTableServiceInterface: '@App\Module\Core\Application\DatabaseTableService'
 
   App\Module\Core\Application\FileServiceClient:
     arguments:
@@ -236,7 +235,6 @@ services:
       $excludes: '%app.core_update_excludes%'
       $fallbackVersion: '%app.core_version%'
       $releaseRepository: '%app.core_release_repository%'
-      $releaseChannel: '%app.core_release_channel%'
       $kernelEnvironment: '%kernel.environment%'
       $kernelDebug: '%kernel.debug%'
       $phpCliBinary: '%env(default:app.php_cli_binary_default:EASYWI_PHP_BIN)%'

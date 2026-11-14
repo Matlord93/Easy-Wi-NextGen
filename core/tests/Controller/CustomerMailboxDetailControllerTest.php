@@ -35,7 +35,9 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     public function testCustomerCanOpenMailboxDetail(): void
     {
         $customer = new User('c@example.com', UserType::Customer);
+        $customer->setId(1);
         $mailbox = $this->createStub(Mailbox::class);
+        $mailbox->method('getId')->willReturn(1);
         $mailbox->method('getCustomer')->willReturn($customer);
         $mailbox->method('getAddress')->willReturn('u@example.com');
         $mailbox->method('getDomain')->willReturn(new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com'));

@@ -25,12 +25,9 @@ class AgentRegistrationTokenRepository extends ServiceEntityRepository
             ->andWhere('token.usedAt IS NULL')
             ->andWhere('token.expiresAt > :now')
             ->setParameter('hash', $tokenHash)
-            ->setParameter('now', new \DateTimeImmutable())
+            ->setParameter('now', new \DateTimeImmutable(), \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->setMaxResults(1);
 
-        /** @var AgentRegistrationToken|null $hydratedEntity */
-        $hydratedEntity = $qb->getQuery()->getOneOrNullResult();
-
-        return $hydratedEntity;
+        return EntityQueryResult::one($qb->getQuery(), \App\Module\Core\Domain\Entity\AgentRegistrationToken::class);
     }
 }

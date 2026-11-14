@@ -53,6 +53,7 @@ final class VmProvisioningSettings
         return false;
     }
 
+    /** @return list<array-key> */
     public static function bootDevices(array $config): array
     {
         $devices = [];

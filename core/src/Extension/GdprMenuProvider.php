@@ -11,6 +11,7 @@ namespace App\Extension;
  */
 final class GdprMenuProvider implements ExtensionMenuProviderInterface
 {
+    /** @return list<\App\Extension\MenuItem> */
     #[\Override]
     public function adminMenuItems(): array
     {
@@ -32,6 +33,7 @@ final class GdprMenuProvider implements ExtensionMenuProviderInterface
         ];
     }
 
+    /** @return list<\App\Extension\MenuItem> */
     #[\Override]
     public function customerMenuItems(): array
     {

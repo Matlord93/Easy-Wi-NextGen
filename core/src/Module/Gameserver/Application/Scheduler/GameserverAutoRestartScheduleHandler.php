@@ -27,6 +27,7 @@ final class GameserverAutoRestartScheduleHandler implements ScheduleHandlerInter
         return 'gameserver.auto_restart';
     }
 
+    /** @return list<\App\Module\Core\Application\Scheduler\InternalSchedule> */
     #[\Override]
     public function schedules(): array
     {

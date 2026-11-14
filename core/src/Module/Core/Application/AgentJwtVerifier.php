@@ -19,7 +19,7 @@ final class AgentJwtVerifier
 
     public function verify(Request $request, string $agentId, string $secret): void
     {
-        $authorization = trim((string) $request->headers->get('Authorization', ''));
+        $authorization = trim($request->headers->get('Authorization', ''));
         if (!str_starts_with($authorization, 'Bearer ')) {
             throw new UnauthorizedHttpException('bearer', 'missing_bearer_token');
         }
@@ -92,7 +92,7 @@ final class AgentJwtVerifier
             throw new UnauthorizedHttpException('bearer', 'token_issued_in_future');
         }
 
-        $nonce = trim((string) $request->headers->get('X-Nonce', ''));
+        $nonce = trim($request->headers->get('X-Nonce', ''));
         if ($nonce !== '' && $jti !== '' && !hash_equals($nonce, $jti)) {
             throw new UnauthorizedHttpException('bearer', 'token_nonce_mismatch');
         }

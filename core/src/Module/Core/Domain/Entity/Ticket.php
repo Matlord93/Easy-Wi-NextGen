@@ -12,6 +12,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\TicketRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: TicketRepository::class)]
 #[ORM\Table(name: 'tickets')]
 class Ticket implements ResourceEventSource

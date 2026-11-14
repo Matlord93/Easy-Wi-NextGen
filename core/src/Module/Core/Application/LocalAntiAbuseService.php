@@ -21,6 +21,7 @@ final class LocalAntiAbuseService
     ) {
     }
 
+    /** @return array{nonce:string,issued_at:int} */
     public function registerFormSession(SessionInterface $session, string $formKey): array
     {
         $current = $session->get($this->sessionKey($formKey));
@@ -91,7 +92,7 @@ final class LocalAntiAbuseService
     {
         $log = new AbuseLog($type);
         $log->setIpHash($this->hashIp($request));
-        $ua = (string) $request->headers->get('User-Agent', '');
+        $ua = $request->headers->get('User-Agent', '');
         $log->setUaHash($ua !== '' ? hash('sha256', $ua) : null);
         $log->setEmailHash($email !== null ? hash('sha256', strtolower(trim($email))) : null);
 

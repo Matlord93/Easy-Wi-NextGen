@@ -7,6 +7,11 @@ namespace App\Module\HostingPanel\Domain\Entity;
 use App\Module\HostingPanel\Domain\Enum\JobStatus;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'hp_job_run')]
 class JobRun

@@ -17,34 +17,31 @@ final class ElectronicInvoiceBuilder
         if (!in_array($format, ['xrechnung', 'zugferd'], true)) {
             throw new \InvalidArgumentException('billing.einvoice_invalid_format');
         }
-        $data = $invoice->getBillingDetails();
-        if ([] !== ElectronicInvoiceData::issues($data, $format)) {
-            throw new \InvalidArgumentException('billing.einvoice_incomplete');
-        }
+        $data = ElectronicInvoiceData::snapshot($invoice->getBillingDetails(), $format);
         $seller = $data['company'];
         $buyer = $data['customer'];
         ZugferdSettings::setQuantityDecimals(3);
         $document = ZugferdDocumentBuilder::createNew('xrechnung' === $format ? ZugferdProfiles::PROFILE_XRECHNUNG_3 : ZugferdProfiles::PROFILE_EN16931);
         $document->setDocumentInformation($data['document']['number'], '380', new \DateTimeImmutable($data['document']['issue_date']), $data['document']['currency'])
             ->setDocumentBusinessProcess('urn:fdc:peppol.eu:2017:poacc:billing:01:1.0')
-            ->setDocumentBuyerReference(($data['electronic_invoice']['buyer_reference'] ?? '') ?: null)
+            ->setDocumentBuyerReference(self::optional($data['electronic_invoice']['buyer_reference']))
             ->setDocumentSeller($seller['name'])
             ->setDocumentSellerAddress($seller['street'], null, null, $seller['postal'], $seller['city'], $seller['country'])
-            ->setDocumentSellerContact(($seller['contact'] ?? '') ?: null, null, ($seller['phone'] ?? '') ?: null, null, $seller['email'])
+            ->setDocumentSellerContact(self::optional($seller['contact']), null, self::optional($seller['phone']), null, $seller['email'])
             ->setDocumentSellerCommunication('EM', $seller['email'])
             ->setDocumentBuyer($buyer['name'])
             ->setDocumentBuyerAddress($buyer['address'], null, null, $buyer['postal'], $buyer['city'], $buyer['country'])
             ->setDocumentBuyerCommunication('EM', $buyer['email'])
             ->setDocumentSupplyChainEvent(new \DateTimeImmutable($data['electronic_invoice']['service_date']))
-            ->addDocumentPaymentMeanToCreditTransfer($seller['iban'], $seller['name'], null, ($seller['bic'] ?? '') ?: null, $data['document']['number'])
+            ->addDocumentPaymentMeanToCreditTransfer($seller['iban'], $seller['name'], null, self::optional($seller['bic']), $data['document']['number'])
             ->addDocumentPaymentTerm(null, new \DateTimeImmutable($data['document']['due_date']));
-        if (!empty($seller['vat_id'])) {
+        if ($seller['vat_id'] !== '') {
             $document->addDocumentSellerVATRegistrationNumber($seller['vat_id']);
         }
-        if (!empty($seller['tax_number'])) {
+        if ($seller['tax_number'] !== '') {
             $document->addDocumentSellerTaxNumber($seller['tax_number']);
         }
-        if (!empty($buyer['vat_id'])) {
+        if ($buyer['vat_id'] !== '') {
             $document->addDocumentBuyerVATRegistrationNumber($buyer['vat_id']);
         }
         $mode = $data['tax_mode'];
@@ -85,5 +82,10 @@ final class ElectronicInvoiceBuilder
             'small_business', 'exempt' => 'E',
             default => 0 === $rate ? 'Z' : 'S',
         };
+    }
+
+    private static function optional(string $value): ?string
+    {
+        return $value === '' ? null : $value;
     }
 }

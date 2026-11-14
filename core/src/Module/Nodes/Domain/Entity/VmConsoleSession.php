@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
+/** @psalm-api Hydrated and persisted through Doctrine metadata. */
 #[ORM\Entity, ORM\Table(name: 'vm_console_sessions')]
 #[ORM\UniqueConstraint(name: 'uniq_vm_console_ticket', columns: ['ticket_hash'])]
 #[ORM\Index(name: 'idx_vm_console_expiry', columns: ['expires_at'])]

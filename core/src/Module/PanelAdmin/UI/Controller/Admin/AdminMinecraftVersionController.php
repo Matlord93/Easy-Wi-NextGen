@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
@@ -31,8 +33,8 @@ final readonly class AdminMinecraftVersionController
             return new Response('Forbidden', 403);
         }
         $this->catalog->getUiCatalog();
-        $channel = (string) $request->query->get('channel', '');
-        $search = trim((string) $request->query->get('q', ''));
+        $channel = $request->query->getString('channel', '');
+        $search = trim($request->query->getString('q', ''));
         $page = max(1, $request->query->getInt('page', 1));
         $qb = $this->repository->createQueryBuilder('v')->where('v.isActive = true');
         if (in_array($channel, MinecraftVersionCatalog::CHANNELS, true)) {
@@ -83,7 +85,7 @@ final readonly class AdminMinecraftVersionController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

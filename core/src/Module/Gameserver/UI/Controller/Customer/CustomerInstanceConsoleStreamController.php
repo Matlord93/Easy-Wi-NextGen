@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
-use App\Infrastructure\Http\TypedStreamResponse;
-use App\Module\Gameserver\Application\ConsoleSseEncoder;
+use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -13,6 +12,8 @@ use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Repository\InstanceRepository;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\EventStreamResponse;
+use Symfony\Component\HttpFoundation\ServerEvent;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -58,11 +59,11 @@ final class CustomerInstanceConsoleStreamController
             (int) $request->query->get('last_event_id', '0'),
         );
 
-        $response = new TypedStreamResponse('text/event-stream', function (\Closure $write) use ($id, $lastEventId): void {
+        $response = new EventStreamResponse(function (EventStreamResponse $response) use ($id, $lastEventId): void {
             try {
                 $degraded = $this->resolveDegradedCause();
                 if ($degraded !== null) {
-                    $this->writeEvent($write, [
+                    $this->writeEvent($response, [
                         'type' => 'status',
                         'status' => $degraded['status'],
                         'message' => $degraded['message'],
@@ -76,7 +77,7 @@ final class CustomerInstanceConsoleStreamController
                 $this->eventBus->incrementSubscriber($id);
 
                 foreach ($this->eventBus->replayConsoleEvents($id, $lastEventId) as $event) {
-                    $this->writeEvent($write, $event);
+                    $this->writeEvent($response, $event);
                 }
 
                 while ((time() - $startedAt) < $this->maxDurationSeconds) {
@@ -90,14 +91,14 @@ final class CustomerInstanceConsoleStreamController
                     }
                     $this->eventBus->consumeConsoleEvents(
                         $id,
-                        function (array $event) use ($write): void {
-                            $this->writeEvent($write, $event);
+                        function (array $event) use ($response): void {
+                            $this->writeEvent($response, $event);
                         },
                         fn (): bool => (time() - $startedAt) >= $this->maxDurationSeconds,
                     );
 
                     if ((time() - $lastPing) >= $this->pingIntervalSeconds) {
-                        $this->writeEvent($write, ['type' => 'ping', 'ts' => (new \DateTimeImmutable())->format(DATE_ATOM)], 'ping', null);
+                        $this->writeEvent($response, ['type' => 'ping', 'ts' => (new \DateTimeImmutable())->format(DATE_ATOM)], 'ping', null);
                         $lastPing = time();
                     }
                     usleep(200000);
@@ -108,7 +109,7 @@ final class CustomerInstanceConsoleStreamController
                 if ($this->debug) {
                     $message .= ' : ' . $e->getMessage() . sprintf(' (%s:%d)', $e->getFile(), $e->getLine());
                 }
-                $this->writeEvent($write, [
+                $this->writeEvent($response, [
                     'type' => 'status',
                     'status' => 'stream_unavailable',
                     'message' => $message,
@@ -124,10 +125,10 @@ final class CustomerInstanceConsoleStreamController
         });
 
         $response->headers->set('Content-Type', 'text/event-stream');
-        $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Cache-Control', 'no-cache');
         $response->headers->set('Connection', 'keep-alive');
         $response->headers->set('X-Accel-Buffering', 'no');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
 
         return $response;
     }
@@ -167,7 +168,7 @@ final class CustomerInstanceConsoleStreamController
 
     private function requireUser(Request $request): User
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User) {
             throw new AccessDeniedHttpException($this->translator->trans('error_authentication_required'));
         }
@@ -175,12 +176,19 @@ final class CustomerInstanceConsoleStreamController
         return $user;
     }
 
-    private function writeEvent(\Closure $write, array $payload, string $event = 'chunk', ?int $id = null): void
+    /** @param array<string, mixed> $payload */
+    private function writeEvent(EventStreamResponse $response, array $payload, string $event = 'chunk', ?int $id = null): void
     {
-        $write(ConsoleSseEncoder::encode($payload, $event, $id));
-        if (function_exists('ob_flush')) {
-            @ob_flush();
-        }
-        flush();
+        $seq = $id ?? (int) ($payload['seq'] ?? 0);
+        $response->sendEvent(new ServerEvent(
+            data: json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR),
+            type: $event !== '' ? $event : self::eventType($payload['type'] ?? null),
+            id: $seq > 0 ? (string) $seq : null,
+        ));
+    }
+
+    private static function eventType(mixed $value): string
+    {
+        return is_string($value) && $value !== '' ? $value : 'chunk';
     }
 }

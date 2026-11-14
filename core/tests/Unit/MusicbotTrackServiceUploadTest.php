@@ -273,4 +273,27 @@ final class MusicbotTrackServiceUploadTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->buildService()->addYoutubeTrack($this->fakeCustomer(), 'file:///etc/passwd');
     }
+    public function testUploadedTitleCannotEscapeCustomerStorage(): void
+    {
+        $this->projectDir = sys_get_temp_dir().'/musicbot-safe-title-'.bin2hex(random_bytes(8));
+        mkdir($this->projectDir, 0700);
+        $source = $this->projectDir.'/upload.mp3';
+        file_put_contents($source, str_repeat('A', 1024));
+        try {
+            $track = $this->buildService()->uploadTrack(
+                $this->fakeCustomer(),
+                new UploadedFile($source, 'untrusted.mp3', 'audio/mpeg', null, true),
+                "../../outside\\..\\secrets\0php://filter",
+            );
+            $path = $track->getFilePath();
+            self::assertNotNull($path);
+            self::assertFileExists($path);
+            self::assertSame(realpath($this->projectDir.'/var/musicbot/tracks/customer-42'), realpath(dirname($path)));
+            self::assertMatchesRegularExpression('/^[a-f0-9]{16}-[a-z0-9._-]+\.mp3$/D', basename($path));
+            self::assertStringNotContainsString('..'.DIRECTORY_SEPARATOR, $path);
+        } finally {
+            (new \Symfony\Component\Filesystem\Filesystem())->remove($this->projectDir);
+        }
+    }
+
 }

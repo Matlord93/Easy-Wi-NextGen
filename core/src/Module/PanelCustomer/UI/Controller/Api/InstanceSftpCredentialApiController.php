@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
@@ -54,7 +58,7 @@ final class InstanceSftpCredentialApiController
 
             $instance = $this->findInstance($actor, $id);
             $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
-            $job = $this->findLatestJob($instance->getId());
+            $job = $this->findLatestJob(EntityIdentifier::require($instance->getId()));
             $jobSummary = $this->normalizeJobSummary($job);
 
             if ($credential === null) {
@@ -95,7 +99,7 @@ final class InstanceSftpCredentialApiController
                         is_string($response['message'] ?? null) ? (string) $response['message'] : 'Provision failed.',
                     );
                 } else {
-                    $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+                    $data = JsonArray::orEmpty($response['data'] ?? null);
                     $credential->setUsername(is_string($data['username'] ?? null) ? (string) $data['username'] : $username);
                     $credential->setBackend(is_string($data['backend'] ?? null) ? (string) $data['backend'] : 'NONE');
                     $credential->setHost(is_string($data['host'] ?? null) ? (string) $data['host'] : null);
@@ -171,7 +175,7 @@ final class InstanceSftpCredentialApiController
                 return $this->errorResponse($request, JsonResponse::HTTP_FORBIDDEN, 'sftp_forbidden', 'Not authorized to reset SFTP credentials.');
             }
             $instance = $this->findInstance($actor, $id);
-            $job = $this->findLatestJob($instance->getId());
+            $job = $this->findLatestJob(EntityIdentifier::require($instance->getId()));
 
             if ($this->isProvisioningPending($job)) {
                 return new JsonResponse([
@@ -300,7 +304,7 @@ final class InstanceSftpCredentialApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -328,7 +332,7 @@ final class InstanceSftpCredentialApiController
 
     private function buildUsername(Instance $instance): string
     {
-        return sprintf('sftp%d', $instance->getId());
+        return sprintf('sftp%d', EntityIdentifier::require($instance->getId()));
     }
 
     private function resolveInstanceRootPath(Instance $instance): string
@@ -336,7 +340,7 @@ final class InstanceSftpCredentialApiController
         $installPath = trim((string) $instance->getInstallPath());
         if ($installPath !== '' && str_starts_with($installPath, '/')) {
             if (preg_match('#^/gs[0-9a-z]+$#i', $installPath) === 1) {
-                $baseDir = rtrim((string) $this->settingsService->getInstanceBaseDir(), '/');
+                $baseDir = rtrim($this->settingsService->getInstanceBaseDir(), '/');
                 if ($baseDir !== '') {
                     return $baseDir . '/' . ltrim($installPath, '/');
                 }
@@ -345,7 +349,7 @@ final class InstanceSftpCredentialApiController
             return $installPath;
         }
 
-        $baseDir = rtrim((string) $this->settingsService->getInstanceBaseDir(), '/');
+        $baseDir = rtrim($this->settingsService->getInstanceBaseDir(), '/');
         $instanceId = (string) ($instance->getId() ?? 'instance');
 
         return ($baseDir !== '' ? $baseDir : '/srv') . '/gs' . preg_replace('/[^a-z0-9]/i', '', $instanceId);
@@ -354,12 +358,12 @@ final class InstanceSftpCredentialApiController
 
     private function resolveInstanceBaseDir(Instance $instance): string
     {
-        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        $baseDir = trim(($instance->getInstanceBaseDir() ?? ''));
         if ($baseDir !== '') {
             return rtrim($baseDir, '/\\');
         }
 
-        return rtrim((string) $this->settingsService->getInstanceBaseDir(), '/\\') ?: '/srv';
+        return rtrim($this->settingsService->getInstanceBaseDir(), '/\\') ?: '/srv';
     }
 
     private function resolveAgentOsType(Instance $instance): string
@@ -376,6 +380,13 @@ final class InstanceSftpCredentialApiController
         return $metaOs !== '' ? $metaOs : 'linux';
     }
 
+    /**
+     * @return array{instance_id: int|null, username: string, backend: string, host: null|string, port: int,
+     * root_path: string, password_revealed: bool, password_masked: string, rotated_at: null|string,
+     * expires_at: null|string, updated_at: string, last_error_code: null|string, status: string,
+     * provisioned: bool, protocol: string, ftp_supported: bool, ftp_message: string, last_error_message:
+     * null|string}
+     */
     private function normalizeCredential(InstanceSftpCredential $credential): array
     {
         $instance = $credential->getInstance();
@@ -462,7 +473,7 @@ final class InstanceSftpCredentialApiController
             return;
         }
 
-        $data = is_array($health['data'] ?? null) ? $health['data'] : [];
+        $data = JsonArray::orEmpty($health['data'] ?? null);
         $credential->setUsername(is_string($data['username'] ?? null) ? (string) $data['username'] : $credential->getUsername());
         $credential->setBackend(is_string($data['backend'] ?? null) ? (string) $data['backend'] : 'NONE');
         $credential->setHost(is_string($data['host'] ?? null) ? (string) $data['host'] : $credential->getHost());
@@ -481,8 +492,8 @@ final class InstanceSftpCredentialApiController
             return strtoupper(PHP_OS_FAMILY) === 'WINDOWS' ? 'WINDOWS_OPENSSH_SFTP' : 'PROFTPD_SFTP';
         }
 
-        $data = is_array($capabilities['data'] ?? null) ? $capabilities['data'] : [];
-        $supported = is_array($data['supported_backends'] ?? null) ? $data['supported_backends'] : [];
+        $data = JsonArray::orEmpty($capabilities['data'] ?? null);
+        $supported = JsonArray::orEmpty($data['supported_backends'] ?? null);
         foreach ($supported as $backend) {
             if (!is_string($backend)) {
                 continue;
@@ -534,6 +545,7 @@ final class InstanceSftpCredentialApiController
         ];
     }
 
+    /** @return array{id: string, status: string, last_seen_ip: null|string, last_seen_at: null|string} */
     private function normalizeAgentState(Instance $instance): array
     {
         $agent = $instance->getNode();

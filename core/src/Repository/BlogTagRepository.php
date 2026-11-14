@@ -24,7 +24,6 @@ final class BlogTagRepository extends ServiceEntityRepository
      */
     public function findBySite(Site $site): array
     {
-        /** @var list<BlogTag> $rows */
         $rows = $this->findBy(['site' => $site], ['name' => 'ASC']);
 
         return $rows;
@@ -32,7 +31,6 @@ final class BlogTagRepository extends ServiceEntityRepository
 
     public function findOneBySiteAndSlug(Site $site, string $slug): ?BlogTag
     {
-        /** @var BlogTag|null $row */
         $row = $this->findOneBy(['site' => $site, 'slug' => $slug]);
 
         return $row;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
@@ -24,7 +26,7 @@ final readonly class NodeSftpHostKeyController
     #[Route('/admin/nodes/{id}/sftp-host-key', name: 'admin_nodes_sftp_host_key', methods: ['POST'])]
     public function update(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin() || !$this->csrf->isTokenValid(new CsrfToken('node-sftp-host-key-'.$id, (string) $request->request->get('_token', '')))) {
             return new Response('Forbidden', 403);
         }

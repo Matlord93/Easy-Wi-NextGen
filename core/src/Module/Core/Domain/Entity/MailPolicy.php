@@ -8,6 +8,11 @@ use App\Repository\MailPolicyRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailPolicyRepository::class)]
 #[ORM\Table(name: 'mail_policies')]
 #[ORM\UniqueConstraint(name: 'uniq_mail_policy_domain', columns: ['domain_id'])]
@@ -141,6 +146,11 @@ class MailPolicy
         $this->updatedAt = new \DateTimeImmutable();
     }
 
+    /**
+     * @return array{require_tls: bool, smtp_enabled: bool, max_recipients: int, max_hourly_emails: int,
+     * abuse_policy_enabled: bool, allow_external_forwarding: bool, spam_protection_level: string,
+     * greylisting_enabled: bool, domain_id: int|null, domain: string}
+     */
     public function toArray(): array
     {
         return [

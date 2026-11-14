@@ -80,13 +80,8 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $instance = new Instance($customer, $template, $agent, 1, 1, 1, null, InstanceStatus::Stopped, InstanceUpdatePolicy::Manual);
         $this->setEntityId($instance, 42);
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
-        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [42];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(42)->willReturn($instance);
 
         $credentialRepository = $this->createStub(InstanceSftpCredentialRepository::class);
         $credentialRepository->method('findOneByInstance')->willReturn(null);
@@ -193,21 +188,11 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $credential->setHost('sftp.example.test');
         $credential->setPort(2222);
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
-        $instanceRepository->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [123];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(123)->willReturn($instance);
 
-            return $instance;
-        });
-
-        $credentialRepository = $this->createStub(InstanceSftpCredentialRepository::class);
-        $credentialRepository->method('findOneByInstance')->willReturnCallback(function (mixed ...$stubArguments) use ($credential, $instance): mixed {
-            $expectedArguments = [$instance];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $credential;
-        });
+        $credentialRepository = $this->createMock(InstanceSftpCredentialRepository::class);
+        $credentialRepository->method('findOneByInstance')->with($instance)->willReturn($credential);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects($this->once())->method('persist')->with($credential);
@@ -254,6 +239,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             return;
         }
         $property = $reflection->getProperty('id');
+        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

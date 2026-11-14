@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\ConsentLog;
 use App\Module\Core\Domain\Entity\User;
@@ -67,12 +69,12 @@ final class CustomerConsentLogController
             return new Response('Invalid consent payload.', Response::HTTP_BAD_REQUEST);
         }
 
-        $ip = (string) ($request->getClientIp() ?? '');
+        $ip = ($request->getClientIp() ?? '');
         if ($ip === '') {
             $ip = 'unknown';
         }
 
-        $userAgent = (string) $request->headers->get('User-Agent', '');
+        $userAgent = $request->headers->get('User-Agent', '');
         if ($userAgent === '') {
             $userAgent = 'unknown';
         }
@@ -100,7 +102,7 @@ final class CustomerConsentLogController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ChangelogEntry;
@@ -86,7 +89,7 @@ final class CustomerDashboardController
         $nextPayment = $this->resolveNextPayment($invoices);
         $site = $this->siteResolver->resolve($request);
         $panelNews = $site?->getId() !== null
-            ? $this->normalizePanelNews($this->changelogRepository->findVisiblePublicBySite($site->getId(), 3))
+            ? $this->normalizePanelNews($this->changelogRepository->findVisiblePublicBySite(EntityIdentifier::require($site->getId()), 3))
             : [];
 
         return new Response($this->twig->render('customer/dashboard/index.html.twig', [
@@ -105,7 +108,8 @@ final class CustomerDashboardController
 
     /**
      * @param ChangelogEntry[] $entries
-     * @return array<int, array{title: string, version: string|null, content: string, published_at: \DateTimeImmutable}>
+     * @return array<int, array{title: string, version: string|null, content: string, published_at:
+     * \DateTimeImmutable}>
      */
     private function normalizePanelNews(array $entries): array
     {
@@ -119,7 +123,7 @@ final class CustomerDashboardController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -138,8 +142,8 @@ final class CustomerDashboardController
             $latencyMs = isset($queryCache['latency_ms']) && is_numeric($queryCache['latency_ms'])
                 ? (int) $queryCache['latency_ms']
                 : null;
-            $diskLimitBytes = max(0, (int) $instance->getDiskLimitBytes());
-            $diskUsedBytes = max(0, (int) $instance->getDiskUsedBytes());
+            $diskLimitBytes = max(0, $instance->getDiskLimitBytes());
+            $diskUsedBytes = max(0, $instance->getDiskUsedBytes());
             $diskUsagePercent = $diskLimitBytes > 0 ? round(($diskUsedBytes / $diskLimitBytes) * 100, 1) : null;
 
             return [
@@ -152,7 +156,7 @@ final class CustomerDashboardController
                 'latency_ms' => $latencyMs,
                 'ram_limit' => $instance->getRamLimit(),
                 'booked_cpu_cores' => (float) $instance->getCpuLimit(),
-                'booked_ram_bytes' => (int) $instance->getRamLimit() * 1024 * 1024,
+                'booked_ram_bytes' => $instance->getRamLimit() * 1024 * 1024,
                 'disk_limit_bytes' => $diskLimitBytes,
                 'disk_used_bytes' => $diskUsedBytes,
                 'disk_limit_human' => $diskLimitBytes > 0 ? $this->diskUsageFormatter->formatBytes($diskLimitBytes) : null,
@@ -220,7 +224,9 @@ final class CustomerDashboardController
      * @param Instance[] $instances
      * @param Webspace[] $webspaces
      * @param array<int, array{cpu_percent: ?float, mem_used_bytes: ?int, tasks_current: ?int, collected_at: \DateTimeImmutable, error_code: ?string}> $latestInstanceMetrics
-     * @return array{cpu: int|null, ram: int|null, disk: float, disk_used_bytes:int, disk_limit_bytes:int, total_booked_cpu_cores:?float, total_used_cpu_cores:?float, total_cpu_percent:?float, total_booked_ram_bytes:?int, total_used_ram_bytes:?int, total_ram_percent:?float}
+     * @return array{cpu: int|null, ram: int|null, disk: float, disk_used_bytes:int, disk_limit_bytes:int,
+     * total_booked_cpu_cores:?float, total_used_cpu_cores:?float, total_cpu_percent:?float,
+     * total_booked_ram_bytes:?int, total_used_ram_bytes:?int, total_ram_percent:?float}
      */
     private function calculateResourceUsage(array $instances, array $webspaces, array $latestInstanceMetrics): array
     {
@@ -235,7 +241,7 @@ final class CustomerDashboardController
             $metrics = $latestInstanceMetrics[$instance->getId()] ?? null;
             $rows[] = [
                 'booked_cpu_cores' => (float) $instance->getCpuLimit(),
-                'booked_ram_bytes' => (int) $instance->getRamLimit() * 1024 * 1024,
+                'booked_ram_bytes' => $instance->getRamLimit() * 1024 * 1024,
                 'used_cpu_percent' => is_array($metrics) && is_numeric($metrics['cpu_percent'] ?? null) ? (float) $metrics['cpu_percent'] : null,
                 'used_ram_bytes' => is_array($metrics) && is_numeric($metrics['mem_used_bytes'] ?? null) ? (int) $metrics['mem_used_bytes'] : null,
             ];
@@ -248,8 +254,8 @@ final class CustomerDashboardController
         $totals = $this->bookedResourceUsageAggregator->aggregate($rows);
 
         return [
-            'cpu' => isset($totals['total_cpu_percent']) ? (int) round((float) $totals['total_cpu_percent']) : null,
-            'ram' => isset($totals['total_ram_percent']) ? (int) round((float) $totals['total_ram_percent']) : null,
+            'cpu' => isset($totals['total_cpu_percent']) ? (int) round($totals['total_cpu_percent']) : null,
+            'ram' => isset($totals['total_ram_percent']) ? (int) round($totals['total_ram_percent']) : null,
             'disk' => $this->formatUsagePercent($diskUsedBytes, $diskLimitBytes),
             'disk_used_bytes' => (int) $diskUsedBytes,
             'disk_limit_bytes' => (int) $diskLimitBytes,

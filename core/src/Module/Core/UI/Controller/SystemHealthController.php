@@ -109,7 +109,7 @@ final class SystemHealthController
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{status: string, message?: string, agent_id?: string, status_code?: int}
      */
     private function probeAgentHealth(): array
     {

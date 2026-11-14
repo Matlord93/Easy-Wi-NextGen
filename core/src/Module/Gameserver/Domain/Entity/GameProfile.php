@@ -8,6 +8,11 @@ use App\Module\Gameserver\Domain\Enum\EnforceMode;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: GameProfileRepository::class)]
 #[ORM\Table(name: 'game_profiles')]
 class GameProfile
@@ -26,9 +31,11 @@ class GameProfile
     #[ORM\Column(length: 40, enumType: EnforceMode::class)]
     private EnforceMode $enforceModeSlots;
 
+    /** @var array<int, array<string, mixed>> */
     #[ORM\Column(type: 'json')]
     private array $portRoles = [];
 
+    /** @var array<string, mixed> */
     #[ORM\Column(type: 'json')]
     private array $slotRules = [];
 

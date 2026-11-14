@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\AgentOrchestrator\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\SecretsCrypto;
@@ -212,7 +213,7 @@ final class AgentJobResultApplier
             }
             if ($status === AgentJobStatus::Success && is_array($payload)) {
                 $previousRuntimePayload = $instance->getRuntimePayload() ?? [];
-                $previousPlaybackStatus = is_array($previousRuntimePayload['playback_status'] ?? null) ? $previousRuntimePayload['playback_status'] : [];
+                $previousPlaybackStatus = JsonArray::orEmpty($previousRuntimePayload['playback_status'] ?? null);
                 $previousState = is_string($previousPlaybackStatus['playback_state'] ?? null) ? $previousPlaybackStatus['playback_state'] : '';
 
                 $runtimeStatus = is_string($payload['status'] ?? null) ? MusicbotInstanceStatus::tryFrom($payload['status']) : null;
@@ -252,7 +253,10 @@ final class AgentJobResultApplier
         }
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     private function mergeRuntimePayload(MusicbotInstance $instance, array $payload): array
     {
         $existing = $instance->getRuntimePayload() ?? [];
@@ -269,7 +273,11 @@ final class AgentJobResultApplier
         return $normalized;
     }
 
-    /** @param array<string, mixed> $existing @param array<string, mixed> $incoming @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $existing
+     * @param array<string, mixed> $incoming
+     * @return array<string, mixed>
+     */
     private function mergeArraysPreservingExisting(array $existing, array $incoming): array
     {
         foreach ($incoming as $key => $value) {
@@ -303,7 +311,7 @@ final class AgentJobResultApplier
     /** @param array<string, mixed> $context */
     private function debugMusicbotPayload(string $stage, array $context): void
     {
-        if ((string) ($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') !== '1') {
+        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') !== '1') {
             return;
         }
 
@@ -322,7 +330,7 @@ final class AgentJobResultApplier
             return;
         }
 
-        $payload = is_array($payload) ? $payload : [];
+        $payload = JsonArray::orEmpty($payload);
         if ($status === AgentJobStatus::Success) {
             $config->applyAgentResult($payload + ['status' => 'ready']);
             if (($payload['status'] ?? '') === 'connected') {
@@ -357,7 +365,7 @@ final class AgentJobResultApplier
 
     private function recordPlaybackStateTransition(MusicbotInstance $instance, string $previousState, array $runtimePayload, ?string $jobId): void
     {
-        $playbackStatus = is_array($runtimePayload['playback_status'] ?? null) ? $runtimePayload['playback_status'] : [];
+        $playbackStatus = JsonArray::orEmpty($runtimePayload['playback_status'] ?? null);
         $newState = is_string($playbackStatus['playback_state'] ?? null) ? $playbackStatus['playback_state'] : '';
 
         if ($previousState === '' || $newState === '' || $previousState === $newState) {
@@ -522,6 +530,7 @@ final class AgentJobResultApplier
         if (is_array($payload) && isset($payload['last_error']) && is_string($payload['last_error'])) {
             $node->setLastError($payload['last_error']);
         }
+
     }
 
     private function applyTs6NodeResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void

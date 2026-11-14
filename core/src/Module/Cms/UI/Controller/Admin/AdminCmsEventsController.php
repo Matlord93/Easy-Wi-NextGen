@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsEvent;
 use App\Module\Core\Domain\Entity\Site;
@@ -79,7 +81,8 @@ final class AdminCmsEventsController
             trim((string) $request->request->get('description', '')),
             new \DateTimeImmutable((string) $request->request->get('start_at', 'now')),
         );
-        $event->setEndAt($request->request->get('end_at') ? new \DateTimeImmutable((string) $request->request->get('end_at')) : null);
+        $endAt = $request->request->getString('end_at');
+        $event->setEndAt($endAt !== '' && $endAt !== '0' ? new \DateTimeImmutable($endAt) : null);
         $event->setLocation(trim((string) $request->request->get('location', '')) ?: null);
         $event->setStatus(trim((string) $request->request->get('status', 'planned')));
         $event->setCoverImagePath(trim((string) $request->request->get('cover_image_path', '')) ?: null);
@@ -125,7 +128,8 @@ final class AdminCmsEventsController
         $event->setSlug((string) $request->request->get('slug', ''));
         $event->setDescription((string) $request->request->get('description', ''));
         $event->setStartAt(new \DateTimeImmutable((string) $request->request->get('start_at', 'now')));
-        $event->setEndAt($request->request->get('end_at') ? new \DateTimeImmutable((string) $request->request->get('end_at')) : null);
+        $endAt = $request->request->getString('end_at');
+        $event->setEndAt($endAt !== '' && $endAt !== '0' ? new \DateTimeImmutable($endAt) : null);
         $event->setLocation(trim((string) $request->request->get('location', '')) ?: null);
         $event->setStatus((string) $request->request->get('status', 'planned'));
         $event->setCoverImagePath(trim((string) $request->request->get('cover_image_path', '')) ?: null);
@@ -154,7 +158,7 @@ final class AdminCmsEventsController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

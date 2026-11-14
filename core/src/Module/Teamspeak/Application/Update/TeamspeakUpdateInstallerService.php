@@ -64,7 +64,7 @@ final class TeamspeakUpdateInstallerService
             $log->addStep('backup');
 
             $stopJob = $this->jobDispatcher->dispatch($instance->getNode(), 'ts6.instance.action', ['instance_id'=>(string)$id,'customer_id'=>(string)$instance->getCustomer()->getId(),'node_id'=>$instance->getNode()->getId(),'service_name'=>sprintf('ts6-%d',$id),'action'=>'stop']);
-            $log->addStep('stop_requested', 'ok', 'job_id='.(string)$stopJob->getId().' dispatch-only; no synchronous confirmation');
+            $log->addStep('stop_requested', 'ok', 'job_id='.$stopJob->getId().' dispatch-only; no synchronous confirmation');
 
             try {
                 $this->downloadService->download($check->assetUrl, $downloadFile);
@@ -74,8 +74,8 @@ final class TeamspeakUpdateInstallerService
                     'error',
                     sprintf(
                         'release_tag=%s asset_name=%s asset_url=%s error=%s',
-                        (string) ($check->releaseTag ?? '-'),
-                        (string) ($check->assetName ?? '-'),
+                        ($check->releaseTag ?? '-'),
+                        ($check->assetName ?? '-'),
                         $check->assetUrl,
                         $e->getMessage()
                     )
@@ -110,7 +110,7 @@ final class TeamspeakUpdateInstallerService
             $log->addStep('replace_binaries');
 
             $startJob = $this->jobDispatcher->dispatch($instance->getNode(), 'ts6.instance.action', ['instance_id'=>(string)$id,'customer_id'=>(string)$instance->getCustomer()->getId(),'node_id'=>$instance->getNode()->getId(),'service_name'=>sprintf('ts6-%d',$id),'action'=>'start']);
-            $log->addStep('start_requested', 'ok', 'job_id='.(string)$startJob->getId().' dispatch-only; no synchronous confirmation');
+            $log->addStep('start_requested', 'ok', 'job_id='.$startJob->getId().' dispatch-only; no synchronous confirmation');
 
             $instance->setInstalledVersion($check->availableVersion);
             $instance->setAvailableVersion($check->availableVersion);
@@ -129,7 +129,7 @@ final class TeamspeakUpdateInstallerService
             $this->entityManager->flush();
             try {
                 $restartJob = $this->jobDispatcher->dispatch($instance->getNode(), 'ts6.instance.action', ['instance_id'=>(string)$id,'customer_id'=>(string)$instance->getCustomer()->getId(),'node_id'=>$instance->getNode()->getId(),'service_name'=>sprintf('ts6-%d',$id),'action'=>'start']);
-                $log->addStep('start_requested', 'warning', 'recovery job_id='.(string)$restartJob->getId());
+                $log->addStep('start_requested', 'warning', 'recovery job_id='.$restartJob->getId());
                 $this->entityManager->flush();
             } catch (\Throwable) {}
             throw $e;

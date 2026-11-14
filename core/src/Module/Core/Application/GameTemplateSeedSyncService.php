@@ -64,7 +64,10 @@ final class GameTemplateSeedSyncService
         return true;
     }
 
-    /** @param mixed $paths @return array<int,array<string,mixed>> */
+    /**
+     * @param mixed $paths
+     * @return array<int,array<string,mixed>>
+     */
     private function normalizeSharedPaths(mixed $paths): array
     {
         if (!is_array($paths)) {

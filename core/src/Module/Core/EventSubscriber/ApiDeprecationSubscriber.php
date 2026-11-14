@@ -17,6 +17,7 @@ final class ApiDeprecationSubscriber implements EventSubscriberInterface
     {
     }
 
+    /** @return array{'kernel.response': array{0: string, 1: int}} */
     #[\Override]
     public static function getSubscribedEvents(): array
     {

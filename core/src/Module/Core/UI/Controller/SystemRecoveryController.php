@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\UI\Controller;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\UpdateJobService;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -74,7 +76,7 @@ final class SystemRecoveryController
             throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
         }
 
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $createdBy = $actor instanceof User ? $actor->getEmail() : 'recovery';
         $job = $this->updateJobService->createJob('migrate', $createdBy);
         $this->updateJobService->triggerRunner($job['id']);
@@ -116,7 +118,7 @@ final class SystemRecoveryController
 
     private function isAuthorized(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if ($actor instanceof User && $actor->getType() === UserType::Superadmin) {
             return true;
         }

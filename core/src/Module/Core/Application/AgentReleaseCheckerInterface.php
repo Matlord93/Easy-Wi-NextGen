@@ -8,7 +8,9 @@ interface AgentReleaseCheckerInterface
 {
     public function getLatestVersionForChannel(string $channel, bool $force = false): ?string;
 
-    /** @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null */
+    /**
+     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
+     */
     public function getReleaseAssetUrlsForChannel(string $assetName, string $channel, ?string $targetVersion = null, bool $force = false): ?array;
 
     public function isUpdateAvailable(?string $currentVersion, ?string $latestVersion = null): ?bool;

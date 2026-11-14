@@ -32,7 +32,7 @@
     "symfony/validator": "^8.1",
     "symfony/yaml": "^8.1",
     "symfony/cache": "^8.1",
-    "twig/twig": "^3.21",
+    "twig/twig": "^3.29",
     "symfony/flex": "^2.4",
     "phpseclib/phpseclib": "^3.0",
     "league/flysystem-bundle": "^3.3",
@@ -78,6 +78,7 @@
     "phpstan": [
       "php -d memory_limit=-1 vendor/bin/phpstan analyse --configuration=phpstan.neon"
     ],
+    "psalm": "@php -d memory_limit=4G ../tools/psalm/vendor/bin/psalm --no-diff",
     "test": [
       "php bin/phpunit"
     ],

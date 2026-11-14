@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\GameTemplateSeedSyncService;
 use App\Module\Core\Domain\Entity\Template;
@@ -16,6 +24,67 @@ use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+/**
+ * @psalm-type TemplateForm = array{
+ *     game_key: string,
+ *     display_name: string,
+ *     description: string|null,
+ *     steam_app_id: int|null,
+ *     sniper_profile: string|null,
+ *     start_params: string,
+ *     required_ports: list<array{name: string, label: string, protocol: string}>,
+ *     env_vars: list<array{key: string, value: string}>,
+ *     config_files: list<array{path: string, description: string|null}>,
+ *     plugin_paths: list<string>,
+ *     fastdl_settings: array{enabled: bool, base_url: string, root_path: string},
+ *     install_command: string,
+ *     update_command: string,
+ *     install_resolver: array<array-key, mixed>,
+ *     allowed_switch_flags: list<string>,
+ *     errors: list<string>,
+ *     template_id: int|null,
+ *     is_edit: bool,
+ *     requirement_vars: string,
+ *     requirement_secrets: string,
+ *     shared_paths: string,
+ *     allowed_switch_flags_raw: string,
+ *     install_resolver_raw: string,
+ *     steam_app_id_raw: string,
+ *     env_vars_raw: string,
+ *     config_files_raw: string,
+ *     plugin_paths_raw: string,
+ *     requirement_vars_raw: string,
+ *     requirement_secrets_raw: string,
+ *     shared_paths_raw: string,
+ *     fastdl_base_url: string,
+ *     fastdl_root_path: string,
+ *     requirement_vars_parsed: list<array<array-key, mixed>>,
+ *     requirement_secrets_parsed: list<array<array-key, mixed>>,
+ *     shared_paths_parsed: list<array<array-key, mixed>>,
+ *     required_ports_raw: array<array-key, mixed>,
+ *     fastdl_enabled: bool,
+ * }
+ * @psalm-type ImportedTemplate = array{
+ *     game_key: string,
+ *     display_name: string,
+ *     description: string|null,
+ *     steam_app_id: int|null,
+ *     sniper_profile: string|null,
+ *     start_params: string,
+ *     required_ports: list<array{name: string, label: string, protocol: string}>,
+ *     env_vars: list<array{key: string, value: string}>,
+ *     config_files: list<array{path: string, description: string|null}>,
+ *     plugin_paths: list<string>,
+ *     fastdl_settings: array{enabled: bool, base_url: string, root_path: string},
+ *     install_command: string,
+ *     update_command: string,
+ *     install_resolver: array<array-key, mixed>,
+ *     allowed_switch_flags: list<string>,
+ *     requirement_vars: list<array<array-key, mixed>>,
+ *     requirement_secrets: list<array<array-key, mixed>>,
+ *     shared_paths: list<array<array-key, mixed>>,
+ * }
+ */
 #[Route(path: '/admin/templates')]
 final class AdminTemplateController
 {
@@ -182,7 +251,7 @@ final class AdminTemplateController
     #[Route(path: '', name: 'admin_templates_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -246,7 +315,7 @@ final class AdminTemplateController
     #[Route(path: '/{id<\d+>}', name: 'admin_templates_update', methods: ['POST'])]
     public function update(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -311,7 +380,7 @@ final class AdminTemplateController
     #[Route(path: '/{id<\d+>}/sync-shared-paths', name: 'admin_templates_sync_shared_paths', methods: ['POST'])]
     public function syncSharedPaths(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -326,9 +395,9 @@ final class AdminTemplateController
             $this->entityManager->persist($template);
             $this->entityManager->flush();
             $this->auditLogger->log($actor, 'template.shared_paths_synced', ['template_id' => $template->getId(), 'game_key' => $template->getGameKey()]);
-            $request->getSession()?->getFlashBag()->add('success', $this->translator->trans('admin_template_shared_paths_updated'));
+            FlashMessages::add($request, 'success', $this->translator->trans('admin_template_shared_paths_updated'));
         } else {
-            $request->getSession()?->getFlashBag()->add('info', $this->translator->trans('admin_template_shared_paths_no_update'));
+            FlashMessages::add($request, 'info', $this->translator->trans('admin_template_shared_paths_no_update'));
         }
 
         return new Response('', Response::HTTP_NO_CONTENT, ['HX-Trigger' => 'templates-changed']);
@@ -337,7 +406,7 @@ final class AdminTemplateController
     #[Route(path: '/import', name: 'admin_templates_import', methods: ['POST'])]
     public function import(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -347,7 +416,7 @@ final class AdminTemplateController
             return $this->renderImportWithErrors($payload, ['Import payload is required.'], Response::HTTP_BAD_REQUEST);
         }
 
-        $decoded = json_decode($payload, true);
+        $decoded = JsonArray::decode($payload);
         if (!is_array($decoded)) {
             return $this->renderImportWithErrors($payload, ['Import payload must be valid JSON.'], Response::HTTP_BAD_REQUEST);
         }
@@ -435,11 +504,15 @@ final class AdminTemplateController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }
 
+    /**
+     * @param list<Template> $templates
+     * @return array{total: int, ports: int, commands: int}
+     */
     private function buildSummary(array $templates): array
     {
         $requiredPorts = 0;
@@ -540,8 +613,8 @@ final class AdminTemplateController
         return $this->buildFormContext([
             'template_id' => $template->getId(),
             'is_edit' => true,
-            'reset_url' => sprintf('/admin/templates/form?id=%d', $template->getId()),
-            'preview_url' => sprintf('/admin/templates/%d/preview', $template->getId()),
+            'reset_url' => sprintf('/admin/templates/form?id=%d', EntityIdentifier::require($template->getId())),
+            'preview_url' => sprintf('/admin/templates/%d/preview', EntityIdentifier::require($template->getId())),
             'game_key' => $template->getGameKey(),
             'display_name' => $template->getDisplayName(),
             'description' => $template->getDescription() ?? '',
@@ -558,7 +631,7 @@ final class AdminTemplateController
             'install_command' => $template->getInstallCommand(),
             'update_command' => $template->getUpdateCommand(),
             'install_resolver' => $this->normalizeJsonInput($template->getInstallResolver()),
-            'allowed_switch_flags' => implode(',', $template->getAllowedSwitchFlags()),
+            'allowed_switch_flags' => $this->normalizeListInput($template->getAllowedSwitchFlags()),
             'requirement_vars' => $this->normalizeJsonInput($template->getRequirementVars()),
             'requirement_secrets' => $this->normalizeJsonInput($template->getRequirementSecrets()),
             'shared_paths' => $this->normalizeJsonInput($template->getSharedPaths()),
@@ -576,19 +649,18 @@ final class AdminTemplateController
         return array_merge($defaults, $overrides ?? []);
     }
 
+    /** @return TemplateForm */
     private function parsePayload(Request $request, ?Template $existingTemplate = null): array
     {
         $errors = [];
+        $parameters = $request->request->all();
         $gameKey = trim((string) $request->request->get('game_key', ''));
         $displayName = trim((string) $request->request->get('display_name', ''));
         $description = trim((string) $request->request->get('description', ''));
         $steamAppIdRaw = trim((string) $request->request->get('steam_app_id', ''));
         $sniperProfile = trim((string) $request->request->get('sniper_profile', ''));
         $startParams = trim((string) $request->request->get('start_params', ''));
-        $requiredPortsRaw = $request->request->all('required_ports');
-        if (!is_array($requiredPortsRaw)) {
-            $requiredPortsRaw = [];
-        }
+        $requiredPortsRaw = self::portTypes($parameters['required_ports'] ?? null);
         $envVarsRaw = trim((string) $request->request->get('env_vars', ''));
         $configFilesRaw = trim((string) $request->request->get('config_files', ''));
         $pluginPathsRaw = trim((string) $request->request->get('plugin_paths', ''));
@@ -597,18 +669,11 @@ final class AdminTemplateController
         $fastdlRootPath = trim((string) $request->request->get('fastdl_root_path', ''));
         $installCommand = trim((string) $request->request->get('install_command', ''));
         $updateCommand = trim((string) $request->request->get('update_command', ''));
-        $installResolverRaw = $request->request->get('install_resolver', '');
-        $allowedSwitchFlagsRaw = $request->request->get('allowed_switch_flags', '');
-        $requirementVarsRaw = $request->request->get('requirement_vars', '');
-        $requirementSecretsRaw = $request->request->get('requirement_secrets', '');
-        $sharedPathsRaw = $request->request->get('shared_paths', '');
-        // Array to string conversion guard (HTMX/JSON payloads may submit arrays)
-        $installResolverRaw = is_array($installResolverRaw) ? (string) json_encode($installResolverRaw, JSON_UNESCAPED_SLASHES) : trim((string) $installResolverRaw);
-        $allowedSwitchFlagsRaw = is_array($allowedSwitchFlagsRaw) ? implode(',', array_map('strval', $allowedSwitchFlagsRaw)) : trim((string) $allowedSwitchFlagsRaw);
-        $requirementVarsRaw = is_array($requirementVarsRaw) ? (string) json_encode($requirementVarsRaw, JSON_UNESCAPED_SLASHES) : trim((string) $requirementVarsRaw);
-        $requirementSecretsRaw = is_array($requirementSecretsRaw) ? (string) json_encode($requirementSecretsRaw, JSON_UNESCAPED_SLASHES) : trim((string) $requirementSecretsRaw);
-        $sharedPathsRaw = is_array($sharedPathsRaw) ? (string) json_encode($sharedPathsRaw, JSON_UNESCAPED_SLASHES) : trim((string) $sharedPathsRaw);
-
+        $installResolverRaw = self::jsonInput($parameters['install_resolver'] ?? '');
+        $allowedSwitchFlagsRaw = $this->normalizeListInput($parameters['allowed_switch_flags'] ?? '');
+        $requirementVarsRaw = self::jsonInput($parameters['requirement_vars'] ?? '');
+        $requirementSecretsRaw = self::jsonInput($parameters['requirement_secrets'] ?? '');
+        $sharedPathsRaw = self::jsonInput($parameters['shared_paths'] ?? '');
 
         if ($gameKey === '') {
             $errors[] = 'Game key is required.';
@@ -720,32 +785,35 @@ final class AdminTemplateController
         return true;
     }
 
+    /**
+     * @param array<array-key, mixed> $entry
+     * @param array<string, true> $seenGameKeys
+     * @param list<string> $errors
+     * @return ImportedTemplate|null
+     */
     private function parseImportEntry(array $entry, int $index, array &$seenGameKeys, array &$errors): ?array
     {
-        $gameKey = trim((string) ($entry['game_key'] ?? ''));
-        $displayName = trim((string) ($entry['display_name'] ?? ''));
-        $description = trim((string) ($entry['description'] ?? ''));
-        $steamAppIdRaw = trim((string) ($entry['steam_app_id'] ?? ''));
-        $sniperProfile = trim((string) ($entry['sniper_profile'] ?? ''));
-        $startParams = trim((string) ($entry['start_params'] ?? ''));
-        $requiredPortsRaw = $entry['required_ports'] ?? [];
+        $gameKey = self::scalarText($entry['game_key'] ?? '');
+        $displayName = self::scalarText($entry['display_name'] ?? '');
+        $description = self::scalarText($entry['description'] ?? '');
+        $steamAppIdRaw = self::scalarText($entry['steam_app_id'] ?? '');
+        $sniperProfile = self::scalarText($entry['sniper_profile'] ?? '');
+        $startParams = self::scalarText($entry['start_params'] ?? '');
+        $requiredPortsRaw = self::portTypes($entry['required_ports'] ?? null);
         $envVarsRaw = $this->normalizeEnvVarsInput($entry['env_vars'] ?? '');
         $configFilesRaw = $this->normalizeConfigFilesInput($entry['config_files'] ?? '');
         $pluginPathsRaw = $this->normalizeLinesInput($entry['plugin_paths'] ?? '');
-        $fastdlSettingsInput = $entry['fastdl_settings'] ?? [];
-        if (!is_array($fastdlSettingsInput)) {
-            $fastdlSettingsInput = [];
-        }
+        $fastdlSettingsInput = JsonArray::orEmpty($entry['fastdl_settings'] ?? null);
         $fastdlEnabled = (bool) ($entry['fastdl_enabled'] ?? ($fastdlSettingsInput['enabled'] ?? false));
         $fastdlBaseUrl = trim((string) ($entry['fastdl_base_url'] ?? ($fastdlSettingsInput['base_url'] ?? '')));
         $fastdlRootPath = trim((string) ($entry['fastdl_root_path'] ?? ($fastdlSettingsInput['root_path'] ?? '')));
-        $installCommand = trim((string) ($entry['install_command'] ?? ''));
-        $updateCommand = trim((string) ($entry['update_command'] ?? ''));
-        $installResolverRaw = $entry['install_resolver'] ?? [];
+        $installCommand = self::scalarText($entry['install_command'] ?? '');
+        $updateCommand = self::scalarText($entry['update_command'] ?? '');
+        $installResolverRaw = self::jsonInput($entry['install_resolver'] ?? '');
         $allowedSwitchFlagsRaw = $this->normalizeListInput($entry['allowed_switch_flags'] ?? '');
-        $requirementVarsRaw = $entry['requirement_vars'] ?? [];
-        $requirementSecretsRaw = $entry['requirement_secrets'] ?? [];
-        $sharedPathsRaw = $entry['shared_paths'] ?? [];
+        $requirementVarsRaw = self::jsonInput($entry['requirement_vars'] ?? '');
+        $requirementSecretsRaw = self::jsonInput($entry['requirement_secrets'] ?? '');
+        $sharedPathsRaw = self::jsonInput($entry['shared_paths'] ?? '');
 
         $entryErrors = [];
         if ($gameKey === '') {
@@ -782,12 +850,6 @@ final class AdminTemplateController
             }
         }
 
-        if (is_string($requiredPortsRaw)) {
-            $requiredPortsRaw = preg_split('/[\s,]+/', $requiredPortsRaw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        }
-        if (!is_array($requiredPortsRaw)) {
-            $requiredPortsRaw = [];
-        }
         $requiredPorts = $this->parseRequiredPorts($requiredPortsRaw, $entryErrors);
         $envVars = $this->parseEnvVars($envVarsRaw, $entryErrors);
         $configFiles = $this->parseConfigFiles($configFilesRaw, $entryErrors);
@@ -845,8 +907,9 @@ final class AdminTemplateController
     }
 
     /**
-     * @param array<int, mixed>|string $input
-     * @return array<int, array<string, mixed>>
+     * @param array<array-key, mixed>|string $input
+     * @return list<array<array-key, mixed>>
+     * @param list<string> $errors
      */
     private function parseRequirements(array|string $input, array &$errors, string $label): array
     {
@@ -855,7 +918,7 @@ final class AdminTemplateController
                 return [];
             }
 
-            $decoded = json_decode($input, true);
+            $decoded = JsonArray::decode($input);
             if (!is_array($decoded)) {
                 $errors[] = sprintf('Requirements %s must be valid JSON.', $label);
                 return [];
@@ -863,18 +926,15 @@ final class AdminTemplateController
             $input = $decoded;
         }
 
-        if (!is_array($input)) {
-            $errors[] = sprintf('Requirements %s must be an array.', $label);
-            return [];
-        }
 
         $normalized = [];
-        foreach ($input as $entry) {
+        foreach (array_keys($input) as $index) {
+            $entry = JsonArray::fromValue($input[$index]);
             if (!is_array($entry)) {
                 $errors[] = sprintf('Requirements %s entry must be an object.', $label);
                 continue;
             }
-            $key = trim((string) ($entry['key'] ?? ''));
+            $key = self::scalarText($entry['key'] ?? '');
             if ($key === '') {
                 $errors[] = sprintf('Requirements %s entry must include a key.', $label);
                 continue;
@@ -885,6 +945,11 @@ final class AdminTemplateController
         return $normalized;
     }
 
+    /**
+     * @param array<array-key, mixed> $portTypes
+     * @param list<string> $errors
+     * @return list<array{name: string, label: string, protocol: string}>
+     */
     private function parseRequiredPorts(array $portTypes, array &$errors): array
     {
         $definitions = [
@@ -895,13 +960,9 @@ final class AdminTemplateController
         ];
 
         $ports = [];
-        foreach ($portTypes as $entry) {
-            // Accept either a simple string ("game") or an object/array (['name' => 'game', ...])
-            if (is_array($entry)) {
-                $entry = (string) ($entry['name'] ?? '');
-            }
-
-            $entry = trim((string) $entry);
+        foreach (array_keys($portTypes) as $index) {
+            $object = JsonArray::fromValue($portTypes[$index]);
+            $entry = self::scalarText($object !== null ? ($object['name'] ?? '') : $portTypes[$index]);
             if ($entry === '') {
                 continue;
             }
@@ -931,6 +992,10 @@ final class AdminTemplateController
         return array_values($unique);
     }
 
+    /**
+     * @param list<string> $errors
+     * @return list<array{key: string, value: string}>
+     */
     private function parseEnvVars(string $value, array &$errors): array
     {
         $entries = [];
@@ -939,7 +1004,9 @@ final class AdminTemplateController
                 $errors[] = sprintf('Env var "%s" must be in KEY=VALUE format.', $line);
                 continue;
             }
-            [$key, $val] = array_map('trim', explode('=', $line, 2));
+            $parts = explode('=', $line, 2);
+            $key = trim($parts[0]);
+            $val = trim($parts[1] ?? '');
             if ($key === '') {
                 $errors[] = sprintf('Env var "%s" is missing a key.', $line);
                 continue;
@@ -950,6 +1017,10 @@ final class AdminTemplateController
         return $entries;
     }
 
+    /**
+     * @param list<string> $errors
+     * @return list<array{path: string, description: string|null}>
+     */
     private function parseConfigFiles(string $value, array &$errors): array
     {
         $entries = [];
@@ -957,7 +1028,9 @@ final class AdminTemplateController
             $path = $line;
             $description = null;
             if (str_contains($line, '|')) {
-                [$path, $description] = array_map('trim', explode('|', $line, 2));
+                $parts = explode('|', $line, 2);
+                $path = trim($parts[0]);
+                $description = trim($parts[1] ?? '');
             }
             if ($path === '') {
                 $errors[] = 'Config file paths cannot be empty.';
@@ -972,6 +1045,7 @@ final class AdminTemplateController
         return $entries;
     }
 
+    /** @return list<string> */
     private function parseLines(string $value): array
     {
         if ($value === '') {
@@ -986,6 +1060,7 @@ final class AdminTemplateController
         return array_values(array_filter(array_map('trim', $lines), static fn (string $line) => $line !== ''));
     }
 
+    /** @return list<string> */
     private function parseList(string $value): array
     {
         if ($value === '') {
@@ -1000,65 +1075,67 @@ final class AdminTemplateController
     private function normalizeLinesInput(mixed $value): string
     {
         if (is_array($value)) {
-            $lines = array_map(static fn ($entry): string => trim((string) $entry), $value);
+            $lines = array_map(static fn (mixed $entry): string => self::scalarText($entry), $value);
             $lines = array_filter($lines, static fn (string $line): bool => $line !== '');
 
             return implode("\n", $lines);
         }
 
-        return trim((string) $value);
+        return self::scalarText($value);
     }
 
     private function normalizeListInput(mixed $value): string
     {
         if (is_array($value)) {
-            $items = array_map(static fn ($entry): string => trim((string) $entry), $value);
+            $items = array_map(static fn (mixed $entry): string => self::scalarText($entry), $value);
             $items = array_filter($items, static fn (string $item): bool => $item !== '');
 
             return implode(',', $items);
         }
 
-        return trim((string) $value);
+        return self::scalarText($value);
     }
 
     private function normalizeEnvVarsInput(mixed $value): string
     {
         if (is_array($value)) {
             $lines = [];
-            foreach ($value as $entry) {
+            foreach (array_keys($value) as $index) {
+                $entry = JsonArray::fromValue($value[$index]);
                 if (is_array($entry)) {
-                    $key = trim((string) ($entry['key'] ?? ''));
-                    $val = (string) ($entry['value'] ?? '');
+                    $key = self::scalarText($entry['key'] ?? '');
+                    $val = self::scalarText($entry['value'] ?? '');
                     $lines[] = $key === '' ? '' : sprintf('%s=%s', $key, $val);
                     continue;
                 }
-                $lines[] = (string) $entry;
+                $lines[] = self::scalarText($value[$index]);
             }
 
             return $this->normalizeLinesInput($lines);
         }
 
-        return trim((string) $value);
+        return self::scalarText($value);
     }
 
     private function normalizeConfigFilesInput(mixed $value): string
     {
         if (is_array($value)) {
             $lines = [];
-            foreach ($value as $entry) {
+            foreach (array_keys($value) as $index) {
+                $entry = JsonArray::fromValue($value[$index]);
                 if (is_array($entry)) {
-                    $path = trim((string) ($entry['path'] ?? ''));
-                    $description = trim((string) ($entry['description'] ?? ''));
+                    $path = self::scalarText($entry['path'] ?? '');
+                    $description = self::scalarText($entry['description'] ?? '');
                     $lines[] = $description !== '' ? sprintf('%s | %s', $path, $description) : $path;
                     continue;
                 }
-                $lines[] = (string) $entry;
+                $lines[] = self::scalarText($value[$index]);
             }
 
             return $this->normalizeLinesInput($lines);
         }
 
-        return trim((string) $value);
+        return self::scalarText($value);
     }
 
     private function buildPreviewFromTemplate(Template $template): array
@@ -1088,6 +1165,7 @@ final class AdminTemplateController
         return $preview;
     }
 
+    /** @param TemplateForm $formData */
     private function buildPreviewFromForm(array $formData): array
     {
         $preview = [
@@ -1114,45 +1192,49 @@ final class AdminTemplateController
         return $preview;
     }
 
+    /**
+     * @param array{identity: array{game_key: string, gameKey?: string, display_name: string, steam_app_id: int|null, sniper_profile: string|null},
+     *     allowed_switch_flags: array<array-key, mixed>, fastdl_settings: array<array-key, mixed>, errors: list<string>,
+     *     install_command: string, update_command: string, start_params: string,
+     *     required_ports: array<array-key, mixed>, env_vars: array<array-key, mixed>,
+     *     config_files: array<array-key, mixed>, plugin_paths: array<array-key, mixed>} $preview
+     * @return list<string>
+     */
     private function buildDryRunSteps(array $preview): array
     {
         $steps = [];
-        if ($preview['install_command'] !== '') {
-            $steps[] = sprintf('Run install command: %s', $preview['install_command']);
+        foreach (['install_command' => 'Run install command', 'update_command' => 'Run update command', 'start_params' => 'Start with params'] as $field => $label) {
+            if ($preview[$field] !== '') {
+                $steps[] = sprintf('%s: %s', $label, $preview[$field]);
+            }
         }
-        if ($preview['update_command'] !== '') {
-            $steps[] = sprintf('Run update command: %s', $preview['update_command']);
+        if ($preview['required_ports'] !== []) {
+            $ports = [];
+            foreach (array_keys($preview['required_ports']) as $key) {
+                $port = JsonArray::orEmpty($preview['required_ports'][$key]);
+                $ports[] = sprintf('%s (%s)', self::scalarText($port['label'] ?? $port['name'] ?? 'port'), self::scalarText($port['protocol'] ?? 'udp'));
+            }
+            $steps[] = 'Reserve ports: '.implode(', ', $ports);
         }
-        if ($preview['start_params'] !== '') {
-            $steps[] = sprintf('Start with params: %s', $preview['start_params']);
+        if ($preview['env_vars'] !== []) {
+            $keys = array_map(static fn (mixed $entry): string => JsonMap::strings($entry)['key'] ?? '', $preview['env_vars']);
+            $steps[] = 'Export env vars: '.implode(', ', array_filter($keys));
         }
-        if (!empty($preview['required_ports'])) {
-            $ports = array_map(static function (array $port): string {
-                $label = $port['label'] ?? $port['name'] ?? 'port';
-                $protocol = $port['protocol'] ?? 'udp';
-
-                return sprintf('%s (%s)', $label, $protocol);
-            }, $preview['required_ports']);
-            $steps[] = sprintf('Reserve ports: %s', implode(', ', $ports));
+        if ($preview['config_files'] !== []) {
+            $paths = array_map(static fn (mixed $entry): string => JsonMap::strings($entry)['path'] ?? '', $preview['config_files']);
+            $steps[] = 'Write config files: '.implode(', ', array_filter($paths));
         }
-        if (!empty($preview['env_vars'])) {
-            $envKeys = array_map(static fn (array $entry): string => (string) ($entry['key'] ?? ''), $preview['env_vars']);
-            $steps[] = sprintf('Export env vars: %s', implode(', ', array_filter($envKeys)));
-        }
-        if (!empty($preview['config_files'])) {
-            $paths = array_map(static fn (array $entry): string => (string) ($entry['path'] ?? ''), $preview['config_files']);
-            $steps[] = sprintf('Write config files: %s', implode(', ', array_filter($paths)));
-        }
-        if (!empty($preview['plugin_paths'])) {
-            $steps[] = sprintf('Ensure plugin paths: %s', implode(', ', $preview['plugin_paths']));
+        if ($preview['plugin_paths'] !== []) {
+            $paths = array_map(static fn (mixed $entry): string => self::scalarText($entry), $preview['plugin_paths']);
+            $steps[] = 'Ensure plugin paths: '.implode(', ', $paths);
         }
 
         return $steps;
     }
 
     /**
-     * @param array<int, array<string, mixed>> $requiredPorts
-     * @return array<int, array<string, mixed>>
+     * @param array<array-key, mixed> $requiredPorts
+     * @return list<array<array-key, mixed>>
      */
     private function buildPortProfile(array $requiredPorts): array
     {
@@ -1191,10 +1273,10 @@ final class AdminTemplateController
     }
 
     /**
-     * @param array<int, array<string, mixed>> $envVars
-     * @param array<int, array<string, mixed>> $requirementVars
-     * @param array<int, array<string, mixed>> $requirementSecrets
-     * @param array<int, array<string, mixed>> $sharedPaths
+     * @param array<array-key, mixed> $envVars
+     * @param array<array-key, mixed> $requirementVars
+     * @param array<array-key, mixed> $requirementSecrets
+     * @param array<array-key, mixed> $sharedPaths
      * @return array<string, mixed>
      */
     private function buildRequirements(
@@ -1228,17 +1310,18 @@ final class AdminTemplateController
     }
 
     /**
-     * @param array<int, array<string, mixed>> $envVars
+     * @param array<array-key, mixed> $envVars
      * @return array<int, string>
      */
     private function extractEnvVarKeys(array $envVars): array
     {
         $keys = [];
-        foreach ($envVars as $entry) {
+        foreach (array_keys($envVars) as $index) {
+            $entry = JsonArray::fromValue($envVars[$index]);
             if (!is_array($entry)) {
                 continue;
             }
-            $key = trim((string) ($entry['key'] ?? ''));
+            $key = self::scalarText($entry['key'] ?? '');
             if ($key !== '') {
                 $keys[] = $key;
             }
@@ -1248,17 +1331,18 @@ final class AdminTemplateController
     }
 
     /**
-     * @param array<int, array<string, mixed>> $requirementSecrets
+     * @param array<array-key, mixed> $requirementSecrets
      * @return array<int, string>
      */
     private function normalizeSecretKeys(array $requirementSecrets, string $gameKey): array
     {
         $keys = [];
-        foreach ($requirementSecrets as $entry) {
+        foreach (array_keys($requirementSecrets) as $index) {
+            $entry = JsonArray::fromValue($requirementSecrets[$index]);
             if (!is_array($entry)) {
                 continue;
             }
-            $key = trim((string) ($entry['key'] ?? ''));
+            $key = self::scalarText($entry['key'] ?? '');
             if ($key !== '') {
                 $keys[] = $key;
             }
@@ -1272,17 +1356,18 @@ final class AdminTemplateController
     }
 
     /**
-     * @param array<int, array<string, mixed>> $requirementVars
+     * @param array<array-key, mixed> $requirementVars
      * @return array<int, string>
      */
     private function normalizeRequirementKeys(array $requirementVars): array
     {
         $keys = [];
-        foreach ($requirementVars as $entry) {
+        foreach (array_keys($requirementVars) as $index) {
+            $entry = JsonArray::fromValue($requirementVars[$index]);
             if (!is_array($entry)) {
                 continue;
             }
-            $key = trim((string) ($entry['key'] ?? ''));
+            $key = self::scalarText($entry['key'] ?? '');
             if ($key !== '') {
                 $keys[] = $key;
             }
@@ -1331,6 +1416,7 @@ final class AdminTemplateController
         ], true);
     }
 
+    /** @param TemplateForm $formData */
     private function renderFormWithErrors(array $formData, int $status): Response
     {
         return new Response($this->twig->render('admin/templates/_form.html.twig', [
@@ -1370,6 +1456,10 @@ final class AdminTemplateController
         ]), $status);
     }
 
+    /**
+     * @param list<string> $errors
+     * @return array<array-key, mixed>
+     */
     private function parseInstallResolver(mixed $raw, array &$errors): array
     {
         if (is_array($raw)) {
@@ -1381,7 +1471,7 @@ final class AdminTemplateController
             return [];
         }
 
-        $decoded = json_decode($rawValue, true);
+        $decoded = JsonArray::decode($rawValue);
         if (!is_array($decoded)) {
             $errors[] = 'Install resolver must be valid JSON.';
             return [];
@@ -1391,9 +1481,9 @@ final class AdminTemplateController
     }
 
     /**
-     * @param array<int, array<string, mixed>>|string $raw
-     * @param array<int, string> $errors
-     * @return array<int, array<string, mixed>>
+     * @param array<array-key, mixed>|string $raw
+     * @return list<array<array-key, mixed>>
+     * @param list<string> $errors
      */
     private function parseSharedPaths(array|string $raw, array &$errors): array
     {
@@ -1401,7 +1491,7 @@ final class AdminTemplateController
             if (trim($raw) === '') {
                 return [];
             }
-            $decoded = json_decode($raw, true);
+            $decoded = JsonArray::decode($raw);
             if (!is_array($decoded)) {
                 $errors[] = 'Shared paths must be valid JSON.';
                 return [];
@@ -1452,6 +1542,7 @@ final class AdminTemplateController
         return $normalized;
     }
 
+    /** @param list<string> $errors */
     private function validateMinecraftInstallResolver(string $gameKey, array $installResolver, array &$errors): void
     {
         if (!$this->requiresMinecraftResolver($gameKey)) {
@@ -1488,6 +1579,29 @@ final class AdminTemplateController
             'minecraft_vanilla_all',
             'minecraft_bedrock',
         ], true);
+    }
+
+    private static function scalarText(mixed $value): string
+    {
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+
+    private static function jsonInput(mixed $value): string
+    {
+        return is_array($value) ? (string) json_encode($value, JSON_UNESCAPED_SLASHES) : self::scalarText($value);
+    }
+
+    /** @return array<array-key, mixed> */
+    private static function portTypes(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (is_string($value)) {
+            $ports = preg_split('/[\s,]+/', $value, -1, PREG_SPLIT_NO_EMPTY);
+            return $ports !== false ? $ports : [];
+        }
+        return [];
     }
 
     private function formatImportError(int $index, string $message): string

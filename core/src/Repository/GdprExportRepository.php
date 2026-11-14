@@ -25,30 +25,22 @@ final class GdprExportRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<GdprExport> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('export')
+        return EntityQueryResult::all($this->createQueryBuilder('export')
             ->andWhere('export.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('export.requestedAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\GdprExport::class);
     }
 
     public function findByIdAndCustomer(int $id, User $customer): ?GdprExport
     {
-        /** @var GdprExport|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('export')
+        return EntityQueryResult::one($this->createQueryBuilder('export')
             ->andWhere('export.id = :id')
             ->andWhere('export.customer = :customer')
             ->setParameter('id', $id)
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\Core\Domain\Entity\GdprExport::class);
     }
 
     /**
@@ -60,15 +52,13 @@ final class GdprExportRepository extends ServiceEntityRepository
         $entityManager = $this->getEntityManager();
 
         return $entityManager->wrapInTransaction(function () use ($limit, $entityManager): array {
-            /** @var list<GdprExport> $exports */
-            $exports = $this->createQueryBuilder('export')
+            $exports = EntityQueryResult::all($this->createQueryBuilder('export')
                 ->andWhere('export.status = :status')
                 ->setParameter('status', GdprExportStatus::Pending)
                 ->orderBy('export.requestedAt', 'ASC')
                 ->setMaxResults($limit)
                 ->getQuery()
-                ->setLockMode(\Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE)
-                ->getResult();
+                ->setLockMode(\Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE), \App\Module\Core\Domain\Entity\GdprExport::class);
 
             foreach ($exports as $export) {
                 $export->markRunning();
@@ -86,15 +76,11 @@ final class GdprExportRepository extends ServiceEntityRepository
      */
     public function findExpired(\DateTimeImmutable $now, int $limit = 100): array
     {
-        /** @var list<GdprExport> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('export')
+        return EntityQueryResult::all($this->createQueryBuilder('export')
             ->andWhere('export.expiresAt <= :now')
-            ->setParameter('now', $now)
+            ->setParameter('now', $now, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('export.expiresAt', 'ASC')
             ->setMaxResults(max(1, $limit))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\GdprExport::class);
     }
 }

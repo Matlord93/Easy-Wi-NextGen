@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ConfigSchemaRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ConfigSchemaRepository::class)]
 #[ORM\Table(name: 'config_schemas')]
 #[ORM\Index(name: 'idx_config_schemas_game', columns: ['game_definition_id'])]

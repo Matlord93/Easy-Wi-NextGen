@@ -89,18 +89,14 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
     #[\Override]
     public function findActiveByChannel(string $channel): array
     {
-        /** @var list<MinecraftVersionCatalog> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('catalog')
+        return EntityQueryResult::all($this->createQueryBuilder('catalog')
             ->where('catalog.channel = :channel')
             ->andWhere('catalog.isActive = true')
             ->setParameter('channel', $channel)
             ->orderBy('catalog.releasedAt', 'DESC')
             ->addOrderBy('catalog.mcVersion', 'DESC')
             ->addOrderBy('catalog.build', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MinecraftVersionCatalog::class);
     }
 
     #[\Override]
@@ -174,15 +170,11 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             $qb->andWhere('catalog.isActive = true');
         }
 
-        /** @var MinecraftVersionCatalog|null $hydratedEntity */
-        $hydratedEntity = $qb
+        return EntityQueryResult::one($qb
             ->orderBy('catalog.releasedAt', 'DESC')
             ->addOrderBy('catalog.build', 'DESC')
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MinecraftVersionCatalog::class);
     }
 
     #[\Override]

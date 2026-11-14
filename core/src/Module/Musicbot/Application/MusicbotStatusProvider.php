@@ -12,7 +12,9 @@ namespace App\Module\Musicbot\Application;
 final class MusicbotStatusProvider
 {
     /**
-     * @return array<string, mixed>
+     * @return array{module: string, status: string, instances_total: int, instances_running: int,
+     * connectors: array{teamspeak: string, discord: string}, runtime: array{backend: string,
+     * audio_logic_enabled: bool}}
      */
     public function getOverview(): array
     {

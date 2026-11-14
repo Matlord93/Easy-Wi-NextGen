@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\MailMetricBucketRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailMetricBucketRepository::class)]
 #[ORM\Table(name: 'mail_metric_buckets')]
 #[ORM\Index(name: 'idx_mail_metric_buckets_bucket', columns: ['bucket_start', 'bucket_size_seconds'])]

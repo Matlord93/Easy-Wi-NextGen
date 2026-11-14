@@ -26,11 +26,10 @@ final class VoiceRateLimitStateRepository extends ServiceEntityRepository
 
     public function pruneOlderThan(\DateTimeImmutable $threshold): int
     {
-        return $this->createQueryBuilder('state')
+        return EntityQueryResult::affected($this->createQueryBuilder('state')
             ->delete()
             ->andWhere('state.updatedAt < :threshold')
-            ->setParameter('threshold', $threshold)
-            ->getQuery()
-            ->execute();
+            ->setParameter('threshold', $threshold, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->getQuery());
     }
 }

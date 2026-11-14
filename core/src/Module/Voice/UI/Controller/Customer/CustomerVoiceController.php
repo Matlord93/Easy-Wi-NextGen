@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Voice\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\Ts3VirtualServerRepository;
@@ -32,7 +34,7 @@ final class CustomerVoiceController
     #[Route('', name: 'customer_voice', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             return new Response($this->translator->trans('error_security_unauthorized'), 401);
         }
@@ -49,7 +51,7 @@ final class CustomerVoiceController
         requirements: ['type' => 'ts3|ts6', 'id' => '\d+'])]
     public function legacyShow(Request $request, string $type, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             return new Response($this->translator->trans('error_security_unauthorized'), 401);
         }
@@ -97,7 +99,7 @@ final class CustomerVoiceController
     #[Route('/{id}', name: 'customer_voice_show', methods: ['GET'])]
     public function show(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             return new Response($this->translator->trans('error_security_unauthorized'), 401);
         }

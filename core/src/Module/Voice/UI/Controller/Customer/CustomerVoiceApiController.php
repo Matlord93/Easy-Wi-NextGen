@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Voice\UI\Controller\Customer;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Ts3\Ts3ViewerService;
@@ -107,7 +110,7 @@ final class CustomerVoiceApiController
                 (string) $guard['reason'],
                 (string) $guard['error_code'],
                 429,
-                (int) $guard['retry_after'],
+                $guard['retry_after'],
                 ['job_id' => null, 'details' => ['stale' => true]],
             );
         }
@@ -133,7 +136,7 @@ final class CustomerVoiceApiController
                 $result = ['status' => 'unknown', 'players_online' => null, 'players_max' => null, 'reason' => 'Provider unsupported.', 'error_code' => 'voice_provider_unsupported'];
             }
 
-            $rawStatus = strtolower((string) ($result['status'] ?? 'unknown'));
+            $rawStatus = strtolower(($result['status'] ?? 'unknown'));
             $normalizedStatus = match ($rawStatus) {
                 'running', 'online', 'started', 'up' => 'online',
                 'stopped', 'offline', 'down', 'stopping', 'starting' => 'offline',
@@ -211,7 +214,7 @@ final class CustomerVoiceApiController
 
             $validation = $adapter->performAction($instance, $action);
             if (!($validation['accepted'] ?? false)) {
-                return $this->responseEnvelopeFactory->error($request, (string) ($validation['reason'] ?? 'Action rejected.'), (string) ($validation['error_code'] ?? 'voice_action_rejected'), 400);
+                return $this->responseEnvelopeFactory->error($request, ($validation['reason'] ?? 'Action rejected.'), ($validation['error_code'] ?? 'voice_action_rejected'), 400);
             }
 
             $job = new Job('voice.action.' . $action, [
@@ -344,7 +347,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $serverGroupId = max(1, (int) ($body['server_group_id'] ?? 6));
 
         $providerType = $instance->getNode()->getProviderType();
@@ -562,7 +565,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $publicHost = isset($body['public_host']) ? trim((string) $body['public_host']) : null;
         $providerType = $instance->getNode()->getProviderType();
 
@@ -646,7 +649,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $enabled = (bool) ($body['enabled'] ?? true);
         $cacheTtlMs = max(500, (int) ($body['cache_ttl_ms'] ?? 1500));
         $domainAllowlist = isset($body['domain_allowlist']) ? trim((string) $body['domain_allowlist']) : null;
@@ -790,7 +793,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $cacheKey = trim((string) $request->query->get('key', ''));
+        $cacheKey = trim($request->query->getString('key', ''));
         if ($cacheKey === '') {
             return $this->responseEnvelopeFactory->error($request, 'Missing cache key.', 'voice_snapshot_key_missing', 400);
         }
@@ -804,10 +807,10 @@ final class CustomerVoiceApiController
             return ['status' => 'pending'];
         });
 
-        $status = is_array($payload) ? strtolower((string) ($payload['status'] ?? 'pending')) : 'pending';
+        $status = is_array($payload) ? strtolower(($payload['status'] ?? 'pending')) : 'pending';
         $agentError = is_array($payload) ? (string) ($payload['errorText'] ?? $payload['error_text'] ?? $payload['error'] ?? $payload['message'] ?? '') : '';
         $rawPayload = is_array($payload) ? ($payload['payload'] ?? $payload['resultPayload'] ?? $payload['result_payload'] ?? $payload['result'] ?? $payload['data'] ?? null) : null;
-        $nestedPayload = is_array($rawPayload) ? $rawPayload : [];
+        $nestedPayload = JsonArray::orEmpty($rawPayload);
         $snapshotContent = $nestedPayload['snapshot'] ?? (is_array($payload) ? ($payload['snapshot'] ?? null) : null);
         if (!is_string($snapshotContent) || trim($snapshotContent) === '') {
             $snapshotContent = null;
@@ -887,7 +890,7 @@ final class CustomerVoiceApiController
         }
 
         if ($snapshotContent === null || $snapshotContent === '') {
-            $body = json_decode((string) $request->getContent(), true) ?? [];
+            $body = json_decode($request->getContent(), true) ?? [];
             $snapshotContent = isset($body['snapshot']) ? trim((string) $body['snapshot']) : null;
         }
 
@@ -937,7 +940,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $reason = trim((string) ($body['reason'] ?? ''));
         $providerType = $instance->getNode()->getProviderType();
 
@@ -974,7 +977,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $message = trim((string) ($body['message'] ?? ''));
         if ($message === '') {
             return $this->responseEnvelopeFactory->error($request, 'Message is required.', 'voice_poke_message_required', 400);
@@ -1013,7 +1016,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        $body = json_decode($request->getContent(), true) ?? [];
         $banParams = [];
         foreach (['ip', 'uid', 'name', 'time', 'banreason'] as $field) {
             if (isset($body[$field]) && (string) $body[$field] !== '') {
@@ -1087,7 +1090,7 @@ final class CustomerVoiceApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -1163,7 +1166,12 @@ final class CustomerVoiceApiController
         return $rows;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{id: string, name: string, provider_type: string, status: string, players_online: null,
+     * players_max: null, reason: null, error_code: null, checked_at: string, stale: bool,
+     * probe_in_progress: bool, action_in_progress: bool, active_job_id: null, retry_after: null, connect:
+     * array{host: string, port: int|null}, detail_url: string, api_base_url: string, actions_enabled: bool}
+     */
     private function normalizeLegacyTs3Server(Ts3VirtualServer $server): array
     {
         $id = $server->getId();
@@ -1192,7 +1200,12 @@ final class CustomerVoiceApiController
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{id: string, name: string, provider_type: string, status: string, players_online: null,
+     * players_max: int, reason: null, error_code: null, checked_at: string, stale: bool, probe_in_progress:
+     * bool, action_in_progress: bool, active_job_id: null, retry_after: null, connect: array{host: string,
+     * port: int|null}, detail_url: string, api_base_url: string, actions_enabled: bool}
+     */
     private function normalizeLegacyTs6Server(Ts6VirtualServer $server): array
     {
         $id = $server->getId();
@@ -1223,7 +1236,7 @@ final class CustomerVoiceApiController
 
     private function resolveRequestId(Request $request): string
     {
-        $requestId = trim((string) ($request->headers->get('X-Request-ID') ?? ''));
+        $requestId = trim(($request->headers->get('X-Request-ID') ?? ''));
         if ($requestId !== '') {
             return $requestId;
         }

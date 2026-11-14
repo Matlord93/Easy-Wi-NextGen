@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\FileServiceClient;
@@ -51,13 +53,13 @@ final class CustomerInstanceFileManagerController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $path = trim((string) $request->query->get('path', ''));
+        $path = trim($request->query->getString('path', ''));
         $fileApiAvailable = true;
         $fileApiError = null;
 
         try {
             $ping = $this->fileServiceClient->ping($instance);
-            $fileApiAvailable = (bool) ($ping['ok'] ?? false);
+            $fileApiAvailable = ($ping['ok'] ?? false);
             if (!$fileApiAvailable) {
                 $fileApiError = is_string($ping['error'] ?? null) ? (string) $ping['error'] : null;
             }
@@ -86,7 +88,7 @@ final class CustomerInstanceFileManagerController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $path = trim((string) $request->query->get('path', ''));
+        $path = trim($request->query->getString('path', ''));
 
         $job = $this->queueListingJob($instance, $customer, $path);
         $this->entityManager->flush();
@@ -146,9 +148,9 @@ final class CustomerInstanceFileManagerController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $path = trim((string) $request->query->get('path', ''));
-        $name = trim((string) $request->query->get('name', ''));
-        $description = trim((string) $request->query->get('description', ''));
+        $path = trim($request->query->getString('path', ''));
+        $name = trim($request->query->getString('name', ''));
+        $description = trim($request->query->getString('description', ''));
         if ($name === '') {
             throw new BadRequestHttpException($this->translator->trans('gs_api_missing_file_name'));
         }
@@ -333,8 +335,8 @@ final class CustomerInstanceFileManagerController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $path = trim((string) $request->query->get('path', ''));
-        $name = trim((string) $request->query->get('name', ''));
+        $path = trim($request->query->getString('path', ''));
+        $name = trim($request->query->getString('name', ''));
         if ($name === '') {
             throw new BadRequestHttpException($this->translator->trans('gs_api_missing_file_name'));
         }
@@ -427,7 +429,7 @@ final class CustomerInstanceFileManagerController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (
             !$actor instanceof User
             || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
@@ -452,6 +454,10 @@ final class CustomerInstanceFileManagerController
         return $instance;
     }
 
+    /**
+     * @return array{id: int|null, name: string, server_name: null|string, game_key: string, node: array{id:
+     * string, name: null|string}}
+     */
     private function normalizeInstance(Instance $instance): array
     {
         return [
@@ -466,6 +472,7 @@ final class CustomerInstanceFileManagerController
         ];
     }
 
+    /** @return list<array{path: string, dir: string, name: string, description: string}> */
     private function normalizeConfigFiles(array $configFiles): array
     {
         $normalized = [];
@@ -502,7 +509,7 @@ final class CustomerInstanceFileManagerController
                 if (!is_array($entry)) {
                     continue;
                 }
-                $name = strtolower(trim((string) ($entry['name'] ?? '')));
+                $name = strtolower(trim(($entry['name'] ?? '')));
                 if ($name === '') {
                     continue;
                 }
@@ -577,6 +584,10 @@ final class CustomerInstanceFileManagerController
         return $job;
     }
 
+    /**
+     * @return list<array{name: string, size: int, size_human: string, mode: string, modified_at: string,
+     * is_dir: bool}>
+     */
     private function parseEntries(string $rawEntries): array
     {
         $entries = [];

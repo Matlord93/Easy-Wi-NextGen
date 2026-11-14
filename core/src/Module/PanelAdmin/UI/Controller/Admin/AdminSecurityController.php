@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\Ddos\DdosCredentialManager;
 use App\Module\Core\Domain\Entity\Job;
@@ -703,7 +706,7 @@ final class AdminSecurityController
             }
             $rule['source_ip'] = $sourceIp !== '' ? $sourceIp : null;
             $rule['source_asn'] = isset($rule['source_asn']) ? mb_strtoupper(trim((string) $rule['source_asn'])) : null;
-            $target = is_array($rule['target'] ?? null) ? $rule['target'] : [];
+            $target = JsonArray::orEmpty($rule['target'] ?? null);
             $rule['target'] = [
                 'scope' => strtolower(trim((string) ($target['scope'] ?? 'global'))),
                 'service' => ($target['service'] ?? null) !== null ? strtolower(trim((string) $target['service'])) : null,
@@ -764,6 +767,11 @@ final class AdminSecurityController
         return $index;
     }
 
+    /**
+     * @return array{enabled: bool, bantime: string, findtime: string, maxretry: int, ignore_ips:
+     * array<array-key, string>, jails: list<string|mixed>, action_type: string, backend: string,
+     * advanced_config: string, dry_run: bool}
+     */
     private function parseFail2banPayload(Request $request): array
     {
         $enabled = $request->request->get('enabled') === '1';
@@ -788,7 +796,7 @@ final class AdminSecurityController
         $jailsFromCheckboxes = $request->request->all('jails');
         $jailsFromCustom = $this->parseCsvList((string) $request->request->get('jails_custom', ''));
         $jails = array_values(array_unique(array_merge(
-            array_filter(array_map('trim', (array) $jailsFromCheckboxes)),
+            array_filter(array_map('trim', $jailsFromCheckboxes)),
             $jailsFromCustom
         )));
         if ($jails === []) {
@@ -826,6 +834,10 @@ final class AdminSecurityController
         return array_values(array_unique($values));
     }
 
+    /**
+     * @return array{from: \DateTimeImmutable|null, to: \DateTimeImmutable|null, ip: null|string, rule:
+     * null|string, source: null|string}
+     */
     private function parseEventFilters(Request $request): array
     {
         $from = $this->parseDateFilter($request->query->get('event_from'));
@@ -865,6 +877,7 @@ final class AdminSecurityController
 
     /**
      * @param SecurityEvent[] $events
+      * @return array{blocked: int, allowed: int}
      */
     private function summarizeEvents(array $events): array
     {
@@ -973,6 +986,7 @@ final class AdminSecurityController
         return $normalized;
     }
 
+    /** @return list<int> */
     private function parsePorts(string $raw): array
     {
         $ports = [];
@@ -1015,7 +1029,7 @@ final class AdminSecurityController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('Forbidden.');
         }
@@ -1023,6 +1037,7 @@ final class AdminSecurityController
         return $actor;
     }
 
+    /** @return list<string> */
     private function normalizeNodeIds(array $nodes): array
     {
         $normalized = [];

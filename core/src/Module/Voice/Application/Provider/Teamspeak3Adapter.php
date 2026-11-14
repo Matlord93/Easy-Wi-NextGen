@@ -24,7 +24,7 @@ final class Teamspeak3Adapter implements VoiceProviderAdapter
         $result = $this->probeStatus($instance);
 
         return new VoiceQueryResult(
-            (string) $result['status'],
+            $result['status'],
             is_numeric($result['players_online'] ?? null) ? (int) $result['players_online'] : null,
             is_numeric($result['players_max'] ?? null) ? (int) $result['players_max'] : null,
             null,
@@ -34,6 +34,10 @@ final class Teamspeak3Adapter implements VoiceProviderAdapter
         );
     }
 
+    /**
+     * @return array{status: string, players_online: null, players_max: null, reason: null|string,
+     * error_code: null|string}
+     */
     #[\Override]
     public function probeStatus(VoiceInstance $instance): array
     {
@@ -45,6 +49,7 @@ final class Teamspeak3Adapter implements VoiceProviderAdapter
         return ['status' => $server['status'], 'players_online' => null, 'players_max' => null, 'reason' => null, 'error_code' => null];
     }
 
+    /** @return array{accepted: bool, reason: null|string, error_code: null|string} */
     #[\Override]
     public function performAction(VoiceInstance $instance, string $action): array
     {
@@ -55,6 +60,7 @@ final class Teamspeak3Adapter implements VoiceProviderAdapter
         return ['accepted' => true, 'reason' => null, 'error_code' => null];
     }
 
+    /** @return array{host: null|string, port: int|null} */
     #[\Override]
     public function getConnectInfo(VoiceInstance $instance): array
     {
@@ -71,6 +77,7 @@ final class Teamspeak3Adapter implements VoiceProviderAdapter
         ];
     }
 
+    /** @return array{online: null, max: null} */
     #[\Override]
     public function getPlayers(VoiceInstance $instance): array
     {

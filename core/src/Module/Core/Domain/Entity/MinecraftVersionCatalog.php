@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\MinecraftVersionCatalogRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MinecraftVersionCatalogRepository::class)]
 #[ORM\Table(name: 'minecraft_versions_catalog')]
 #[ORM\UniqueConstraint(name: 'uniq_minecraft_versions_catalog', columns: ['channel', 'mc_version', 'build'])]

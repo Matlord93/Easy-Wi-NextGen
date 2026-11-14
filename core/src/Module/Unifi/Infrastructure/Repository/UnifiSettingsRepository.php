@@ -7,17 +7,19 @@ namespace App\Module\Unifi\Infrastructure\Repository;
 use App\Module\Unifi\Domain\Entity\UnifiSettings;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use App\Module\Unifi\Application\UnifiSettingsProviderInterface;
 
 /**
  * @extends ServiceEntityRepository<UnifiSettings>
  */
-class UnifiSettingsRepository extends ServiceEntityRepository
+final class UnifiSettingsRepository extends ServiceEntityRepository implements UnifiSettingsProviderInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, UnifiSettings::class);
     }
 
+    #[\Override]
     public function getSettings(): UnifiSettings
     {
         $settings = $this->findOneBy([]);

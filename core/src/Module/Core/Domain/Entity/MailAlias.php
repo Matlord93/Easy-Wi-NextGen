@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\MailAliasRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailAliasRepository::class)]
 #[ORM\Table(name: 'mail_aliases')]
 #[ORM\UniqueConstraint(name: 'uniq_mail_aliases_address', columns: ['address'])]

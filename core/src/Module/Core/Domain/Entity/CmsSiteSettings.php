@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\CmsSiteSettingsRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: CmsSiteSettingsRepository::class)]
 #[ORM\Table(name: 'cms_site_settings')]
 #[ORM\UniqueConstraint(name: 'uniq_cms_site_settings_site_id', columns: ['site_id'])]

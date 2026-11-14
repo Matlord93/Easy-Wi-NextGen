@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Kvm;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AuditLogger;
@@ -38,9 +39,9 @@ final readonly class CustomerKvmService
             $safe['cloud_init'] = null;
             if (is_array($row['cloud_init'] ?? null)) {
                 $ci = $row['cloud_init'];
-                $safe['cloud_init'] = ['hostname' => is_string($ci['hostname'] ?? null) ? $ci['hostname'] : '', 'username' => is_string($ci['username'] ?? null) ? $ci['username'] : '', 'ssh_keys' => array_values(array_filter(is_array($ci['ssh_keys'] ?? null) ? $ci['ssh_keys'] : [], 'is_string'))];
+                $safe['cloud_init'] = ['hostname' => is_string($ci['hostname'] ?? null) ? $ci['hostname'] : '', 'username' => is_string($ci['username'] ?? null) ? $ci['username'] : '', 'ssh_keys' => array_values(array_filter(JsonArray::orEmpty($ci['ssh_keys'] ?? null), 'is_string'))];
             }
-            $safe['snapshots'] = array_values(array_filter(is_array($row['snapshots'] ?? null) ? $row['snapshots'] : [], static fn ($name): bool => is_string($name) && 1 === preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $name)));
+            $safe['snapshots'] = array_values(array_filter(JsonArray::orEmpty($row['snapshots'] ?? null), static fn ($name): bool => is_string($name) && 1 === preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $name)));
             $safe['backups'] = [];
             foreach ($row['backups'] ?? [] as $backup) {
                 if (!is_array($backup) || !is_string($backup['id'] ?? null) || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $backup['id'])) {

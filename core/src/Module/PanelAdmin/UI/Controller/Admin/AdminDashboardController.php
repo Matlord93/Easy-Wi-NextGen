@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\TicketStatus;
@@ -111,7 +114,7 @@ final class AdminDashboardController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 
@@ -155,7 +158,7 @@ final class AdminDashboardController
         return array_map(function ($agent): array {
             $status = $this->resolveAgentStatus($agent->getLastHeartbeatAt());
             $stats = $agent->getLastHeartbeatStats() ?? [];
-            $metrics = is_array($stats['metrics'] ?? null) ? $stats['metrics'] : [];
+            $metrics = JsonArray::orEmpty($stats['metrics'] ?? null);
             $cpu = $this->formatPercent(
                 $this->extractMetricPercent($metrics, 'cpu')
                 ?? $this->extractMetricPercent($stats, 'cpu'),
@@ -247,7 +250,7 @@ final class AdminDashboardController
                 continue;
             }
 
-            $total = (int) $sent + (int) $recv;
+            $total = $sent + $recv;
             if ($previous !== null) {
                 $deltaBytes = $total - $previous['total'];
                 $deltaSeconds = $row['recordedAt']->getTimestamp() - $previous['recordedAt']->getTimestamp();

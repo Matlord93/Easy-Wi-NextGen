@@ -110,13 +110,13 @@ final class PublicServerController
 
         $ids = array_values(array_filter(array_map(
             static fn (string $id): int => (int) $id,
-            explode(',', (string) $request->query->get('ids', ''))
+            explode(',', $request->query->getString('ids', ''))
         )));
 
         $servers = $this->publicServerRepository->findVisiblePublicBySite($site->getId() ?? 0);
         if ($ids !== []) {
             $allowed = array_flip($ids);
-            $servers = array_values(array_filter($servers, static fn (PublicServer $server): bool => isset($allowed[(int) ($server->getId() ?? 0)])));
+            $servers = array_values(array_filter($servers, static fn (PublicServer $server): bool => isset($allowed[($server->getId() ?? 0)])));
         }
 
         $this->statusService->queueDueChecks($servers, 25);

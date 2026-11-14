@@ -10,6 +10,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\BackupDefinitionRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: BackupDefinitionRepository::class)]
 #[ORM\Table(name: 'backup_definitions')]
 class BackupDefinition implements ResourceEventSource

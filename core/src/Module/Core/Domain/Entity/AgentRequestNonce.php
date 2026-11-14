@@ -6,7 +6,10 @@ namespace App\Module\Core\Domain\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/** Replay records are shared by all PHP workers and survive cache clears/releases. */
+/**
+ * Replay records are shared by all PHP workers and survive cache clears/releases.
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'agent_request_nonces')]
 #[ORM\Index(name: 'idx_agent_request_nonces_expiry', columns: ['expires_at'])]

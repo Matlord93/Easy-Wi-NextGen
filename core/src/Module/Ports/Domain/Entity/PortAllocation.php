@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Infrastructure\Repository\PortAllocationRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: PortAllocationRepository::class)]
 #[ORM\Table(name: 'port_allocations')]
 #[ORM\UniqueConstraint(name: 'uniq_node_proto_port', columns: ['node_id', 'proto', 'port'])]

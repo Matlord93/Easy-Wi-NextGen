@@ -21,7 +21,10 @@ final class MusicbotRestoreReport
     ) {
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{success: bool, dry_run: bool, restored: list<string>, warnings: list<string>, missing:
+     * list<string>, error: null|string}
+     */
     public function toArray(): array
     {
         return [

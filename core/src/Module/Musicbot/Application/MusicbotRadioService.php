@@ -83,8 +83,8 @@ final class MusicbotRadioService
             throw new MusicbotQuotaExceededException(sprintf('Radio station limit reached (%d). Delete some stations first.', self::MAX_STATIONS_PER_CUSTOMER));
         }
 
-        $name = trim((string) ($data['name'] ?? ''));
-        $streamUrl = trim((string) ($data['stream_url'] ?? ''));
+        $name = trim(($data['name'] ?? ''));
+        $streamUrl = trim(($data['stream_url'] ?? ''));
 
         if ($name === '') {
             throw new \InvalidArgumentException('Station name must not be empty.');
@@ -94,20 +94,20 @@ final class MusicbotRadioService
 
         $station = new MusicbotRadioStation($customer, $name, $streamUrl, false);
         $station->setInstance($instance);
-        $station->setGenre(isset($data['genre']) && $data['genre'] !== '' ? (string) $data['genre'] : null);
-        $station->setDescription(isset($data['description']) && $data['description'] !== '' ? (string) $data['description'] : null);
-        $station->setHomepage(isset($data['homepage']) && $data['homepage'] !== '' ? (string) $data['homepage'] : null);
-        $station->setLogoUrl(isset($data['logo_url']) && $data['logo_url'] !== '' ? (string) $data['logo_url'] : null);
-        $station->setCountry(isset($data['country']) && $data['country'] !== '' ? (string) $data['country'] : null);
-        $station->setLanguage(isset($data['language']) && $data['language'] !== '' ? (string) $data['language'] : null);
+        $station->setGenre(isset($data['genre']) && $data['genre'] !== '' ? $data['genre'] : null);
+        $station->setDescription(isset($data['description']) && $data['description'] !== '' ? $data['description'] : null);
+        $station->setHomepage(isset($data['homepage']) && $data['homepage'] !== '' ? $data['homepage'] : null);
+        $station->setLogoUrl(isset($data['logo_url']) && $data['logo_url'] !== '' ? $data['logo_url'] : null);
+        $station->setCountry(isset($data['country']) && $data['country'] !== '' ? $data['country'] : null);
+        $station->setLanguage(isset($data['language']) && $data['language'] !== '' ? $data['language'] : null);
         if (isset($data['tags']) && is_array($data['tags'])) {
             $station->setTags($data['tags']);
         }
         if (isset($data['bitrate'])) {
-            $station->setBitrate((int) $data['bitrate'] ?: null);
+            $station->setBitrate($data['bitrate'] ?: null);
         }
         if (isset($data['format'])) {
-            $station->setFormat($data['format'] !== '' ? (string) $data['format'] : null);
+            $station->setFormat($data['format'] !== '' ? $data['format'] : null);
         }
 
         // Try resolving the URL; cache the result but don't fail if unreachable yet
@@ -176,7 +176,8 @@ final class MusicbotRadioService
     // -------------------------------------------------------------------------
 
     /**
-     * @return array{url: string, content_type: string|null, bitrate: int|null, stream_name: string|null, genre: string|null}
+     * @return array{url: string, content_type: string|null, bitrate: int|null, stream_name: string|null,
+     * genre: string|null}
      */
     public function resolveUrl(User $customer, string $url): array
     {
@@ -192,7 +193,8 @@ final class MusicbotRadioService
     /**
      * Play a station now (works for both catalog and private stations).
      *
-     * @return array<string, mixed>
+     * @return array{track_id: int|null, resolved_url: string, station_id: int|null, reconnect:
+     * array{max_retries: int, retry_delay_seconds: int, backoff_multiplier: float}}
      */
     public function playNow(User $customer, MusicbotInstance $instance, MusicbotRadioStation $station): array
     {
@@ -217,7 +219,7 @@ final class MusicbotRadioService
     /**
      * Add a station to the queue.
      *
-     * @return array<string, mixed>
+     * @return array{queue_item_id: int|null, track_id: int|null, resolved_url: string, station_id: int|null}
      */
     public function addToQueue(User $customer, MusicbotInstance $instance, MusicbotRadioStation $station): array
     {
@@ -248,7 +250,8 @@ final class MusicbotRadioService
     /**
      * Add a station to an existing playlist.
      *
-     * @return array<string, mixed>
+     * @return array{playlist_item_id: int|null, track_id: int|null, resolved_url: string, station_id:
+     * int|null, playlist_id: int|null}
      */
     public function addToPlaylist(User $customer, MusicbotInstance $instance, MusicbotRadioStation $station, int $playlistId): array
     {
@@ -318,7 +321,8 @@ final class MusicbotRadioService
     }
 
     /**
-     * @return array{id: int|null, name: string, stream_url: string, is_favorite: bool, last_played_at: string|null}
+     * @return array{id: int|null, name: string, stream_url: string, is_favorite: bool, last_played_at:
+     * string|null}
      */
     public function normalize(MusicbotRadioStation $station): array
     {

@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\MetricAggregateRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MetricAggregateRepository::class)]
 #[ORM\Table(name: 'metric_aggregates')]
 #[ORM\UniqueConstraint(name: 'uniq_metric_aggregate_bucket', columns: ['agent_id', 'bucket', 'bucket_start'])]

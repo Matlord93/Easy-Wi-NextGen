@@ -11,6 +11,11 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotRoleRepository::class)]
 #[ORM\Table(name: 'musicbot_roles')]
 #[ORM\Index(name: 'idx_musicbot_roles_instance', columns: ['instance_id'])]

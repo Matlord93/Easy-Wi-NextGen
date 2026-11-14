@@ -28,6 +28,10 @@ final class SinusbotAdapter implements VoiceProviderAdapter
         );
     }
 
+    /**
+     * @return array{status: string, players_online: null, players_max: null, reason: string, error_code:
+     * string}
+     */
     #[\Override]
     public function probeStatus(VoiceInstance $instance): array
     {
@@ -40,12 +44,14 @@ final class SinusbotAdapter implements VoiceProviderAdapter
         ];
     }
 
+    /** @return array{accepted: bool, reason: string, error_code: string} */
     #[\Override]
     public function performAction(VoiceInstance $instance, string $action): array
     {
         return ['accepted' => false, 'reason' => 'SinusBot actions are not supported in this endpoint.', 'error_code' => 'voice_action_not_supported'];
     }
 
+    /** @return array{host: string, port: null} */
     #[\Override]
     public function getConnectInfo(VoiceInstance $instance): array
     {
@@ -55,6 +61,7 @@ final class SinusbotAdapter implements VoiceProviderAdapter
         ];
     }
 
+    /** @return array{online: null, max: null} */
     #[\Override]
     public function getPlayers(VoiceInstance $instance): array
     {

@@ -31,16 +31,12 @@ final class InstanceScheduleRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<InstanceSchedule> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('schedule')
+        return EntityQueryResult::all($this->createQueryBuilder('schedule')
             ->andWhere('schedule.instance IN (:instances)')
             ->andWhere('schedule.action = :action')
             ->setParameter('instances', $instances)
-            ->setParameter('action', $action)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->setParameter('action', $action->value)
+            ->getQuery(), \App\Module\Core\Domain\Entity\InstanceSchedule::class);
     }
 
     public function findOneByInstanceAndAction(Instance $instance, InstanceScheduleAction $action): ?InstanceSchedule
@@ -56,17 +52,13 @@ final class InstanceScheduleRepository extends ServiceEntityRepository
      */
     public function findEnabledBatchAfterId(int $afterId, int $limit): array
     {
-        /** @var list<InstanceSchedule> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('schedule')
+        return EntityQueryResult::all($this->createQueryBuilder('schedule')
             ->andWhere('schedule.enabled = :enabled')
             ->andWhere('schedule.id > :afterId')
             ->setParameter('enabled', true)
             ->setParameter('afterId', $afterId)
             ->orderBy('schedule.id', 'ASC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\InstanceSchedule::class);
     }
 }

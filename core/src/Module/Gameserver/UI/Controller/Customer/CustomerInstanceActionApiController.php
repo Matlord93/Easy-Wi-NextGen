@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+
+use App\Infrastructure\Http\RequestActor;
+
 use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
@@ -234,7 +239,7 @@ final class CustomerInstanceActionApiController
         if (in_array($action, ['start', 'restart'], true)) {
             $jobPayload = array_merge($this->instanceJobPayloadBuilder->buildRuntimePayload($instance), $jobPayload);
         }
-        $message = new InstanceActionMessage(sprintf('instance.%s', $action), $customer->getId(), $instance->getId(), $jobPayload);
+        $message = new InstanceActionMessage(sprintf('instance.%s', $action), EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $jobPayload);
 
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
         $result = json_decode((string) $response->getContent(), true);
@@ -450,7 +455,7 @@ final class CustomerInstanceActionApiController
             'instance.start',
             'instance.stop',
             'instance.restart',
-        ], (int) ($instance->getId() ?? 0));
+        ], ($instance->getId() ?? 0));
         if ($activeJob instanceof Job) {
             $this->auditLogger->log($customer, 'instance.backup.blocked', [
                 'instance_id' => $instance->getId(),
@@ -473,7 +478,7 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'BACKUP_NOT_SUPPORTED', $blockMessage, JsonResponse::HTTP_CONFLICT);
         }
 
-        $message = new InstanceActionMessage('instance.backup.create', $customer->getId(), $instance->getId(), [
+        $message = new InstanceActionMessage('instance.backup.create', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
@@ -542,7 +547,7 @@ final class CustomerInstanceActionApiController
             'instance.start',
             'instance.stop',
             'instance.restart',
-        ], (int) ($instance->getId() ?? 0));
+        ], ($instance->getId() ?? 0));
         if ($activeJob instanceof Job) {
             $this->auditLogger->log($customer, 'instance.backup.restore_blocked', [
                 'instance_id' => $instance->getId(),
@@ -565,7 +570,7 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'BACKUP_NOT_SUPPORTED', $blockMessage, JsonResponse::HTTP_CONFLICT);
         }
 
-        $message = new InstanceActionMessage('instance.backup.restore', $customer->getId(), $instance->getId(), [
+        $message = new InstanceActionMessage('instance.backup.restore', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
@@ -875,7 +880,7 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $taskId = (string) $request->query->get('task_id', '');
+        $taskId = $request->query->getString('task_id', '');
         if ($taskId === '') {
             return $this->apiError($request, 'INVALID_INPUT', 'task_id is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
@@ -900,7 +905,7 @@ final class CustomerInstanceActionApiController
             'created_at' => $log->getCreatedAt()->format(DATE_ATOM),
         ], $logs);
         $lastLog = $normalized === [] ? null : $normalized[array_key_last($normalized)];
-        $nextCursor = is_array($lastLog) ? (string) ($lastLog['id'] ?? '') : (string) ($cursor ?? '');
+        $nextCursor = is_array($lastLog) ? (string) ($lastLog['id'] ?? '') : ($cursor ?? '');
 
         return $this->apiOk($request, ['logs' => $normalized, 'cursor' => $nextCursor]);
     }
@@ -968,7 +973,7 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'INVALID_INPUT', 'Time zone is invalid.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $message = new InstanceActionMessage('instance.schedule.update', $customer->getId(), $instance->getId(), [
+        $message = new InstanceActionMessage('instance.schedule.update', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'action' => $scheduleAction->value,
@@ -1031,7 +1036,7 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $message = new InstanceActionMessage('instance.schedule.update', $customer->getId(), $instance->getId(), [
+        $message = new InstanceActionMessage('instance.schedule.update', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'action' => $scheduleAction->value,
@@ -1110,7 +1115,7 @@ final class CustomerInstanceActionApiController
             'request_id' => $this->resolveRequestId($request),
         ]);
 
-        $message = new InstanceActionMessage('instance.console.command', $customer->getId(), $instance->getId(), [
+        $message = new InstanceActionMessage('instance.console.command', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
@@ -1189,13 +1194,13 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $cursorRaw = trim((string) $request->query->get('cursor', ''));
+        $cursorRaw = trim($request->query->getString('cursor', ''));
 
         if ($this->agentGameServerClient instanceof AgentGameServerClient) {
             try {
                 $agentPayload = $this->agentGameServerClient->getConsoleLogs($instance, $cursorRaw !== '' ? $cursorRaw : null);
                 $data = AgentGameServerClient::unwrapAgentEnvelope($agentPayload);
-                $rawLines = is_array($data['lines'] ?? null) ? $data['lines'] : [];
+                $rawLines = JsonArray::orEmpty($data['lines'] ?? null);
                 $mapped = [];
                 foreach ($rawLines as $line) {
                     if (!is_array($line)) {
@@ -1209,7 +1214,7 @@ final class CustomerInstanceActionApiController
                     ];
                 }
 
-                $meta = is_array($data['meta'] ?? null) ? $data['meta'] : [];
+                $meta = JsonArray::orEmpty($data['meta'] ?? null);
                 $connected = strtolower((string) ($meta['state'] ?? '')) === 'connected';
                 $journalAvailable = (bool) ($meta['journal_available'] ?? true);
                 $agentUnavailable = !$journalAvailable || strtolower((string) ($meta['state'] ?? '')) === 'unavailable';
@@ -1223,7 +1228,7 @@ final class CustomerInstanceActionApiController
                     'lines' => $mapped,
                     'session' => [
                         'connected' => $connected,
-                        'unit_name' => (string) ($meta['unit'] ?? sprintf('gs-%d', $instance->getId())),
+                        'unit_name' => (string) ($meta['unit'] ?? sprintf('gs-%d', EntityIdentifier::require($instance->getId()))),
                         'started_at' => null,
                     ],
                 ]);
@@ -1238,11 +1243,11 @@ final class CustomerInstanceActionApiController
             $logs = $this->jobLogRepository->findByJobAfterId($job, $cursor, 300);
             $nextCursor = $cursor ?? 0;
             $lines = [];
-            $unitName = sprintf('gs-%d', $instance->getId());
+            $unitName = sprintf('gs-%d', EntityIdentifier::require($instance->getId()));
             foreach ($logs as $log) {
-                $logId = (int) ($log->getId() ?? 0);
+                $logId = ($log->getId() ?? 0);
                 $nextCursor = max($nextCursor, $logId);
-                $message = (string) $log->getMessage();
+                $message = $log->getMessage();
                 if (str_starts_with($message, '--- journalctl ') || stripos($message, 'console restarted') !== false) {
                     continue;
                 }
@@ -1297,7 +1302,7 @@ final class CustomerInstanceActionApiController
         $runtimeStatus = $runtimeProbe['runtime_status'];
         $running = $runtimeProbe['running'];
         $queryStatus = $runtimeProbe['query_status'];
-        $commandSocketActive = (bool) ($runtimeProbe['command_socket_active'] ?? false);
+        $commandSocketActive = ($runtimeProbe['command_socket_active'] ?? false);
         $logsSessionConnected = false;
 
         $supportsLiveOutput = true;
@@ -1329,7 +1334,7 @@ final class CustomerInstanceActionApiController
             try {
                 $logsPayload = $this->agentGameServerClient->getConsoleLogs($instance);
                 $logsData = AgentGameServerClient::unwrapAgentEnvelope($logsPayload);
-                $session = is_array($logsData['session'] ?? null) ? $logsData['session'] : (is_array($logsData['meta'] ?? null) ? $logsData['meta'] : []);
+                $session = is_array($logsData['session'] ?? null) ? $logsData['session'] : (JsonArray::orEmpty($logsData['meta'] ?? null));
                 $logsSessionConnected = (bool) ($session['connected'] ?? false) || strtolower((string) ($session['state'] ?? '')) === 'connected';
             } catch (\Throwable) {
             }
@@ -1352,7 +1357,7 @@ final class CustomerInstanceActionApiController
             'instance_status' => strtolower($instance->getStatus()->value),
             'runtime_status' => $runtimeStatus,
             'can_send_command' => $canSendCommand,
-            'unit_name' => sprintf('gs-%d', $instance->getId()),
+            'unit_name' => sprintf('gs-%d', EntityIdentifier::require($instance->getId())),
             'running_state' => $runningState,
             'supports_live_output' => $supportsLiveOutput,
             'live_output_status' => $liveOutputStatus,
@@ -1423,7 +1428,7 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $message = new InstanceActionMessage('instance.settings.update', $customer->getId(), $instance->getId(), [
+        $message = new InstanceActionMessage('instance.settings.update', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'update_policy' => $policy->value,
@@ -1468,7 +1473,7 @@ final class CustomerInstanceActionApiController
             'instance.addon.update',
             'instance.addon.remove',
             'sniper.update',
-        ], (int) ($instance->getId() ?? 0));
+        ], ($instance->getId() ?? 0));
         if ($activeJob instanceof Job) {
             return $this->apiError(
                 $request,
@@ -1498,7 +1503,7 @@ final class CustomerInstanceActionApiController
         $jobPayload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage);
         $jobPayload['autostart'] = 'false';
 
-        $message = new InstanceActionMessage('instance.reinstall', $customer->getId(), $instance->getId(), $jobPayload);
+        $message = new InstanceActionMessage('instance.reinstall', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $jobPayload);
 
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
         $result = json_decode((string) $response->getContent(), true);
@@ -1519,7 +1524,7 @@ final class CustomerInstanceActionApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (
             !$actor instanceof User
             || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
@@ -1555,7 +1560,7 @@ final class CustomerInstanceActionApiController
             throw new BadRequestHttpException($this->translator->trans('error_invalid_json'), $exception);
         }
 
-        return is_array($payload) ? $payload : [];
+        return JsonArray::orEmpty($payload);
     }
 
     private function instanceUsesSharedStorage(Instance $instance): bool
@@ -1684,7 +1689,7 @@ final class CustomerInstanceActionApiController
             'plugin_download_url' => $resolvedDownloadUrl,
         ] + $this->buildCs2MetamodGameInfoPatchPayload($instance, $plugin, $action);
 
-        $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), $customer->getId(), $instance->getId(), $payload);
+        $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $payload);
 
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
         $result = json_decode((string) $response->getContent(), true);
@@ -1708,7 +1713,8 @@ final class CustomerInstanceActionApiController
 
 
     /**
-     * @return array<string, mixed>
+     * @return array{post_install_file_patches?: list<array{path: string, mode: string, line: string,
+     * after: string, before: string, reapply_on_update: bool}>}
      */
     private function buildCs2MetamodGameInfoPatchPayload(Instance $instance, \App\Module\Core\Domain\Entity\GamePlugin $plugin, string $action): array
     {
@@ -1804,7 +1810,7 @@ final class CustomerInstanceActionApiController
     {
         $extension = str_ends_with(strtolower($archivePath), '.tar.gz') ? '.tar.gz' : '.tar.gz';
 
-        return sprintf('instance-%d-backup-%d%s', $instance->getId(), $backup->getId(), $extension);
+        return sprintf('instance-%d-backup-%d%s', EntityIdentifier::require($instance->getId()), EntityIdentifier::require($backup->getId()), $extension);
     }
 
     /**
@@ -1831,8 +1837,17 @@ final class CustomerInstanceActionApiController
         if (in_array($target->getType()->value, ['webdav', 'nextcloud'], true)) {
             $secret = [];
             foreach ($target->getEncryptedCredentials() as $key => $value) {
-                if (is_string($key) && in_array($key, ['password', 'token', 'username'], true) && is_array($value)) {
-                    $secret[$key] = $this->encryptionService->decrypt($value);
+                if (is_string($key) && in_array($key, ['password', 'token', 'username'], true)
+                    && is_array($value)
+                    && is_string($value['key_id'] ?? null)
+                    && is_string($value['nonce'] ?? null)
+                    && is_string($value['ciphertext'] ?? null)
+                ) {
+                    $secret[$key] = $this->encryptionService->decrypt([
+                        'key_id' => $value['key_id'],
+                        'nonce' => $value['nonce'],
+                        'ciphertext' => $value['ciphertext'],
+                    ]);
                 }
             }
             if ($secret !== []) {
@@ -1843,6 +1858,12 @@ final class CustomerInstanceActionApiController
         return $payload;
     }
 
+    /**
+     * @return array{id: int|null, definition_id: int|null, status: string, job_id: null|string, created_at:
+     * string, completed_at: null|string, size_bytes: int|null, checksum_sha256: null|string, archive_path:
+     * null|string, target_type: string, target_label: null|string, target_path: string, error_code:
+     * null|string, error_message: null|string}
+     */
     private function normalizeBackup(\App\Module\Core\Domain\Entity\Backup $backup): array
     {
         $target = $backup->getDefinition()->getBackupTarget();
@@ -2010,14 +2031,14 @@ final class CustomerInstanceActionApiController
 
     private function buildConsoleLimiterKey(Request $request, Instance $instance, User $customer): string
     {
-        $ip = (string) ($request->getClientIp() ?? 'unknown');
+        $ip = ($request->getClientIp() ?? 'unknown');
 
-        return sprintf('console:%d:%d:%s', $customer->getId(), $instance->getId(), $ip);
+        return sprintf('console:%d:%d:%s', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $ip);
     }
 
     private function resolveRequestId(Request $request): string
     {
-        $header = trim((string) ($request->headers->get('X-Request-ID') ?? ''));
+        $header = trim(($request->headers->get('X-Request-ID') ?? ''));
         if ($header !== '') {
             return $header;
         }
@@ -2028,7 +2049,7 @@ final class CustomerInstanceActionApiController
     private function mapLegacyConsoleResponse(Request $request, JsonResponse $legacy): JsonResponse
     {
         $statusCode = $legacy->getStatusCode();
-        $payload = json_decode((string) $legacy->getContent(), true);
+        $payload = JsonArray::decode((string) $legacy->getContent());
         if (!is_array($payload)) {
             return $this->apiError($request, 'INTERNAL_ERROR', 'Invalid console response payload.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
@@ -2145,7 +2166,7 @@ final class CustomerInstanceActionApiController
 
     protected function isCommandSocketActive(int $instanceId): bool
     {
-        $runtimeBase = rtrim((string) (getenv('EASYWI_RUNTIME_DIR') ?: '/run/easywi'), '/');
+        $runtimeBase = rtrim((getenv('EASYWI_RUNTIME_DIR') ?: '/run/easywi'), '/');
         $socketPath = sprintf('%s/instances/%d/console.sock', $runtimeBase, $instanceId);
 
         return file_exists($socketPath) && (is_writable($socketPath) || is_readable($socketPath));

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
+
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsBlock;
@@ -111,7 +115,7 @@ final class AdminCmsPageController
     #[Route(path: '', name: 'admin_cms_pages_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -151,7 +155,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}', name: 'admin_cms_pages_update', methods: ['POST'], requirements: ['id' => '\\d+'])]
     public function update(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -210,7 +214,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}/delete', name: 'admin_cms_pages_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -244,7 +248,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}/blocks', name: 'admin_cms_pages_blocks_create', methods: ['POST'])]
     public function createBlock(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -290,7 +294,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}/blocks/{blockId}', name: 'admin_cms_pages_blocks_update', methods: ['POST'])]
     public function updateBlock(Request $request, int $id, int $blockId): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -357,7 +361,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}/blocks/{blockId}/delete', name: 'admin_cms_pages_blocks_delete', methods: ['POST'])]
     public function deleteBlock(Request $request, int $id, int $blockId): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -407,14 +411,14 @@ final class AdminCmsPageController
 
     private function isCmsUser(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }
 
     private function moveBlock(Request $request, int $id, int $blockId, int $direction): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -460,6 +464,9 @@ final class AdminCmsPageController
         return $response;
     }
 
+    /** @param list<CmsPage> $pages
+     * @return array{total:int,published:int,blocks:int}
+     */
     private function buildSummary(array $pages): array
     {
         $published = 0;
@@ -478,11 +485,18 @@ final class AdminCmsPageController
         ];
     }
 
+    /** @param list<CmsPage> $pages
+     * @return list<array<string,mixed>>
+     */
     private function normalizePages(array $pages): array
     {
         return array_map(fn (CmsPage $page) => $this->normalizePage($page), $pages);
     }
 
+    /**
+     * @return array{id: int|null, title: string, slug: string, is_published: bool, block_count: int,
+     * updated_at: \DateTimeImmutable}
+     */
     private function normalizePage(CmsPage $page): array
     {
         return [
@@ -495,29 +509,7 @@ final class AdminCmsPageController
         ];
     }
 
-    private function normalizeBlocks(array $blocks): array
-    {
-        return array_map(function (CmsBlock $block): array {
-            $preview = $block->getContent();
-            if ($block->getVersion() === 2 && is_array($block->getPayloadJson())) {
-                $preview = json_encode($block->getPayloadJson(), JSON_UNESCAPED_SLASHES) ?: 'V2 payload';
-            }
-            if (in_array($block->getType(), ['server_list', 'server_featured'], true)) {
-                $preview = $this->buildServerBlockPreview($block->getContent());
-            }
 
-            return [
-                'id' => $block->getId(),
-                'type' => $block->getType(),
-                'content' => $block->getContent(),
-                'version' => $block->getVersion(),
-                'payload_json' => $block->getPayloadJson(),
-                'preview' => $preview,
-                'sort_order' => $block->getSortOrder(),
-                'updated_at' => $block->getUpdatedAt(),
-            ];
-        }, $blocks);
-    }
 
     private function buildFormContext(?CmsPage $page = null, ?array $overrides = null): array
     {
@@ -530,7 +522,7 @@ final class AdminCmsPageController
             'action' => $page === null ? 'create' : 'update',
             'submit_label' => $page === null ? 'create_page' : 'update_page',
             'submit_color' => $page === null ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-amber-500 hover:bg-amber-600',
-            'action_url' => $page === null ? '/admin/cms/pages' : sprintf('/admin/cms/pages/%d', $page->getId()),
+            'action_url' => $page === null ? '/admin/cms/pages' : sprintf('/admin/cms/pages/%d', $page->getId() ?? throw new \LogicException('Cannot edit an unpersisted CMS page.')),
             'header' => $page === null ? 'create_cms_page' : 'edit_cms_page',
             'description' => $page === null ? 'create_cms_page_description' : 'edit_cms_page_description',
         ];
@@ -565,59 +557,11 @@ final class AdminCmsPageController
         return array_merge($defaults, $overrides ?? []);
     }
 
-    private function buildBlockFormContextFromBlock(CmsBlock $block): array
-    {
-        $settings = [
-            'game' => '',
-            'limit' => 5,
-            'show_players' => true,
-            'show_join_button' => false,
-        ];
 
-        $content = $block->getContent();
-        if (in_array($block->getType(), ['server_list', 'server_featured'], true)) {
-            $settings = $this->decodeBlockSettings($content);
-            $content = '';
-        }
 
-        return $this->buildBlockFormContext([
-            'id' => $block->getId(),
-            'type' => $block->getType(),
-            'version' => $block->getVersion(),
-            'content' => $content,
-            'payload' => $this->mergeV2Payload($block->getType(), $block->getPayloadJson()),
-            'settings' => $settings,
-            'action' => 'update',
-            'submit_label' => 'update_block',
-            'submit_color' => 'bg-amber-500 hover:bg-amber-600',
-        ]);
-    }
 
-    /**
-     * @param array<string, mixed>|null $overrides
-     * @return array<string, mixed>
-     */
-    private function buildMaintenanceFormContext(
-        \App\Module\Core\Domain\Entity\Site $site,
-        ?array $overrides = null,
-    ): array {
-        $context = [
-            'errors' => [],
-            'enabled' => $site->isMaintenanceEnabled(),
-            'message' => $site->getMaintenanceMessage(),
-            'graphic_path' => $site->getMaintenanceGraphicPath(),
-            'allowlist' => $site->getMaintenanceAllowlist(),
-            'starts_at' => $this->formatDateTime($site->getMaintenanceStartsAt()),
-            'ends_at' => $this->formatDateTime($site->getMaintenanceEndsAt()),
-        ];
 
-        if ($overrides !== null) {
-            $context = array_merge($context, $overrides);
-        }
-
-        return $context;
-    }
-
+    /** @return array{errors:list<string>,title:string,slug:string,is_published:bool} */
     private function parsePayload(Request $request, \App\Module\Core\Domain\Entity\Site $site, ?CmsPage $existingPage = null): array
     {
         $errors = [];
@@ -643,6 +587,9 @@ final class AdminCmsPageController
         ];
     }
 
+    /**
+     * @return array{errors:array<int,string>,type:string,version:int,content:string,payload:?array<string,mixed>,settings:array<string,scalar|null>}
+     */
     private function parseBlockPayload(Request $request): array
     {
         $errors = [];
@@ -744,7 +691,7 @@ final class AdminCmsPageController
 
         if ($type === 'cards') {
             $cardsRaw = trim((string) $request->request->get('cards_json', '[]'));
-            $decoded = json_decode($cardsRaw, true);
+            $decoded = JsonArray::decode($cardsRaw);
             if (!is_array($decoded)) {
                 $errors[] = 'Cards JSON must be a valid JSON array.';
                 $decoded = [];
@@ -769,49 +716,9 @@ final class AdminCmsPageController
         };
     }
 
-    private function mergeV2Payload(string $type, ?array $payload): array
-    {
-        return array_replace_recursive($this->defaultV2Payload($type), $payload ?? []);
-    }
 
-    private function parseMaintenancePayload(Request $request): array
-    {
-        $errors = [];
-        $enabled = $request->request->get('maintenance_enabled') === 'on';
-        $message = trim((string) $request->request->get('maintenance_message', ''));
-        $graphicPath = trim((string) $request->request->get('maintenance_graphic_path', ''));
-        $allowlistRaw = trim((string) $request->request->get('maintenance_allowlist', ''));
-        $startsRaw = trim((string) $request->request->get('maintenance_starts_at', ''));
-        $endsRaw = trim((string) $request->request->get('maintenance_ends_at', ''));
 
-        if (!$this->isValidMaintenanceGraphicPath($graphicPath)) {
-            $errors[] = 'Maintenance graphic must be an absolute path (/...) or a valid URL.';
-        }
 
-        $startsAt = $this->parseDateTimeInput($startsRaw, 'Start time is invalid.', $errors);
-        $endsAt = $this->parseDateTimeInput($endsRaw, 'End time is invalid.', $errors);
-
-        if ($startsAt !== null && $endsAt !== null && $endsAt < $startsAt) {
-            $errors[] = 'End time must be after start time.';
-        }
-
-        $allowlist = $this->normalizeAllowlist($allowlistRaw);
-        foreach ($allowlist as $entry) {
-            if (!$this->isValidIpOrCidr($entry)) {
-                $errors[] = sprintf('Allowlist entry "%s" is invalid.', $entry);
-            }
-        }
-
-        return [
-            'errors' => $errors,
-            'enabled' => $enabled,
-            'message' => $message,
-            'graphic_path' => $graphicPath,
-            'allowlist' => implode("\n", $allowlist),
-            'starts_at' => $startsAt,
-            'ends_at' => $endsAt,
-        ];
-    }
 
     private function renderFormWithErrors(array $formData, int $statusCode, ?CmsPage $page = null): Response
     {
@@ -840,68 +747,13 @@ final class AdminCmsPageController
         ]), $statusCode);
     }
 
-    private function renderMaintenanceFormWithErrors(\App\Module\Core\Domain\Entity\Site $site, array $formData, int $statusCode): Response
-    {
-        return new Response($this->twig->render('admin/cms/pages/_maintenance_form.html.twig', [
-            'maintenanceForm' => $this->buildMaintenanceFormContext($site, [
-                'errors' => $formData['errors'],
-                'enabled' => $formData['enabled'],
-                'message' => $formData['message'],
-                'graphic_path' => $formData['graphic_path'],
-                'allowlist' => $formData['allowlist'],
-                'starts_at' => $this->formatDateTime($formData['starts_at']),
-                'ends_at' => $this->formatDateTime($formData['ends_at']),
-            ]),
-        ]), $statusCode);
-    }
 
-    private function isValidMaintenanceGraphicPath(string $path): bool
-    {
-        if ($path === '') {
-            return true;
-        }
 
-        if (str_starts_with($path, '/')) {
-            return true;
-        }
 
-        return filter_var($path, FILTER_VALIDATE_URL) !== false;
-    }
 
-    private function buildServerBlockPreview(string $content): string
-    {
-        $data = json_decode($content, true);
-        if (!is_array($data)) {
-            return 'Server block (invalid settings)';
-        }
 
-        $game = is_string($data['game'] ?? null) && $data['game'] !== '' ? $data['game'] : 'all games';
-        $limit = is_numeric($data['limit'] ?? null) ? (int) $data['limit'] : 0;
-        $players = ($data['show_players'] ?? false) ? 'players shown' : 'players hidden';
-        $join = ($data['show_join_button'] ?? false) ? 'join enabled' : 'join hidden';
 
-        return sprintf('Server list: %s · limit %d · %s · %s', $game, $limit, $players, $join);
-    }
 
-    private function decodeBlockSettings(string $content): array
-    {
-        $data = json_decode($content, true);
-        if (!is_array($data)) {
-            return [
-                'game' => '',
-                'limit' => 5,
-                'show_players' => true,
-                'show_join_button' => false,
-            ];
-        }
-
-        return [
-            'game' => is_string($data['game'] ?? null) ? $data['game'] : '',
-            'limit' => is_numeric($data['limit'] ?? null) ? (int) $data['limit'] : 5,
-            'show_players' => (bool) ($data['show_players'] ?? true),
-            'show_join_button' => (bool) ($data['show_join_button'] ?? false),
-        ];
-    }
 
     private function isDuplicateSlug(\App\Module\Core\Domain\Entity\Site $site, string $slug, ?CmsPage $existingPage): bool
     {
@@ -921,71 +773,11 @@ final class AdminCmsPageController
         return $existing->getId() !== $existingPage->getId();
     }
 
-    /**
-     * @param array<int, string> $errors
-     */
-    private function parseDateTimeInput(string $raw, string $errorMessage, array &$errors): ?\DateTimeImmutable
-    {
-        if ($raw === '') {
-            return null;
-        }
 
-        $parsed = \DateTimeImmutable::createFromFormat('Y-m-d\TH:i', $raw) ?: null;
-        if ($parsed === null) {
-            $errors[] = $errorMessage;
-        }
 
-        return $parsed;
-    }
 
-    /**
-     * @return array<int, string>
-     */
-    private function normalizeAllowlist(string $raw): array
-    {
-        if ($raw === '') {
-            return [];
-        }
 
-        $parts = preg_split('/[\n,]+/', $raw) ?: [];
 
-        return array_values(array_filter(array_map('trim', $parts), static fn (string $entry): bool => $entry !== ''));
-    }
 
-    private function isValidIpOrCidr(string $entry): bool
-    {
-        if (filter_var($entry, FILTER_VALIDATE_IP)) {
-            return true;
-        }
 
-        if (!str_contains($entry, '/')) {
-            return false;
-        }
-
-        [$ip, $mask] = array_pad(explode('/', $entry, 2), 2, null);
-        if ($ip === null || $mask === null) {
-            return false;
-        }
-
-        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-            return false;
-        }
-
-        if (!is_numeric($mask)) {
-            return false;
-        }
-
-        $maskInt = (int) $mask;
-        $maxMask = str_contains($ip, ':') ? 128 : 32;
-        if ($maskInt < 0 || $maskInt > $maxMask) {
-            return false;
-        }
-
-        return IpUtils::checkIp($ip, $entry);
-    }
-
-    private function formatDateTime(?\DateTimeImmutable $dateTime): string
-    {
-        return $dateTime?->format('Y-m-d\TH:i') ?? '';
-    }
 }

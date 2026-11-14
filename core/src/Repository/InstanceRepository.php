@@ -33,18 +33,14 @@ class InstanceRepository extends ServiceEntityRepository
      */
     public function findScanCandidates(Agent $node, \DateTimeImmutable $threshold, int $limit): array
     {
-        /** @var list<Instance> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('i')
+        return EntityQueryResult::all($this->createQueryBuilder('i')
             ->andWhere('i.node = :node')
             ->andWhere('i.diskLastScannedAt IS NULL OR i.diskLastScannedAt < :threshold')
-            ->setParameter('node', $node)
-            ->setParameter('threshold', $threshold)
+            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
+            ->setParameter('threshold', $threshold, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('i.diskLastScannedAt', 'ASC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Instance::class);
     }
 
     /**
@@ -52,16 +48,12 @@ class InstanceRepository extends ServiceEntityRepository
      */
     public function findWatchdogEnabledBatchAfterId(int $afterId, int $limit): array
     {
-        /** @var list<Instance> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('i')
+        return EntityQueryResult::all($this->createQueryBuilder('i')
             ->andWhere('i.watchdogEnabled = true')
             ->andWhere('i.id > :afterId')
             ->setParameter('afterId', $afterId)
             ->orderBy('i.id', 'ASC')
             ->setMaxResults(max(1, min($limit, 1000)))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Instance::class);
     }
 }

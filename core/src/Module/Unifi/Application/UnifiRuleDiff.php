@@ -10,7 +10,8 @@ final class UnifiRuleDiff
      * @param array<string, UnifiRule> $desired
      * @param array<string, array<string, mixed>> $current
      *
-     * @return array{create: UnifiRule[], update: array<int, array{rule: UnifiRule, currentId: string}>, delete: array<int, array{currentId: string, name: string}>}
+     * @return array{create: UnifiRule[], update: array<int, array{rule: UnifiRule, currentId: string}>,
+     * delete: array<int, array{currentId: string, name: string}>}
      */
     public function diff(array $desired, array $current): array
     {

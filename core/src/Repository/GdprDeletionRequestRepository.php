@@ -21,16 +21,12 @@ final class GdprDeletionRequestRepository extends ServiceEntityRepository
 
     public function findLatestByCustomer(User $customer): ?GdprDeletionRequest
     {
-        /** @var GdprDeletionRequest|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('request')
+        return EntityQueryResult::one($this->createQueryBuilder('request')
             ->andWhere('request.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('request.requestedAt', 'DESC')
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\Core\Domain\Entity\GdprDeletionRequest::class);
     }
 
     public function findByJobId(string $jobId): ?GdprDeletionRequest

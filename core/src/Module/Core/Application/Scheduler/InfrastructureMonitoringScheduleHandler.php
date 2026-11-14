@@ -19,6 +19,7 @@ final readonly class InfrastructureMonitoringScheduleHandler implements Schedule
         return 'infrastructure.monitoring';
     }
 
+    /** @return list<\App\Module\Core\Application\Scheduler\InternalSchedule> */
     #[\Override]
     public function schedules(): array
     {

@@ -17,6 +17,7 @@ final class ModuleAccessSubscriber implements EventSubscriberInterface
     {
     }
 
+    /** @return array{'kernel.controller': string} */
     #[\Override]
     public static function getSubscribedEvents(): array
     {
@@ -39,7 +40,6 @@ final class ModuleAccessSubscriber implements EventSubscriberInterface
 
         $attributes = (new \ReflectionClass($controllerObject))->getAttributes(RequiresModule::class);
         foreach ($attributes as $attribute) {
-            /** @var RequiresModule $instance */
             $instance = $attribute->newInstance();
             if (!$this->moduleRegistry->isEnabled($instance->moduleKey)) {
                 throw new NotFoundHttpException('This module is not enabled.');

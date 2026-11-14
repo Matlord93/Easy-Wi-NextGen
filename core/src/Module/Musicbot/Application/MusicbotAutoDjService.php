@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotAutoDjSettings;
@@ -225,7 +226,7 @@ final class MusicbotAutoDjService
     {
         $playlist = $settings->getFallbackPlaylist();
         $payload = $settings->getInstance()->getRuntimePayload() ?? [];
-        $autoDjPayload = is_array($payload['autodj'] ?? null) ? $payload['autodj'] : [];
+        $autoDjPayload = JsonArray::orEmpty($payload['autodj'] ?? null);
 
         return [
             'id' => $settings->getId(),
@@ -414,7 +415,10 @@ final class MusicbotAutoDjService
     }
 
 
-    /** @param MusicbotTrack[] $tracks @return MusicbotTrack[] */
+    /**
+     * @param MusicbotTrack[] $tracks
+     * @return MusicbotTrack[]
+     */
     private function filterAllowedSources(MusicbotAutoDjSettings $settings, array $tracks): array
     {
         return array_values(array_filter($tracks, function (MusicbotTrack $track) use ($settings): bool {
@@ -426,7 +430,10 @@ final class MusicbotAutoDjService
         }));
     }
 
-    /** @param MusicbotTrack[] $tracks @return MusicbotTrack[] */
+    /**
+     * @param MusicbotTrack[] $tracks
+     * @return MusicbotTrack[]
+     */
     private function filterRepeatProtection(MusicbotAutoDjSettings $settings, array $tracks): array
     {
         if (!$settings->isAvoidRepeats()) { return $tracks; }

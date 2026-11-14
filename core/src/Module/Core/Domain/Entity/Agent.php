@@ -9,6 +9,11 @@ use App\Module\Core\Domain\ValueObject\SshHostFingerprint;
 use App\Repository\AgentRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: AgentRepository::class)]
 #[ORM\Table(name: 'agents')]
 class Agent
@@ -25,6 +30,7 @@ class Agent
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $name = null;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string} */
     #[ORM\Column(type: 'json')]
     private array $secretPayload;
 
@@ -79,6 +85,7 @@ class Agent
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $nodeDiskProtectionOverrideUntil = null;
 
+    /** @var string[] */
     #[ORM\Column(type: 'json')]
     private array $roles = [];
 

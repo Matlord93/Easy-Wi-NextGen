@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Infrastructure\Repository;
 
+use App\Repository\EntityQueryResult;
+use App\Repository\QueryParameter;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Domain\Entity\PortBlock;
@@ -40,14 +42,10 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
             return [];
         }
 
-        /** @var list<PortBlock> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('block')
+        return EntityQueryResult::all($this->createQueryBuilder('block')
             ->where('block.instance IN (:instances)')
             ->setParameter('instances', $instances)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Ports\Domain\Entity\PortBlock::class);
     }
 
     /**
@@ -55,12 +53,10 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
      */
     public function findByNode(\App\Module\Core\Domain\Entity\Agent $node): array
     {
-        /** @var list<PortBlock> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('block')->join('block.pool', 'pool')->where('pool.node = :node')->setParameter('node', $node)->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($this->createQueryBuilder('block')->join('block.pool', 'pool')->where('pool.node = :node')->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))->getQuery(), \App\Module\Ports\Domain\Entity\PortBlock::class);
     }
 
+    /** @return list<\App\Module\Ports\Domain\Entity\PortBlock> */
     public function findByPool(PortPool $pool): array
     {
         return $this->findBy(['pool' => $pool], ['startPort' => 'ASC']);
@@ -71,14 +67,10 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
      */
     public function findAssignedBlocks(): array
     {
-        /** @var list<PortBlock> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('block')
+        return EntityQueryResult::all($this->createQueryBuilder('block')
             ->where('block.instance IS NOT NULL')
             ->orderBy('block.startPort', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Ports\Domain\Entity\PortBlock::class);
     }
 
     #[\Override]

@@ -72,7 +72,8 @@ final class GdprExportService
     }
 
     /**
-     * @return array{fileName: string, fileSize: int, encryptedPayload: array{key_id: string, nonce: string, ciphertext: string}, readyAt: \DateTimeImmutable, expiresAt: \DateTimeImmutable}
+     * @return array{fileName: string, fileSize: int, encryptedPayload: array{key_id: string, nonce:
+     * string, ciphertext: string}, readyAt: \DateTimeImmutable, expiresAt: \DateTimeImmutable}
      */
     public function buildExportData(User $customer): array
     {

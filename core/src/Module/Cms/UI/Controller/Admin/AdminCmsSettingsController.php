@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsPage;
@@ -32,7 +35,7 @@ final class AdminCmsSettingsController
     #[Route(path: '', name: 'admin_cms_settings', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -68,7 +71,7 @@ final class AdminCmsSettingsController
     #[Route(path: '', name: 'admin_cms_settings_save', methods: ['POST'])]
     public function save(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -158,11 +161,9 @@ final class AdminCmsSettingsController
         }
     }
 
-    /** @return list<array{label?: string, url?: string, external?: bool|string|int}> */
+    /** @return array<array-key, mixed> */
     private function decodeLinks(string $json): array
     {
-        $decoded = json_decode($json, true);
-
-        return is_array($decoded) ? $decoded : [];
+        return JsonArray::decode($json) ?? [];
     }
 }

@@ -8,6 +8,11 @@ use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'proxmox_clusters')]
 class ProxmoxCluster

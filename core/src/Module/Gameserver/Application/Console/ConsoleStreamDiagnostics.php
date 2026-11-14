@@ -16,7 +16,11 @@ final class ConsoleStreamDiagnostics
     ) {
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{active_grpc_client_class: string, backend_configured: bool, redis_ping_ok: bool,
+     * relay_required: bool, relay_heartbeat_age_seconds: int|null, relay_stale: bool, transport: string,
+     * sample_node_endpoint_present: bool}
+     */
     public function snapshot(): array
     {
         $heartbeatAge = $this->relayHeartbeatAgeSeconds();

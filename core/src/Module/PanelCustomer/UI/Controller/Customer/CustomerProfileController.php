@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\CustomerProfile;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
@@ -243,6 +245,10 @@ final class CustomerProfileController
         return array_merge($defaults, $overrides ?? []);
     }
 
+    /**
+     * @return array{errors: list<string>, firstname: string, lastname: string, address: string, postal:
+     * string, city: string, country: string, phone: null|string, company: null|string, vat_id: null|string}
+     */
     private function parseProfilePayload(Request $request): array
     {
         $errors = [];
@@ -301,6 +307,10 @@ final class CustomerProfileController
         ];
     }
 
+    /**
+     * @return array{errors: list<string>, locale: string, portal_language: string, email_delivery: bool,
+     * pdf_download_history: bool, payment_method: string}
+     */
     private function parseInvoicePreferencesPayload(Request $request): array
     {
         $errors = [];
@@ -356,6 +366,7 @@ final class CustomerProfileController
         return $this->environment !== 'prod' || $this->allowDummyPayment;
     }
 
+    /** @return list<string> */
     private function validateProfileForInvoices(?CustomerProfile $profile): array
     {
         if ($profile === null) {
@@ -391,7 +402,7 @@ final class CustomerProfileController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'error_security_unauthorized');
         }

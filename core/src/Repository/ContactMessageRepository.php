@@ -23,14 +23,13 @@ final class ContactMessageRepository extends ServiceEntityRepository
     public function findBySite(Site $site, int $limit = 50, int $offset = 0): array
     {
         /** @var list<ContactMessage> $rows */
-        $rows = $this->createQueryBuilder('m')
+        $rows = EntityQueryResult::all($this->createQueryBuilder('m')
             ->andWhere('m.site = :site')
-            ->setParameter('site', $site)
+            ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
             ->orderBy('m.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->setFirstResult($offset)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\ContactMessage::class);
 
         return $rows;
     }
@@ -40,7 +39,7 @@ final class ContactMessageRepository extends ServiceEntityRepository
         return (int) $this->createQueryBuilder('m')
             ->select('COUNT(m.id)')
             ->andWhere('m.site = :site')
-            ->setParameter('site', $site)
+            ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -51,7 +50,7 @@ final class ContactMessageRepository extends ServiceEntityRepository
             ->select('COUNT(m.id)')
             ->andWhere('m.site = :site')
             ->andWhere('m.status = :status')
-            ->setParameter('site', $site)
+            ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
             ->setParameter('status', ContactMessage::STATUS_NEW)
             ->getQuery()
             ->getSingleScalarResult();
@@ -64,7 +63,7 @@ final class ContactMessageRepository extends ServiceEntityRepository
             ->andWhere('m.ipAddress = :ip')
             ->andWhere('m.createdAt >= :since')
             ->setParameter('ip', $ip)
-            ->setParameter('since', $since)
+            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
             ->getSingleScalarResult();
     }

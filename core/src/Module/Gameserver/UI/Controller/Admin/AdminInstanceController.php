@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Admin;
 
+use App\Repository\QueryParameter;
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
@@ -140,7 +145,7 @@ final class AdminInstanceController
             'templates' => $templates,
             'minecraftCatalog' => $catalog,
             'template_shared_storage_support' => $this->buildTemplateSharedStorageSupportMap($templates),
-            'form' => $this->buildFormContext(['template_id' => $request->query->getInt('template_id'), 'minecraft_version' => (string) $request->query->get('minecraft_version', '')]),
+            'form' => $this->buildFormContext(['template_id' => $request->query->getInt('template_id'), 'minecraft_version' => $request->query->getString('minecraft_version', '')]),
             'activeNav' => 'game-instances',
             'createNotice' => $this->buildCreateNotice($request),
         ]));
@@ -182,7 +187,7 @@ final class AdminInstanceController
     #[Route(path: '', name: 'admin_instances_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) { return $this->createWithReservedPorts($request); }
         $input = $request->request->all();
         try { return $this->entityManager->wrapInTransaction(function () use ($request, $input): Response {
@@ -204,7 +209,7 @@ final class AdminInstanceController
 
     private function createWithReservedPorts(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -365,7 +370,7 @@ final class AdminInstanceController
             if ($instance->getInstallPath() !== null) {
                 $installPayload['install_path'] = $instance->getInstallPath();
             }
-            $installPayload = array_merge($installPayload, is_array($installPreparation['payload'] ?? null) ? $installPreparation['payload'] : []);
+            $installPayload = array_merge($installPayload, JsonArray::orEmpty($installPreparation['payload'] ?? null));
 
             $installJob = new Job('sniper.install', $installPayload);
             $this->entityManager->persist($installJob);
@@ -396,7 +401,7 @@ final class AdminInstanceController
 
         $redirectUrl = sprintf(
             '/admin/instances?created=%d&install=%s%s',
-            $instance->getId(),
+            EntityIdentifier::require($instance->getId()),
             $installJob !== null ? 'queued' : 'deferred',
             $installDeferredReason !== null ? '&install_reason=' . rawurlencode($installDeferredReason) : '',
         );
@@ -415,7 +420,7 @@ final class AdminInstanceController
     #[Route(path: '/customers', name: 'admin_instances_customers_create', methods: ['POST'])]
     public function createCustomer(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -454,7 +459,7 @@ final class AdminInstanceController
     #[Route(path: '/{id}/delete', name: 'admin_instances_delete_form', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -524,26 +529,26 @@ final class AdminInstanceController
     private function removeDependentRecords(Instance $instance): void
     {
         $this->entityManager->createQuery(sprintf('DELETE FROM %s schedule WHERE schedule.instance = :instance', InstanceSchedule::class))
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->execute();
 
         $this->entityManager->createQuery(sprintf('DELETE FROM %s allocation WHERE allocation.instance = :instance', PortAllocation::class))
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->execute();
 
         $this->entityManager->createQuery(sprintf('DELETE FROM %s rental WHERE rental.instance = :instance', ShopRental::class))
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->execute();
 
         $this->entityManager->createQuery(sprintf('UPDATE %s shopOrder SET shopOrder.instance = null WHERE shopOrder.instance = :instance', ShopOrder::class))
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->execute();
     }
 
     #[Route(path: '/{id}/sftp/provision', name: 'admin_instances_sftp_provision', methods: ['POST'])]
     public function provisionSftp(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -603,7 +608,7 @@ final class AdminInstanceController
     #[Route(path: '/{id}/resources', name: 'admin_instances_update_resources', methods: ['POST'])]
     public function updateResources(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -678,7 +683,7 @@ final class AdminInstanceController
     #[Route(path: '/{id}/shared-update', name: 'admin_instances_shared_update', methods: ['POST'])]
     public function sharedUpdate(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -702,7 +707,7 @@ final class AdminInstanceController
             'template_key' => $template->getGameKey(),
             'template_slug' => $template->getDisplayName(),
             'shared_key' => $sharedKey,
-            'base_dir' => (string) ($instance->getInstanceBaseDir() ?? ''),
+            'base_dir' => ($instance->getInstanceBaseDir() ?? ''),
             'update_command' => $updateCommand,
             'required_ports' => implode(',', $template->getRequiredPortLabels()),
         ];
@@ -714,7 +719,7 @@ final class AdminInstanceController
 
     private function resolveSharedKeyForInstance(Instance $instance): string
     {
-        $id = (int) ($instance->getId() ?? 0);
+        $id = ($instance->getId() ?? 0);
         if ($id <= 0) {
             return '';
         }
@@ -737,6 +742,18 @@ final class AdminInstanceController
         return '';
     }
 
+    /**
+     * @return array{errors: list<string>, customer: \App\Module\Core\Domain\Entity\User|null, template:
+     * \App\Module\Core\Domain\Entity\Template|null, node: \App\Module\Core\Domain\Entity\Agent|null,
+     * cpu_limit: int, ram_limit: int, disk_limit: int, port_block:
+     * \App\Module\Ports\Domain\Entity\PortBlock|null, max_slots: int, current_slots: int, customer_id:
+     * null|scalar, template_id: null|scalar, node_id: string, port_block_id: scalar, port_start: int|null,
+     * server_name: string, server_password: string, rcon_password: string, steam_gslt: string,
+     * steam_login_mode: string, steam_account: string, steam_password: string, setup_vars:
+     * array{SERVER_PASSWORD?: string, RCON_PASSWORD?: string, STEAM_PASSWORD?: string}, minecraft_version:
+     * string, minecraft_build: string, minecraft_rcon: bool, minecraft_query: bool, bungee_backend: string,
+     * instance_base_dir: string, use_shared_storage: bool}
+     */
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -1066,7 +1083,7 @@ final class AdminInstanceController
 
     /**
      * @param array<int, \App\Module\Core\Domain\Entity\Template> $templates
-     * @return array<string, bool>
+     * @return array<array-key, bool>
      */
     private function buildTemplateSharedStorageSupportMap(array $templates): array
     {
@@ -1191,6 +1208,7 @@ final class AdminInstanceController
         return in_array($nodeOs, $normalizedOs, true);
     }
 
+    /** @return array{errors: list<string>, email: string, password: string} */
     private function parseCustomerPayload(Request $request): array
     {
         $errors = [];
@@ -1284,7 +1302,8 @@ final class AdminInstanceController
     }
 
     /**
-     * @param Instance[] $instances
+     * @param list<Instance> $instances
+     * @param array<int, InstanceSftpCredential> $sftpCredentials
      */
     private function normalizeInstances(array $instances, array $sftpCredentials): array
     {
@@ -1314,8 +1333,8 @@ final class AdminInstanceController
                 $runtimeStatus = InstanceStatus::Running->value;
             }
             $displayStatus = $this->resolveDisplayStatus($instance, $runtimeStatus);
-            $latestLifecycleJob = $latestLifecycleJobs[(int) ($instance->getId() ?? 0)] ?? null;
-            $bookedRamBytes = (int) $instance->getRamLimit() * 1024 * 1024;
+            $latestLifecycleJob = $latestLifecycleJobs[($instance->getId() ?? 0)] ?? null;
+            $bookedRamBytes = $instance->getRamLimit() * 1024 * 1024;
             $usedRamBytes = $instanceMetric?->getMemUsedBytes();
 
             return [
@@ -1372,7 +1391,7 @@ final class AdminInstanceController
                 'shared_storage_key' => (string) (($latestLifecycleJob?->getResult()?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')),
                 'shared_storage_status' => (string) (($latestLifecycleJob?->getResult()?->getOutput()['shared_status'] ?? $latestLifecycleJob?->getResult()?->getOutput()['shared_result'] ?? '')),
                 'shared_storage_last_update_at' => (string) (($latestLifecycleJob?->getResult()?->getOutput()['last_successful_update_at'] ?? '')),
-                'shared_update_available' => (bool) ($instance->isSharedStorageEnabled() && trim((string) ($latestLifecycleJob?->getResult()?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')) !== '' && trim($instance->getTemplate()->getUpdateCommand()) !== ''),
+                'shared_update_available' => ($instance->isSharedStorageEnabled() && trim((string) ($latestLifecycleJob?->getResult()?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')) !== '' && trim($instance->getTemplate()->getUpdateCommand()) !== ''),
             ];
         }, $instances);
     }
@@ -1622,7 +1641,7 @@ final class AdminInstanceController
 
     private function resolveSftpBaseDir(Instance $instance): string
     {
-        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        $baseDir = trim(($instance->getInstanceBaseDir() ?? ''));
         if ($baseDir !== '') {
             return rtrim($baseDir, '/\\');
         }
@@ -1667,10 +1686,14 @@ final class AdminInstanceController
 
     private function buildSftpUsername(Instance $instance): string
     {
-        return sprintf('sftp%d', $instance->getId());
+        return sprintf('sftp%d', EntityIdentifier::require($instance->getId()));
     }
 
 
+    /**
+     * @return array{total: int, running: int, pending_setup: int, stopped: int, suspended: int,
+     * provisioning: int, error: int}
+     */
     private function buildSummary(array $instances): array
     {
         $summary = [
@@ -1711,8 +1734,8 @@ final class AdminInstanceController
             return null;
         }
 
-        $installState = (string) $request->query->get('install', 'queued');
-        $installReason = (string) $request->query->get('install_reason', '');
+        $installState = $request->query->getString('install', 'queued');
+        $installReason = $request->query->getString('install_reason', '');
 
         if ($installState === 'queued') {
             return [
@@ -1729,6 +1752,10 @@ final class AdminInstanceController
         ];
     }
 
+    /**
+     * @return array{offline_agents: int, disk_problem_instances: int, runtime_unknown_instances: int,
+     * failed_jobs_by_error: array<string, int>, blocked_schedules: int}
+     */
     private function buildOpsSummary(array $instances): array
     {
         $offlineAgents = [];
@@ -1786,7 +1813,7 @@ final class AdminInstanceController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 
@@ -1811,16 +1838,16 @@ final class AdminInstanceController
      */
     private function extractTableFilters(Request $request): array
     {
-        $status = strtolower(trim((string) $request->query->get('status', '')));
+        $status = strtolower(trim($request->query->getString('status', '')));
         $allowedStatus = array_map(static fn (InstanceStatus $value): string => $value->value, InstanceStatus::cases());
         if (!in_array($status, $allowedStatus, true)) {
             $status = '';
         }
 
         return [
-            'q' => trim((string) $request->query->get('q', '')),
+            'q' => trim($request->query->getString('q', '')),
             'status' => $status,
-            'node' => trim((string) $request->query->get('node', '')),
+            'node' => trim($request->query->getString('node', '')),
         ];
     }
 

@@ -85,7 +85,7 @@ final class GameserverBackupScheduleRunner
         do {
             $backupSchedules = $this->backupScheduleRepository->findEnabledBatchAfterId($lastBackupScheduleId, self::BATCH_SIZE);
             foreach ($backupSchedules as $schedule) {
-                $lastBackupScheduleId = max($lastBackupScheduleId, (int) ($schedule->getId() ?? 0));
+                $lastBackupScheduleId = max($lastBackupScheduleId, ($schedule->getId() ?? 0));
                 $queued += $this->queueScheduleIfDue($schedule, $now);
             }
         } while (count($backupSchedules) === self::BATCH_SIZE);
@@ -249,8 +249,8 @@ final class GameserverBackupScheduleRunner
             'node_id' => $instance->getNode()->getId(),
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
-            'install_path' => (string) ($instance->getInstallPath() ?? ''),
-            'base_dir' => (string) ($instance->getInstanceBaseDir() ?? ''),
+            'install_path' => ($instance->getInstallPath() ?? ''),
+            'base_dir' => ($instance->getInstanceBaseDir() ?? ''),
             'definition_id' => (string) ($definition->getId() ?? ''),
             'backup_id' => (string) ($backup->getId() ?? ''),
             'retention_days' => (string) $schedule->getRetentionDays(),

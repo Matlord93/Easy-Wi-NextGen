@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlaylist;
@@ -11,6 +12,9 @@ use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Repository\MusicbotPlaylistRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Process\Exception\ExceptionInterface as ProcessException;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Process;
 
 final class MusicbotYoutubeService
 {
@@ -31,7 +35,7 @@ final class MusicbotYoutubeService
         private readonly string $binary = 'yt-dlp',
     ) {}
 
-    /** @return array<string, mixed> */
+    /** @return array{available: bool, version: null|string, update_hint: string, cookies_configured: bool} */
     public function diagnostics(MusicbotInstance $instance): array
     {
         return [
@@ -66,7 +70,10 @@ final class MusicbotYoutubeService
         return $results;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{source_type: string, tracks_imported: int, playlist_id: int|null, track_ids:
+     * list<int|null>}
+     */
     public function importUrl(User $customer, MusicbotInstance $instance, string $url, array $options = []): array
     {
         $this->assertCustomerOwnsInstance($customer, $instance);
@@ -118,15 +125,15 @@ final class MusicbotYoutubeService
     public function history(MusicbotInstance $instance): array
     {
         $config = $instance->getInstanceConfig();
-        return is_array($config['youtube']['history'] ?? null) ? $config['youtube']['history'] : [];
+        return JsonArray::orEmpty($config['youtube']['history'] ?? null);
     }
 
     public function saveCookies(User $customer, MusicbotInstance $instance, string $cookies): void
     {
         $this->assertCustomerOwnsInstance($customer, $instance);
         $config = $instance->getInstanceConfig();
-        $youtube = is_array($config['youtube'] ?? null) ? $config['youtube'] : [];
-        $secrets = is_array($youtube['secrets'] ?? null) ? $youtube['secrets'] : [];
+        $youtube = JsonArray::orEmpty($config['youtube'] ?? null);
+        $secrets = JsonArray::orEmpty($youtube['secrets'] ?? null);
         $youtube['secrets'] = $this->secretConfigService->mergeSecretUpdates($secrets, ['youtube_cookies' => $cookies]);
         $config['youtube'] = $youtube;
         $instance->setInstanceConfig($config);
@@ -149,7 +156,10 @@ final class MusicbotYoutubeService
         return 'video';
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * @param list<string> $targets
+     * @return array<int, array<string, mixed>>
+     */
     private function runYtDlpJson(MusicbotInstance $instance, array $targets, bool $playlist): array
     {
         if (!$this->resolver->isAvailable()) { throw new \RuntimeException('yt-dlp fehlt. Bitte Musicbot-Repair ausführen oder yt-dlp installieren.'); }
@@ -157,16 +167,21 @@ final class MusicbotYoutubeService
         if (!$playlist) { $args[] = '--no-playlist'; }
         $cookies = $this->cookiesForInstance($instance);
         $cookieFile = null;
-        if ($cookies !== '') {
-            $cookieFile = tempnam(sys_get_temp_dir(), 'easywi-ytdlp-cookies-');
-            if ($cookieFile === false) { throw new \RuntimeException('Cannot create temporary cookie file.'); }
-            if (file_put_contents($cookieFile, $cookies) !== strlen($cookies)) { @unlink($cookieFile); throw new \RuntimeException('Cannot write temporary cookie file.'); }
-            @chmod($cookieFile, 0600);
-            $args[] = '--cookies'; $args[] = $cookieFile;
-        }
-        $args[] = '--';
-        foreach ($targets as $target) { $args[] = $target; }
         try {
+            if ($cookies !== '') {
+                $temporary = tempnam(sys_get_temp_dir(), 'easywi-ytdlp-cookies-');
+                if ($temporary === false) {
+                    throw new \RuntimeException('yt-dlp cookie file could not be created.');
+                }
+                $cookieFile = $temporary;
+                if (file_put_contents($cookieFile, $cookies) === false) {
+                    throw new \RuntimeException('yt-dlp cookie file could not be written.');
+                }
+                $args[] = '--cookies';
+                $args[] = $cookieFile;
+            }
+            $args[] = '--';
+            array_push($args, ...$targets);
             $result = $this->runProcess($args);
         } finally {
             if ($cookieFile !== null) { @unlink($cookieFile); }
@@ -181,10 +196,22 @@ final class MusicbotYoutubeService
         return $rows;
     }
 
-    /** @param array<int, string> $args @return array{exit_code:int, stdout:string, stderr:string} */
+    /**
+     * @param list<string> $args
+     * @return array{exit_code:int, stdout:string, stderr:string}
+     */
     private function runProcess(array $args): array
     {
-        return MusicbotProcessRunner::run($args, self::YTDLP_TIMEOUT_SECONDS);
+        $process = new Process($args, timeout: self::YTDLP_TIMEOUT_SECONDS);
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            return ['exit_code' => 124, 'stdout' => $process->getOutput(), 'stderr' => $process->getErrorOutput()."\nyt-dlp timed out."];
+        } catch (ProcessException $exception) {
+            throw new \RuntimeException('yt-dlp konnte nicht gestartet werden.', 0, $exception);
+        }
+
+        return ['exit_code' => $process->getExitCode() ?? 1, 'stdout' => $process->getOutput(), 'stderr' => $process->getErrorOutput()];
     }
 
     /** @param array<string, mixed> $entry */
@@ -206,7 +233,11 @@ final class MusicbotYoutubeService
         ], $instance);
     }
 
-    /** @param array<string, mixed> $entry @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $entry
+     * @return array{youtube_id: string, title: string, artist: string, duration: int, thumbnail: string,
+     * source_url: string, source: string, source_type: string}
+     */
     private function normalizeEntry(array $entry): array
     {
         return [
@@ -257,8 +288,8 @@ final class MusicbotYoutubeService
     private function rememberYoutubeHistory(MusicbotInstance $instance, array $entry): void
     {
         $config = $instance->getInstanceConfig();
-        $youtube = is_array($config['youtube'] ?? null) ? $config['youtube'] : [];
-        $history = is_array($youtube['history'] ?? null) ? $youtube['history'] : [];
+        $youtube = JsonArray::orEmpty($config['youtube'] ?? null);
+        $history = JsonArray::orEmpty($youtube['history'] ?? null);
         array_unshift($history, $entry + ['at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM)]);
         $youtube['history'] = array_slice($history, 0, 50);
         $config['youtube'] = $youtube;

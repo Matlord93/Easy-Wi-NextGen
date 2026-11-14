@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ShopProductVariantRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ShopProductVariantRepository::class)]
 #[ORM\Table(name: 'shop_product_variants')]
 #[ORM\UniqueConstraint(name: 'uniq_shop_variant_sku', columns: ['sku'])]

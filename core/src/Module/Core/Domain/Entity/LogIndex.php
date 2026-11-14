@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\LogIndexRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: LogIndexRepository::class)]
 #[ORM\Table(name: 'log_indices')]
 #[ORM\UniqueConstraint(name: 'log_indices_identity', columns: ['agent_id', 'source', 'scope_type', 'scope_id', 'log_name'])]

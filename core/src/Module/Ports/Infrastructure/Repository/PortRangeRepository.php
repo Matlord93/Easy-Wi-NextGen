@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Infrastructure\Repository;
 
+use App\Repository\QueryParameter;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Ports\Domain\Entity\PortRange;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -37,7 +38,7 @@ final class PortRangeRepository extends ServiceEntityRepository
             ->andWhere('range.protocol = :protocol')
             ->andWhere('range.startPort <= :endPort')
             ->andWhere('range.endPort >= :startPort')
-            ->setParameter('node', $node)
+            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('protocol', $protocol)
             ->setParameter('startPort', $startPort)
             ->setParameter('endPort', $endPort)

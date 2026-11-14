@@ -76,13 +76,19 @@ final class PublicCmsEventsController
         ] + $this->themeContext($site, 'events', $event->getTitle())));
     }
 
-    /** @param list<CmsEvent> $events @return list<array<string,mixed>> */
+    /**
+     * @param list<CmsEvent> $events
+     * @return list<array<string,mixed>>
+     */
     private function normalize(array $events): array
     {
         return array_map(fn (CmsEvent $event): array => $this->normalizeOne($event), $events);
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{title: string, slug: string, description: string, location: null|string, status:
+     * string, cover_image_path: null|string, start_at: \DateTimeImmutable, end_at: \DateTimeImmutable|null}
+     */
     private function normalizeOne(CmsEvent $event): array
     {
         return [
@@ -97,7 +103,12 @@ final class PublicCmsEventsController
         ];
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{active_theme: string, template_key: string, page: array{slug: string, title: string},
+     * cms_navigation: list<array{label: string, url: string, external: bool}>, cms_footer_links:
+     * list<array{label: string, url: string, external: bool}>, cms_branding: array{logo_path: string,
+     * primary_color: string, socials: array<string, string>}}
+     */
     private function themeContext(Site $site, string $slug, string $title): array
     {
         $templateKey = $this->themeResolver->resolveThemeKey($site);

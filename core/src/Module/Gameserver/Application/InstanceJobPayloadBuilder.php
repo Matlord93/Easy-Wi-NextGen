@@ -86,7 +86,7 @@ final class InstanceJobPayloadBuilder
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{config_files: array<int, array{path: string, content_base64: string}>, ...<array-key, mixed>}
      */
     public function buildRuntimePayload(Instance $instance): array
     {

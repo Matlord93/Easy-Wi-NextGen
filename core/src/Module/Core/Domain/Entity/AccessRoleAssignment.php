@@ -6,6 +6,11 @@ namespace App\Module\Core\Domain\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'access_role_assignments')]
 #[ORM\UniqueConstraint(name: 'uniq_access_role_user', columns: ['role_id', 'user_id'])]

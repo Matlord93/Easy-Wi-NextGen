@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Core\Application\AgentMetricsIngestionService;
 use App\Module\Core\Application\AgentJwtVerifier;
 use App\Module\Core\Application\AgentSignatureVerifier;
@@ -179,8 +182,8 @@ final class AgentApiController
         }
 
         $version = (string) ($payload['version'] ?? '');
-        $stats = is_array($payload['stats'] ?? null) ? $payload['stats'] : [];
-        $roles = is_array($payload['roles'] ?? null) ? $payload['roles'] : [];
+        $stats = JsonArray::orEmpty($payload['stats'] ?? null);
+        $roles = JsonArray::orEmpty($payload['roles'] ?? null);
         $metadata = is_array($payload['metadata'] ?? null) ? $payload['metadata'] : null;
         $status = isset($payload['status']) ? (string) $payload['status'] : null;
         $ip = $this->resolveAgentIpFromRequest($request);
@@ -191,7 +194,7 @@ final class AgentApiController
 
         $agent->recordHeartbeat($stats, $version, $ip, $roles, $metadata, $status);
         $this->entityManager->persist($agent);
-        $ingested = $this->metricsIngestionService->ingestBatch($agent, [is_array($stats['metrics'] ?? null) ? $stats['metrics'] : []]);
+        $ingested = $this->metricsIngestionService->ingestBatch($agent, [JsonArray::orEmpty($stats['metrics'] ?? null)]);
         if ($ingested > 0) {
             $this->auditLogger->log(null, 'agent.metrics.batch_recorded', [
                 'agent_id' => $agent->getId(),
@@ -246,7 +249,7 @@ final class AgentApiController
             return new JsonResponse(['error' => 'agent_decommissioned'], JsonResponse::HTTP_FORBIDDEN);
         }
 
-        $raw = (string) $request->getContent();
+        $raw = $request->getContent();
         if (strtolower((string) $request->headers->get('Content-Encoding')) === 'gzip') {
             $decoded = @gzdecode($raw);
             if (!is_string($decoded)) {
@@ -261,7 +264,7 @@ final class AgentApiController
             throw new BadRequestHttpException($this->translator->trans('error_invalid_json_payload'), $exception);
         }
 
-        $samples = is_array($payload['samples'] ?? null) ? $payload['samples'] : [];
+        $samples = JsonArray::orEmpty($payload['samples'] ?? null);
         if (count($samples) > 1000) {
             $samples = array_slice($samples, 0, 1000);
         }
@@ -293,7 +296,7 @@ final class AgentApiController
             throw new BadRequestHttpException($this->translator->trans('error_invalid_json_payload'), $exception);
         }
 
-        $events = is_array($payload['events'] ?? null) ? $payload['events'] : [];
+        $events = JsonArray::orEmpty($payload['events'] ?? null);
         $events = array_slice($events, 0, 1000);
 
         $persisted = 0;
@@ -328,7 +331,7 @@ final class AgentApiController
                 (string) ($event['source'] ?? 'agent'),
                 (string) ($event['event_type'] ?? 'policy'),
                 $message !== '' ? $message : 'mail event',
-                is_array($event['payload'] ?? null) ? $event['payload'] : [],
+                JsonArray::orEmpty($event['payload'] ?? null),
                 $user,
             );
             $this->entityManager->persist($mailLog);
@@ -641,7 +644,7 @@ final class AgentApiController
         };
 
         $completedAt = $this->parseCompletedAt($payload['completed_at'] ?? null);
-        $output = is_array($payload['output'] ?? null) ? $payload['output'] : [];
+        $output = JsonArray::orEmpty($payload['output'] ?? null);
         $databaseCredential = is_string($output['one_time_credential'] ?? null)
             ? trim((string) $output['one_time_credential'])
             : null;
@@ -787,7 +790,7 @@ final class AgentApiController
         $keys = ['logs_tail', 'install_log', 'log_text', 'output', 'message'];
         foreach ($keys as $key) {
             if (isset($output[$key]) && is_string($output[$key]) && trim($output[$key]) !== '') {
-                $candidates[] = (string) $output[$key];
+                $candidates[] = $output[$key];
             }
         }
         foreach (['stdout' => 'STDOUT', 'stderr' => 'STDERR'] as $key => $label) {
@@ -811,7 +814,7 @@ final class AgentApiController
         foreach ($candidates as $text) {
             $split = preg_split('/\r\n|\r|\n/', trim($text)) ?: [];
             foreach ($split as $line) {
-                $line = trim((string) $line);
+                $line = trim($line);
                 if ($line === '') {
                     continue;
                 }
@@ -858,7 +861,7 @@ final class AgentApiController
         foreach ($candidates as $text) {
             $split = preg_split('/\r\n|\r|\n/', trim($text)) ?: [];
             foreach ($split as $line) {
-                $line = trim((string) $line);
+                $line = trim($line);
                 if ($line === '') {
                     continue;
                 }
@@ -1189,31 +1192,7 @@ final class AgentApiController
         return new DateTimeImmutable();
     }
 
-    private function buildMetricSample(\App\Module\Core\Domain\Entity\Agent $agent, mixed $metrics): ?MetricSample
-    {
-        if (!is_array($metrics)) {
-            return null;
-        }
 
-        $recordedAt = $this->parseMetricTimestamp($metrics['collected_at'] ?? null);
-        $cpuPercent = $this->parseMetricPercent($metrics, 'cpu');
-        $memoryPercent = $this->parseMetricPercent($metrics, 'memory');
-        $diskPercent = $this->parseMetricPercent($metrics, 'disk');
-
-        $netBytesSent = $this->parseMetricInt($metrics, ['net', 'bytes_sent']);
-        $netBytesRecv = $this->parseMetricInt($metrics, ['net', 'bytes_recv']);
-
-        return new MetricSample(
-            $agent,
-            $recordedAt,
-            $cpuPercent,
-            $memoryPercent,
-            $diskPercent,
-            $netBytesSent,
-            $netBytesRecv,
-            $metrics,
-        );
-    }
 
     private function parseMetricTimestamp(mixed $value): \DateTimeImmutable
     {
@@ -1227,32 +1206,9 @@ final class AgentApiController
         return new \DateTimeImmutable();
     }
 
-    private function parseMetricPercent(array $metrics, string $key): ?float
-    {
-        $value = $metrics[$key]['percent'] ?? null;
-        if (!is_numeric($value)) {
-            return null;
-        }
 
-        return (float) $value;
-    }
 
-    private function parseMetricInt(array $metrics, array $path): ?int
-    {
-        $cursor = $metrics;
-        foreach ($path as $segment) {
-            if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
-                return null;
-            }
-            $cursor = $cursor[$segment];
-        }
 
-        if (!is_numeric($cursor)) {
-            return null;
-        }
-
-        return (int) $cursor;
-    }
 
     private function ingestInstanceMetrics(mixed $payload): void
     {
@@ -1260,10 +1216,11 @@ final class AgentApiController
             return;
         }
 
-        $samples = is_array($payload['samples'] ?? null) ? $payload['samples'] : [];
+        $samples = JsonArray::orEmpty($payload['samples'] ?? null);
         $settings = $this->appSettingsService->getSettings();
-        $retentionDays = is_numeric($settings[AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS] ?? null)
-            ? max(1, min(7, (int) $settings[AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS]))
+        $retentionSetting = $settings[AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS] ?? null;
+        $retentionDays = is_numeric($retentionSetting)
+            ? max(1, min(7, (int) $retentionSetting))
             : 1;
         $retentionThreshold = (new \DateTimeImmutable())->modify(sprintf('-%d days', $retentionDays));
         $resolvedInstances = [];
@@ -1534,7 +1491,7 @@ final class AgentApiController
                 'port_attack_active',
                 null,
                 'port:' . (string) $portStat['port'],
-                (int) ($portStat['syn_recv'] ?? 0),
+                ($portStat['syn_recv'] ?? 0),
                 $reportedAt,
             ));
         }
@@ -1698,7 +1655,7 @@ final class AgentApiController
         }
 
         $payload = $job->getPayload();
-        $policy = is_array($payload['policy'] ?? null) ? $payload['policy'] : [];
+        $policy = JsonArray::orEmpty($payload['policy'] ?? null);
         $this->auditLogger->log(null, 'fail2ban.policy.applied', [
             'agent_id' => $agent->getId(),
             'policy' => $policy,
@@ -1730,7 +1687,7 @@ final class AgentApiController
             return;
         }
 
-        $events = json_decode($rawEvents, true);
+        $events = JsonArray::decode($rawEvents);
         if (!is_array($events)) {
             return;
         }
@@ -2059,7 +2016,7 @@ final class AgentApiController
                 'runtime' => $webspace->getRuntime(),
                 'web_root' => $webspace->getPath(),
                 'docroot' => $webspace->getDocroot(),
-                'target_path' => (string) ($domain->getTargetPath() ?? ''),
+                'target_path' => ($domain->getTargetPath() ?? ''),
                 'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
                 'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
                 'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $webspace->getSystemUsername()),
@@ -2432,7 +2389,7 @@ final class AgentApiController
         }
 
         $paths = [];
-        $files = is_array($payload['files'] ?? null) ? $payload['files'] : [];
+        $files = JsonArray::orEmpty($payload['files'] ?? null);
         foreach ($files as $file) {
             if (is_array($file) && is_string($file['path'] ?? null) && trim((string) $file['path']) !== '') {
                 $paths[] = trim((string) $file['path']);
@@ -2449,7 +2406,7 @@ final class AgentApiController
             if ($path === '') {
                 continue;
             }
-            $entry = is_array($overrides[$path] ?? null) ? $overrides[$path] : [];
+            $entry = JsonArray::orEmpty($overrides[$path] ?? null);
             $entry['last_apply_status'] = $resultStatus === JobResultStatus::Succeeded ? 'succeeded' : 'failed';
             $entry['last_applied_at'] = $completedAt->format(DATE_RFC3339);
             if ($resultStatus === JobResultStatus::Succeeded) {
@@ -2494,7 +2451,7 @@ final class AgentApiController
         if ($credential === null) {
             $credential = new \App\Module\Core\Domain\Entity\InstanceSftpCredential(
                 $instance,
-                (string) ($output['username'] ?? sprintf('sftp%d', $instance->getId())),
+                (string) ($output['username'] ?? sprintf('sftp%d', EntityIdentifier::require($instance->getId()))),
                 $this->encryptionService->encrypt($password !== '' ? $password : bin2hex(random_bytes(18))),
             );
         } elseif ($password !== '') {
@@ -2602,7 +2559,7 @@ final class AgentApiController
 
     private function resolveInstanceBaseDir(Instance $instance): string
     {
-        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        $baseDir = trim(($instance->getInstanceBaseDir() ?? ''));
         if ($baseDir !== '') {
             return rtrim($baseDir, '/\\');
         }
@@ -2633,7 +2590,7 @@ final class AgentApiController
             return;
         }
 
-        $activeReset = $this->jobRepository->findLatestByTypeAndInstanceId('instance.sftp.credentials.reset', $instance->getId());
+        $activeReset = $this->jobRepository->findLatestByTypeAndInstanceId('instance.sftp.credentials.reset', EntityIdentifier::require($instance->getId()));
         if ($activeReset !== null && in_array($activeReset->getStatus(), [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running], true)) {
             return;
         }
@@ -2642,7 +2599,7 @@ final class AgentApiController
         $expiresAt = (new DateTimeImmutable('+15 minutes'))->setTimezone(new \DateTimeZone('UTC'));
         $credential = new \App\Module\Core\Domain\Entity\InstanceSftpCredential(
             $instance,
-            sprintf('gs_%d_%d', $instance->getId(), $instance->getCustomer()->getId()),
+            sprintf('gs_%d_%d', EntityIdentifier::require($instance->getId()), EntityIdentifier::require($instance->getCustomer()->getId())),
             $this->encryptionService->encrypt($password),
         );
         $credential->setExpiresAt($expiresAt);
@@ -3233,8 +3190,17 @@ final class AgentApiController
             $encrypted = $target->getEncryptedCredentials();
             $secret = [];
             foreach (['password', 'token', 'username'] as $key) {
-                if (is_array($encrypted[$key] ?? null)) {
-                    $secret[$key] = $this->encryptionService->decrypt($encrypted[$key]);
+                $credential = $encrypted[$key] ?? null;
+                if (is_array($credential)
+                    && is_string($credential['key_id'] ?? null)
+                    && is_string($credential['nonce'] ?? null)
+                    && is_string($credential['ciphertext'] ?? null)
+                ) {
+                    $secret[$key] = $this->encryptionService->decrypt([
+                        'key_id' => $credential['key_id'],
+                        'nonce' => $credential['nonce'],
+                        'ciphertext' => $credential['ciphertext'],
+                    ]);
                 }
             }
             if ($secret !== []) {
@@ -3348,6 +3314,45 @@ final class AgentApiController
         }
 
         throw new \RuntimeException('Unsupported filesystem resolver implementation.');
+    }
+
+
+    private function buildMetricSample(\App\Module\Core\Domain\Entity\Agent $agent, mixed $metrics): ?MetricSample
+    {
+        if (!is_array($metrics)) {
+            return null;
+        }
+        $recordedAt = $this->parseMetricTimestamp($metrics['collected_at'] ?? null);
+        $cpuPercent = $this->parseMetricPercent($metrics, 'cpu');
+        $memoryPercent = $this->parseMetricPercent($metrics, 'memory');
+        $diskPercent = $this->parseMetricPercent($metrics, 'disk');
+        $netBytesSent = $this->parseMetricInt($metrics, ['net', 'bytes_sent']);
+        $netBytesRecv = $this->parseMetricInt($metrics, ['net', 'bytes_recv']);
+        return new MetricSample($agent, $recordedAt, $cpuPercent, $memoryPercent, $diskPercent, $netBytesSent, $netBytesRecv, $metrics);
+    }
+
+    private function parseMetricPercent(array $metrics, string $key): ?float
+    {
+        $value = $metrics[$key]['percent'] ?? null;
+        if (!is_numeric($value)) {
+            return null;
+        }
+        return (float) $value;
+    }
+
+    private function parseMetricInt(array $metrics, array $path): ?int
+    {
+        $cursor = $metrics;
+        foreach ($path as $segment) {
+            if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
+                return null;
+            }
+            $cursor = $cursor[$segment];
+        }
+        if (!is_numeric($cursor)) {
+            return null;
+        }
+        return (int) $cursor;
     }
 
 }

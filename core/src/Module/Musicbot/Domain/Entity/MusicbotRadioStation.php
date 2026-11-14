@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\MusicbotRadioStationRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotRadioStationRepository::class)]
 #[ORM\Table(name: 'musicbot_radio_stations')]
 #[ORM\Index(name: 'idx_musicbot_radio_stations_customer', columns: ['customer_id'])]

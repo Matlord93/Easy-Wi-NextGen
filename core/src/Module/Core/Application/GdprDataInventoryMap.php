@@ -7,7 +7,8 @@ namespace App\Module\Core\Application;
 final class GdprDataInventoryMap
 {
     /**
-     * @return array<int, array{entity: string, pii_fields: list<string>, export_scope: string, deletion_strategy: string}>
+     * @return array<int, array{entity: string, pii_fields: list<string>, export_scope: string,
+     * deletion_strategy: string}>
      */
     public function all(): array
     {

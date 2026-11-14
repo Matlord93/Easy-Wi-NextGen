@@ -8,7 +8,7 @@ abstract class AbstractConfigSchemaParser implements ConfigSchemaParserInterface
 {
     /**
      * @param array<string, mixed> $schema
-     * @param array<string, mixed> $parsed
+     * @param array<array-key, mixed> $parsed
      * @param string[] $warnings
      */
     protected function buildResult(array $schema, array $parsed, array $warnings, bool $sectioned): ConfigSchemaParseResult
@@ -57,7 +57,7 @@ abstract class AbstractConfigSchemaParser implements ConfigSchemaParserInterface
         } else {
             foreach ($parsed as $key => $value) {
                 if (!isset($knownKeys[$this->normalizeKey('', (string) $key)])) {
-                    $warnings[] = sprintf('Unknown setting: %s', (string) $key);
+                    $warnings[] = sprintf('Unknown setting: %s', $key);
                 }
             }
         }

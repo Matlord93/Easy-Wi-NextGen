@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -22,7 +24,7 @@ final class PanelLandingController
     #[Route(path: '/customer', name: 'customer_panel_landing', methods: ['GET'])]
     public function customer(Request $request): Response
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User || $user->getType() !== UserType::Customer) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -33,7 +35,7 @@ final class PanelLandingController
     #[Route(path: '/reseller', name: 'reseller_panel_landing', methods: ['GET'])]
     public function reseller(Request $request): Response
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User || $user->getType() !== UserType::Reseller) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }

@@ -14,7 +14,8 @@ final class SetupChecker
     public const ACTION_UPDATE = 'update';
 
     /**
-     * @return array{is_ready: bool, missing: array<int, array{key: string, label: string, type: string}>, blocked_actions: array<int, string>}
+     * @return array{is_ready: bool, missing: array<int, array{key: string, label: string, type: string}>,
+     * blocked_actions: array<int, string>}
      */
     public function getSetupStatus(Instance $instance): array
     {

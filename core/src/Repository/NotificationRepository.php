@@ -25,7 +25,7 @@ final class NotificationRepository extends ServiceEntityRepository
             ->select('COUNT(notification.id)')
             ->andWhere('notification.recipient = :recipient')
             ->andWhere('notification.readAt IS NULL')
-            ->setParameter('recipient', $recipient)
+            ->setParameter('recipient', QueryParameter::entityId($recipient->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -35,16 +35,12 @@ final class NotificationRepository extends ServiceEntityRepository
      */
     public function findLatestForRecipient(User $recipient, int $limit = 30): array
     {
-        /** @var list<Notification> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('notification')
+        return EntityQueryResult::all($this->createQueryBuilder('notification')
             ->andWhere('notification.recipient = :recipient')
-            ->setParameter('recipient', $recipient)
+            ->setParameter('recipient', QueryParameter::entityId($recipient->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('notification.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Notification::class);
     }
 
     public function findOneByEventKey(User $recipient, string $eventKey): ?Notification
@@ -57,24 +53,22 @@ final class NotificationRepository extends ServiceEntityRepository
 
     public function deleteByRecipient(User $recipient): int
     {
-        return $this->createQueryBuilder('notification')
+        return EntityQueryResult::affected($this->createQueryBuilder('notification')
             ->delete()
             ->andWhere('notification.recipient = :recipient')
-            ->setParameter('recipient', $recipient)
-            ->getQuery()
-            ->execute();
+            ->setParameter('recipient', QueryParameter::entityId($recipient->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->getQuery());
     }
 
     public function markAllReadForRecipient(User $recipient): int
     {
-        return $this->createQueryBuilder('notification')
+        return EntityQueryResult::affected($this->createQueryBuilder('notification')
             ->update()
             ->set('notification.readAt', ':readAt')
             ->andWhere('notification.recipient = :recipient')
             ->andWhere('notification.readAt IS NULL')
-            ->setParameter('recipient', $recipient)
-            ->setParameter('readAt', new \DateTimeImmutable())
-            ->getQuery()
-            ->execute();
+            ->setParameter('recipient', QueryParameter::entityId($recipient->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->setParameter('readAt', new \DateTimeImmutable(), \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->getQuery());
     }
 }

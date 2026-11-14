@@ -21,7 +21,6 @@ class CmsSiteSettingsRepository extends ServiceEntityRepository
 
     public function findOneBySite(Site $site): ?CmsSiteSettings
     {
-        /** @var CmsSiteSettings|null $settings */
         $settings = $this->findOneBy(['site' => $site]);
 
         return $settings;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
@@ -37,7 +39,7 @@ final class AdminSettingsController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $activeTab = $this->resolveTab((string) $request->query->get('tab', 'general'));
+        $activeTab = $this->resolveTab($request->query->getString('tab', 'general'));
 
         return new Response($this->twig->render('admin/settings/index.html.twig', [
             'activeNav' => 'settings',
@@ -268,7 +270,7 @@ final class AdminSettingsController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -281,7 +283,7 @@ final class AdminSettingsController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 

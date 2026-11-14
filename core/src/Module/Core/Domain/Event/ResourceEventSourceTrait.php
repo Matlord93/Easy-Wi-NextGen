@@ -13,6 +13,6 @@ trait ResourceEventSourceTrait
 
     public function getResourceId(): string
     {
-        return (string) $this->getId();
+        return $this->getId();
     }
 }

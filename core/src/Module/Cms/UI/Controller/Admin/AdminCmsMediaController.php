@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\MediaAsset;
 use App\Module\Core\Domain\Entity\Site;
@@ -61,9 +63,9 @@ final class AdminCmsMediaController
             return new RedirectResponse('/admin/cms/media');
         }
 
-        $ext = $upload->guessExtension() ?: 'bin';
+        $ext = $upload->guessExtension() ?? 'bin';
         $filename = sprintf('cms-%s.%s', bin2hex(random_bytes(8)), $ext);
-        $projectDir = (string) $this->params->get('kernel.project_dir');
+        $projectDir = $this->params->get('kernel.project_dir');
         $targetDir = $projectDir . '/public/uploads';
         if (!is_dir($targetDir)) {
             mkdir($targetDir, 0775, true);
@@ -94,7 +96,7 @@ final class AdminCmsMediaController
 
         $asset = $this->mediaRepository->find($id);
         if ($asset instanceof MediaAsset) {
-            $projectDir = (string) $this->params->get('kernel.project_dir');
+            $projectDir = $this->params->get('kernel.project_dir');
             $absolutePath = $projectDir . '/public' . $asset->getPath();
             if (is_file($absolutePath)) {
                 @unlink($absolutePath);
@@ -108,7 +110,7 @@ final class AdminCmsMediaController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

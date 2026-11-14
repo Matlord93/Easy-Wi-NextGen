@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Proxmox;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Nodes\Application\VmGuestAgentReport;
 use App\Module\Nodes\Application\VmGuestNetworkReport;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
@@ -34,7 +35,7 @@ final readonly class ProxmoxGuestAgent
                 return VmGuestAgentReport::observed('invalid_response');
             }
             $fields = ['version' => $version];
-            $commands = array_slice(is_array($info['supported_commands'] ?? null) ? $info['supported_commands'] : [], 0, 256);
+            $commands = array_slice(JsonArray::orEmpty($info['supported_commands'] ?? null), 0, 256);
             $fields['network'] = VmGuestNetworkReport::empty('unsupported');
             $networkSupported = array_filter($commands, static fn ($row): bool => is_array($row) && ($row['name'] ?? null) === 'guest-network-get-interfaces' && ($row['enabled'] ?? null) === true);
             if ($networkSupported) {

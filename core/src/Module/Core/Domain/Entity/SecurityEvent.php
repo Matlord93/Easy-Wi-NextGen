@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\SecurityEventRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: SecurityEventRepository::class)]
 #[ORM\Table(name: 'security_events')]
 #[ORM\Index(columns: ['occurred_at'], name: 'idx_security_events_occurred')]

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\Agent;
@@ -38,7 +40,10 @@ class MailNodeHealthAggregator
     ) {
     }
 
-    /** @param MailNode[] $mailNodes @param MailDomain[] $mailDomains */
+    /**
+     * @param MailNode[] $mailNodes
+     * @param MailDomain[] $mailDomains
+     */
     public function aggregate(array $mailNodes, array $mailDomains): array
     {
         $agentsByMailNode = $this->mapAgentsByMailNode($mailDomains);
@@ -114,12 +119,12 @@ class MailNodeHealthAggregator
                 $headers['Authorization'] = 'Bearer ' . $token;
             }
             $response = $this->httpClient->request('GET', rtrim($endpoint, '/') . '/v1/mail/health', ['headers' => $headers, 'timeout' => 8]);
-            $payload = json_decode($response->getContent(false), true);
+            $payload = JsonArray::decode($response->getContent(false));
             if (!is_array($payload)) {
                 return [];
             }
             $checks = $payload['checks'] ?? [];
-            return is_array($checks) ? $checks : [];
+            return JsonArray::orEmpty($checks);
         } catch (\Throwable|ExceptionInterface $exception) {
             $this->logger->warning('Failed to fetch mail health from agent.', ['agent_id' => $agent->getId(), 'error' => $exception->getMessage()]);
             return [];
@@ -154,7 +159,10 @@ class MailNodeHealthAggregator
         return $checks;
     }
 
-    /** @param MailDomain[] $mailDomains @return array<int,Agent> */
+    /**
+     * @param MailDomain[] $mailDomains
+     * @return array<int,Agent>
+     */
     private function mapAgentsByMailNode(array $mailDomains): array
     {
         $map = [];

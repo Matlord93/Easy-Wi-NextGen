@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\DatabaseRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: DatabaseRepository::class)]
 #[ORM\Table(name: '`databases`')]
 #[ORM\UniqueConstraint(name: 'uniq_databases_customer_engine_name', columns: ['customer_id', 'engine', 'name'])]
@@ -45,9 +50,11 @@ class Database implements ResourceEventSource
     #[ORM\JoinColumn(name: 'database_node_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?DatabaseNode $node = null;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string}|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $encryptedPassword = null;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string}|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $encryptedOneTimeCredential = null;
 

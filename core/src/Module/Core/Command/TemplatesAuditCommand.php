@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\TemplateAuditService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -42,7 +43,7 @@ final class TemplatesAuditCommand extends Command
                 $lines = [];
                 foreach ($group['templates'] as $template) {
                     $os = $this->auditService->resolveTemplateOs($template) ?? 'unknown';
-                    $lines[] = sprintf('#%d %s (%s)', $template->getId(), $template->getGameKey(), $os);
+                    $lines[] = sprintf('#%d %s (%s)', EntityIdentifier::require($template->getId()), $template->getGameKey(), $os);
                 }
                 $io->writeln(sprintf(
                     '- %s (steam_app_id: %s): %s',
@@ -61,7 +62,7 @@ final class TemplatesAuditCommand extends Command
             foreach ($commandGroups as $group) {
                 $lines = [];
                 foreach ($group['templates'] as $template) {
-                    $lines[] = sprintf('#%d %s', $template->getId(), $template->getGameKey());
+                    $lines[] = sprintf('#%d %s', EntityIdentifier::require($template->getId()), $template->getGameKey());
                 }
                 $io->writeln(sprintf('- %s', implode(', ', $lines)));
             }
@@ -75,7 +76,7 @@ final class TemplatesAuditCommand extends Command
             foreach ($invalid as $entry) {
                 $template = $entry['template'];
                 $issues = $entry['issues'];
-                $io->writeln(sprintf('- #%d %s: %s', $template->getId(), $template->getGameKey(), implode(' ', $issues)));
+                $io->writeln(sprintf('- #%d %s: %s', EntityIdentifier::require($template->getId()), $template->getGameKey(), implode(' ', $issues)));
             }
         }
 
@@ -90,7 +91,7 @@ final class TemplatesAuditCommand extends Command
             } else {
                 $io->text(sprintf('Templates unused in %s:', $usageTable));
                 foreach ($unused as $template) {
-                    $io->writeln(sprintf('- #%d %s', $template->getId(), $template->getGameKey()));
+                    $io->writeln(sprintf('- #%d %s', EntityIdentifier::require($template->getId()), $template->getGameKey()));
                 }
             }
         }

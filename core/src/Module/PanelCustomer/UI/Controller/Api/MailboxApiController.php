@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailLimitEnforcer;
@@ -347,7 +349,7 @@ final class MailboxApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -364,6 +366,11 @@ final class MailboxApiController
         }
     }
 
+    /**
+     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, domain?:
+     * \App\Module\Core\Domain\Entity\Domain, local_part?: string, password?: string, quota?: int, enabled?:
+     * bool}
+     */
     private function validatePayload(array $payload, bool $requirePassword): array
     {
         $domainId = $payload['domain_id'] ?? null;
@@ -413,7 +420,7 @@ final class MailboxApiController
             'local_part' => $localPart,
             'password' => $password,
             'quota' => $quota,
-            'enabled' => (bool) $enabled,
+            'enabled' => $enabled,
             'error' => null,
         ];
     }
@@ -470,9 +477,13 @@ final class MailboxApiController
 
         $webspace = $domain->getWebspace();
 
-        return $webspace !== null ? (string) $webspace->getNode()->getId() : null;
+        return $webspace !== null ? $webspace->getNode()->getId() : null;
     }
 
+    /**
+     * @return array{id: int|null, address: string, domain: array{id: int|null, name: string}, quota: int,
+     * enabled: bool, updated_at: string}
+     */
     private function normalizeMailbox(Mailbox $mailbox): array
     {
         return [

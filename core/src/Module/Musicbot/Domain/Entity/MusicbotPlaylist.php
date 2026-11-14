@@ -9,6 +9,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotPlaylistVisibility;
 use App\Repository\MusicbotPlaylistRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotPlaylistRepository::class)]
 #[ORM\Table(name: 'musicbot_playlists')]
 #[ORM\Index(name: 'idx_musicbot_playlists_customer', columns: ['customer_id'])]

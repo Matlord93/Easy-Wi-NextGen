@@ -9,6 +9,11 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: CmsTemplateRepository::class)]
 #[ORM\Table(name: 'cms_templates')]
 #[ORM\UniqueConstraint(name: 'uniq_cms_templates_template_key', columns: ['template_key'])]
@@ -39,7 +44,7 @@ class CmsTemplate
 
     /** @var Collection<int, CmsTemplateVersion> */
     #[ORM\OneToMany(mappedBy: 'template', targetEntity: CmsTemplateVersion::class, cascade: ['persist'], orphanRemoval: true)]
-    #[ORM\OrderBy(['versionNumber' => 'DESC'])]
+    #[ORM\OrderBy(['versionNumber' => \SortDirection::Descending])]
     private Collection $versions;
 
     public function __construct(string $templateKey, string $name)

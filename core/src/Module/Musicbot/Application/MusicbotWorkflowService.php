@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -277,7 +278,7 @@ final class MusicbotWorkflowService
             $action = new MusicbotWorkflowAction(
                 $workflow,
                 $type,
-                is_array($data['config'] ?? null) ? $data['config'] : [],
+                JsonArray::orEmpty($data['config'] ?? null),
                 (int) ($data['sort_order'] ?? $i),
             );
             $workflow->addAction($action);

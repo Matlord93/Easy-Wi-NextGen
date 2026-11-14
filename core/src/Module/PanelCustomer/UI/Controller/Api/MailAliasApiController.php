@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Domain\Entity\Job;
@@ -40,7 +42,7 @@ final class MailAliasApiController
     #[Route(path: '/api/v1/customer/mail-aliases', name: 'mail_aliases_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -58,7 +60,7 @@ final class MailAliasApiController
     #[Route(path: '/api/v1/customer/mail-aliases', name: 'mail_aliases_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -140,7 +142,7 @@ final class MailAliasApiController
     #[Route(path: '/api/v1/customer/mail-aliases/{id}', name: 'mail_aliases_update_v1', methods: ['PATCH'])]
     public function update(Request $request, int $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -213,7 +215,7 @@ final class MailAliasApiController
     #[Route(path: '/api/v1/customer/mail-aliases/{id}', name: 'mail_aliases_delete_v1', methods: ['DELETE'])]
     public function delete(Request $request, int $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -266,6 +268,10 @@ final class MailAliasApiController
         return $job;
     }
 
+    /**
+     * @return array{id: int|null, address: string, domain: array{id: int|null, name: string}, destinations:
+     * array<array-key, string>, enabled: bool, updated_at: string}
+     */
     private function normalizeAlias(MailAlias $alias): array
     {
         return [

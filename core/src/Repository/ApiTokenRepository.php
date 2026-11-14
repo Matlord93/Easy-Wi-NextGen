@@ -26,22 +26,18 @@ final class ApiTokenRepository extends ServiceEntityRepository
             ->andWhere('token.revokedAt IS NULL')
             ->andWhere('token.expiresAt IS NULL OR token.expiresAt > :now')
             ->setParameter('hash', $tokenHash)
-            ->setParameter('now', new \DateTimeImmutable())
+            ->setParameter('now', new \DateTimeImmutable(), \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->setMaxResults(1);
 
-        /** @var ApiToken|null $hydratedEntity */
-        $hydratedEntity = $qb->getQuery()->getOneOrNullResult();
-
-        return $hydratedEntity;
+        return EntityQueryResult::one($qb->getQuery(), \App\Module\Core\Domain\Entity\ApiToken::class);
     }
 
     public function deleteByCustomer(User $customer): int
     {
-        return $this->createQueryBuilder('token')
+        return EntityQueryResult::affected($this->createQueryBuilder('token')
             ->delete()
             ->andWhere('token.customer = :customer')
-            ->setParameter('customer', $customer)
-            ->getQuery()
-            ->execute();
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->getQuery());
     }
 }

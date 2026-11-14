@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DnsRecordHelper;
 use App\Module\Core\Domain\Entity\DnsRecord;
@@ -188,7 +191,7 @@ final class DnsRecordApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -204,9 +207,14 @@ final class DnsRecordApiController
             throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException('Invalid JSON payload.', $exception);
         }
 
-        return is_array($payload) ? $payload : [];
+        return JsonArray::orEmpty($payload);
     }
 
+    /**
+     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, domain?:
+     * \App\Module\Core\Domain\Entity\Domain, name?: string, type?: string, content?: string, ttl?: int,
+     * priority?: int|null}
+     */
     private function validatePayload(array $payload): array
     {
         $domainId = $payload['domain_id'] ?? null;

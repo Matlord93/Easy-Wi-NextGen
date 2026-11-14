@@ -23,6 +23,7 @@ final class ProxmoxDisks
         return $kind === 'qemu' && preg_match('/^(?:ide[0-3]|sata[0-5]|scsi(?:[0-9]|[12][0-9]|30)|virtio(?:[0-9]|1[0-5]))$/D', $device) === 1;
     }
 
+    /** @return list<array{device: array-key, size_bytes: int, minimum_gib: int}> */
     public static function attached(array $config, string $kind): array
     {
         $disks = [];

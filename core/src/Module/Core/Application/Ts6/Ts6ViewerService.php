@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ts6;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
 use App\Module\Core\Domain\Entity\Ts6Viewer;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
@@ -90,18 +92,18 @@ final class Ts6ViewerService
 
             if ($channelCount === 0) {
                 $server = $viewer->getVirtualServer();
-                $detailChannels = $this->cache->get(sprintf('legacy_ts6_%d_channels', $server->getId()), static function (ItemInterface $item): array {
+                $detailChannels = $this->cache->get(sprintf('legacy_ts6_%d_channels', EntityIdentifier::require($server->getId())), static function (ItemInterface $item): array {
                     $item->expiresAfter(1);
                     return ['status' => 'pending'];
                 });
-                $detailClients = $this->cache->get(sprintf('legacy_ts6_%d_clients', $server->getId()), static function (ItemInterface $item): array {
+                $detailClients = $this->cache->get(sprintf('legacy_ts6_%d_clients', EntityIdentifier::require($server->getId())), static function (ItemInterface $item): array {
                     $item->expiresAfter(1);
                     return ['status' => 'pending'];
                 });
                 $fallback = ViewerSnapshotNormalizer::normalize([
                     'server' => $normalized['server'],
-                    'channels' => is_array($detailChannels['payload']['channels'] ?? null) ? $detailChannels['payload']['channels'] : [],
-                    'clients' => is_array($detailClients['payload']['clients'] ?? null) ? $detailClients['payload']['clients'] : [],
+                    'channels' => JsonArray::orEmpty($detailChannels['payload']['channels'] ?? null),
+                    'clients' => JsonArray::orEmpty($detailClients['payload']['clients'] ?? null),
                 ]);
                 if (count($fallback['channels']) > 0) {
                     $normalized = $fallback;

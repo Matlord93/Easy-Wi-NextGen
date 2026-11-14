@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AuditLogRepository;
 use App\Module\Core\Application\AuditLogCsvExporter;
@@ -81,10 +83,10 @@ final class AdminAuditLogController
     /** @return array{action: ?string, actor: ?string, since: ?\DateTimeImmutable} */
     private function filters(Request $request): array
     {
-        $action = trim((string) $request->query->get('action', '')) ?: null;
-        $actor = trim((string) $request->query->get('actor', '')) ?: null;
+        $action = trim($request->query->getString('action', '')) ?: null;
+        $actor = trim($request->query->getString('actor', '')) ?: null;
         $since = null;
-        $sinceRaw = trim((string) $request->query->get('since', ''));
+        $sinceRaw = trim($request->query->getString('since', ''));
         if ('' !== $sinceRaw) {
             try { $since = new \DateTimeImmutable($sinceRaw); } catch (\Exception) { $since = null; }
         }
@@ -93,7 +95,7 @@ final class AdminAuditLogController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 

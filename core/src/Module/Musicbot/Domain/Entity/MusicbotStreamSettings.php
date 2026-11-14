@@ -9,6 +9,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotStreamAccessMode;
 use App\Repository\MusicbotStreamSettingsRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotStreamSettingsRepository::class)]
 #[ORM\Table(name: 'musicbot_stream_settings')]
 #[ORM\UniqueConstraint(name: 'uniq_musicbot_stream_instance', columns: ['instance_id'])]

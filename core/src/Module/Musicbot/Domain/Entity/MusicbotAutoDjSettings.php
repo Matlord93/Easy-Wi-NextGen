@@ -9,6 +9,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotAutoDjMode;
 use App\Repository\MusicbotAutoDjSettingsRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotAutoDjSettingsRepository::class)]
 #[ORM\Table(name: 'musicbot_autodj_settings')]
 #[ORM\UniqueConstraint(name: 'uniq_musicbot_autodj_instance', columns: ['instance_id'])]

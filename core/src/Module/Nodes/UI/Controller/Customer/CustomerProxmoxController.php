@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Nodes\Application\InfrastructureUsage;
@@ -122,7 +124,7 @@ final class CustomerProxmoxController extends AbstractController
 
     private function actor(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || UserType::Customer !== $actor->getType()) {
             throw new AccessDeniedHttpException();
         }
@@ -140,6 +142,7 @@ final class CustomerProxmoxController extends AbstractController
         return $assignment;
     }
 
+    /** @return list<\App\Module\Nodes\Domain\Entity\ProxmoxTask> */
     private function tasks(ProxmoxGuestAssignment $assignment): array
     {
         return $this->em->getRepository(ProxmoxTask::class)->findBy(['cluster' => $assignment->getCluster(), 'vmId' => $assignment->getVmId(), 'kind' => $assignment->getKind()], ['id' => 'DESC'], 20);

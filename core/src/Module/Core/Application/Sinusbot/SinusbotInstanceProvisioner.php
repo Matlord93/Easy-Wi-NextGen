@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Sinusbot;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Application\SecretsCrypto;
@@ -197,7 +198,7 @@ class SinusbotInstanceProvisioner
             return $requested;
         }
 
-        return sprintf('customer-%d', $customer->getId());
+        return sprintf('customer-%d', EntityIdentifier::require($customer->getId()));
     }
 
     private function buildManageUrl(SinusbotNode $node, ?int $webPort): ?string

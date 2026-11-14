@@ -25,7 +25,7 @@ final class SecurityPolicyRevisionRepository extends ServiceEntityRepository
             ->select('MAX(revision.version)')
             ->where('revision.node = :node')
             ->andWhere('revision.policyType = :policyType')
-            ->setParameter('node', $node)
+            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('policyType', $policyType)
             ->getQuery()
             ->getSingleScalarResult();
@@ -47,16 +47,12 @@ final class SecurityPolicyRevisionRepository extends ServiceEntityRepository
             return [];
         }
 
-        /** @var list<SecurityPolicyRevision> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('revision')
+        return EntityQueryResult::all($this->createQueryBuilder('revision')
             ->where('revision.node IN (:nodes)')
             ->andWhere('revision.policyType = :policyType')
             ->setParameter('nodes', $nodes)
             ->setParameter('policyType', $policyType)
             ->orderBy('revision.version', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\SecurityPolicyRevision::class);
     }
 }

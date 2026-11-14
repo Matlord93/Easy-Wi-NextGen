@@ -27,7 +27,7 @@ final class MailAutodiscoverController
     {
         $email = $this->extractEmailFromOutlookXml($request->getContent());
         if ($email === null) {
-            $email = (string) $request->query->get('email', '');
+            $email = $request->query->getString('email', '');
         }
 
         $node = $this->resolveNodeForEmail($email);
@@ -53,7 +53,7 @@ final class MailAutodiscoverController
     #[Route(path: '/.well-known/autoconfig/mail/config-v1.1.xml', name: 'mail_autoconfig_thunderbird', methods: ['GET'])]
     public function autoconfig(Request $request): Response
     {
-        $email = (string) $request->query->get('emailaddress', '');
+        $email = $request->query->getString('emailaddress', '');
         $node  = $this->resolveNodeForEmail($email);
         $domain = $this->domainFromEmail($email);
         if ($domain === null || $node === null) {

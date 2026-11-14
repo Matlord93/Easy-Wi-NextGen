@@ -27,13 +27,10 @@ class AgentBootstrapTokenRepository extends ServiceEntityRepository
             ->andWhere('(token.expiresAt IS NULL OR token.expiresAt > :now)')
             ->andWhere('(token.maxAttempts = 0 OR token.attemptsCount < token.maxAttempts)')
             ->setParameter('hash', $tokenHash)
-            ->setParameter('now', new \DateTimeImmutable())
+            ->setParameter('now', new \DateTimeImmutable(), \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->setMaxResults(1);
 
-        /** @var AgentBootstrapToken|null $hydratedEntity */
-        $hydratedEntity = $qb->getQuery()->getOneOrNullResult();
-
-        return $hydratedEntity;
+        return EntityQueryResult::one($qb->getQuery(), \App\Module\Core\Domain\Entity\AgentBootstrapToken::class);
     }
 
     /**
@@ -41,13 +38,9 @@ class AgentBootstrapTokenRepository extends ServiceEntityRepository
      */
     public function findRecent(int $limit): array
     {
-        /** @var list<AgentBootstrapToken> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('token')
+        return EntityQueryResult::all($this->createQueryBuilder('token')
             ->orderBy('token.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\AgentBootstrapToken::class);
     }
 }

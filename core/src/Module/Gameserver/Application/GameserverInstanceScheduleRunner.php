@@ -78,7 +78,7 @@ final class GameserverInstanceScheduleRunner
         do {
             $schedules = $this->instanceScheduleRepository->findEnabledBatchAfterId($lastScheduleId, self::BATCH_SIZE);
             foreach ($schedules as $schedule) {
-                $lastScheduleId = max($lastScheduleId, (int) ($schedule->getId() ?? 0));
+                $lastScheduleId = max($lastScheduleId, ($schedule->getId() ?? 0));
                 $queued += $this->queueScheduleIfDue($schedule, $now);
             }
         } while (count($schedules) === self::BATCH_SIZE);
@@ -228,7 +228,7 @@ final class GameserverInstanceScheduleRunner
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'install_path' => (string) $instance->getInstallPath(),
-            'base_dir' => (string) ($instance->getInstanceBaseDir() ?? ''),
+            'base_dir' => ($instance->getInstanceBaseDir() ?? ''),
             'reason' => 'scheduled_restart',
             'schedule_id' => (string) ($schedule->getId() ?? ''),
         ];

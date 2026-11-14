@@ -21,16 +21,12 @@ class MusicbotPlaylistItemRepository extends ServiceEntityRepository
     /** @return MusicbotPlaylistItem[] */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<MusicbotPlaylistItem> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('playlistItem')
+        return EntityQueryResult::all($this->createQueryBuilder('playlistItem')
             ->innerJoin('playlistItem.playlist', 'playlist')
             ->andWhere('playlist.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('playlistItem.position', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem::class);
     }
 
     /** @return MusicbotPlaylistItem[] */
@@ -41,16 +37,12 @@ class MusicbotPlaylistItemRepository extends ServiceEntityRepository
 
     public function findOneForCustomer(int $id, User $customer): ?MusicbotPlaylistItem
     {
-        /** @var MusicbotPlaylistItem|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('playlistItem')
+        return EntityQueryResult::one($this->createQueryBuilder('playlistItem')
             ->innerJoin('playlistItem.playlist', 'playlist')
             ->andWhere('playlistItem.id = :id')
             ->andWhere('playlist.customer = :customer')
             ->setParameter('id', $id)
-            ->setParameter('customer', $customer)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem::class);
     }
 }

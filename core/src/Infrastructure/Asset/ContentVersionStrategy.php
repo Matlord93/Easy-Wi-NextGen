@@ -9,6 +9,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class ContentVersionStrategy implements VersionStrategyInterface
 {
+    /** @var array<array-key, string> */
     private array $versions = [];
 
     public function __construct(#[Autowire('%kernel.project_dir%/public')] private readonly string $publicDirectory)

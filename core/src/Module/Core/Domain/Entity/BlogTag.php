@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\BlogTagRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: BlogTagRepository::class)]
 #[ORM\Table(name: 'blog_tags')]
 #[ORM\Index(name: 'idx_blog_tags_site_id', columns: ['site_id'])]

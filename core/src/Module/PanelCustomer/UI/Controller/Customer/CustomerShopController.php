@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\ShopProvisioningService;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ShopProduct;
@@ -109,7 +111,7 @@ final class CustomerShopController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
         }
@@ -139,6 +141,10 @@ final class CustomerShopController
         }, $categories);
     }
 
+    /**
+     * @return array{id: int|null, name: string, description: string, image_url: null|string, price_monthly:
+     * string, cpu_limit: int, ram_limit: int, disk_limit: int}
+     */
     private function normalizeProduct(ShopProduct $product): array
     {
         return [

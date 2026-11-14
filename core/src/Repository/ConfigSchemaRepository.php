@@ -24,28 +24,20 @@ final class ConfigSchemaRepository extends ServiceEntityRepository
      */
     public function findByGameDefinition(GameDefinition $gameDefinition): array
     {
-        /** @var list<ConfigSchema> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('schema')
+        return EntityQueryResult::all($this->createQueryBuilder('schema')
             ->andWhere('schema.gameDefinition = :gameDefinition')
-            ->setParameter('gameDefinition', $gameDefinition)
+            ->setParameter('gameDefinition', QueryParameter::entityId($gameDefinition->getId(), \App\Module\Core\Domain\Entity\GameDefinition::class))
             ->orderBy('schema.name', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\ConfigSchema::class);
     }
 
     public function findOneByGameAndKey(GameDefinition $gameDefinition, string $configKey): ?ConfigSchema
     {
-        /** @var ConfigSchema|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('schema')
+        return EntityQueryResult::one($this->createQueryBuilder('schema')
             ->andWhere('schema.gameDefinition = :gameDefinition')
             ->andWhere('schema.configKey = :configKey')
-            ->setParameter('gameDefinition', $gameDefinition)
+            ->setParameter('gameDefinition', QueryParameter::entityId($gameDefinition->getId(), \App\Module\Core\Domain\Entity\GameDefinition::class))
             ->setParameter('configKey', $configKey)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\Core\Domain\Entity\ConfigSchema::class);
     }
 }

@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\StatusComponentRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: StatusComponentRepository::class)]
 #[ORM\Table(name: 'status_components')]
 #[ORM\Index(name: 'idx_status_components_site_id', columns: ['site_id'])]

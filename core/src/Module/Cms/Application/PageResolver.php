@@ -46,7 +46,7 @@ final class PageResolver
 
     public function isReservedSlug(string $slug): bool
     {
-        return in_array($slug, self::RESERVED_SLUGS, true);
+        return in_array($slug, $this->reservedSlugs(), true);
     }
 
     /**

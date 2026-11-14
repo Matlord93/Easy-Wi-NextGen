@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Enum\CreditNoteStatus;
 use App\Repository\CreditNoteRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: CreditNoteRepository::class)]
 #[ORM\Table(name: 'credit_notes')]
 #[ORM\UniqueConstraint(name: 'uniq_credit_notes_number', columns: ['number'])]

@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ForumMemberBanRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ForumMemberBanRepository::class)]
 #[ORM\Table(name: 'forum_member_bans')]
 #[ORM\UniqueConstraint(name: 'uniq_forum_member_bans_user', columns: ['user_id'])]

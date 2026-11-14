@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\ConfigSchema\ConfigSchemaService;
 use App\Module\Core\Domain\Entity\ConfigSchema;
@@ -122,7 +125,11 @@ final class CustomerInstanceConfigApiController
             }
 
             $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
-            $content = $this->instanceConfigPathResolver->read($instance, (string) $target['relative_path']) ?? '';
+            $content = '';
+            $localFile = $this->instanceConfigPathResolver->resolveLocalFile($instance, (string) $target['relative_path']);
+            if ($localFile !== null) {
+                $content = (new \Symfony\Component\Filesystem\Filesystem())->readFile($localFile);
+            }
 
             return $this->envelopeOk($request, [
                 'target' => $target,
@@ -181,14 +188,13 @@ final class CustomerInstanceConfigApiController
                 return $this->envelopeError($request, 'UNSUPPORTED_CONFIG_TARGET', (string) $target['unsupported_reason'], JsonResponse::HTTP_CONFLICT);
             }
 
-            $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
-            $existingContent = $this->instanceConfigPathResolver->read($instance, (string) $target['relative_path']);
-            if (!$create && null === $existingContent) {
+            $localFile = $this->instanceConfigPathResolver->resolveLocalFile($instance, (string) $target['relative_path']);
+            if (!$create && $localFile === null) {
                 return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
             }
 
-            $existingContent ??= '';
-            $variables = $this->buildConfigVariables($instance, is_array($payload['values'] ?? null) ? $payload['values'] : []);
+            $existingContent = $localFile !== null ? (new \Symfony\Component\Filesystem\Filesystem())->readFile($localFile) : '';
+            $variables = $this->buildConfigVariables($instance, JsonArray::orEmpty($payload['values'] ?? null));
             $content = $this->renderTemplateContent($target, $payload, $existingContent, $variables);
             if (strlen($content) > 256 * 1024) {
                 return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
@@ -249,7 +255,7 @@ final class CustomerInstanceConfigApiController
     {
         $mode = (string) ($target['apply_mode'] ?? 'render_text');
         $raw = trim((string) ($payload['content'] ?? ''));
-        $values = is_array($payload['values'] ?? null) ? $payload['values'] : [];
+        $values = JsonArray::orEmpty($payload['values'] ?? null);
         $template = (string) ($target['template_content'] ?? '');
 
         foreach ($values as $value) {
@@ -297,7 +303,7 @@ final class CustomerInstanceConfigApiController
 
         foreach ($values as $key => $value) {
             if (!isset($seen[$key])) {
-                $out[] = $this->buildSourceCfgLine((string) $key, (string) $value);
+                $out[] = $this->buildSourceCfgLine($key, (string) $value);
             }
         }
 
@@ -326,7 +332,7 @@ final class CustomerInstanceConfigApiController
 
         foreach ($values as $key => $value) {
             if (!isset($seen[$key])) {
-                $out[] = $this->buildPropertyLine((string) $key, (string) $value);
+                $out[] = $this->buildPropertyLine($key, (string) $value);
             }
         }
 
@@ -407,7 +413,7 @@ final class CustomerInstanceConfigApiController
         $configSchema = $this->resolveConfigSchema($instance, $configId);
         $this->assertConfigEditable($instance, $configSchema);
 
-        $jobId = trim((string) $request->query->get('jobId', ''));
+        $jobId = trim($request->query->getString('jobId', ''));
         if ($jobId !== '') {
             $job = $this->findConfigJob($instance, $customer, $jobId, 'instance.files.read');
 
@@ -570,7 +576,7 @@ final class CustomerInstanceConfigApiController
             $customer,
             [[
                 'relative_path' => $configSchema->getFilePath(),
-                'content' => (string) $override['content'],
+                'content' => $override['content'],
                 'backup' => true,
             ]],
             $variables,
@@ -902,7 +908,7 @@ final class CustomerInstanceConfigApiController
             $put((string) $key, $value);
         }
         foreach ($values as $key => $value) {
-            $put((string) $key, $value);
+            $put($key, $value);
         }
 
         // Common aliases used by existing template catalog rows.
@@ -920,7 +926,7 @@ final class CustomerInstanceConfigApiController
     {
         $missing = [];
         $rendered = preg_replace_callback('/{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}/', static function (array $matches) use ($variables, &$missing): string {
-            $key = (string) $matches[1];
+            $key = $matches[1];
             $lookup = array_key_exists($key, $variables) ? $key : strtolower($key);
             if (!array_key_exists($lookup, $variables)) {
                 $missing[] = $key;
@@ -950,7 +956,7 @@ final class CustomerInstanceConfigApiController
             $payloadFiles[] = [
                 'path' => $resolved['relative'],
                 'content_base64' => base64_encode($file['content']),
-                'backup' => (bool) ($file['backup'] ?? true),
+                'backup' => ($file['backup'] ?? true),
             ];
         }
 
@@ -983,7 +989,7 @@ final class CustomerInstanceConfigApiController
 
     private function resolveBaseDir(Instance $instance, string $installPath): string
     {
-        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        $baseDir = trim(($instance->getInstanceBaseDir() ?? ''));
         if ($baseDir !== '') {
             return rtrim($baseDir, '/\\');
         }
@@ -1068,7 +1074,9 @@ final class CustomerInstanceConfigApiController
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{last_updated_at?: string, last_hash?: string, previous_hash?: string,
+     * last_apply_status?: string, last_apply_error_code?: string, last_apply_error_message?: string,
+     * last_applied_at?: string}
      */
     private function configSnapshotMeta(Instance $instance, ConfigSchema $schema): array
     {
@@ -1079,18 +1087,19 @@ final class CustomerInstanceConfigApiController
         }
 
         return [
-            'last_updated_at' => (string) ($entry['last_updated_at'] ?? $entry['updated_at'] ?? ''),
-            'last_hash' => (string) ($entry['last_hash'] ?? ''),
-            'previous_hash' => (string) ($entry['previous_hash'] ?? ''),
-            'last_apply_status' => (string) ($entry['last_apply_status'] ?? ''),
-            'last_apply_error_code' => (string) ($entry['last_apply_error_code'] ?? ''),
-            'last_apply_error_message' => (string) ($entry['last_apply_error_message'] ?? ''),
-            'last_applied_at' => (string) ($entry['last_applied_at'] ?? ''),
+            'last_updated_at' => ($entry['last_updated_at'] ?? $entry['updated_at'] ?? ''),
+            'last_hash' => ($entry['last_hash'] ?? ''),
+            'previous_hash' => ($entry['previous_hash'] ?? ''),
+            'last_apply_status' => ($entry['last_apply_status'] ?? ''),
+            'last_apply_error_code' => ($entry['last_apply_error_code'] ?? ''),
+            'last_apply_error_message' => ($entry['last_apply_error_message'] ?? ''),
+            'last_applied_at' => ($entry['last_applied_at'] ?? ''),
         ];
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{id: int|null, key: string, name: string, format: string, file_path: string,
+     * apply_mode: string}
      */
     private function normalizeConfigSchema(ConfigSchema $schema): array
     {
@@ -1106,7 +1115,7 @@ final class CustomerInstanceConfigApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (
             !$actor instanceof User
             || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)

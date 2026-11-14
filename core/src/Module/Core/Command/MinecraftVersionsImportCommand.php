@@ -38,11 +38,11 @@ final class MinecraftVersionsImportCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $channels = (array) $input->getOption('channel');
+        $channels = $input->getOption('channel');
         if ($input->getOption('all') || $channels === []) {
             $channels = MinecraftVersionImportService::CHANNELS;
         }
-        $channels = array_values(array_unique(array_map(static fn (mixed $value): string => strtolower(trim((string) $value)), $channels)));
+        $channels = array_values(array_unique(array_map(static fn (mixed $value): string => strtolower(trim($value)), $channels)));
         $invalid = array_diff($channels, MinecraftVersionImportService::CHANNELS);
         if ($invalid !== []) {
             $output->writeln(sprintf('<error>%s</error>', $this->trans('minecraft_versions_import_invalid_channels', ['%channels%' => implode(', ', $invalid)])));
@@ -51,9 +51,9 @@ final class MinecraftVersionsImportCommand extends Command
 
         $summary = $this->importService->import(
             $channels,
-            (bool) $input->getOption('dry-run'),
-            (bool) $input->getOption('force'),
-            (bool) $input->getOption('deactivate-missing'),
+            $input->getOption('dry-run'),
+            $input->getOption('force'),
+            $input->getOption('deactivate-missing'),
         );
 
         $output->writeln(sprintf('<info>%s</info>', $this->trans('minecraft_versions_import_summary', [

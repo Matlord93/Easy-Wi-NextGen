@@ -1,0 +1,11 @@
+{
+    "name": "easywi/psalm-tools",
+    "description": "Locked Psalm toolchain for the Easy-Wi core.",
+    "license": "proprietary",
+    "require": {
+        "vimeo/psalm": "^7.4"
+    },
+    "scripts": {
+        "test": "@php tests/doctrine-mapping.php"
+    }
+}

@@ -166,6 +166,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
         $customer->setId(1);
         $domain = new Domain($customer, null, 'example.test');
         $mailbox = new \App\Module\Core\Domain\Entity\Mailbox($domain, 'user', 'hash', [], 100);
+        (new \ReflectionProperty($mailbox, 'id'))->setValue($mailbox, 1);
         $mailboxRepository = $this->createStub(\App\Repository\MailboxRepository::class);
         $mailboxRepository->method('find')->willReturn($mailbox);
         $job = new \App\Module\Core\Domain\Entity\Job('mailbox.create', ['address' => 'user@example.test']);

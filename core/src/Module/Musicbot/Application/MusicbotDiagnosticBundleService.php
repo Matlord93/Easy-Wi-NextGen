@@ -43,7 +43,11 @@ final class MusicbotDiagnosticBundleService
         ];
     }
 
-    /** @param array<string, mixed> $data @return array<string, mixed> */
+    /**
+     * @template TKey of array-key
+     * @param array<TKey, mixed> $data
+     * @return array<TKey, mixed>
+     */
     private function maskSecrets(array $data): array
     {
         $result = [];

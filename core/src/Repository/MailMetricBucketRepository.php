@@ -20,7 +20,10 @@ final class MailMetricBucketRepository extends ServiceEntityRepository
         parent::__construct($registry, MailMetricBucket::class);
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{queue_depth: float, deferred_mails: float, bounces: float, dkim_failures: float,
+     * auth_failures: float}
+     */
     public function fetchOverview(\DateTimeImmutable $from, \DateTimeImmutable $to): array
     {
         $conn = $this->getEntityManager()->getConnection();

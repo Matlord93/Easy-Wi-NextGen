@@ -70,6 +70,7 @@ final class PrivacyGdprBackgroundJobService implements PrivacyGdprBackgroundJobR
     }
 
 
+    #[\Override]
     public function processPendingExportsOnly(int $limit = 25): int
     {
         $processed = $this->processPendingExports($limit);
@@ -78,6 +79,7 @@ final class PrivacyGdprBackgroundJobService implements PrivacyGdprBackgroundJobR
         return $processed;
     }
 
+    #[\Override]
     public function deleteExpiredExportsOnly(int $limit = 100, ?\DateTimeImmutable $now = null): int
     {
         $now ??= new \DateTimeImmutable();

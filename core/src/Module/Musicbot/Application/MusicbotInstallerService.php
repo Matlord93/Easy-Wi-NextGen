@@ -159,7 +159,10 @@ final class MusicbotInstallerService
         ]);
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{instance_id: string, customer_id: string, node_id: string, service_name: string,
+     * install_path: string}
+     */
     private function buildBasePayload(MusicbotInstance $instance): array
     {
         return [
@@ -171,7 +174,10 @@ final class MusicbotInstallerService
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{operation: string, instance_id: int|null, job_id: string, dispatched_at: string,
+     * health_check_job_id?: string}
+     */
     private function buildResult(string $operation, MusicbotInstance $instance, AgentJob $job, ?AgentJob $healthJob = null): array
     {
         $result = [

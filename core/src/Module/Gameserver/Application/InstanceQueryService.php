@@ -230,7 +230,7 @@ final class InstanceQueryService
 
                 $name = strtolower((string) ($definition['name'] ?? ''));
                 if ($name === 'game' || str_contains($name, 'game')) {
-                    return (int) $ports[$index];
+                    return $ports[$index];
                 }
             }
         }
@@ -276,7 +276,7 @@ final class InstanceQueryService
 
                 $name = strtolower((string) ($definition['name'] ?? ''));
                 if ($name === 'game' || str_contains($name, 'game') || $name === 'query' || str_contains($name, 'query')) {
-                    $portCandidates[] = (int) $ports[$index];
+                    $portCandidates[] = $ports[$index];
                 }
             }
         }

@@ -27,7 +27,7 @@ final class PaymentRepository extends ServiceEntityRepository
             ->select('COALESCE(SUM(payment.amountCents), 0)')
             ->andWhere('payment.invoice = :invoice')
             ->andWhere('payment.status = :status')
-            ->setParameter('invoice', $invoice)
+            ->setParameter('invoice', QueryParameter::entityId($invoice->getId(), \App\Module\Core\Domain\Entity\Invoice::class))
             ->setParameter('status', PaymentStatus::Succeeded)
             ->getQuery()
             ->getSingleScalarResult();
@@ -38,16 +38,12 @@ final class PaymentRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<Payment> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('payment')
+        return EntityQueryResult::all($this->createQueryBuilder('payment')
             ->innerJoin('payment.invoice', 'invoice')
             ->andWhere('invoice.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('payment.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Payment::class);
     }
 
     /**
@@ -64,13 +60,10 @@ final class PaymentRepository extends ServiceEntityRepository
             $queryBuilder
                 ->andWhere('payment.createdAt >= :start')
                 ->andWhere('payment.createdAt < :end')
-                ->setParameter('start', $start)
-                ->setParameter('end', $end);
+                ->setParameter('start', $start, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+                ->setParameter('end', $end, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE);
         }
 
-        /** @var list<Payment> $hydratedEntities */
-        $hydratedEntities = $queryBuilder->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($queryBuilder->getQuery(), \App\Module\Core\Domain\Entity\Payment::class);
     }
 }

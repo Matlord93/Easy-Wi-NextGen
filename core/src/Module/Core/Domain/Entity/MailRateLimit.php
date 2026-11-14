@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\MailRateLimitRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailRateLimitRepository::class)]
 #[ORM\Table(name: 'mail_rate_limits')]
 #[ORM\UniqueConstraint(name: 'uniq_mail_rate_limits_mailbox', columns: ['mailbox_id'])]

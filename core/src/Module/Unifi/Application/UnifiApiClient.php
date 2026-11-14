@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Unifi\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Unifi\Domain\Entity\UnifiSettings;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -60,6 +62,7 @@ final class UnifiApiClient
     }
 
     /**
+     * @param array{json?: array<array-key, mixed>} $options
      * @return array{headers: array<string, list<string>>, status: int, content: string}
      */
     private function request(UnifiSettings $settings, string $password, string $method, string $path, array $options = []): array
@@ -70,7 +73,7 @@ final class UnifiApiClient
         }
 
         $cookie = $this->login($settings, $password);
-        $options['headers']['Cookie'] = $cookie;
+        $options['headers'] = ['Cookie' => $cookie];
         $options['timeout'] = 10;
         $options['verify_peer'] = $settings->isVerifyTls();
         $options['verify_host'] = $settings->isVerifyTls();
@@ -149,29 +152,10 @@ final class UnifiApiClient
     private function extractCookies(array $headers): string
     {
         $cookies = $headers['set-cookie'] ?? $headers['Set-Cookie'] ?? [];
-        if (is_string($cookies)) {
-            $cookies = [$cookies];
-        }
-        if (!is_array($cookies)) {
-            $cookies = [];
-        }
-
-        if ($cookies === []) {
-            foreach ($headers as $headerValue) {
-                if (is_string($headerValue) && str_starts_with(strtolower($headerValue), 'set-cookie:')) {
-                    $cookies[] = trim(substr($headerValue, strlen('set-cookie:')));
-                }
-            }
-        }
-
-        if ($cookies === []) {
-            return '';
-        }
-
         $pairs = [];
         foreach ($cookies as $cookie) {
             $parts = explode(';', $cookie);
-            if ($parts === [] || trim($parts[0]) === '') {
+            if (trim($parts[0]) === '') {
                 continue;
             }
             $pairs[] = trim($parts[0]);
@@ -186,20 +170,29 @@ final class UnifiApiClient
      */
     private function decodeResponse(array $response): array
     {
-        $decoded = json_decode($response['content'], true);
+        $decoded = JsonArray::decode($response['content']);
         if (!is_array($decoded)) {
             return [];
         }
 
-        return $decoded;
+        $fields = [];
+        foreach (array_keys($decoded) as $key) {
+            if (is_string($key)) {
+                $fields += [$key => $decoded[$key]];
+            }
+        }
+
+        return $fields;
     }
 
     /**
-     * @param array<string, mixed> $rule
      * @return array<string, mixed>|null
      */
-    private function normalizeRule(array $rule): ?array
+    private function normalizeRule(mixed $rule): ?array
     {
+        if (!is_array($rule)) {
+            return null;
+        }
         $name = $rule['name'] ?? null;
         if (!is_string($name) || $name === '') {
             return null;

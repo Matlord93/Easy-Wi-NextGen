@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Repository\MinecraftVersionCatalogRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -40,7 +41,7 @@ final class MinecraftCatalogSynchronizer
             fclose($lock);
         }
 
-        return array_replace(is_array($status) ? $status : [], ['queued' => is_file($this->directory.'/refresh'), 'running' => $running]);
+        return array_replace(JsonArray::orEmpty($status), ['queued' => is_file($this->directory.'/refresh'), 'running' => $running]);
     }
 
     /** First use works from release metadata; upstream checks happen in the background. */
@@ -58,7 +59,13 @@ final class MinecraftCatalogSynchronizer
         }
     }
 
-    /** Safe status for panel users; upstream exception details stay in server logs. */
+    /**
+     * Safe status for panel users; upstream exception details stay in server logs.
+     * @return array{updating: bool, channels: array{bungeecord: array{updated_at: int, unavailable: bool},
+     * bedrock: array{updated_at: int, unavailable: bool}, spigot: array{updated_at: int, unavailable:
+     * bool}, paper: array{updated_at: int, unavailable: bool}, vanilla: array{updated_at: int,
+     * unavailable: bool}}}
+     */
     public function publicStatus(): array
     {
         $status = $this->status();

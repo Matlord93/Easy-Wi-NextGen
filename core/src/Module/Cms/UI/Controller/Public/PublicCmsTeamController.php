@@ -29,6 +29,10 @@ final class PublicCmsTeamController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null || !$this->featureToggle->isEnabled($site, 'team')) return new Response($this->translator->trans('error_not_found'), 404);
+        $maintenance = $this->maintenanceService->resolve($request, $site);
+        if ($maintenance['active']) {
+            return $this->maintenancePageResponseFactory->create($maintenance);
+        }
         $groups = $this->teamGroupRepository->findBySite($site);
         $members = $this->memberRepository->findActiveBySite($site);
 
@@ -40,11 +44,21 @@ final class PublicCmsTeamController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null || !$this->featureToggle->isEnabled($site, 'team')) return new Response($this->translator->trans('error_not_found'), 404);
+        $maintenance = $this->maintenanceService->resolve($request, $site);
+        if ($maintenance['active']) {
+            return $this->maintenancePageResponseFactory->create($maintenance);
+        }
         $group = $this->teamGroupRepository->findOneBySiteAndSlug($site, $slug);
         if ($group === null) return new Response($this->translator->trans('error_not_found'), 404);
         $members = array_values(array_filter($this->memberRepository->findActiveBySite($site), fn($m) => $m->getTeamName() === $group->getName()));
         return new Response($this->twig->render('public/team/show.html.twig', ['group' => $group, 'members' => $members] + $this->themeContext($site, 'teams', $group->getName())));
     }
 
+    /**
+     * @return array{active_theme: string, template_key: string, page: array{slug: string, title: string},
+     * cms_navigation: list<array{label: string, url: string, external: bool}>, cms_footer_links:
+     * list<array{label: string, url: string, external: bool}>, cms_branding: array{logo_path: string,
+     * primary_color: string, socials: array<string, string>}}
+     */
     private function themeContext(Site $site, string $slug, string $title): array { $templateKey = $this->themeResolver->resolveThemeKey($site); return ['active_theme'=>$templateKey,'template_key'=>$templateKey,'page'=>['slug'=>$slug,'title'=>$title],'cms_navigation'=>$this->settingsProvider->getNavigationLinks($site),'cms_footer_links'=>$this->settingsProvider->getFooterLinks($site),'cms_branding'=>$this->settingsProvider->getBranding($site)]; }
 }

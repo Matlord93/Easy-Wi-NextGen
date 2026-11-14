@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\MailForwardingRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailForwardingRepository::class)]
 #[ORM\Table(name: 'mail_forwardings')]
 #[ORM\UniqueConstraint(name: 'uniq_mail_forwarding_route', columns: ['domain_id', 'source_local_part', 'destination'])]

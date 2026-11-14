@@ -63,6 +63,22 @@ final class PortAllocatorService
         throw new \RuntimeException('Failed to allocate ports after multiple attempts.');
     }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     /**
      * @param array<int, array<string, mixed>> $roles
      *
@@ -73,7 +89,6 @@ final class PortAllocatorService
         $node = $instance->getNode();
         $allocations = [];
         $portMap = [];
-
         foreach ($roles as $role) {
             $roleKey = (string) ($role['role_key'] ?? '');
             $proto = (string) ($role['proto'] ?? 'udp');
@@ -81,11 +96,9 @@ final class PortAllocatorService
             $strategy = (string) ($role['allocation_strategy'] ?? 'pool_single');
             $required = (bool) ($role['required'] ?? true);
             $poolTag = $role['pool_tag'] ?? null;
-
             if ('' === $roleKey) {
                 continue;
             }
-
             if ('derived_offset' === $strategy) {
                 $baseRole = (string) ($role['derived_from'] ?? '');
                 $offset = (int) ($role['offset'] ?? 0);
@@ -111,20 +124,7 @@ final class PortAllocatorService
                 if (1 !== count($checks) || ($checks[0]['free'] ?? false) !== true || ($checks[0]['port'] ?? null) !== $port || ($checks[0]['proto'] ?? null) !== $proto) {
                     throw new \RuntimeException('Derived port could not be verified as free on the node.');
                 }
-
-                $allocation = new PortAllocation(
-                    $instance,
-                    $node,
-                    $roleKey,
-                    $proto,
-                    $port,
-                    $strategy,
-                    $required,
-                    $poolTag,
-                    is_string($purpose) ? $purpose : null,
-                    $baseRole,
-                    $offset,
-                );
+                $allocation = new PortAllocation($instance, $node, $roleKey, $proto, $port, $strategy, $required, $poolTag, is_string($purpose) ? $purpose : null, $baseRole, $offset);
                 $allocation->setLastCheck(new \DateTimeImmutable(), true);
                 $this->entityManager->persist($allocation);
                 $this->entityManager->flush();
@@ -132,7 +132,6 @@ final class PortAllocatorService
                 $portMap[$roleKey] = $port;
                 continue;
             }
-
             $port = $this->allocateFromPool($instance, $strategy, $proto, $poolTag, $role);
             if (null === $port) {
                 if ($required) {
@@ -140,25 +139,13 @@ final class PortAllocatorService
                 }
                 continue;
             }
-
-            $allocation = new PortAllocation(
-                $instance,
-                $node,
-                $roleKey,
-                $proto,
-                $port,
-                $strategy,
-                $required,
-                $poolTag,
-                is_string($purpose) ? $purpose : null,
-            );
+            $allocation = new PortAllocation($instance, $node, $roleKey, $proto, $port, $strategy, $required, $poolTag, is_string($purpose) ? $purpose : null);
             $allocation->setLastCheck(new \DateTimeImmutable(), true);
             $this->entityManager->persist($allocation);
             $this->entityManager->flush();
             $allocations[] = $allocation;
             $portMap[$roleKey] = $port;
         }
-
         return $allocations;
     }
 
@@ -172,7 +159,6 @@ final class PortAllocatorService
         if (null === $pool || !GamePortPoolPolicy::allows($pool, $instance->getTemplate(), $this->portPoolRepository->findBy(['node' => $node]))) {
             return null;
         }
-
         return match ($strategy) {
             'pool_consecutive' => $this->allocateConsecutive($instance, $pool, $proto, (int) ($role['count'] ?? 1)),
             'fixed_default_or_pool' => $this->allocateFixedOrPool($instance, $pool, $proto, (int) ($role['default_port'] ?? 0)),
@@ -183,7 +169,6 @@ final class PortAllocatorService
     private function allocateSingle(Instance $instance, PortPool $pool, string $proto): ?int
     {
         $candidates = $this->candidatePorts($instance, $pool, $proto, 1, false);
-
         return $candidates[0] ?? null;
     }
 
@@ -191,23 +176,18 @@ final class PortAllocatorService
     {
         $count = max(1, $count);
         $candidates = $this->candidatePorts($instance, $pool, $proto, $count, true);
-
         return $candidates[0] ?? null;
     }
 
     private function allocateFixedOrPool(Instance $instance, PortPool $pool, string $proto, int $defaultPort): ?int
     {
         if (!$this->blockedByLease($instance, $defaultPort) && $defaultPort >= $pool->getStartPort() && $defaultPort <= $pool->getEndPort() && !$this->portAllocationRepository->isPortAllocated($pool->getNode(), $proto, $defaultPort)) {
-            $checks = $this->agentClient->checkFreePorts($instance, [[
-                'proto' => $proto,
-                'port' => $defaultPort,
-            ]]);
+            $checks = $this->agentClient->checkFreePorts($instance, [['proto' => $proto, 'port' => $defaultPort]]);
             $result = $checks[0]['free'] ?? false;
             if (true === $result) {
                 return $defaultPort;
             }
         }
-
         return $this->allocateSingle($instance, $pool, $proto);
     }
 
@@ -228,7 +208,6 @@ final class PortAllocatorService
                 $usedMap[$reserved] = true;
             }
         }
-
         if ($consecutive) {
             for ($port = $start; $port <= $end - $count + 1; ++$port) {
                 $range = range($port, $port + $count - 1);
@@ -242,29 +221,23 @@ final class PortAllocatorService
                 if ($blocked) {
                     continue;
                 }
-                $checks = array_map(static fn (int $value) => ['proto' => $proto, 'port' => $value], $range);
+                $checks = array_map(static fn(int $value) => ['proto' => $proto, 'port' => $value], $range);
                 $results = $this->agentClient->checkFreePorts($instance, $checks);
                 if (count($results) === count($checks) && $this->allFree($results)) {
                     return $range;
                 }
             }
-
             return [];
         }
-
         for ($port = $start; $port <= $end; ++$port) {
             if (isset($usedMap[$port])) {
                 continue;
             }
-            $checks = $this->agentClient->checkFreePorts($instance, [[
-                'proto' => $proto,
-                'port' => $port,
-            ]]);
+            $checks = $this->agentClient->checkFreePorts($instance, [['proto' => $proto, 'port' => $port]]);
             if (($checks[0]['free'] ?? false) === true) {
                 return [$port];
             }
         }
-
         return [];
     }
 
@@ -278,7 +251,6 @@ final class PortAllocatorService
                 return false;
             }
         }
-
         return [] !== $results;
     }
 
@@ -289,7 +261,7 @@ final class PortAllocatorService
                 return true;
             }
         }
-
         return false;
     }
+
 }

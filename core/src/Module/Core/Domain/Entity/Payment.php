@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Enum\PaymentStatus;
 use App\Repository\PaymentRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: PaymentRepository::class)]
 #[ORM\Table(name: 'payments')]
 #[ORM\UniqueConstraint(name: 'uniq_payments_provider_reference', columns: ['provider', 'reference'])]

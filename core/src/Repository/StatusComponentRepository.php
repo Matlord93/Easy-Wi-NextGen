@@ -23,15 +23,11 @@ final class StatusComponentRepository extends ServiceEntityRepository
      */
     public function findVisiblePublicBySite(int $siteId): array
     {
-        /** @var list<StatusComponent> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('component')
+        return EntityQueryResult::all($this->createQueryBuilder('component')
             ->andWhere('component.siteId = :siteId')
             ->andWhere('component.visiblePublic = true')
             ->setParameter('siteId', $siteId)
             ->orderBy('component.name', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\StatusComponent::class);
     }
 }

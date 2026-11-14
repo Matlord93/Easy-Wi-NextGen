@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\User;
@@ -273,7 +275,7 @@ final class AdminProxmoxController extends AbstractController
 
     private function actor(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new AccessDeniedHttpException();
         }
@@ -293,6 +295,7 @@ final class AdminProxmoxController extends AbstractController
         return $this->em->find(ProxmoxCluster::class, $id) ?? throw $this->createNotFoundException();
     }
 
+    /** @return list<\App\Module\Nodes\Domain\Entity\ProxmoxTask> */
     private function tasks(ProxmoxCluster $cluster, ?int $vmId = null): array
     {
         $criteria = ['cluster' => $cluster] + (null === $vmId ? [] : ['vmId' => $vmId]);

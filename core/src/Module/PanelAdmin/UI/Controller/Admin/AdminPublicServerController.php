@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\PublicServerValidator;
 use App\Module\Core\Application\PublicServerStatusService;
@@ -113,7 +116,7 @@ final class AdminPublicServerController
     #[Route(path: '', name: 'admin_public_servers_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -172,7 +175,7 @@ final class AdminPublicServerController
     #[Route(path: '/{id}', name: 'admin_public_servers_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -244,7 +247,7 @@ final class AdminPublicServerController
     #[Route(path: '/{id}/delete', name: 'admin_public_servers_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -275,6 +278,11 @@ final class AdminPublicServerController
         return $response;
     }
 
+    /**
+     * @return array{errors: array<array-key, string>, name: string, category: string, game_key: string, ip:
+     * string, port: int, query_type: string, query_port: int|null, check_interval_seconds: int,
+     * visible_public: bool, visible_logged_in: bool, sort_order: int, notes_internal: null|string}
+     */
     private function parsePayload(Request $request, bool $allowPrivateTargets): array
     {
         $errors = [];
@@ -350,7 +358,7 @@ final class AdminPublicServerController
             'action' => $server === null ? 'create' : 'update',
             'submit_label' => $server === null ? 'Create Server' : 'Update Server',
             'submit_color' => $server === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $server === null ? '/admin/servers' : sprintf('/admin/servers/%d', $server->getId()),
+            'action_url' => $server === null ? '/admin/servers' : sprintf('/admin/servers/%d', EntityIdentifier::require($server->getId())),
         ];
 
         if ($override !== null) {
@@ -385,6 +393,7 @@ final class AdminPublicServerController
 
     /**
      * @param PublicServer[] $servers
+      * @return array{total: int, public: int, hidden: int}
      */
     private function buildSummary(array $servers): array
     {
@@ -481,7 +490,7 @@ final class AdminPublicServerController
 
     private function isCmsUser(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User;
     }

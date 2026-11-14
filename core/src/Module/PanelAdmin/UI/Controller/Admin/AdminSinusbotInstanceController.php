@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\Sinusbot\AgentBadResponseException;
 use App\Module\Core\Application\Sinusbot\AgentUnavailableException;
@@ -56,7 +61,7 @@ final class AdminSinusbotInstanceController
         }
 
         if ($node->getInstanceMode() === 'solo') {
-            $request->getSession()->getFlashBag()->add('error', $this->translator->trans('admin_sinusbot_solo_no_instances'));
+            FlashMessages::add($request, 'error', $this->translator->trans('admin_sinusbot_solo_no_instances'));
             return $this->redirectToNode($nodeId);
         }
 
@@ -73,17 +78,17 @@ final class AdminSinusbotInstanceController
                 $username !== '' ? $username : null,
             );
         } catch (\InvalidArgumentException $exception) {
-            $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
+            FlashMessages::add($request, 'error', $exception->getMessage());
             return $this->redirectToNode($nodeId);
         } catch (AgentConfigurationException | AgentBadResponseException | AgentUnavailableException $exception) {
-            $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
+            FlashMessages::add($request, 'error', $exception->getMessage());
             return $this->redirectToNode($nodeId);
         } catch (UniqueConstraintViolationException) {
-            $request->getSession()->getFlashBag()->add('error', $this->translator->trans('admin_sinusbot_instance_already_exists'));
+            FlashMessages::add($request, 'error', $this->translator->trans('admin_sinusbot_instance_already_exists'));
             return $this->redirectToNode($nodeId);
         }
 
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_created'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_instance_created'));
 
         return $this->redirectToNode($nodeId);
     }
@@ -96,9 +101,9 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_start_' . $id);
 
         $this->provisioner->startInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_started'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_instance_started'));
 
-        return $this->redirectToNode($instance->getNode()->getId());
+        return $this->redirectToNode(EntityIdentifier::require($instance->getNode()->getId()));
     }
 
     #[Route(path: '/{id}/stop', name: 'admin_sinusbot_instances_stop', methods: ['POST'])]
@@ -109,9 +114,9 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_stop_' . $id);
 
         $this->provisioner->stopInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_stopped'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_instance_stopped'));
 
-        return $this->redirectToNode($instance->getNode()->getId());
+        return $this->redirectToNode(EntityIdentifier::require($instance->getNode()->getId()));
     }
 
     #[Route(path: '/{id}/restart', name: 'admin_sinusbot_instances_restart', methods: ['POST'])]
@@ -122,9 +127,9 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_restart_' . $id);
 
         $this->provisioner->restartInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_restarted'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_instance_restarted'));
 
-        return $this->redirectToNode($instance->getNode()->getId());
+        return $this->redirectToNode(EntityIdentifier::require($instance->getNode()->getId()));
     }
 
     #[Route(path: '/{id}/reset-password', name: 'admin_sinusbot_instances_reset_password', methods: ['POST'])]
@@ -135,9 +140,9 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_reset_password_' . $id);
 
         $this->provisioner->resetPassword($instance);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_password_reset'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_instance_password_reset'));
 
-        return $this->redirectToNode($instance->getNode()->getId());
+        return $this->redirectToNode(EntityIdentifier::require($instance->getNode()->getId()));
     }
 
     #[Route(path: '/{id}/quota', name: 'admin_sinusbot_instances_quota', methods: ['POST'])]
@@ -151,13 +156,13 @@ final class AdminSinusbotInstanceController
         try {
             $this->provisioner->updateQuota($instance, $quota);
         } catch (\InvalidArgumentException $exception) {
-            $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
-            return $this->redirectToNode($instance->getNode()->getId());
+            FlashMessages::add($request, 'error', $exception->getMessage());
+            return $this->redirectToNode(EntityIdentifier::require($instance->getNode()->getId()));
         }
 
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_quota_updated'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_instance_quota_updated'));
 
-        return $this->redirectToNode($instance->getNode()->getId());
+        return $this->redirectToNode(EntityIdentifier::require($instance->getNode()->getId()));
     }
 
     #[Route(path: '/{id}/delete', name: 'admin_sinusbot_instances_delete', methods: ['POST'])]
@@ -175,20 +180,20 @@ final class AdminSinusbotInstanceController
             $instance->setCustomer(null);
             $instance->setStatus('stopped');
             $this->entityManager->flush();
-            $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_sinusbot_instance_deactivated'));
+            FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_instance_deactivated'));
 
             return $this->redirectToNode($nodeId);
         }
 
         $this->provisioner->deleteInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', 'admin_sinusbot_instance_deleted');
+        FlashMessages::add($request, 'success', 'admin_sinusbot_instance_deleted');
 
         return $this->redirectToNode($nodeId);
     }
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

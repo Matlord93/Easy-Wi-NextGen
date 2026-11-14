@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -277,7 +279,7 @@ final class MusicbotHealthApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('api', 'Unauthorized.');
         }
@@ -292,7 +294,7 @@ final class MusicbotHealthApiController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new AccessDeniedHttpException('Forbidden.');
         }
@@ -331,7 +333,10 @@ final class MusicbotHealthApiController
         ]);
     }
 
-    /** @param array<string, mixed> $report @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $report
+     * @return array<string, mixed>
+     */
     private function normalizeReportForCustomer(array $report): array
     {
         $overall = $report['overall'];
@@ -358,7 +363,10 @@ final class MusicbotHealthApiController
         ];
     }
 
-    /** @param array<string, mixed> $report @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $report
+     * @return array<string, mixed>
+     */
     private function normalizeReportForAdmin(MusicbotInstance $instance, array $report): array
     {
         $runtime = $instance->getRuntimePayload() ?? [];

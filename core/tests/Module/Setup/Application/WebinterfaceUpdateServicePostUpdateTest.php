@@ -182,7 +182,7 @@ PHP_SCRIPT;
             excludes: '',
             fallbackVersion: '1.0.0',
             releaseRepository: 'Matlord93/Easy-Wi-NextGen',
-            releaseChannel: 'stable',
+
             kernelEnvironment: 'test',
             kernelDebug: false,
             keepReleases: $keepReleases,

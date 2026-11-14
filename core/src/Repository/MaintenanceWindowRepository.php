@@ -23,18 +23,14 @@ final class MaintenanceWindowRepository extends ServiceEntityRepository
      */
     public function findUpcomingPublicBySite(int $siteId, \DateTimeImmutable $now): array
     {
-        /** @var list<MaintenanceWindow> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('window')
+        return EntityQueryResult::all($this->createQueryBuilder('window')
             ->andWhere('window.siteId = :siteId')
             ->andWhere('window.visiblePublic = true')
             ->andWhere('window.startAt > :now')
             ->setParameter('siteId', $siteId)
-            ->setParameter('now', $now)
+            ->setParameter('now', $now, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('window.startAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MaintenanceWindow::class);
     }
 
     /**
@@ -42,18 +38,14 @@ final class MaintenanceWindowRepository extends ServiceEntityRepository
      */
     public function findCurrentPublicBySite(int $siteId, \DateTimeImmutable $now): array
     {
-        /** @var list<MaintenanceWindow> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('window')
+        return EntityQueryResult::all($this->createQueryBuilder('window')
             ->andWhere('window.siteId = :siteId')
             ->andWhere('window.visiblePublic = true')
             ->andWhere('window.startAt <= :now')
             ->andWhere('window.endAt >= :now')
             ->setParameter('siteId', $siteId)
-            ->setParameter('now', $now)
+            ->setParameter('now', $now, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('window.startAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\MaintenanceWindow::class);
     }
 }

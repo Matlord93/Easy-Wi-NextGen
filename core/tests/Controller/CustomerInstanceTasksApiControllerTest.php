@@ -40,13 +40,8 @@ final class CustomerInstanceTasksApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createStub(InstanceRepository::class);
-        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWithRepo($repo);
         $request = Request::create('/api/instances/7/schedules', 'PATCH', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['action' => 'invalid']));
@@ -70,13 +65,8 @@ final class CustomerInstanceTasksApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
 
-        $repo = $this->createStub(InstanceRepository::class);
-        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWithRepo($repo);
 
@@ -103,13 +93,8 @@ final class CustomerInstanceTasksApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
 
-        $repo = $this->createStub(InstanceRepository::class);
-        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [7];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
 
         return [$this->newControllerWithRepo($repo), $customer];
     }
@@ -121,9 +106,11 @@ final class CustomerInstanceTasksApiControllerTest extends TestCase
         $controller = $reflection->newInstanceWithoutConstructor();
 
         $prop = $reflection->getProperty('instanceRepository');
+        $prop->setAccessible(true);
         $prop->setValue($controller, $repo);
 
         $translatorProp = $reflection->getProperty('translator');
+        $translatorProp->setAccessible(true);
         $translatorProp->setValue($controller, $this->createStub(TranslatorInterface::class));
 
         return $controller;
@@ -133,6 +120,7 @@ final class CustomerInstanceTasksApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
+        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

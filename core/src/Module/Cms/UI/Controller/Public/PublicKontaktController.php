@@ -7,7 +7,6 @@ namespace App\Module\Cms\UI\Controller\Public;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ContactMessage;
-use App\Repository\ContactMessageRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,7 +22,6 @@ final class PublicKontaktController
         private readonly Environment $twig,
         private readonly SiteResolver $siteResolver,
         private readonly CmsSettingsProvider $settingsProvider,
-        private readonly ContactMessageRepository $contactMessageRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly RateLimiterFactory $kontaktLimiter,
         private readonly TranslatorInterface $translator,

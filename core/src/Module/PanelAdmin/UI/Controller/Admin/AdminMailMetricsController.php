@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\MailMetricBucketRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -61,8 +63,8 @@ final class AdminMailMetricsController
         }
 
         [$from, $to] = $this->resolveRange($request);
-        $metric = strtolower(trim((string) $request->query->get('metric', 'mail.sent')));
-        $dimension = strtolower(trim((string) $request->query->get('dimension', 'sender')));
+        $metric = strtolower(trim($request->query->getString('metric', 'mail.sent')));
+        $dimension = strtolower(trim($request->query->getString('dimension', 'sender')));
         $limit = (int) $request->query->get('limit', 20);
 
         return new JsonResponse([
@@ -75,15 +77,15 @@ final class AdminMailMetricsController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 
     /** @return array{0:\DateTimeImmutable,1:\DateTimeImmutable} */
     private function resolveRange(Request $request): array
     {
-        $to = $this->parseDate((string) $request->query->get('to', '')) ?? new \DateTimeImmutable('now');
-        $from = $this->parseDate((string) $request->query->get('from', '')) ?? $to->sub(new \DateInterval('PT1H'));
+        $to = $this->parseDate($request->query->getString('to', '')) ?? new \DateTimeImmutable('now');
+        $from = $this->parseDate($request->query->getString('from', '')) ?? $to->sub(new \DateInterval('PT1H'));
 
         if ($from > $to) {
             return [$to->sub(new \DateInterval('PT1H')), $to];

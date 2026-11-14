@@ -29,8 +29,8 @@ final class SetupInstallOrUpdateCommand extends Command
         $output->writeln('== app:setup:install-or-update ==');
 
         $check = $this->bootstrap->checkStatus($this->projectDir);
-        if (!(bool) $check['writable']) {
-            $path = (string) $check['env_path'];
+        if (!$check['writable']) {
+            $path = $check['env_path'];
             $output->writeln('<error>[FAIL] .env bootstrap target is not writable: ' . $path . '</error>');
             $output->writeln('<comment>Remediation: chmod 600 ' . $path . ' || chmod 700 ' . dirname($path) . '</comment>');
             $output->writeln('<comment>Remediation: chown $(whoami):$(whoami) ' . dirname($path) . ' ' . $path . '</comment>');

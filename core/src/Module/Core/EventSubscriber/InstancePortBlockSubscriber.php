@@ -21,6 +21,7 @@ final class InstancePortBlockSubscriber implements EventSubscriber
     ) {
     }
 
+    /** @return list<string> */
     #[\Override]
     public function getSubscribedEvents(): array
     {

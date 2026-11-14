@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Update\UpdateResult;
 use App\Module\Setup\Application\WebinterfaceUpdateServiceInterface;
 
@@ -77,7 +78,7 @@ final class PanelUpdateTickProcessor
                 'startedAt' => $now,
                 'expiresAfterSeconds' => self::LOCK_STALE_AFTER_SECONDS,
             ];
-            $payload = is_array($job['payload'] ?? null) ? $job['payload'] : [];
+            $payload = JsonArray::orEmpty($job['payload'] ?? null);
             $payload['panel_tick'] = [
                 'timeLimitSeconds' => self::TICK_TIME_LIMIT_SECONDS,
                 'legacySynchronousSteps' => ['apply_update', 'apply_migrations'],
@@ -157,7 +158,10 @@ final class PanelUpdateTickProcessor
         };
     }
 
-    /** @param array<string, mixed> $job @param array<int, string> $steps */
+    /**
+     * @param array<string, mixed> $job
+     * @param array<int, string> $steps
+     */
     private function resolveNextStep(array $job, array $steps): ?string
     {
         $candidate = is_string($job['nextStep'] ?? null) ? $job['nextStep'] : null;
@@ -197,7 +201,10 @@ final class PanelUpdateTickProcessor
         };
     }
 
-    /** @param array<string, mixed> $job @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $job
+     * @return array<string, mixed>
+     */
     private function failJob(array $job, string $error, string $message): array
     {
         $job['status'] = 'failed';
@@ -210,7 +217,10 @@ final class PanelUpdateTickProcessor
         return $job;
     }
 
-    /** @param array<string, mixed> $job @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $job
+     * @return array<string, mixed>
+     */
     private function succeedJob(array $job): array
     {
         $job['status'] = 'success';

@@ -21,7 +21,10 @@ final class MusicbotPluginEventService
         private readonly EntityManagerInterface $entityManager,
     ) {}
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     public function dispatch(MusicbotInstance $instance, string $event, array $payload = []): array
     {
         if (!in_array($event, $this->registry->supportedEvents(), true)) {
@@ -54,7 +57,10 @@ final class MusicbotPluginEventService
         return $results;
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     private function handlePlugin(MusicbotPlugin $plugin, string $event, array $payload): array
     {
         return match ($plugin->getIdentifier()) {
@@ -64,7 +70,10 @@ final class MusicbotPluginEventService
         };
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     private function handleWelcomeSong(MusicbotPlugin $plugin, string $event, array $payload): array
     {
         if ($event !== 'user_joined_channel') { return ['status' => 'ignored']; }
@@ -88,7 +97,10 @@ final class MusicbotPluginEventService
         return ['status' => 'success', 'action' => $action, 'result' => $result];
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
     private function handleIdlePlaylist(MusicbotPlugin $plugin, string $event, array $payload): array
     {
         if (!in_array($event, ['queue_empty', 'playback_stopped', 'scheduled_tick'], true)) { return ['status' => 'ignored']; }
@@ -114,7 +126,10 @@ final class MusicbotPluginEventService
         return $allowed === [] || in_array($channelId, $allowed, true);
     }
 
-    /** @param array<string, mixed> $config @param array<int, mixed> $groups */
+    /**
+     * @param array<string, mixed> $config
+     * @param array<int, mixed> $groups
+     */
     private function hasIgnoredGroup(array $config, array $groups): bool
     {
         $ignored = array_map('strval', (array) ($config['ignored_server_groups'] ?? []));

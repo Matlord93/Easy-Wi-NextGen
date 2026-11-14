@@ -10,6 +10,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\TsVirtualServerRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: TsVirtualServerRepository::class)]
 #[ORM\Table(name: 'ts_virtual_server')]
 class TsVirtualServer implements ResourceEventSource

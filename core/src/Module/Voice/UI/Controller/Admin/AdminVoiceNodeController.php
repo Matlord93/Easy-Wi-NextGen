@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Voice\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
@@ -44,8 +46,8 @@ final class AdminVoiceNodeController
             return new Response($this->translator->trans('error_forbidden'), 403);
         }
 
-        $provider = trim((string) $request->query->get('provider', ''));
-        $enabledRaw = trim((string) $request->query->get('enabled', ''));
+        $provider = trim($request->query->getString('provider', ''));
+        $enabledRaw = trim($request->query->getString('enabled', ''));
         $enabled = $enabledRaw === '' ? null : in_array(strtolower($enabledRaw), ['1', 'true', 'yes'], true);
         $page = max(1, (int) $request->query->get('page', 1));
         $perPage = max(1, min(200, (int) $request->query->get('per_page', 50)));
@@ -171,7 +173,7 @@ final class AdminVoiceNodeController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

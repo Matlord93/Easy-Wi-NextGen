@@ -10,6 +10,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakProfile;
 use App\Repository\MusicbotConnectionRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotConnectionRepository::class)]
 #[ORM\Table(name: 'musicbot_connections')]
 #[ORM\Index(name: 'idx_musicbot_connections_instance', columns: ['musicbot_instance_id'])]
@@ -47,7 +52,10 @@ class MusicbotConnection
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $lastError = null;
 
-    /** @param array<string, mixed> $connectionConfig @param array<string, mixed> $secretConfig */
+    /**
+     * @param array<string, mixed> $connectionConfig
+     * @param array<string, mixed> $secretConfig
+     */
     public function __construct(MusicbotInstance $musicbotInstance, MusicbotPlatform $platform, array $connectionConfig = [], array $secretConfig = [])
     {
         $this->musicbotInstance = $musicbotInstance;

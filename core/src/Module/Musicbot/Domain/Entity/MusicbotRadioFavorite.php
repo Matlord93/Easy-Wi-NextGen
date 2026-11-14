@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\MusicbotRadioFavoriteRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotRadioFavoriteRepository::class)]
 #[ORM\Table(name: 'musicbot_radio_favorites')]
 #[ORM\UniqueConstraint(name: 'uniq_radio_favorite_customer_station', columns: ['customer_id', 'station_id'])]

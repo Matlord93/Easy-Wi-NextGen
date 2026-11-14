@@ -57,9 +57,8 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
     public function testHappyPathCallsGrpcAndReturnsAccepted(): void
     {
         $grpc = $this->createMock(ConsoleAgentGrpcClientInterface::class);
-        [$controller, $request] = $this->buildControllerAndRequest(true, true, true, grpc: $grpc);
-
         $grpc->expects(self::once())->method('sendCommand')->willReturn(new ConsoleCommandResult(true, false, 10));
+        [$controller, $request] = $this->buildControllerAndRequest(true, true, true, grpc: $grpc);
         $response = $controller->send($request, 99);
 
         self::assertSame(202, $response->getStatusCode());
@@ -88,12 +87,7 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
         $instance->method('getId')->willReturn(99);
 
         $repo = $this->createStub(InstanceRepository::class);
-        $repo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
-            $expectedArguments = [99];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $instance;
-        });
+        $repo->method('find')->willReturnCallback(static fn ($id) => $id === 99 ? $instance : null);
 
         $grpc ??= $this->createStub(ConsoleAgentGrpcClientInterface::class);
         $jobRepository = $this->createStub(JobRepository::class);
@@ -138,6 +132,7 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
+        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

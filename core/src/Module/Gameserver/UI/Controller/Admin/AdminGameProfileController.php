@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,7 +27,7 @@ final class AdminGameProfileController
     #[Route(path: '', name: 'admin_game_profiles', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }

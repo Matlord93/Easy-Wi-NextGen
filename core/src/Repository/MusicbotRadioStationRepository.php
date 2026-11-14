@@ -28,63 +28,47 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     /** @return MusicbotRadioStation[] */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<MusicbotRadioStation> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('r')
+        return EntityQueryResult::all($this->createQueryBuilder('r')
             ->where('r.customer = :customer')
             ->andWhere('r.isGlobal = false')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('r.isFavorite', 'DESC')
             ->addOrderBy('r.name', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
     /** @return MusicbotRadioStation[] */
     public function findFavoritesByCustomer(User $customer): array
     {
-        /** @var list<MusicbotRadioStation> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('r')
+        return EntityQueryResult::all($this->createQueryBuilder('r')
             ->where('r.customer = :customer')
             ->andWhere('r.isGlobal = false')
             ->andWhere('r.isFavorite = true')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('r.name', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
     /** @return MusicbotRadioStation[] */
     public function findRecentlyPlayed(User $customer, int $limit = 10): array
     {
-        /** @var list<MusicbotRadioStation> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('r')
+        return EntityQueryResult::all($this->createQueryBuilder('r')
             ->where('r.customer = :customer')
             ->andWhere('r.lastPlayedAt IS NOT NULL')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('r.lastPlayedAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
     public function findOneForCustomer(int $id, User $customer): ?MusicbotRadioStation
     {
-        /** @var MusicbotRadioStation|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('r')
+        return EntityQueryResult::one($this->createQueryBuilder('r')
             ->where('r.id = :id')
             ->andWhere('r.customer = :customer')
             ->setParameter('id', $id)
-            ->setParameter('customer', $customer)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
     public function countByCustomer(User $customer): int
@@ -93,7 +77,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->select('COUNT(r.id)')
             ->where('r.customer = :customer')
             ->andWhere('r.isGlobal = false')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -113,7 +97,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('r')
             ->where('r.isGlobal = true');
 
-        $activeOnly = (bool) ($filters['active_only'] ?? true);
+        $activeOnly = ($filters['active_only'] ?? true);
         if ($activeOnly) {
             $qb->andWhere('r.isActive = true');
         }
@@ -146,25 +130,22 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
 
         if (isset($filters['min_bitrate']) && $filters['min_bitrate'] > 0) {
             $qb->andWhere('r.bitrate >= :min_bitrate')
-               ->setParameter('min_bitrate', (int) $filters['min_bitrate']);
+               ->setParameter('min_bitrate', $filters['min_bitrate']);
         }
 
         if (isset($filters['max_bitrate']) && $filters['max_bitrate'] > 0) {
             $qb->andWhere('r.bitrate <= :max_bitrate')
-               ->setParameter('max_bitrate', (int) $filters['max_bitrate']);
+               ->setParameter('max_bitrate', $filters['max_bitrate']);
         }
 
-        $limit = min(200, max(1, (int) ($filters['limit'] ?? 50)));
-        $offset = max(0, (int) ($filters['offset'] ?? 0));
+        $limit = min(200, max(1, ($filters['limit'] ?? 50)));
+        $offset = max(0, ($filters['offset'] ?? 0));
 
         $qb->orderBy('r.name', 'ASC')
            ->setMaxResults($limit)
            ->setFirstResult($offset);
 
-        /** @var list<MusicbotRadioStation> $hydratedEntities */
-        $hydratedEntities = $qb->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($qb->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
     public function countCatalog(array $filters = []): int
@@ -211,45 +192,33 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     public function findPopularCatalogStations(array $popularIds, int $limit = 20): array
     {
         if ($popularIds === []) {
-            /** @var list<MusicbotRadioStation> $hydratedEntities */
-            $hydratedEntities = $this->createQueryBuilder('r')
+            return EntityQueryResult::all($this->createQueryBuilder('r')
                 ->where('r.isGlobal = true')
                 ->andWhere('r.isActive = true')
                 ->orderBy('r.name', 'ASC')
                 ->setMaxResults($limit)
-                ->getQuery()
-                ->getResult();
-
-            return $hydratedEntities;
+                ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
         }
 
-        /** @var list<MusicbotRadioStation> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('r')
+        return EntityQueryResult::all($this->createQueryBuilder('r')
             ->where('r.isGlobal = true')
             ->andWhere('r.isActive = true')
             ->andWhere('r.id IN (:ids)')
             ->setParameter('ids', $popularIds)
             ->orderBy('r.name', 'ASC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
     /** @return MusicbotRadioStation[] */
     public function findNewestCatalogStations(int $limit = 20): array
     {
-        /** @var list<MusicbotRadioStation> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('r')
+        return EntityQueryResult::all($this->createQueryBuilder('r')
             ->where('r.isGlobal = true')
             ->andWhere('r.isActive = true')
             ->orderBy('r.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
     /** @return string[] */
@@ -289,16 +258,12 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     /** @return MusicbotRadioStation[] All customer-submitted (private) stations awaiting promotion. */
     public function findPendingCustomerStations(int $limit = 100): array
     {
-        /** @var list<MusicbotRadioStation> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('r')
+        return EntityQueryResult::all($this->createQueryBuilder('r')
             ->where('r.isGlobal = false')
             ->andWhere('r.customer IS NOT NULL')
             ->orderBy('r.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
     /** @return MusicbotRadioStation[] */
@@ -309,9 +274,6 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             $qb->andWhere('r.isActive = true');
         }
 
-        /** @var list<MusicbotRadioStation> $hydratedEntities */
-        $hydratedEntities = $qb->orderBy('r.name', 'ASC')->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($qb->orderBy('r.name', 'ASC')->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 }

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
@@ -95,7 +98,7 @@ final class DatabaseApiController
 
         $existing = $this->databaseRepository->findOneByCustomerAndName($customer, $node->getEngine(), $name);
         if ($existing instanceof Database) {
-            return $this->responseEnvelopeFactory->success($request, 'existing-'.$existing->getId(), 'Database already exists.', JsonResponse::HTTP_OK, [
+            return $this->responseEnvelopeFactory->success($request, 'existing-'.EntityIdentifier::require($existing->getId()), 'Database already exists.', JsonResponse::HTTP_OK, [
                 'status' => 'succeeded',
                 'details' => ['database' => $this->normalizeDatabase($existing)],
             ]);
@@ -247,7 +250,7 @@ final class DatabaseApiController
                     throw new \RuntimeException('db_credential_already_consumed');
                 }
 
-                $credential = trim((string) $this->encryptionService->decrypt($encrypted));
+                $credential = trim($this->encryptionService->decrypt($encrypted));
                 if ($credential === '') {
                     throw new \RuntimeException('db_credential_already_consumed');
                 }
@@ -295,7 +298,7 @@ final class DatabaseApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -346,7 +349,7 @@ final class DatabaseApiController
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $this->translator->trans('error_customer_not_found'), 'customer_not_found', JsonResponse::HTTP_NOT_FOUND)];
         }
 
-        $scopedName = $this->namingPolicy->buildCustomerScopedName($customer->getId(), $name);
+        $scopedName = $this->namingPolicy->buildCustomerScopedName(EntityIdentifier::require($customer->getId()), $name);
         $scopedErrors = $this->namingPolicy->validateDatabaseName($scopedName);
         if ($scopedErrors !== []) {
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $scopedErrors[0], 'db_name_invalid', JsonResponse::HTTP_BAD_REQUEST)];
@@ -400,7 +403,10 @@ final class DatabaseApiController
     }
 
     /**
-     * @return array<string,mixed>
+     * @return array{id: int|null, engine: string, host: string, port: int, name: string, username: string,
+     * status: string, last_error_code: null|string, last_error_message: null|string, rotated_at:
+     * null|string, customer_id: int|null, node: array{id: int|null, name: null|string}|null, updated_at:
+     * string}
      */
     private function normalizeDatabase(Database $database): array
     {

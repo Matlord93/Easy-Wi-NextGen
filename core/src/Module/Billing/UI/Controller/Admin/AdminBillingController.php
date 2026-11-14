@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Billing\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\Billing\AccountingExportService;
@@ -332,7 +336,7 @@ final readonly class AdminBillingController
         $this->actor($request);
         $yearRaw = $request->query->get('year');
         $year = null === $yearRaw || '' === $yearRaw ? null : filter_var($yearRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1900, 'max_range' => 9999]]);
-        $type = (string) $request->query->get('type', 'invoices');
+        $type = $request->query->getString('type', 'invoices');
         if (false === $year || !in_array($type, ['invoices', 'payments'], true)) {
             return new Response($this->translator->trans('billing.invalid_export', [], 'billing'), Response::HTTP_BAD_REQUEST);
         }
@@ -349,7 +353,7 @@ final readonly class AdminBillingController
 
     private function actor(Request $request, bool $write = false): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin() || ($write && !$this->csrf->isTokenValid(new CsrfToken('billing', (string) $request->request->get('_token'))))) {
             throw new AccessDeniedHttpException();
         }
@@ -369,7 +373,7 @@ final readonly class AdminBillingController
 
     private function redirect(Invoice $invoice): Response
     {
-        return new RedirectResponse('/admin/billing/invoices/'.$invoice->getId(), Response::HTTP_SEE_OTHER);
+        return new RedirectResponse('/admin/billing/invoices/'.EntityIdentifier::require($invoice->getId()), Response::HTTP_SEE_OTHER);
     }
 
     private function message(\Throwable $exception): string
@@ -387,7 +391,7 @@ final readonly class AdminBillingController
         }
         $data['items'] = array_slice(array_values($data['items']), 0, InvoiceItems::MAX_ITEMS);
         foreach ($data['items'] as &$row) {
-            $row = is_array($row) ? $row : [];
+            $row = JsonArray::orEmpty($row);
             foreach (['description', 'quantity', 'unit_price', 'tax_rate'] as $key) {
                 $row[$key] = is_string($row[$key] ?? null) ? $row[$key] : '';
             }

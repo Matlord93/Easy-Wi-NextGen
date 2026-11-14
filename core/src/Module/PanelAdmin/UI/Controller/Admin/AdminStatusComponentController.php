@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\StatusComponent;
@@ -116,7 +119,7 @@ final class AdminStatusComponentController
     #[Route(path: '', name: 'admin_status_components_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -167,7 +170,7 @@ final class AdminStatusComponentController
     #[Route(path: '/{id}', name: 'admin_status_components_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -227,7 +230,7 @@ final class AdminStatusComponentController
     #[Route(path: '/{id}/delete', name: 'admin_status_components_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -257,6 +260,10 @@ final class AdminStatusComponentController
         return $response;
     }
 
+    /**
+     * @return array{errors: list<string>, name: string, type: string, target_ref: string, status: string,
+     * visible_public: bool, last_checked_at: \DateTimeImmutable|null}
+     */
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -306,7 +313,7 @@ final class AdminStatusComponentController
             'action' => $component === null ? 'create' : 'update',
             'submit_label' => $component === null ? 'Create Component' : 'Update Component',
             'submit_color' => $component === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $component === null ? '/admin/status/components' : sprintf('/admin/status/components/%d', $component->getId()),
+            'action_url' => $component === null ? '/admin/status/components' : sprintf('/admin/status/components/%d', EntityIdentifier::require($component->getId())),
         ];
 
         if ($override !== null) {
@@ -337,6 +344,7 @@ final class AdminStatusComponentController
 
     /**
      * @param StatusComponent[] $components
+      * @return array{total: int, public: int, hidden: int}
      */
     private function buildSummary(array $components): array
     {
@@ -396,7 +404,7 @@ final class AdminStatusComponentController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

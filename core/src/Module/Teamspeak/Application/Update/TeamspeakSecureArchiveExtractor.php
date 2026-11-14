@@ -36,7 +36,7 @@ final class TeamspeakSecureArchiveExtractor
         $listOutput = []; $listCode = 0;
         exec('tar -tJf '.$escapedArchive, $listOutput, $listCode);
         if ($listCode !== 0) { throw new \RuntimeException('TAR konnte nicht gelesen werden.'); }
-        foreach ($listOutput as $entry) { $this->assertSafePath((string) $entry); }
+        foreach ($listOutput as $entry) { $this->assertSafePath($entry); }
         $code = 0; exec('tar -xJf '.$escapedArchive.' -C '.$escapedTarget, $out, $code);
         if ($code !== 0) { throw new \RuntimeException('TAR entpacken fehlgeschlagen.'); }
     }

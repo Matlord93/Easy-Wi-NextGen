@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -52,7 +55,7 @@ final class AdminPortPoolController
     #[Route(path: '', name: 'admin_port_pools_create_page', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -113,7 +116,7 @@ final class AdminPortPoolController
     #[Route(path: '/blocks', name: 'admin_port_pools_assign_block', methods: ['POST'])]
     public function assignBlock(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -176,7 +179,7 @@ final class AdminPortPoolController
     #[Route(path: '/{id}/scope', name: 'admin_port_pool_scope', methods: ['POST'], requirements: ['id' => '\\d+'])]
     public function updateScope(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden', 403);
         }
@@ -209,7 +212,7 @@ final class AdminPortPoolController
         return new Response($this->twig->render('admin/port-pools/index.html.twig', [
             'gameTemplates' => $this->templateRepository->findBy([], ['displayName' => 'ASC']),
             'scopeTokens' => array_reduce($pools, function (array $tokens, PortPool $pool): array {
-                $tokens[$pool->getId()] = $this->csrfTokens->getToken('port-pool-scope-'.$pool->getId())->getValue();
+                $tokens[$pool->getId()] = $this->csrfTokens->getToken('port-pool-scope-'.EntityIdentifier::require($pool->getId()))->getValue();
 
                 return $tokens;
             }, []),
@@ -223,6 +226,11 @@ final class AdminPortPoolController
         ]));
     }
 
+    /**
+     * @return array{id: int|null, name: string, tag: string, game_scope: string, node: array{id: string,
+     * name: null|string}, start_port: int, end_port: int, enabled: bool, allocation_step: int, created_at:
+     * \DateTimeImmutable}
+     */
     private function normalizePool(PortPool $pool): array
     {
         return [
@@ -242,6 +250,11 @@ final class AdminPortPoolController
         ];
     }
 
+    /**
+     * @return array{id: string, pool: array{id: int|null, name: string}, customer: array{id: int|null,
+     * email: string}, instance_id: int|null, start_port: int, end_port: int, assigned_at:
+     * \DateTimeImmutable}
+     */
     private function normalizeBlock(PortBlock $block): array
     {
         return [
@@ -263,7 +276,7 @@ final class AdminPortPoolController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

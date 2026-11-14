@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\VoiceRateLimitStateRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: VoiceRateLimitStateRepository::class)]
 #[ORM\Table(name: 'voice_rate_limit_states')]
 class VoiceRateLimitState

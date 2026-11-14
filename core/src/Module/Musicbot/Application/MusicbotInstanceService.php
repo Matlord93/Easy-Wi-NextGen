@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Agent;
@@ -96,8 +97,8 @@ final class MusicbotInstanceService
             ];
 
             $encryptedSecrets = $this->secretConfigService->encrypt([
-                'server_password' => (string) ($tsSecrets['server_password'] ?? ''),
-                'channel_password' => (string) ($tsSecrets['channel_password'] ?? ''),
+                'server_password' => ($tsSecrets['server_password'] ?? ''),
+                'channel_password' => ($tsSecrets['channel_password'] ?? ''),
             ]);
 
             $connection = new MusicbotConnection(
@@ -221,7 +222,7 @@ final class MusicbotInstanceService
                     'codec_bitrate' => trim((string) $value) === '' ? '' : max(1, min(512, (int) $value)),
                     'commands_enabled' => (bool) $value,
                     'chat_scopes' => $this->normalizeTeamspeakChatScopes($value),
-                    'command_config' => is_array($value) ? $value : [],
+                    'command_config' => JsonArray::orEmpty($value),
                     'nickname' => substr(trim((string) $value), 0, 30),
                     'command_prefix' => substr(trim((string) $value), 0, 5) ?: ($connConfig['command_prefix'] ?? $cfg['command_prefix'] ?? '!'),
                     default => trim((string) $value),
@@ -239,8 +240,8 @@ final class MusicbotInstanceService
             $updatedSecrets = $this->secretConfigService->mergeSecretUpdates(
                 $tsConnection->getSecretConfig(),
                 [
-                    'server_password' => (string) ($tsSecrets['server_password'] ?? ''),
-                    'channel_password' => (string) ($tsSecrets['channel_password'] ?? ''),
+                    'server_password' => ($tsSecrets['server_password'] ?? ''),
+                    'channel_password' => ($tsSecrets['channel_password'] ?? ''),
                 ],
             );
             $tsConnection->setSecretConfig($updatedSecrets);

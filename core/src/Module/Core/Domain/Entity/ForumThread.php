@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ForumThreadRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ForumThreadRepository::class)]
 #[ORM\Table(name: 'forum_threads')]
 #[ORM\Index(name: 'idx_forum_threads_board_lastpost', columns: ['board_id', 'last_post_at'])]

@@ -21,7 +21,7 @@ final class ThemePreviewController
     }
 
     #[Route(path: '/preview/{theme}', name: 'public_theme_preview', methods: ['GET'])]
-    public function __invoke(Request $request, string $theme): Response
+    public function __invoke(Request $_request, string $theme): Response
     {
         if (!in_array($theme, $this->themeResolver->supportedThemes(), true)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);

@@ -14,7 +14,7 @@ final readonly class MailApplyDomainJobDto
     ) {
     }
 
-    /** @return array<string,mixed> */
+    /** @return array{node_id: string, domain: string, snapshot_id: string, dry_run: bool} */
     public function toPayload(): array
     {
         return [

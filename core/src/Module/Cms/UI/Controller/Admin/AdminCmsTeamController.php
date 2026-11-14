@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\TeamMember;
@@ -94,7 +96,7 @@ final class AdminCmsTeamController
         $member->setActive($request->request->get('is_active') !== '0');
 
         $socialsRaw = trim((string) $request->request->get('socials_json', ''));
-        $socials = $socialsRaw !== '' ? json_decode($socialsRaw, true) : null;
+        $socials = $socialsRaw !== '' ? \App\Infrastructure\Config\JsonArray::decode($socialsRaw) : null;
         $member->setSocialsJson(is_array($socials) ? $socials : null);
 
         $this->entityManager->persist($member);
@@ -142,7 +144,7 @@ final class AdminCmsTeamController
         $member->setSortOrder((int) $request->request->get('sort_order', 0));
         $member->setActive($request->request->get('is_active') !== '0');
         $socialsRaw = trim((string) $request->request->get('socials_json', ''));
-        $socials = $socialsRaw !== '' ? json_decode($socialsRaw, true) : null;
+        $socials = $socialsRaw !== '' ? \App\Infrastructure\Config\JsonArray::decode($socialsRaw) : null;
         $member->setSocialsJson(is_array($socials) ? $socials : null);
 
         $this->entityManager->flush();
@@ -235,7 +237,7 @@ final class AdminCmsTeamController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

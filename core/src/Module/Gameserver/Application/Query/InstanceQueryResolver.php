@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application\Query;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Domain\Entity\PortBlock;
 
@@ -27,7 +28,7 @@ final class InstanceQueryResolver
         $template = $instance->getTemplate();
         $requirements = $template->getRequirements();
         $queryConfigRaw = $requirements['query'] ?? null;
-        $queryConfig = is_array($queryConfigRaw) ? $queryConfigRaw : [];
+        $queryConfig = JsonArray::orEmpty($queryConfigRaw);
 
         $type = $this->resolveQueryType($instance, $requirements, $queryConfigRaw, $queryConfig);
         if ($type === null) {
@@ -35,7 +36,7 @@ final class InstanceQueryResolver
         }
 
         $hostResolution = $this->hostResolver->resolve($instance);
-        $host = trim((string) ($hostResolution['host'] ?? ''));
+        $host = trim(($hostResolution['host'] ?? ''));
         if ($host === '') {
             $instanceId = $instance->getId();
             $missingFields = implode(', ', $hostResolution['missing_fields']);
@@ -124,6 +125,7 @@ final class InstanceQueryResolver
 
     /**
      * @param array<string, mixed> $queryConfig
+      * @return array{port: int|null, source: string}
      */
     private function resolveQueryPort(Instance $instance, ?PortBlock $portBlock, string $queryType, array $queryConfig): array
     {
@@ -258,7 +260,7 @@ final class InstanceQueryResolver
             }
             $name = strtolower((string) ($definition['name'] ?? ''));
             if ($name === $target || str_contains($name, $target)) {
-                return (int) $ports[$index];
+                return $ports[$index];
             }
         }
 

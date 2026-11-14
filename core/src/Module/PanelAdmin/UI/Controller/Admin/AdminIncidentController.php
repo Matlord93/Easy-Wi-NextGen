@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\Incident;
@@ -131,7 +134,7 @@ final class AdminIncidentController
     #[Route(path: '', name: 'admin_incidents_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -187,7 +190,7 @@ final class AdminIncidentController
     #[Route(path: '/{id}', name: 'admin_incidents_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -280,7 +283,7 @@ final class AdminIncidentController
     #[Route(path: '/{id}/updates', name: 'admin_incidents_updates_create', methods: ['POST'])]
     public function createUpdate(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -372,7 +375,7 @@ final class AdminIncidentController
     #[Route(path: '/{id}/delete', name: 'admin_incidents_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -402,6 +405,11 @@ final class AdminIncidentController
         return $response;
     }
 
+    /**
+     * @return array{errors: list<string>, title: string, status: string, message: null|string,
+     * visible_public: bool, started_at: \DateTimeImmutable|null, resolved_at: \DateTimeImmutable|null,
+     * affected_component_ids: array<array-key, int>}
+     */
     private function parsePayload(Request $request, ?Incident $incident = null): array
     {
         $errors = [];
@@ -460,7 +468,7 @@ final class AdminIncidentController
             'action' => $incident === null ? 'create' : 'update',
             'submit_label' => $incident === null ? 'Create Incident' : 'Update Incident',
             'submit_color' => $incident === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $incident === null ? '/admin/status/incidents' : sprintf('/admin/status/incidents/%d', $incident->getId()),
+            'action_url' => $incident === null ? '/admin/status/incidents' : sprintf('/admin/status/incidents/%d', EntityIdentifier::require($incident->getId())),
         ];
 
         if ($override !== null) {
@@ -477,7 +485,7 @@ final class AdminIncidentController
             'status' => $incident->getStatus(),
             'message' => '',
             'errors' => [],
-            'action_url' => sprintf('/admin/status/incidents/%d/updates', $incident->getId()),
+            'action_url' => sprintf('/admin/status/incidents/%d/updates', EntityIdentifier::require($incident->getId())),
         ];
 
         if ($override !== null) {
@@ -515,6 +523,7 @@ final class AdminIncidentController
 
     /**
      * @param Incident[] $incidents
+      * @return array{total: int, open: int, resolved: int}
      */
     private function buildSummary(array $incidents): array
     {
@@ -679,7 +688,7 @@ final class AdminIncidentController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

@@ -23,13 +23,9 @@ final class CreditNoteRepository extends ServiceEntityRepository
      */
     public function findRecent(int $limit = 5): array
     {
-        /** @var list<CreditNote> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('credit')
+        return EntityQueryResult::all($this->createQueryBuilder('credit')
             ->orderBy('credit.createdAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\CreditNote::class);
     }
 }

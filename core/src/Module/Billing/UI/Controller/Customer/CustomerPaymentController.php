@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Billing\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\Billing\PaymentProviderRegistry;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\User;
@@ -94,7 +96,7 @@ final class CustomerPaymentController
 
     private function requireCustomer(Request $request): ?User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             return null;
         }

@@ -44,7 +44,7 @@ final class WebinterfaceUpdateActivationTest extends TestCase
             httpClient: $client ?? new MockHttpClient(), settingsService: new WebinterfaceUpdateSettingsService($active),
             manifestUrl: 'https://localhost/manifest.json', installDir: $this->directory.'/'.$configured, releasesDir: $this->directory.'/releases',
             currentSymlink: $this->directory.'/current', lockFile: $this->directory.'/update.lock', excludes: '',
-            fallbackVersion: '1.0.0', releaseRepository: 'Matlord93/webinterface', releaseChannel: 'stable',
+            fallbackVersion: '1.0.0', releaseRepository: 'Matlord93/webinterface',
             kernelEnvironment: 'test', kernelDebug: false, phpCliBinary: PHP_BINARY, keepReleases: 2, projectDir: $active, agentJobRepository: $repository,
         );
     }
@@ -109,7 +109,7 @@ final class WebinterfaceUpdateActivationTest extends TestCase
             $arguments = [
                 'manifestUrl' => '', 'installDir' => dirname($public), 'releasesDir' => '', 'currentSymlink' => '',
                 'lockFile' => $this->directory.'/update.lock', 'excludes' => '', 'fallbackVersion' => '1.0.0',
-                'releaseRepository' => 'Matlord93/webinterface', 'releaseChannel' => 'stable', 'kernelEnvironment' => 'test',
+                'releaseRepository' => 'Matlord93/webinterface', 'kernelEnvironment' => 'test',
                 'kernelDebug' => false, 'phpCliBinary' => PHP_BINARY, 'projectDir' => dirname($public),
             ];
             $constructor = 'httpClient:new \\Symfony\\Component\\HttpClient\\MockHttpClient(),settingsService:new \\App\\Module\\Setup\\Application\\WebinterfaceUpdateSettingsService('.var_export(dirname($public), true).')';

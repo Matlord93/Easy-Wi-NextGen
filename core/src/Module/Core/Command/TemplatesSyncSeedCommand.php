@@ -37,13 +37,13 @@ final class TemplatesSyncSeedCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        if ((string) $input->getOption('field') !== 'shared_paths') {
+        if ($input->getOption('field') !== 'shared_paths') {
             $io->error('Only --field=shared_paths is currently supported.');
             return self::FAILURE;
         }
 
         $templates = [];
-        if ((bool) $input->getOption('all')) {
+        if ($input->getOption('all')) {
             $templates = $this->templateRepository->findAll();
         } else {
             $key = trim((string) $input->getOption('template'));

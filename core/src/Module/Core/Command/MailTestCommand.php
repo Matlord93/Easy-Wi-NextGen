@@ -40,9 +40,9 @@ final class MailTestCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $to = (string) $input->getArgument('to');
-        $subject = (string) $input->getOption('subject');
-        $body = (string) $input->getOption('body');
+        $to = $input->getArgument('to');
+        $subject = $input->getOption('subject');
+        $body = $input->getOption('body');
 
         $email = (new Email())
             ->from(new Address($this->appSettingsService->getMailFromAddress(), $this->appSettingsService->getMailFromName()))

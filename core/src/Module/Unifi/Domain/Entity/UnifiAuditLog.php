@@ -7,6 +7,11 @@ namespace App\Module\Unifi\Domain\Entity;
 use App\Module\Unifi\Infrastructure\Repository\UnifiAuditLogRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: UnifiAuditLogRepository::class)]
 #[ORM\Table(name: 'unifi_audit_log')]
 class UnifiAuditLog
@@ -28,6 +33,7 @@ class UnifiAuditLog
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $error = null;
 
+    /** @var array<string, mixed>|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $context = null;
 

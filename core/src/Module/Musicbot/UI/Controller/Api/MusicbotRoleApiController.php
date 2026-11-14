@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Musicbot\Application\MusicbotRoleService;
@@ -284,7 +286,7 @@ final class MusicbotRoleApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('api', 'Unauthorized.');
         }
@@ -327,7 +329,7 @@ final class MusicbotRoleApiController
             throw new BadRequestHttpException(sprintf('Unknown permissions: %s.', implode(', ', $unknown)));
         }
 
-        return array_values((array) $raw);
+        return array_values($raw);
     }
 
     /** @param array<string, mixed> $payload */
@@ -345,10 +347,14 @@ final class MusicbotRoleApiController
             throw new BadRequestHttpException(sprintf('Unknown channels: %s.', implode(', ', $unknown)));
         }
 
-        return array_values((array) $raw);
+        return array_values($raw);
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{id: int|null, instance_id: int|null, name: string, description: null|string,
+     * permissions: array<array-key, string>, channels: array<array-key, string>, is_default: bool,
+     * position: int, created_at: string, updated_at: string}
+     */
     private function normalizeRole(MusicbotRole $role): array
     {
         return [
@@ -365,7 +371,10 @@ final class MusicbotRoleApiController
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{id: int|null, role_id: int|null, subject_type: string, subject_id: string, granted_by:
+     * int|null, created_at: string}
+     */
     private function normalizeAssignment(MusicbotRoleAssignment $a): array
     {
         return [

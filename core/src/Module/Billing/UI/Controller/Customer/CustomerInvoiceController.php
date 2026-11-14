@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Billing\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\Billing\InvoiceDocumentService;
 use App\Module\Core\Application\Billing\InvoicePresenter;
 use App\Module\Core\Attribute\RequiresModule;
@@ -54,7 +56,7 @@ final readonly class CustomerInvoiceController
 
     private function customer(Request $request): User
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User || $user->getType() !== UserType::Customer) {
             throw new AccessDeniedHttpException();
         }

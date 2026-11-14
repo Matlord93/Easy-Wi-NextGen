@@ -22,6 +22,7 @@ final class SecurityStatusScheduleHandler implements ScheduleHandlerInterface
         return 'security.status';
     }
 
+    /** @return list<\App\Module\Core\Application\Scheduler\InternalSchedule> */
     #[\Override]
     public function schedules(): array
     {

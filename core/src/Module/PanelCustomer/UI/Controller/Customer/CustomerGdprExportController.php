@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\GdprExportService;
@@ -106,7 +108,7 @@ final class CustomerGdprExportController
     #[Route(path: '/{id}/download', name: 'customer_gdpr_exports_download', methods: ['GET'])]
     public function download(Request $request, int $id): Response
     {
-        $token = trim((string) $request->query->get('token', ''));
+        $token = trim($request->query->getString('token', ''));
 
         $actor = $this->resolveActor($request);
         if ($actor instanceof User) {
@@ -167,7 +169,7 @@ final class CustomerGdprExportController
 
     private function resolveActor(Request $request): ?User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || ($actor->getType() !== UserType::Customer && !$actor->isAdmin())) {
             return null;
         }
@@ -177,7 +179,7 @@ final class CustomerGdprExportController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

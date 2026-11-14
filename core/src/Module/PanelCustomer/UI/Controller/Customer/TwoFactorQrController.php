@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\QrCodeService;
 use App\Module\Core\Application\SecretsCrypto;
@@ -28,7 +30,7 @@ final class TwoFactorQrController
     #[Route(path: '/2fa/qr', name: 'user_2fa_qr', methods: ['GET'])]
     public function __invoke(Request $request): Response
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }

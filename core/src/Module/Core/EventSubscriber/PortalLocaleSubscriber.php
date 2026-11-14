@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\EventSubscriber;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\PortalLocale;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
@@ -29,6 +31,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
     ) {
     }
 
+    /** @return array{'kernel.request': array{0: string, 1: int}, 'kernel.response': array{0: string, 1: int}} */
     #[\Override]
     public static function getSubscribedEvents(): array
     {
@@ -90,7 +93,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
             return $normalizedQuery;
         }
 
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if ($actor instanceof User) {
             $preferences = $this->invoicePreferencesRepository->findOneByCustomer($actor);
             $userLocale = PortalLocale::normalize($preferences?->getPortalLanguage());
@@ -120,7 +123,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             return;
         }

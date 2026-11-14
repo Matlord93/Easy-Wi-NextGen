@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Monitoring;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use App\Module\Nodes\Domain\Entity\ProxmoxCluster;
@@ -23,7 +24,7 @@ final readonly class InfrastructureTargets
         }
         $owner = $this->em->getRepository(KvmGuestAssignment::class)->findOneBy(['node' => $node, 'vmUuid' => $uuid]);
 
-        return new InfrastructureTarget('kvm', $node->getId(), 'vm', $uuid, $owner ? 'assignment:'.$owner->getId().':customer:'.$owner->getCustomer()->getId() : 'unassigned', $label ?: $uuid, '/admin/kvm/nodes/'.rawurlencode($node->getId()).'/guests/'.$uuid, $owner?->getCustomer(), $owner ? '/customer/kvm/'.$owner->getId() : null, $owner?->getAssignedAt()?->getTimestamp());
+        return new InfrastructureTarget('kvm', $node->getId(), 'vm', $uuid, $owner ? 'assignment:'.EntityIdentifier::require($owner->getId()).':customer:'.EntityIdentifier::require($owner->getCustomer()->getId()) : 'unassigned', $label ?: $uuid, '/admin/kvm/nodes/'.rawurlencode($node->getId()).'/guests/'.$uuid, $owner?->getCustomer(), $owner ? '/customer/kvm/'.EntityIdentifier::require($owner->getId()) : null, $owner?->getAssignedAt()?->getTimestamp());
     }
 
     public function node(Agent $node): InfrastructureTarget
@@ -37,8 +38,8 @@ final readonly class InfrastructureTargets
             throw new \InvalidArgumentException('Invalid Proxmox resource.');
         }
         $owner = 'node' === $kind ? null : $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $cluster, 'kind' => $kind, 'vmId' => (int) $ref]);
-        $url = '/admin/proxmox/'.$cluster->getId().('node' === $kind ? '#pve-node-'.rawurlencode($ref) : '/guests/'.$kind.'/'.$ref);
+        $url = '/admin/proxmox/'.EntityIdentifier::require($cluster->getId()).('node' === $kind ? '#pve-node-'.rawurlencode($ref) : '/guests/'.$kind.'/'.$ref);
 
-        return new InfrastructureTarget('proxmox', (string) $cluster->getId(), $kind, $ref, $owner ? 'assignment:'.$owner->getId().':customer:'.$owner->getCustomer()->getId().':'.$owner->getIdentityTag() : 'unassigned', $label ?: $ref, $url, $owner?->getCustomer(), $owner ? '/customer/proxmox/'.$owner->getId() : null, $owner?->getAssignedAt()?->getTimestamp());
+        return new InfrastructureTarget('proxmox', (string) $cluster->getId(), $kind, $ref, $owner ? 'assignment:'.EntityIdentifier::require($owner->getId()).':customer:'.EntityIdentifier::require($owner->getCustomer()->getId()).':'.$owner->getIdentityTag() : 'unassigned', $label ?: $ref, $url, $owner?->getCustomer(), $owner ? '/customer/proxmox/'.EntityIdentifier::require($owner->getId()) : null, $owner?->getAssignedAt()?->getTimestamp());
     }
 }

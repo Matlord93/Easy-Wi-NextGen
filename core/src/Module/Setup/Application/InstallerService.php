@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Infrastructure\Config\DbConfigProvider;
 use App\Infrastructure\Filesystem\WritablePathProbe;
 use App\Module\Core\Application\EncryptionService;
@@ -47,6 +49,7 @@ final class InstallerService
     private const INSTALLER_SUPPORTED_LOCALES = ['de', 'en'];
 
     public function __construct(
+        #[\Symfony\Component\DependencyInjection\Attribute\Target('default.entity_manager')]
         private readonly EntityManagerInterface $defaultEntityManager,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly LoggerInterface $logger,
@@ -398,7 +401,7 @@ final class InstallerService
 
 
     /**
-     * @return array{ok: bool, error_code?: string, env_path: string}
+     * @return array{ok: bool, error_code?: string, env_path: string, written_keys?: list<string>}
      */
     public function ensureEnvSecretsPresent(): array
     {
@@ -517,8 +520,7 @@ final class InstallerService
 
     public function runMigrations(EntityManagerInterface $entityManager): void
     {
-        $connectionParams = $entityManager->getConnection()->getParams();
-        $this->waitForDatabaseReady($connectionParams);
+        $this->waitForDatabaseReady($entityManager->getConnection());
 
         $phpExecutable = $this->resolvePhpExecutableForMigrations();
 
@@ -532,7 +534,7 @@ final class InstallerService
 
         $useSchemaSyncFallback = false;
         if ($result['exitCode'] !== 0) {
-            $output = (string) ($result['output'] ?? '');
+            $output = ($result['output'] ?? '');
             $this->logger->error('Installer migration command failed.', [
                 'exit_code' => $result['exitCode'],
                 'output' => $output,
@@ -732,7 +734,7 @@ final class InstallerService
             return null;
         }
 
-        $versionRaw = trim((string) ($result['output'] ?? ''));
+        $versionRaw = trim(($result['output'] ?? ''));
         if ($versionRaw === '' || !ctype_digit($versionRaw)) {
             return null;
         }
@@ -757,7 +759,7 @@ final class InstallerService
             return false;
         }
 
-        $sapi = strtolower(trim((string) ($sapiProbe['output'] ?? '')));
+        $sapi = strtolower(trim(($sapiProbe['output'] ?? '')));
 
         return $sapi === 'cli' || $sapi === 'phpdbg';
     }
@@ -798,15 +800,13 @@ final class InstallerService
         return array_values(array_unique(array_merge($preferred, $others)));
     }
 
-    private function waitForDatabaseReady(array $connectionParams): void
+    private function waitForDatabaseReady(Connection $connection): void
     {
         $delayMs = self::DB_HEALTHCHECK_INITIAL_DELAY_MS;
 
         for ($attempt = 1; $attempt <= self::DB_HEALTHCHECK_ATTEMPTS; $attempt++) {
             try {
-                $connection = DriverManager::getConnection($connectionParams);
-                $connection->executeQuery('SELECT 1');
-                $connection->close();
+                $connection->executeQuery('SELECT 1')->free();
 
                 if ($attempt > 1) {
                     $this->logger->info('Installer DB healthcheck succeeded after retry.', [
@@ -816,6 +816,7 @@ final class InstallerService
 
                 return;
             } catch (\Throwable $exception) {
+                $connection->close();
                 $this->logger->warning('Installer DB healthcheck failed.', [
                     'attempt' => $attempt,
                     'max_attempts' => self::DB_HEALTHCHECK_ATTEMPTS,
@@ -984,7 +985,7 @@ final class InstallerService
             return [];
         }
 
-        $decoded = json_decode($contents, true);
+        $decoded = JsonArray::decode($contents);
         if (!is_array($decoded)) {
             return [];
         }
@@ -1145,7 +1146,8 @@ final class InstallerService
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{key: string, ok: bool, required: bool, messageKey: string, messageParams:
+     * array{'%path%': string}, fixHintKey: null|string, fixHintParams: array{'%path%': string}}
      */
     private function buildWritableRequirement(string $key, string $path, string $hintKey): array
     {
@@ -1163,7 +1165,8 @@ final class InstallerService
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{key: string, ok: bool, required: bool, messageKey: string, messageParams:
+     * array{'%path%': string}, fixHintKey: null|string, fixHintParams: array{'%path%': string}}
      */
     private function buildEnvLocalRequirement(string $path): array
     {

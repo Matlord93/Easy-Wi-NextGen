@@ -23,61 +23,45 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
     /** @return MusicbotSchedule[] */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<MusicbotSchedule> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('s')
+        return EntityQueryResult::all($this->createQueryBuilder('s')
             ->where('s.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('s.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotSchedule::class);
     }
 
     /** @return MusicbotSchedule[] */
     public function findByInstance(MusicbotInstance $instance): array
     {
-        /** @var list<MusicbotSchedule> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('s')
+        return EntityQueryResult::all($this->createQueryBuilder('s')
             ->where('s.instance = :instance')
-            ->setParameter('instance', $instance)
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Musicbot\Domain\Entity\MusicbotInstance::class))
             ->orderBy('s.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotSchedule::class);
     }
 
     /** @return MusicbotSchedule[] */
     public function findByCustomerAndInstance(User $customer, MusicbotInstance $instance): array
     {
-        /** @var list<MusicbotSchedule> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('s')
+        return EntityQueryResult::all($this->createQueryBuilder('s')
             ->where('s.customer = :customer')
             ->andWhere('s.instance = :instance')
-            ->setParameter('customer', $customer)
-            ->setParameter('instance', $instance)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Musicbot\Domain\Entity\MusicbotInstance::class))
             ->orderBy('s.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotSchedule::class);
     }
 
     /** @return MusicbotSchedule[] */
     public function findDue(\DateTimeImmutable $now): array
     {
-        /** @var list<MusicbotSchedule> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('s')
+        return EntityQueryResult::all($this->createQueryBuilder('s')
             ->where('s.enabled = true')
             ->andWhere('s.nextRunAt IS NOT NULL')
             ->andWhere('s.nextRunAt <= :now')
-            ->setParameter('now', $now)
+            ->setParameter('now', $now, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->orderBy('s.nextRunAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotSchedule::class);
     }
 
     /**
@@ -97,10 +81,7 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
             $qb->andWhere('s.instance = :instanceId')->setParameter('instanceId', $filters['instance_id']);
         }
 
-        /** @var list<MusicbotSchedule> $hydratedEntities */
-        $hydratedEntities = $qb->getQuery()->getResult();
-
-        return $hydratedEntities;
+        return EntityQueryResult::all($qb->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotSchedule::class);
     }
 
     public function countByCustomer(User $customer): int
@@ -108,7 +89,7 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
         return (int) $this->createQueryBuilder('s')
             ->select('COUNT(s.id)')
             ->where('s.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->getQuery()
             ->getSingleScalarResult();
     }

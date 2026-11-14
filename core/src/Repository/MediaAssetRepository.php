@@ -22,7 +22,6 @@ final class MediaAssetRepository extends ServiceEntityRepository
     /** @return list<MediaAsset> */
     public function findBySite(?Site $site): array
     {
-        /** @var list<MediaAsset> $rows */
         $rows = $this->findBy(['site' => $site], ['createdAt' => 'DESC']);
 
         return $rows;

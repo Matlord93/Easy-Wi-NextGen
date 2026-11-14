@@ -31,7 +31,8 @@ final class ChangelogFetcher
     }
 
     /**
-     * @return array<int, array{title: string, version: string|null, content: string, published_at: \DateTimeImmutable|null}>
+     * @return array<int, array{title: string, version: string|null, content: string, published_at:
+     * \DateTimeImmutable|null}>
      */
     public function getReleases(): array
     {
@@ -54,7 +55,8 @@ final class ChangelogFetcher
     }
 
     /**
-     * @return array<int, array{title: string, version: string|null, content: string, published_at: \DateTimeImmutable|null}>
+     * @return array<int, array{title: string, version: string|null, content: string, published_at:
+     * \DateTimeImmutable|null}>
      */
     private function fetchReleases(): array
     {

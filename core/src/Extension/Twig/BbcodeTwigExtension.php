@@ -245,7 +245,7 @@ final class BbcodeTwigExtension extends AbstractExtension
             return false;
         }
 
-        $scheme = mb_strtolower((string) ($parts['scheme'] ?? ''));
+        $scheme = mb_strtolower(($parts['scheme'] ?? ''));
         if ($scheme === 'mailto' || $scheme === 'tel') {
             return true;
         }
@@ -258,7 +258,7 @@ final class BbcodeTwigExtension extends AbstractExtension
             return true;
         }
 
-        $host = mb_strtolower((string) ($parts['host'] ?? ''));
+        $host = mb_strtolower(($parts['host'] ?? ''));
         if ($host === '') {
             return false;
         }

@@ -8,6 +8,11 @@ use App\Module\Core\Application\SecretsCrypto;
 use App\Repository\SinusbotInstanceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: SinusbotInstanceRepository::class)]
 #[ORM\Table(name: 'sinusbot_instances')]
 #[ORM\Index(name: 'idx_sinusbot_instances_customer', columns: ['customer_id'])]

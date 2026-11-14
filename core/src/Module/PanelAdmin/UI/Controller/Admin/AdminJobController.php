@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
+
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\User;
@@ -89,7 +93,7 @@ final class AdminJobController
     #[Route(path: '', name: 'admin_jobs_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -155,7 +159,7 @@ final class AdminJobController
     #[Route(path: '/{id}/retry', name: 'admin_jobs_retry', methods: ['POST'], requirements: ['id' => '[0-9a-f]{32}'])]
     public function retry(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -184,10 +188,11 @@ final class AdminJobController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 
+    /** @return array{total: int, running: int, queued: int, failed: int} */
     private function buildSummary(): array
     {
         return [
@@ -236,6 +241,7 @@ final class AdminJobController
         ];
     }
 
+    /** @return list<string> */
     private function extractLogLines(\App\Module\Core\Domain\Entity\Job $job): array
     {
         $result = $job->getResult();
@@ -267,6 +273,10 @@ final class AdminJobController
         return array_slice($lines, -200);
     }
 
+    /**
+     * @return array{page: int, perPage: int, total: int, totalPages: int, hasPrevious: bool, hasNext: bool,
+     * previousPage: int, nextPage: int}
+     */
     private function buildPagination(int $page, int $perPage, int $total): array
     {
         $totalPages = max(1, (int) ceil($total / $perPage));
@@ -305,7 +315,7 @@ final class AdminJobController
 
         $payload = [];
         if ($payloadRaw !== '') {
-            $payload = json_decode($payloadRaw, true);
+            $payload = JsonArray::decode($payloadRaw);
             if (!is_array($payload)) {
                 $errors[] = 'Payload must be valid JSON.';
                 $payload = [];

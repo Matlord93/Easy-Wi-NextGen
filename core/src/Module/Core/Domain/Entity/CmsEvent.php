@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\CmsEventRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: CmsEventRepository::class)]
 #[ORM\Table(name: 'cms_events')]
 #[ORM\Index(name: 'idx_cms_events_site_start', columns: ['site_id', 'start_at'])]

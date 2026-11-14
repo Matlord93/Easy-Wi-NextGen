@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ShopCategory;
@@ -106,7 +108,7 @@ final class AdminShopCategoryController
     #[Route(path: '', name: 'admin_shop_categories_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -142,7 +144,7 @@ final class AdminShopCategoryController
     #[Route(path: '/{id}', name: 'admin_shop_categories_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -180,7 +182,7 @@ final class AdminShopCategoryController
     #[Route(path: '/{id}/delete', name: 'admin_shop_categories_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -206,6 +208,7 @@ final class AdminShopCategoryController
         return new Response('', Response::HTTP_NO_CONTENT);
     }
 
+    /** @return array{name: string, slug: string, sort_order: int, errors: list<string>} */
     private function parsePayload(Request $request): array
     {
         $name = trim((string) $request->request->get('name'));
@@ -281,7 +284,7 @@ final class AdminShopCategoryController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 }

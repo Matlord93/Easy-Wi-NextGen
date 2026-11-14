@@ -41,7 +41,7 @@ final class InstallController
         if (!($bootstrapStatus['ok'] ?? false)) {
             $errors[] = [
                 'key' => 'errors.env_bootstrap_failed',
-                'params' => ['%path%' => (string) ($bootstrapStatus['env_path'] ?? '.env.local')],
+                'params' => ['%path%' => ($bootstrapStatus['env_path'] ?? '.env.local')],
             ];
         }
         $success = [];
@@ -279,7 +279,7 @@ final class InstallController
                 if ($applicationState['cms_homepage_slug'] === '') {
                     $applicationState['cms_homepage_slug'] = 'startseite';
                 }
-                if (!preg_match('/^[a-z0-9][a-z0-9-]*$/', (string) $applicationState['cms_homepage_slug'])) {
+                if (!preg_match('/^[a-z0-9][a-z0-9-]*$/', $applicationState['cms_homepage_slug'])) {
                     $errors[] = ['key' => 'errors.cms_homepage_slug_invalid'];
                 }
 
@@ -434,7 +434,7 @@ final class InstallController
     /**
      * @param array<string, mixed> $databaseState
      *
-     * @return array<string, mixed>
+     * @return array{key: string, params?: array{'%extension%': string}}
      */
     private function resolveDatabaseConnectionError(array $databaseState, \Throwable $exception): array
     {

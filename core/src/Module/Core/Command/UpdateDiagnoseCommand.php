@@ -55,7 +55,7 @@ final class UpdateDiagnoseCommand extends Command
         $this->renderGitStatus($io, $projectDir);
 
         $io->section('Runner');
-        $runnerCommand = trim((string) ($_SERVER['APP_CORE_UPDATE_RUNNER'] ?? $_ENV['APP_CORE_UPDATE_RUNNER'] ?? ''));
+        $runnerCommand = trim(($_SERVER['APP_CORE_UPDATE_RUNNER'] ?? $_ENV['APP_CORE_UPDATE_RUNNER'] ?? ''));
         if ($runnerCommand === '') {
             $runnerCommand = '/usr/local/bin/easywi-core-runner';
         }
@@ -83,7 +83,7 @@ final class UpdateDiagnoseCommand extends Command
 
 
         $io->section('GitHub update-check cache');
-        $io->text(sprintf('APP_UPDATE_CHECK_CACHE_TTL: %s', (string) ($_SERVER['APP_UPDATE_CHECK_CACHE_TTL'] ?? $_ENV['APP_UPDATE_CHECK_CACHE_TTL'] ?? '3600')));
+        $io->text(sprintf('APP_UPDATE_CHECK_CACHE_TTL: %s', ($_SERVER['APP_UPDATE_CHECK_CACHE_TTL'] ?? $_ENV['APP_UPDATE_CHECK_CACHE_TTL'] ?? '3600')));
         $io->text(sprintf('Token vorhanden: %s', $this->tokenPresent() ? 'ja' : 'nein'));
         $this->renderCacheStatus($io, 'Core', $this->coreReleaseChecker->getCacheStatus());
         $this->renderCacheStatus($io, 'Agent', $this->agentReleaseChecker->getCacheStatus());
@@ -133,7 +133,7 @@ final class UpdateDiagnoseCommand extends Command
 
     private function tokenPresent(): bool
     {
-        return trim((string) ($_SERVER['APP_GITHUB_TOKEN'] ?? $_ENV['APP_GITHUB_TOKEN'] ?? $_SERVER['GITHUB_TOKEN'] ?? $_ENV['GITHUB_TOKEN'] ?? '')) !== '';
+        return trim(($_SERVER['APP_GITHUB_TOKEN'] ?? $_ENV['APP_GITHUB_TOKEN'] ?? $_SERVER['GITHUB_TOKEN'] ?? $_ENV['GITHUB_TOKEN'] ?? '')) !== '';
     }
 
     private function renderDirStatus(SymfonyStyle $io, string $label, string $path): void
@@ -161,7 +161,7 @@ final class UpdateDiagnoseCommand extends Command
         if (function_exists('posix_geteuid') && function_exists('posix_getpwuid')) {
             $account = posix_getpwuid(posix_geteuid());
             if (is_array($account) && isset($account['name'])) {
-                return (string) $account['name'];
+                return $account['name'];
             }
         }
 

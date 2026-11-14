@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Api;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -93,7 +96,7 @@ final class MusicbotBackupApiController
 
         $filename = sprintf(
             'musicbot-%d-backup-%s-%s.json',
-            $instance->getId(),
+            EntityIdentifier::require($instance->getId()),
             $options->type->value,
             date('Ymd-His'),
         );
@@ -103,7 +106,7 @@ final class MusicbotBackupApiController
             'backup_type' => $options->type->value,
         ]);
 
-        $response = new JsonResponse($json, Response::HTTP_OK, [], true);
+        $response = JsonResponse::fromJsonString($json);
 
         $response->headers->set('Content-Type', 'application/json');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
@@ -169,7 +172,7 @@ final class MusicbotBackupApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \RuntimeException('Unauthorized.');
         }

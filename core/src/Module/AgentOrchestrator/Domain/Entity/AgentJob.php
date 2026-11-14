@@ -9,6 +9,11 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Repository\AgentJobRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: AgentJobRepository::class)]
 #[ORM\Table(name: 'agent_jobs')]
 #[ORM\Index(name: 'idx_agent_jobs_node_status', columns: ['node_id', 'status'])]
@@ -35,6 +40,7 @@ class AgentJob
     #[ORM\Column(length: 120)]
     private string $type;
 
+    /** @var array<string, mixed> */
     #[ORM\Column(type: 'json')]
     private array $payload;
 
@@ -183,7 +189,11 @@ class AgentJob
         $this->resultPayload = $payload === [] || $payload === null ? null : $this->stripSecretKeys($payload);
     }
 
-    /** @param array<string, mixed> $data @return array<string, mixed> */
+    /**
+     * @template TKey of array-key
+     * @param array<TKey, mixed>|null $data
+     * @return array<TKey, mixed>|null
+     */
     private function stripSecretKeys(?array $data): ?array
     {
         if ($data === null) {

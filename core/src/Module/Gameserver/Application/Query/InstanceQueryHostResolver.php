@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application\Query;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Instance;
 
 final class InstanceQueryHostResolver
 {
     /**
-     * @return array{host: ?string, source: 'bind_ip'|'node_ip'|'loopback'|'', network_mode: string, missing_fields: list<string>}
+     * @return array{host: ?string, source: 'bind_ip'|'node_ip'|'loopback'|'', network_mode: string,
+     * missing_fields: list<string>}
      */
     public function resolve(Instance $instance): array
     {
@@ -44,7 +46,7 @@ final class InstanceQueryHostResolver
 
         $node = $instance->getNode();
         $metadata = $node->getMetadata();
-        $metadata = is_array($metadata) ? $metadata : [];
+        $metadata = JsonArray::orEmpty($metadata);
 
         foreach (['primary_ip', 'node_ip', 'ip', 'public_ip', 'external_ip', 'query_ip', 'advertise_ip', 'advertised_ip', 'host', 'hostname', 'fqdn', 'domain', 'dns_name'] as $metadataKey) {
             $candidate = trim((string) ($metadata[$metadataKey] ?? ''));
@@ -75,7 +77,7 @@ final class InstanceQueryHostResolver
             }
         }
 
-        $serviceBaseUrl = trim((string) $node->getServiceBaseUrl());
+        $serviceBaseUrl = trim($node->getServiceBaseUrl());
         if ($serviceBaseUrl !== '') {
             $parsedHost = parse_url($serviceBaseUrl, PHP_URL_HOST);
             if (is_string($parsedHost)) {
@@ -144,7 +146,7 @@ final class InstanceQueryHostResolver
 
         $requirements = $instance->getTemplate()->getRequirements();
         $queryConfigRaw = $requirements['query'] ?? null;
-        $queryConfig = is_array($queryConfigRaw) ? $queryConfigRaw : [];
+        $queryConfig = JsonArray::orEmpty($queryConfigRaw);
         $shareHostNetwork = $queryConfig['share_host_network'] ?? $queryConfig['local_only'] ?? null;
 
         $shareHost = is_bool($shareHostNetwork)

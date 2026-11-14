@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
-use App\Infrastructure\Http\ConfiguredAgentEndpoint;
+use App\Repository\QueryParameter;
+use App\Infrastructure\Network\ConfiguredAgentTarget;
+use App\Module\Core\Domain\Entity\Agent;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
@@ -87,7 +91,7 @@ final class AdminNodeController
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $selectedNodeId = trim((string) $request->query->get('node', ''));
+        $selectedNodeId = trim($request->query->getString('node', ''));
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $summary = $this->buildSummary($nodes, $latestVersion);
         $updateJobs = $this->buildUpdateJobIndex($nodes);
@@ -164,7 +168,7 @@ final class AdminNodeController
     #[Route(path: '/register', name: 'admin_nodes_register_create', methods: ['POST'])]
     public function register(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -264,7 +268,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/roles', name: 'admin_nodes_roles', methods: ['POST'])]
     public function updateRoles(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -275,7 +279,7 @@ final class AdminNodeController
         }
 
         $submittedRoles = $request->request->all('roles');
-        $normalizedRoles = $this->normalizeRoleSelection(is_array($submittedRoles) ? $submittedRoles : []);
+        $normalizedRoles = $this->normalizeRoleSelection(JsonArray::orEmpty($submittedRoles));
         $existingRoles = $this->normalizeRoleSelection($node->getRoles());
         $unknownRoles = $this->extractUnknownRoles($node->getRoles());
         $existingStoredRoles = array_values(array_merge($existingRoles, $unknownRoles));
@@ -359,7 +363,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/disk-settings', name: 'admin_nodes_disk_settings', methods: ['POST'])]
     public function updateDiskSettings(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -419,7 +423,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/mail-settings', name: 'admin_nodes_mail_settings', methods: ['POST'])]
     public function updateMailSettings(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -485,7 +489,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/agent-settings', name: 'admin_nodes_agent_settings', methods: ['POST'])]
     public function updateAgentSettings(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -504,12 +508,10 @@ final class AdminNodeController
         $clearToken = $request->request->getBoolean('clear_agent_token');
         $instanceBaseDirsRaw = (string) $request->request->get('instance_base_dirs', '');
 
-        if ('' !== $agentBaseUrl) {
-            try {
-                ConfiguredAgentEndpoint::socketAddress($agentBaseUrl);
-            } catch (\InvalidArgumentException) {
-                return $this->renderNodesTable(null, 'Agent URL must be an absolute http/https address without credentials, query or fragment.');
-            }
+        try {
+            ConfiguredAgentTarget::validate($agentBaseUrl);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->renderNodesTable(null, $exception->getMessage());
         }
 
         $node->setAgentBaseUrl($agentBaseUrl !== '' ? $agentBaseUrl : null);
@@ -522,7 +524,7 @@ final class AdminNodeController
         }
 
         $metadata = $node->getMetadata();
-        $metadata = is_array($metadata) ? $metadata : [];
+        $metadata = JsonArray::orEmpty($metadata);
         $baseDirResult = $this->parseInstanceBaseDirs($instanceBaseDirsRaw);
         if ($baseDirResult['errors'] !== []) {
             return $this->renderNodesTable(null, implode(' ', $baseDirResult['errors']));
@@ -544,7 +546,7 @@ final class AdminNodeController
             'instance_base_dirs' => $baseDirResult['dirs'] !== [] ? $baseDirResult['dirs'] : null,
         ]);
 
-        $connectivityError = $this->checkAgentConnectivity($agentBaseUrl);
+        $connectivityError = $this->checkAgentConnectivity($node);
 
         return $this->renderNodesTable('Agent settings updated.', $connectivityError);
     }
@@ -553,7 +555,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/rotate-secret', name: 'admin_nodes_rotate_secret', methods: ['POST'])]
     public function rotateSecret(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -584,7 +586,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/disk-protection-override', name: 'admin_nodes_disk_protection_override', methods: ['POST'])]
     public function updateDiskProtectionOverride(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -620,7 +622,7 @@ final class AdminNodeController
     #[Route(path: '/update', name: 'admin_nodes_update_all', methods: ['POST'])]
     public function updateAgents(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -640,7 +642,7 @@ final class AdminNodeController
     #[Route(path: '/rollout', name: 'admin_nodes_rollout', methods: ['POST'])]
     public function rolloutAgents(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -676,7 +678,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/update', name: 'admin_nodes_update_one', methods: ['POST'])]
     public function updateAgent(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -699,7 +701,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/update-check', name: 'admin_nodes_update_check', methods: ['POST'])]
     public function updateCheck(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -725,7 +727,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/update-run', name: 'admin_nodes_update_run', methods: ['POST'])]
     public function updateRun(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -751,7 +753,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/reboot', name: 'admin_nodes_reboot', methods: ['POST'])]
     public function reboot(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -777,7 +779,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/reboot-check', name: 'admin_nodes_reboot_check', methods: ['POST'])]
     public function rebootCheck(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -803,7 +805,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/delete', name: 'admin_nodes_delete', methods: ['POST'])]
     public function deleteNode(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -838,7 +840,7 @@ final class AdminNodeController
     #[Route(path: '/provision', name: 'admin_nodes_provision_all', methods: ['POST'])]
     public function provisionAll(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -864,7 +866,7 @@ final class AdminNodeController
     #[Route(path: '/{id}/provision', name: 'admin_nodes_provision_one', methods: ['POST'])]
     public function provisionNode(Request $request, string $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -891,11 +893,15 @@ final class AdminNodeController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }
 
+    /**
+     * @return array{total: int, online: int, stale: int, offline: int, decommissioned: int, updates: int,
+     * latestVersion: null|string}
+     */
     private function buildSummary(array $nodes, ?string $latestVersion): array
     {
         $summary = [
@@ -1077,17 +1083,18 @@ final class AdminNodeController
         return array_keys($dirs);
     }
 
-    private function checkAgentConnectivity(string $agentBaseUrl): ?string
+    private function checkAgentConnectivity(Agent $node): ?string
     {
-        if (trim($agentBaseUrl) === '') {
+        try {
+            $configuredTarget = ConfiguredAgentTarget::fromAgent($node);
+        } catch (\InvalidArgumentException $exception) {
+            return $exception->getMessage();
+        }
+        if ($configuredTarget === null) {
             return null;
         }
-
-        try {
-            $target = ConfiguredAgentEndpoint::socketAddress($agentBaseUrl);
-        } catch (\InvalidArgumentException) {
-            return 'Invalid agent base URL.';
-        }
+        $target = $configuredTarget->socketAddress();
+        $agentBaseUrl = $node->getAgentBaseUrl();
 
         $errno = 0;
         $errstr = '';
@@ -1104,7 +1111,8 @@ final class AdminNodeController
     }
 
     /**
-     * @return array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int, running_jobs: int, running_agent_jobs: int}
+     * @return array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int, running_jobs:
+     * int, running_agent_jobs: int}
      */
     private function buildNodeUsage(\App\Module\Core\Domain\Entity\Agent $node): array
     {
@@ -1177,21 +1185,21 @@ final class AdminNodeController
         $this->entityManager->createQueryBuilder()
             ->delete(LogIndex::class, 'logIndex')
             ->where('logIndex.agent = :agent')
-            ->setParameter('agent', $node)
+            ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->getQuery()
             ->execute();
 
         $this->entityManager->createQueryBuilder()
             ->delete(PortAllocation::class, 'allocation')
             ->where('allocation.node = :agent')
-            ->setParameter('agent', $node)
+            ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->getQuery()
             ->execute();
 
         $this->entityManager->createQueryBuilder()
             ->delete(PortRange::class, 'range')
             ->where('range.node = :agent')
-            ->setParameter('agent', $node)
+            ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->getQuery()
             ->execute();
 
@@ -1200,28 +1208,28 @@ final class AdminNodeController
             ->where('block.pool IN (
                 SELECT nodePool FROM ' . PortPool::class . ' nodePool WHERE nodePool.node = :agent
             )')
-            ->setParameter('agent', $node)
+            ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->getQuery()
             ->execute();
 
         $this->entityManager->createQueryBuilder()
             ->delete(PortPool::class, 'pool')
             ->where('pool.node = :agent')
-            ->setParameter('agent', $node)
+            ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->getQuery()
             ->execute();
 
         $this->entityManager->createQueryBuilder()
             ->delete(ShopProduct::class, 'product')
             ->where('product.node = :agent')
-            ->setParameter('agent', $node)
+            ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->getQuery()
             ->execute();
 
         $this->metricSampleRepository->createQueryBuilder('sample')
             ->delete()
             ->where('sample.agent = :agent')
-            ->setParameter('agent', $node)
+            ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->getQuery()
             ->execute();
     }
@@ -1248,7 +1256,7 @@ final class AdminNodeController
         $agentJobs = $this->agentJobRepository->createQueryBuilder('job')
             ->where('job.node = :agent')
             ->andWhere('job.status IN (:statuses)')
-            ->setParameter('agent', $node)
+            ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('statuses', [AgentJobStatus::Queued, AgentJobStatus::Running])
             ->getQuery()
             ->getResult();
@@ -1327,7 +1335,7 @@ final class AdminNodeController
                 'lastHeartbeatVersion' => $currentVersion,
                 'osProvider' => is_string($osProvider) ? $osProvider : null,
                 'rebootRequired' => is_bool($rebootRequired) ? $rebootRequired : null,
-                'services' => is_array($serviceStats) ? $serviceStats : [],
+                'services' => JsonArray::orEmpty($serviceStats),
                 'serviceMapping' => [
                     'node' => $node->getName() ?? $node->getId(),
                     'agent_id' => $node->getId(),
@@ -1341,7 +1349,7 @@ final class AdminNodeController
                 'disk' => [
                     'free_bytes' => $diskStat['free_bytes'] ?? null,
                     'free_percent' => $diskStat['free_percent'] ?? null,
-                    'free_human' => isset($diskStat['free_bytes']) ? $this->diskUsageFormatter->formatBytes((int) $diskStat['free_bytes']) : null,
+                    'free_human' => isset($diskStat['free_bytes']) ? $this->diskUsageFormatter->formatBytes($diskStat['free_bytes']) : null,
                     'checked_at' => $diskStat['checked_at'] ?? null,
                     'protect_active' => $diskProtectActive,
                     'override_active' => $diskOverrideActive,
@@ -1455,6 +1463,10 @@ final class AdminNodeController
         $metadata[$key] = $value;
     }
 
+    /**
+     * @return array{host: null|string, imap_host: null|string, smtp_host: null|string, imap_port: int|null,
+     * smtp_port: int|null, imap_encryption: null|string, smtp_encryption: null|string}
+     */
     private function normalizeMailSettings(array $metadata): array
     {
         $imapPort = is_numeric($metadata['mail_imap_port'] ?? null) ? (int) $metadata['mail_imap_port'] : null;

@@ -24,6 +24,7 @@ final class PlaceholderStreamOutput implements StreamOutputInterface
         return false;
     }
 
+    /** @return array{started: bool, message: string, mount_path: null} */
     #[\Override]
     public function start(MusicbotStreamSettings $settings): array
     {
@@ -34,6 +35,7 @@ final class PlaceholderStreamOutput implements StreamOutputInterface
         ];
     }
 
+    /** @return array{stopped: bool, message: string} */
     #[\Override]
     public function stop(MusicbotStreamSettings $settings): array
     {
@@ -43,6 +45,7 @@ final class PlaceholderStreamOutput implements StreamOutputInterface
         ];
     }
 
+    /** @return array{stream_ready: bool, backend: string, message: string} */
     #[\Override]
     public function getStatus(MusicbotStreamSettings $settings): array
     {

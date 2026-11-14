@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Musicbot\Application\Dto\PluginManifest;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlugin;
 
@@ -15,13 +16,17 @@ final class PluginConfigService
         $plugin->setConfig($this->filterConfig($config, $manifest->configSchema));
     }
 
-    /** @param array<string, mixed> $config @param array<string, mixed> $schema @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $schema
+     * @return array<string, mixed>
+     */
     public function filterConfig(array $config, array $schema): array
     {
         if ($schema === []) {
             return $this->sanitizeScalarConfig($config);
         }
-        $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+        $properties = JsonArray::orEmpty($schema['properties'] ?? null);
         if ($properties === []) {
             return $this->sanitizeScalarConfig($config);
         }
@@ -36,7 +41,10 @@ final class PluginConfigService
         return $filtered;
     }
 
-    /** @param array<string, mixed> $config @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
     private function sanitizeScalarConfig(array $config): array
     {
         $sanitized = [];

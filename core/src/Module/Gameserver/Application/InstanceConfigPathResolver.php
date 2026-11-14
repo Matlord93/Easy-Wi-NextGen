@@ -61,6 +61,30 @@ final class InstanceConfigPathResolver
         ];
     }
 
+    /**
+     * Only existing local files inside the instance's canonical root may be read.
+     * Remote agent paths continue to use resolve() and are never treated as local files.
+     *
+     * @psalm-taint-escape file
+     * @psalm-taint-escape ssrf
+     */
+    public function resolveLocalFile(Instance $instance, string $relativePath): ?string
+    {
+        $resolved = $this->resolve($instance, $relativePath);
+        $root = realpath($resolved['root']);
+        $absolute = realpath($resolved['absolute']);
+        if ($root === false || $absolute === false || !is_file($absolute) || !is_readable($absolute)) {
+            return null;
+        }
+
+        $localOs = PHP_OS_FAMILY === 'Windows' ? 'windows' : 'linux';
+        if (!$this->isWithinRoot(str_replace('\\', '/', $absolute), str_replace('\\', '/', $root), $localOs)) {
+            throw new \RuntimeException('PATH_TRAVERSAL');
+        }
+
+        return $absolute;
+    }
+
     /** @return array{exists: bool, size: ?int} */
     public function stat(Instance $instance, string $relative): array
     {

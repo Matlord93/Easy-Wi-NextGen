@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Extension\Twig;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DatabaseRepository;
 use App\Repository\DomainRepository;
@@ -52,7 +54,7 @@ final class CustomerModuleTwigExtension extends AbstractExtension
     public function customerHasModule(string $moduleKey): bool
     {
         $request = $this->requestStack->getCurrentRequest();
-        $actor = $request?->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         if (!$actor instanceof User || !$actor->isCustomer()) {
             return false;

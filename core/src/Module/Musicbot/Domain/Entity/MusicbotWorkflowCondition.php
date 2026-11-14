@@ -7,6 +7,11 @@ namespace App\Module\Musicbot\Domain\Entity;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowConditionType;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'musicbot_workflow_conditions')]
 #[ORM\Index(name: 'idx_musicbot_wf_cond_workflow', columns: ['workflow_id'])]

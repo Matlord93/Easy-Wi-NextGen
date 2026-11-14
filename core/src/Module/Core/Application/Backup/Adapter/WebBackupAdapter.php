@@ -57,6 +57,12 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
         return new RestoreReport(false, true, 'Restore completed.');
     }
 
+
+
+
+
+
+
     /**
      * @return list<string>
      */
@@ -68,13 +74,11 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
         if (trim($namesOutput) === '') {
             throw new \InvalidArgumentException('Unable to inspect archive entries.');
         }
-
         $entries = [];
         foreach (preg_split('/\R/', trim($namesOutput)) as $entry) {
             if (!is_string($entry) || trim($entry) === '') {
                 continue;
             }
-
             $normalized = str_replace('\\', '/', trim($entry));
             $this->assertSafeArchivePath($normalized);
             $entries[] = $normalized;
@@ -88,11 +92,9 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
                 if (!is_string($line) || $line === '' || $line[0] !== 'l') {
                     continue;
                 }
-
                 throw new \InvalidArgumentException('Symlink entries are not allowed in backup archive.');
             }
         }
-
         return $entries;
     }
 
@@ -109,8 +111,7 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
                 if ($segment === '' || $segment === '.') {
                     continue;
                 }
-
-                $current .= '/'.$segment;
+                $current .= '/' . $segment;
                 if (is_link($current)) {
                     throw new \InvalidArgumentException(sprintf('Restore target contains symlink path segment (%s).', $entry));
                 }
@@ -123,19 +124,17 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
         if ($path === '' || str_starts_with($path, '/')) {
             throw new \InvalidArgumentException(sprintf('Archive contains unsafe absolute path (%s).', $path));
         }
-
-        if ((bool) preg_match('~^[A-Za-z]:[\\/]~', $path)) {
+        if ((bool) preg_match('~^[A-Za-z]:[\/]~', $path)) {
             throw new \InvalidArgumentException(sprintf('Archive contains unsafe absolute path (%s).', $path));
         }
-
         foreach (explode('/', $path) as $segment) {
             if ($segment === '' || $segment === '.') {
                 continue;
             }
-
             if ($segment === '..') {
                 throw new \InvalidArgumentException(sprintf('Archive contains traversal entry (%s).', $path));
             }
         }
     }
+
 }

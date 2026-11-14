@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Application\Ts6\Ts6VirtualServerService;
 use App\Module\Core\Application\VirtualServerDtoFactory;
@@ -121,13 +125,13 @@ final class AdminTs6ServerController
                 try {
                     $createDto = $this->dtoFactory->createTs6($dto);
                     $this->virtualServerService->createForCustomer($customer->getId() ?? 0, $node, $createDto);
-                    $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_virtual_server_created'));
+                    FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_virtual_server_created'));
 
                     return new Response('', Response::HTTP_FOUND, [
                         'Location' => '/admin/ts6/servers/create',
                     ]);
                 } catch (\RuntimeException | \InvalidArgumentException $exception) {
-                    $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
+                    FlashMessages::add($request, 'error', $exception->getMessage());
                 }
             }
         }
@@ -158,7 +162,7 @@ final class AdminTs6ServerController
         $guard = $this->resolveAssignGuardReason($server->getSid(), $server->getStatus());
         if ($guard !== null) {
             $actionId = Uuid::v4()->toRfc4122();
-            $request->getSession()->getFlashBag()->add('error', $this->translator->trans('admin_ts6_virtual_server_assign_blocked', ['%guard%' => $guard, '%action_id%' => $actionId]));
+            FlashMessages::add($request, 'error', $this->translator->trans('admin_ts6_virtual_server_assign_blocked', ['%guard%' => $guard, '%action_id%' => $actionId]));
             return new Response('', Response::HTTP_FOUND, [
                 'Location' => '/admin/ts6/servers',
             ]);
@@ -166,7 +170,7 @@ final class AdminTs6ServerController
 
         $server->setCustomerId($customerId);
         $this->entityManager->flush();
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_virtual_server_assigned'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_virtual_server_assigned'));
 
         return new Response('', Response::HTTP_FOUND, [
             'Location' => '/admin/ts6/servers',
@@ -187,9 +191,9 @@ final class AdminTs6ServerController
 
         try {
             $this->virtualServerService->delete($server);
-            $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_virtual_server_deletion_queued'));
+            FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_virtual_server_deletion_queued'));
         } catch (\RuntimeException | \InvalidArgumentException $exception) {
-            $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
+            FlashMessages::add($request, 'error', $exception->getMessage());
         }
 
         return new Response('', Response::HTTP_FOUND, [
@@ -199,7 +203,7 @@ final class AdminTs6ServerController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

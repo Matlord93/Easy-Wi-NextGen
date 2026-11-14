@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\WebspacePathSanitizer;
 use App\Module\Core\Domain\Entity\Certificate;
@@ -54,7 +57,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/admin/webspaces', name: 'admin_create_webspace_v1', methods: ['POST'])]
     public function createWebspace(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -132,7 +135,7 @@ final class WebspaceApiController
         $this->entityManager->persist($webspace);
         $this->entityManager->flush();
 
-        $systemUsername = sprintf('ws%d', $webspace->getId());
+        $systemUsername = sprintf('ws%d', EntityIdentifier::require($webspace->getId()));
         $webspace->setSystemUsername($systemUsername);
         $this->entityManager->persist($webspace);
 
@@ -229,7 +232,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/admin/webspaces', name: 'admin_list_webspaces_v1', methods: ['GET'])]
     public function listAdminWebspaces(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -282,7 +285,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces', name: 'customer_webspaces_v1', methods: ['GET'])]
     public function listWebspaces(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -342,7 +345,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/admin/webspaces/{id}', name: 'admin_delete_webspace_v1', methods: ['DELETE'])]
     public function deleteWebspace(Request $request, string $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -409,7 +412,7 @@ final class WebspaceApiController
 
     private function updateWebspaceStatus(Request $request, string $id, string $status, string $auditEvent): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => $this->translator->trans('error_unauthorized')], JsonResponse::HTTP_UNAUTHORIZED);
         }
@@ -445,7 +448,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces', name: 'customer_webspaces_create_v1', methods: ['POST'])]
     public function createCustomerWebspace(Request $request): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('error_unauthorized'), 'unauthorized', 401);
         }
@@ -464,7 +467,7 @@ final class WebspaceApiController
         try {
             $documentRoot = $this->pathSanitizer->sanitizeRelativePath($documentRoot);
         } catch (\InvalidArgumentException $e) {
-            return $this->responseEnvelopeFactory->error($request, 'Invalid document root.', (string) $e->getMessage(), 400);
+            return $this->responseEnvelopeFactory->error($request, 'Invalid document root.', $e->getMessage(), 400);
         }
 
         if ($name === '' || !in_array($runtime, ['nginx', 'apache'], true)) {
@@ -487,7 +490,7 @@ final class WebspaceApiController
         $this->entityManager->persist($webspace);
         $this->entityManager->flush();
 
-        $systemUsername = sprintf('ws%d', $webspace->getId());
+        $systemUsername = sprintf('ws%d', EntityIdentifier::require($webspace->getId()));
         $webspace->setSystemUsername($systemUsername);
         $this->entityManager->persist($webspace);
 
@@ -520,7 +523,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains', name: 'customer_webspaces_domain_add_v1', methods: ['POST'])]
     public function addDomain(Request $request, int $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $webspace = $this->webspaceRepository->find($id);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('webspace_not_found'), 'webspace_not_found', 404);
@@ -543,7 +546,7 @@ final class WebspaceApiController
         try {
             $targetPath = $this->pathSanitizer->sanitizeRelativePath($targetPath);
         } catch (\InvalidArgumentException $e) {
-            return $this->responseEnvelopeFactory->error($request, 'Invalid target path.', (string) $e->getMessage(), 400);
+            return $this->responseEnvelopeFactory->error($request, 'Invalid target path.', $e->getMessage(), 400);
         }
 
         if (!$this->isValidDomain($fqdn)) {
@@ -616,7 +619,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains', name: 'customer_webspaces_domain_list_v1', methods: ['GET'])]
     public function listDomains(Request $request, int $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $webspace = $this->webspaceRepository->find($id);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('webspace_not_found'), 'webspace_not_found', 404);
@@ -635,7 +638,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}', name: 'customer_webspaces_domain_patch_v1', methods: ['PATCH'])]
     public function patchDomain(Request $request, int $id, int $domainId): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $webspace = $this->webspaceRepository->find($id);
         $domain = $this->domainRepository->find($domainId);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || !$domain instanceof Domain || $webspace->getCustomer()->getId() !== $actor->getId() || $domain->getWebspace()?->getId() !== $webspace->getId()) {
@@ -648,7 +651,7 @@ final class WebspaceApiController
         }
 
         $payload = $request->toArray();
-        $targetPath = array_key_exists('target_path', $payload) ? (string) $payload['target_path'] : (string) ($domain->getTargetPath() ?? '');
+        $targetPath = array_key_exists('target_path', $payload) ? (string) $payload['target_path'] : ($domain->getTargetPath() ?? '');
         $redirectHttps = array_key_exists('redirect_https', $payload) ? (bool) $payload['redirect_https'] : $domain->isRedirectHttps();
         $redirectWww = array_key_exists('redirect_www', $payload) ? (bool) $payload['redirect_www'] : $domain->isRedirectWww();
         $targetPath = $this->pathSanitizer->sanitizeRelativePath($targetPath);
@@ -670,7 +673,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}', name: 'customer_webspaces_domain_remove_v1', methods: ['DELETE'])]
     public function removeDomain(Request $request, int $id, int $domainId): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $webspace = $this->webspaceRepository->find($id);
         $domain = $this->domainRepository->find($domainId);
 
@@ -785,7 +788,7 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/apply', name: 'customer_webspaces_apply_v1', methods: ['POST'])]
     public function apply(Request $request, int $id): JsonResponse
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $webspace = $this->webspaceRepository->find($id);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('webspace_not_found'), 'webspace_not_found', 404);
@@ -921,7 +924,7 @@ final class WebspaceApiController
             'runtime' => $webspace->getRuntime(),
             'web_root' => $webspace->getPath(),
             'docroot' => $webspace->getDocroot(),
-            'target_path' => (string) ($domain->getTargetPath() ?? ''),
+            'target_path' => ($domain->getTargetPath() ?? ''),
             'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
             'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
             'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $webspace->getSystemUsername()),
@@ -930,6 +933,11 @@ final class WebspaceApiController
         ]);
     }
 
+    /**
+     * @return array{agent_id: string, webspace_id: string, domain_id: string, domain: string, web_root:
+     * string, docroot: string, php_fpm_listen: string, nginx_vhost_path: string, nginx_include_path:
+     * string, cert_dir: string, redirect_https: string, runtime: string}
+     */
     private function buildSslJobPayload(Webspace $webspace, Domain $domain): array
     {
         return [
@@ -948,6 +956,12 @@ final class WebspaceApiController
         ];
     }
 
+    /**
+     * @return array{id: int|null, fqdn: string, type: string, target_path: null|string, status: string,
+     * apply_status: string, ssl_enabled: bool, certificate_status: null|string, certificate_expires_at:
+     * null, redirect_https: bool, redirect_www: bool, last_apply_error_code: null|string,
+     * last_apply_error_message: null|string}
+     */
     private function domainApiPayload(Domain $domain, ?Certificate $certificate): array
     {
         return [
@@ -967,6 +981,10 @@ final class WebspaceApiController
         ];
     }
 
+    /**
+     * @return array{status: string, issuer?: string, fullchain_path?: null, privkey_path?: null,
+     * issued_at?: null, expires_at?: null, last_error_code?: null, last_error_message?: null}
+     */
     private function certificatePayload(?Certificate $certificate): array
     {
         if (!$certificate instanceof Certificate) {
@@ -984,9 +1002,13 @@ final class WebspaceApiController
         ];
     }
 
+    /**
+     * @return array{0: \Symfony\Component\HttpFoundation\JsonResponse|null, 1:
+     * \App\Module\Core\Domain\Entity\Webspace|null, 2: \App\Module\Core\Domain\Entity\Domain|null}
+     */
     private function resolveOwnedDomain(Request $request, int $webspaceId, int $domainId): array
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $webspace = $this->webspaceRepository->find($webspaceId);
         $domain = $this->domainRepository->find($domainId);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || !$domain instanceof Domain || $webspace->getCustomer()->getId() !== $actor->getId() || $domain->getWebspace()?->getId() !== $webspace->getId()) {

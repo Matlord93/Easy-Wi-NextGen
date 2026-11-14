@@ -56,9 +56,9 @@ final class PublicCmsBlogController
             return $this->maintenancePageResponseFactory->create($maintenance);
         }
 
-        $categorySlug = trim((string) $request->query->get('category', ''));
-        $tagSlug = trim((string) $request->query->get('tag', ''));
-        $query = trim((string) $request->query->get('q', ''));
+        $categorySlug = trim($request->query->getString('category', ''));
+        $tagSlug = trim($request->query->getString('tag', ''));
+        $query = trim($request->query->getString('q', ''));
 
         $category = $categorySlug !== '' ? $this->categoryRepository->findOneBySiteAndSlug($site, $categorySlug) : null;
         $tag = $tagSlug !== '' ? $this->tagRepository->findOneBySiteAndSlug($site, $tagSlug) : null;
@@ -107,13 +107,21 @@ final class PublicCmsBlogController
         ] + $this->themeContext($site, 'blog', $post->getTitle())));
     }
 
-    /** @param list<CmsPost> $posts @return list<array<string,mixed>> */
+    /**
+     * @param list<CmsPost> $posts
+     * @return list<array<string,mixed>>
+     */
     private function normalizePosts(array $posts): array
     {
         return array_map(fn (CmsPost $post): array => $this->normalizePost($post), $posts);
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{id: int|null, title: string, slug: string, excerpt: null|string, content: string,
+     * seo_title: null|string, seo_description: null|string, featured_image_path: null|string, published_at:
+     * \DateTimeImmutable|null, category: array{name: null|string, slug: null|string}|null, tags: array<int,
+     * array{name: string, slug: string}>}
+     */
     private function normalizePost(CmsPost $post): array
     {
         return [
@@ -137,7 +145,10 @@ final class PublicCmsBlogController
         ];
     }
 
-    /** @param list<BlogCategory> $categories @return list<array<string,mixed>> */
+    /**
+     * @param list<BlogCategory> $categories
+     * @return list<array<string,mixed>>
+     */
     private function normalizeCategories(array $categories, ?BlogCategory $active): array
     {
         return array_map(static fn (BlogCategory $category): array => [
@@ -147,7 +158,10 @@ final class PublicCmsBlogController
         ], $categories);
     }
 
-    /** @param list<BlogTag> $tags @return list<array<string,mixed>> */
+    /**
+     * @param list<BlogTag> $tags
+     * @return list<array<string,mixed>>
+     */
     private function normalizeTags(array $tags, ?BlogTag $active): array
     {
         return array_map(static fn (BlogTag $tag): array => [
@@ -157,8 +171,8 @@ final class PublicCmsBlogController
         ], $tags);
     }
 
-    /** @return list<array{title:string,slug:string}> */
-    private function normalizeCmsPages($site): array
+    /** @return list<array{title:string,slug:string,is_active:bool}> */
+    private function normalizeCmsPages(Site $site): array
     {
         $pages = $this->pageRepository->findBy(['site' => $site, 'isPublished' => true], ['title' => 'ASC']);
 
@@ -169,7 +183,12 @@ final class PublicCmsBlogController
         ], $pages);
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{active_theme: string, template_key: string, page: array{slug: string, title: string},
+     * cms_navigation: list<array{label: string, url: string, external: bool}>, cms_footer_links:
+     * list<array{label: string, url: string, external: bool}>, cms_branding: array{logo_path: string,
+     * primary_color: string, socials: array<string, string>}}
+     */
     private function themeContext(Site $site, string $slug, string $title): array
     {
         $templateKey = $this->themeResolver->resolveThemeKey($site);

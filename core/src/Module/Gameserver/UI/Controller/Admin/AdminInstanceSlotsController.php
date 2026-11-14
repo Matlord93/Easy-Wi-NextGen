@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Application\InstanceSlotService;
 use App\Repository\InstanceRepository;
@@ -29,7 +31,7 @@ final class AdminInstanceSlotsController
     #[Route(path: '/{id}/slots', name: 'admin_instances_slots', methods: ['GET', 'POST'])]
     public function edit(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }

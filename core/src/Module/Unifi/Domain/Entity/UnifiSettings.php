@@ -7,6 +7,11 @@ namespace App\Module\Unifi\Domain\Entity;
 use App\Module\Unifi\Infrastructure\Repository\UnifiSettingsRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: UnifiSettingsRepository::class)]
 #[ORM\Table(name: 'unifi_settings')]
 class UnifiSettings
@@ -25,6 +30,7 @@ class UnifiSettings
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $username = null;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string}|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $passwordEncrypted = null;
 
@@ -34,6 +40,7 @@ class UnifiSettings
     #[ORM\Column(length: 80, nullable: true)]
     private ?string $site = null;
 
+    /** @var array<string, string>|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $nodeTargets = null;
 
@@ -73,7 +80,7 @@ class UnifiSettings
     public function setBaseUrl(?string $baseUrl): void
     {
         $baseUrl = $baseUrl === null ? null : trim($baseUrl);
-        $this->baseUrl = $baseUrl !== '' ? rtrim($baseUrl, '/') : null;
+        $this->baseUrl = $baseUrl !== null && $baseUrl !== '' ? rtrim($baseUrl, '/') : null;
         $this->touch();
     }
 

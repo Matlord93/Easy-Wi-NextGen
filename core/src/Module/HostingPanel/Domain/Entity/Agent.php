@@ -6,6 +6,11 @@ namespace App\Module\HostingPanel\Domain\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'hp_agent')]
 class Agent

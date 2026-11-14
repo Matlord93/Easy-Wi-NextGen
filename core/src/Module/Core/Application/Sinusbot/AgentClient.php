@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Sinusbot;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AgentCredentialsResolver;
 use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Domain\Entity\SinusbotNode;
@@ -65,7 +66,7 @@ final class AgentClient
                     throw new AgentBadResponseException(sprintf('%s (%s)', $message, (string) $errorCode));
                 }
 
-                return is_array($data) ? $data : [];
+                return JsonArray::orEmpty($data);
             } catch (TransportExceptionInterface $exception) {
                 $this->logger->warning('Sinusbot agent request failed.', [
                     'path' => $path,

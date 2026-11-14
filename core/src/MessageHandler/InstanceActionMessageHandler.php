@@ -67,7 +67,7 @@ final class InstanceActionMessageHandler
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, mixed>
+     * @return array{job_id: string}
      */
     private function handleSettingsUpdate(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
@@ -130,7 +130,7 @@ final class InstanceActionMessageHandler
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, mixed>
+     * @return array{job_id: string, schedule_id: int|null}
      */
     private function handleScheduleUpdate(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
@@ -186,7 +186,7 @@ final class InstanceActionMessageHandler
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, mixed>
+     * @return array{job_id: string, backup_id: ?int}
      */
     private function handleBackupCreate(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
@@ -201,9 +201,10 @@ final class InstanceActionMessageHandler
         }
 
         $activeBackup = $this->findActiveBackupForDefinition($definition);
-        if ($activeBackup instanceof Backup && $activeBackup->getJob() instanceof Job) {
+        $activeJob = $activeBackup?->getJob();
+        if ($activeBackup !== null && $activeJob !== null) {
             return [
-                'job_id' => $activeBackup->getJob()->getId(),
+                'job_id' => $activeJob->getId(),
                 'backup_id' => $activeBackup->getId(),
             ];
         }
@@ -260,7 +261,7 @@ final class InstanceActionMessageHandler
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, mixed>
+     * @return array{job_id: string, backup_id: int|null, pre_backup_job_id: null|string}
      */
     private function handleBackupRestore(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
@@ -322,7 +323,7 @@ final class InstanceActionMessageHandler
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, mixed>
+     * @return array{job_id: string}
      */
     private function handleAgentJob(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, string $action, array $payload): array
     {

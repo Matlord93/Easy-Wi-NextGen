@@ -34,7 +34,7 @@ final class UpdateRunCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $jobId = (string) $input->getArgument('job-id');
+        $jobId = $input->getArgument('job-id');
         $job = $this->updateJobService->getJob($jobId);
         if ($job === null) {
             $output->writeln('Job not found.');

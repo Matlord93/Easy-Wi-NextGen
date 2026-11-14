@@ -32,21 +32,11 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
 
         $instanceRepo = $this->createStub(SinusbotInstanceRepository::class);
 
-        $nodeRepo = $this->createStub(SinusbotNodeRepository::class);
-        $nodeRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($node): mixed {
-            $expectedArguments = [1];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+        $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
+        $nodeRepo->method('find')->with(1)->willReturn($node);
 
-            return $node;
-        });
-
-        $userRepo = $this->createStub(UserRepository::class);
-        $userRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($customer): mixed {
-            $expectedArguments = [2];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $customer;
-        });
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('find')->with(2)->willReturn($customer);
 
         $entityManager = $this->createStub(EntityManagerInterface::class);
 
@@ -96,21 +86,11 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
         $instanceRepo = $this->createMock(SinusbotInstanceRepository::class);
         $instanceRepo->expects($this->never())->method('findOneBy');
 
-        $nodeRepo = $this->createStub(SinusbotNodeRepository::class);
-        $nodeRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($node): mixed {
-            $expectedArguments = [1];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
+        $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
+        $nodeRepo->method('find')->with(1)->willReturn($node);
 
-            return $node;
-        });
-
-        $userRepo = $this->createStub(UserRepository::class);
-        $userRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($customer): mixed {
-            $expectedArguments = [2];
-            self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
-
-            return $customer;
-        });
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('find')->with(2)->willReturn($customer);
 
         $entityManager = $this->createStub(EntityManagerInterface::class);
 

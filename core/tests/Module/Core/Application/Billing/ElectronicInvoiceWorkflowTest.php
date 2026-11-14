@@ -23,8 +23,9 @@ final class ElectronicInvoiceWorkflowTest extends KernelTestCase
     {
         $directory = getenv('EASYWI_TEST_EINVOICE_VALIDATORS');
         if (false === $directory || '' === $directory) {
-            self::markTestSkipped('Install the local validators and set EASYWI_TEST_EINVOICE_VALIDATORS.');
+            $directory = dirname(__DIR__, 5).'/var/einvoice-validator';
         }
+        self::assertTrue((new ElectronicInvoiceValidator($directory))->ready('zugferd'), 'Run python3 ../scripts/setup-einvoice-validation.py before the test suite.');
         $previous = [];
         foreach (['DATABASE_URL' => 'sqlite:///:memory:', 'EASYWI_DB_CONFIG_PATH' => '/tmp/einvoice-workflow-no-config.json'] as $key => $value) {
             $previous[$key] = [$_SERVER[$key] ?? null, $_ENV[$key] ?? null];

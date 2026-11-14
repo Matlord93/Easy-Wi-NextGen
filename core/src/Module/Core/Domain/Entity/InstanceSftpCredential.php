@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\InstanceSftpCredentialRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: InstanceSftpCredentialRepository::class)]
 #[ORM\Table(name: 'instance_sftp_credentials')]
 class InstanceSftpCredential
@@ -23,6 +28,7 @@ class InstanceSftpCredential
     #[ORM\Column(length: 190)]
     private string $username;
 
+    /** @var array{key_id: string, nonce: string, ciphertext: string} */
     #[ORM\Column(type: 'json')]
     private array $encryptedPassword;
 

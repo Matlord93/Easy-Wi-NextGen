@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\MaintenanceWindow;
@@ -123,7 +126,7 @@ final class AdminMaintenanceWindowController
     #[Route(path: '', name: 'admin_maintenance_windows_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -178,7 +181,7 @@ final class AdminMaintenanceWindowController
     #[Route(path: '/{id}', name: 'admin_maintenance_windows_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -239,7 +242,7 @@ final class AdminMaintenanceWindowController
     #[Route(path: '/{id}/delete', name: 'admin_maintenance_windows_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -269,6 +272,11 @@ final class AdminMaintenanceWindowController
         return $response;
     }
 
+    /**
+     * @return array{errors: list<string>, title: string, message: null|string, visible_public: bool,
+     * start_at: \DateTimeImmutable|null, end_at: \DateTimeImmutable|null, affected_component_ids:
+     * array<array-key, int>}
+     */
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -318,7 +326,7 @@ final class AdminMaintenanceWindowController
             'action' => $window === null ? 'create' : 'update',
             'submit_label' => $window === null ? 'Create Window' : 'Update Window',
             'submit_color' => $window === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $window === null ? '/admin/status/maintenance' : sprintf('/admin/status/maintenance/%d', $window->getId()),
+            'action_url' => $window === null ? '/admin/status/maintenance' : sprintf('/admin/status/maintenance/%d', EntityIdentifier::require($window->getId())),
         ];
 
         if ($override !== null) {
@@ -354,6 +362,7 @@ final class AdminMaintenanceWindowController
 
     /**
      * @param MaintenanceWindow[] $windows
+      * @return array{total: int, public: int, hidden: int}
      */
     private function buildSummary(array $windows): array
     {
@@ -496,7 +505,7 @@ final class AdminMaintenanceWindowController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

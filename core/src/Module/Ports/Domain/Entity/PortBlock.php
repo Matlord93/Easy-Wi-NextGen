@@ -11,6 +11,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: PortBlockRepository::class)]
 #[ORM\Table(name: 'port_blocks')]
 class PortBlock implements ResourceEventSource

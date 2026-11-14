@@ -52,7 +52,7 @@ final class UpdateAutoCommand extends Command
         if (!$input->getOption('no-agents') || $input->getOption('agents-only')) {
             $agentChannel = $settings['agentChannel'];
             $output->writeln(sprintf('Prüfe Agent-Updates (Kanal: %s)…', $agentChannel));
-            $agentResult = $this->agentUpdateQueueService->queueAvailableUpdates($agentChannel, (bool) $input->getOption('force'));
+            $agentResult = $this->agentUpdateQueueService->queueAvailableUpdates($agentChannel, $input->getOption('force'));
             if ($agentResult['requiresPanelProxy']) {
                 $output->writeln('<comment>Agent-Updates benötigen einen Panel-Proxy und wurden nicht automatisch eingeplant.</comment>');
             } else {
@@ -67,7 +67,7 @@ final class UpdateAutoCommand extends Command
         $channel = $settings['coreChannel'];
         $output->writeln(sprintf('Prüfe auf Updates (Kanal: %s)…', $channel));
 
-        $status = $this->updateService->checkForUpdate((bool) $input->getOption('force'));
+        $status = $this->updateService->checkForUpdate($input->getOption('force'));
         if ($status->updateAvailable === false) {
             $output->writeln('Kein Update verfügbar.');
             return Command::SUCCESS;

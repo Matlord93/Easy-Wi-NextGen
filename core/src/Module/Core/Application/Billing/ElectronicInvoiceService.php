@@ -19,6 +19,7 @@ final readonly class ElectronicInvoiceService
     {
     }
 
+    /** @return list<ElectronicInvoiceArchive> */
     public function archives(Invoice $invoice): array
     {
         return $this->em->getRepository(ElectronicInvoiceArchive::class)->findBy(['invoice' => $invoice], ['format' => 'ASC']);

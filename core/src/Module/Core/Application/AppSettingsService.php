@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Core\Domain\Enum\MailBackend;
 use App\Module\Gameserver\Application\ConsoleCommandSettings;
@@ -12,6 +14,10 @@ use App\Repository\AppSettingRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
+/**
+ * @psalm-type SettingValue = null|bool|int|float|string|array<array-key, mixed>
+ * @psalm-type Settings = array<string, SettingValue>
+ */
 class AppSettingsService implements ConsoleCommandSettings
 {
     public const string KEY_SITE_TITLE = 'site_title';
@@ -232,7 +238,7 @@ TWIG;
         self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE,
     ];
 
-    /** @var array<string, mixed>|null */
+    /** @var Settings|null */
     private ?array $cachedSettings = null;
 
     public function __construct(
@@ -244,7 +250,7 @@ TWIG;
     }
 
     /**
-     * @return array<string, mixed>
+     * @return Settings
      */
     public function getSettings(): array
     {
@@ -258,7 +264,7 @@ TWIG;
         try {
             foreach ($this->repository->findAll() as $setting) {
                 $key = $setting->getSettingKey();
-                $settings[$key] = $this->decryptSetting($key, $setting->getValue(), $keysToReset);
+                $settings[$key] = self::settingValue($this->decryptSetting($key, $setting->getValue(), $keysToReset));
             }
 
             if ($keysToReset !== []) {
@@ -277,26 +283,26 @@ TWIG;
     /**
      * @param array<string, mixed> $input
      *
-     * @return array<string, mixed>
+     * @return Settings
      */
     public function updateSettings(array $input, bool $preserveSecrets = true): array
     {
         $current = $this->getSettings();
         $merged = $current;
 
-        foreach (self::DEFAULTS as $key => $default) {
+        foreach (array_keys(self::DEFAULTS) as $key) {
             if (!array_key_exists($key, $input)) {
                 continue;
             }
 
-            $value = $input[$key];
+            $value = self::settingValue($input[$key]);
             if ($preserveSecrets && in_array($key, self::SECRET_KEYS, true)) {
                 if (is_string($value) && trim($value) === '') {
                     continue;
                 }
             }
 
-            $merged[$key] = $value;
+            $merged[$key] = self::settingValue($value);
         }
 
         $normalized = $this->normalizeSettings($merged);
@@ -312,7 +318,8 @@ TWIG;
     public function ensureRuntimeDefaultsPersisted(): void
     {
         $settings = $this->getSettings();
-        if (!is_string($settings[self::KEY_AGENT_REGISTRATION_TOKEN] ?? null) || trim((string) $settings[self::KEY_AGENT_REGISTRATION_TOKEN]) === '') {
+        $token = $settings[self::KEY_AGENT_REGISTRATION_TOKEN] ?? null;
+        if (!is_string($token) || trim($token) === '') {
             $settings[self::KEY_AGENT_REGISTRATION_TOKEN] = bin2hex(random_bytes(32));
         }
 
@@ -709,14 +716,14 @@ TWIG;
     /**
      * @param array<string, mixed> $settings
      *
-     * @return array<string, mixed>
+     * @return Settings
      */
     private function normalizeSettings(array $settings): array
     {
         $normalized = [];
 
         foreach (self::DEFAULTS as $key => $default) {
-            $value = $settings[$key] ?? $default;
+            $value = self::settingValue($settings[$key] ?? $default);
 
             if (is_string($value)) {
                 $value = trim($value);
@@ -878,17 +885,23 @@ TWIG;
 
     public function getAntiAbuseMinSubmitSeconds(): int
     {
-        return (int) ($this->getSettings()[self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS] ?? 2);
+        $value = $this->getSettings()[self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS] ?? 2;
+
+        return is_numeric($value) ? (int) $value : 2;
     }
 
     public function getAntiAbusePowDifficulty(): int
     {
-        return (int) ($this->getSettings()[self::KEY_ANTI_ABUSE_POW_DIFFICULTY] ?? 4);
+        $value = $this->getSettings()[self::KEY_ANTI_ABUSE_POW_DIFFICULTY] ?? 4;
+
+        return is_numeric($value) ? (int) $value : 4;
     }
 
     public function getAntiAbuseDailyIpLimit(): int
     {
-        return (int) ($this->getSettings()[self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT] ?? 20);
+        $value = $this->getSettings()[self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT] ?? 20;
+
+        return is_numeric($value) ? (int) $value : 20;
     }
 
 
@@ -926,12 +939,16 @@ TWIG;
 
     public function getDatabaseLoggingRoutineRetentionDays(): int
     {
-        return max(1, (int) ($this->getSettings()[self::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS] ?? 30));
+        $value = $this->getSettings()[self::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS] ?? 30;
+
+        return max(1, is_numeric($value) ? (int) $value : 30);
     }
 
     public function getDatabaseLoggingErrorRetentionDays(): int
     {
-        return max(1, (int) ($this->getSettings()[self::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS] ?? 180));
+        $value = $this->getSettings()[self::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS] ?? 180;
+
+        return max(1, is_numeric($value) ? (int) $value : 180);
     }
 
     public function markSchedulerHeartbeat(string $status, ?\DateTimeImmutable $now = null): void
@@ -944,7 +961,7 @@ TWIG;
     }
 
     /**
-     * @param array<string, mixed> $settings
+     * @param Settings $settings
      */
     private function persistSettings(array $settings): void
     {
@@ -974,7 +991,15 @@ TWIG;
 
         if (is_array($value)) {
             try {
-                return $this->encryptionService->decrypt($value);
+                $payload = JsonMap::strings($value);
+                if (!isset($payload['key_id'], $payload['nonce'], $payload['ciphertext'])) {
+                    throw new \InvalidArgumentException('Encrypted setting payload is incomplete.');
+                }
+                return $this->encryptionService->decrypt([
+                    'key_id' => $payload['key_id'],
+                    'nonce' => $payload['nonce'],
+                    'ciphertext' => $payload['ciphertext'],
+                ]);
             } catch (\Throwable $exception) {
                 $this->logger->error('settings.decrypt_failed', [
                     'key' => $key,
@@ -1030,6 +1055,16 @@ TWIG;
         return new JavaBinaryConfig($overrides, $autoInstall);
     }
 
+    /** @return SettingValue */
+    private static function settingValue(mixed $value): null|bool|int|float|string|array
+    {
+        return is_scalar($value) || is_array($value) || $value === null ? $value : null;
+    }
+
+    /**
+     * @param SettingValue $value
+     * @return SettingValue
+     */
     private function encryptSetting(string $key, mixed $value): mixed
     {
         if (!in_array($key, self::SECRET_KEYS, true)) {

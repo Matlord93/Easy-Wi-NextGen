@@ -33,7 +33,7 @@ final class InstanceAddonResolver
             $installedVersion = is_string($installedVersion) && trim($installedVersion) !== '' ? trim($installedVersion) : null;
 
             $compatibility = $this->resolveCompatibility($instance);
-            $jobStatus = $addonJobStates[(int) ($plugin->getId() ?? 0)] ?? null;
+            $jobStatus = $addonJobStates[($plugin->getId() ?? 0)] ?? null;
 
             $installed = $installedVersion !== null;
             if ($jobStatus === 'removed') {
@@ -102,7 +102,7 @@ final class InstanceAddonResolver
             if (!is_array($entry)) {
                 continue;
             }
-            $name = strtolower(trim((string) ($entry['name'] ?? '')));
+            $name = strtolower(trim(($entry['name'] ?? '')));
             if ($name === '') {
                 continue;
             }

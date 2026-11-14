@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Notification;
@@ -86,7 +88,7 @@ final class AdminNotificationController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('Forbidden.');
         }
@@ -99,6 +101,10 @@ final class AdminNotificationController
         return array_map([$this, 'normalizeNotification'], $notifications);
     }
 
+    /**
+     * @return array{id: int|null, title: string, body: string, category: string, action_url: null|string,
+     * created_at: \DateTimeImmutable, read_at: \DateTimeImmutable|null}
+     */
     private function normalizeNotification(Notification $notification): array
     {
         return [

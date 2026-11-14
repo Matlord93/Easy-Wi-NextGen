@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\TemplateAuditService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -36,7 +37,7 @@ final class TemplatesDedupeCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $apply = (bool) $input->getOption('apply');
+        $apply = $input->getOption('apply');
         $templates = $this->auditService->getTemplates();
 
         $io->title('Template Dedupe');
@@ -53,7 +54,7 @@ final class TemplatesDedupeCommand extends Command
                 foreach ($group['templates'] as $template) {
                     $requirements = $template->getRequirements();
                     $current = $requirements['merged_group'] ?? null;
-                    $io->writeln(sprintf('  - #%d %s (merged_group=%s)', $template->getId(), $template->getGameKey(), $current ?? 'null'));
+                    $io->writeln(sprintf('  - #%d %s (merged_group=%s)', EntityIdentifier::require($template->getId()), $template->getGameKey(), $current ?? 'null'));
                     if ($current !== $baseKey) {
                         $requirements['merged_group'] = $baseKey;
                         if ($apply) {
@@ -83,15 +84,15 @@ final class TemplatesDedupeCommand extends Command
             }
             usort($templatesInGroup, static fn ($a, $b) => ($a->getId() ?? 0) <=> ($b->getId() ?? 0));
             $keep = array_shift($templatesInGroup);
-            $io->writeln(sprintf('Duplicate group (keep #%d %s):', $keep->getId(), $keep->getGameKey()));
+            $io->writeln(sprintf('Duplicate group (keep #%d %s):', EntityIdentifier::require($keep->getId()), $keep->getGameKey()));
             foreach ($templatesInGroup as $template) {
                 $usage = $usageCounts[$template->getId() ?? 0] ?? 0;
                 if ($usage > 0) {
-                    $io->writeln(sprintf('  - #%d %s (skipped, in use)', $template->getId(), $template->getGameKey()));
+                    $io->writeln(sprintf('  - #%d %s (skipped, in use)', EntityIdentifier::require($template->getId()), $template->getGameKey()));
                     $skippedUsed++;
                     continue;
                 }
-                $io->writeln(sprintf('  - #%d %s (remove)', $template->getId(), $template->getGameKey()));
+                $io->writeln(sprintf('  - #%d %s (remove)', EntityIdentifier::require($template->getId()), $template->getGameKey()));
                 $plannedDeletes++;
                 if ($apply) {
                     if ($usageTable === null) {

@@ -25,18 +25,14 @@ class WebspaceRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer, int $limit = 100): array
     {
-        /** @var list<Webspace> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('webspace')
+        return EntityQueryResult::all($this->createQueryBuilder('webspace')
             ->andWhere('webspace.customer = :customer')
             ->andWhere('webspace.status != :deletedStatus')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->setParameter('deletedStatus', Webspace::STATUS_DELETED)
             ->orderBy('webspace.createdAt', 'DESC')
             ->setMaxResults(max(1, min(500, $limit)))
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\Webspace::class);
     }
 
     /**
@@ -49,7 +45,7 @@ class WebspaceRepository extends ServiceEntityRepository
             ->andWhere('webspace.node = :node')
             ->andWhere('webspace.assignedPort IS NOT NULL')
             ->andWhere('webspace.status != :deletedStatus')
-            ->setParameter('node', $node)
+            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('deletedStatus', Webspace::STATUS_DELETED)
             ->getQuery()
             ->getScalarResult();

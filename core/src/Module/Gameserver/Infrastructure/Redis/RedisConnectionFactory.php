@@ -13,9 +13,9 @@ final class RedisConnectionFactory
             throw new \RuntimeException('Invalid REDIS_DSN.');
         }
 
-        $host = (string) ($parts['host'] ?? '127.0.0.1');
-        $port = (int) ($parts['port'] ?? 6379);
-        $db = isset($parts['path']) ? (int) ltrim((string) $parts['path'], '/') : 0;
+        $host = ($parts['host'] ?? '127.0.0.1');
+        $port = ($parts['port'] ?? 6379);
+        $db = isset($parts['path']) ? (int) ltrim($parts['path'], '/') : 0;
 
         if (!extension_loaded('redis')) {
             throw new \RuntimeException('The PHP redis extension is required but not loaded. Install it with: apt-get install php-redis');

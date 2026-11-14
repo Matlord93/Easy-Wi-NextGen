@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\DownloadItemRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: DownloadItemRepository::class)]
 #[ORM\Table(name: 'download_items')]
 #[ORM\Index(name: 'idx_download_items_site_id', columns: ['site_id'])]

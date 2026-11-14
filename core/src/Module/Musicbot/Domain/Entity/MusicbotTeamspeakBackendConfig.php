@@ -9,6 +9,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakBackendStatus;
 use App\Repository\MusicbotTeamspeakBackendConfigRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotTeamspeakBackendConfigRepository::class)]
 #[ORM\Table(name: 'musicbot_teamspeak_backend_configs')]
 #[ORM\Index(name: 'idx_musicbot_ts_backend_node', columns: ['node_id'])]
@@ -259,7 +264,12 @@ class MusicbotTeamspeakBackendConfig
         $this->lastCheckedAt = new \DateTimeImmutable();
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{backend_type: string, backend_path: string, library_path: string, opus_library_path:
+     * string, identity_path: string, install_path: string, binary_path: string, version: string, checksum:
+     * string, expected_checksum: string, auto_install_enabled: bool, bridge_path: string,
+     * client_binary_path: string, client_runscript_path: string, audio_backend: string}
+     */
     public function toAgentPayload(): array
     {
         return [
@@ -281,7 +291,10 @@ class MusicbotTeamspeakBackendConfig
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{version: string, download_url: string, expected_sha256: string, install_path: string,
+     * requested_by: string, accepted_license_confirmation: bool}
+     */
     public function toOfficialClientAgentPayload(string $requestedBy): array
     {
         return [
@@ -294,7 +307,10 @@ class MusicbotTeamspeakBackendConfig
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{version: string, download_url: string, expected_sha256: string, install_path: string,
+     * requested_by: string, accepted_license_confirmation: bool}
+     */
     public function toSDKClientAgentPayload(string $requestedBy): array
     {
         return [

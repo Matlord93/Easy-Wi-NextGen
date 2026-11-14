@@ -89,10 +89,11 @@ final class MusicbotInstallerRegressionTest extends TestCase
 
     public function testFreshInstallDispatchesMusicbotInstallJob(): void
     {
-        $instance = $this->makeInstance();
         $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
         $this->installer = new MusicbotInstallerService($this->dispatcher, $this->auditLogger);
         $this->repair = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
+
+        $instance = $this->makeInstance();
         $this->dispatcher->expects(self::once())
             ->method('dispatch')
             ->with(self::anything(), 'musicbot.install', self::anything())
@@ -154,6 +155,7 @@ final class MusicbotInstallerRegressionTest extends TestCase
         $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
         $this->installer = new MusicbotInstallerService($this->dispatcher, $this->auditLogger);
         $this->repair = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
+
         $this->dispatcher->expects(self::exactly(2))
             ->method('dispatch')
             ->willReturn($this->makeJob());
@@ -205,6 +207,7 @@ final class MusicbotInstallerRegressionTest extends TestCase
         $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
         $this->installer = new MusicbotInstallerService($this->dispatcher, $this->auditLogger);
         $this->repair = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
+
         $this->dispatcher->expects(self::once())
             ->method('dispatch')
             ->with(self::anything(), 'musicbot.health.check', self::anything())

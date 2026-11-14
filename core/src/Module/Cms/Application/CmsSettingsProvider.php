@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\Application;
 
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
 use App\Repository\CmsSiteSettingsRepository;
@@ -59,13 +60,12 @@ final class CmsSettingsProvider
     public function getBranding(Site $site): array
     {
         $settings = $this->findForSite($site);
-        $branding = is_array($settings?->getBrandingJson()) ? $settings->getBrandingJson() : [];
+        $branding = $settings?->getBrandingJson() ?? [];
 
         $socials = [];
-        $rawSocials = $branding['socials'] ?? [];
+        $rawSocials = JsonMap::strings($branding['socials'] ?? null);
         foreach (self::SOCIAL_KEYS as $key) {
-            $value = is_array($rawSocials) ? ($rawSocials[$key] ?? '') : '';
-            $socials[$key] = is_string($value) ? trim($value) : '';
+            $socials[$key] = trim($rawSocials[$key] ?? '');
         }
 
         return [
@@ -118,12 +118,12 @@ final class CmsSettingsProvider
     public function getModuleToggles(Site $site): array
     {
         $settings = $this->findForSite($site);
-        $stored = is_array($settings?->getModuleTogglesJson()) ? $settings->getModuleTogglesJson() : [];
+        $stored = $settings?->getModuleTogglesJson() ?? [];
         $resolved = self::DEFAULT_MODULE_TOGGLES;
 
         foreach (self::DEFAULT_MODULE_TOGGLES as $key => $_default) {
             if (array_key_exists($key, $stored)) {
-                $resolved[$key] = (bool) $stored[$key];
+                $resolved[$key] = $stored[$key];
             }
         }
 
@@ -143,10 +143,10 @@ final class CmsSettingsProvider
     /**
      * @param array{logo_path?: string, primary_color?: string, socials?: array<string, string>} $branding
      * @param array<string, bool> $moduleToggles
-     * @param list<array{label?: string, url?: string, external?: bool|string|int}> $headerLinks
-     * @param list<array{label?: string, url?: string, external?: bool|string|int}> $footerLinks
+     * @param array<array-key, mixed> $headerLinks
+     * @param array<array-key, mixed> $footerLinks
      */
-    public function save(Site $site, ?string $activeTheme, array $branding, array $moduleToggles, array $headerLinks = [], array $footerLinks = [], ?string $impressumContent = null, ?string $datenschutzContent = null): CmsSiteSettings
+    public function save(Site $site, ?string $activeTheme, array $branding, array $moduleToggles, array $headerLinks = [], array $footerLinks = [], ?string $impressumContent = null, ?string $datenschutzContent = null): void
     {
         $settings = $this->getOrCreate($site);
         $settings->setActiveTheme($activeTheme);
@@ -164,11 +164,13 @@ final class CmsSettingsProvider
 
         $this->entityManager->persist($settings);
         $this->entityManager->flush();
-
-        return $settings;
     }
 
-    /** @param mixed $links @return list<array{label: string, url: string, external: bool}> */
+    /**
+     * @param mixed $links
+     * @param list<array{label:string,url:string,external:bool}> $fallback
+     * @return list<array{label: string, url: string, external: bool}>
+     */
     private function normalizeLinks(mixed $links, array $fallback): array
     {
         if (!is_array($links) || $links === []) {
@@ -176,13 +178,9 @@ final class CmsSettingsProvider
         }
 
         $normalized = [];
-        foreach ($links as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $label = trim((string) ($entry['label'] ?? ''));
-            $url = trim((string) ($entry['url'] ?? ''));
+        foreach (array_filter($links, 'is_array') as $entry) {
+            $label = self::linkText($entry['label'] ?? null);
+            $url = self::linkText($entry['url'] ?? null);
             if ($label === '' || $url === '') {
                 continue;
             }
@@ -200,13 +198,13 @@ final class CmsSettingsProvider
      */
     private function normalizeBranding(array $branding): ?array
     {
-        $logoPath = trim((string) ($branding['logo_path'] ?? ''));
-        $primaryColor = trim((string) ($branding['primary_color'] ?? ''));
+        $logoPath = trim(($branding['logo_path'] ?? ''));
+        $primaryColor = trim(($branding['primary_color'] ?? ''));
 
         $socials = [];
-        $rawSocials = is_array($branding['socials'] ?? null) ? $branding['socials'] : [];
+        $rawSocials = JsonMap::strings($branding['socials'] ?? null);
         foreach (self::SOCIAL_KEYS as $key) {
-            $value = trim((string) ($rawSocials[$key] ?? ''));
+            $value = trim(($rawSocials[$key] ?? ''));
             if ($value !== '') {
                 $socials[$key] = $value;
             }
@@ -223,17 +221,25 @@ final class CmsSettingsProvider
         ];
     }
 
-    /** @param array<string, bool> $moduleToggles @return array<string, bool> */
+    /**
+     * @param array<string, bool> $moduleToggles
+     * @return array<string, bool>
+     */
     private function normalizeModuleToggles(array $moduleToggles): array
     {
         $normalized = self::DEFAULT_MODULE_TOGGLES;
 
         foreach (self::DEFAULT_MODULE_TOGGLES as $key => $_default) {
             if (array_key_exists($key, $moduleToggles)) {
-                $normalized[$key] = (bool) $moduleToggles[$key];
+                $normalized[$key] = $moduleToggles[$key];
             }
         }
 
         return $normalized;
     }
+    private static function linkText(mixed $value): string
+    {
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+
 }

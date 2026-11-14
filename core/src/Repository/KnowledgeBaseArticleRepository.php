@@ -24,17 +24,13 @@ final class KnowledgeBaseArticleRepository extends ServiceEntityRepository
      */
     public function findVisiblePublicBySite(int $siteId): array
     {
-        /** @var list<KnowledgeBaseArticle> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('article')
+        return EntityQueryResult::all($this->createQueryBuilder('article')
             ->andWhere('article.siteId = :siteId')
             ->andWhere('article.visiblePublic = true')
             ->setParameter('siteId', $siteId)
             ->orderBy('article.category', 'ASC')
             ->addOrderBy('article.title', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\KnowledgeBaseArticle::class);
     }
 
     /**
@@ -42,17 +38,13 @@ final class KnowledgeBaseArticleRepository extends ServiceEntityRepository
      */
     public function findVisiblePublicBySiteAndCategory(int $siteId, TicketCategory $category): array
     {
-        /** @var list<KnowledgeBaseArticle> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('article')
+        return EntityQueryResult::all($this->createQueryBuilder('article')
             ->andWhere('article.siteId = :siteId')
             ->andWhere('article.visiblePublic = true')
             ->andWhere('article.category = :category')
             ->setParameter('siteId', $siteId)
-            ->setParameter('category', $category)
+            ->setParameter('category', $category->value)
             ->orderBy('article.title', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Core\Domain\Entity\KnowledgeBaseArticle::class);
     }
 }

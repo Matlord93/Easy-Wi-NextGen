@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
@@ -114,7 +116,7 @@ final class AdminTs3InstanceController
     #[Route(path: '', name: 'admin_ts3_instances_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -195,7 +197,7 @@ final class AdminTs3InstanceController
     #[Route(path: '/{id}/action', name: 'admin_ts3_instances_action', methods: ['POST'])]
     public function action(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -242,7 +244,7 @@ final class AdminTs3InstanceController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
     }
 
@@ -405,6 +407,10 @@ final class AdminTs3InstanceController
         };
     }
 
+    /**
+     * @return array{payload: array{action: string, slots?: string, backup_path?: string, restore_path?:
+     * string}, errors: list<string>}
+     */
     private function buildActionPayload(string $action, Request $request): array
     {
         $payload = [
@@ -460,6 +466,7 @@ final class AdminTs3InstanceController
 
     /**
      * @param Ts3Instance[] $instances
+      * @return array{total: int, running: int, stopped: int, error: int, provisioning: int}
      */
     private function buildSummary(array $instances): array
     {

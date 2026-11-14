@@ -25,6 +25,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     ) {
     }
 
+    /** @return array{'kernel.request': array{0: string, 1: int}} */
     #[\Override]
     public static function getSubscribedEvents(): array
     {
@@ -45,9 +46,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
         $request = $event->getRequest();
         $path = $this->normalizePath($request->getPathInfo());
-        $routeName = $request->attributes->get('_route');
-
-        $isPublic = $this->isPublicPath($path) || $this->isPublicRoute($routeName);
+        $isPublic = $this->isPublicPath($path) || $this->isPublicRoute($request->attributes->get('_route'));
         $requiresSession = $this->requiresSession($path);
 
         if ($isPublic || !$requiresSession) {

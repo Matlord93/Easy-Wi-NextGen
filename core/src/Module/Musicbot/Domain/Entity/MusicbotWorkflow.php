@@ -11,6 +11,11 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotWorkflowRepository::class)]
 #[ORM\Table(name: 'musicbot_workflows')]
 #[ORM\Index(name: 'idx_musicbot_workflows_customer', columns: ['customer_id'])]
@@ -60,7 +65,7 @@ class MusicbotWorkflow
         cascade: ['persist', 'remove'],
         orphanRemoval: true,
     )]
-    #[ORM\OrderBy(['sortOrder' => 'ASC'])]
+    #[ORM\OrderBy(['sortOrder' => \SortDirection::Ascending])]
     private Collection $conditions;
 
     /** @var Collection<int, MusicbotWorkflowAction> */
@@ -70,7 +75,7 @@ class MusicbotWorkflow
         cascade: ['persist', 'remove'],
         orphanRemoval: true,
     )]
-    #[ORM\OrderBy(['sortOrder' => 'ASC'])]
+    #[ORM\OrderBy(['sortOrder' => \SortDirection::Ascending])]
     private Collection $actions;
 
     #[ORM\Column]

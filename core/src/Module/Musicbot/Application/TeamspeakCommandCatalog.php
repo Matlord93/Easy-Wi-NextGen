@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Musicbot\Domain\Enum\MusicbotPermission;
 
 final class TeamspeakCommandCatalog
@@ -18,7 +19,7 @@ final class TeamspeakCommandCatalog
     {
         $commands = [];
         foreach (self::defaults() as $name => $default) {
-            $override = is_array($overrides[$name] ?? null) ? $overrides[$name] : [];
+            $override = JsonArray::orEmpty($overrides[$name] ?? null);
             $commands[$name] = array_replace($default, array_intersect_key($override, $default));
             $commands[$name]['aliases'] = self::stringList($override['aliases'] ?? $default['aliases']);
             $commands[$name]['roles'] = self::roles($override['roles'] ?? $default['roles']);
@@ -63,7 +64,13 @@ final class TeamspeakCommandCatalog
         ];
     }
 
-    /** @param list<string> $aliases @param list<string> $roles @param list<string> $chatScopes */
+    /**
+     * @param list<string> $aliases
+     * @param list<string> $roles
+     * @param list<string> $chatScopes
+      * @return array{enabled: bool, action: string, aliases: list<string>, roles: list<string>,
+      * chat_scopes: list<string>, permission: string, plugin: string}
+     */
     private static function command(string $action, array $aliases, array $roles, array $chatScopes, string $permission): array
     {
         return ['enabled' => true, 'action' => $action, 'aliases' => $aliases, 'roles' => $roles, 'chat_scopes' => $chatScopes, 'permission' => $permission, 'plugin' => self::PLUGIN_IDENTIFIER];
@@ -76,7 +83,10 @@ final class TeamspeakCommandCatalog
     /** @return list<string> */
     private static function stringList(mixed $value): array { return self::filtered($value, null); }
 
-    /** @param list<string>|null $allowed @return list<string> */
+    /**
+     * @param list<string>|null $allowed
+     * @return list<string>
+     */
     private static function filtered(mixed $value, ?array $allowed): array
     {
         if (!is_array($value)) { return []; }

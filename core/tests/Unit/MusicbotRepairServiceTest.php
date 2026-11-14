@@ -75,6 +75,7 @@ final class MusicbotRepairServiceTest extends TestCase
     {
         $this->dispatcher = $this->createMock(AgentJobDispatcherInterface::class);
         $this->service = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
+
         $this->dispatcher->expects(self::once())
             ->method('dispatch')
             ->willReturn($this->makeJob());

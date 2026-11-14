@@ -1710,7 +1710,7 @@ final class GameTemplateSeedCatalog
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{enabled: bool, base_url: string, root_path: string}
      */
     private function defaultFastdlSettings(): array
     {
@@ -1722,7 +1722,8 @@ final class GameTemplateSeedCatalog
     }
 
     /**
-     * @return array<string, list<array{source:string,target:string,mode:string,readonly:bool}>|list<array<string, mixed>>>
+     * @return array<string,
+     * list<array{source:string,target:string,mode:string,readonly:bool}>|list<array<string, mixed>>>
      */
     private function sharedPathCatalog(): array
     {

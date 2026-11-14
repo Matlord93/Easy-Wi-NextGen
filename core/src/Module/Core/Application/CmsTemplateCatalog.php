@@ -299,7 +299,7 @@ final class CmsTemplateCatalog
 
     /**
      * @param array<int, array<string, string>> $blocks
-     * @return array<string, mixed>
+     * @return array{title: string, slug: string, is_published: bool, blocks: array<int, array<string, string>>}
      */
     private function page(string $title, string $slug, array $blocks): array
     {
@@ -480,24 +480,7 @@ HTML;
 HTML;
     }
 
-    private function hostingHighlights(): string
-    {
-        return <<<HTML
-<section class="rounded-xl border border-slate-200 bg-white p-6">
-    <h3 class="text-lg font-semibold">Warum Kunden wechseln</h3>
-    <div class="mt-4 grid gap-4 md:grid-cols-2">
-        <div>
-            <p class="text-sm font-semibold">Sofortige Aktivierung</p>
-            <p class="mt-2 text-sm text-slate-600">Bestellen, zahlen, starten – ohne Wartezeit.</p>
-        </div>
-        <div>
-            <p class="text-sm font-semibold">Transparente Kosten</p>
-            <p class="mt-2 text-sm text-slate-600">Klare Preise, monatlich kündbar.</p>
-        </div>
-    </div>
-</section>
-HTML;
-    }
+
 
     private function gameserverHero(): string
     {
@@ -1137,4 +1120,24 @@ HTML;
 </section>
 HTML;
     }
+
+    private function hostingHighlights(): string
+    {
+        return <<<HTML
+        <section class="rounded-xl border border-slate-200 bg-white p-6">
+            <h3 class="text-lg font-semibold">Warum Kunden wechseln</h3>
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                    <p class="text-sm font-semibold">Sofortige Aktivierung</p>
+                    <p class="mt-2 text-sm text-slate-600">Bestellen, zahlen, starten – ohne Wartezeit.</p>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold">Transparente Kosten</p>
+                    <p class="mt-2 text-sm text-slate-600">Klare Preise, monatlich kündbar.</p>
+                </div>
+            </div>
+        </section>
+        HTML;
+    }
+
 }

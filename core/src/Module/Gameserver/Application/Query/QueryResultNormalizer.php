@@ -11,7 +11,10 @@ final class QueryResultNormalizer
     /**
      * @param array<string, bool> $capabilities
      * @param array{players?: int|null, max_players?: int|null, map?: string|null, version?: string|null, motd?: string|null} $reported
-     * @return array<string, mixed>
+     * @return array{online: bool|null, engine: null|string, latency_ms: int|null, error: null|string,
+     * reported: array{players: int|null, max_players: int|null, map: null|string, version: null|string,
+     * motd: null|string}, capabilities: array{players: bool, slots: bool, map: bool, version: bool, motd:
+     * bool}}
      */
     public static function build(
         ?bool $online,
@@ -34,11 +37,11 @@ final class QueryResultNormalizer
                 'motd' => $reported['motd'] ?? null,
             ],
             'capabilities' => [
-                'players' => (bool) ($capabilities['players'] ?? false),
-                'slots' => (bool) ($capabilities['slots'] ?? false),
-                'map' => (bool) ($capabilities['map'] ?? false),
-                'version' => (bool) ($capabilities['version'] ?? false),
-                'motd' => (bool) ($capabilities['motd'] ?? false),
+                'players' => ($capabilities['players'] ?? false),
+                'slots' => ($capabilities['slots'] ?? false),
+                'map' => ($capabilities['map'] ?? false),
+                'version' => ($capabilities['version'] ?? false),
+                'motd' => ($capabilities['motd'] ?? false),
             ],
         ];
     }

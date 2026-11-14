@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ChangelogEntry;
@@ -107,7 +110,7 @@ final class AdminChangelogController
     #[Route(path: '', name: 'admin_changelog_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -154,7 +157,7 @@ final class AdminChangelogController
     #[Route(path: '/{id}', name: 'admin_changelog_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -212,7 +215,7 @@ final class AdminChangelogController
     #[Route(path: '/{id}/delete', name: 'admin_changelog_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -242,6 +245,10 @@ final class AdminChangelogController
         return $response;
     }
 
+    /**
+     * @return array{errors: list<string>, title: string, version: null|string, content: string,
+     * published_at: \DateTimeImmutable, visible_public: bool}
+     */
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -285,7 +292,7 @@ final class AdminChangelogController
             'action' => $entry === null ? 'create' : 'update',
             'submit_label' => $entry === null ? 'Create Entry' : 'Update Entry',
             'submit_color' => $entry === null ? 'bg-indigo-600' : 'bg-amber-500',
-            'action_url' => $entry === null ? '/admin/changelog' : sprintf('/admin/changelog/%d', $entry->getId()),
+            'action_url' => $entry === null ? '/admin/changelog' : sprintf('/admin/changelog/%d', EntityIdentifier::require($entry->getId())),
         ];
 
         if ($override !== null) {
@@ -313,6 +320,7 @@ final class AdminChangelogController
 
     /**
      * @param ChangelogEntry[] $entries
+      * @return array{total: int, public: int, hidden: int}
      */
     private function buildSummary(array $entries): array
     {
@@ -365,7 +373,7 @@ final class AdminChangelogController
 
     private function isAdmin(Request $request): bool
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
 
         return $user instanceof User && $user->isAdmin();
     }

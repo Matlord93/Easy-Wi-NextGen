@@ -6,6 +6,7 @@ namespace App\Module\Musicbot\Application;
 
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\NoPrivateNetworkHttpClient;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
@@ -15,16 +16,17 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 class MusicbotRadioPlaylistResolver
 {
     private const int MAX_REDIRECTS = 5;
-    private const int MAX_PLAYLIST_BYTES = 1048576;
-    private readonly HttpClientInterface $http;
+    private const int CONNECT_TIMEOUT = 8;
     private const int TIMEOUT = 12;
+    private const int MAX_PLAYLIST_BYTES = 1_048_576;
+
+    private readonly HttpClientInterface $publicClient;
 
     public function __construct(
         private readonly MusicbotWebradioUrlValidator $urlValidator,
         ?HttpClientInterface $httpClient = null,
     ) {
-        // Validates and pins DNS before connecting, including every redirect.
-        $this->http = new NoPrivateNetworkHttpClient($httpClient ?? HttpClient::create(), MusicbotWebradioUrlValidator::BLOCKED_NETWORKS);
+        $this->publicClient = new NoPrivateNetworkHttpClient($httpClient ?? HttpClient::create(), MusicbotWebradioUrlValidator::BLOCKED_NETWORKS);
     }
 
     /**
@@ -71,7 +73,8 @@ class MusicbotRadioPlaylistResolver
     /**
      * Returns resolved URL and detected content-type / metadata from stream headers.
      *
-     * @return array{url: string, content_type: string|null, bitrate: int|null, stream_name: string|null, genre: string|null}
+     * @return array{url: string, content_type: string|null, bitrate: int|null, stream_name: string|null,
+     * genre: string|null}
      */
     public function resolveWithMetadata(string $url): array
     {
@@ -83,7 +86,8 @@ class MusicbotRadioPlaylistResolver
 
     private function detectFormat(string $url): string
     {
-        $path = strtolower(parse_url($url, PHP_URL_PATH) ?? '');
+        $path = parse_url($url, PHP_URL_PATH);
+        $path = is_string($path) ? strtolower($path) : '';
 
         if (str_ends_with($path, '.m3u') || str_ends_with($path, '.m3u8')) {
             return 'm3u';
@@ -102,41 +106,39 @@ class MusicbotRadioPlaylistResolver
 
     private function fetchContent(string $url): string
     {
-        $this->urlValidator->validate($url);
-        $response = $this->http->request('GET', $url, [
-            'max_redirects' => self::MAX_REDIRECTS,
-            'timeout' => self::TIMEOUT,
-            'max_duration' => self::TIMEOUT,
-            'buffer' => false,
-            'headers' => ['User-Agent' => 'EasyWI-Musicbot/1.0 (playlist-resolver)'],
-            'on_progress' => static function (int $downloaded, int $size, array $info): void {
-                if ($downloaded > self::MAX_PLAYLIST_BYTES && empty($info['canceled'])) {
-                    throw new \RuntimeException('Playlist exceeds the 1 MiB limit.');
-                }
-            },
-        ]);
+        $response = null;
         try {
+            $response = $this->publicClient->request('GET', $url, [
+                'max_redirects' => self::MAX_REDIRECTS,
+                'timeout' => self::CONNECT_TIMEOUT,
+                'max_duration' => self::TIMEOUT,
+                'buffer' => false,
+                'headers' => ['User-Agent' => 'EasyWI-Musicbot/1.0 (playlist-resolver)'],
+            ]);
             $status = $response->getStatusCode();
             if ($status < 200 || $status >= 300) {
                 throw new \RuntimeException(sprintf('Playlist URL returned HTTP %d.', $status));
             }
+
             $body = '';
-            foreach ($this->http->stream($response) as $chunk) {
+            foreach ($this->publicClient->stream($response) as $chunk) {
                 if ($chunk->isTimeout()) {
                     throw new \RuntimeException('Playlist request timed out.');
                 }
                 $body .= $chunk->getContent();
                 if (strlen($body) > self::MAX_PLAYLIST_BYTES) {
-                    throw new \RuntimeException('Playlist exceeds the 1 MiB limit.');
+                    throw new \RuntimeException('Playlist file is too large. (1 MiB limit)');
                 }
             }
-            if ('' === $body) {
+            if ($body === '') {
                 throw new \RuntimeException('Playlist file was empty.');
             }
 
             return $body;
+        } catch (TransportExceptionInterface $exception) {
+            throw new \RuntimeException('Playlist HTTP request failed.', 0, $exception);
         } finally {
-            $response->cancel();
+            $response?->cancel();
         }
     }
 
@@ -177,15 +179,22 @@ class MusicbotRadioPlaylistResolver
     /** @return string[] */
     private function parseXspf(string $content): array
     {
-        $urls = [];
         if (str_contains(strtoupper($content), '<!DOCTYPE')) {
             return [];
         }
+
+        $urls = [];
         $previousErrorMode = libxml_use_internal_errors(true);
         try {
             $xml = new \SimpleXMLElement($content, LIBXML_NONET);
             $xml->registerXPathNamespace('xspf', 'http://xspf.org/ns/0/');
-            $locations = $xml->xpath('//xspf:location') ?: $xml->xpath('//location') ?: [];
+            $locations = $xml->xpath('//xspf:location');
+            if (!is_array($locations) || $locations === []) {
+                $locations = $xml->xpath('//location');
+            }
+            if (!is_array($locations)) {
+                return [];
+            }
             foreach ($locations as $loc) {
                 $candidate = trim((string) $loc);
                 if (str_starts_with($candidate, 'http://') || str_starts_with($candidate, 'https://')) {
@@ -193,7 +202,7 @@ class MusicbotRadioPlaylistResolver
                 }
             }
         } catch (\Exception) {
-            // Invalid XML; fall through with empty result
+            // An invalid playlist has no usable stream locations.
         } finally {
             libxml_clear_errors();
             libxml_use_internal_errors($previousErrorMode);
@@ -207,33 +216,36 @@ class MusicbotRadioPlaylistResolver
      */
     private function probeStreamHeaders(string $url): array
     {
-        $empty = ['content_type' => null, 'bitrate' => null, 'stream_name' => null, 'genre' => null];
         $response = null;
         try {
-            $this->urlValidator->validate($url);
-            $response = $this->http->request('GET', $url, [
+            $response = $this->publicClient->request('GET', $url, [
                 'max_redirects' => self::MAX_REDIRECTS,
                 'timeout' => 5,
                 'max_duration' => 5,
                 'buffer' => false,
-                'headers' => ['Range' => 'bytes=0-0', 'Icy-MetaData' => '1', 'User-Agent' => 'EasyWI-Musicbot/1.0 (stream-probe)'],
+                'headers' => [
+                    'User-Agent' => 'EasyWI-Musicbot/1.0 (stream-probe)',
+                    'Icy-MetaData' => '1',
+                    'Range' => 'bytes=0-0',
+                ],
             ]);
             $status = $response->getStatusCode();
             if ($status < 200 || $status >= 300) {
-                return $empty;
+                return ['content_type' => null, 'bitrate' => null, 'stream_name' => null, 'genre' => null];
             }
             $headers = $response->getHeaders(false);
+            $bitrate = $headers['icy-br'][0] ?? null;
 
             return [
                 'content_type' => $headers['content-type'][0] ?? null,
-                'bitrate' => isset($headers['icy-br'][0]) ? (int) $headers['icy-br'][0] : null,
+                'bitrate' => $bitrate !== null && ctype_digit($bitrate) ? (int) $bitrate : null,
                 'stream_name' => $headers['icy-name'][0] ?? null,
                 'genre' => $headers['icy-genre'][0] ?? null,
             ];
-        } catch (\Symfony\Contracts\HttpClient\Exception\ExceptionInterface|\InvalidArgumentException) {
-            return $empty;
+        } catch (TransportExceptionInterface) {
+            return ['content_type' => null, 'bitrate' => null, 'stream_name' => null, 'genre' => null];
         } finally {
-            // A live stream can ignore Range; never wait for or buffer its body.
+            // Radio responses may never finish: metadata probing only needs the headers.
             $response?->cancel();
         }
     }

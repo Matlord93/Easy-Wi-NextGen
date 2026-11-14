@@ -178,7 +178,7 @@ final class MusicbotInstallerApiController
             return [];
         }
         try {
-            return (array) $request->toArray();
+            return $request->toArray();
         } catch (\Throwable) {
             return [];
         }

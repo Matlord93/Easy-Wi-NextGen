@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\InvoicePreferencesRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: InvoicePreferencesRepository::class)]
 #[ORM\Table(name: 'invoice_preferences')]
 #[ORM\UniqueConstraint(name: 'uniq_invoice_preferences_customer', columns: ['customer_id'])]

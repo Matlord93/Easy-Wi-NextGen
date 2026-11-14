@@ -21,15 +21,11 @@ final class DunningReminderRepository extends ServiceEntityRepository
 
     public function findLatestForInvoice(Invoice $invoice): ?DunningReminder
     {
-        /** @var DunningReminder|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('reminder')
+        return EntityQueryResult::one($this->createQueryBuilder('reminder')
             ->andWhere('reminder.invoice = :invoice')
-            ->setParameter('invoice', $invoice)
+            ->setParameter('invoice', QueryParameter::entityId($invoice->getId(), \App\Module\Core\Domain\Entity\Invoice::class))
             ->orderBy('reminder.level', 'DESC')
             ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->getQuery(), \App\Module\Core\Domain\Entity\DunningReminder::class);
     }
 }

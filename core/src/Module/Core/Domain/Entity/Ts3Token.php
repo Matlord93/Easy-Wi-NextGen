@@ -8,6 +8,11 @@ use App\Module\Core\Application\SecretsCrypto;
 use App\Repository\Ts3TokenRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: Ts3TokenRepository::class)]
 #[ORM\Table(name: 'ts3_tokens')]
 class Ts3Token

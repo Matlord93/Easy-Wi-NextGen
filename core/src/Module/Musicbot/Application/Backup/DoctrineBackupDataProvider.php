@@ -32,24 +32,28 @@ final class DoctrineBackupDataProvider implements MusicbotBackupDataProvider
     ) {
     }
 
+    /** @return list<\App\Module\Musicbot\Domain\Entity\MusicbotConnection> */
     #[\Override]
     public function getConnections(MusicbotInstance $instance): array
     {
         return $this->connectionRepository->findBy(['musicbotInstance' => $instance]);
     }
 
+    /** @return list<\App\Module\Musicbot\Domain\Entity\MusicbotPlaylist> */
     #[\Override]
     public function getPlaylists(MusicbotInstance $instance): array
     {
         return $this->playlistRepository->findBy(['instance' => $instance]);
     }
 
+    /** @return list<\App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem> */
     #[\Override]
     public function getPlaylistItems(mixed $playlist): array
     {
         return $this->playlistItemRepository->findBy(['playlist' => $playlist], ['position' => 'ASC']);
     }
 
+    /** @return list<\App\Module\Musicbot\Domain\Entity\MusicbotRadioStation> */
     #[\Override]
     public function getRadioStations(MusicbotInstance $instance): array
     {
@@ -62,24 +66,28 @@ final class DoctrineBackupDataProvider implements MusicbotBackupDataProvider
         return $this->autoDjSettingsRepository->findOneBy(['instance' => $instance]);
     }
 
+    /** @return list<\App\Module\Musicbot\Domain\Entity\MusicbotPlugin> */
     #[\Override]
     public function getPlugins(MusicbotInstance $instance): array
     {
         return $this->pluginRepository->findBy(['instance' => $instance]);
     }
 
+    /** @return list<\App\Module\Musicbot\Domain\Entity\MusicbotQueueItem> */
     #[\Override]
     public function getQueueItems(MusicbotInstance $instance): array
     {
         return $this->queueItemRepository->findBy(['instance' => $instance], ['position' => 'ASC']);
     }
 
+    /** @return list<\App\Module\Musicbot\Domain\Entity\MusicbotTrack> */
     #[\Override]
     public function getTracks(MusicbotInstance $instance): array
     {
         return $this->trackRepository->findBy(['instance' => $instance]);
     }
 
+    /** @return list<\App\Module\Musicbot\Domain\Entity\MusicbotPluginLog> */
     #[\Override]
     public function getPluginLogs(MusicbotInstance $instance): array
     {

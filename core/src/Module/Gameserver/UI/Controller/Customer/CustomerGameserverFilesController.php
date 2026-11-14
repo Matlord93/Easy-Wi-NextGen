@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
@@ -44,7 +46,7 @@ final class CustomerGameserverFilesController
 
         return new Response($this->twig->render('customer/instances/files/dashboard.html.twig', [
             'instance' => $instance,
-            'tabs' => $this->buildTabs((int) ($instance->getId() ?? 0)),
+            'tabs' => $this->buildTabs(($instance->getId() ?? 0)),
             'activeTab' => 'files',
             'activeNav' => 'instances',
             'pageTitle' => $this->translator->trans('customer_instance_files_page_title'),
@@ -53,6 +55,14 @@ final class CustomerGameserverFilesController
     }
 
 
+    /**
+     * @return array{0: array{key: string, label: string, href: string}, 1: array{key: string, label:
+     * string, label_is_key: bool, href: string}, 2: array{key: string, label: string, href: string}, 3:
+     * array{key: string, label: string, href: string}, 4: array{key: string, label: string, href: string},
+     * 5: array{key: string, label: string, href: string}, 6: array{key: string, label: string, href:
+     * string}, 7: array{key: string, label: string, href: string}, 8: array{key: string, label: string,
+     * href: string}}
+     */
     private function buildTabs(int $instanceId): array
     {
         return [
@@ -107,7 +117,7 @@ final class CustomerGameserverFilesController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }

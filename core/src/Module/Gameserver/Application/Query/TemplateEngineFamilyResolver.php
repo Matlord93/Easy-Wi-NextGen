@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application\Query;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Template;
 
 final class TemplateEngineFamilyResolver
@@ -11,7 +12,7 @@ final class TemplateEngineFamilyResolver
     public function resolve(Template $template): string
     {
         $requirements = $template->getRequirements();
-        $query = is_array($requirements['query'] ?? null) ? $requirements['query'] : [];
+        $query = JsonArray::orEmpty($requirements['query'] ?? null);
         $rawProtocol = (string) ($query['type'] ?? $requirements['query_type'] ?? '');
         $protocol = strtolower(trim($rawProtocol));
         $gameKey = strtolower(trim($template->getGameKey()));

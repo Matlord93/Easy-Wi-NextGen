@@ -69,6 +69,7 @@ final readonly class ElectronicInvoiceValidator
         }
     }
 
+    /** @param list<string> $arguments */
     private function run(array $arguments): string
     {
         $process = new Process($arguments, null, ['JAVA_OPTS' => '-Xmx192m', 'JAVA_TOOL_OPTIONS' => false, '_JAVA_OPTIONS' => false]);
@@ -99,7 +100,7 @@ final readonly class ElectronicInvoiceValidator
         $document = new \DOMDocument();
         $previous = libxml_use_internal_errors(true);
         try {
-            if (strlen($content) > 8_000_000 || !$document->loadXML($content, LIBXML_NONET) || null !== $document->doctype) {
+            if ($content === '' || strlen($content) > 8_000_000 || !$document->loadXML($content, LIBXML_NONET) || null !== $document->doctype) {
                 throw new \RuntimeException('billing.einvoice_validation_unavailable');
             }
         } finally {

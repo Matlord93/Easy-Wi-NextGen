@@ -7,6 +7,11 @@ namespace App\Module\Musicbot\Domain\Entity;
 use App\Repository\MusicbotPlaylistItemRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotPlaylistItemRepository::class)]
 #[ORM\Table(name: 'musicbot_playlist_items')]
 #[ORM\Index(name: 'idx_musicbot_playlist_items_playlist_position', columns: ['playlist_id', 'position'])]

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
@@ -72,7 +74,7 @@ final class AdminDatabaseController
     #[Route(path: '', name: 'admin_databases_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -160,7 +162,7 @@ final class AdminDatabaseController
     #[Route(path: '/{id}/password', name: 'admin_databases_password_reset', methods: ['POST'])]
     public function resetPassword(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -199,7 +201,7 @@ final class AdminDatabaseController
     #[Route(path: '/{id}/delete', name: 'admin_databases_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -232,7 +234,7 @@ final class AdminDatabaseController
     #[Route(path: '/customers/{id}/limit', name: 'admin_database_customer_limit', methods: ['POST'])]
     public function updateCustomerLimit(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -258,7 +260,7 @@ final class AdminDatabaseController
     #[Route(path: '/nodes', name: 'admin_database_nodes_create', methods: ['POST'])]
     public function createNode(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -324,7 +326,7 @@ final class AdminDatabaseController
     #[Route(path: '/nodes/{id}/toggle', name: 'admin_database_nodes_toggle', methods: ['POST'])]
     public function toggleNode(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -347,7 +349,7 @@ final class AdminDatabaseController
     #[Route(path: '/nodes/{id}/health', name: 'admin_database_nodes_health', methods: ['POST'])]
     public function checkNodeHealth(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -415,7 +417,7 @@ final class AdminDatabaseController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

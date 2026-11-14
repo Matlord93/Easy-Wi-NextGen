@@ -65,7 +65,7 @@ final class MusicbotRepairService
     /**
      * Execute a repair action for the given instance, enforcing caller permissions.
      *
-     * @return array<string, mixed>
+     * @return array{action: string, job_id: string, instance_id: int|null, dispatched_at: string}
      */
     public function repair(MusicbotInstance $instance, User $actor, string $action): array
     {
@@ -101,7 +101,10 @@ final class MusicbotRepairService
         return $actor->isAdmin() ? self::ALL_ACTIONS : self::CUSTOMER_ALLOWED_ACTIONS;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{instance_id: string, service_name: string, install_dir: string, install_path: string,
+     * repair_action: string}
+     */
     private function buildRepairPayload(MusicbotInstance $instance, string $action): array
     {
         return [

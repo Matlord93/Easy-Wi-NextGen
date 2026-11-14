@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Infrastructure\Config\JsonArray;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class GithubReleaseAssetUrlResolver
@@ -38,7 +39,7 @@ final class GithubReleaseAssetUrlResolver
             return null;
         }
 
-        $assets = is_array($data['assets'] ?? null) ? $data['assets'] : [];
+        $assets = JsonArray::orEmpty($data['assets'] ?? null);
         foreach ($assets as $asset) {
             if (!is_array($asset)) {
                 continue;

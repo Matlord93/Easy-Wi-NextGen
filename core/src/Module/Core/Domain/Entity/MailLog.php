@@ -8,6 +8,11 @@ use App\Repository\MailLogRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MailLogRepository::class)]
 #[ORM\Table(name: 'mail_logs')]
 #[ORM\Index(name: 'idx_mail_logs_created_at', columns: ['created_at'])]

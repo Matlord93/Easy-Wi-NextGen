@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\BackupDefinition;
@@ -176,7 +179,7 @@ final class BackupApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \RuntimeException('Unauthorized.');
         }
@@ -273,6 +276,11 @@ final class BackupApiController
             || array_key_exists('backup_target_id', $payload);
     }
 
+    /**
+     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, cron_expression?: string,
+     * retention_days?: int, retention_count?: int, enabled?: bool, time_zone?: string, compression?:
+     * string, stop_before?: bool, backup_target?: \App\Module\Core\Domain\Entity\BackupTarget|null}
+     */
     private function validateSchedulePayload(Request $request, array $payload, User $customer): array
     {
         $cronExpression = trim((string) ($payload['cron_expression'] ?? ''));
@@ -316,7 +324,7 @@ final class BackupApiController
         }
 
         $settings = $this->appSettingsService->getSettings();
-        $compression = strtolower(trim((string) ($payload['compression'] ?? $settings[AppSettingsService::KEY_BACKUP_DEFAULT_COMPRESSION] ?? 'gzip')));
+        $compression = strtolower(trim(ScalarValue::text($payload['compression'] ?? $settings[AppSettingsService::KEY_BACKUP_DEFAULT_COMPRESSION] ?? 'gzip')));
         if (!in_array($compression, ['gzip', 'zstd'], true)) {
             return ['error' => $this->responseEnvelopeFactory->error($request, 'Compression must be gzip or zstd.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
@@ -347,7 +355,7 @@ final class BackupApiController
             'enabled' => $enabled,
             'time_zone' => $timeZone,
             'compression' => $compression,
-            'stop_before' => (bool) $stopBefore,
+            'stop_before' => $stopBefore,
             'backup_target' => $backupTarget,
         ];
     }
@@ -374,6 +382,13 @@ final class BackupApiController
         return $actor->isAdmin() || $definition->getCustomer()->getId() === $actor->getId();
     }
 
+    /**
+     * @return array{id: int|null, customer_id: int|null, target: array{type: string, id: string}, label:
+     * null|string, backup_target: array{id: int|null, type: string, label: string}|null, schedule:
+     * array{id: int|null, cron_expression: string, retention_days: int, retention_count: int, enabled:
+     * bool, time_zone: string, compression: string, stop_before: bool, backup_target_id: int|null,
+     * last_run_at: null|string, last_status: null|string, last_error_code: null|string}|null}
+     */
     private function normalizeDefinition(BackupDefinition $definition): array
     {
         $schedule = $definition->getSchedule();

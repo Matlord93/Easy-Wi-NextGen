@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\PrivacyGdprBackgroundJobService;
+use App\Module\Core\Application\PrivacyGdprBackgroundJobRunnerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -15,7 +15,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'app:gdpr:exports:cleanup', description: 'Delete expired GDPR exports and log GDPR deletion audits. Prefer the internal Privacy & GDPR scheduler in the panel for automation.')]
 final class GdprExportCleanupCommand extends Command
 {
-    public function __construct(private readonly PrivacyGdprBackgroundJobService $backgroundJobService)
+    public function __construct(private readonly PrivacyGdprBackgroundJobRunnerInterface $backgroundJobService)
     {
         parent::__construct();
     }

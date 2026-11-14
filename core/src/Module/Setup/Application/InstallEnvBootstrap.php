@@ -24,12 +24,12 @@ final class InstallEnvBootstrap
             return [
                 'ok' => false,
                 'error_code' => 'env_file_not_writable',
-                'env_path' => (string) $check['env_path'],
+                'env_path' => $check['env_path'],
             ];
         }
 
         $missing = $this->resolveMissingValues($projectDir);
-        $envPath = (string) $check['env_path'];
+        $envPath = $check['env_path'];
 
         if ($missing === []) {
             return ['ok' => true, 'env_path' => $envPath, 'written_keys' => []];
@@ -98,7 +98,7 @@ final class InstallEnvBootstrap
                 $missing['APP_ENCRYPTION_ACTIVE_KEY_ID'] = $keyset['activeKid'];
             }
         } elseif (!array_key_exists('APP_ENCRYPTION_ACTIVE_KEY_ID', $existing)) {
-            $firstKey = $this->extractFirstKeyId((string) $existing['APP_ENCRYPTION_KEYS']);
+            $firstKey = $this->extractFirstKeyId($existing['APP_ENCRYPTION_KEYS']);
             if ($firstKey !== '') {
                 $missing['APP_ENCRYPTION_ACTIVE_KEY_ID'] = $firstKey;
             }
@@ -166,12 +166,12 @@ final class InstallEnvBootstrap
 
     private function extractFirstKeyId(string $keyset): string
     {
-        $entry = trim((string) explode(',', $keyset)[0]);
+        $entry = trim(explode(',', $keyset)[0]);
         if ($entry === '' || !str_contains($entry, ':')) {
             return '';
         }
 
-        return trim((string) explode(':', $entry, 2)[0]);
+        return trim(explode(':', $entry, 2)[0]);
     }
 
     private function isWritable(string $envPath): bool

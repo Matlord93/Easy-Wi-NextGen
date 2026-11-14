@@ -7,6 +7,11 @@ namespace App\Module\Unifi\Domain\Entity;
 use App\Module\Unifi\Infrastructure\Repository\UnifiManualRuleRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: UnifiManualRuleRepository::class)]
 #[ORM\Table(name: 'unifi_manual_rules')]
 class UnifiManualRule

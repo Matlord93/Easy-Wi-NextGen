@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ScheduledTaskRunRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ScheduledTaskRunRepository::class)]
 #[ORM\Table(name: 'scheduled_task_runs')]
 #[ORM\Index(name: 'idx_scheduled_task_runs_schedule', columns: ['schedule_source', 'schedule_id', 'started_at'])]

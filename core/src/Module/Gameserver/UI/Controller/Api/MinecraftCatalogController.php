@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
@@ -22,7 +24,7 @@ final readonly class MinecraftCatalogController
     #[Route('/api/v1/minecraft/catalog', name: 'minecraft_catalog', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
-        if (!$request->attributes->get('current_user') instanceof User) {
+        if (!RequestActor::user($request) instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized'], 401);
         }
 

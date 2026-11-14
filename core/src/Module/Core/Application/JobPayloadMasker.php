@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonArray;
 final class JobPayloadMasker
 {
     private const MASK = '[redacted]';
@@ -45,7 +46,7 @@ final class JobPayloadMasker
     {
         $masked = $this->maskValue($payload);
 
-        return is_array($masked) ? $masked : [];
+        return JsonArray::orEmpty($masked);
     }
 
     public function maskText(string $value): string

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Message\RunInstanceActionMessage;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\DiskEnforcementService;
@@ -134,14 +137,14 @@ final class CustomerJobApiController
             }
             $jobPayload = array_merge($this->buildBasePayload($instance), $install['payload'] ?? []);
         } elseif (in_array($jobType, ['instance.start', 'instance.restart'], true)) {
-            $extraPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
+            $extraPayload = JsonArray::orEmpty($payload['payload'] ?? null);
             $jobPayload = array_merge(
                 $extraPayload,
                 $this->instanceJobPayloadBuilder->buildRuntimePayload($instance),
                 $this->buildBasePayload($instance),
             );
         } else {
-            $extraPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
+            $extraPayload = JsonArray::orEmpty($payload['payload'] ?? null);
             $jobPayload = array_merge($extraPayload, $this->buildBasePayload($instance));
         }
 
@@ -227,7 +230,7 @@ final class CustomerJobApiController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -300,7 +303,7 @@ final class CustomerJobApiController
             throw new BadRequestHttpException('Invalid JSON payload.', $exception);
         }
 
-        return is_array($payload) ? $payload : [];
+        return JsonArray::orEmpty($payload);
     }
 
     /**

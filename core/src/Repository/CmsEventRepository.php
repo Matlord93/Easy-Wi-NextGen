@@ -22,7 +22,6 @@ final class CmsEventRepository extends ServiceEntityRepository
     /** @return list<CmsEvent> */
     public function findPublishedBySite(Site $site): array
     {
-        /** @var list<CmsEvent> $rows */
         $rows = $this->findBy(['site' => $site, 'isPublished' => true], ['startAt' => 'ASC']);
 
         return $rows;
@@ -31,7 +30,6 @@ final class CmsEventRepository extends ServiceEntityRepository
     /** @return list<CmsEvent> */
     public function findBySite(Site $site): array
     {
-        /** @var list<CmsEvent> $rows */
         $rows = $this->findBy(['site' => $site], ['startAt' => 'ASC']);
 
         return $rows;
@@ -39,7 +37,6 @@ final class CmsEventRepository extends ServiceEntityRepository
 
     public function findOneBySiteAndSlug(Site $site, string $slug, bool $publishedOnly = true): ?CmsEvent
     {
-        /** @var CmsEvent|null $row */
         $row = $this->findOneBy(
             $publishedOnly
             ? ['site' => $site, 'slug' => $slug, 'isPublished' => true]

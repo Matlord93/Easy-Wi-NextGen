@@ -28,16 +28,16 @@ final class DatabaseTableReadOnlyTest extends TestCase
         $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('decrypt')->willReturn('customer-pass');
 
-        $stmt = new class {
-            public function fetchAll(): array { return [['id'=>1,'content'=>str_repeat('x',300)]]; }
+        $stmt = new class extends \PDOStatement { public function __construct() {}
+            public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array { return [['id'=>1,'content'=>str_repeat('x',300)]]; }
         };
 
         $captured = ['dsn'=>'','user'=>'','pass'=>'','query'=>''];
-        $pdo = new class($stmt, $captured) {
+        $pdo = new class($stmt, $captured) extends \PDO {
             public array $capt;
-            public function __construct(private object $stmt, array $capt){ $this->capt=$capt; }
-            public function query(string $sql): object { $this->capt['query']=$sql; return $this->stmt; }
-            public function prepare(string $sql): object { return new class { public function execute(array $p): void {} public function fetchAll(): array { return []; } }; }
+            public function __construct(private \PDOStatement $stmt, array $capt){ $this->capt=$capt; }
+            public function query(string $sql, ?int $fetchMode = null, mixed ...$fetchModeArgs): \PDOStatement|false { $this->capt['query']=$sql; return $this->stmt; }
+            public function prepare(string $sql, array $options = []): \PDOStatement|false { return new class extends \PDOStatement { public function __construct() {} public function execute(?array $p = null): bool { $p ??= [];  return true; } public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array { return []; } }; }
         };
 
         $factory = function (string $dsn, string $user, string $pass) use ($pdo, &$captured) {
@@ -54,6 +54,32 @@ final class DatabaseTableReadOnlyTest extends TestCase
         self::assertSame(50, $out['limit']);
         self::assertStringContainsString('LIMIT 50 OFFSET 0', $pdo->capt['query']);
         self::assertStringEndsWith('…', $out['rows'][0]['content']);
+    }
+
+    public function testFailedPreparationStopsBeforeExecutingAStatement(): void
+    {
+        $encryption = $this->createStub(EncryptionService::class);
+        $encryption->method('decrypt')->willReturn('password');
+        $pdo = $this->createStub(\PDO::class);
+        $pdo->method('prepare')->willReturn(false);
+        $service = new DatabaseTableService($encryption, static fn () => $pdo);
+
+        $this->expectExceptionMessage('database_statement_prepare_failed');
+        $service->describeTable($this->newDatabase(), 'users');
+    }
+
+    public function testMalformedFactoryRowIsRejectedBeforeItCanBeRendered(): void
+    {
+        $encryption = $this->createStub(EncryptionService::class);
+        $encryption->method('decrypt')->willReturn('password');
+        $statement = $this->createStub(\PDOStatement::class);
+        $statement->method('fetchAll')->willReturn([['content' => new \stdClass()]]);
+        $pdo = $this->createStub(\PDO::class);
+        $pdo->method('query')->willReturn($statement);
+        $service = new DatabaseTableService($encryption, static fn () => $pdo);
+
+        $this->expectExceptionMessage('invalid_database_value');
+        $service->listRows($this->newDatabase(), 'users');
     }
 
     private function newDatabase(): Database

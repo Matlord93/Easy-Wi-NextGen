@@ -341,7 +341,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{version: null|string, commit: null|string, build: null|string}
      */
     public function getVersionInfo(): array
     {

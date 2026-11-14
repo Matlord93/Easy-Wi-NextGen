@@ -4,9 +4,32 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+/**
+ * @psalm-type ReleaseCacheEntry = array{
+ *     repository: string,
+ *     channel: string,
+ *     check_type: string,
+ *     releases: list<mixed>|null,
+ *     selected: array<array-key, mixed>|null,
+ *     fetched_at: int|null,
+ *     last_success_at: int|null,
+ *     expires_at: int|null,
+ *     rate_limit_reset: int|null,
+ *     rate_limit_remaining: int|null,
+ *     last_http_status: int|null,
+ *     manual_refresh_locked_until: int|null,
+ *     etag: string|null,
+ *     last_modified: string|null,
+ *     last_error_type: string|null,
+ *     last_error: string|null,
+ *     repository_visibility: string,
+ * }
+ */
 final class GithubReleaseResolver
 {
     public const CHANNEL_STABLE = 'stable';
@@ -63,7 +86,7 @@ final class GithubReleaseResolver
         return $this->getLatestAssetMatching(
             $repository,
             $channel,
-            static fn (string $candidateName, string $releaseTag): bool => $candidateName === $assetName,
+            static fn (string $candidateName, string $_releaseTag): bool => $candidateName === $assetName,
             $checksumsAssetName,
             $signatureAssetName,
             $targetVersion,
@@ -94,7 +117,7 @@ final class GithubReleaseResolver
 
         $selected = $this->selectLatestAssetMatchingWithChecksumContents($releases, $channel, $assetMatcher, $checksumsAssetName, $signatureAssetName, $targetVersion);
         if ($selected === null) {
-            $selected = $this->selectLatestAssetMatching($releases, $channel, $assetMatcher, $checksumsAssetName, $signatureAssetName, $targetVersion);
+            $selected = $this->selectLatestAsset($releases, $channel, $assetMatcher, $checksumsAssetName, $signatureAssetName, $targetVersion);
         }
         if ($selected !== null) {
             $this->storeSelectedCacheMetadata($repository, $channel, $checkType, ['asset' => $selected]);
@@ -131,7 +154,7 @@ final class GithubReleaseResolver
             if ($normalizedTarget !== null && $this->normalizeVersion($tag) !== $normalizedTarget) {
                 continue;
             }
-            if ($latestRelease === null || $this->compareReleaseTags($tag, (string) ($latestRelease['tag_name'] ?? $latestRelease['name'] ?? '')) > 0) {
+            if ($latestRelease === null || $this->compareReleaseTags($tag, $this->extractReleaseTag($latestRelease) ?? '') > 0) {
                 $latestRelease = $release;
             }
         }
@@ -141,10 +164,10 @@ final class GithubReleaseResolver
         }
 
         $tag = $this->extractReleaseTag($latestRelease) ?? '(unbekannt)';
-        $assets = is_array($latestRelease['assets'] ?? null) ? $latestRelease['assets'] : [];
+        $assets = self::assetFields($latestRelease['assets'] ?? null);
         $assetNames = [];
         foreach ($assets as $asset) {
-            if (is_array($asset) && is_string($asset['name'] ?? null) && trim($asset['name']) !== '') {
+            if (isset($asset['name']) && trim($asset['name']) !== '') {
                 $assetNames[] = trim($asset['name']);
             }
         }
@@ -171,7 +194,7 @@ final class GithubReleaseResolver
     /**
      * @param array<int, mixed> $releases
      *
-     * @return array<string, mixed>|null
+     * @return array<array-key, mixed>|null
      */
     public function selectLatestRelease(array $releases, string $channel): ?array
     {
@@ -198,45 +221,21 @@ final class GithubReleaseResolver
 
     /**
      * @param array<int, mixed> $releases
+     * @param string|(callable(string,string):(bool|int)) $assetName receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
      *
      * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
      */
     public function selectLatestAsset(
         array $releases,
         string $channel,
-        string $assetName,
+        string|callable $assetName,
         string $checksumsAssetName,
         ?string $signatureAssetName = null,
         ?string $targetVersion = null,
-        string $checkType = 'release',
-        bool $force = false,
     ): ?array {
-        return $this->selectLatestAssetMatching(
-            $releases,
-            $channel,
-            static fn (string $candidateName, string $releaseTag): bool => $candidateName === $assetName,
-            $checksumsAssetName,
-            $signatureAssetName,
-            $targetVersion,
-        );
-    }
-
-    /**
-     * @param array<int, mixed> $releases
-     * @param callable(string,string):(bool|int) $assetMatcher receives the asset name and release tag. Return true to accept or a lower integer for higher priority.
-     *
-     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
-     */
-    public function selectLatestAssetMatching(
-        array $releases,
-        string $channel,
-        callable $assetMatcher,
-        string $checksumsAssetName,
-        ?string $signatureAssetName = null,
-        ?string $targetVersion = null,
-        string $checkType = 'release',
-        bool $force = false,
-    ): ?array {
+        $assetMatcher = is_string($assetName)
+            ? static fn (string $candidateName, string $_releaseTag): bool => $candidateName === $assetName
+            : $assetName;
         $channel = $this->normalizeChannel($channel);
         $selected = null;
         $normalizedTarget = $this->normalizeVersion($targetVersion);
@@ -251,7 +250,7 @@ final class GithubReleaseResolver
                 continue;
             }
 
-            $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
+            $assets = self::assetFields($release['assets'] ?? null);
             $matchedAssetName = $this->findMatchingAssetName($assets, $tag, $assetMatcher);
             $downloadUrl = $matchedAssetName !== null ? $this->findAssetDownloadUrl($assets, $matchedAssetName) : null;
             $checksumsUrl = $this->findAssetDownloadUrl($assets, $checksumsAssetName);
@@ -308,7 +307,7 @@ final class GithubReleaseResolver
                 continue;
             }
 
-            $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
+            $assets = self::assetFields($release['assets'] ?? null);
             $matchingAssetNames = $this->findMatchingAssetNames($assets, $tag, $assetMatcher);
             if (count($matchingAssetNames) <= 1) {
                 continue;
@@ -430,7 +429,7 @@ final class GithubReleaseResolver
         return preg_replace('/([._\-+])(?:alpha|snapshot|nightly)(?=$|[._\-+])/i', '$1dev', $version) ?? $version;
     }
 
-    /** @return array<int, mixed>|null */
+    /** @return list<mixed>|null */
     public function getCachedReleases(string $repository, string $channel, string $checkType, bool $force = false): ?array
     {
         return $this->fetchReleases($repository, $channel, $checkType, $force);
@@ -450,23 +449,23 @@ final class GithubReleaseResolver
             'channel' => $channel,
             'check_type' => $checkType,
             'ttl' => $this->effectiveCacheTtlSeconds(),
-            'has_cache' => $cached !== null && is_array($cached['releases'] ?? null),
+            'has_cache' => $cached !== null && $cached['releases'] !== null,
             'fetched_at' => $cached['fetched_at'] ?? null,
             'last_success_at' => $cached['last_success_at'] ?? null,
             'expires_at' => $cached['expires_at'] ?? null,
-            'next_check_at' => max((int) ($cached['expires_at'] ?? 0), (int) ($cached['rate_limit_reset'] ?? 0)) ?: null,
+            'next_check_at' => max(($cached['expires_at'] ?? 0), ($cached['rate_limit_reset'] ?? 0)) ?: null,
             'rate_limit_reset' => $cached['rate_limit_reset'] ?? null,
             'rate_limit_remaining' => $cached['rate_limit_remaining'] ?? null,
             'last_http_status' => $cached['last_http_status'] ?? null,
             'last_error_type' => $cached['last_error_type'] ?? null,
             'repository_visibility' => $cached['repository_visibility'] ?? 'unknown',
             'last_error' => $cached['last_error'] ?? null,
-            'is_fresh' => (int) ($cached['expires_at'] ?? 0) > $now,
+            'is_fresh' => ($cached['expires_at'] ?? 0) > $now,
             'token_present' => $this->resolveToken() !== '',
         ];
     }
 
-    /** @return array<int, mixed>|null */
+    /** @return list<mixed>|null */
     private function fetchReleases(string $repository, string $channel = self::CHANNEL_STABLE, string $checkType = 'release', bool $force = false): ?array
     {
         $repository = $this->normalizeRepository($repository);
@@ -487,24 +486,24 @@ final class GithubReleaseResolver
         $now = time();
         $cached = $this->readCache($repository, $channel, $checkType);
         if (!$force && $cached !== null) {
-            $rateLimitReset = (int) ($cached['rate_limit_reset'] ?? 0);
-            if ($rateLimitReset > $now && is_array($cached['releases'] ?? null)) {
+            $rateLimitReset = ($cached['rate_limit_reset'] ?? 0);
+            if ($rateLimitReset > $now && $cached['releases'] !== null) {
                 return $cached['releases'];
             }
-            if ((int) ($cached['expires_at'] ?? 0) > $now && is_array($cached['releases'] ?? null)) {
+            if (($cached['expires_at'] ?? 0) > $now && $cached['releases'] !== null) {
                 return $cached['releases'];
             }
             if ($rateLimitReset > $now) {
                 return null;
             }
         }
-        if ($force && $cached !== null && (int) ($cached['manual_refresh_locked_until'] ?? 0) > $now && is_array($cached['releases'] ?? null)) {
+        if ($force && $cached !== null && ($cached['manual_refresh_locked_until'] ?? 0) > $now && $cached['releases'] !== null) {
             return $cached['releases'];
         }
 
         $lock = $this->acquireCacheLock($repository, $channel, $checkType);
         if ($lock === null) {
-            if (is_array($cached['releases'] ?? null)) {
+            if ($cached !== null && $cached['releases'] !== null) {
                 return $cached['releases'];
             }
             $this->writeCache($repository, $channel, $checkType, $this->mergeCache($cached, [
@@ -517,17 +516,17 @@ final class GithubReleaseResolver
         try {
             $cached = $this->readCache($repository, $channel, $checkType);
             if (!$force && $cached !== null) {
-                $rateLimitReset = (int) ($cached['rate_limit_reset'] ?? 0);
-                if (($rateLimitReset > time() || (int) ($cached['expires_at'] ?? 0) > time()) && is_array($cached['releases'] ?? null)) {
+                $rateLimitReset = ($cached['rate_limit_reset'] ?? 0);
+                if (($rateLimitReset > time() || ($cached['expires_at'] ?? 0) > time()) && $cached['releases'] !== null) {
                     return $cached['releases'];
                 }
             }
 
             $conditionalHeaders = [];
-            if (is_string($cached['etag'] ?? null) && $cached['etag'] !== '') {
+            if ($cached !== null && $cached['etag'] !== null && $cached['etag'] !== '') {
                 $conditionalHeaders['If-None-Match'] = $cached['etag'];
             }
-            if (is_string($cached['last_modified'] ?? null) && $cached['last_modified'] !== '') {
+            if ($cached !== null && $cached['last_modified'] !== null && $cached['last_modified'] !== '') {
                 $conditionalHeaders['If-Modified-Since'] = $cached['last_modified'];
             }
 
@@ -537,14 +536,14 @@ final class GithubReleaseResolver
                 $this->writeCache($repository, $channel, $checkType, $this->mergeCache($cached, [
                     'last_error' => $this->sanitizeError($exception->getMessage()) ?: 'GitHub API konnte nicht abgefragt werden.',
                     'last_error_type' => self::ERROR_TEMPORARY_GITHUB_ERROR,
-                    'manual_refresh_locked_until' => $force ? time() + self::MANUAL_REFRESH_LOCK_SECONDS : (int) ($cached['manual_refresh_locked_until'] ?? 0),
+                    'manual_refresh_locked_until' => $force ? time() + self::MANUAL_REFRESH_LOCK_SECONDS : ($cached['manual_refresh_locked_until'] ?? 0),
                 ]));
 
-                return is_array($cached['releases'] ?? null) ? $cached['releases'] : null;
+                return ($cached !== null && $cached['releases'] !== null) ? $cached['releases'] : null;
             }
 
             $rateLimitReset = $requestResult['rate_limit_reset'];
-            if ($requestResult['status'] === 304 && is_array($cached['releases'] ?? null)) {
+            if ($requestResult['status'] === 304 && $cached !== null && $cached['releases'] !== null) {
                 $entry = $this->mergeCache($cached, [
                     'fetched_at' => time(),
                     'expires_at' => time() + $this->effectiveCacheTtlSeconds(),
@@ -556,7 +555,7 @@ final class GithubReleaseResolver
                     'last_error' => null,
                     'etag' => $requestResult['etag'] ?? ($cached['etag'] ?? null),
                     'last_modified' => $requestResult['last_modified'] ?? ($cached['last_modified'] ?? null),
-                    'manual_refresh_locked_until' => $force ? time() + self::MANUAL_REFRESH_LOCK_SECONDS : (int) ($cached['manual_refresh_locked_until'] ?? 0),
+                    'manual_refresh_locked_until' => $force ? time() + self::MANUAL_REFRESH_LOCK_SECONDS : ($cached['manual_refresh_locked_until'] ?? 0),
                 ]);
                 $this->writeCache($repository, $channel, $checkType, $entry);
 
@@ -595,23 +594,25 @@ final class GithubReleaseResolver
                 'last_error_type' => $requestResult['error_type'],
                 'repository_visibility' => $requestResult['repository_visibility'],
                 'last_error' => $this->statusErrorMessage($requestResult['status'], $rateLimitReset),
-                'manual_refresh_locked_until' => $force ? time() + self::MANUAL_REFRESH_LOCK_SECONDS : (int) ($cached['manual_refresh_locked_until'] ?? 0),
+                'manual_refresh_locked_until' => $force ? time() + self::MANUAL_REFRESH_LOCK_SECONDS : ($cached['manual_refresh_locked_until'] ?? 0),
             ]));
 
-            return is_array($cached['releases'] ?? null) ? $cached['releases'] : null;
+            return ($cached !== null && $cached['releases'] !== null) ? $cached['releases'] : null;
         } finally {
             $this->releaseCacheLock($lock);
         }
     }
 
-    /** @return array<int, mixed>|null */
+    /** @return list<mixed>|null */
     private function requestReleases(string $repository, array $headers): ?array
     {
         $result = $this->requestReleasesWithMetadata($repository, $headers);
         return $result['status'] >= 200 && $result['status'] < 300 && is_array($result['releases']) ? $result['releases'] : null;
     }
 
-    /** @return array{status:int,releases:mixed,etag:?string,last_modified:?string,rate_limit_reset:?int,rate_limit_remaining:?int,error_type:?string,repository_visibility:string} */
+    /**
+     * @return array{status:int,releases:list<mixed>|null,etag:?string,last_modified:?string,rate_limit_reset:?int,rate_limit_remaining:?int,error_type:?string,repository_visibility:string}
+     */
     private function requestReleasesWithMetadata(string $repository, array $extraHeaders): array
     {
         $headers = array_merge([
@@ -640,7 +641,8 @@ final class GithubReleaseResolver
         if ($status !== 304) {
             $content = $response->getContent(false);
             if ($status >= 200 && $status < 300) {
-                $payload = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+                $decoded = JsonArray::fromValue(json_decode($content, true, 512, JSON_THROW_ON_ERROR));
+                $payload = $decoded !== null ? array_values($decoded) : null;
             }
         }
 
@@ -678,7 +680,7 @@ final class GithubReleaseResolver
     {
         $token = $this->token !== null ? trim($this->token) : '';
         if ($token === '') {
-            $token = trim((string) ($_SERVER['APP_GITHUB_TOKEN'] ?? $_ENV['APP_GITHUB_TOKEN'] ?? $_SERVER['GITHUB_TOKEN'] ?? $_ENV['GITHUB_TOKEN'] ?? ''));
+            $token = trim(($_SERVER['APP_GITHUB_TOKEN'] ?? $_ENV['APP_GITHUB_TOKEN'] ?? $_SERVER['GITHUB_TOKEN'] ?? $_ENV['GITHUB_TOKEN'] ?? ''));
         }
         return $token;
     }
@@ -702,14 +704,15 @@ final class GithubReleaseResolver
         return 'github_release.' . hash('sha256', $repository . '|' . $channel . '|' . $checkType);
     }
 
+    /** @return ReleaseCacheEntry|null */
     private function readCache(string $repository, string $channel, string $checkType): ?array
     {
         if ($this->cache === null) {
             return null;
         }
         $item = $this->cache->getItem($this->cacheKey($repository, $channel, $checkType));
-        $value = $item->get();
-        return $item->isHit() && is_array($value) ? $value : null;
+        $value = JsonArray::fromValue($item->get());
+        return $item->isHit() && $value !== null ? $this->normalizeCacheEntry($value) : null;
     }
 
     private function writeCache(string $repository, string $channel, string $checkType, array $entry): void
@@ -725,9 +728,14 @@ final class GithubReleaseResolver
         $this->cache->save($item);
     }
 
+    /**
+     * @param ReleaseCacheEntry|null $cached
+     * @param array<array-key, mixed> $changes
+     * @return ReleaseCacheEntry
+     */
     private function mergeCache(?array $cached, array $changes): array
     {
-        return array_merge(is_array($cached) ? $cached : [
+        return $this->normalizeCacheEntry(array_merge($cached ?? [
             'fetched_at' => null,
             'expires_at' => null,
             'releases' => null,
@@ -739,7 +747,47 @@ final class GithubReleaseResolver
             'last_error_type' => null,
             'repository_visibility' => 'unknown',
             'last_error' => null,
-        ], $changes);
+        ], $changes));
+    }
+
+    /**
+     * @param array<array-key, mixed> $value
+     * @return ReleaseCacheEntry
+     */
+    private function normalizeCacheEntry(array $value): array
+    {
+        $strings = JsonMap::strings($value);
+        $releases = JsonArray::fromValue($value['releases'] ?? null);
+
+        return [
+            'repository' => $strings['repository'] ?? '',
+            'channel' => $strings['channel'] ?? '',
+            'check_type' => $strings['check_type'] ?? '',
+            'releases' => $releases !== null ? array_values($releases) : null,
+            'selected' => JsonArray::fromValue($value['selected'] ?? null),
+            'fetched_at' => self::cacheInteger($value['fetched_at'] ?? null),
+            'last_success_at' => self::cacheInteger($value['last_success_at'] ?? null),
+            'expires_at' => self::cacheInteger($value['expires_at'] ?? null),
+            'rate_limit_reset' => self::cacheInteger($value['rate_limit_reset'] ?? null),
+            'rate_limit_remaining' => self::cacheInteger($value['rate_limit_remaining'] ?? null),
+            'last_http_status' => self::cacheInteger($value['last_http_status'] ?? null),
+            'manual_refresh_locked_until' => self::cacheInteger($value['manual_refresh_locked_until'] ?? null),
+            'etag' => $strings['etag'] ?? null,
+            'last_modified' => $strings['last_modified'] ?? null,
+            'last_error_type' => $strings['last_error_type'] ?? null,
+            'last_error' => $strings['last_error'] ?? null,
+            'repository_visibility' => $strings['repository_visibility'] ?? 'unknown',
+        ];
+    }
+
+    private static function cacheInteger(mixed $value): ?int
+    {
+        if (!is_int($value) && !is_string($value)) {
+            return null;
+        }
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+
+        return is_int($integer) ? $integer : null;
     }
 
     /** @return resource|null */
@@ -767,16 +815,19 @@ final class GithubReleaseResolver
         @fclose($lock);
     }
 
+    /** @param array<string, list<string>> $headers */
     private function firstHeader(array $headers, string $name): ?string
     {
         foreach ($headers as $key => $values) {
-            if (strtolower((string) $key) === strtolower($name) && is_array($values) && is_string($values[0] ?? null) && trim($values[0]) !== '') {
-                return trim($values[0]);
+            $first = $values[0] ?? '';
+            if (strtolower($key) === strtolower($name) && trim($first) !== '') {
+                return trim($first);
             }
         }
         return null;
     }
 
+    /** @param array<string, list<string>> $headers */
     private function firstHeaderInt(array $headers, string $name): ?int
     {
         $value = $this->firstHeader($headers, $name);
@@ -826,20 +877,15 @@ final class GithubReleaseResolver
         if (!is_array($payload)) {
             return 'unknown';
         }
-        foreach ($payload as $release) {
-            if (!is_array($release)) {
-                continue;
-            }
-            $url = $release['html_url'] ?? null;
+        foreach (array_keys($payload) as $index) {
+            $release = JsonArray::orEmpty($payload[$index]);
+            $url = JsonMap::strings($release)['html_url'] ?? null;
             if (is_string($url) && str_contains($url, 'github.com/')) {
                 return 'public';
             }
-            $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
+            $assets = self::assetFields($release['assets'] ?? null);
             foreach ($assets as $asset) {
-                if (!is_array($asset)) {
-                    continue;
-                }
-                $downloadUrl = $asset['browser_download_url'] ?? null;
+                $downloadUrl = JsonMap::strings($asset)['browser_download_url'] ?? null;
                 if (is_string($downloadUrl) && str_starts_with($downloadUrl, 'https://github.com/')) {
                     return 'public';
                 }
@@ -858,7 +904,10 @@ final class GithubReleaseResolver
         return trim($message);
     }
 
-    /** @param array<int, mixed> $releases @return array<int, array<string, mixed>> */
+    /**
+     * @param array<int, mixed> $releases
+     * @return list<array<array-key, mixed>>
+     */
     private function filterReleasesByChannel(array $releases, string $channel): array
     {
         $channel = $this->normalizeChannel($channel);
@@ -876,6 +925,7 @@ final class GithubReleaseResolver
         return $filtered;
     }
 
+    /** @param array<array-key, mixed> $release */
     private function extractExplicitChannel(array $release): ?string
     {
         foreach (['body', 'name'] as $field) {
@@ -891,7 +941,7 @@ final class GithubReleaseResolver
         return null;
     }
 
-    /** @param array<string, mixed> $release */
+    /** @param array<array-key, mixed> $release */
     private function extractReleaseTag(array $release): ?string
     {
         $tag = $release['tag_name'] ?? $release['name'] ?? null;
@@ -904,7 +954,7 @@ final class GithubReleaseResolver
     }
 
     /**
-     * @param array<int, mixed> $assets
+     * @param list<array<string, string>> $assets
      * @param callable(string,string):(bool|int) $assetMatcher
      */
     private function findMatchingAssetName(array $assets, string $releaseTag, callable $assetMatcher): ?string
@@ -912,11 +962,7 @@ final class GithubReleaseResolver
         $matchedName = null;
         $matchedPriority = PHP_INT_MAX;
         foreach ($assets as $index => $asset) {
-            if (!is_array($asset)) {
-                continue;
-            }
-
-            $name = is_string($asset['name'] ?? null) ? trim($asset['name']) : '';
+            $name = trim(JsonMap::strings($asset)['name'] ?? '');
             if ($name === '') {
                 continue;
             }
@@ -937,7 +983,7 @@ final class GithubReleaseResolver
     }
 
     /**
-     * @param array<int, mixed> $assets
+     * @param list<array<string, string>> $assets
      * @param callable(string,string):(bool|int) $assetMatcher
      *
      * @return string[]
@@ -946,11 +992,7 @@ final class GithubReleaseResolver
     {
         $matches = [];
         foreach ($assets as $index => $asset) {
-            if (!is_array($asset)) {
-                continue;
-            }
-
-            $name = is_string($asset['name'] ?? null) ? trim($asset['name']) : '';
+            $name = trim(JsonMap::strings($asset)['name'] ?? '');
             if ($name === '') {
                 continue;
             }
@@ -1027,30 +1069,38 @@ final class GithubReleaseResolver
         return $headers;
     }
 
-    /** @param array<int, mixed> $assets */
+    /** @param list<array<string, string>> $assets */
     private function findAssetDownloadUrl(array $assets, string $assetName): ?string
     {
         foreach ($assets as $asset) {
-            if (!is_array($asset)) {
-                continue;
-            }
-
             if (($asset['name'] ?? null) !== $assetName) {
                 continue;
             }
 
-            $publicUrl = is_string($asset['browser_download_url'] ?? null) ? trim($asset['browser_download_url']) : '';
+            $publicUrl = trim($asset['browser_download_url'] ?? '');
             if ($publicUrl !== '') {
                 return $publicUrl;
             }
 
-            $apiUrl = is_string($asset['url'] ?? null) ? trim($asset['url']) : '';
+            $apiUrl = trim(JsonMap::strings($asset)['url'] ?? '');
             if ($apiUrl !== '' && $this->usesAuthenticatedGithubApi()) {
                 return $apiUrl;
             }
         }
 
         return null;
+    }
+
+    /** @return list<array<string, string>> */
+    private static function assetFields(mixed $value): array
+    {
+        $assets = JsonArray::orEmpty($value);
+        $fields = [];
+        foreach (array_keys($assets) as $key) {
+            $fields[] = JsonMap::strings($assets[$key]);
+        }
+
+        return $fields;
     }
 
     private function usesAuthenticatedGithubApi(): bool

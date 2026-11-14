@@ -45,7 +45,7 @@ final class UiRefactorFlagService
      */
     private function csvFlags(): array
     {
-        $raw = trim((string) ($this->readEnv('APP_UI_REFACTOR_FLAGS') ?? ''));
+        $raw = trim(($this->readEnv('APP_UI_REFACTOR_FLAGS') ?? ''));
         if ($raw === '') {
             return [];
         }
@@ -60,7 +60,7 @@ final class UiRefactorFlagService
 
     private function envBool(string $name): bool
     {
-        $raw = strtolower(trim((string) ($this->readEnv($name) ?? '')));
+        $raw = strtolower(trim(($this->readEnv($name) ?? '')));
 
         return in_array($raw, ['1', 'true', 'on', 'yes'], true);
     }

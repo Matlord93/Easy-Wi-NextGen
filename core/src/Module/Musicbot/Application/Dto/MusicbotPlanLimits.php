@@ -36,7 +36,15 @@ final readonly class MusicbotPlanLimits
     ) {
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array{max_musicbots: int, max_tracks: int, max_storage_mb: int, max_playlists: int,
+     * max_playlist_items: int, max_plugins: int, max_queue_items: int, max_connections: int,
+     * max_upload_size_mb: int, allow_teamspeak: bool, allow_discord: bool, discord_allowed: bool,
+     * stream_allowed: bool, api_allowed: bool, allow_teamspeak6_profile: bool, allow_webradio: bool,
+     * web_radio_allowed: bool, youtube_allowed: bool, teamspeak_commands_allowed: bool, playlists_allowed:
+     * bool, autodj_allowed: bool, allow_plugins: bool, plugins_allowed: bool, allow_workflows: bool,
+     * allow_scheduler: bool, granted_permissions: array<array-key, string>}
+     */
     public function toArray(): array
     {
         return [

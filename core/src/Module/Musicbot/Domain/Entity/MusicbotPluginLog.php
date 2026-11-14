@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\MusicbotPluginLogRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotPluginLogRepository::class)]
 #[ORM\Table(name: 'musicbot_plugin_logs')]
 #[ORM\Index(name: 'idx_musicbot_plugin_logs_instance', columns: ['instance_id'])]

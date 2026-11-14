@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\TemplateRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: TemplateRepository::class)]
 #[ORM\Table(name: 'game_templates')]
 #[ORM\UniqueConstraint(name: 'uq_game_templates_game_key', columns: ['game_key'])]
@@ -375,7 +380,7 @@ class Template
     }
 
     /**
-     * @return array<int, array{source:string,target:string,mode?:string,readonly?:bool}>
+     * @return list<array{source:string,target:string,mode:string,readonly:bool,exclude:list<string>}>
      */
     public function getSharedPaths(): array
     {

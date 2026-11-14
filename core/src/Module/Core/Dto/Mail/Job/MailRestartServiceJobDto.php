@@ -12,7 +12,7 @@ final readonly class MailRestartServiceJobDto
     ) {
     }
 
-    /** @return array<string,mixed> */
+    /** @return array{node_id: string, service: string} */
     public function toPayload(): array
     {
         return [

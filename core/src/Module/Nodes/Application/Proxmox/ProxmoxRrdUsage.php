@@ -43,6 +43,11 @@ final readonly class ProxmoxRrdUsage
         return $sample;
     }
 
+    /**
+     * @return array{disk_write_bytes_per_second?: float, disk_read_bytes_per_second?: float,
+     * net_tx_bytes_per_second?: float, net_rx_bytes_per_second?: float, io_observed_at?: string,
+     * io_interval_seconds?: int, io_source?: string}
+     */
     public static function latest(array $rows, int $now): array
     {
         $byTime = [];

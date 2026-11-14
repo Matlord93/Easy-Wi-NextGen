@@ -103,10 +103,7 @@ final class SinusbotNodeService
         $this->entityManager->flush();
     }
 
-    private function stringOrNull(mixed $value): ?string
-    {
-        return is_string($value) && $value !== '' ? $value : null;
-    }
+
 
     private function resolveDownloadFilename(string $downloadUrl): ?string
     {
@@ -119,4 +116,10 @@ final class SinusbotNodeService
 
         return $basename !== '' ? $basename : null;
     }
+
+    private function stringOrNull(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
 }

@@ -58,7 +58,7 @@ final class MusicbotTrackService
         $this->quotaService->assertCanUploadTrack($customer, $fileSize);
 
         $serverMimeType = (string) $file->getMimeType();
-        $clientMimeType = (string) $file->getClientMimeType();
+        $clientMimeType = $file->getClientMimeType();
         // Prefer server-detected type; fall back to client-claimed type when server detection is inconclusive.
         $mimeType = isset(self::MIME_TO_EXTENSION[$serverMimeType]) ? $serverMimeType : $clientMimeType;
         $extension = self::MIME_TO_EXTENSION[$mimeType] ?? null;
@@ -274,6 +274,10 @@ final class MusicbotTrackService
         }
     }
 
+    /**
+     * A single filename component: no path separators, wrapper delimiters or NUL bytes.
+     * @psalm-taint-escape file
+     */
     private function normalizeBaseName(string $name): string
     {
         $name = strtolower(trim($name));

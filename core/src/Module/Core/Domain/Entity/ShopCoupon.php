@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ShopCouponRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ShopCouponRepository::class)]
 #[ORM\Table(name: 'shop_coupons')]
 #[ORM\UniqueConstraint(name: 'uniq_shop_coupon_site_code', columns: ['site_id', 'code'])]

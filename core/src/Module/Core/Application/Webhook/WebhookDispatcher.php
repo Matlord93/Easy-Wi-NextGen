@@ -16,7 +16,10 @@ final readonly class WebhookDispatcher
     ) {
     }
 
-    /** @param array<string, mixed> $data @return array{status: int, delivery_id: string} */
+    /**
+     * @param array<string, mixed> $data
+     * @return array{status: int, delivery_id: string}
+     */
     public function dispatch(string $url, #[\SensitiveParameter] string $secret, string $event, array $data): array
     {
         if ('' === $secret || 1 !== preg_match('/^[a-z][a-z0-9_.-]{2,119}$/', $event)) {

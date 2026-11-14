@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Application\Backup\MusicbotBackupOptions;
@@ -101,7 +104,7 @@ final class AdminMusicbotBackupController
 
         $filename = sprintf(
             'musicbot-%d-admin-backup-%s.json',
-            $instance->getId(),
+            EntityIdentifier::require($instance->getId()),
             date('Ymd-His'),
         );
 
@@ -109,7 +112,7 @@ final class AdminMusicbotBackupController
             'instance_id' => $instance->getId(),
         ]);
 
-        $response = new JsonResponse($json, Response::HTTP_OK, [], true);
+        $response = JsonResponse::fromJsonString($json);
         $response->headers->set('Content-Type', 'application/json');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Cache-Control', 'private, no-store');
@@ -222,7 +225,7 @@ final class AdminMusicbotBackupController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new \RuntimeException('Admin access required.');
         }

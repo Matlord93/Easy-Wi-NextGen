@@ -7,6 +7,7 @@ namespace App\Module\Nodes\Application\Proxmox;
 /** New managed volumes only: existing slots and host paths cannot be overwritten. */
 final class ProxmoxExtraDisk
 {
+    /** @return list<string> */
     public static function slots(array $config, string $kind): array
     {
         $slots = [];
@@ -22,6 +23,7 @@ final class ProxmoxExtraDisk
         return $slots;
     }
 
+    /** @return array{device: string, storage: string, size_gib: int, mountpoint: string, digest: string} */
     public static function specification(array $config, string $kind, array $input): array
     {
         if ('1' !== ($input['confirm'] ?? null)) {

@@ -4,25 +4,39 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
+/**
+ * @psalm-type PlaybackStatus = array{
+ *   playback_state: string, queue_count: int, connected: bool, state_connected: bool,
+ *   ts_server_connected: bool, teamspeak_connected: bool, voice_client_available: bool,
+ *   capability_status: string, runtime_ready: bool, backend: string, active_backend: string,
+ *   output_backend: string, output_status: string, decoder_status: string,
+ *   audio_backend_ready: bool, audio_injection_ready: bool, audio_backend_status: string,
+ *   audio_backend_message: string, diagnostic: string, source_connected_field: ?string,
+ *   source_audio_ready_field: ?string, source_output_backend_field: ?string
+ * }
+ */
 final class MusicbotRuntimeStatusNormalizer
 {
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<array-key, mixed> $payload
+     * @return array<array-key, mixed>
+     */
     public function normalizePayload(array $payload): array
     {
-        $payloadKind = $this->classifyPayload($payload);
-        if (str_starts_with($payloadKind, 'partial_')) {
+        if ($this->isPartialPayload($payload)) {
             $status = $this->buildPartialPlaybackStatus($payload);
             if ($status !== []) {
-                $payload['playback_status'] = $status + (is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : []);
+                $payload['playback_status'] = $status + (JsonArray::orEmpty($payload['playback_status'] ?? null));
                 $payload['normalized_playback_status'] = $status;
             }
-            $payload['last_runtime_sync'] = $payload['last_runtime_sync'] ?? $payload['updated_at'] ?? (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+            $payload['last_runtime_sync'] = $this->firstNonEmptyString($payload['last_runtime_sync'] ?? null, $payload['updated_at'] ?? null) ?? (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
 
             return $payload;
         }
 
         $status = $this->buildPlaybackStatus($payload);
-        $payload['playback_status'] = $status + (is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : []);
+        $payload['playback_status'] = $status + (JsonArray::orEmpty($payload['playback_status'] ?? null));
         // Ensure normalized values win over stale legacy fields in downstream templates.
         foreach ($status as $key => $value) {
             if (in_array($key, ['connected','state_connected','ts_server_connected','voice_client_available','capability_status','audio_injection_ready','audio_backend_ready','audio_backend_status','audio_backend_message','diagnostic','runtime_ready','teamspeak_connected','backend','active_backend','output_backend'], true)) {
@@ -39,15 +53,15 @@ final class MusicbotRuntimeStatusNormalizer
         $payload['normalized_audio_backend_ready'] = $status['audio_backend_ready'];
         $payload['normalized_audio_backend_message'] = $status['audio_backend_message'];
         $payload['normalized_playback_status'] = $status;
-        $payload['last_runtime_sync'] = $payload['last_runtime_sync'] ?? $payload['updated_at'] ?? (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+        $payload['last_runtime_sync'] = $this->firstNonEmptyString($payload['last_runtime_sync'] ?? null, $payload['updated_at'] ?? null) ?? (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
 
         return $payload;
     }
 
-    /** @param array<string, mixed> $payload */
+    /** @param array<array-key, mixed> $payload */
     public function classifyPayload(array $payload): string
     {
-        $runtime = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
+        $runtime = JsonArray::fromValue($payload['runtime'] ?? null) ?? $payload;
         $hasReadiness = false;
         foreach (['runtime_ready', 'state_connected', 'ts_server_connected', 'teamspeak_connected', 'voice_client_available', 'audio_injection_ready', 'audio_backend_ready', 'capability_status'] as $key) {
             if (array_key_exists($key, $runtime)) {
@@ -78,7 +92,7 @@ final class MusicbotRuntimeStatusNormalizer
         return 'complete_runtime';
     }
 
-    /** @param array<string, mixed> $payload */
+    /** @param array<array-key, mixed> $payload */
     public function isPartialPayload(array $payload): bool
     {
         return str_starts_with($this->classifyPayload($payload), 'partial_');
@@ -88,15 +102,15 @@ final class MusicbotRuntimeStatusNormalizer
      * Normalise the connector map (connectors.teamspeak / connectors.discord)
      * into the flat readiness fields used by downstream templates.
      *
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param array<array-key, mixed> $payload
+     * @return array<array-key, mixed>
      */
     public function normalizeConnectorStatuses(array $payload): array
     {
-        $connectors = is_array($payload['connectors'] ?? null) ? $payload['connectors'] : [];
+        $connectors = JsonArray::orEmpty($payload['connectors'] ?? null);
 
-        $teamspeak = is_array($connectors['teamspeak'] ?? null) ? $connectors['teamspeak'] : [];
-        $discord   = is_array($connectors['discord']   ?? null) ? $connectors['discord']   : [];
+        $teamspeak = JsonArray::orEmpty($connectors['teamspeak'] ?? null);
+        $discord   = JsonArray::orEmpty($connectors['discord']   ?? null);
 
         $payload['connector_statuses'] = [
             'teamspeak' => [
@@ -126,24 +140,27 @@ final class MusicbotRuntimeStatusNormalizer
         // Promote connector.teamspeak fields into the flat legacy fields so
         // existing templates keep working without changes.
         if ($teamspeak !== []) {
-            $payload['state_connected']        = $payload['state_connected']        ?? ($teamspeak['connected'] ?? false);
-            $payload['ts_server_connected']    = $payload['ts_server_connected']    ?? ($teamspeak['connected'] ?? false);
-            $payload['voice_client_available'] = $payload['voice_client_available'] ?? ($teamspeak['voice_client_available'] ?? false);
-            $payload['capability_status']      = $payload['capability_status']      ?? ($teamspeak['capability_status'] ?? '');
+            $payload = array_replace($payload, ['state_connected' => $payload['state_connected']        ?? ($teamspeak['connected'] ?? false)]);
+            $payload = array_replace($payload, ['ts_server_connected' => $payload['ts_server_connected']    ?? ($teamspeak['connected'] ?? false)]);
+            $payload = array_replace($payload, ['voice_client_available' => $payload['voice_client_available'] ?? ($teamspeak['voice_client_available'] ?? false)]);
+            $payload = array_replace($payload, ['capability_status' => $payload['capability_status']      ?? ($teamspeak['capability_status'] ?? '')]);
         }
 
         return $payload;
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<array-key, mixed> $payload
+     * @return PlaybackStatus
+     */
     public function buildPlaybackStatus(array $payload): array
     {
         // Hydrate flat legacy fields from connectors map before reading below.
         $payload = $this->normalizeConnectorStatuses($payload);
 
-        $playback = is_array($payload['playback'] ?? null) ? $payload['playback'] : [];
-        $pipeline = is_array($payload['audio_pipeline'] ?? null) ? $payload['audio_pipeline'] : [];
-        $status = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : [];
+        $playback = JsonArray::orEmpty($payload['playback'] ?? null);
+        $pipeline = JsonArray::orEmpty($payload['audio_pipeline'] ?? null);
+        $status = JsonArray::orEmpty($payload['playback_status'] ?? null);
 
         $read = static function (string $key) use ($payload, $status, $pipeline, $playback): mixed {
             return $payload[$key] ?? $status[$key] ?? $pipeline[$key] ?? $playback[$key] ?? null;
@@ -182,11 +199,11 @@ final class MusicbotRuntimeStatusNormalizer
             $capability = $capability !== '' ? $capability : 'client_backend_required';
         }
 
-        $outputBackend = $read('output_backend');
+        $outputBackend = $this->stringValue($read('output_backend'));
 
         return [
             'playback_state' => (string) ($playback['state'] ?? $payload['playback_state'] ?? $status['playback_state'] ?? 'unknown'),
-            'queue_count' => (int) ($payload['queue_count'] ?? (is_array($payload['queue']['items'] ?? null) ? count($payload['queue']['items']) : 0)),
+            'queue_count' => (int) ($payload['queue_count'] ?? count(JsonArray::orEmpty(JsonArray::orEmpty($payload['queue'] ?? null)['items'] ?? null))),
             'connected' => $runtimeReady,
             'state_connected' => $stateConnected,
             'ts_server_connected' => $tsServerConnected,
@@ -210,10 +227,14 @@ final class MusicbotRuntimeStatusNormalizer
         ];
     }
 
-    /** @param array<string, mixed> $payload @param array<string, mixed> $status @return array<string, mixed> */
+    /**
+     * @param array<array-key, mixed> $payload
+     * @param array<array-key, mixed> $status
+     * @return array<array-key, mixed>
+     */
     private function normalizeRuntimeErrors(array $payload, array $status): array
     {
-        $playbackStatus = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : [];
+        $playbackStatus = JsonArray::orEmpty($payload['playback_status'] ?? null);
         $candidate = $this->firstNonEmptyString($payload['last_error'] ?? null, $payload['error'] ?? null, $playbackStatus['last_error'] ?? null);
         $active = $this->resolveActiveLastError($payload, $status);
 
@@ -233,10 +254,13 @@ final class MusicbotRuntimeStatusNormalizer
         return $payload;
     }
 
-    /** @param array<string, mixed> $payload @param array<string, mixed>|null $status */
+    /**
+     * @param array<array-key, mixed> $payload
+     * @param array<array-key, mixed>|null $status
+     */
     public function resolveActiveLastError(array $payload, ?array $status = null): ?string
     {
-        $playbackStatus = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : [];
+        $playbackStatus = JsonArray::orEmpty($payload['playback_status'] ?? null);
         $status = $status ?? $playbackStatus;
         $candidate = $this->firstNonEmptyString($payload['last_error'] ?? null, $payload['error'] ?? null, $playbackStatus['last_error'] ?? null);
         if ($candidate === null) {
@@ -254,7 +278,7 @@ final class MusicbotRuntimeStatusNormalizer
         return null;
     }
 
-    /** @param array<string, mixed> $status */
+    /** @param array<array-key, mixed> $status */
     private function hasErrorState(array $status): bool
     {
         foreach (['playback_state', 'decoder_status', 'output_status'] as $key) {
@@ -266,7 +290,7 @@ final class MusicbotRuntimeStatusNormalizer
         return false;
     }
 
-    /** @param array<string, mixed> $status */
+    /** @param array<array-key, mixed> $status */
     private function isRuntimeReady(array $status): bool
     {
         return ($status['runtime_ready'] ?? false) === true;
@@ -293,8 +317,8 @@ final class MusicbotRuntimeStatusNormalizer
 
     private function firstNonEmptyString(mixed ...$values): ?string
     {
-        foreach ($values as $value) {
-            if (is_string($value) && trim($value) !== '') {
+        foreach (array_filter($values, 'is_string') as $value) {
+            if (trim($value) !== '') {
                 return $value;
             }
         }
@@ -303,17 +327,19 @@ final class MusicbotRuntimeStatusNormalizer
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @param array<string, mixed>|null $queueItem
-     * @return array<string, mixed>
+     * @param array<array-key, mixed> $payload
+     * @param array<array-key, mixed>|null $queueItem
+     * @return array{title: null|string, artist: string, source_type: string, source_label: string, url:
+     * string, thumbnail: string, is_live: bool, queue_item_id: string, track_id: string, playback_state:
+     * string}
      */
     public function buildNowPlaying(array $payload, ?array $queueItem = null): array
     {
         $payload = $this->normalizePayload($payload);
-        $playback = is_array($payload['playback'] ?? null) ? $payload['playback'] : [];
-        $status = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : [];
-        $pipeline = is_array($payload['audio_pipeline'] ?? null) ? $payload['audio_pipeline'] : [];
-        $currentTrack = is_array($playback['current_track'] ?? null) ? $playback['current_track'] : [];
+        $playback = JsonArray::orEmpty($payload['playback'] ?? null);
+        $status = JsonArray::orEmpty($payload['playback_status'] ?? null);
+        $pipeline = JsonArray::orEmpty($payload['audio_pipeline'] ?? null);
+        $currentTrack = JsonArray::orEmpty($playback['current_track'] ?? null);
         $playbackState = strtolower((string) ($status['playback_state'] ?? $playback['state'] ?? $payload['playback_state'] ?? 'stopped'));
         $currentTrackSourceType = $this->sourceTypeFromTrack($currentTrack);
         $payloadSourceType = $this->normalizeSourceType($this->stringValue($payload['source_type'] ?? null));
@@ -381,7 +407,7 @@ final class MusicbotRuntimeStatusNormalizer
         if ($title === null && $sourceType === '' && $queueItem !== null) {
             $title = $this->stringValue($queueItem['title'] ?? null);
             $artist ??= $this->stringValue($queueItem['artist'] ?? null);
-            $sourceType = $sourceType !== '' ? $sourceType : $this->normalizeSourceType($this->stringValue($queueItem['source_type'] ?? null));
+            $sourceType = $this->normalizeSourceType($this->stringValue($queueItem['source_type'] ?? null));
             $url ??= $this->stringValue($queueItem['url'] ?? null);
             $thumbnail ??= $this->stringValue($queueItem['thumbnail'] ?? null);
             $queueItemId ??= $this->stringValue($queueItem['queue_item_id'] ?? null);
@@ -417,13 +443,17 @@ final class MusicbotRuntimeStatusNormalizer
         return match ($source) {
             'webradio', 'radio' => 'radio',
             'yt', 'youtube' => 'youtube',
-            'local', 'local_file', 'file', 'upload' => $source === 'upload' ? 'upload' : 'local_file',
+            'local', 'local_file', 'file' => 'local_file',
+            'upload' => 'upload',
             'stream', 'url' => $source,
             default => $source,
         };
     }
 
-    /** @param array<string, mixed> $status @param array<string, mixed> $currentTrack */
+    /**
+     * @param array<array-key, mixed> $status
+     * @param array<array-key, mixed> $currentTrack
+     */
     private function radioStatusTitle(array $status, array $currentTrack, string $currentTrackSource): ?string
     {
         $title = $this->stringValue($status['current_title'] ?? null);
@@ -447,10 +477,10 @@ final class MusicbotRuntimeStatusNormalizer
         return $title;
     }
 
-    /** @param array<string, mixed> $currentTrack */
+    /** @param array<array-key, mixed> $currentTrack */
     private function sourceTypeFromTrack(array $currentTrack): string
     {
-        $source = is_array($currentTrack['source'] ?? null) ? $currentTrack['source'] : [];
+        $source = JsonArray::orEmpty($currentTrack['source'] ?? null);
 
         return $this->normalizeSourceType($this->firstNonEmptyString(
             $this->stringValue($currentTrack['source_type'] ?? null),
@@ -512,32 +542,35 @@ final class MusicbotRuntimeStatusNormalizer
         return null;
     }
 
-    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    /**
+     * @param array<array-key, mixed> $payload
+     * @return array<array-key, mixed>
+     */
     private function buildPartialPlaybackStatus(array $payload): array
     {
-        $runtime = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
-        $playback = is_array($runtime['playback'] ?? null) ? $runtime['playback'] : [];
-        $status = is_array($runtime['playback_status'] ?? null) ? $runtime['playback_status'] : [];
-        $queue = is_array($runtime['queue'] ?? null) ? $runtime['queue'] : [];
+        $runtime = JsonArray::fromValue($payload['runtime'] ?? null) ?? $payload;
+        $playback = JsonArray::orEmpty($runtime['playback'] ?? null);
+        $status = JsonArray::orEmpty($runtime['playback_status'] ?? null);
+        $queue = JsonArray::orEmpty($runtime['queue'] ?? null);
         $partial = [];
 
-        $playbackState = $playback['state'] ?? $runtime['playback_state'] ?? $status['playback_state'] ?? $status['state'] ?? null;
+        $playbackState = $this->stringValue($playback['state'] ?? $runtime['playback_state'] ?? $status['playback_state'] ?? $status['state'] ?? null);
         if ($playbackState !== null) {
             $partial['playback_state'] = (string) $playbackState;
         }
 
         foreach (['queue_count', 'volume', 'repeat', 'shuffle', 'updated_at'] as $key) {
             if (array_key_exists($key, $runtime)) {
-                $partial[$key] = $runtime[$key];
+                $partial += [$key => $runtime[$key]];
             } elseif (array_key_exists($key, $playback)) {
-                $partial[$key] = $playback[$key];
+                $partial += [$key => $playback[$key]];
             } elseif (array_key_exists($key, $status)) {
-                $partial[$key] = $status[$key];
+                $partial += [$key => $status[$key]];
             }
         }
 
         if (!array_key_exists('queue_count', $partial) && is_array($queue['items'] ?? null)) {
-            $partial['queue_count'] = count($queue['items']);
+            $partial['queue_count'] = count(JsonArray::orEmpty($queue['items']));
         }
 
         return $partial;

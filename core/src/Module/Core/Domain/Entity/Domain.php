@@ -10,6 +10,11 @@ use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\DomainRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: DomainRepository::class)]
 #[ORM\Table(name: 'domains')]
 class Domain implements ResourceEventSource
@@ -297,7 +302,7 @@ class Domain implements ResourceEventSource
         $parts = preg_split('/[\s,;]+/', $raw) ?: [];
         $aliases = [];
         foreach ($parts as $part) {
-            $part = strtolower(trim((string) $part));
+            $part = strtolower(trim($part));
             if ($part === '') {
                 continue;
             }

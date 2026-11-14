@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Public;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Cms\Application\CmsFeatureToggle;
 use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\CmsSettingsProvider;
@@ -101,7 +103,7 @@ final class PublicForumController
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
-        $q = trim((string) $request->query->get('q', ''));
+        $q = trim($request->query->getString('q', ''));
         $q = mb_substr($q, 0, 100);
         $results = [];
         $error = null;
@@ -149,7 +151,7 @@ final class PublicForumController
             'page' => $page,
             'total_pages' => $totalPages,
             'can_post' => $this->requireMemberOrAdminUser($request) instanceof User,
-        ] + $this->themeContext($site, 'forum', (string) $board->getTitle())));
+        ] + $this->themeContext($site, 'forum', $board->getTitle())));
     }
 
     #[Route(path: '/thread/{id}', name: 'public_forum_thread', methods: ['GET'], requirements: ['id' => '\\d+'])]
@@ -183,18 +185,18 @@ final class PublicForumController
             'can_post' => $this->requireMemberOrAdminUser($request) instanceof User,
             'can_moderate' => $this->isAdmin($request),
             'report_reasons' => ['spam', 'beleidigung', 'offtopic', 'sonstiges'],
-        ] + $this->themeContext($site, 'forum', (string) $thread->getTitle())));
+        ] + $this->themeContext($site, 'forum', $thread->getTitle())));
     }
 
 
     #[Route(path: '/thread/{id}-{slug}', name: 'public_forum_thread_legacy', methods: ['GET'], requirements: ['id' => '\\d+'])]
-    public function threadLegacy(int $id, string $slug): Response
+    public function threadLegacy(int $id): Response
     {
         return new RedirectResponse(sprintf('/forum/thread/%d', $id), Response::HTTP_MOVED_PERMANENTLY);
     }
 
     #[Route(path: '/thread/{id}-{slug}/reply', name: 'public_forum_reply_legacy', methods: ['POST'], requirements: ['id' => '\\d+'])]
-    public function replyLegacy(int $id, string $slug): Response
+    public function replyLegacy(int $id): Response
     {
         return new RedirectResponse(sprintf('/forum/thread/%d/reply', $id), Response::HTTP_MOVED_PERMANENTLY);
     }
@@ -229,7 +231,7 @@ final class PublicForumController
             return new RedirectResponse('/forum/board/' . $board->getSlug());
         }
 
-        $csrf = new CsrfToken('forum_new_thread_' . $board->getId(), (string) $request->request->get('_token', ''));
+        $csrf = new CsrfToken('forum_new_thread_' . ($board->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.')), (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($csrf)) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -252,7 +254,7 @@ final class PublicForumController
         $this->entityManager->persist($post);
         $this->entityManager->flush();
 
-        return new RedirectResponse(sprintf('/forum/thread/%d', $thread->getId()));
+        return new RedirectResponse(sprintf('/forum/thread/%d', ($thread->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.'))));
     }
 
     #[Route(path: '/thread/{id}/reply', name: 'public_forum_reply', methods: ['POST'], requirements: ['id' => '\\d+'])]
@@ -286,10 +288,10 @@ final class PublicForumController
         }
 
         if ($this->isSpamSubmission($request)) {
-            return new RedirectResponse(sprintf('/forum/thread/%d', $thread->getId()));
+            return new RedirectResponse(sprintf('/forum/thread/%d', ($thread->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.'))));
         }
 
-        $csrf = new CsrfToken('forum_reply_' . $thread->getId(), (string) $request->request->get('_token', ''));
+        $csrf = new CsrfToken('forum_reply_' . ($thread->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.')), (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($csrf)) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -300,7 +302,7 @@ final class PublicForumController
 
         $content = trim((string) $request->request->get('content', ''));
         if ($content === '') {
-            return new RedirectResponse(sprintf('/forum/thread/%d', $thread->getId()));
+            return new RedirectResponse(sprintf('/forum/thread/%d', ($thread->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.'))));
         }
 
         $post = new ForumPost($site, $thread, $actor, $content);
@@ -309,7 +311,7 @@ final class PublicForumController
         $this->entityManager->persist($post);
         $this->entityManager->flush();
 
-        return new RedirectResponse(sprintf('/forum/thread/%d', $thread->getId()));
+        return new RedirectResponse(sprintf('/forum/thread/%d', ($thread->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.'))));
     }
 
     #[Route(path: '/post/{id}/report', name: 'public_forum_post_report', methods: ['POST'], requirements: ['id' => '\\d+'])]
@@ -334,13 +336,13 @@ final class PublicForumController
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
-        $csrf = new CsrfToken('forum_report_' . $post->getId(), (string) $request->request->get('_token', ''));
+        $csrf = new CsrfToken('forum_report_' . ($post->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.')), (string) $request->request->get('_token', ''));
         if (!$this->csrfTokenManager->isTokenValid($csrf)) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         if ($this->isSpamSubmission($request)) {
-            return new RedirectResponse(sprintf('/forum/thread/%d', $post->getThread()->getId()));
+            return new RedirectResponse(sprintf('/forum/thread/%d', ($post->getThread()->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.'))));
         }
 
         $reason = trim((string) $request->request->get('reason', ''));
@@ -356,7 +358,7 @@ final class PublicForumController
         $this->entityManager->persist($report);
         $this->entityManager->flush();
 
-        return new RedirectResponse(sprintf('/forum/thread/%d#post-%d', $post->getThread()->getId(), $post->getId()));
+        return new RedirectResponse(sprintf('/forum/thread/%d#post-%d', ($post->getThread()->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.')), ($post->getId() ?? throw new \LogicException('Cannot route an entity without a persisted identifier.'))));
     }
 
     private function resolveForumSite(Request $request): ?\App\Module\Core\Domain\Entity\Site
@@ -375,7 +377,7 @@ final class PublicForumController
 
     private function requireMemberOrAdminUser(Request $request): ?User
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
         if (!$user instanceof User) {
             return null;
         }
@@ -449,12 +451,17 @@ final class PublicForumController
 
     private function isAdmin(Request $request): bool
     {
-        $user = $request->attributes->get('current_user');
+        $user = RequestActor::user($request);
 
         return $user instanceof User && $user->isAdmin();
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{active_theme: string, template_key: string, page: array{slug: string, title: string},
+     * cms_navigation: list<array{label: string, url: string, external: bool}>, cms_footer_links:
+     * list<array{label: string, url: string, external: bool}>, cms_branding: array{logo_path: string,
+     * primary_color: string, socials: array<string, string>}}
+     */
     private function themeContext(Site $site, string $slug, string $title): array
     {
         $templateKey = $this->themeResolver->resolveThemeKey($site);

@@ -17,7 +17,7 @@ final class DatabaseTableWriteServiceTest extends TestCase
 {
     public function testCreateTableRejectsInvalidNamesAndTypes(): void
     {
-        $service = new DatabaseTableService($this->mockEncryption(), fn() => new class { public function quote(string $v): string { return "'".$v."'"; } public function exec(string $sql): void {} });
+        $service = new DatabaseTableService($this->mockEncryption(), fn() => new class extends \PDO { public function __construct() {} public function quote(string $v, int $type = \PDO::PARAM_STR): string { return "'".$v."'"; } public function exec(string $sql): int|false { return 0; } });
         $db = $this->newDatabase();
 
         $this->expectException(\InvalidArgumentException::class);
@@ -26,10 +26,10 @@ final class DatabaseTableWriteServiceTest extends TestCase
 
     public function testCreateTableUsesControlledSqlWithoutFreeUserStatement(): void
     {
-        $pdo = new class {
+        $pdo = new class extends \PDO { public function __construct() {}
             public string $captured = '';
-            public function quote(string $v): string { return "'".$v."'"; }
-            public function exec(string $sql): void { $this->captured = $sql; }
+            public function quote(string $v, int $type = \PDO::PARAM_STR): string { return "'".$v."'"; }
+            public function exec(string $sql): int|false { $this->captured = $sql;  return 0; }
         };
         $service = new DatabaseTableService($this->mockEncryption(), fn() => $pdo);
 

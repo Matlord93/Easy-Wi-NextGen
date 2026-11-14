@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
-use App\Infrastructure\Http\TypedStreamResponse;
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\DatabaseTableService;
+use App\Module\Core\Application\DatabaseTableServiceInterface;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\Job;
@@ -23,6 +24,7 @@ use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -40,7 +42,7 @@ final class CustomerDatabaseController
         private readonly DatabaseNamingPolicy $namingPolicy,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
-        private readonly DatabaseTableService $databaseTableService,
+        private readonly DatabaseTableServiceInterface $databaseTableService,
     ) {
     }
 
@@ -94,7 +96,7 @@ final class CustomerDatabaseController
             return $this->renderWithErrors($customer, $errors);
         }
 
-        $scopedName = $this->namingPolicy->buildCustomerScopedName($customer->getId(), $name);
+        $scopedName = $this->namingPolicy->buildCustomerScopedName(EntityIdentifier::require($customer->getId()), $name);
         $errors = array_merge($errors, $this->namingPolicy->validateDatabaseName($scopedName));
         if ($errors !== []) {
             return $this->renderWithErrors($customer, $errors);
@@ -264,13 +266,13 @@ final class CustomerDatabaseController
 
         if ($request->isMethod('POST')) {
             $tableName = trim((string) $request->request->get('table_name', ''));
-            $names = (array) $request->request->all('column_name');
-            $types = (array) $request->request->all('column_type');
-            $lengths = (array) $request->request->all('column_length');
-            $defaults = (array) $request->request->all('column_default');
-            $nullable = (array) $request->request->all('column_nullable');
-            $primary = (array) $request->request->all('column_primary');
-            $auto = (array) $request->request->all('column_auto_increment');
+            $names = $request->request->all('column_name');
+            $types = $request->request->all('column_type');
+            $lengths = $request->request->all('column_length');
+            $defaults = $request->request->all('column_default');
+            $nullable = $request->request->all('column_nullable');
+            $primary = $request->request->all('column_primary');
+            $auto = $request->request->all('column_auto_increment');
             $columns = [];
             foreach ($names as $i => $n) {
                 $name = trim((string) $n);
@@ -281,7 +283,7 @@ final class CustomerDatabaseController
             }
             try {
                 $this->databaseTableService->createTable($database, $tableName, $columns);
-                return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.$database->getId().'/tables']);
+                return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.EntityIdentifier::require($database->getId()).'/tables']);
             } catch (\InvalidArgumentException $exception) {
                 return new Response($this->twig->render('customer/databases/table_create.html.twig', ['activeNav' => 'databases', 'database' => $database, 'errors' => [$exception->getMessage()] ]), Response::HTTP_BAD_REQUEST);
             }
@@ -362,8 +364,8 @@ final class CustomerDatabaseController
 
         try {
             if ($request->isMethod('POST')) {
-                $this->databaseTableService->updateRow($database, $table, $pk, (array) $request->request->all('fields'));
-                return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.$database->getId().'/tables/'.$table.'/rows']);
+                $this->databaseTableService->updateRow($database, $table, $pk, $request->request->all('fields'));
+                return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.EntityIdentifier::require($database->getId()).'/tables/'.$table.'/rows']);
             }
 
             $data = $this->databaseTableService->getEditableRow($database, $table, $pk);
@@ -396,11 +398,7 @@ final class CustomerDatabaseController
 
         $filename = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $database->getName()) . '.sql';
         $lines = $this->databaseTableService->exportDatabaseSql($database);
-        $response = new TypedStreamResponse('application/sql; charset=UTF-8', static function (\Closure $write) use ($lines): void {
-            foreach ($lines as $line) {
-                $write($line . "\n");
-            }
-        });
+        $response = new StreamedResponse(self::sqlChunks($lines));
         $response->headers->set('Content-Type', 'application/sql; charset=UTF-8');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Cache-Control', 'private, no-store');
@@ -428,11 +426,7 @@ final class CustomerDatabaseController
         }
 
         $filename = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $database->getName() . '_' . $table) . '.sql';
-        $response = new TypedStreamResponse('application/sql; charset=UTF-8', static function (\Closure $write) use ($lines): void {
-            foreach ($lines as $line) {
-                $write($line . "\n");
-            }
-        });
+        $response = new StreamedResponse(self::sqlChunks($lines));
         $response->headers->set('Content-Type', 'application/sql; charset=UTF-8');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Cache-Control', 'private, no-store');
@@ -444,7 +438,7 @@ final class CustomerDatabaseController
     #[Route(path: '/{id}/import', name: 'customer_databases_import', methods: ['POST'])]
     public function importDatabase(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $customer = ($actor instanceof User && $actor->getType() === UserType::Customer) ? $actor : null;
 
         $database = $this->databaseRepository->find($id);
@@ -456,7 +450,7 @@ final class CustomerDatabaseController
         }
 
         $file = $request->files->get('sql_file');
-        $filename = $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? (string) $file->getClientOriginalName() : '';
+        $filename = $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? $file->getClientOriginalName() : '';
         $content = $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? (string) file_get_contents($file->getPathname()) : '';
 
         try {
@@ -481,7 +475,7 @@ final class CustomerDatabaseController
             return $this->renderWithErrors($customer, ['customer_databases_import_failed']);
         }
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.$database->getId().'/tables']);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.EntityIdentifier::require($database->getId()).'/tables']);
     }
 
     private function findLatestSuccessfulCredentialJob(Database $database): ?Job
@@ -529,7 +523,7 @@ final class CustomerDatabaseController
 
     private function requireCustomer(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -583,4 +577,15 @@ final class CustomerDatabaseController
             ];
         }, $databases);
     }
+    /**
+     * @param iterable<string> $lines
+     * @return \Generator<int, string>
+     */
+    private static function sqlChunks(iterable $lines): \Generator
+    {
+        foreach ($lines as $line) {
+            yield $line."\n";
+        }
+    }
+
 }

@@ -123,6 +123,10 @@ final class PublicServerStatusService
         ];
     }
 
+    /**
+     * @return array{server_id: string, ip: string, port: string, query_type: string, game_key: string,
+     * timeout_seconds: string, query_port?: string}
+     */
     private function buildPayload(PublicServer $server): array
     {
         $payload = ['server_id' => (string) $server->getId(), 'ip' => $server->getIp(), 'port' => (string) $server->getPort(), 'query_type' => $server->getQueryType(), 'game_key' => $server->getGameKey(), 'timeout_seconds' => '3'];
@@ -147,6 +151,8 @@ final class PublicServerStatusService
         return false;
     }
 
+
+
     private function normalizeError(array $output): string
     {
         foreach (['last_error', 'error', 'message', 'reason'] as $key) {
@@ -156,4 +162,5 @@ final class PublicServerStatusService
         }
         return 'Query fehlgeschlagen oder Server nicht erreichbar.';
     }
+
 }

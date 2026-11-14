@@ -21,31 +21,23 @@ class MusicbotQueueItemRepository extends ServiceEntityRepository implements Mus
     /** @return MusicbotQueueItem[] */
     public function findByCustomer(User $customer): array
     {
-        /** @var list<MusicbotQueueItem> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('queueItem')
+        return EntityQueryResult::all($this->createQueryBuilder('queueItem')
             ->innerJoin('queueItem.instance', 'musicbotInstance')
             ->andWhere('musicbotInstance.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('queueItem.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotQueueItem::class);
     }
 
     public function findOneForCustomer(int $id, User $customer): ?MusicbotQueueItem
     {
-        /** @var MusicbotQueueItem|null $hydratedEntity */
-        $hydratedEntity = $this->createQueryBuilder('queueItem')
+        return EntityQueryResult::one($this->createQueryBuilder('queueItem')
             ->innerJoin('queueItem.instance', 'musicbotInstance')
             ->andWhere('queueItem.id = :id')
             ->andWhere('musicbotInstance.customer = :customer')
             ->setParameter('id', $id)
-            ->setParameter('customer', $customer)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $hydratedEntity;
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotQueueItem::class);
     }
 
     /** @return MusicbotQueueItem[] */

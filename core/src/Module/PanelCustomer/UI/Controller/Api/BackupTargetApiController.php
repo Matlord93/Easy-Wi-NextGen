@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\BackupTarget;
@@ -162,7 +164,7 @@ final class BackupTargetApiController
 
     private function requireUser(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -270,6 +272,7 @@ final class BackupTargetApiController
             BackupDestinationType::Nfs => $this->normalizeNfsConfig($config),
             BackupDestinationType::Smb => $this->normalizeSmbConfig($config),
             BackupDestinationType::Webdav, BackupDestinationType::Nextcloud => $this->normalizeWebdavConfig($config),
+            BackupDestinationType::S3 => ['error' => new JsonResponse(['error' => $this->translator->trans('backup_target_type_invalid')], JsonResponse::HTTP_BAD_REQUEST)],
         };
     }
 
@@ -309,6 +312,7 @@ final class BackupTargetApiController
         ];
     }
 
+    /** @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, config?: array{path: string}} */
     private function normalizeLocalConfig(array $config): array
     {
         $path = trim((string) ($config['path'] ?? ''));
@@ -324,6 +328,10 @@ final class BackupTargetApiController
         ];
     }
 
+    /**
+     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, config?: array<string,
+     * string>}
+     */
     private function normalizeNfsConfig(array $config): array
     {
         $host = trim((string) ($config['host'] ?? ''));
@@ -346,6 +354,10 @@ final class BackupTargetApiController
         ];
     }
 
+    /**
+     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, config?: array<string,
+     * string>}
+     */
     private function normalizeSmbConfig(array $config): array
     {
         $host = trim((string) ($config['host'] ?? ''));
@@ -370,6 +382,10 @@ final class BackupTargetApiController
         ];
     }
 
+    /**
+     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, config?: array<string,
+     * bool|string>}
+     */
     private function normalizeWebdavConfig(array $config): array
     {
         $url = trim((string) ($config['url'] ?? ''));

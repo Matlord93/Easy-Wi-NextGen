@@ -7,6 +7,11 @@ namespace App\Module\Unifi\Domain\Entity;
 use App\Module\Unifi\Infrastructure\Repository\UnifiPolicyRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: UnifiPolicyRepository::class)]
 #[ORM\Table(name: 'unifi_policy')]
 class UnifiPolicy
@@ -23,15 +28,19 @@ class UnifiPolicy
     #[ORM\Column(length: 20)]
     private string $mode = self::MODE_AUTO;
 
+    /** @var int[]|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $allowedPorts = null;
 
+    /** @var array<int, array{start: int, end: int}>|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $allowedRanges = null;
 
+    /** @var string[]|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $allowedProtocols = null;
 
+    /** @var string[]|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $allowedTags = null;
 

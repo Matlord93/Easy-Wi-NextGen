@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application;
 
+use App\Infrastructure\Config\JsonArray;
 /** Only observed guest fields may leave the provider boundary. */
 final class VmGuestAgentReport
 {
@@ -16,7 +17,7 @@ final class VmGuestAgentReport
 
     public static function sanitize(mixed $input): array
     {
-        $input = is_array($input) ? $input : [];
+        $input = JsonArray::orEmpty($input);
         $state = in_array($input['state'] ?? null, self::STATES, true) ? $input['state'] : 'unavailable';
         $time = null;
         if (is_string($input['observed_at'] ?? null) && strlen($input['observed_at']) <= 40) {

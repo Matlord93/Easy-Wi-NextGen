@@ -7,6 +7,11 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\ForumPostReportRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: ForumPostReportRepository::class)]
 #[ORM\Table(name: 'forum_post_reports')]
 #[ORM\Index(name: 'idx_forum_reports_status_created', columns: ['status', 'created_at'])]

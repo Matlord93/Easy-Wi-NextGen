@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Ts6\Ts6NodeService;
 use App\Module\Core\Domain\Entity\Ts6Node;
@@ -104,10 +109,10 @@ final class AdminTs6NodeController
             $this->entityManager->flush();
 
             $this->nodeService->install($node, $this->buildInstallDto($node));
-            $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_created'));
+            FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_created'));
 
             return new Response('', Response::HTTP_FOUND, [
-                'Location' => sprintf('/admin/ts6/nodes/%d', $node->getId()),
+                'Location' => sprintf('/admin/ts6/nodes/%d', EntityIdentifier::require($node->getId())),
             ]);
         }
 
@@ -142,7 +147,7 @@ final class AdminTs6NodeController
         $this->validateCsrf($request, 'ts6_install_' . $id);
 
         $this->nodeService->install($node, $this->buildInstallDto($node));
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_install_queued'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_install_queued'));
 
         return $this->redirectToNode($node);
     }
@@ -178,7 +183,7 @@ final class AdminTs6NodeController
         $this->validateCsrf($request, 'ts6_start_' . $id);
 
         $this->nodeService->start($node);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_service_started'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_service_started'));
 
         return $this->redirectToNode($node);
     }
@@ -191,7 +196,7 @@ final class AdminTs6NodeController
         $this->validateCsrf($request, 'ts6_stop_' . $id);
 
         $this->nodeService->stop($node);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_service_stopped'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_service_stopped'));
 
         return $this->redirectToNode($node);
     }
@@ -204,7 +209,7 @@ final class AdminTs6NodeController
         $this->validateCsrf($request, 'ts6_restart_' . $id);
 
         $this->nodeService->restart($node);
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_service_restarted'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_service_restarted'));
 
         return $this->redirectToNode($node);
     }
@@ -219,7 +224,7 @@ final class AdminTs6NodeController
         $this->refreshNodeDownloadUrl($node);
 
         $this->nodeService->install($node, $this->buildInstallDto($node));
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_update_queued'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_update_queued'));
 
         return $this->redirectToNode($node);
     }
@@ -234,7 +239,7 @@ final class AdminTs6NodeController
         $this->entityManager->remove($node);
         $this->entityManager->flush();
 
-        $request->getSession()->getFlashBag()->add('success', $this->translator->trans('admin_ts6_node_deleted'));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_deleted'));
 
         return new Response('', Response::HTTP_FOUND, [
             'Location' => '/admin/ts6/nodes',
@@ -243,7 +248,7 @@ final class AdminTs6NodeController
 
     private function requireAdmin(Request $request): User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
@@ -264,7 +269,7 @@ final class AdminTs6NodeController
     private function redirectToNode(Ts6Node $node): Response
     {
         return new Response('', Response::HTTP_FOUND, [
-            'Location' => sprintf('/admin/ts6/nodes/%d', $node->getId()),
+            'Location' => sprintf('/admin/ts6/nodes/%d', EntityIdentifier::require($node->getId())),
         ]);
     }
 

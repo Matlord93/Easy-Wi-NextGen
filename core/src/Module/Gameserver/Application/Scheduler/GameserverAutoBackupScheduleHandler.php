@@ -27,6 +27,7 @@ final class GameserverAutoBackupScheduleHandler implements ScheduleHandlerInterf
         return 'gameserver.auto_backup';
     }
 
+    /** @return list<\App\Module\Core\Application\Scheduler\InternalSchedule> */
     #[\Override]
     public function schedules(): array
     {

@@ -115,7 +115,10 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
         }
     }
 
-    /** @param resource|null $body */
+    /**
+     * @param resource|null $body
+     * @return array{headers: array<string, string>, verify_peer: bool, verify_host: bool, body?: resource}
+     */
     private function requestOptions(BackupStorageTarget $target, mixed $body = null): array
     {
         $verifyTls = (bool) ($target->config()['verify_tls'] ?? true);

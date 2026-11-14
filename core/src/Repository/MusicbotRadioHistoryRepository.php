@@ -24,33 +24,25 @@ class MusicbotRadioHistoryRepository extends ServiceEntityRepository
     /** @return MusicbotRadioHistory[] */
     public function findByCustomer(User $customer, int $limit = 20): array
     {
-        /** @var list<MusicbotRadioHistory> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('h')
+        return EntityQueryResult::all($this->createQueryBuilder('h')
             ->where('h.customer = :customer')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->orderBy('h.playedAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioHistory::class);
     }
 
     /** @return MusicbotRadioHistory[] */
     public function findByCustomerAndInstance(User $customer, MusicbotInstance $instance, int $limit = 20): array
     {
-        /** @var list<MusicbotRadioHistory> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('h')
+        return EntityQueryResult::all($this->createQueryBuilder('h')
             ->where('h.customer = :customer')
             ->andWhere('h.instance = :instance')
-            ->setParameter('customer', $customer)
-            ->setParameter('instance', $instance)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Musicbot\Domain\Entity\MusicbotInstance::class))
             ->orderBy('h.playedAt', 'DESC')
             ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioHistory::class);
     }
 
     /** Prune history entries older than $keepDays days for the customer. */
@@ -66,7 +58,7 @@ class MusicbotRadioHistoryRepository extends ServiceEntityRepository
             ->delete()
             ->where('h.customer = :customer')
             ->andWhere('h.id NOT IN (' . $subQb->getDQL() . ')')
-            ->setParameter('customer', $customer)
+            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
             ->getQuery()
             ->execute();
     }

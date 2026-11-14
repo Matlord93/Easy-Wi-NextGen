@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
@@ -25,7 +27,7 @@ final readonly class AdminMinecraftController
     #[Route('', name: 'admin_minecraft', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden', 403);
         }
@@ -49,7 +51,7 @@ final readonly class AdminMinecraftController
     #[Route('/import', name: 'admin_minecraft_import', methods: ['POST'])]
     public function legacyImport(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden', 403);
         }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Job;
@@ -107,12 +109,12 @@ final class AdminMailPlatformController
             'domain' => $domain->getName(),
             'mail_node_id' => (string) $node->getId(),
             'roundcube_url' => $node->getRoundcubeUrl(),
-            'agent_id' => $webspace !== null ? (string) $webspace->getNode()->getId() : null,
+            'agent_id' => $webspace !== null ? $webspace->getNode()->getId() : null,
         ]);
         $job->setMaxAttempts(5);
         $this->entityManager->persist($job);
 
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if ($actor instanceof User) {
             $this->auditLogger->log($actor, 'roundcube.deploy_requested', [
                 'domain_id' => $domain->getId(),
@@ -154,11 +156,11 @@ final class AdminMailPlatformController
             'domain_id' => (string) $domain->getId(),
             'domain' => $domain->getName(),
             'selector' => $mailDomain->getDkimSelector(),
-            'agent_id' => $webspace !== null ? (string) $webspace->getNode()->getId() : null,
+            'agent_id' => $webspace !== null ? $webspace->getNode()->getId() : null,
         ]);
         $this->entityManager->persist($job);
 
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if ($actor instanceof User) {
             $this->auditLogger->log($actor, 'mail.dkim_rotated', [
                 'domain_id' => $domain->getId(),
@@ -175,7 +177,7 @@ final class AdminMailPlatformController
 
     private function isAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         return $actor instanceof User && $actor->isAdmin();
     }

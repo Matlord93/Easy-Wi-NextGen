@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\MailService;
@@ -127,7 +130,7 @@ final class AdminTicketController
     #[Route(path: '', name: 'admin_tickets_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -180,7 +183,7 @@ final class AdminTicketController
         ]);
         $this->notificationService->notify(
             $ticket->getCustomer(),
-            sprintf('ticket.created.%s', $ticket->getId()),
+            sprintf('ticket.created.%s', EntityIdentifier::require($ticket->getId())),
             $this->translator->trans('ticket_notification_opened_title', ['%id%' => $ticket->getId()]),
             $ticket->getSubject(),
             'tickets',
@@ -199,7 +202,7 @@ final class AdminTicketController
                 'ticket_priority'   => ucfirst(strtolower($ticket->getPriority()->value)),
                 'ticket_created_at' => $ticket->getCreatedAt()->format('d.m.Y H:i'),
                 'ticket_message'    => $message->getBody(),
-                'ticket_url'        => '/tickets/' . $ticket->getId(),
+                'ticket_url'        => '/tickets/' . EntityIdentifier::require($ticket->getId()),
                 'customer_name'     => $customer->getName() ?? $customer->getEmail(),
                 'customer_email'    => $customer->getEmail(),
             ],
@@ -248,7 +251,7 @@ final class AdminTicketController
     #[Route(path: '/{id}/messages', name: 'admin_ticket_messages_create', methods: ['POST'])]
     public function addMessage(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -287,7 +290,7 @@ final class AdminTicketController
         ]);
         $this->notificationService->notify(
             $ticket->getCustomer(),
-            sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
+            sprintf('ticket.message.%s.%s', EntityIdentifier::require($ticket->getId()), EntityIdentifier::require($message->getId())),
             $this->translator->trans('ticket_notification_reply_customer_title', ['%id%' => $ticket->getId()]),
             $this->translator->trans('ticket_notification_reply_customer_body'),
             'tickets',
@@ -305,7 +308,7 @@ final class AdminTicketController
                 'reply_message'  => $message->getBody(),
                 'replied_by'     => $actor->getName() ?? $actor->getEmail(),
                 'replied_at'     => $message->getCreatedAt()->format('d.m.Y H:i'),
-                'ticket_url'     => '/tickets/' . $ticket->getId(),
+                'ticket_url'     => '/tickets/' . EntityIdentifier::require($ticket->getId()),
                 'customer_name'  => $customer->getName() ?? $customer->getEmail(),
             ],
             null,
@@ -323,7 +326,7 @@ final class AdminTicketController
     #[Route(path: '/{id}/internal-notes', name: 'admin_ticket_internal_notes_create', methods: ['POST'])]
     public function addInternalNote(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -364,7 +367,7 @@ final class AdminTicketController
     #[Route(path: '/{id}/status', name: 'admin_ticket_status_update', methods: ['POST'])]
     public function updateStatus(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -391,7 +394,7 @@ final class AdminTicketController
         $this->entityManager->flush();
 
         if (!$request->headers->has('HX-Request')) {
-            return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets/' . $ticket->getId()]);
+            return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets/' . EntityIdentifier::require($ticket->getId())]);
         }
 
         return new Response($this->twig->render('admin/tickets/_status_badge.html.twig', [
@@ -404,7 +407,7 @@ final class AdminTicketController
     #[Route(path: '/{id}/metadata', name: 'admin_ticket_metadata_update', methods: ['POST'])]
     public function updateMetadata(Request $request, int $id): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -440,7 +443,7 @@ final class AdminTicketController
         ]);
         $this->entityManager->flush();
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets/' . $ticket->getId()]);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets/' . EntityIdentifier::require($ticket->getId())]);
     }
 
     #[Route(path: '/templates', name: 'admin_ticket_templates_create', methods: ['POST'])]
@@ -478,7 +481,7 @@ final class AdminTicketController
             'title' => $template->getTitle(),
         ]);
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?template_created=' . $template->getId()]);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?template_created=' . EntityIdentifier::require($template->getId())]);
     }
 
     #[Route(path: '/templates/{id}', name: 'admin_ticket_templates_update', methods: ['POST'])]
@@ -517,7 +520,7 @@ final class AdminTicketController
         ]);
         $this->entityManager->flush();
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?template_updated=' . $template->getId()]);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?template_updated=' . EntityIdentifier::require($template->getId())]);
     }
 
     #[Route(path: '/templates/{id}/delete', name: 'admin_ticket_templates_delete', methods: ['POST'])]
@@ -578,7 +581,7 @@ final class AdminTicketController
             'title' => $quickReply->getTitle(),
         ]);
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?quick_reply_created=' . $quickReply->getId()]);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?quick_reply_created=' . EntityIdentifier::require($quickReply->getId())]);
     }
 
     #[Route(path: '/quick-replies/{id}', name: 'admin_ticket_quick_replies_update', methods: ['POST'])]
@@ -614,7 +617,7 @@ final class AdminTicketController
         ]);
         $this->entityManager->flush();
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?quick_reply_updated=' . $quickReply->getId()]);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?quick_reply_updated=' . EntityIdentifier::require($quickReply->getId())]);
     }
 
     #[Route(path: '/quick-replies/{id}/delete', name: 'admin_ticket_quick_replies_delete', methods: ['POST'])]
@@ -800,7 +803,8 @@ final class AdminTicketController
     /**
      * @param TicketMessage[] $messages
      *
-     * @return array<int, array<int, array{id: int|null, name: string, size: int, mime_type: string, download_url: string}>>
+     * @return array<int, array<int, array{id: int|null, name: string, size: int, mime_type: string,
+     * download_url: string}>>
      */
     private function normalizeAttachmentsByMessage(array $messages, string $downloadPrefix): array
     {
@@ -816,7 +820,7 @@ final class AdminTicketController
                 'name' => $attachment->getOriginalName(),
                 'size' => $attachment->getSizeBytes(),
                 'mime_type' => $attachment->getMimeType(),
-                'download_url' => sprintf('%s/%s/download', $downloadPrefix, $attachment->getId()),
+                'download_url' => sprintf('%s/%s/download', $downloadPrefix, EntityIdentifier::require($attachment->getId())),
             ];
         }
 
@@ -830,7 +834,7 @@ final class AdminTicketController
 
     private function requireAdmin(Request $request): ?User
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
 
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return null;
@@ -839,6 +843,10 @@ final class AdminTicketController
         return $actor;
     }
 
+    /**
+     * @return array{total: int, open: int, in_progress: int, pending: int, resolved: int, closed: int,
+     * high_priority: int, resolved_today: int, assigned_to_me: int}
+     */
     private function buildSummary(array $tickets, ?User $admin = null): array
     {
         $open = 0;
@@ -921,7 +929,7 @@ final class AdminTicketController
             }
 
             if ($filters['q'] !== '') {
-                $haystack = strtolower(sprintf('%s %s %s %s', $ticket->getId(), $ticket->getSubject(), $ticket->getCustomer()->getEmail(), $ticket->getCustomer()->getName() ?? ''));
+                $haystack = strtolower(sprintf('%s %s %s %s', EntityIdentifier::require($ticket->getId()), $ticket->getSubject(), $ticket->getCustomer()->getEmail(), $ticket->getCustomer()->getName() ?? ''));
                 if (!str_contains($haystack, strtolower($filters['q']))) {
                     return false;
                 }
@@ -931,14 +939,15 @@ final class AdminTicketController
         }));
     }
 
+    /** @return array{q: string, status: string, priority: string, category: string, assignee: string} */
     private function ticketFilters(Request $request): array
     {
         return [
-            'q' => trim((string) $request->query->get('q', '')),
-            'status' => strtolower(trim((string) $request->query->get('status', ''))),
-            'priority' => strtolower(trim((string) $request->query->get('priority', ''))),
-            'category' => strtolower(trim((string) $request->query->get('category', ''))),
-            'assignee' => trim((string) $request->query->get('assignee', '')),
+            'q' => trim($request->query->getString('q', '')),
+            'status' => strtolower(trim($request->query->getString('status', ''))),
+            'priority' => strtolower(trim($request->query->getString('priority', ''))),
+            'category' => strtolower(trim($request->query->getString('category', ''))),
+            'assignee' => trim($request->query->getString('assignee', '')),
         ];
     }
 
@@ -947,6 +956,11 @@ final class AdminTicketController
         return array_map(fn (Ticket $ticket) => $this->normalizeTicket($ticket), $tickets);
     }
 
+    /**
+     * @return array{id: int|null, subject: string, category: string, status: string, priority: string,
+     * customer: array{id: int|null, email: string}, assigned_to: array{id: int|null, email: string}|null,
+     * created_at: \DateTimeImmutable, last_message_at: \DateTimeImmutable, updated_at: \DateTimeImmutable}
+     */
     private function normalizeTicket(Ticket $ticket): array
     {
         return [
@@ -1025,6 +1039,14 @@ final class AdminTicketController
         return array_merge($defaults, $overrides ?? []);
     }
 
+    /**
+     * @return array{errors: list<string>, customer: \App\Module\Core\Domain\Entity\User|null, customer_id:
+     * string, subject: string, category:
+     * App\Module\Core\Domain\Enum\TicketCategory::Abuse|App\Module\Core\Domain\Enum\TicketCategory::Billing|App\Module\Core\Domain\Enum\TicketCategory::General|App\Module\Core\Domain\Enum\TicketCategory::Technical,
+     * priority:
+     * App\Module\Core\Domain\Enum\TicketPriority::High|App\Module\Core\Domain\Enum\TicketPriority::Low|App\Module\Core\Domain\Enum\TicketPriority::Normal|App\Module\Core\Domain\Enum\TicketPriority::Urgent,
+     * message: string, include_signature: bool}
+     */
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -1129,6 +1151,10 @@ final class AdminTicketController
         ], $overrides)), $status);
     }
 
+    /**
+     * @return array{errors: list<string>, form: array{title: string, subject: string, category: string,
+     * priority: string, body: string}}
+     */
     private function parseTemplatePayload(Request $request): array
     {
         $title = trim((string) $request->request->get('title', ''));
@@ -1172,6 +1198,7 @@ final class AdminTicketController
         ];
     }
 
+    /** @return array{errors: list<string>, form: array{title: string, body: string}} */
     private function parseQuickReplyPayload(Request $request): array
     {
         $title = trim((string) $request->request->get('title', ''));
@@ -1243,6 +1270,7 @@ final class AdminTicketController
         return $message . "\n\n--\n" . $signature;
     }
 
+    /** @return array{open: string, pending: string, resolved: string, closed: string} */
     private function statusStyles(): array
     {
         return [
@@ -1253,6 +1281,7 @@ final class AdminTicketController
         ];
     }
 
+    /** @return array{low: string, normal: string, high: string, urgent: string} */
     private function priorityStyles(): array
     {
         return [

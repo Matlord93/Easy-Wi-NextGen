@@ -16,6 +16,7 @@ final class ManualPaymentProvider implements PaymentProviderInterface
         return 'manual';
     }
 
+    /** @return list<string> */
     #[\Override]
     public function supportedMethods(): array
     {

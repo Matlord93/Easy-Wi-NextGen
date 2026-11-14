@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AgentUpdateQueueService;
 use App\Module\Core\Application\CoreReleaseChecker;
@@ -93,7 +95,7 @@ final class AdminUpdateController
             throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
         }
 
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         $createdBy = $actor instanceof User ? $actor->getEmail() : 'system';
         $payload = [];
         if ($type === 'update' || $type === 'both') {
@@ -285,7 +287,7 @@ final class AdminUpdateController
     #[Route(path: '/agents/update', name: 'admin_updates_agents', methods: ['POST'])]
     public function updateAgents(Request $request): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Superadmin) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
@@ -325,7 +327,7 @@ final class AdminUpdateController
 
     private function isSuperAdmin(Request $request): bool
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->getType() === UserType::Superadmin;
     }
 
@@ -477,6 +479,7 @@ final class AdminUpdateController
         return $limiter->consume(1)->isAccepted();
     }
 
+    /** @return list<string> */
     private function normalizeNotesList(?string $notes): array
     {
         if ($notes === null) {

@@ -46,19 +46,15 @@ final class MusicbotRoleAssignmentRepository extends ServiceEntityRepository
         string $subjectId,
         MusicbotInstance $instance,
     ): array {
-        /** @var list<MusicbotRoleAssignment> $hydratedEntities */
-        $hydratedEntities = $this->createQueryBuilder('a')
+        return EntityQueryResult::all($this->createQueryBuilder('a')
             ->join('a.role', 'r')
             ->where('a.subjectType = :type')
             ->andWhere('a.subjectId = :sid')
             ->andWhere('r.instance = :instance')
             ->setParameter('type', $type->value)
             ->setParameter('sid', $subjectId)
-            ->setParameter('instance', $instance)
-            ->getQuery()
-            ->getResult();
-
-        return $hydratedEntities;
+            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Musicbot\Domain\Entity\MusicbotInstance::class))
+            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRoleAssignment::class);
     }
 
     public function findOneByRoleAndSubject(

@@ -6,6 +6,11 @@ namespace App\Module\Core\Domain\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'electronic_invoice_archives')]
 #[ORM\UniqueConstraint(name: 'uniq_einvoice_format', columns: ['invoice_id', 'format'])]
@@ -83,8 +88,10 @@ class ElectronicInvoiceArchive
         if (is_resource($this->contents)) {
             rewind($this->contents);
             $result = stream_get_contents($this->contents);
-        } else {
+        } elseif (is_string($this->contents)) {
             $result = $this->contents;
+        } else {
+            throw new \RuntimeException('billing.einvoice_archive_corrupted');
         }
         if (!is_string($result) || !hash_equals($this->sha256, hash('sha256', $result))) {
             throw new \RuntimeException('billing.einvoice_archive_corrupted');

@@ -66,7 +66,7 @@ class ResponseEnvelopeFactory
 
     private function resolveRequestId(Request $request): string
     {
-        $requestId = trim((string) ($request->headers->get('X-Request-ID') ?? ''));
+        $requestId = trim(($request->headers->get('X-Request-ID') ?? ''));
         if ($requestId !== '') {
             return $requestId;
         }

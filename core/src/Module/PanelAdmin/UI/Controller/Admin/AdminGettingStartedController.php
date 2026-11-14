@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Http\RequestActor;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\PanelAdmin\Application\AdminWorkspaceGuide;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,7 +19,7 @@ final class AdminGettingStartedController extends AbstractController
     #[Route('/admin/getting-started', name: 'admin_getting_started', methods: ['GET'])]
     public function index(Request $request, AdminWorkspaceGuide $guide): Response
     {
-        $actor = $request->attributes->get('current_user');
+        $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new AccessDeniedHttpException();
         }

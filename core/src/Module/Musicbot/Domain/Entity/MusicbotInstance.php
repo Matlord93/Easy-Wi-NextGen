@@ -10,6 +10,11 @@ use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
 use App\Repository\MusicbotInstanceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Doctrine hydrates and proxies this entity; Twig also calls its public accessors.
+ *
+ * @psalm-api
+ */
 #[ORM\Entity(repositoryClass: MusicbotInstanceRepository::class)]
 #[ORM\Table(name: 'musicbot_instances')]
 #[ORM\Index(name: 'idx_musicbot_instances_customer', columns: ['customer_id'])]
