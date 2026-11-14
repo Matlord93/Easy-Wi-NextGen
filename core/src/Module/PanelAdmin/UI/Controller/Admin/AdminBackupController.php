@@ -594,8 +594,9 @@ final class AdminBackupController
             ],
         ]);
 
+        http_clear_last_response_headers();
         $result = @file_get_contents($url, false, $context);
-        $headers = JsonArray::orEmpty($http_response_header);
+        $headers = http_get_last_response_headers() ?? [];
         $statusLine = is_string($headers[0] ?? null) ? $headers[0] : '';
 
         return [$statusLine, is_string($result) ? substr($result, 0, 128) : null];

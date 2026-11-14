@@ -39,7 +39,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsService::class));
 
@@ -66,7 +66,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsService::class));
 
@@ -95,7 +95,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $settings = $this->createStub(AppSettingsService::class);
         $settings->method('isGameserverStartStopAllowed')->willReturn(true);
@@ -132,7 +132,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $settings = $this->createStub(AppSettingsService::class);
         $settings->method('isGameserverStartStopAllowed')->willReturn(true);
@@ -184,7 +184,6 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
             'translator' => $this->createStub(TranslatorInterface::class),
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
-            $prop->setAccessible(true);
             $prop->setValue($controller, $value);
         }
 
@@ -195,7 +194,6 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 

@@ -43,7 +43,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
 
         $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
         $request = Request::create('/api/instances/7/configs/server.properties', 'PUT', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode([]));
@@ -93,7 +93,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
 
         $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
 
@@ -136,7 +136,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getPreviousVersion')->willReturn(null);
 
         $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
         $request = Request::create('/api/instances/7/settings', 'GET');
@@ -165,7 +165,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
 
         $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
 
@@ -194,7 +194,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
 
         $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
 
@@ -223,7 +223,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getLockedVersion')->willReturn('1.20.4');
 
         $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
 
@@ -278,7 +278,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($owner);
 
         $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(7)->willReturn($instance);
+        $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         return [$this->newController($repo), $customer];
     }
@@ -290,11 +290,9 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $controller = $reflection->newInstanceWithoutConstructor();
 
         $prop = $reflection->getProperty('instanceRepository');
-        $prop->setAccessible(true);
         $prop->setValue($controller, $instanceRepo);
 
         $translatorProp = $reflection->getProperty('translator');
-        $translatorProp->setAccessible(true);
         $translatorProp->setValue($controller, $this->createStub(TranslatorInterface::class));
 
         return $controller;
@@ -304,7 +302,6 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

@@ -39,13 +39,13 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
         });
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $agentClient = $this->createMock(AgentGameServerClient::class);
-        $agentClient->method('getInstanceStatus')->with($instance)->willReturn(['status' => 'running']);
+        $agentClient->expects(self::once())->method('getInstanceStatus')->with($instance)->willReturn(['status' => 'running']);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('persist')->with($instance);
@@ -80,7 +80,7 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(7)->willReturn($instance);
+        $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $activeJob = new Job('instance.start', ['instance_id' => '7']);
         $jobRepository = $this->createStub(JobRepository::class);
@@ -123,7 +123,6 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
             'auditLogger' => $auditLogger,
         ] as $property => $value) {
             $prop = $reflection->getProperty($property);
-            $prop->setAccessible(true);
             $prop->setValue($controller, $value);
         }
 
@@ -134,7 +133,6 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

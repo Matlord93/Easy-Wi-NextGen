@@ -81,7 +81,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $this->setEntityId($instance, 42);
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(42)->willReturn($instance);
+        $instanceRepository->expects(self::once())->method('find')->with(42)->willReturn($instance);
 
         $credentialRepository = $this->createStub(InstanceSftpCredentialRepository::class);
         $credentialRepository->method('findOneByInstance')->willReturn(null);
@@ -189,10 +189,10 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $credential->setPort(2222);
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
-        $instanceRepository->method('find')->with(123)->willReturn($instance);
+        $instanceRepository->expects(self::once())->method('find')->with(123)->willReturn($instance);
 
         $credentialRepository = $this->createMock(InstanceSftpCredentialRepository::class);
-        $credentialRepository->method('findOneByInstance')->with($instance)->willReturn($credential);
+        $credentialRepository->expects(self::once())->method('findOneByInstance')->with($instance)->willReturn($credential);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects($this->once())->method('persist')->with($credential);
@@ -239,7 +239,6 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             return;
         }
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

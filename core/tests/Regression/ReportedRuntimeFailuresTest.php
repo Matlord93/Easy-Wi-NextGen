@@ -144,7 +144,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
             new CmsEvent($site, 'Release <party>', 'release', '', new \DateTimeImmutable('2026-11-13 18:30:00')),
         ]);
         $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->method('getRepository')->with(CmsBlock::class)->willReturn($this->createStub(EntityRepository::class));
+        $entityManager->expects(self::exactly(3))->method('getRepository')->with(CmsBlock::class)->willReturn($this->createStub(EntityRepository::class));
         $blocks = [];
         $entityManager->expects(self::exactly(6))->method('persist')->willReturnCallback(static function (object $entity) use (&$blocks): void {
             if ($entity instanceof CmsBlock) {

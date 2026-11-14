@@ -4,7 +4,7 @@
   "type": "project",
   "license": "proprietary",
   "require": {
-    "php": ">=8.4",
+    "php": ">=8.4.1",
     "ext-ctype": "*",
     "ext-iconv": "*",
     "doctrine/doctrine-bundle": "^3.3",
@@ -65,6 +65,9 @@
     "allow-plugins": {
       "symfony/flex": true,
       "symfony/runtime": true
+    },
+    "platform": {
+      "php": "8.4.1"
     }
   },
   "scripts": {

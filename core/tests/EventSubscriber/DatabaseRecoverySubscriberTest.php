@@ -28,7 +28,7 @@ final class DatabaseRecoverySubscriberTest extends TestCase
 
     public function testSchemaMismatchDoesNotRedirectWhenDatabaseIsUpToDate(): void
     {
-        $subscriber = $this->createSubscriber(0, '/system/recovery/database');
+        $subscriber = $this->createSubscriber(0, '/system/recovery/database', expectedRedirects: 0);
         $event = $this->createExceptionEvent('/admin/users', new \RuntimeException('SQLSTATE[42S22]: Column not found'));
 
         $subscriber->onKernelException($event);
@@ -38,7 +38,7 @@ final class DatabaseRecoverySubscriberTest extends TestCase
 
     public function testExcludedRecoveryPathIsIgnored(): void
     {
-        $subscriber = $this->createSubscriber(3, '/system/recovery/database');
+        $subscriber = $this->createSubscriber(3, '/system/recovery/database', expectedRedirects: 0);
         $event = $this->createExceptionEvent('/system/recovery/database', new \RuntimeException('SQLSTATE[42S22]: Column not found'));
 
         $subscriber->onKernelException($event);
@@ -58,10 +58,11 @@ final class DatabaseRecoverySubscriberTest extends TestCase
         self::assertSame('/system/recovery/database', $event->getResponse()->headers->get('Location'));
     }
 
-    private function createSubscriber(?int $pendingMigrations, string $recoveryPath, ?string $error = null): DatabaseRecoverySubscriber
+    private function createSubscriber(?int $pendingMigrations, string $recoveryPath, ?string $error = null, int $expectedRedirects = 1): DatabaseRecoverySubscriber
     {
         $urlGenerator = $this->createMock(UrlGeneratorInterface::class);
         $urlGenerator
+            ->expects(self::exactly($expectedRedirects))
             ->method('generate')
             ->with('system_recovery_database')
             ->willReturn($recoveryPath);

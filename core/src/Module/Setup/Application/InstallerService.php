@@ -32,7 +32,7 @@ use Symfony\Component\Process\PhpExecutableFinder;
 
 final class InstallerService
 {
-    private const MIN_SUPPORTED_PHP_VERSION_ID = 80400;
+    private const MIN_SUPPORTED_PHP_VERSION_ID = 80401;
     private const SETUP_DIR = 'srv/setup';
     private const STATE_FILE = self::SETUP_DIR . '/state/install.state.json';
     private const LOCK_FILE = self::SETUP_DIR . '/state/install.lock';
@@ -103,7 +103,7 @@ final class InstallerService
             'messageKey' => 'requirements.php_version',
             'messageParams' => [
                 '%current%' => PHP_VERSION,
-                '%required%' => '8.4',
+                '%required%' => '8.4.1',
             ],
             'fixHintKey' => PHP_VERSION_ID >= self::MIN_SUPPORTED_PHP_VERSION_ID ? null : 'hints.update_php',
             'fixHintParams' => [],
@@ -724,7 +724,7 @@ final class InstallerService
             'probe_failures' => $probeFailures,
         ]);
 
-        throw new \RuntimeException('No executable PHP CLI binary with PHP >= 8.4 and pdo_mysql found for installer migrations. Configure EASYWI_PHP_BIN with a valid php-cli path.');
+        throw new \RuntimeException('No executable PHP CLI binary with PHP >= 8.4.1 and pdo_mysql found for installer migrations. Configure EASYWI_PHP_BIN with a valid php-cli path.');
     }
 
     private function readPhpVersionIdFromBinary(string $candidate): ?int

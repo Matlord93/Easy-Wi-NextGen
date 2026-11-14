@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f9847c32464292f7138ef4b032d97e5e",
+    "content-hash": "1f1aac5a80652c794ec3496e2e0da57d",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1519,21 +1519,21 @@
         },
         {
             "name": "endroid/qr-code",
-            "version": "6.2.0",
+            "version": "6.1.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/endroid/qr-code.git",
-                "reference": "b2be4d6111c3da2ca37aa8583f7b3f5ce1f0b7c0"
+                "reference": "5fa534856ed95649d67c0eab0cabc03ab1d8e0e2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/endroid/qr-code/zipball/b2be4d6111c3da2ca37aa8583f7b3f5ce1f0b7c0",
-                "reference": "b2be4d6111c3da2ca37aa8583f7b3f5ce1f0b7c0",
+                "url": "https://api.github.com/repos/endroid/qr-code/zipball/5fa534856ed95649d67c0eab0cabc03ab1d8e0e2",
+                "reference": "5fa534856ed95649d67c0eab0cabc03ab1d8e0e2",
                 "shasum": ""
             },
             "require": {
                 "bacon/bacon-qr-code": "^3.0",
-                "php": "^8.5"
+                "php": "^8.4"
             },
             "require-dev": {
                 "endroid/quality": "dev-main",
@@ -1579,7 +1579,7 @@
             ],
             "support": {
                 "issues": "https://github.com/endroid/qr-code/issues",
-                "source": "https://github.com/endroid/qr-code/tree/6.2.0"
+                "source": "https://github.com/endroid/qr-code/tree/6.1.3"
             },
             "funding": [
                 {
@@ -1587,7 +1587,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-03T10:30:23+00:00"
+            "time": "2026-02-05T07:01:58+00:00"
         },
         {
             "name": "goetas-webservices/xsd2php-runtime",
@@ -12322,10 +12322,13 @@
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
-        "php": ">=8.4",
+        "php": ">=8.4.1",
         "ext-ctype": "*",
         "ext-iconv": "*"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "platform-overrides": {
+        "php": "8.4.1"
+    },
+    "plugin-api-version": "2.6.0"
 }

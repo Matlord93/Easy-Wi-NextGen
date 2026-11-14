@@ -87,7 +87,7 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
             {
                 return [];
             }
-        }, false);
+        }, false, lookupExpected: false);
 
         $request = Request::create('/instances/1/console/stream', 'GET');
         $this->expectException(AccessDeniedHttpException::class);
@@ -314,7 +314,7 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
         self::assertStringContainsString('stream_unavailable', $content);
     }
 
-    private function controllerWith(ConsoleEventBusInterface $eventBus, bool $owner, int $maxDurationSeconds = 1, ?ConsoleStreamDiagnostics $diagnostics = null): CustomerInstanceConsoleStreamController
+    private function controllerWith(ConsoleEventBusInterface $eventBus, bool $owner, int $maxDurationSeconds = 1, ?ConsoleStreamDiagnostics $diagnostics = null, bool $lookupExpected = true): CustomerInstanceConsoleStreamController
     {
         $instance = $this->createStub(Instance::class);
         $customer = new User('owner@example.test', UserType::Customer);
@@ -322,7 +322,7 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
 
         $repo = $this->createMock(InstanceRepository::class);
-        $repo->method('find')->with(1)->willReturn($instance);
+        $repo->expects(self::exactly($lookupExpected ? 1 : 0))->method('find')->with(1)->willReturn($instance);
 
         return new CustomerInstanceConsoleStreamController($repo, $eventBus, $this->createStub(TranslatorInterface::class), $maxDurationSeconds, 1, $diagnostics, null, false);
     }
@@ -331,7 +331,6 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
     {
         $reflection = new \ReflectionClass($entity);
         $property = $reflection->getProperty('id');
-        $property->setAccessible(true);
         $property->setValue($entity, $id);
     }
 }

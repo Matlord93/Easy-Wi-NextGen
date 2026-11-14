@@ -53,8 +53,8 @@ final class RedisConsoleEventBusTest extends TestCase
     public function testGetInstancesWithSubscribersFindsInstancesViaPubSubChannels(): void
     {
         $redis = $this->createMock(\Redis::class);
-        $redis->method('keys')->with('console_subscribers:*')->willReturn([]);
-        $redis->method('get')->with('console_subscribers:2')->willReturn(false);
+        $redis->expects(self::once())->method('keys')->with('console_subscribers:*')->willReturn([]);
+        $redis->expects(self::once())->method('get')->with('console_subscribers:2')->willReturn(false);
         $redis->expects(self::once())->method('setex')->with('console_subscribers:2', 60, '1');
         $redis->method('rawCommand')->willReturnCallback(static function (string ...$args): array {
             if ($args === ['PUBSUB', 'CHANNELS', 'console:*']) {
@@ -75,8 +75,8 @@ final class RedisConsoleEventBusTest extends TestCase
     public function testGetInstancesWithSubscribersDeduplicatesTtlAndPubSubInstances(): void
     {
         $redis = $this->createMock(\Redis::class);
-        $redis->method('keys')->with('console_subscribers:*')->willReturn(['console_subscribers:2']);
-        $redis->method('get')->with('console_subscribers:2')->willReturn('1');
+        $redis->expects(self::once())->method('keys')->with('console_subscribers:*')->willReturn(['console_subscribers:2']);
+        $redis->expects(self::exactly(2))->method('get')->with('console_subscribers:2')->willReturn('1');
         $redis->expects(self::never())->method('setex');
         $redis->method('rawCommand')->willReturnCallback(static function (string ...$args): array {
             if ($args === ['PUBSUB', 'CHANNELS', 'console:*']) {

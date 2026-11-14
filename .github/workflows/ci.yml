@@ -10,6 +10,10 @@ permissions:
 
 jobs:
   core:
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
     runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     defaults:
       run:
@@ -19,15 +23,17 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
-      - name: Verify PHP 8.5 environment
+      - name: Verify PHP ${{ matrix.php }} environment
         uses: ./.github/actions/verify-php
         with:
+          php-version: ${{ matrix.php }}
           required-extensions: mbstring,intl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,openssl,sodium,redis,zip,dom,xml,xmlwriter,fileinfo,curl,gd
       - run: composer validate --strict
       - run: bash ../scripts/ci-dependency-bootstrap.sh composer --no-scripts
         env:
           COMPOSER_GITHUB_TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN || github.token }}
           SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
+      - run: composer check-platform-reqs
       - name: Prepare complete Core test suite
         uses: ./.github/actions/setup-core-test-tools
 

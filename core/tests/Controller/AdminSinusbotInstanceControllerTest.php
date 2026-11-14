@@ -33,10 +33,10 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
         $instanceRepo = $this->createStub(SinusbotInstanceRepository::class);
 
         $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
-        $nodeRepo->method('find')->with(1)->willReturn($node);
+        $nodeRepo->expects(self::once())->method('find')->with(1)->willReturn($node);
 
         $userRepo = $this->createMock(UserRepository::class);
-        $userRepo->method('find')->with(2)->willReturn($customer);
+        $userRepo->expects(self::once())->method('find')->with(2)->willReturn($customer);
 
         $entityManager = $this->createStub(EntityManagerInterface::class);
 
@@ -87,10 +87,10 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
         $instanceRepo->expects($this->never())->method('findOneBy');
 
         $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
-        $nodeRepo->method('find')->with(1)->willReturn($node);
+        $nodeRepo->expects(self::once())->method('find')->with(1)->willReturn($node);
 
         $userRepo = $this->createMock(UserRepository::class);
-        $userRepo->method('find')->with(2)->willReturn($customer);
+        $userRepo->expects(self::once())->method('find')->with(2)->willReturn($customer);
 
         $entityManager = $this->createStub(EntityManagerInterface::class);
 

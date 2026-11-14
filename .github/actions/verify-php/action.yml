@@ -1,6 +1,10 @@
 name: Verify PHP environment
-description: Installs/verifies PHP 8.5+ and Composer 2 on GitHub-hosted or fallback runners.
+description: Installs/verifies the requested PHP version and Composer 2 on GitHub-hosted or fallback runners.
 inputs:
+  php-version:
+    description: PHP major.minor version to install and verify.
+    required: false
+    default: '8.5'
   required-extensions:
     description: Comma-separated PHP extensions that must be loaded.
     required: false
@@ -8,18 +12,19 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup PHP 8.5
+    - name: Setup PHP ${{ inputs.php-version }}
       uses: shivammathur/setup-php@v2
       with:
-        php-version: '8.5'
+        php-version: ${{ inputs.php-version }}
         extensions: ${{ inputs.required-extensions }}
         tools: composer:v2
         coverage: none
 
-    - name: Verify PHP 8.5+ and required extensions
+    - name: Verify PHP version and required extensions
       shell: bash
       env:
         REQUIRED_EXTENSIONS: ${{ inputs.required-extensions }}
+        REQUIRED_PHP_VERSION: ${{ inputs.php-version }}
       run: |
         set -euo pipefail
 
@@ -29,8 +34,8 @@ runs:
         fi
 
         php -r '
-          if (version_compare(PHP_VERSION, "8.5.0", "<")) {
-              fwrite(STDERR, "PHP 8.5+ is required; found " . PHP_VERSION . PHP_EOL);
+          if (PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION !== getenv("REQUIRED_PHP_VERSION")) {
+              fwrite(STDERR, "PHP " . getenv("REQUIRED_PHP_VERSION") . " is required; found " . PHP_VERSION . PHP_EOL);
               exit(1);
           }
 
