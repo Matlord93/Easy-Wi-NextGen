@@ -194,7 +194,7 @@ jobs:
         env:
           XDEBUG_MODE: off
           PHP_MEMORY_LIMIT: 768M
-        run: php -d memory_limit=${PHP_MEMORY_LIMIT} bin/phpunit --do-not-cache-result
+        run: php -d memory_limit=${PHP_MEMORY_LIMIT} bin/phpunit --do-not-record-test-run-history
 
       - name: PHPStan
         run: composer run phpstan
