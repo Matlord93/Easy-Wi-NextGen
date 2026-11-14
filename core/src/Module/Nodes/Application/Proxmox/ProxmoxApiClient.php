@@ -25,29 +25,31 @@ final readonly class ProxmoxApiClient
     ) {
     }
 
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<array-key, mixed>> */
     public function nodes(ProxmoxConnection $connection): array
     {
         return $this->list($connection, '/nodes');
     }
 
+    /** @return array<array-key, mixed> */
     public function permissions(ProxmoxConnection $connection, string $path): array
     {
         return $this->item($connection, '/access/permissions?'.http_build_query(['path' => $path]));
     }
 
+    /** @return list<array<array-key, mixed>> */
     public function activeTasks(ProxmoxConnection $connection, string $node, ?int $vmId): array
     {
         return $this->list($connection, '/nodes/'.rawurlencode($node).'/tasks', ['source' => 'active', 'limit' => 1] + (null === $vmId ? [] : ['vmid' => $vmId]));
     }
 
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<array-key, mixed>> */
     public function clusterResources(ProxmoxConnection $connection, ?string $type = null): array
     {
         return $this->list($connection, '/cluster/resources', null === $type ? [] : ['type' => $type]);
     }
 
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<array-key, mixed>> */
     public function virtualMachines(ProxmoxConnection $connection, string $node): array
     {
         return array_merge(
@@ -56,7 +58,7 @@ final readonly class ProxmoxApiClient
         );
     }
 
-    /** @return array<string, mixed> */
+    /** @return array<array-key, mixed> */
     public function status(ProxmoxConnection $connection, string $node, int $vmId, string $kind = 'qemu'): array
     {
         $this->assertGuestKind($kind);
@@ -64,7 +66,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/%s/%d/status/current', rawurlencode($node), $kind, $vmId));
     }
 
-    /** @return array<string, mixed> */
+    /** @return array<array-key, mixed> */
     public function changePowerState(ProxmoxConnection $connection, string $node, int $vmId, string $action, string $kind = 'qemu'): array
     {
         $this->assertGuestKind($kind);
@@ -75,7 +77,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/%s/%d/status/%s', rawurlencode($node), $kind, $vmId, $action), 'POST');
     }
 
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<array-key, mixed>> */
     public function snapshots(ProxmoxConnection $connection, string $node, int $vmId, string $kind = 'qemu'): array
     {
         $this->assertGuestKind($kind);
@@ -83,7 +85,7 @@ final readonly class ProxmoxApiClient
         return $this->list($connection, sprintf('/nodes/%s/%s/%d/snapshot', rawurlencode($node), $kind, $vmId));
     }
 
-    /** @return array<string, mixed> */
+    /** @return array<array-key, mixed> */
     public function createSnapshot(ProxmoxConnection $connection, string $node, int $vmId, string $name, ?string $description = null, string $kind = 'qemu'): array
     {
         $this->assertGuestKind($kind);
@@ -100,7 +102,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/%s/%d/snapshot', rawurlencode($node), $kind, $vmId), 'POST', $body);
     }
 
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<array-key, mixed>> */
     public function storageContent(ProxmoxConnection $connection, string $node, string $storage, ?string $content = null, ?int $vmId = null): array
     {
         return $this->list(
@@ -110,21 +112,25 @@ final readonly class ProxmoxApiClient
         );
     }
 
+    /** @return array<array-key, mixed> */
     public function nodeStatus(ProxmoxConnection $connection, string $node): array
     {
         return $this->item($connection, '/nodes/'.rawurlencode($node).'/status');
     }
 
+    /** @return list<array<array-key, mixed>> */
     public function storages(ProxmoxConnection $connection, string $node): array
     {
         return $this->list($connection, '/nodes/'.rawurlencode($node).'/storage', ['enabled' => 1]);
     }
 
+    /** @return list<array<array-key, mixed>> */
     public function networks(ProxmoxConnection $connection, string $node): array
     {
         return $this->list($connection, '/nodes/'.rawurlencode($node).'/network', ['type' => 'bridge']);
     }
 
+    /** @return array<array-key, mixed> */
     public function guestConfig(ProxmoxConnection $connection, string $node, int $vmId, string $kind = 'qemu'): array
     {
         $this->assertGuestKind($kind);
@@ -149,6 +155,7 @@ final readonly class ProxmoxApiClient
         return $data['result'];
     }
 
+    /** @return list<array<array-key, mixed>> */
     public function guestRrd(ProxmoxConnection $connection, string $node, int $vmId, string $kind): array
     {
         $this->assertGuestKind($kind);
@@ -167,6 +174,7 @@ final readonly class ProxmoxApiClient
         return array_slice($data, 0, 256);
     }
 
+    /** @return array<array-key, mixed> */
     public function growDisk(ProxmoxConnection $connection, string $node, int $vmId, string $kind, string $disk, int $sizeGiB, string $digest): array
     {
         if (!ProxmoxDisks::validDevice($kind, $disk) || $sizeGiB < 1 || $sizeGiB > 65536 || '' === $digest) {
@@ -176,6 +184,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/%s/%d/resize', rawurlencode($node), $kind, $vmId), 'PUT', ['disk' => $disk, 'size' => $sizeGiB.'G', 'digest' => $digest]);
     }
 
+    /** @return array<array-key, mixed> */
     public function addDisk(ProxmoxConnection $connection, string $node, int $vmId, string $kind, array $specification): array
     {
         // Validate again at the adapter boundary; callers cannot submit raw config fragments.
@@ -191,6 +200,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/%s/%d/config', rawurlencode($node), $kind, $vmId), 'qemu' === $kind ? 'POST' : 'PUT', [$spec['device'] => $value, 'digest' => $spec['digest']]);
     }
 
+    /** @return array<array-key, mixed> */
     public function updateResources(ProxmoxConnection $connection, string $node, int $vmId, string $kind, int $cores, int $memoryMiB, ?string $digest): array
     {
         $this->assertGuestKind($kind);
@@ -205,6 +215,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/%s/%d/config', rawurlencode($node), $kind, $vmId), 'PUT', $body);
     }
 
+    /** @return array<array-key, mixed> */
     public function updateProvisioning(ProxmoxConnection $connection, string $node, int $vmId, string $hostname, string $username, array $keys, ?string $digest): array
     {
         $body = ['name' => $hostname, 'ciuser' => $username, 'sshkeys' => rawurlencode(implode("\n", $keys))];
@@ -215,6 +226,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'PUT', $body);
     }
 
+    /** @return array<array-key, mixed> */
     public function updateBootOrder(ProxmoxConnection $connection, string $node, int $vmId, array $devices, ?string $digest): array
     {
         $body = ['boot' => 'order='.implode(';', $devices)];
@@ -225,6 +237,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'PUT', $body);
     }
 
+    /** @return array<array-key, mixed> */
     public function enableGuestAgent(ProxmoxConnection $connection, string $node, int $vmId, string $options, ?string $digest): array
     {
         $body = ['agent' => $options];
@@ -235,16 +248,19 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'PUT', $body);
     }
 
+    /** @return array<array-key, mixed> */
     public function deleteSnapshot(ProxmoxConnection $connection, string $node, int $vmId, string $name, string $kind = 'qemu'): array
     {
         return $this->snapshotAction($connection, $node, $vmId, $name, $kind, false);
     }
 
+    /** @return array<array-key, mixed> */
     public function rollbackSnapshot(ProxmoxConnection $connection, string $node, int $vmId, string $name, string $kind = 'qemu'): array
     {
         return $this->snapshotAction($connection, $node, $vmId, $name, $kind, true);
     }
 
+    /** @return array<array-key, mixed> */
     private function snapshotAction(ProxmoxConnection $connection, string $node, int $vmId, string $name, string $kind, bool $rollback): array
     {
         $this->assertGuestKind($kind);
@@ -256,6 +272,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, $path.($rollback ? '/rollback' : ''), $rollback ? 'POST' : 'DELETE');
     }
 
+    /** @return array<array-key, mixed> */
     public function createBackup(ProxmoxConnection $connection, string $node, int $vmId, string $storage, string $mode = 'snapshot'): array
     {
         if (!in_array($mode, ['snapshot', 'suspend', 'stop'], true)) {
@@ -265,11 +282,13 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, '/nodes/'.rawurlencode($node).'/vzdump', 'POST', ['vmid' => $vmId, 'storage' => $storage, 'mode' => $mode, 'compress' => 'zstd', 'remove' => 0]);
     }
 
+    /** @return array<array-key, mixed> */
     public function deleteBackup(ProxmoxConnection $connection, string $node, string $storage, string $volume): array
     {
         return $this->item($connection, sprintf('/nodes/%s/storage/%s/content/%s', rawurlencode($node), rawurlencode($storage), rawurlencode($volume)), 'DELETE');
     }
 
+    /** @return array<array-key, mixed> */
     public function restoreBackup(ProxmoxConnection $connection, string $node, int $vmId, string $volume, string $kind = 'qemu', ?string $storage = null, bool $replace = false): array
     {
         $this->assertGuestKind($kind);
@@ -288,6 +307,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, '/nodes/'.rawurlencode($node).'/'.$kind, 'POST', $body);
     }
 
+    /** @return array<array-key, mixed> */
     public function cloneTemplate(ProxmoxConnection $connection, string $node, int $vmId, int $newId, string $name, string $kind = 'qemu'): array
     {
         $this->assertGuestKind($kind);
@@ -305,6 +325,7 @@ final readonly class ProxmoxApiClient
         return (int) $value;
     }
 
+    /** @return array<array-key, mixed> */
     public function mountIso(ProxmoxConnection $connection, string $node, int $vmId, string $volume, string $slot = 'ide2', ?string $digest = null): array
     {
         if (!in_array($slot, ['ide0', 'ide1', 'ide2', 'ide3'], true)) {
@@ -318,11 +339,13 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'PUT', $body);
     }
 
+    /** @return array<array-key, mixed> */
     public function createVm(ProxmoxConnection $connection, string $node, array $configuration): array
     {
         return $this->item($connection, '/nodes/'.rawurlencode($node).'/qemu', 'POST', $configuration);
     }
 
+    /** @return array<array-key, mixed> */
     public function setGuestTags(ProxmoxConnection $connection, string $node, int $vmId, string $kind, string $tags, ?string $digest): array
     {
         $this->assertGuestKind($kind);
@@ -334,6 +357,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/%s/%d/config', rawurlencode($node), $kind, $vmId), 'PUT', $body);
     }
 
+    /** @return array<array-key, mixed> */
     public function vncProxy(ProxmoxConnection $connection, string $node, int $vmId, string $kind = 'qemu'): array
     {
         $this->assertGuestKind($kind);
@@ -345,17 +369,19 @@ final readonly class ProxmoxApiClient
         return ['ticket' => $data['ticket'], 'port' => (int) $data['port']];
     }
 
+    /** @return array<array-key, mixed> */
     public function taskStatus(ProxmoxConnection $connection, string $node, string $upid): array
     {
         return $this->item($connection, '/nodes/'.rawurlencode($node).'/tasks/'.rawurlencode($upid).'/status');
     }
 
+    /** @return list<array<array-key, mixed>> */
     public function taskLog(ProxmoxConnection $connection, string $node, string $upid): array
     {
         return $this->list($connection, '/nodes/'.rawurlencode($node).'/tasks/'.rawurlencode($upid).'/log', ['limit' => 50]);
     }
 
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<array-key, mixed>> */
     private function list(ProxmoxConnection $connection, string $path, array $query = []): array
     {
         $data = $this->request($connection, 'GET', $path, ['query' => $query]);
@@ -366,7 +392,7 @@ final readonly class ProxmoxApiClient
         return array_values(array_filter($data, 'is_array'));
     }
 
-    /** @return array<string, mixed> */
+    /** @return array<array-key, mixed> */
     private function item(ProxmoxConnection $connection, string $path, string $method = 'GET', array $body = []): array
     {
         $data = $this->request($connection, $method, $path, ['body' => $body]);

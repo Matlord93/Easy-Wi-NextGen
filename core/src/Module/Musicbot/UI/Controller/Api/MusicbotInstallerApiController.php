@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Api;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;

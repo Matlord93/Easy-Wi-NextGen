@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Nodes\Application\Kvm;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Repository\EntityQueryResult;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AuditLogger;
@@ -13,6 +15,14 @@ use App\Module\Nodes\Application\VmGuestAgentReport;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use Doctrine\ORM\EntityManagerInterface;
 
+/**
+ * @psalm-type CustomerGuest = array{
+ *     network_boot_first: bool, guest_agent_enabled: bool,
+ *     cloud_init: array{hostname: string, username: string, ssh_keys: list<string>}|null,
+ *     snapshots: list<string>, backups: list<array{id: string, created_at: string|null, size: int|null}>,
+ *     ...<array-key, mixed>
+ * }
+ */
 final readonly class CustomerKvmService
 {
     public const ACTIONS = ['vm.start', 'vm.shutdown', 'vm.stop', 'vm.reboot', 'vm.cloud_init', 'vm.boot_order', 'vm.agent_status', 'snapshot.create', 'snapshot.revert', 'snapshot.delete', 'backup.create', 'backup.restore', 'backup.delete'];
@@ -26,6 +36,7 @@ final readonly class CustomerKvmService
     {
     }
 
+    /** @return CustomerGuest|null */
     public function guest(KvmGuestAssignment $assignment, User $actor): ?array
     {
         $this->assertOwner($assignment, $actor);
@@ -38,23 +49,26 @@ final readonly class CustomerKvmService
             $safe['guest_agent_enabled'] = true === ($row['guest_agent_enabled'] ?? false);
             $safe['cloud_init'] = null;
             if (is_array($row['cloud_init'] ?? null)) {
-                $ci = $row['cloud_init'];
-                $safe['cloud_init'] = ['hostname' => is_string($ci['hostname'] ?? null) ? $ci['hostname'] : '', 'username' => is_string($ci['username'] ?? null) ? $ci['username'] : '', 'ssh_keys' => array_values(array_filter(JsonArray::orEmpty($ci['ssh_keys'] ?? null), 'is_string'))];
+                $ci = JsonArray::orEmpty($row['cloud_init']);
+                $fields = JsonMap::strings($ci);
+                $safe['cloud_init'] = ['hostname' => $fields['hostname'] ?? '', 'username' => $fields['username'] ?? '', 'ssh_keys' => array_values(array_filter(JsonArray::orEmpty($ci['ssh_keys'] ?? null), 'is_string'))];
             }
             $safe['snapshots'] = array_values(array_filter(JsonArray::orEmpty($row['snapshots'] ?? null), static fn ($name): bool => is_string($name) && 1 === preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $name)));
             $safe['backups'] = [];
-            foreach ($row['backups'] ?? [] as $backup) {
-                if (!is_array($backup) || !is_string($backup['id'] ?? null) || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $backup['id'])) {
+            foreach (JsonArray::orEmpty($row['backups'] ?? null) as $rawBackup) {
+                $backup = JsonMap::strings($rawBackup);
+                $raw = JsonArray::orEmpty($rawBackup);
+                if (!isset($backup['id']) || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $backup['id'])) {
                     continue;
                 }
                 $createdAt = null;
-                if (is_string($backup['created_at'] ?? null) && '' !== trim($backup['created_at'])) {
+                if (isset($backup['created_at']) && '' !== trim($backup['created_at'])) {
                     try {
                         $createdAt = (new \DateTimeImmutable($backup['created_at']))->format(DATE_ATOM);
                     } catch (\Exception) {
                     }
                 }
-                $safe['backups'][] = ['id' => $backup['id'], 'created_at' => $createdAt, 'size' => is_numeric($backup['size'] ?? null) && is_finite((float) $backup['size']) && $backup['size'] >= 0 ? (int) $backup['size'] : null];
+                $safe['backups'][] = ['id' => $backup['id'], 'created_at' => $createdAt, 'size' => self::backupSize($raw['size'] ?? null)];
             }
 
             return $safe;
@@ -70,7 +84,7 @@ final readonly class CustomerKvmService
             throw new \InvalidArgumentException('kvm.customer_forbidden');
         }
         $guest = $this->guest($assignment, $actor);
-        if (!$guest) {
+        if ($guest === null) {
             throw new \InvalidArgumentException('kvm.customer_unavailable');
         }
         if (in_array($action, ['vm.stop', 'vm.reboot', 'snapshot.revert', 'snapshot.delete', 'backup.restore', 'backup.delete'], true) && ($input['confirm'] ?? '') !== '1') {
@@ -79,9 +93,10 @@ final readonly class CustomerKvmService
         if ((str_starts_with($action, 'snapshot.') || str_starts_with($action, 'backup.') || in_array($action, ['vm.cloud_init', 'vm.boot_order'], true)) && ($guest['state'] ?? '') !== 'shut off') {
             throw new \InvalidArgumentException('kvm.customer_stopped');
         }
+        $input = JsonMap::strings($input);
         $payload = ['operation_id' => $input['operation_id'] ?? '', 'vm_id' => $assignment->getVmUuid()];
         if ('vm.cloud_init' === $action) {
-            if (!$guest['cloud_init']) {
+            if ($guest['cloud_init'] === null) {
                 throw new \InvalidArgumentException('kvm.customer_unavailable');
             }
             $payload['hostname'] = $input['hostname'] ?? '';
@@ -106,8 +121,8 @@ final readonly class CustomerKvmService
         }
 
         return $this->lock->run($assignment->getNode(), function () use ($assignment, $actor, $action, $payload): AgentJob {
-            $owner = $this->em->getConnection()->fetchOne('SELECT customer_id FROM kvm_guest_assignments WHERE id = ?', [$assignment->getId()]);
-            if ((string) $owner !== (string) $actor->getId()) {
+            $owner = filter_var($this->em->getConnection()->fetchOne('SELECT customer_id FROM kvm_guest_assignments WHERE id = ?', [$assignment->getId()]), FILTER_VALIDATE_INT);
+            if ($owner === false || (string) $owner !== (string) $actor->getId()) {
                 throw new \InvalidArgumentException('kvm.customer_forbidden');
             }
             $job = $this->kvm->submit($assignment->getNode(), $action, $payload);
@@ -118,18 +133,19 @@ final readonly class CustomerKvmService
         });
     }
 
+    /** @return list<array{id: string, action: string, status: string, created_at: string}> */
     public function recent(KvmGuestAssignment $assignment, User $actor): array
     {
         $this->assertOwner($assignment, $actor);
-        $rows = $this->em->getRepository(AgentJob::class)->createQueryBuilder('j')
-            ->select('j.id', 'j.payload', 'j.status', 'j.createdAt')
+        $rows = EntityQueryResult::all($this->em->getRepository(AgentJob::class)->createQueryBuilder('j')
             ->where('j.node = :node')->andWhere('j.type = :type')
             ->setParameter('node', $assignment->getNode())->setParameter('type', 'kvm.managed')
-            ->orderBy('j.createdAt', 'DESC')->setMaxResults(100)->getQuery()->getArrayResult();
+            ->orderBy('j.createdAt', 'DESC')->setMaxResults(100)->getQuery(), AgentJob::class);
         $result = [];
         foreach ($rows as $job) {
-            if (($job['payload']['vm_id'] ?? '') === $assignment->getVmUuid() && in_array($job['payload']['action'] ?? '', self::ACTIONS, true)) {
-                $result[] = ['id' => $job['id'], 'action' => $job['payload']['action'], 'status' => $job['status'] instanceof AgentJobStatus ? $job['status']->value : (string) $job['status'], 'created_at' => $job['createdAt']->format(DATE_ATOM)];
+            $payload = JsonMap::strings($job->getPayload());
+            if (($payload['vm_id'] ?? '') === $assignment->getVmUuid() && isset($payload['action']) && in_array($payload['action'], self::ACTIONS, true)) {
+                $result[] = ['id' => $job->getId(), 'action' => $payload['action'], 'status' => $job->getStatus()->value, 'created_at' => $job->getCreatedAt()->format(DATE_ATOM)];
                 if (20 === count($result)) {
                     break;
                 }
@@ -147,6 +163,11 @@ final readonly class CustomerKvmService
         }
 
         return $view;
+    }
+
+    private static function backupSize(mixed $value): ?int
+    {
+        return is_numeric($value) && is_finite((float) $value) && (float) $value >= 0.0 ? (int) $value : null;
     }
 
     private function assertOwner(KvmGuestAssignment $assignment, User $actor): void

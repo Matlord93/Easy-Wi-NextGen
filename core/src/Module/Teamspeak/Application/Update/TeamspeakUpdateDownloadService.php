@@ -31,6 +31,9 @@ final class TeamspeakUpdateDownloadService
             return new ChecksumVerificationResult(false, true, null, $requireChecksum ? 'Checksum erforderlich, aber nicht verfügbar.' : 'Checksum nicht verfügbar.');
         }
         $actual = hash_file('sha256', $file);
+        if ($actual === false) {
+            throw new \RuntimeException('Checksum-Datei konnte nicht gelesen werden.');
+        }
         if (!hash_equals(strtolower($expectedSha256), strtolower($actual))) {
             return new ChecksumVerificationResult(false, false, $actual, 'Checksum ungültig.');
         }

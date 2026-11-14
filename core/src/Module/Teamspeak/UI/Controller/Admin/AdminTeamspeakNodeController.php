@@ -37,13 +37,12 @@ final class AdminTeamspeakNodeController
         ]));
     }
 
-    private function requireAdmin(Request $request): User
+    private function requireAdmin(Request $request): void
     {
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', 'Unauthorized.');
         }
 
-        return $actor;
     }
 }

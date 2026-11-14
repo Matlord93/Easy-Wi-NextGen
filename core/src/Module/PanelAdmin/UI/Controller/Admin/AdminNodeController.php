@@ -8,6 +8,8 @@ use App\Repository\QueryParameter;
 use App\Infrastructure\Network\ConfiguredAgentTarget;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Repository\EntityQueryResult;
 use App\Infrastructure\Http\RequestActor;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
@@ -50,6 +52,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
+/** @psalm-type NodeView = array{id: string, ...<string, mixed>} */
 #[Route(path: '/admin/nodes')]
 final class AdminNodeController
 {
@@ -353,7 +356,7 @@ final class AdminNodeController
             $notice = 'Roles are already up to date.';
         }
 
-        if ($request->headers->get('HX-Request')) {
+        if ($request->headers->get('HX-Request') !== null) {
             return $this->renderNodesTable($notice, $error);
         }
 
@@ -899,6 +902,7 @@ final class AdminNodeController
     }
 
     /**
+     * @param list<Agent> $nodes
      * @return array{total: int, online: int, stale: int, offline: int, decommissioned: int, updates: int,
      * latestVersion: null|string}
      */
@@ -1236,41 +1240,38 @@ final class AdminNodeController
 
     private function cleanupNodeJobs(\App\Module\Core\Domain\Entity\Agent $node): void
     {
-        $jobs = $this->jobRepository->createQueryBuilder('job')
+        $jobs = EntityQueryResult::all($this->jobRepository->createQueryBuilder('job')
             ->where('job.payload LIKE :agentPayload')
             ->andWhere('job.status IN (:statuses)')
             ->setParameter('agentPayload', '%"agent_id":"' . $node->getId() . '"%')
             ->setParameter('statuses', [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running])
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), Job::class);
 
         foreach ($jobs as $job) {
-            if (!$job instanceof Job) {
-                continue;
-            }
-
             $job->transitionTo(JobStatus::Cancelled);
             $job->recordFailure('agent_decommissioned', 'Agent decommissioned while job was still pending.');
         }
 
-        $agentJobs = $this->agentJobRepository->createQueryBuilder('job')
+        $agentJobs = EntityQueryResult::all($this->agentJobRepository->createQueryBuilder('job')
             ->where('job.node = :agent')
             ->andWhere('job.status IN (:statuses)')
             ->setParameter('agent', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('statuses', [AgentJobStatus::Queued, AgentJobStatus::Running])
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\AgentOrchestrator\Domain\Entity\AgentJob::class);
 
         foreach ($agentJobs as $agentJob) {
-            if (!$agentJob instanceof \App\Module\AgentOrchestrator\Domain\Entity\AgentJob) {
-                continue;
-            }
-
             $agentJob->setErrorText('Agent decommissioned while job was pending.');
             $agentJob->markFinished(AgentJobStatus::Failed);
         }
     }
 
+    /**
+     * @param list<Agent> $nodes
+     * @param array<string, Job> $updateJobs
+     * @param array<string, Job> $serverUpdateJobs
+     * @param array<string, \App\Module\Core\Domain\Entity\DdosStatus> $ddosStatuses
+     * @return list<NodeView>
+     */
     private function normalizeNodes(
         array $nodes,
         ?string $latestVersion,
@@ -1280,16 +1281,17 @@ final class AdminNodeController
     ): array {
         $now = new \DateTimeImmutable();
 
-        return array_map(function ($node) use ($latestVersion, $updateJobs, $serverUpdateJobs, $ddosStatuses, $now): array {
+        return array_map(function (Agent $node) use ($latestVersion, $updateJobs, $serverUpdateJobs, $ddosStatuses, $now): array {
             $stats = $node->getLastHeartbeatStats() ?? [];
-            $serviceStats = $stats['services'] ?? [];
-            $rebootRequired = $stats['reboot_required'] ?? null;
-            $osProvider = $stats['os_provider'] ?? null;
+            $statStrings = JsonMap::strings($stats);
+            $serviceStats = JsonArray::orEmpty($stats['services'] ?? null);
+            $rebootRequired = self::optionalBoolean($stats['reboot_required'] ?? null);
+            $osProvider = $statStrings['os_provider'] ?? null;
             $roles = $node->getRoles();
             $normalizedRoles = $this->normalizeRoles($roles);
             $currentVersion = $node->getLastHeartbeatVersion();
             if ($currentVersion === null || $currentVersion === '') {
-                $statsVersion = $stats['version'] ?? null;
+                $statsVersion = $statStrings['version'] ?? null;
                 if (is_string($statsVersion) && $statsVersion !== '') {
                     $currentVersion = $statsVersion;
                 }
@@ -1300,8 +1302,9 @@ final class AdminNodeController
             $serverUpdateMessage = null;
             if ($serverUpdateJob instanceof Job) {
                 $output = $serverUpdateJob->getResult()?->getOutput() ?? [];
-                $serverUpdateMessage = is_string($output['message'] ?? null) ? $output['message'] : null;
-                $updatesAvailableRaw = $output['updates_available'] ?? null;
+                $outputStrings = JsonMap::strings($output);
+                $serverUpdateMessage = $outputStrings['message'] ?? null;
+                $updatesAvailableRaw = $outputStrings['updates_available'] ?? null;
                 if (is_string($updatesAvailableRaw)) {
                     $normalized = strtolower($updatesAvailableRaw);
                     if (in_array($normalized, ['true', 'false'], true)) {
@@ -1317,7 +1320,7 @@ final class AdminNodeController
             $agentBaseUrl = $node->getAgentBaseUrl();
             $agentTokenConfigured = $node->getAgentApiTokenEncrypted() !== '';
             $metadata = $node->getMetadata() ?? [];
-            $coreAccessMode = $metadata['core_access_mode'] ?? null;
+            $coreAccessMode = JsonMap::strings($metadata)['core_access_mode'] ?? null;
             $instanceBaseDirs = $this->normalizeInstanceBaseDirs($metadata['instance_base_dirs'] ?? null);
             $mailSettings = $this->normalizeMailSettings($metadata);
             $usage = $this->buildNodeUsage($node);
@@ -1399,7 +1402,7 @@ final class AdminNodeController
     }
 
     /**
-     * @param array<int, \App\Module\AgentOrchestrator\Domain\Entity\AgentJob> $jobs
+     * @param array<array-key, \App\Module\AgentOrchestrator\Domain\Entity\AgentJob> $jobs
      * @return array<int, array<string, mixed>>
      */
     private function normalizeAgentJobs(array $jobs): array
@@ -1416,7 +1419,12 @@ final class AdminNodeController
                 'errorText' => $job->getErrorText(),
                 'retries' => $job->getRetries(),
             ];
-        }, $jobs);
+        }, array_values($jobs));
+    }
+
+    private static function optionalBoolean(mixed $value): ?bool
+    {
+        return is_bool($value) ? $value : null;
     }
 
     private function normalizeOptionalString(mixed $value): ?string
@@ -1433,6 +1441,7 @@ final class AdminNodeController
         return $value;
     }
 
+    /** @param list<string> $errors */
     private function parseOptionalPort(mixed $value, array &$errors, string $label): ?int
     {
         if ($value === null || $value === '') {
@@ -1588,7 +1597,8 @@ final class AdminNodeController
 
         foreach ($nodes as $node) {
             $existingJob = $existingJobs[$node->getId()] ?? null;
-            $payload = $this->buildAgentUpdatePayload($node, $latestVersion, $extraPayload['rollback_version'] ?? null, $existingJob);
+            $rollbackVersion = $this->normalizeOptionalString($extraPayload['rollback_version'] ?? null);
+            $payload = $this->buildAgentUpdatePayload($node, $latestVersion, $rollbackVersion, $existingJob);
             if ($payload === null) {
                 continue;
             }
@@ -1696,8 +1706,8 @@ final class AdminNodeController
     private function resolveAgentReleaseInfo(\App\Module\Core\Domain\Entity\Agent $node, ?string $targetVersion): ?array
     {
         $stats = $node->getLastHeartbeatStats() ?? [];
-        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
-        $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
+        $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
+        $arch = strtolower(JsonMap::strings($stats)['arch'] ?? '');
 
         $assetName = $this->resolveAgentAssetName($os, $arch);
         if ($assetName === null) {
@@ -1727,21 +1737,25 @@ final class AdminNodeController
     private function resolveAgentUpdateJobType(\App\Module\Core\Domain\Entity\Agent $node): string
     {
         $stats = $node->getLastHeartbeatStats() ?? [];
-        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
+        $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
 
         return $os === 'windows' ? 'agent.self_update' : 'agent.update';
     }
 
+    /**
+     * @param array<array-key, mixed> $roles
+     * @return list<string>
+     */
     private function normalizeRoles(array $roles): array
     {
         // Only show roles assigned in the panel. Heartbeat stats can contain
         // agent-local role files (for example TS3 after a service install), but
         // those must not be treated as configured node roles.
-        return $roles;
+        return array_values(array_filter($roles, 'is_string'));
     }
 
     /**
-     * @param string[] $roles
+     * @param array<array-key, mixed> $roles
      * @return string[]
      */
     private function normalizeRoleSelection(array $roles): array
@@ -1775,7 +1789,7 @@ final class AdminNodeController
     }
 
     /**
-     * @param string[] $roles
+     * @param array<array-key, mixed> $roles
      * @return string[]
      */
     private function normalizeProvisionRoles(array $roles): array
@@ -1793,7 +1807,7 @@ final class AdminNodeController
     }
 
     /**
-     * @param string[] $roles
+     * @param array<array-key, mixed> $roles
      * @return string[]
      */
     private function extractUnknownRoles(array $roles): array

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Template;
+use App\Infrastructure\Config\JsonArray;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 
+/** @psalm-import-type TemplateSeed from GameTemplateSeedCatalog */
 final class GameTemplateSeeder
 {
     public function __construct(
@@ -24,7 +26,10 @@ final class GameTemplateSeeder
      */
     public function seed(?EntityManagerInterface $entityManager = null, bool $updateExisting = false): array
     {
-        $entityManager = $entityManager ?? $this->registry->getManager();
+        $entityManager ??= $this->registry->getManager();
+        if (!$entityManager instanceof EntityManagerInterface) {
+            throw new \LogicException('Game templates require an ORM entity manager.');
+        }
         $templateStats = $this->seedTemplatesOnly($entityManager);
         $pluginResult = $this->pluginSeeder->seed($entityManager, $updateExisting);
 
@@ -43,12 +48,15 @@ final class GameTemplateSeeder
      */
     public function seedTemplatesOnly(?EntityManagerInterface $entityManager = null, ?array $onlyGameKeys = null, bool $createOnly = false): array
     {
-        $entityManager = $entityManager ?? $this->registry->getManager();
+        $entityManager ??= $this->registry->getManager();
+        if (!$entityManager instanceof EntityManagerInterface) {
+            throw new \LogicException('Game templates require an ORM entity manager.');
+        }
         $templateRepository = $entityManager->getRepository(Template::class);
         $templatesCreated = 0;
         $templatesUpdated = 0;
         foreach ($this->catalog->listTemplates() as $templateData) {
-            $gameKey = (string) ($templateData['game_key'] ?? '');
+            $gameKey = ($templateData['game_key'] ?? '');
             if ($gameKey === '') {
                 continue;
             }
@@ -79,7 +87,7 @@ final class GameTemplateSeeder
             );
 
             $sharedPaths = $templateData['shared_paths'] ?? [];
-            if (is_array($sharedPaths) && $sharedPaths !== []) {
+            if ($sharedPaths !== []) {
                 $requirements['shared_paths'] = $sharedPaths;
             }
 
@@ -106,18 +114,18 @@ final class GameTemplateSeeder
 
             $template = new Template(
                 $gameKey,
-                (string) ($templateData['display_name'] ?? $gameKey),
+                ($templateData['display_name'] ?? $gameKey),
                 $templateData['description'] ?? null,
                 is_int($steamAppId) ? $steamAppId : null,
                 $templateData['sniper_profile'] ?? null,
                 $requiredPorts,
-                (string) ($templateData['start_params'] ?? ''),
+                ($templateData['start_params'] ?? ''),
                 $envVars,
                 $configFiles,
                 $pluginPaths,
                 $fastdlSettings,
-                (string) ($templateData['install_command'] ?? ''),
-                (string) ($templateData['update_command'] ?? ''),
+                ($templateData['install_command'] ?? ''),
+                ($templateData['update_command'] ?? ''),
                 $installResolver,
                 $allowedSwitchFlags,
                 $requirementVars,
@@ -143,7 +151,7 @@ final class GameTemplateSeeder
     }
 
     /**
-     * @param array<string, mixed> $templateData
+     * @param TemplateSeed $templateData
      * @param array<int, array<string, mixed>> $requiredPorts
      * @param array<int, array<string, mixed>> $envVars
      * @param array<int, array<string, mixed>> $configFiles
@@ -175,18 +183,18 @@ final class GameTemplateSeeder
     ): void {
         $steamAppId = $templateData['steam_app_id'] ?? null;
 
-        $template->setDisplayName((string) ($templateData['display_name'] ?? $template->getGameKey()));
+        $template->setDisplayName(($templateData['display_name'] ?? $template->getGameKey()));
         $template->setDescription($templateData['description'] ?? null);
         $template->setSteamAppId(is_int($steamAppId) ? $steamAppId : null);
         $template->setSniperProfile($templateData['sniper_profile'] ?? null);
         $template->setRequiredPorts($requiredPorts);
-        $template->setStartParams((string) ($templateData['start_params'] ?? ''));
+        $template->setStartParams(($templateData['start_params'] ?? ''));
         $template->setEnvVars($envVars);
         $template->setConfigFiles($configFiles);
         $template->setPluginPaths($pluginPaths);
         $template->setFastdlSettings($fastdlSettings);
-        $template->setInstallCommand((string) ($templateData['install_command'] ?? ''));
-        $template->setUpdateCommand((string) ($templateData['update_command'] ?? ''));
+        $template->setInstallCommand(($templateData['install_command'] ?? ''));
+        $template->setUpdateCommand(($templateData['update_command'] ?? ''));
         $template->setInstallResolver($installResolver);
         $template->setAllowedSwitchFlags($allowedSwitchFlags);
         $template->setRequirementVars($requirementVars);
@@ -205,7 +213,7 @@ final class GameTemplateSeeder
     }
 
     /**
-     * @param array<int, array<string, mixed>> $requiredPorts
+     * @param array<array-key, mixed> $requiredPorts
      * @return array<int, array<string, mixed>>
      */
     private function buildPortProfile(array $requiredPorts): array
@@ -220,7 +228,8 @@ final class GameTemplateSeeder
         ];
 
         $profile = [];
-        foreach ($requiredPorts as $port) {
+        foreach (array_keys($requiredPorts) as $index) {
+            $port = JsonArray::fromValue($requiredPorts[$index]);
             if (!is_array($port)) {
                 continue;
             }
@@ -305,13 +314,14 @@ final class GameTemplateSeeder
     }
 
     /**
-     * @param array<int, array<string, mixed>> $envVars
+     * @param array<array-key, mixed> $envVars
      * @return array<int, string>
      */
     private function extractEnvVarKeys(array $envVars): array
     {
         $keys = [];
-        foreach ($envVars as $entry) {
+        foreach (array_keys($envVars) as $index) {
+            $entry = JsonArray::fromValue($envVars[$index]);
             if (!is_array($entry)) {
                 continue;
             }
@@ -325,13 +335,14 @@ final class GameTemplateSeeder
     }
 
     /**
-     * @param array<int, array<string, mixed>> $requirementSecrets
+     * @param array<array-key, mixed> $requirementSecrets
      * @return array<int, string>
      */
     private function normalizeSecretKeys(array $requirementSecrets, string $gameKey): array
     {
         $keys = [];
-        foreach ($requirementSecrets as $entry) {
+        foreach (array_keys($requirementSecrets) as $index) {
+            $entry = JsonArray::fromValue($requirementSecrets[$index]);
             if (!is_array($entry)) {
                 continue;
             }
@@ -349,13 +360,14 @@ final class GameTemplateSeeder
     }
 
     /**
-     * @param array<int, array<string, mixed>> $requirementVars
+     * @param array<array-key, mixed> $requirementVars
      * @return array<int, string>
      */
     private function normalizeRequirementKeys(array $requirementVars): array
     {
         $keys = [];
-        foreach ($requirementVars as $entry) {
+        foreach (array_keys($requirementVars) as $index) {
+            $entry = JsonArray::fromValue($requirementVars[$index]);
             if (!is_array($entry)) {
                 continue;
             }

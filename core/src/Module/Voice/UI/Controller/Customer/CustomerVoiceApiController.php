@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Voice\UI\Controller\Customer;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
@@ -347,7 +349,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $serverGroupId = max(1, (int) ($body['server_group_id'] ?? 6));
 
         $providerType = $instance->getNode()->getProviderType();
@@ -399,10 +401,10 @@ final class CustomerVoiceApiController
         $cacheKey = sprintf('voice_%d_summary', $id);
         $providerType = $instance->getNode()->getProviderType();
 
-        $payload = $this->cache->get($cacheKey, function (ItemInterface $item): array {
+        $payload = JsonArray::fromValue($this->cache->get($cacheKey, function (ItemInterface $item): array {
             $item->expiresAfter(30);
             return ['status' => 'pending'];
-        });
+        }));
 
         if (is_array($payload) && ($payload['status'] ?? 'pending') === 'ok') {
             $this->queryLimiter->reset($cacheKey);
@@ -455,10 +457,10 @@ final class CustomerVoiceApiController
         $cacheKey = sprintf('voice_%d_groups', $id);
         $providerType = $instance->getNode()->getProviderType();
 
-        $payload = $this->cache->get($cacheKey, function (ItemInterface $item): array {
+        $payload = JsonArray::fromValue($this->cache->get($cacheKey, function (ItemInterface $item): array {
             $item->expiresAfter(60);
             return ['status' => 'pending', 'groups' => []];
-        });
+        }));
 
         if (is_array($payload) && ($payload['status'] ?? 'pending') === 'ok') {
             $this->queryLimiter->reset($cacheKey);
@@ -520,10 +522,10 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, 'Unsupported provider or query type.', 'voice_provider_unsupported', 400);
         }
 
-        $payload = $this->cache->get($cacheKey, function (ItemInterface $item): array {
+        $payload = JsonArray::fromValue($this->cache->get($cacheKey, function (ItemInterface $item): array {
             $item->expiresAfter(30);
             return ['status' => 'pending'];
-        });
+        }));
 
         if (is_array($payload) && ($payload['status'] ?? 'pending') === 'ok') {
             $this->queryLimiter->reset($cacheKey);
@@ -565,7 +567,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $publicHost = isset($body['public_host']) ? trim((string) $body['public_host']) : null;
         $providerType = $instance->getNode()->getProviderType();
 
@@ -649,7 +651,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $enabled = (bool) ($body['enabled'] ?? true);
         $cacheTtlMs = max(500, (int) ($body['cache_ttl_ms'] ?? 1500));
         $domainAllowlist = isset($body['domain_allowlist']) ? trim((string) $body['domain_allowlist']) : null;
@@ -802,26 +804,22 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, 'Invalid cache key.', 'voice_snapshot_key_invalid', 400);
         }
 
-        $payload = $this->cache->get($cacheKey, static function (\Symfony\Contracts\Cache\ItemInterface $item): array {
+        $payload = JsonArray::fromValue($this->cache->get($cacheKey, static function (\Symfony\Contracts\Cache\ItemInterface $item): array {
             $item->expiresAfter(30);
             return ['status' => 'pending'];
-        });
+        }));
 
-        $status = is_array($payload) ? strtolower(($payload['status'] ?? 'pending')) : 'pending';
-        $agentError = is_array($payload) ? (string) ($payload['errorText'] ?? $payload['error_text'] ?? $payload['error'] ?? $payload['message'] ?? '') : '';
-        $rawPayload = is_array($payload) ? ($payload['payload'] ?? $payload['resultPayload'] ?? $payload['result_payload'] ?? $payload['result'] ?? $payload['data'] ?? null) : null;
-        $nestedPayload = JsonArray::orEmpty($rawPayload);
-        $snapshotContent = $nestedPayload['snapshot'] ?? (is_array($payload) ? ($payload['snapshot'] ?? null) : null);
-        if (!is_string($snapshotContent) || trim($snapshotContent) === '') {
-            $snapshotContent = null;
-        }
+        $status = is_array($payload) ? strtolower(ScalarValue::text($payload['status'] ?? 'pending')) : 'pending';
+        $agentError = is_array($payload) ? ScalarValue::text($payload['errorText'] ?? $payload['error_text'] ?? $payload['error'] ?? $payload['message'] ?? '') : '';
+        $nestedPayload = JsonArray::orEmpty(is_array($payload) ? ($payload['payload'] ?? $payload['resultPayload'] ?? $payload['result_payload'] ?? $payload['result'] ?? $payload['data'] ?? null) : null);
+        $snapshotContent = self::snapshotText($nestedPayload['snapshot'] ?? (is_array($payload) ? ($payload['snapshot'] ?? null) : null));
 
         if (in_array($status, ['failed', 'error'], true)) {
             $this->auditLogger->log($customer, 'voice.snapshot.poll.failed', [
                 'voice_instance_id' => $instance->getId(),
                 'request_id' => $this->resolveRequestId($request),
                 'cache_key' => $cacheKey,
-                'job_id' => is_array($payload) ? (string) ($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
+                'job_id' => is_array($payload) ? ScalarValue::text($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
                 'job_type' => 'ts6.virtual.snapshot.create',
                 'agent_status' => $status,
                 'result_keys' => is_array($payload) ? implode(',', array_keys($payload)) : '',
@@ -841,7 +839,7 @@ final class CustomerVoiceApiController
                 'voice_instance_id' => $instance->getId(),
                 'request_id' => $this->resolveRequestId($request),
                 'cache_key' => $cacheKey,
-                'job_id' => is_array($payload) ? (string) ($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
+                'job_id' => is_array($payload) ? ScalarValue::text($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
                 'job_type' => 'ts6.virtual.snapshot.create',
                 'agent_status' => $status,
                 'result_keys' => is_array($payload) ? implode(',', array_keys($payload)) : '',
@@ -857,7 +855,7 @@ final class CustomerVoiceApiController
             'voice_instance_id' => $instance->getId(),
             'request_id' => $this->resolveRequestId($request),
             'cache_key' => $cacheKey,
-            'job_id' => is_array($payload) ? (string) ($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
+            'job_id' => is_array($payload) ? ScalarValue::text($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
             'job_type' => 'ts6.virtual.snapshot.create',
             'agent_status' => $status,
             'result_keys' => is_array($payload) ? implode(',', array_keys($payload)) : '',
@@ -879,7 +877,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $uploadedFile = $request->files->get('snapshot');
+        $uploadedFile = self::uploadedFile($request->files->get('snapshot'));
         $snapshotContent = null;
 
         if ($uploadedFile instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
@@ -890,7 +888,7 @@ final class CustomerVoiceApiController
         }
 
         if ($snapshotContent === null || $snapshotContent === '') {
-            $body = json_decode($request->getContent(), true) ?? [];
+            $body = JsonArray::decode($request->getContent()) ?? [];
             $snapshotContent = isset($body['snapshot']) ? trim((string) $body['snapshot']) : null;
         }
 
@@ -940,7 +938,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $reason = trim((string) ($body['reason'] ?? ''));
         $providerType = $instance->getNode()->getProviderType();
 
@@ -977,7 +975,7 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $message = trim((string) ($body['message'] ?? ''));
         if ($message === '') {
             return $this->responseEnvelopeFactory->error($request, 'Message is required.', 'voice_poke_message_required', 400);
@@ -1016,11 +1014,12 @@ final class CustomerVoiceApiController
             return $this->responseEnvelopeFactory->error($request, $this->translator->trans('gs_api_instance_not_found'), 'voice_instance_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $banParams = [];
         foreach (['ip', 'uid', 'name', 'time', 'banreason'] as $field) {
-            if (isset($body[$field]) && (string) $body[$field] !== '') {
-                $banParams[$field] = $body[$field];
+            $value = ScalarValue::text($body[$field] ?? null);
+            if ($value !== '') {
+                $banParams[$field] = $value;
             }
         }
 
@@ -1088,6 +1087,11 @@ final class CustomerVoiceApiController
         return $this->responseEnvelopeFactory->error($request, 'Unsupported provider.', 'voice_provider_unsupported', 400);
     }
 
+    private static function uploadedFile(mixed $file): ?\Symfony\Component\HttpFoundation\File\UploadedFile
+    {
+        return $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? $file : null;
+    }
+
     private function requireCustomer(Request $request): User
     {
         $actor = RequestActor::user($request);
@@ -1096,6 +1100,11 @@ final class CustomerVoiceApiController
         }
 
         return $actor;
+    }
+
+    private static function snapshotText(mixed $value): ?string
+    {
+        return is_string($value) && trim($value) !== '' ? $value : null;
     }
 
     private function normalize(VoiceInstance $instance): array
@@ -1148,7 +1157,7 @@ final class CustomerVoiceApiController
 
         $rows = [];
         foreach ($this->ts3Servers->findBy(['customerId' => $customerId, 'archivedAt' => null], ['updatedAt' => 'DESC'], 200) as $server) {
-            $id = $server->getId();
+            $id = EntityIdentifier::require($server->getId());
             if (!is_int($id) || isset($known['ts3:' . $id])) {
                 continue;
             }
@@ -1156,7 +1165,7 @@ final class CustomerVoiceApiController
         }
 
         foreach ($this->ts6Servers->findBy(['customerId' => $customerId, 'archivedAt' => null], ['updatedAt' => 'DESC'], 200) as $server) {
-            $id = $server->getId();
+            $id = EntityIdentifier::require($server->getId());
             if (!is_int($id) || isset($known['ts6:' . $id])) {
                 continue;
             }
@@ -1174,7 +1183,7 @@ final class CustomerVoiceApiController
      */
     private function normalizeLegacyTs3Server(Ts3VirtualServer $server): array
     {
-        $id = $server->getId();
+        $id = EntityIdentifier::require($server->getId());
         return [
             'id' => 'legacy-ts3-' . $id,
             'name' => $server->getName(),
@@ -1208,7 +1217,7 @@ final class CustomerVoiceApiController
      */
     private function normalizeLegacyTs6Server(Ts6VirtualServer $server): array
     {
-        $id = $server->getId();
+        $id = EntityIdentifier::require($server->getId());
         return [
             'id' => 'legacy-ts6-' . $id,
             'name' => $server->getName(),

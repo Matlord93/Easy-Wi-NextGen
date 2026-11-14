@@ -61,16 +61,17 @@ final class AdminTs3ServerController
 
         $customerMap = [];
         foreach ($customers as $customer) {
-            if ($customer->getId() !== null) {
-                $customerMap[$customer->getId()] = $customer;
+            $customerId = $customer->getId();
+            if ($customerId !== null) {
+                $customerMap[$customerId] = $customer;
             }
         }
 
         $csrf = [];
         $deleteTokens = [];
         foreach ($servers as $server) {
-            if ($server->getId() !== null) {
-                $serverId = $server->getId();
+            $serverId = $server->getId();
+            if ($serverId !== null) {
                 $csrf[$serverId] = $this->csrfTokenManager->getToken('ts3_virtual_assign_' . $serverId)->getValue();
                 $deleteTokens[$serverId] = $this->csrfTokenManager->getToken('ts3_virtual_delete_' . $serverId)->getValue();
             }
@@ -118,7 +119,7 @@ final class AdminTs3ServerController
             if ($customer === null || $node === null) {
                 $form->addError(new FormError($this->translator->trans('form_error_customer_or_node_not_found')));
             }
-            if ($form->isValid()) {
+            if ($form->isValid() && $customer !== null && $node !== null) {
                 try {
                     $createDto = $this->dtoFactory->createTs3($dto);
                     $this->virtualServerService->createForCustomer($customer->getId() ?? 0, $node, $createDto);
@@ -198,14 +199,13 @@ final class AdminTs3ServerController
         ]);
     }
 
-    private function requireAdmin(Request $request): User
+    private function requireAdmin(Request $request): void
     {
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
-        return $actor;
     }
 
     private function validateCsrf(Request $request, string $id): void

@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 
-use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupSchedule;
 use App\Module\Core\Domain\Entity\ConfigSchema;
@@ -17,7 +18,6 @@ use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Gameserver\Application\InstanceSlotService;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\BackupDefinitionRepository;
@@ -49,11 +49,9 @@ final class CustomerInstanceSettingsApiController
         private readonly InstanceRepository $instanceRepository,
         private readonly GameDefinitionRepository $gameDefinitionRepository,
         private readonly ConfigSchemaRepository $configSchemaRepository,
-        private readonly AppSettingsService $appSettingsService,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly MinecraftCatalogService $minecraftCatalogService,
-        private readonly InstanceSlotService $instanceSlotService,
         private readonly GameProfileRepository $gameProfileRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
@@ -77,7 +75,7 @@ final class CustomerInstanceSettingsApiController
 
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
-            'status' => strtolower($instance->getStatus()->value),
+            'status' => $instance->getStatus()->value,
             'slots' => [
                 'current_slots' => $instance->getSlots(),
                 'max_slots' => $instance->getMaxSlots(),
@@ -104,28 +102,27 @@ final class CustomerInstanceSettingsApiController
             return $this->mapException($request, $exception);
         }
 
-        if (!is_array($payload)) {
-            return $this->apiError($request, 'INVALID_INPUT', $this->translator->trans('gs_api_invalid_payload'), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        $automation = is_array($payload['automation'] ?? null) ? $payload['automation'] : $payload;
-        if (!is_array($automation) || $automation === []) {
+        $automation = JsonArray::fromValue($payload['automation'] ?? null) ?? $payload;
+        if ($automation === []) {
             return $this->apiError($request, 'INVALID_INPUT', 'automation payload is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
+
+        $backupInput = JsonArray::fromValue($automation['auto_backup'] ?? null);
+        $restartInput = JsonArray::fromValue($automation['auto_restart'] ?? null);
+        $updateInput = JsonArray::fromValue($automation['auto_update'] ?? null);
+        $lockInput = JsonArray::fromValue($automation['version_lock'] ?? null);
 
         $backupTime = self::DEFAULT_AUTO_BACKUP_TIME;
         $restartTime = self::DEFAULT_AUTO_RESTART_TIME;
         $updateTime = self::DEFAULT_AUTO_UPDATE_TIME;
 
-        if (is_array($automation['auto_backup'] ?? null)) {
-            $backupInput = $automation['auto_backup'];
-            $mode = strtolower(trim((string) ($backupInput['mode'] ?? 'manual')));
+        if ($backupInput !== null) {
+            $mode = strtolower(trim(ScalarValue::text($backupInput['mode'] ?? 'manual')));
             if (!in_array($mode, ['auto', 'manual'], true)) {
                 return $this->apiError($request, 'INVALID_INPUT', 'auto_backup.mode must be auto or manual.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
             }
 
-            $enabled = (bool) ($backupInput['enabled'] ?? ($mode === 'auto'));
-            $backupTimeInput = (string) ($backupInput['time'] ?? '');
+            $backupTimeInput = ScalarValue::text($backupInput['time'] ?? '', 'invalid');
             $validated = $this->validateTimeInput($backupTimeInput, self::DEFAULT_AUTO_BACKUP_TIME);
             if ($validated === null) {
                 return $this->apiError($request, 'INVALID_INPUT', 'auto_backup.time must use HH:MM (24h).', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
@@ -133,10 +130,8 @@ final class CustomerInstanceSettingsApiController
             $backupTime = $validated;
         }
 
-        if (is_array($automation['auto_restart'] ?? null)) {
-            $restartInput = $automation['auto_restart'];
-            $enabled = (bool) ($restartInput['enabled'] ?? false);
-            $restartTimeInput = (string) ($restartInput['time'] ?? '');
+        if ($restartInput !== null) {
+            $restartTimeInput = ScalarValue::text($restartInput['time'] ?? '', 'invalid');
             $validated = $this->validateTimeInput($restartTimeInput, self::DEFAULT_AUTO_RESTART_TIME);
             if ($validated === null) {
                 return $this->apiError($request, 'INVALID_INPUT', 'auto_restart.time must use HH:MM (24h).', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
@@ -144,10 +139,8 @@ final class CustomerInstanceSettingsApiController
             $restartTime = $validated;
         }
 
-        if (is_array($automation['auto_update'] ?? null)) {
-            $updateInput = $automation['auto_update'];
-            $enabled = (bool) ($updateInput['enabled'] ?? false);
-            $updateTimeInput = (string) ($updateInput['time'] ?? '');
+        if ($updateInput !== null) {
+            $updateTimeInput = ScalarValue::text($updateInput['time'] ?? '', 'invalid');
             $validated = $this->validateTimeInput($updateTimeInput, self::DEFAULT_AUTO_UPDATE_TIME);
             if ($validated === null) {
                 return $this->apiError($request, 'INVALID_INPUT', 'auto_update.time must use HH:MM (24h).', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
@@ -155,7 +148,7 @@ final class CustomerInstanceSettingsApiController
             $updateTime = $validated;
         }
 
-        if (is_array($automation['auto_update'] ?? null) && (bool) (($automation['auto_update']['enabled'] ?? false)) && $instance->getLockedVersion() !== null) {
+        if ($updateInput !== null && (bool) ($updateInput['enabled'] ?? false) && $instance->getLockedVersion() !== null) {
             return $this->apiError($request, 'CONFLICT', 'Auto-update cannot be enabled while version lock is active.', JsonResponse::HTTP_CONFLICT);
         }
 
@@ -164,9 +157,8 @@ final class CustomerInstanceSettingsApiController
         $definition = $this->ensureBackupDefinition($customer, $instance);
         $backupSchedule = $definition->getSchedule();
 
-        if (is_array($automation['auto_backup'] ?? null)) {
-            $backupInput = $automation['auto_backup'];
-            $mode = strtolower(trim((string) ($backupInput['mode'] ?? 'manual')));
+        if ($backupInput !== null) {
+            $mode = strtolower(trim(ScalarValue::text($backupInput['mode'] ?? 'manual')));
 
             $enabled = (bool) ($backupInput['enabled'] ?? ($mode === 'auto'));
             $scheduleEnabled = $mode === 'auto' && $enabled;
@@ -193,8 +185,7 @@ final class CustomerInstanceSettingsApiController
             $this->entityManager->persist($definition);
         }
 
-        if (is_array($automation['auto_restart'] ?? null)) {
-            $restartInput = $automation['auto_restart'];
+        if ($restartInput !== null) {
             $enabled = (bool) ($restartInput['enabled'] ?? false);
             if ($restartSchedule === null) {
                 $restartSchedule = new \App\Module\Core\Domain\Entity\InstanceSchedule(
@@ -216,10 +207,9 @@ final class CustomerInstanceSettingsApiController
             }
         }
 
-        if (is_array($automation['version_lock'] ?? null)) {
-            $lockInput = $automation['version_lock'];
+        if ($lockInput !== null) {
             $enabled = (bool) ($lockInput['enabled'] ?? false);
-            $versionRaw = trim((string) ($lockInput['version'] ?? ''));
+            $versionRaw = trim(ScalarValue::text($lockInput['version'] ?? ''));
 
             if ($enabled && $versionRaw === '') {
                 return $this->apiError($request, 'INVALID_INPUT', 'version_lock.version is required when enabled.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
@@ -231,7 +221,7 @@ final class CustomerInstanceSettingsApiController
             }
 
             $channel = MinecraftCatalogService::channelFromResolver($instance);
-            $buildRaw = trim((string) ($lockInput['build'] ?? ''));
+            $buildRaw = trim(ScalarValue::text($lockInput['build'] ?? ''));
             if ($enabled && $channel !== null && ($error = $this->minecraftCatalogService->validateSelection($channel, $versionRaw, $buildRaw)) !== null) {
                 return $this->apiError($request, 'INVALID_INPUT', $error, 422);
             }
@@ -245,8 +235,7 @@ final class CustomerInstanceSettingsApiController
             }
         }
 
-        if (is_array($automation['auto_update'] ?? null)) {
-            $updateInput = $automation['auto_update'];
+        if ($updateInput !== null) {
             $enabled = (bool) ($updateInput['enabled'] ?? false);
 
             $instance->setUpdatePolicy($enabled ? InstanceUpdatePolicy::Auto : InstanceUpdatePolicy::Manual);
@@ -292,8 +281,6 @@ final class CustomerInstanceSettingsApiController
         } catch (HttpExceptionInterface $exception) {
             return $this->mapException($request, $exception);
         }
-
-        $supportsSlots = $this->supportsSlots($instance);
 
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
@@ -407,11 +394,11 @@ final class CustomerInstanceSettingsApiController
     /** @return string[] */
     private function resolveAvailableVersions(Instance $instance): array
     {
-        $resolver = $instance->getTemplate()->getInstallResolver();
-        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
-
         $channel = MinecraftCatalogService::channelFromResolver($instance);
-        if ($channel !== null) { return $this->minecraftCatalogService->getUiCatalog($channel)[$channel]['versions'] ?? []; }
+        if ($channel !== null) {
+            $catalog = JsonArray::orEmpty($this->minecraftCatalogService->getUiCatalog($channel)[$channel] ?? null);
+            return array_values(array_filter(JsonArray::orEmpty($catalog['versions'] ?? null), 'is_string'));
+        }
 
         $versions = array_values(array_filter([
             $instance->getCurrentVersion(),
@@ -474,7 +461,6 @@ final class CustomerInstanceSettingsApiController
         $format = strtolower(trim((string) ($payload['format'] ?? 'txt')));
         $initialContent = (string) ($payload['initial_content'] ?? '');
 
-        $base = null;
         if ($baseConfigId !== '') {
             try {
                 $base = $this->resolveConfigForInstance($instance, $baseConfigId);
@@ -671,7 +657,7 @@ final class CustomerInstanceSettingsApiController
         }
 
         foreach ($overrides as $filePath => $override) {
-            if (!is_string($filePath) || isset($knownPaths[$filePath]) || !is_array($override)) {
+            if (isset($knownPaths[$filePath])) {
                 continue;
             }
 
@@ -744,18 +730,23 @@ final class CustomerInstanceSettingsApiController
     }
 
     /**
-     * @param array<string, mixed> $metadata
+     * @param array{name?: string, format?: string, source?: string, scope?: string, editable?: bool} $metadata
      */
     private function storeInstanceOverride(Instance $instance, string $filePath, string $content, array $metadata): void
     {
         $instance->setConfigOverride($filePath, $content);
         $overrides = $instance->getConfigOverrides();
-        if (!isset($overrides[$filePath]) || !is_array($overrides[$filePath])) {
+        if (!isset($overrides[$filePath])) {
             return;
         }
 
-        foreach ($metadata as $key => $value) {
-            $overrides[$filePath][$key] = $value;
+        foreach (['name', 'format', 'source', 'scope'] as $key) {
+            if (isset($metadata[$key])) {
+                $overrides[$filePath][$key] = $metadata[$key];
+            }
+        }
+        if (isset($metadata['editable'])) {
+            $overrides[$filePath]['editable'] = $metadata['editable'];
         }
 
         $instance->setConfigOverrides($overrides);
@@ -855,7 +846,9 @@ final class CustomerInstanceSettingsApiController
 
     private function timeToCron(string $time): string
     {
-        [$hour, $minute] = explode(':', $time, 2);
+        $parts = explode(':', $time, 2);
+        $hour = $parts[0];
+        $minute = $parts[1] ?? throw new \InvalidArgumentException('Invalid automation time.');
 
         return sprintf('%d %d * * *', (int) $minute, (int) $hour);
     }
@@ -943,6 +936,7 @@ final class CustomerInstanceSettingsApiController
 
     private function resolveRequestId(Request $request): string
     {
-        return trim((string) ($request->headers->get('X-Request-ID') ?: $request->attributes->get('request_id') ?: ''));
+        $header = $request->headers->get('X-Request-ID');
+        return trim($header !== null && $header !== '' ? $header : ScalarValue::text($request->attributes->get('request_id')));
     }
 }

@@ -120,7 +120,7 @@ class Instance implements ResourceEventSource
     #[ORM\Column(type: 'json')]
     private array $setupSecrets = [];
 
-    /** @var array<string, array{content: string, updated_at: string, last_updated_at?: string, last_hash?: string, previous_hash?: string, last_applied_at?: string, last_apply_error_code?: ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}> */
+    /** @var array<string, array{content: string, updated_at: string, format?: string, name?: string, source?: string, scope?: string, editable?: bool, last_updated_at?: string, last_hash?: string, previous_hash?: string, last_applied_at?: string, last_apply_error_code?: ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}> */
     #[ORM\Column(type: 'json', name: 'config_overrides')]
     private array $configOverrides = [];
 
@@ -563,7 +563,7 @@ class Instance implements ResourceEventSource
     }
 
     /**
-     * @return array<string, array{content: string, updated_at: string, last_updated_at?: string,
+     * @return array<string, array{content: string, updated_at: string, format?: string, name?: string, source?: string, scope?: string, editable?: bool, last_updated_at?: string,
      * last_hash?: string, previous_hash?: string, last_applied_at?: string, last_apply_error_code?:
      * ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}>
      */
@@ -573,7 +573,7 @@ class Instance implements ResourceEventSource
     }
 
     /**
-     * @param array<string, array{content: string, updated_at: string, last_updated_at?: string, last_hash?: string, previous_hash?: string, last_applied_at?: string, last_apply_error_code?: ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}> $configOverrides
+     * @param array<string, array{content: string, updated_at: string, format?: string, name?: string, source?: string, scope?: string, editable?: bool, last_updated_at?: string, last_hash?: string, previous_hash?: string, last_applied_at?: string, last_apply_error_code?: ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}> $configOverrides
      */
     public function setConfigOverrides(array $configOverrides): void
     {

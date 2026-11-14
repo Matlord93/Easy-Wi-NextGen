@@ -9,7 +9,7 @@ final class JsonMap
     /** @return array<string, mixed>|null */
     public static function decode(string $json): ?array
     {
-        return self::object(json_decode($json, true));
+        return self::fromValue(json_decode($json, true));
     }
 
     /** @return array<string, string> */
@@ -30,7 +30,7 @@ final class JsonMap
     }
 
     /** @return array<string, mixed>|null */
-    private static function object(mixed $value): ?array
+    public static function fromValue(mixed $value): ?array
     {
         if (!is_array($value)) {
             return null;

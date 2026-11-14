@@ -232,7 +232,12 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{
+     * musicbots: array{used: int, max: int}, tracks: array{used: int, max: int},
+     * storage_mb: array{used: float, max: int}, playlists: array{used: int, max: int},
+     * playlist_items: array{used: int, max: int}, plugins: array{used: int, max: int},
+     * limits: array<string, mixed>
+     * } */
     public function usageForCustomer(User $customer): array
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -249,7 +254,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
                 'max' => $limits->maxTracks,
             ],
             'storage_mb' => [
-                'used' => round($storageBytes / 1024 / 1024, 2),
+                'used' => round((float) $storageBytes / 1024.0 / 1024.0, 2),
                 'max' => $limits->maxStorageMb,
             ],
             'playlists' => [
@@ -257,7 +262,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
                 'max' => $limits->maxPlaylists,
             ],
             'playlist_items' => [
-                'used' => array_sum(array_map(fn ($playlist): int => count($this->playlistItemRepository->findByPlaylistOrdered($playlist)), $this->playlistRepository->findByCustomer($customer))),
+                'used' => array_sum(array_map(fn (\App\Module\Musicbot\Domain\Entity\MusicbotPlaylist $playlist): int => count($this->playlistItemRepository->findByPlaylistOrdered($playlist)), $this->playlistRepository->findByCustomer($customer))),
                 'max' => $limits->maxPlaylistItems,
             ],
             'plugins' => [

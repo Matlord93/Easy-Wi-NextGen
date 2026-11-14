@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Api;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 

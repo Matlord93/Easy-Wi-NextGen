@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Infrastructure\Config\ScalarValue;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Module\Core\Domain\Entity\InstanceMetricSample;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
@@ -59,6 +62,11 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Twig\Environment;
 use App\Module\Core\Attribute\RequiresModule;
 
+/**
+ * @psalm-type CustomerRequirement = array{key: string, label: string, type: string, required: bool, scope: string, validation: mixed, helptext: string}
+ * @psalm-type SetupMessages = array{vars?: array{errors?: array<string, string>, success?: string}, secrets?: array{errors?: array<string, string>, success?: string}}
+ * @psalm-type NormalizedPort = array{name: string, port: int, protocol: string, bind_ip: string|null, is_auto: bool, purpose: string|null, created_at: string}
+ */
 #[Route(path: '/instances')]
 #[RequiresModule('game')]
 final class CustomerInstanceController
@@ -168,9 +176,6 @@ final class CustomerInstanceController
         $instance = $this->findCustomerInstance($customer, $id);
         $requirements = $this->buildCustomerSetupRequirements($instance->getTemplate());
         $input = $request->request->all('vars');
-        if (!is_array($input)) {
-            throw new BadRequestHttpException('Invalid payload.');
-        }
 
         $errors = [];
         $setupVars = $instance->getSetupVars();
@@ -246,11 +251,8 @@ final class CustomerInstanceController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $requirements = $this->setupChecker->getCustomerRequirements($instance->getTemplate());
+        $requirements = $this->buildCustomerSetupRequirements($instance->getTemplate());
         $input = $request->request->all('secrets');
-        if (!is_array($input)) {
-            throw new BadRequestHttpException('Invalid payload.');
-        }
 
         $errors = [];
         foreach ($requirements['secrets'] as $entry) {
@@ -527,7 +529,7 @@ final class CustomerInstanceController
             'locked_version' => $targetVersion,
             'source' => 'customer.manual',
             'job_type' => $jobType,
-            'shared_key' => (string) ($updatePayload['shared_key'] ?? ''),
+            'shared_key' => ScalarValue::text($updatePayload['shared_key'] ?? null),
         ]);
 
         $this->entityManager->flush();
@@ -581,7 +583,7 @@ final class CustomerInstanceController
         }
 
         $resolver = $instance->getTemplate()->getInstallResolver();
-        $resolverType = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        $resolverType = ScalarValue::text($resolver['type'] ?? null);
         if (in_array($resolverType, ['minecraft_vanilla', 'papermc_paper', 'minecraft_spigot', 'minecraft_bungeecord', 'minecraft_bedrock'], true)) {
             $channel = match ($resolverType) {
                 'minecraft_vanilla' => 'vanilla',
@@ -910,7 +912,7 @@ final class CustomerInstanceController
         $schedules = $this->instanceScheduleRepository->findByInstancesAndAction($instances, InstanceScheduleAction::Update);
         $scheduleIndex = [];
         foreach ($schedules as $schedule) {
-            $scheduleIndex[$schedule->getInstance()->getId()] = $schedule;
+            $scheduleIndex[EntityIdentifier::require($schedule->getInstance()->getId())] = $schedule;
         }
 
         $portBlocks = $this->portBlockRepository->findByInstances($instances);
@@ -918,13 +920,14 @@ final class CustomerInstanceController
         foreach ($portBlocks as $portBlock) {
             $assignedInstance = $portBlock->getInstance();
             if ($assignedInstance !== null) {
-                $portBlockIndex[$assignedInstance->getId()] = $portBlock;
+                $portBlockIndex[EntityIdentifier::require($assignedInstance->getId())] = $portBlock;
             }
         }
 
         return array_map(function (Instance $instance) use ($scheduleIndex, $portBlockIndex): array {
-            $schedule = $scheduleIndex[$instance->getId()] ?? null;
-            $portBlock = $portBlockIndex[$instance->getId()] ?? null;
+            $instanceId = EntityIdentifier::require($instance->getId());
+            $schedule = $scheduleIndex[$instanceId] ?? null;
+            $portBlock = $portBlockIndex[$instanceId] ?? null;
 
             return $this->normalizeInstance($instance, $schedule, $portBlock, false);
         }, $instances);
@@ -940,17 +943,16 @@ final class CustomerInstanceController
     ): array {
         $diskLimitBytes = $instance->getDiskLimitBytes();
         $diskUsedBytes = $instance->getDiskUsedBytes();
-        $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
+        $diskPercent = $diskLimitBytes > 0 ? ((float) $diskUsedBytes / (float) $diskLimitBytes) * 100.0 : 0.0;
         $ports = $this->normalizeInstancePorts($instance);
         $connection = $this->buildConnectionData($instance, $portBlock, $ports);
         $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, $queueQuery);
         $installStatus = $this->instanceInstallService->getInstallStatus($instance);
-        $instanceStatus = $instance->getStatus();
         $runtimeState = $this->resolveRuntimeState($instance, $querySnapshot);
         $instanceMetric = $this->instanceMetricSampleRepository->findLatestForInstance($instance);
         $bookedRamBytes = $instance->getRamLimit() * 1024 * 1024;
         $usedRamBytes = $instanceMetric?->getMemUsedBytes();
-        $ramPercent = ($usedRamBytes !== null && $bookedRamBytes > 0) ? (($usedRamBytes / $bookedRamBytes) * 100) : null;
+        $ramPercent = ($usedRamBytes !== null && $bookedRamBytes > 0) ? (((float) $usedRamBytes / (float) $bookedRamBytes) * 100.0) : null;
         $metricsRuntimeStatus = $this->inferRuntimeStatusFromMetrics($instanceMetric);
         $runtimeStatus = $runtimeState['status'] ?? $metricsRuntimeStatus;
         if ($runtimeStatus === InstanceStatus::Stopped->value && $metricsRuntimeStatus === InstanceStatus::Running->value) {
@@ -1024,7 +1026,7 @@ final class CustomerInstanceController
             'query_players_online' => isset($querySnapshot['players']) && is_numeric($querySnapshot['players']) ? (int) $querySnapshot['players'] : null,
             'query_players_max' => isset($querySnapshot['max_players']) && is_numeric($querySnapshot['max_players']) ? (int) $querySnapshot['max_players'] : null,
             'query_checked_at' => $querySnapshot['checked_at'] ?? null,
-            'query_reason' => $this->normalizeQueryReason(is_string($querySnapshot['error'] ?? null) ? $querySnapshot['error'] : null),
+            'query_reason' => $this->normalizeQueryReason(JsonMap::strings($querySnapshot)['error'] ?? null),
             'booked_cpu_cores' => (float) $instance->getCpuLimit(),
             'booked_ram_bytes' => $bookedRamBytes,
             'booked_ram_mb' => $instance->getRamLimit(),
@@ -1114,37 +1116,17 @@ final class CustomerInstanceController
     }
 
 
-    private function inferRuntimeStatusFromMetrics(mixed $instanceMetric): ?string
+    private function inferRuntimeStatusFromMetrics(?InstanceMetricSample $instanceMetric): ?string
     {
-        if ($instanceMetric === null || !method_exists($instanceMetric, 'getCollectedAt')) {
+        if ($instanceMetric === null || $instanceMetric->getCollectedAt() < new \DateTimeImmutable('-90 seconds')) {
             return null;
         }
-
-        $collectedAt = $instanceMetric->getCollectedAt();
-        if (!$collectedAt instanceof \DateTimeImmutable) {
-            return null;
-        }
-
-        $cutoff = new \DateTimeImmutable('-90 seconds');
-        if ($collectedAt < $cutoff) {
-            return null;
-        }
-
-        $tasksCurrent = method_exists($instanceMetric, 'getTasksCurrent') ? $instanceMetric->getTasksCurrent() : null;
-        if (is_int($tasksCurrent) && $tasksCurrent > 0) {
+        $tasks = $instanceMetric->getTasksCurrent();
+        $memory = $instanceMetric->getMemUsedBytes();
+        $cpu = $instanceMetric->getCpuPercent();
+        if (($tasks !== null && $tasks > 0) || ($memory !== null && $memory > 0) || ($cpu !== null && $cpu > 0.15)) {
             return InstanceStatus::Running->value;
         }
-
-        $memUsedBytes = method_exists($instanceMetric, 'getMemUsedBytes') ? $instanceMetric->getMemUsedBytes() : null;
-        if (is_int($memUsedBytes) && $memUsedBytes > 0) {
-            return InstanceStatus::Running->value;
-        }
-
-        $cpuPercent = method_exists($instanceMetric, 'getCpuPercent') ? $instanceMetric->getCpuPercent() : null;
-        if (is_float($cpuPercent) && $cpuPercent > 0.15) {
-            return InstanceStatus::Running->value;
-        }
-
         return null;
     }
 
@@ -1173,7 +1155,7 @@ final class CustomerInstanceController
             $message = strtolower(trim($exception->getMessage()));
             if (str_contains($message, 'not valid json') || str_contains($message, 'not a json object') || str_contains($message, 'syntax error')) {
                 return [
-                    'status' => $hasFreshQueryStatus ? $queryStatus : null,
+                    'status' => null,
                     'reason' => null,
                     'error_code' => null,
                     'checked_at' => $checkedAt,
@@ -1181,7 +1163,7 @@ final class CustomerInstanceController
             }
 
             return [
-                'status' => $hasFreshQueryStatus ? $queryStatus : null,
+                'status' => null,
                 'reason' => sprintf('Agent status probe failed: %s', $exception->getMessage()),
                 'error_code' => 'agent_status_probe_failed',
                 'checked_at' => $checkedAt,
@@ -1205,7 +1187,7 @@ final class CustomerInstanceController
             }
 
             return [
-                'status' => $hasFreshQueryStatus ? $queryStatus : null,
+                'status' => null,
                 'reason' => 'Agent status response missing recognizable runtime status field.',
                 'error_code' => 'agent_status_missing_field',
                 'checked_at' => $checkedAt,
@@ -1386,12 +1368,13 @@ final class CustomerInstanceController
     private function normalizeConfigFiles(array $configFiles): array
     {
         $normalized = [];
-        foreach ($configFiles as $entry) {
-            $path = trim((string) ($entry['path'] ?? ''));
+        foreach (array_keys($configFiles) as $index) {
+            $entry = JsonArray::orEmpty($configFiles[$index]);
+            $path = trim(ScalarValue::text($entry['path'] ?? null));
             if ($path === '') {
                 continue;
             }
-            $description = trim((string) ($entry['description'] ?? ''));
+            $description = trim(ScalarValue::text($entry['description'] ?? null));
             $name = basename($path);
             $dir = dirname($path);
             $normalized[] = [
@@ -1417,18 +1400,9 @@ final class CustomerInstanceController
             return [];
         }
 
-        $addons = $instance->getConfigOverrides()['addons'] ?? [];
-        if (!is_array($addons)) {
-            return [];
-        }
-
         $hasMetamod = false;
-        foreach ($addons as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $name = strtolower(trim(($entry['name'] ?? '')));
-            if (str_contains($name, 'metamod')) {
+        foreach ($this->installedAddons($instance) as $entry) {
+            if (str_contains(strtolower($entry['name']), 'metamod')) {
                 $hasMetamod = true;
                 break;
             }
@@ -1450,6 +1424,21 @@ final class CustomerInstanceController
         ];
     }
 
+    /** @return list<array{name: string, version: string}> */
+    private function installedAddons(Instance $instance): array
+    {
+        // Legacy installations store an add-on list alongside file override entries.
+        $legacy = JsonArray::orEmpty($instance->getConfigOverrides()['addons'] ?? null);
+        $addons = [];
+        foreach (array_keys($legacy) as $key) {
+            $fields = JsonMap::strings($legacy[$key]);
+            if (isset($fields['name'])) {
+                $addons[] = ['name' => trim($fields['name']), 'version' => trim($fields['version'] ?? '')];
+            }
+        }
+        return $addons;
+    }
+
     /** @return array{enabled: bool, base_url: string, root_path: string} */
     private function normalizeFastdlSettings(array $settings): array
     {
@@ -1468,17 +1457,10 @@ final class CustomerInstanceController
         $plugins = $this->gamePluginRepository->findByTemplateGameKey($instance->getTemplate());
 
         $installedVersions = [];
-        $installedRaw = $instance->getConfigOverrides()['addons'] ?? [];
-        if (is_array($installedRaw)) {
-            foreach ($installedRaw as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                $name = strtolower(trim(($entry['name'] ?? '')));
-                if ($name === '') {
-                    continue;
-                }
-                $installedVersions[$name] = trim((string) ($entry['version'] ?? ''));
+        foreach ($this->installedAddons($instance) as $entry) {
+            $name = strtolower($entry['name']);
+            if ($name !== '') {
+                $installedVersions[$name] = $entry['version'];
             }
         }
 
@@ -1756,11 +1738,13 @@ final class CustomerInstanceController
         return in_array($tab, $allowed, true) ? $tab : 'overview';
     }
 
+    /** @param SetupMessages $messages */
     private function renderSetupTab(Instance $instance, User $customer, array $messages, int $statusCode = Response::HTTP_OK): Response
     {
         return $this->renderInstanceDetail($instance, $customer, 'setup', null, null, $messages, $statusCode);
     }
 
+    /** @param SetupMessages $setupMessages */
     private function renderInstanceDetail(
         Instance $instance,
         User $customer,
@@ -1844,7 +1828,7 @@ final class CustomerInstanceController
         $defaults['STEAM_ACCOUNT'] = $instance->getSteamAccount() ?? ($defaults['STEAM_ACCOUNT'] ?? '');
         $defaults['STEAM_LOGIN_MODE'] = $this->resolveSteamLoginMode($setupVars, $instance->getSteamAccount());
 
-        $varEntries = array_map(function (array $entry) use ($setupVars, $messages, $defaults): array {
+        $varEntries = array_map(/** @param CustomerRequirement $entry */ function (array $entry) use ($setupVars, $messages, $defaults): array {
             $key = $entry['key'];
 
             return [
@@ -1858,7 +1842,7 @@ final class CustomerInstanceController
             ];
         }, $requirements['vars']);
 
-        $secretEntries = array_map(function (array $entry) use ($setupSecrets, $messages): array {
+        $secretEntries = array_map(/** @param CustomerRequirement $entry */ function (array $entry) use ($setupSecrets, $messages): array {
             $key = $entry['key'];
 
             return [
@@ -1928,7 +1912,7 @@ final class CustomerInstanceController
     }
 
     /**
-     * @return array{vars: array<int, array<string, mixed>>, secrets: array<int, array<string, mixed>>}
+     * @return array{vars: list<CustomerRequirement>, secrets: list<CustomerRequirement>}
      */
     private function buildCustomerSetupRequirements(Template $template): array
     {
@@ -1938,23 +1922,25 @@ final class CustomerInstanceController
             $existing[$entry['key']] = true;
         }
 
-        foreach ($template->getEnvVars() as $entry) {
+        foreach (array_keys($template->getEnvVars()) as $index) {
+            $entry = JsonArray::fromValue($template->getEnvVars()[$index]);
             if (!is_array($entry)) {
                 continue;
             }
-            $key = trim((string) ($entry['key'] ?? ''));
+            $strings = JsonMap::strings($entry);
+            $key = trim($strings['key'] ?? '');
             if ($key === '' || isset($existing[$key])) {
                 continue;
             }
 
             $requirements['vars'][] = [
                 'key' => $key,
-                'label' => $entry['label'] ?? $key,
-                'type' => $entry['type'] ?? 'text',
+                'label' => $strings['label'] ?? $key,
+                'type' => $strings['type'] ?? 'text',
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => $entry['validation'] ?? null,
-                'helptext' => $entry['helptext'] ?? '',
+                'helptext' => $strings['helptext'] ?? '',
             ];
             $existing[$key] = true;
         }
@@ -1969,7 +1955,7 @@ final class CustomerInstanceController
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return list<CustomerRequirement>
      */
     private function buildDefaultCustomerVars(Template $template): array
     {
@@ -2088,7 +2074,7 @@ final class CustomerInstanceController
             return $mode;
         }
 
-        return $steamAccount ? 'account' : 'anonymous';
+        return $steamAccount !== null && $steamAccount !== '' ? 'account' : 'anonymous';
     }
 
     private function isPortKey(string $key): bool
@@ -2153,6 +2139,7 @@ final class CustomerInstanceController
      * quick_connect: null|string, port_block: array{start: int, end: int}|null, assigned_ports:
      * list<array{label: string, port: int}>}
      */
+    /** @param list<NormalizedPort> $ports */
     private function buildConnectionData(Instance $instance, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock, array $ports): array
     {
         $host = $instance->getNode()->getLastHeartbeatIp();
@@ -2210,10 +2197,7 @@ final class CustomerInstanceController
         ];
     }
 
-    /**
-     * @return array<int, array{name: string, port: int, protocol: string, bind_ip: ?string, is_auto: bool,
-     * purpose: ?string, created_at: string}>
-     */
+    /** @return list<NormalizedPort> */
     private function normalizeInstancePorts(Instance $instance): array
     {
         $allocations = $this->portAllocationRepository->findByInstanceOrdered($instance);
@@ -2247,6 +2231,6 @@ final class CustomerInstanceController
             }
         }
 
-        return $ports;
+        return array_values($ports);
     }
 }

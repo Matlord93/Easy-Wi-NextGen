@@ -102,7 +102,7 @@ final class VoiceQueryEngine
                         throw new VoiceQueryException('Query failed after retries: ' . $e->getMessage(), 0, $e);
                     }
 
-                    $backoff = (int) ($this->baseBackoffMs * (2 ** $attempt));
+                    $backoff = (int) ((float) $this->baseBackoffMs * (2.0 ** $attempt));
                     $this->sleepMs($backoff);
                 }
             }
@@ -142,7 +142,7 @@ final class VoiceQueryEngine
         if ($this->clockMs instanceof \Closure) {
             return (int) ($this->clockMs)();
         }
-        return (int) floor(microtime(true) * 1000);
+        return (int) floor(microtime(true) * 1000.0);
     }
 
     private function sleepMs(int $durationMs): void

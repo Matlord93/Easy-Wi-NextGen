@@ -23,7 +23,7 @@ final class TeamspeakUpdateService
             $instance->setInstalledVersion($normalizedInstalled);
         }
         $provider = $this->provider('ts6');
-        $result = $provider->checkForUpdates($normalizedInstalled, $instance->getPlatformOs() ?? 'linux', $instance->getPlatformArch() ?? 'amd64', $instance->getUpdateChannel() ?? 'stable');
+        $result = $provider->checkForUpdates($normalizedInstalled, $instance->getPlatformOs() ?? 'linux', $instance->getPlatformArch() ?? 'amd64', $instance->getUpdateChannel());
         $instance->setLastUpdateCheckAt(new \DateTimeImmutable());
         $instance->setAvailableVersion($result->availableVersion);
         $this->entityManager->flush();
@@ -32,7 +32,7 @@ final class TeamspeakUpdateService
 
     public function checkTs3(Ts3Instance $instance): UpdateResult
     {
-        return $this->provider('ts3')->checkForUpdates($instance->getInstalledVersion() ?? 'unknown', $instance->getPlatformOs() ?? 'linux', $instance->getPlatformArch() ?? 'amd64', $instance->getUpdateChannel() ?? 'stable');
+        return $this->provider('ts3')->checkForUpdates($instance->getInstalledVersion() ?? 'unknown', $instance->getPlatformOs() ?? 'linux', $instance->getPlatformArch() ?? 'amd64', $instance->getUpdateChannel());
     }
 
     private function provider(string $type): TeamspeakUpdateProviderInterface

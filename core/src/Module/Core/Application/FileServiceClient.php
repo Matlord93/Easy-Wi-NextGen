@@ -6,6 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -41,8 +42,8 @@ final class FileServiceClient
     }
 
     /**
-     * @return array{root_path: string, path: string, entries: array<int, array<string, mixed>>, warnings:
-     * array<int, array<string, mixed>>, total: int, offset: int, limit: int, truncated: bool}
+     * @return array{root_path: string, path: string, entries: list<array<array-key, mixed>>, warnings:
+     * list<array<array-key, mixed>>, total: int, offset: int, limit: int, truncated: bool}
      */
     public function list(Instance $instance, string $path, int $limit = 1000, int $offset = 0): array
     {
@@ -60,8 +61,8 @@ final class FileServiceClient
         return [
             'root_path' => (string) ($payload['root_path'] ?? ''),
             'path' => (string) ($payload['path'] ?? ''),
-            'entries' => JsonArray::orEmpty($payload['entries'] ?? null),
-            'warnings' => JsonArray::orEmpty($payload['warnings'] ?? null),
+            'entries' => self::objectRows($payload['entries'] ?? []),
+            'warnings' => self::objectRows($payload['warnings'] ?? []),
             'total' => (int) ($payload['total'] ?? count(JsonArray::orEmpty($payload['entries'] ?? null))),
             'offset' => (int) ($payload['offset'] ?? $offset),
             'limit' => (int) ($payload['limit'] ?? $limit),
@@ -269,7 +270,7 @@ final class FileServiceClient
             $response = $this->httpClient->request('GET', $healthUrl, $options);
             $statusCode = $response->getStatusCode();
             $body = $response->getContent(false);
-            $decoded = json_decode($body, true);
+            $decoded = JsonArray::decode($body);
         } catch (TimeoutExceptionInterface $exception) {
             return [
                 'ok' => false,
@@ -326,7 +327,7 @@ final class FileServiceClient
     /**
      * @param array<string, mixed> $query
      * @param array<string, mixed>|null $json
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private function requestJson(Instance $instance, string $method, string $endpoint, array $query = [], ?array $json = null): array
     {
@@ -351,15 +352,7 @@ final class FileServiceClient
                     'response_body' => $body,
                 ], $exception);
             }
-            $message = 'Agent file API error.';
-            if (is_array($payload)) {
-                $errorField = $payload['error'] ?? null;
-                if (is_string($errorField) && $errorField !== '') {
-                    $message = $errorField;
-                } elseif (is_array($errorField) && is_string($errorField['message'] ?? null) && $errorField['message'] !== '') {
-                    $message = $errorField['message'];
-                }
-            }
+            $message = self::errorMessage($payload);
             $errorCode = $this->extractErrorCode($payload) ?? match ($status) {
                 401, 403 => 'agent_unauthorized',
                 404 => 'agent_not_found',
@@ -408,15 +401,7 @@ final class FileServiceClient
                     'response_body' => $body,
                 ], $exception);
             }
-            $message = 'Agent file API error.';
-            if (is_array($payload)) {
-                $errorField = $payload['error'] ?? null;
-                if (is_string($errorField) && $errorField !== '') {
-                    $message = $errorField;
-                } elseif (is_array($errorField) && is_string($errorField['message'] ?? null) && $errorField['message'] !== '') {
-                    $message = $errorField['message'];
-                }
-            }
+            $message = self::errorMessage($payload);
             $errorCode = $this->extractErrorCode($payload) ?? match ($status) {
                 401, 403 => 'agent_unauthorized',
                 404 => 'agent_not_found',
@@ -432,7 +417,7 @@ final class FileServiceClient
     /**
      * @param array<string, mixed> $query
      * @param array<string, mixed>|null $json
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private function requestJsonWithPassthroughErrors(Instance $instance, string $method, string $endpoint, array $query = [], ?array $json = null): array
     {
@@ -457,15 +442,7 @@ final class FileServiceClient
         }
 
         if ($status < 200 || $status >= 300) {
-            $message = 'Agent file API error.';
-            if (is_array($payload)) {
-                $errorField = $payload['error'] ?? null;
-                if (is_string($errorField) && $errorField !== '') {
-                    $message = $errorField;
-                } elseif (is_array($errorField) && is_string($errorField['message'] ?? null) && $errorField['message'] !== '') {
-                    $message = $errorField['message'];
-                }
-            }
+            $message = self::errorMessage($payload);
 
             throw new FileServiceException($this->extractErrorCode($payload) ?? 'agent_error', $message, $status, [
                 'status_code' => $status,
@@ -487,7 +464,7 @@ final class FileServiceClient
         $fullUrl = $baseUrl . $options['endpoint'];
         $startedAt = microtime(true);
 
-        $resolvedPath = (string) ($options['options']['headers']['X-Server-Root'] ?? '');
+        $resolvedPath = $options['options']['headers']['X-Server-Root'] ?? '';
 
         $this->logger->debug('agent.file_api.request', [
             'agent_id' => $instance->getNode()->getId(),
@@ -502,7 +479,7 @@ final class FileServiceClient
         try {
             $response = $this->httpClient->request($method, $fullUrl, $options['options']);
         } catch (TimeoutExceptionInterface $exception) {
-            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000.0);
             $this->logger->error('agent.file_api.transport_error', [
                 'agent_id' => $instance->getNode()->getId(),
                 'instance_id' => $instance->getId(),
@@ -515,7 +492,7 @@ final class FileServiceClient
             ]);
             throw new FileServiceException('agent_timeout', 'Agent file API timed out.', 504, [], $exception);
         } catch (TransportExceptionInterface $exception) {
-            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000.0);
             $this->logger->error('agent.file_api.transport_error', [
                 'agent_id' => $instance->getNode()->getId(),
                 'instance_id' => $instance->getId(),
@@ -532,7 +509,7 @@ final class FileServiceClient
         try {
             $status = $response->getStatusCode();
         } catch (TransportExceptionInterface $exception) {
-            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000.0);
             $this->logger->error('agent.file_api.status_error', [
                 'agent_id' => $instance->getNode()->getId(),
                 'instance_id' => $instance->getId(),
@@ -546,7 +523,7 @@ final class FileServiceClient
             throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
         }
 
-        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000.0);
         $this->logger->debug('agent.file_api.response', [
             'agent_id' => $instance->getNode()->getId(),
             'instance_id' => $instance->getId(),
@@ -564,7 +541,7 @@ final class FileServiceClient
      * @param array<string, mixed> $query
      * @param array<string, mixed>|null $json
      *
-     * @return array{endpoint: string, options: array<string, mixed>}
+     * @return array{endpoint: string, options: array{headers: array<string, string>, timeout: int, max_duration: int, body?: string}}
      */
     private function buildRequestOptions(Instance $instance, string $method, string $endpoint, array $query = [], ?array $json = null, ?string $body = null): array
     {
@@ -659,23 +636,49 @@ final class FileServiceClient
         return sprintf('%s://%s:%d', $scheme, $host, $port);
     }
 
-    /**
-     * @param array<string, mixed>|null $payload
-     */
+    /** @param array<array-key, mixed>|null $payload */
     private function extractErrorCode(?array $payload): ?string
     {
         if ($payload === null) {
             return null;
         }
-        $error = $payload['error'] ?? null;
-        if (is_array($error)) {
-            $code = $error['code'] ?? null;
-            return is_string($code) && $code !== '' ? $code : null;
+        $strings = JsonMap::strings($payload);
+        $nested = JsonMap::strings($payload['error'] ?? null);
+        $code = $nested['code'] ?? $strings['error'] ?? '';
+
+        return $code !== '' ? $code : null;
+    }
+
+    /** @param array<array-key, mixed> $payload */
+    private static function errorMessage(array $payload): string
+    {
+        $strings = JsonMap::strings($payload);
+        $message = $strings['error'] ?? '';
+        if ($message !== '') {
+            return $message;
         }
-        if (is_string($error) && $error !== '') {
-            return $error;
+        $nested = JsonMap::strings($payload['error'] ?? null);
+        $message = $nested['message'] ?? '';
+
+        return $message !== '' ? $message : 'Agent file API error.';
+    }
+
+    /** @return list<array<array-key, mixed>> */
+    private static function objectRows(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new FileServiceException('agent_error', 'Invalid agent file listing.', 502);
         }
-        return null;
+        $rows = [];
+        foreach (array_keys($value) as $key) {
+            $row = JsonArray::fromValue($value[$key]);
+            if ($row === null) {
+                throw new FileServiceException('agent_error', 'Invalid agent file listing entry.', 502);
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
     }
 
 

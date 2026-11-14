@@ -9,7 +9,6 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\TeamspeakUpdateLog;
 use App\Module\Core\Domain\Entity\Ts6Instance;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\TeamspeakUpdateLogRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class TeamspeakUpdateInstallerService
@@ -22,7 +21,6 @@ final class TeamspeakUpdateInstallerService
         private readonly EntityManagerInterface $entityManager,
         private readonly AgentJobDispatcher $jobDispatcher,
         private readonly AuditLogger $auditLogger,
-        private readonly TeamspeakUpdateLogRepository $updateLogRepository,
         private readonly string $projectDir,
         private readonly bool $requireChecksum = false,
     ) {}
@@ -140,17 +138,22 @@ final class TeamspeakUpdateInstallerService
 
     private function resolveExtractRoot(string $extractDir): string
     {
-        $entries = array_values(array_filter(scandir($extractDir) ?: [], static fn(string $x): bool => !in_array($x, ['.', '..'], true)));
+        $directoryEntries = scandir($extractDir);
+        $entries = array_values(array_filter($directoryEntries !== false ? $directoryEntries : [], static fn(string $x): bool => !in_array($x, ['.', '..'], true)));
         if (count($entries) === 1 && is_dir($extractDir.'/'.$entries[0])) { return $extractDir.'/'.$entries[0]; }
         return $extractDir;
     }
 
+    /** @param list<string> $preservePaths */
     private function copyDirectory(string $source, string $target, array $preservePaths = []): void
     {
         if (!is_dir($source)) { throw new \RuntimeException('Source directory missing: '.$source); }
         if (!is_dir($target) && !@mkdir($target, 0770, true) && !is_dir($target)) { throw new \RuntimeException('Target directory not writable: '.$target); }
         $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($source, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::SELF_FIRST);
         foreach ($it as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                throw new \UnexpectedValueException('Invalid archive filesystem entry.');
+            }
             $rel = ltrim(str_replace($source, '', $item->getPathname()), '/');
             foreach ($preservePaths as $preserve) { if ($rel === $preserve || str_starts_with($rel, rtrim($preserve,'/').'/')) { continue 2; } }
             $dest = $target.'/'.$rel;

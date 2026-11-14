@@ -6,7 +6,17 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Template;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 
+/**
+ * @psalm-type RequirementValidation = array{pattern?: string, min?: float, max?: float}
+ * @psalm-type Requirement = array{
+ *     key: string, label: string, type: 'text'|'number'|'password', required: bool,
+ *     scope: 'admin_only'|'customer_allowed', validation: string|RequirementValidation|null, helptext: string
+ * }
+ */
 final class SetupChecker
 {
     public const ACTION_INSTALL = 'install';
@@ -34,7 +44,7 @@ final class SetupChecker
     }
 
     /**
-     * @return array{vars: array<int, array<string, mixed>>, secrets: array<int, array<string, mixed>>}
+     * @return array{vars: list<Requirement>, secrets: list<Requirement>}
      */
     public function getRequirements(Template $template): array
     {
@@ -45,7 +55,7 @@ final class SetupChecker
     }
 
     /**
-     * @return array{vars: array<int, array<string, mixed>>, secrets: array<int, array<string, mixed>>}
+     * @return array{vars: list<Requirement>, secrets: list<Requirement>}
      */
     public function getCustomerRequirements(Template $template): array
     {
@@ -60,11 +70,11 @@ final class SetupChecker
     }
 
     /**
-     * @param array<string, mixed> $requirement
+     * @param array<array-key, mixed> $requirement
      */
     public function validateRequirementValue(array $requirement, mixed $value): ?string
     {
-        $type = (string) ($requirement['type'] ?? 'text');
+        $type = JsonMap::strings($requirement)['type'] ?? 'text';
         if ($this->isValueMissing($value, $type)) {
             return 'Value is required.';
         }
@@ -73,25 +83,25 @@ final class SetupChecker
             return 'Value must be numeric.';
         }
 
-        $validation = $requirement['validation'] ?? null;
+        $validation = self::normalizeValidation($requirement['validation'] ?? null);
         if (is_string($validation) && $validation !== '') {
-            if (@preg_match($validation, (string) $value) !== 1) {
+            if (@preg_match($validation, ScalarValue::text($value)) !== 1) {
                 return 'Value does not match the required format.';
             }
         }
         if (is_array($validation)) {
             $pattern = $validation['pattern'] ?? null;
             if (is_string($pattern) && $pattern !== '') {
-                if (@preg_match($pattern, (string) $value) !== 1) {
+                if (@preg_match($pattern, ScalarValue::text($value)) !== 1) {
                     return 'Value does not match the required format.';
                 }
             }
             if ($type === 'number' && is_numeric($value)) {
                 $numeric = (float) $value;
-                if (isset($validation['min']) && is_numeric($validation['min']) && $numeric < (float) $validation['min']) {
+                if (isset($validation['min']) && $numeric < $validation['min']) {
                     return 'Value is below the minimum.';
                 }
-                if (isset($validation['max']) && is_numeric($validation['max']) && $numeric > (float) $validation['max']) {
+                if (isset($validation['max']) && $numeric > $validation['max']) {
                     return 'Value is above the maximum.';
                 }
             }
@@ -101,7 +111,7 @@ final class SetupChecker
     }
 
     /**
-     * @param array{vars: array<int, array<string, mixed>>, secrets: array<int, array<string, mixed>>} $requirements
+     * @param array{vars: list<Requirement>, secrets: list<Requirement>} $requirements
      * @return array<int, array{key: string, label: string, type: string}>
      */
     private function resolveMissing(Instance $instance, array $requirements): array
@@ -120,7 +130,7 @@ final class SetupChecker
             if ($this->shouldSkipSteamCredential($key, $loginMode)) {
                 continue;
             }
-            $value = $vars[$key] ?? null;
+            $value = ScalarValue::text($vars[$key] ?? null);
             if ($this->isValueMissing($value, $entry['type']) || $this->validateRequirementValue($entry, $value) !== null) {
                 $missing[] = [
                     'key' => $key,
@@ -160,50 +170,80 @@ final class SetupChecker
             return $value === '' || !is_numeric($value);
         }
 
-        return trim((string) $value) === '';
+        return trim(ScalarValue::text($value)) === '';
     }
 
     /**
-     * @param array<int, mixed> $requirements
-     * @return array<int, array<string, mixed>>
+     * @param array<array-key, mixed> $requirements
+     * @return list<Requirement>
      */
     private function normalizeRequirements(array $requirements, string $kind): array
     {
         $normalized = [];
 
-        foreach ($requirements as $entry) {
+        foreach (array_keys($requirements) as $index) {
+            $entry = JsonArray::fromValue($requirements[$index]);
             if (!is_array($entry)) {
                 continue;
             }
 
-            $key = trim((string) ($entry['key'] ?? ''));
+            $key = trim(ScalarValue::text($entry['key'] ?? ''));
             if ($key === '') {
                 continue;
             }
 
-            $type = strtolower(trim((string) ($entry['type'] ?? '')));
+            $type = strtolower(trim(ScalarValue::text($entry['type'] ?? '')));
             $allowedTypes = ['text', 'number', 'password'];
             if (!in_array($type, $allowedTypes, true)) {
                 $type = $kind === 'secret' ? 'password' : 'text';
             }
 
-            $scope = strtolower(trim((string) ($entry['scope'] ?? 'customer_allowed')));
+            $scope = strtolower(trim(ScalarValue::text($entry['scope'] ?? 'customer_allowed')));
             if (!in_array($scope, ['admin_only', 'customer_allowed'], true)) {
                 $scope = 'customer_allowed';
             }
 
+            $label = trim(ScalarValue::text($entry['label'] ?? $key));
             $normalized[] = [
                 'key' => $key,
-                'label' => trim((string) ($entry['label'] ?? $key)) ?: $key,
+                'label' => $label !== '' && $label !== '0' ? $label : $key,
                 'type' => $type,
                 'required' => (bool) ($entry['required'] ?? false),
                 'scope' => $scope,
-                'validation' => $entry['validation'] ?? null,
-                'helptext' => trim((string) ($entry['helptext'] ?? '')),
+                'validation' => self::normalizeValidation($entry['validation'] ?? null),
+                'helptext' => trim(ScalarValue::text($entry['helptext'] ?? '')),
             ];
         }
 
         return $normalized;
+    }
+
+    /** @return string|RequirementValidation|null */
+    private static function normalizeValidation(mixed $value): string|array|null
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+        if (!is_array($value)) {
+            return null;
+        }
+        $normalized = [];
+        $strings = JsonMap::strings($value);
+        if (isset($strings['pattern'])) {
+            $normalized['pattern'] = $strings['pattern'];
+        }
+        foreach (['min', 'max'] as $key) {
+            $number = self::validationNumber($value[$key] ?? null);
+            if ($number !== null) {
+                $normalized[$key] = $number;
+            }
+        }
+        return $normalized;
+    }
+
+    private static function validationNumber(mixed $value): ?float
+    {
+        return is_numeric($value) ? (float) $value : null;
     }
 
     private function usesSteamLogin(Template $template): bool
@@ -221,12 +261,13 @@ final class SetupChecker
     private function resolveSteamLoginMode(Instance $instance): string
     {
         $vars = $instance->getSetupVars();
-        $mode = strtolower(trim((string) ($vars['STEAM_LOGIN_MODE'] ?? '')));
+        $mode = strtolower(trim(ScalarValue::text($vars['STEAM_LOGIN_MODE'] ?? '')));
         if (in_array($mode, ['anonymous', 'account'], true)) {
             return $mode;
         }
 
-        return $instance->getSteamAccount() ? 'account' : 'anonymous';
+        $account = $instance->getSteamAccount();
+        return $account !== null && $account !== '' && $account !== '0' ? 'account' : 'anonymous';
     }
 
     private function shouldSkipSteamCredential(string $key, string $loginMode): bool
@@ -260,7 +301,7 @@ final class SetupChecker
         }
 
         $vars = $instance->getSetupVars();
-        $password = trim((string) ($vars['STEAM_PASSWORD'] ?? ''));
+        $password = trim(ScalarValue::text($vars['STEAM_PASSWORD'] ?? ''));
         if ($password === '') {
             if (!isset($missingKeys['STEAM_PASSWORD'])) {
                 $missing[] = [

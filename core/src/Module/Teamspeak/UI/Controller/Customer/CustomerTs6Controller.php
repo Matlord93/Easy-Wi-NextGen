@@ -234,13 +234,14 @@ final class CustomerTs6Controller
 
     /**
      * @param Ts6Instance[] $instances
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function normalizeInstances(array $instances): array
     {
         return array_map(static function (Ts6Instance $instance): array {
             $node = $instance->getNode();
-            $nodeLabel = $node->getName() ?: $node->getId();
+            $nodeName = $node->getName();
+            $nodeLabel = $nodeName !== null && $nodeName !== '' ? $nodeName : $node->getId();
 
             return [
                 'id' => $instance->getId(),
@@ -259,7 +260,7 @@ final class CustomerTs6Controller
 
     /**
      * @param TsVirtualServer[] $servers
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function normalizeVirtualServers(array $servers): array
     {
@@ -309,7 +310,8 @@ final class CustomerTs6Controller
         }
 
         $commands = [];
-        $files = glob($docsPath . '/*.txt') ?: [];
+        $matches = glob($docsPath . '/*.txt');
+        $files = $matches !== false ? $matches : [];
         sort($files, SORT_STRING);
 
         foreach ($files as $file) {

@@ -13,8 +13,19 @@ use App\Infrastructure\Config\JsonArray;
  */
 final class MusicbotPayloadLogSummarizer
 {
+    /** @param array<array-key, mixed> $payload */
+    public static function formatRuntimePayload(string $stage, ?int $instanceId, array $payload): string
+    {
+        $encoded = json_encode(
+            ['stage' => $stage, 'instance_id' => $instanceId] + self::summarizeRuntimePayload($payload),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE,
+        );
+
+        return '[musicbot-status-flow] '.($encoded !== false ? $encoded : '[encoding failed]');
+    }
+
     /**
-     * @param array<string, mixed>|null $payload
+     * @param array<array-key, mixed>|null $payload
      * @return array<string, mixed>
      */
     public static function summarizeJobPayload(?array $payload): array
@@ -34,7 +45,7 @@ final class MusicbotPayloadLogSummarizer
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      * @return array{teamspeak_connected: bool|null|string, runtime_ready: bool|null|string,
      * audio_backend_ready: bool|null|string, audio_backend_status: null|string, output_backend:
      * null|string, queue_count: int|null, playback_state: null|string, updated_at: null|string}
@@ -68,7 +79,7 @@ final class MusicbotPayloadLogSummarizer
     }
 
     /**
-     * @param array<string, mixed> $status
+     * @param array<array-key, mixed> $status
      * @return array{teamspeak_connected: bool|null|string, audio_backend_ready: bool|null|string,
      * audio_backend_status: null|string, audio_backend_message: null|string, output_backend: null|string,
      * queue_count: int|null, playback_state: null|string, updated_at: null|string}
@@ -87,7 +98,7 @@ final class MusicbotPayloadLogSummarizer
         ];
     }
 
-    /** @param array<string, mixed> $payload */
+    /** @param array<array-key, mixed> $payload */
     private static function classifyPayload(array $payload): string
     {
         foreach (['runtime_ready', 'state_connected', 'ts_server_connected', 'teamspeak_connected', 'voice_client_available', 'audio_injection_ready', 'audio_backend_ready', 'capability_status'] as $key) {
@@ -109,7 +120,7 @@ final class MusicbotPayloadLogSummarizer
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      * @return array<string, mixed>
      */
     private static function runtimePayload(array $payload): array
@@ -118,7 +129,7 @@ final class MusicbotPayloadLogSummarizer
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      * @return array<string, mixed>
      */
     private static function arrayAt(array $payload, string $key): array
@@ -151,9 +162,9 @@ final class MusicbotPayloadLogSummarizer
     }
 
     /**
-     * @param array<string, mixed> $runtime
-     * @param array<string, mixed> $playback
-     * @param array<string, mixed> $queue
+     * @param array<array-key, mixed> $runtime
+     * @param array<array-key, mixed> $playback
+     * @param array<array-key, mixed> $queue
      */
     private static function queueCount(array $runtime, array $playback, array $queue): ?int
     {

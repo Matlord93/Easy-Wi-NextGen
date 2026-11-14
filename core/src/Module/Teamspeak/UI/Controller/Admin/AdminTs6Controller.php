@@ -203,7 +203,7 @@ final class AdminTs6Controller
 
     /**
      * @param Ts6Instance[] $instances
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function normalizeInstances(array $instances): array
     {

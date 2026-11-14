@@ -7,6 +7,9 @@ namespace App\Module\Gameserver\UI\Controller\Admin;
 use App\Repository\QueryParameter;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
+use App\Module\Core\Domain\Entity\InstanceMetricSample;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AppSettingsService;
@@ -215,35 +218,45 @@ final class AdminInstanceController
         }
 
         $formData = $this->parsePayload($request);
+        $customer = $formData['customer'];
+        $template = $formData['template'];
+        $node = $formData['node'];
+        if ($customer === null || $template === null || $node === null) {
+            if ($formData['errors'] === []) {
+                $formData['errors'][] = 'Customer, template and node must exist.';
+            }
+            return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
+        }
+
         if ($formData['errors'] !== []) {
             return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
         }
 
-        $blockMessage = $this->diskEnforcementService->guardNodeProvisioning($formData['node'], new \DateTimeImmutable());
+        $blockMessage = $this->diskEnforcementService->guardNodeProvisioning($node, new \DateTimeImmutable());
         if ($blockMessage !== null) {
             $formData['errors'][] = $blockMessage;
             return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
         }
 
-        $formData['setup_vars'] = \App\Module\Gameserver\Application\MinecraftPortPlan::settings($formData['template'], $request->request->getBoolean('minecraft_rcon'), $request->request->getBoolean('minecraft_query'), $formData['setup_vars']);
-        $requiredPorts = \App\Module\Gameserver\Application\MinecraftPortPlan::definitions($formData['template'], $formData['setup_vars']);
+        $formData['setup_vars'] = \App\Module\Gameserver\Application\MinecraftPortPlan::settings($template, $request->request->getBoolean('minecraft_rcon'), $request->request->getBoolean('minecraft_query'), $formData['setup_vars']);
+        $requiredPorts = \App\Module\Gameserver\Application\MinecraftPortPlan::definitions($template, $formData['setup_vars']);
         $requiredCount = count($requiredPorts);
         $portBlock = $formData['port_block'];
         if ($portBlock !== null) {
-            try { $this->portLeaseManager->assertAssignable($portBlock,$formData['template']); }
+            try { $this->portLeaseManager->assertAssignable($portBlock,$template); }
             catch (\App\Module\Ports\Application\PortCheckUnavailable $error) { throw $error; }
             catch (\RuntimeException $error) { $formData['errors'][]=$error->getMessage(); return $this->renderFormWithErrors($request,$formData,409); }
         }
         if ($portBlock === null && $requiredCount > 0) {
-            $this->ensureDefaultPortPool($formData['node'], $actor);
+            $this->ensureDefaultPortPool($node, $actor);
             if ($formData['port_start'] !== null) {
                 try {
                     $portBlock = $this->allocatePortBlockAt(
-                        $formData['node'],
-                        $formData['customer'],
+                        $node,
+                        $customer,
                         $formData['port_start'],
                         $requiredCount,
-                        $formData['template'],
+                        $template,
                     );
                 } catch (\RuntimeException | \InvalidArgumentException $exception) {
                     $formData['errors'][] = $exception->getMessage();
@@ -254,7 +267,7 @@ final class AdminInstanceController
                     return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
                 }
             } else {
-                $portBlock = $this->allocatePortBlock($formData['node'], $formData['customer'], $requiredCount, $formData['template']);
+                $portBlock = $this->allocatePortBlock($node, $customer, $requiredCount, $template);
             }
             if ($portBlock === null) {
                 $formData['errors'][] = 'No free port blocks available on the selected node.';
@@ -263,9 +276,9 @@ final class AdminInstanceController
         }
 
         $instance = new Instance(
-            $formData['customer'],
-            $formData['template'],
-            $formData['node'],
+            $customer,
+            $template,
+            $node,
             $formData['cpu_limit'],
             $formData['ram_limit'],
             $formData['disk_limit'],
@@ -320,7 +333,7 @@ final class AdminInstanceController
             $installPathDeferredReason = 'INSTALL_PATH_SETUP_FAILED';
             $this->auditLogger->log($actor, 'instance.install_path_setup_failed', [
                 'instance_id' => $instance->getId(),
-                'customer_id' => $formData['customer']->getId(),
+                'customer_id' => $customer->getId(),
                 'error' => $exception->getMessage(),
             ]);
         }
@@ -331,7 +344,7 @@ final class AdminInstanceController
             $this->auditLogger->log($actor, 'port_block.assigned', [
                 'port_block_id' => $portBlock->getId(),
                 'instance_id' => $instance->getId(),
-                'customer_id' => $formData['customer']->getId(),
+                'customer_id' => $customer->getId(),
             ]);
         }
 
@@ -340,7 +353,7 @@ final class AdminInstanceController
             $ports = $portBlock->getPorts();
             if ($ports !== []) {
                 $firewallJob = new Job('firewall.open_ports', [
-                    'agent_id' => $formData['node']->getId(),
+                    'agent_id' => $node->getId(),
                     'instance_id' => (string) $instance->getId(),
                     'port_block_id' => $portBlock->getId(),
                     'ports' => implode(',', array_map('strval', $ports)),
@@ -352,16 +365,16 @@ final class AdminInstanceController
         $installJob = null;
         $installDeferredReason = null;
         if ($installPathDeferredReason === null) {
-            $installPreparation = $this->instanceInstallService->prepareInstall($instance, (bool) ($formData['use_shared_storage'] ?? false));
+            $installPreparation = $this->instanceInstallService->prepareInstall($instance, $formData['use_shared_storage']);
         } else {
             $installPreparation = ['ok' => false, 'error_code' => $installPathDeferredReason];
         }
         if (($installPreparation['ok'] ?? false) === true) {
             $installPayload = [
                 'instance_id' => (string) ($instance->getId() ?? ''),
-                'customer_id' => (string) $formData['customer']->getId(),
-                'node_id' => $formData['node']->getId(),
-                'agent_id' => $formData['node']->getId(),
+                'customer_id' => (string) $customer->getId(),
+                'node_id' => $node->getId(),
+                'agent_id' => $node->getId(),
                 'cpu_limit' => (string) $instance->getCpuLimit(),
                 'ram_limit' => (string) $instance->getRamLimit(),
                 'disk_limit' => (string) $instance->getDiskLimit(),
@@ -374,20 +387,18 @@ final class AdminInstanceController
 
             $installJob = new Job('sniper.install', $installPayload);
             $this->entityManager->persist($installJob);
-            $instance->setSharedStorageEnabled((bool) ($formData['use_shared_storage'] ?? false));
+            $instance->setSharedStorageEnabled($formData['use_shared_storage']);
             $instance->setStatus(InstanceStatus::Provisioning);
             $this->entityManager->persist($instance);
         } else {
-            $installDeferredReason = is_string($installPreparation['error_code'] ?? null)
-                ? (string) $installPreparation['error_code']
-                : 'INSTALL_PRECHECK_FAILED';
+            $installDeferredReason = $installPreparation['error_code'] ?? 'INSTALL_PRECHECK_FAILED';
         }
 
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
-            'customer_id' => $formData['customer']->getId(),
-            'template_id' => $formData['template']->getId(),
-            'node_id' => $formData['node']->getId(),
+            'customer_id' => $customer->getId(),
+            'template_id' => $template->getId(),
+            'node_id' => $node->getId(),
             'cpu_limit' => $formData['cpu_limit'],
             'ram_limit' => $formData['ram_limit'],
             'disk_limit' => $formData['disk_limit'],
@@ -647,7 +658,7 @@ final class AdminInstanceController
             $errors[] = 'Disk limit cannot be decreased from its current value.';
         }
 
-        $diskUsedMb = (int) ceil($instance->getDiskUsedBytes() / 1024 / 1024);
+        $diskUsedMb = (int) ceil((float) $instance->getDiskUsedBytes() / 1024.0 / 1024.0);
         if ($diskLimit < $diskUsedMb) {
             $errors[] = sprintf('Disk limit cannot be set below current usage (%d MB).', $diskUsedMb);
         }
@@ -993,8 +1004,10 @@ final class AdminInstanceController
             }
         }
 
-        $data['current_slots'] = max($data['min_slots'], min($data['current_slots'], $data['max_slots_limit']));
-        $data['max_slots'] = max($data['min_slots'], min($data['max_slots'], $data['max_slots_limit']));
+        $minimum = ScalarValue::integer($data['min_slots'], $this->appSettingsService->getGameserverMinSlots());
+        $maximum = ScalarValue::integer($data['max_slots_limit'], $this->appSettingsService->getGameserverMaxSlots());
+        $data['current_slots'] = max($minimum, min(ScalarValue::integer($data['current_slots'], $minimum), $maximum));
+        $data['max_slots'] = max($minimum, min(ScalarValue::integer($data['max_slots'], $maximum), $maximum));
 
         return $data;
     }
@@ -1191,7 +1204,7 @@ final class AdminInstanceController
     }
 
     /**
-     * @param array<int, mixed> $supportedOs
+     * @param array<array-key, mixed> $supportedOs
      */
     private function isTemplateSupportedOnNode(array $supportedOs, Agent $node): bool
     {
@@ -1302,8 +1315,9 @@ final class AdminInstanceController
     }
 
     /**
-     * @param list<Instance> $instances
+     * @param array<array-key, Instance> $instances
      * @param array<int, InstanceSftpCredential> $sftpCredentials
+     * @return list<array<string, mixed>>
      */
     private function normalizeInstances(array $instances, array $sftpCredentials): array
     {
@@ -1311,19 +1325,20 @@ final class AdminInstanceController
         $latestLifecycleJobs = $this->buildLatestLifecycleJobMap();
         $portBlockIndex = [];
         foreach ($portBlocks as $portBlock) {
-            $assignedInstance = $portBlock->getInstance();
-            if ($assignedInstance !== null) {
-                $portBlockIndex[$assignedInstance->getId()] = $portBlock;
+            $assignedId = $portBlock->getInstance()?->getId();
+            if ($assignedId !== null) {
+                $portBlockIndex[$assignedId] = $portBlock;
             }
         }
 
         return array_map(function (Instance $instance) use ($sftpCredentials, $portBlockIndex, $latestLifecycleJobs): array {
+            $instanceId = EntityIdentifier::require($instance->getId());
             $diskLimitBytes = $instance->getDiskLimitBytes();
             $diskUsedBytes = $instance->getDiskUsedBytes();
-            $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
-            $credential = $sftpCredentials[$instance->getId()] ?? null;
+            $diskPercent = $diskLimitBytes > 0 ? ((float) $diskUsedBytes / (float) $diskLimitBytes) * 100.0 : 0.0;
+            $credential = $sftpCredentials[$instanceId] ?? null;
             $installStatus = $this->instanceInstallService->getInstallStatus($instance);
-            $portBlock = $portBlockIndex[$instance->getId()] ?? null;
+            $portBlock = $portBlockIndex[$instanceId] ?? null;
             $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, true);
             $runtimeState = $this->resolveRuntimeState($instance, $querySnapshot);
             $instanceMetric = $this->instanceMetricSampleRepository->findLatestForInstance($instance);
@@ -1371,7 +1386,7 @@ final class AdminInstanceController
                 'latest_lifecycle_job_error_code' => $latestLifecycleJob?->getLastErrorCode(),
                 'instance_cpu_percent' => $instanceMetric?->getCpuPercent(),
                 'instance_mem_used_bytes' => $usedRamBytes,
-                'instance_mem_percent' => ($usedRamBytes !== null && $bookedRamBytes > 0) ? (($usedRamBytes / $bookedRamBytes) * 100) : null,
+                'instance_mem_percent' => ($usedRamBytes !== null && $bookedRamBytes > 0) ? (((float) $usedRamBytes / (float) $bookedRamBytes) * 100.0) : null,
                 'current_slots' => $instance->getCurrentSlots(),
                 'max_slots' => $instance->getMaxSlots(),
                 'lock_slots' => $instance->isLockSlots(),
@@ -1393,7 +1408,7 @@ final class AdminInstanceController
                 'shared_storage_last_update_at' => (string) (($latestLifecycleJob?->getResult()?->getOutput()['last_successful_update_at'] ?? '')),
                 'shared_update_available' => ($instance->isSharedStorageEnabled() && trim((string) ($latestLifecycleJob?->getResult()?->getOutput()['shared_key'] ?? $latestLifecycleJob?->getPayload()['shared_key'] ?? '')) !== '' && trim($instance->getTemplate()->getUpdateCommand()) !== ''),
             ];
-        }, $instances);
+        }, array_values($instances));
     }
 
     /**
@@ -1451,34 +1466,17 @@ final class AdminInstanceController
     }
 
 
-    private function inferRuntimeStatusFromMetrics(mixed $instanceMetric): ?string
+    private function inferRuntimeStatusFromMetrics(?InstanceMetricSample $instanceMetric): ?string
     {
-        if ($instanceMetric === null || !method_exists($instanceMetric, 'getCollectedAt')) {
+        if ($instanceMetric === null || $instanceMetric->getCollectedAt() < new \DateTimeImmutable('-90 seconds')) {
             return null;
         }
-
-        $collectedAt = $instanceMetric->getCollectedAt();
-        if (!$collectedAt instanceof \DateTimeImmutable) {
-            return null;
-        }
-
-        $cutoff = new \DateTimeImmutable('-90 seconds');
-        if ($collectedAt < $cutoff) {
-            return null;
-        }
-
-        $tasksCurrent = method_exists($instanceMetric, 'getTasksCurrent') ? $instanceMetric->getTasksCurrent() : null;
-        if (is_int($tasksCurrent) && $tasksCurrent > 0) {
-            return InstanceStatus::Running->value;
-        }
-
-        $memUsedBytes = method_exists($instanceMetric, 'getMemUsedBytes') ? $instanceMetric->getMemUsedBytes() : null;
-        if (is_int($memUsedBytes) && $memUsedBytes > 0) {
-            return InstanceStatus::Running->value;
-        }
-
-        $cpuPercent = method_exists($instanceMetric, 'getCpuPercent') ? $instanceMetric->getCpuPercent() : null;
-        if (is_float($cpuPercent) && $cpuPercent > 0.15) {
+        $tasksCurrent = $instanceMetric->getTasksCurrent();
+        $memUsedBytes = $instanceMetric->getMemUsedBytes();
+        $cpuPercent = $instanceMetric->getCpuPercent();
+        if (($tasksCurrent !== null && $tasksCurrent > 0)
+            || ($memUsedBytes !== null && $memUsedBytes > 0)
+            || ($cpuPercent !== null && $cpuPercent > 0.15)) {
             return InstanceStatus::Running->value;
         }
 
@@ -1510,7 +1508,7 @@ final class AdminInstanceController
             $message = strtolower(trim($exception->getMessage()));
             if (str_contains($message, 'not valid json') || str_contains($message, 'not a json object') || str_contains($message, 'syntax error')) {
                 return [
-                    'status' => $hasFreshQueryStatus ? $queryStatus : null,
+                    'status' => null,
                     'reason' => null,
                     'error_code' => null,
                     'checked_at' => $checkedAt,
@@ -1518,7 +1516,7 @@ final class AdminInstanceController
             }
 
             return [
-                'status' => $hasFreshQueryStatus ? $queryStatus : null,
+                'status' => null,
                 'reason' => sprintf('Agent status probe failed: %s', $exception->getMessage()),
                 'error_code' => 'agent_status_probe_failed',
                 'checked_at' => $checkedAt,
@@ -1542,7 +1540,7 @@ final class AdminInstanceController
             }
 
             return [
-                'status' => $hasFreshQueryStatus ? $queryStatus : null,
+                'status' => null,
                 'reason' => 'Agent status response missing recognizable runtime status field.',
                 'error_code' => 'agent_status_missing_field',
                 'checked_at' => $checkedAt,
@@ -1656,7 +1654,7 @@ final class AdminInstanceController
             return $installPath;
         }
 
-        return $this->resolveSftpBaseDir($instance) . '/gs' . preg_replace('/[^a-z0-9]/i', '', (string) ($instance->getId() ?? 'instance'));
+        return $this->resolveSftpBaseDir($instance) . '/gs' . (preg_replace('/[^a-z0-9]/i', '', (string) ($instance->getId() ?? 'instance')) ?? '');
     }
 
     private function resolveAgentOsType(Instance $instance): string
@@ -1681,7 +1679,8 @@ final class AdminInstanceController
             return $host;
         }
 
-        return $this->appSettingsService->getSftpHost() ?: $instance->getNode()->getLastHeartbeatIp();
+        $configuredHost = $this->appSettingsService->getSftpHost();
+        return $configuredHost !== null && $configuredHost !== '' ? $configuredHost : $instance->getNode()->getLastHeartbeatIp();
     }
 
     private function buildSftpUsername(Instance $instance): string
@@ -1691,6 +1690,7 @@ final class AdminInstanceController
 
 
     /**
+     * @param list<array<string, mixed>> $instances
      * @return array{total: int, running: int, pending_setup: int, stopped: int, suspended: int,
      * provisioning: int, error: int}
      */
@@ -1707,7 +1707,8 @@ final class AdminInstanceController
         ];
 
         foreach ($instances as $instance) {
-            $status = $instance['display_status'] ?? $instance['status'] ?? null;
+            $fields = JsonMap::strings($instance);
+            $status = $fields['display_status'] ?? $fields['status'] ?? null;
             if ($status === InstanceStatus::Running->value) {
                 $summary['running']++;
             } elseif ($status === InstanceStatus::PendingSetup->value) {
@@ -1753,6 +1754,7 @@ final class AdminInstanceController
     }
 
     /**
+     * @param list<array<string, mixed>> $instances
      * @return array{offline_agents: int, disk_problem_instances: int, runtime_unknown_instances: int,
      * failed_jobs_by_error: array<string, int>, blocked_schedules: int}
      */
@@ -1818,11 +1820,12 @@ final class AdminInstanceController
     }
 
     /**
-     * @param Instance[] $instances
+     * @param array<array-key, Instance> $instances
+     * @param array{q: string, status: string, node: string}|array{} $filters
      */
     private function renderInstancesTable(array $instances, array $errors = [], int $status = Response::HTTP_OK, array $filters = []): Response
     {
-        $activeFilters = $filters !== [] ? $filters : ['q' => '', 'status' => '', 'node' => ''];
+        $activeFilters = ['q' => $filters['q'] ?? '', 'status' => $filters['status'] ?? '', 'node' => $filters['node'] ?? ''];
         $normalized = $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances));
         $normalized = $this->applyInstanceFilters($normalized, $activeFilters);
 
@@ -1877,7 +1880,7 @@ final class AdminInstanceController
     /**
      * @param array<int, array<string, mixed>> $instances
      * @param array{q: string, status: string, node: string} $filters
-     * @return array<int, array<string, mixed>>
+     * @return list<array<string, mixed>>
      */
     private function applyInstanceFilters(array $instances, array $filters): array
     {

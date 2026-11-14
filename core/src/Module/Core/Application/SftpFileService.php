@@ -6,6 +6,8 @@ namespace App\Module\Core\Application;
 
 
 use App\Module\Core\Application\Exception\SftpException;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Repository\InstanceSftpCredentialRepository;
@@ -56,22 +58,23 @@ final class SftpFileService
         }
 
         $entries = [];
-        foreach ($listing as $name => $info) {
+        foreach (array_keys($listing) as $name) {
+            $info = JsonArray::orEmpty($listing[$name]);
             if ($name === '.' || $name === '..') {
                 continue;
             }
 
-            $mode = is_array($info) ? ($info['mode'] ?? null) : null;
-            $mtime = is_array($info) ? ($info['mtime'] ?? null) : null;
-            $size = is_array($info) ? ($info['size'] ?? 0) : 0;
-            $type = is_array($info) ? ($info['type'] ?? null) : null;
+            $mode = self::fileAttribute($info['mode'] ?? null);
+            $mtime = self::fileAttribute($info['mtime'] ?? null);
+            $size = self::fileAttribute($info['size'] ?? null) ?? 0;
+            $type = self::fileAttribute($info['type'] ?? null);
             $isDir = $type === self::SFTP_TYPE_DIRECTORY;
 
             $entries[] = [
                 'name' => (string) $name,
-                'size' => is_int($size) ? $size : 0,
-                'mode' => $mode !== null ? sprintf('%04o', ((int) $mode) & 0777) : '',
-                'modified_at' => $mtime !== null ? date('Y-m-d H:i:s', (int) $mtime) : '',
+                'size' => $size,
+                'mode' => $mode !== null ? sprintf('%04o', $mode & 0777) : '',
+                'modified_at' => $mtime !== null ? date('Y-m-d H:i:s', $mtime) : '',
                 'is_dir' => $isDir,
             ];
         }
@@ -88,7 +91,7 @@ final class SftpFileService
         $sftp = $this->connect($instance);
         $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if ($maxBytes !== null && $maxBytes > 0) {
-            $size = $sftp->filesize($remotePath);
+            $size = self::fileAttribute($sftp->filesize($remotePath));
             if (is_int($size) && $size > $maxBytes) {
                 throw new SftpException('sftp_file_too_large', 'File is too large to edit (max 1 MB).', 413, [
                     'size_bytes' => $size,
@@ -97,7 +100,7 @@ final class SftpFileService
             }
         }
         $content = $sftp->get($remotePath);
-        if ($content === false) {
+        if (!is_string($content)) {
             throw new SftpException('sftp_read_failed', 'Failed to download file.', 502, [
                 'path' => $remotePath,
             ]);
@@ -185,7 +188,7 @@ final class SftpFileService
         $remoteArchivePath = $this->resolveFilePath($instance, $sftp, $path, $name, $remoteRoot);
         $destinationPath = $this->joinRemotePath($remoteRoot, $normalizedDestination);
         $content = $sftp->get($remoteArchivePath);
-        if ($content === false) {
+        if (!is_string($content)) {
             throw new SftpException('sftp_read_failed', 'Failed to download archive.', 502, [
                 'path' => $remoteArchivePath,
             ]);
@@ -217,7 +220,8 @@ final class SftpFileService
                 $phar = new \PharData($archivePath);
                 if (str_ends_with($lowerName, '.tar.gz') || str_ends_with($lowerName, '.tgz')) {
                     $phar->decompress();
-                    $archivePath = preg_replace('/\.(tgz|tar\.gz)$/', '.tar', $archivePath);
+                    $archivePath = preg_replace('/\.(tgz|tar\.gz)$/', '.tar', $archivePath)
+                        ?? throw new SftpException('sftp_extract_failed', 'Failed to resolve decompressed archive.', 500);
                     $phar = new \PharData($archivePath);
                 }
                 $phar->extractTo($extractPath, null, true);
@@ -267,7 +271,7 @@ final class SftpFileService
     private function resolveHost(Instance $instance): string
     {
         $metadata = $instance->getNode()->getMetadata();
-        $host = is_array($metadata) ? ($metadata['sftp_host'] ?? null) : null;
+        $host = JsonMap::strings($metadata)['sftp_host'] ?? null;
         if (is_string($host) && $host !== '') {
             return $host;
         }
@@ -288,8 +292,8 @@ final class SftpFileService
     private function resolvePort(Instance $instance): int
     {
         $metadata = $instance->getNode()->getMetadata();
-        $port = is_array($metadata) ? ($metadata['sftp_port'] ?? null) : null;
-        if (is_numeric($port)) {
+        $port = self::fileAttribute($metadata['sftp_port'] ?? null);
+        if ($port !== null) {
             return max(1, (int) $port);
         }
 
@@ -304,7 +308,7 @@ final class SftpFileService
         }
 
         $metadata = $instance->getNode()->getMetadata();
-        $username = is_array($metadata) ? ($metadata['sftp_username'] ?? null) : null;
+        $username = JsonMap::strings($metadata)['sftp_username'] ?? null;
         if (is_string($username) && $username !== '') {
             return $username;
         }
@@ -428,6 +432,9 @@ final class SftpFileService
         );
 
         foreach ($iterator as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                throw new \UnexpectedValueException('Filesystem iterator returned an invalid entry.');
+            }
             if ($item->isLink()) {
                 continue;
             }
@@ -459,6 +466,11 @@ final class SftpFileService
         }
     }
 
+    private static function fileAttribute(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
+    }
+
     private function cleanupWorkDir(string $workDir): void
     {
         if (!is_dir($workDir)) {
@@ -471,6 +483,9 @@ final class SftpFileService
         );
 
         foreach ($iterator as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                throw new \UnexpectedValueException('Filesystem iterator returned an invalid entry.');
+            }
             if ($item->isDir()) {
                 rmdir($item->getPathname());
             } else {

@@ -17,11 +17,19 @@ final class CustomerVoiceLegacySnapshotPollContractTest extends TestCase
 
     public function testSnapshotExtractionSupportsMultipleShapes(): void
     {
-        self::assertStringContainsString("\$payload['payload']['snapshot'] ?? null", $this->source);
-        self::assertStringContainsString("\$payload['snapshot'] ?? null", $this->source);
-        self::assertStringContainsString("\$payload['resultPayload']['snapshot'] ?? null", $this->source);
-        self::assertStringContainsString("\$payload['result_payload']['snapshot'] ?? null", $this->source);
-        self::assertStringContainsString("\$payload['payload']['resultPayload']['snapshot'] ?? null", $this->source);
+        $reflection = new \ReflectionClass(\App\Module\Voice\UI\Controller\Customer\CustomerVoiceLegacyApiController::class);
+        $controller = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('extractSnapshotContent');
+        foreach ([
+            ['payload' => ['snapshot' => 'snapshot']],
+            ['snapshot' => 'snapshot'],
+            ['resultPayload' => ['snapshot' => 'snapshot']],
+            ['result_payload' => ['snapshot' => 'snapshot']],
+            ['payload' => ['resultPayload' => ['snapshot' => 'snapshot']]],
+        ] as $payload) {
+            self::assertSame('snapshot', $method->invoke($controller, $payload));
+        }
+        self::assertNull($method->invoke($controller, ['payload' => 'malformed', 'result' => ['snapshot' => []]]));
     }
 
     public function testSnapshotPollHandlesStatusAndErrors(): void

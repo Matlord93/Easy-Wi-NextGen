@@ -35,7 +35,7 @@ try {
         $unusedProperties[] = $issue['selected_text'];
     }
     sort($unusedProperties);
-    if ($process->getExitCode() !== 2 || $unusedProperties !== ['$notEntity', '$unmapped']) {
+    if ($process->getExitCode() !== 2 || $unusedProperties !== ['$notEntity', '$unmapped', '$unmappedPromoted']) {
         throw new RuntimeException('Doctrine mapping regression: '.$process->getOutput().$process->getErrorOutput());
     }
     echo "Doctrine mapping: persisted fields recognized; unused fields remain detectable.\n";

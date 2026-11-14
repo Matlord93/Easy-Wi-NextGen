@@ -7,17 +7,20 @@ namespace App\Module\Core\Application\Billing;
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AppSettingsService;
 
+/**
+ * @psalm-type DesignOptions = array{
+ *     accent: string, text_color: string, font: 'sans'|'serif'|'mono', font_size: int, margin_mm: int,
+ *     spacing: 'comfortable'|'compact', header_align: 'left'|'right', style: 'modern'|'classic',
+ *     heading: string, intro: string, footer_text: string, logo_data_uri: string, logo_width: int, show_tax_column: bool
+ * }
+ */
 final readonly class InvoiceDesign
 {
     public function __construct(private AppSettingsService $settings)
     {
     }
 
-    /**
-     * @return array{accent: string, text_color: string, font: string, font_size: int, margin_mm: int,
-     * spacing: string, header_align: string, style: string, heading: string, intro: string, footer_text:
-     * string, logo_data_uri: string, logo_width: int, show_tax_column: bool}
-     */
+    /** @return DesignOptions */
     public static function defaults(): array
     {
         return ['accent' => '#4f46e5', 'text_color' => '#18212f', 'font' => 'sans', 'font_size' => 10,
@@ -25,9 +28,10 @@ final readonly class InvoiceDesign
             'heading' => '', 'intro' => '', 'footer_text' => '', 'logo_data_uri' => '', 'logo_width' => 140, 'show_tax_column' => true];
     }
 
+    /** @return array{options: DesignOptions, layout: string, mode: 'visual'|'custom'} */
     public function current(): array
     {
-        $stored = $this->settings->getSettings()[AppSettingsService::KEY_INVOICE_DESIGN] ?? [];
+        $stored = JsonArray::orEmpty($this->settings->getSettings()[AppSettingsService::KEY_INVOICE_DESIGN] ?? null);
         try {
             $options = self::normalize(array_replace(self::defaults(), JsonArray::orEmpty($stored['options'] ?? null)));
         } catch (\InvalidArgumentException) {
@@ -38,31 +42,30 @@ final readonly class InvoiceDesign
         return ['options' => $options, 'layout' => $layout, 'mode' => hash_equals(hash('sha256', self::layout($options)), hash('sha256', $layout)) ? 'visual' : 'custom'];
     }
 
+    /**
+     * @param array<array-key, mixed> $input
+     * @return DesignOptions
+     */
     public static function normalize(array $input): array
     {
         $values = self::defaults();
         foreach (['accent', 'text_color'] as $key) {
-            if (!is_string($input[$key] ?? null) || !preg_match('/^#[0-9a-fA-F]{6}$/D', $input[$key])) {
+            $color = self::stringField($input[$key] ?? null);
+            if (!preg_match('/^#[0-9a-fA-F]{6}$/D', $color)) {
                 throw new \InvalidArgumentException('billing.invalid_design');
             }
-            $values[$key] = strtolower($input[$key]);
+            $values[$key] = strtolower($color);
         }
-        foreach (['font' => ['sans', 'serif', 'mono'], 'spacing' => ['comfortable', 'compact'], 'header_align' => ['left', 'right'], 'style' => ['modern', 'classic']] as $key => $allowed) {
-            if (!in_array($input[$key] ?? null, $allowed, true)) {
-                throw new \InvalidArgumentException('billing.invalid_design');
-            }
-            $values[$key] = $input[$key];
-        }
+        $values['font'] = self::choice($input['font'] ?? null, ['sans', 'serif', 'mono']);
+        $values['spacing'] = self::choice($input['spacing'] ?? null, ['comfortable', 'compact']);
+        $values['header_align'] = self::choice($input['header_align'] ?? null, ['left', 'right']);
+        $values['style'] = self::choice($input['style'] ?? null, ['modern', 'classic']);
         foreach (['font_size' => [9, 14], 'margin_mm' => [10, 25], 'logo_width' => [50, 180]] as $key => [$min, $max]) {
-            $value = filter_var($input[$key] ?? null, FILTER_VALIDATE_INT);
-            if (false === $value || $value < $min || $value > $max) {
-                throw new \InvalidArgumentException('billing.invalid_design');
-            }
-            $values[$key] = $value;
+            $values[$key] = self::boundedInteger($input[$key] ?? null, $min, $max);
         }
         foreach (['heading' => 80, 'intro' => 1000, 'footer_text' => 2000] as $key => $max) {
-            $value = $input[$key] ?? '';
-            if (!is_string($value) || mb_strlen($value) > $max) {
+            $value = self::stringField($input[$key] ?? '');
+            if (mb_strlen($value) > $max) {
                 throw new \InvalidArgumentException('billing.invalid_design');
             }
             $values[$key] = trim($value);
@@ -71,6 +74,41 @@ final readonly class InvoiceDesign
         $values['logo_data_uri'] = self::logo($input['logo_data_uri'] ?? '');
 
         return $values;
+    }
+
+    private static function stringField(mixed $value): string
+    {
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('billing.invalid_design');
+        }
+        return $value;
+    }
+
+    /**
+     * @template T of string
+     * @param list<T> $allowed
+     * @return T
+     */
+    private static function choice(mixed $value, array $allowed): string
+    {
+        foreach ($allowed as $candidate) {
+            if ($value === $candidate) {
+                return $candidate;
+            }
+        }
+        throw new \InvalidArgumentException('billing.invalid_design');
+    }
+
+    private static function boundedInteger(mixed $value, int $minimum, int $maximum): int
+    {
+        if (!is_scalar($value)) {
+            throw new \InvalidArgumentException('billing.invalid_design');
+        }
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+        if (!is_int($integer) || $integer < $minimum || $integer > $maximum) {
+            throw new \InvalidArgumentException('billing.invalid_design');
+        }
+        return $integer;
     }
 
     public static function logo(mixed $value): string
@@ -82,7 +120,10 @@ final readonly class InvoiceDesign
             throw new \InvalidArgumentException('billing.invalid_logo');
         }
         $bytes = base64_decode($match[2], true);
-        $info = false !== $bytes && strlen($bytes) <= 49152 ? @getimagesizefromstring($bytes) : false;
+        if ($bytes === false || strlen($bytes) > 49152) {
+            throw new \InvalidArgumentException('billing.invalid_logo');
+        }
+        $info = @getimagesizefromstring($bytes);
         if (false === $info || $info[0] < 1 || $info[1] < 1 || $info[0] > 1600 || $info[1] > 1600 || ($info['mime'] ?? '') !== 'image/'.$match[1]) {
             throw new \InvalidArgumentException('billing.invalid_logo');
         }

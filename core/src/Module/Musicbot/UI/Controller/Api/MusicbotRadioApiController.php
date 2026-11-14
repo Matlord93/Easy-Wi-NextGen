@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Api;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
@@ -133,7 +135,7 @@ final class MusicbotRadioApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WebradioManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
 
         try {
             $station = $this->radioService->create($customer, $instance, $payload);
@@ -159,7 +161,7 @@ final class MusicbotRadioApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WebradioManage);
         $station = $this->findOwnedStation($stationId, $customer);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
 
         try {
             $this->radioService->update($station, $payload);
@@ -327,7 +329,7 @@ final class MusicbotRadioApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WebradioManage);
         $station = $this->findAccessibleStation($stationId, $customer);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $playlistId = (int) ($payload['playlist_id'] ?? 0);
 
         if ($playlistId <= 0) {

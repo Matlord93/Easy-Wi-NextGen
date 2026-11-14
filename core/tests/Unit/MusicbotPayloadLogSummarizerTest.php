@@ -61,4 +61,18 @@ final class MusicbotPayloadLogSummarizerTest extends TestCase
         self::assertStringNotContainsString(str_repeat('x', 100), $encoded);
         self::assertLessThanOrEqual(160, strlen((string) $summary['audio_backend_message']));
     }
+    public function testFormattedRuntimeLogHasValidJsonAndNeverContainsSecrets(): void
+    {
+        $line = MusicbotPayloadLogSummarizer::formatRuntimePayload('unit-test', 17, [
+            'runtime_ready' => false,
+            'last_error' => "Invalid UTF-8: \xFF",
+            'bot_token' => 'must-not-appear',
+        ]);
+        self::assertStringStartsWith('[musicbot-status-flow] ', $line);
+        $data = json_decode(substr($line, strlen('[musicbot-status-flow] ')), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('unit-test', $data['stage']);
+        self::assertSame(17, $data['instance_id']);
+        self::assertStringNotContainsString('must-not-appear', $line);
+    }
+
 }

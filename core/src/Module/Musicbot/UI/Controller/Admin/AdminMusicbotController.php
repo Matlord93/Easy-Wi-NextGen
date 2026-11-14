@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
@@ -57,6 +60,37 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
+/**
+ * @psalm-type InstanceCreatePayload = array{
+ *     customer: User|null,
+ *     node: Agent|null,
+ *     name: string,
+ *     cpu_limit: int,
+ *     ram_limit: int,
+ *     disk_limit: int,
+ *     teamspeak_enabled: bool,
+ *     discord_enabled: bool,
+ *     errors: list<string>,
+ *     teamspeak_secret_config: array{server_password: string, channel_password: string},
+ *     teamspeak_profile: string,
+ *     teamspeak_backend_type: string,
+ *     teamspeak_backend_path: string,
+ *     teamspeak_identity_path: string,
+ *     teamspeak_command_prefix: string,
+ *     teamspeak_allowed_server_groups: string,
+ *     teamspeak_dj_server_groups: string,
+ *     teamspeak_admin_server_groups: string,
+ *     teamspeak_host: string,
+ *     teamspeak_nickname: string,
+ *     teamspeak_channel_id: string,
+ *     teamspeak_server_password: string,
+ *     teamspeak_channel_password: string,
+ *     teamspeak_commands_enabled: bool,
+ *     teamspeak_events_enabled: bool,
+ *     teamspeak_port: int,
+ *     teamspeak_config: array{profile: string, backend: string, backend_type: string, backend_path: string, identity_path: string, library_path: string, opus_library_path: string, binary_path: string, command_prefix: string, commands_enabled: bool, events_enabled: bool, allowed_server_groups: list<string>, dj_server_groups: list<string>, admin_server_groups: list<string>, host: string, port: int, nickname: string, channel_id: string},
+ * }
+ */
 #[Route(path: '/admin/musicbots')]
 #[RequiresModule(ModuleKey::Musicbot->value)]
 final class AdminMusicbotController
@@ -321,10 +355,12 @@ final class AdminMusicbotController
             return $this->renderCreateForm($form, Response::HTTP_BAD_REQUEST);
         }
 
-        /** @var User $customer */
         $customer = $form['customer'];
-        /** @var Agent $node */
         $node = $form['node'];
+        if (!$customer instanceof User || !$node instanceof Agent) {
+            $form['errors'][] = 'Customer and node are required.';
+            return $this->renderCreateForm($form, Response::HTTP_BAD_REQUEST);
+        }
         try {
             $this->quotaService->assertCanCreateMusicbot($customer);
             if ($form['teamspeak_enabled']) {
@@ -384,10 +420,10 @@ final class AdminMusicbotController
         $this->requireAdmin($request);
         $instance = $this->findInstance($id);
 
-        $runtimePayload = $this->runtimeStatusNormalizer->normalizePayload($this->sanitizeForTemplate($instance->getRuntimePayload() ?? []));
-        $playbackStatus = $runtimePayload['playback_status'] ?? $this->runtimeStatusNormalizer->buildPlaybackStatus($runtimePayload);
-        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') === '1') {
-            error_log('[musicbot-status-flow] '.json_encode(['stage' => 'admin.controller.payload.passed_to_twig', 'instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($runtimePayload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        $runtimePayload = $this->runtimeStatusNormalizer->normalizePayload(JsonArray::orEmpty($this->sanitizeForTemplate($instance->getRuntimePayload() ?? [])));
+        $playbackStatus = $this->runtimeStatusNormalizer->buildPlaybackStatus($runtimePayload);
+        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW')) === '1') {
+            error_log(MusicbotPayloadLogSummarizer::formatRuntimePayload('admin.controller.payload.passed_to_twig', $instance->getId(), $runtimePayload));
         }
 
         return new Response($this->twig->render('admin/musicbot/show.html.twig', [
@@ -461,13 +497,13 @@ final class AdminMusicbotController
         $connection = $this->findOrCreateConnection($instance, MusicbotPlatform::Discord);
         $connection->setEnabled($request->request->getBoolean('enabled'));
         $config = $connection->getConnectionConfig();
-        $config['application_id'] = trim((string) $request->request->get('application_id', $config['application_id'] ?? ''));
-        $config['guild_id'] = trim((string) $request->request->get('guild_id', $config['guild_id'] ?? ''));
-        $config['voice_channel_id'] = trim((string) $request->request->get('voice_channel_id', $config['voice_channel_id'] ?? ''));
-        $config['text_channel_id'] = trim((string) $request->request->get('text_channel_id', $config['text_channel_id'] ?? ''));
-        $config['command_mode'] = in_array((string) $request->request->get('command_mode', $config['command_mode'] ?? 'placeholder'), ['placeholder', 'slash'], true) ? (string) $request->request->get('command_mode', $config['command_mode'] ?? 'placeholder') : 'placeholder';
+        $config['application_id'] = trim((string) $request->request->get('application_id', JsonMap::strings($config)['application_id'] ?? ''));
+        $config['guild_id'] = trim((string) $request->request->get('guild_id', JsonMap::strings($config)['guild_id'] ?? ''));
+        $config['voice_channel_id'] = trim((string) $request->request->get('voice_channel_id', JsonMap::strings($config)['voice_channel_id'] ?? ''));
+        $config['text_channel_id'] = trim((string) $request->request->get('text_channel_id', JsonMap::strings($config)['text_channel_id'] ?? ''));
+        $config['command_mode'] = in_array((string) $request->request->get('command_mode', JsonMap::strings($config)['command_mode'] ?? 'placeholder'), ['placeholder', 'slash'], true) ? (string) $request->request->get('command_mode', JsonMap::strings($config)['command_mode'] ?? 'placeholder') : 'placeholder';
         $config['slash_commands_enabled'] = $request->request->getBoolean('slash_commands_enabled');
-        $config['reconnect_policy'] = in_array((string) $request->request->get('reconnect_policy', $config['reconnect_policy'] ?? 'manual'), ['manual', 'exponential_backoff'], true) ? (string) $request->request->get('reconnect_policy', $config['reconnect_policy'] ?? 'manual') : 'manual';
+        $config['reconnect_policy'] = in_array((string) $request->request->get('reconnect_policy', JsonMap::strings($config)['reconnect_policy'] ?? 'manual'), ['manual', 'exponential_backoff'], true) ? (string) $request->request->get('reconnect_policy', JsonMap::strings($config)['reconnect_policy'] ?? 'manual') : 'manual';
         $config['capability_status'] = 'voice_backend_required';
         $connection->setConnectionConfig($config);
         $connection->setSecretConfig(
@@ -695,7 +731,7 @@ final class AdminMusicbotController
         return $instance;
     }
 
-    /** @return array<string, mixed> */
+    /** @return InstanceCreatePayload */
     private function parseCreatePayload(Request $request): array
     {
         $customerId = $request->request->get('customer_id');
@@ -753,6 +789,7 @@ final class AdminMusicbotController
      * list<string>, dj_server_groups: list<string>, admin_server_groups: list<string>, host: string, port:
      * int, nickname: string, channel_id: string}
      */
+    /** @param list<string> $errors */
     private function parseTeamspeakConfig(Request $request, array &$errors): array
     {
         $profile = MusicbotTeamspeakProfile::tryFrom((string) $request->request->get('teamspeak_profile', MusicbotTeamspeakProfile::Ts3->value));
@@ -805,6 +842,7 @@ final class AdminMusicbotController
         ];
     }
 
+    /** @param list<string> $errors */
     private function parsePositiveInt(mixed $value, string $label, array &$errors): int
     {
         if ($value === null || $value === '') {
@@ -832,7 +870,7 @@ final class AdminMusicbotController
 
     /**
      * @param MusicbotInstance[] $instances
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function buildIndexRows(array $instances): array
     {
@@ -848,7 +886,7 @@ final class AdminMusicbotController
 
     /**
      * @param MusicbotConnection[] $connections
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function buildConnectionRows(array $connections): array
     {
@@ -902,22 +940,22 @@ final class AdminMusicbotController
 
     /**
      * @param mixed $value
-     * @return mixed
+     * @return null|scalar|array<array-key, mixed>
      */
-    private function sanitizeForTemplate(mixed $value): mixed
+    private function sanitizeForTemplate(mixed $value): null|bool|int|float|string|array
     {
         if (!is_array($value)) {
-            return is_string($value) ? $this->sanitizeTextForTemplate($value) : $value;
+            return is_string($value) ? $this->sanitizeTextForTemplate($value) : (is_scalar($value) || $value === null ? $value : '[unsupported]');
         }
 
         $sanitized = [];
-        foreach ($value as $key => $item) {
+        foreach (array_keys($value) as $key) {
             $keyString = is_string($key) ? strtolower($key) : (string) $key;
             if (str_contains($keyString, 'token') || str_contains($keyString, 'password') || str_contains($keyString, 'secret') || str_contains($keyString, 'auth')) {
-                $sanitized[$key] = $item === null || $item === '' ? $item : '[redacted]';
+                $sanitized[$key] = $value[$key] === null || $value[$key] === '' ? $value[$key] : '[redacted]';
                 continue;
             }
-            $sanitized[$key] = $this->sanitizeForTemplate($item);
+            $sanitized[$key] = $this->sanitizeForTemplate($value[$key]);
         }
 
         return $sanitized;

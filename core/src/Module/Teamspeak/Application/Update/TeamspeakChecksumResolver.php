@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\Application\Update;
 
+use App\Infrastructure\Config\ScalarValue;
+
 final class TeamspeakChecksumResolver
 {
     /**
@@ -12,12 +14,12 @@ final class TeamspeakChecksumResolver
      */
     public function resolve(array $asset, array $assets, string $releaseBody): ChecksumInfo
     {
-        $digest = (string) ($asset['digest'] ?? '');
+        $digest = ScalarValue::text($asset['digest'] ?? '');
         if (str_starts_with($digest, 'sha256:')) {
             return new ChecksumInfo('sha256', strtolower(substr($digest, 7)), 'asset_digest');
         }
 
-        $assetName = (string) ($asset['name'] ?? '');
+        $assetName = ScalarValue::text($asset['name'] ?? '');
         $shaAsset = $this->findShaAsset($assetName, $assets);
         if ($shaAsset !== null) {
             return new ChecksumInfo('sha256', null, 'sha256_asset');
@@ -36,7 +38,7 @@ final class TeamspeakChecksumResolver
     {
         $target = strtolower($assetName.'.sha256');
         foreach ($assets as $candidate) {
-            $name = strtolower((string) ($candidate['name'] ?? ''));
+            $name = strtolower(ScalarValue::text($candidate['name'] ?? ''));
             if ($name === $target || $name === strtolower($assetName).'.sha256.txt') {
                 return $candidate;
             }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Nodes\Application\Proxmox;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\VmGuestAgentReport;
@@ -21,6 +23,7 @@ final readonly class ProxmoxManager
     {
     }
 
+    /** @return array{nodes: list<array<array-key, mixed>>, guests: list<array<array-key, mixed>>} */
     public function overview(ProxmoxCluster $cluster): array
     {
         $connection = $cluster->connection($this->crypto);
@@ -33,11 +36,16 @@ final readonly class ProxmoxManager
     }
 
     /** Resolve the current node from the cluster, including guests migrated since the page opened. */
+    /** @return array<array-key, mixed> */
     public function guest(ProxmoxCluster $cluster, string $kind, int $vmId): array
     {
         return $this->findGuest($this->overview($cluster)['guests'], $kind, $vmId);
     }
 
+    /**
+     * @param list<array<array-key, mixed>> $guests
+     * @return array<array-key, mixed>
+     */
     private function findGuest(array $guests, string $kind, int $vmId): array
     {
         foreach ($guests as $guest) {
@@ -48,6 +56,7 @@ final readonly class ProxmoxManager
         throw new \InvalidArgumentException('pve.error.guest_not_found');
     }
 
+    /** @return array{server: array<array-key, mixed>, node: array<array-key, mixed>} */
     public function usage(ProxmoxCluster $cluster, string $kind, int $vmId, ?string $identityTag = null): array
     {
         $overview = $this->overview($cluster);
@@ -77,6 +86,7 @@ final readonly class ProxmoxManager
     }
 
     /** Collector already has the cluster inventory; do not refetch it for each VM. */
+    /** @return array<array-key, mixed> */
     public function monitoringUsage(ProxmoxCluster $cluster, array $guest, ?string $identityTag): array
     {
         $connection = $cluster->connection($this->crypto);
@@ -93,12 +103,13 @@ final readonly class ProxmoxManager
         return $guest + $this->rrd->forGuest($connection, $node, $kind, $vmId, $guest);
     }
 
+    /** @return list<array{assignment: ProxmoxGuestAssignment, guest: array<array-key, mixed>|null}> */
     public function customerGuests(User $actor): array
     {
         $result = [];
         $clusters = [];
         foreach ($this->em->getRepository(ProxmoxGuestAssignment::class)->findBy(['customer' => $actor]) as $assignment) {
-            $id = $assignment->getCluster()->getId();
+            $id = EntityIdentifier::require($assignment->getCluster()->getId());
             if (!array_key_exists($id, $clusters)) {
                 try {
                     $clusters[$id] = $this->overview($assignment->getCluster())['guests'];
@@ -119,6 +130,7 @@ final readonly class ProxmoxManager
         return $result;
     }
 
+    /** @return array<array-key, mixed> */
     public function assignedGuest(ProxmoxGuestAssignment $assignment, User $actor): array
     {
         if ($assignment->getCustomer()->getId() !== $actor->getId()) {
@@ -143,7 +155,7 @@ final readonly class ProxmoxManager
         if ($assign) {
             $tags[] = $tag;
         }
-        $this->api->setGuestTags($connection, (string) $guest['node'], $vmId, $kind, implode(';', $tags), $config['digest'] ?? null);
+        $this->api->setGuestTags($connection, (string) $guest['node'], $vmId, $kind, implode(';', $tags), JsonMap::strings($config)['digest'] ?? null);
 
         return $tag;
     }
@@ -177,10 +189,10 @@ final readonly class ProxmoxManager
                     throw $exception;
                 }
             }
-            if ($configuration && $customer && !in_array($identityTag, explode(';', (string) ($configuration['tags'] ?? '')), true)) {
+            if ($configuration !== null && $customer && !in_array($identityTag, explode(';', (string) ($configuration['tags'] ?? '')), true)) {
                 throw new \InvalidArgumentException('pve.error.identity');
             }
-            if ($configuration && 'qemu' === $kind) {
+            if ($configuration !== null && 'qemu' === $kind) {
                 $provisioning = VmProvisioningSettings::proxmoxView($configuration, (string) ($guest['name'] ?? ''));
             }
         }
@@ -191,9 +203,9 @@ final readonly class ProxmoxManager
         }
 
         return [
-            'guest' => $guest, 'status' => $status, 'configuration' => $customer ? null : $configuration, 'provisioning' => $provisioning, 'bootDevices' => !$customer && $configuration ? VmProvisioningSettings::bootDevices($configuration) : [],
-            'disks' => $configuration ? ProxmoxDisks::attached($configuration, $kind) : [],
-            'extraDiskOptions' => !$customer && $configuration ? ['devices' => ProxmoxExtraDisk::slots($configuration, $kind), 'storages' => array_values(array_filter($storages, fn (array $s): bool => $this->supports($s, 'qemu' === $kind ? 'images' : 'rootdir')))] : null,
+            'guest' => $guest, 'status' => $status, 'configuration' => $customer ? null : $configuration, 'provisioning' => $provisioning, 'bootDevices' => !$customer && $configuration !== null ? VmProvisioningSettings::bootDevices($configuration) : [],
+            'disks' => $configuration !== null ? ProxmoxDisks::attached($configuration, $kind) : [],
+            'extraDiskOptions' => !$customer && $configuration !== null ? ['devices' => ProxmoxExtraDisk::slots($configuration, $kind), 'storages' => array_values(array_filter($storages, fn (array $s): bool => $this->supports($s, 'qemu' === $kind ? 'images' : 'rootdir')))] : null,
             'nodeUsage' => array_values(array_filter($overview['nodes'], static fn (array $row): bool => ($row['node'] ?? '') === $node))[0] ?? [],
             'snapshots' => $this->api->snapshots($connection, $node, $vmId, $kind),
             'storages' => $customer ? array_values(array_filter($storages, fn (array $s): bool => ($s['storage'] ?? '') === $backupStorage && $this->supports($s, 'backup'))) : $storages,
@@ -299,7 +311,7 @@ final readonly class ProxmoxManager
         }
         try {
             $result = $operation();
-            $upid = $result['task'] ?? null;
+            $upid = JsonMap::strings($result)['task'] ?? null;
             if (null === $upid && !in_array($action, ['iso-mount', 'backup-delete', 'resources-update', 'cloud-init', 'boot-order', 'guest-agent', 'disk-grow'], true) && !('disk-add' === $action && 'lxc' === $kind)) {
                 throw new \RuntimeException('Missing upstream task ID.');
             }
@@ -324,7 +336,8 @@ final readonly class ProxmoxManager
         if (!$task->isActive() || 'uncertain' === $task->getState()) {
             return;
         }
-        if (null === $task->getUpid()) {
+        $upid = $task->getUpid();
+        if ($upid === null) {
             if ($task->getCreatedAt() < new \DateTimeImmutable('-2 minutes')) {
                 $task->uncertain();
                 $this->em->flush();
@@ -332,7 +345,7 @@ final readonly class ProxmoxManager
 
             return;
         }
-        $status = $this->api->taskStatus($task->getCluster()->connection($this->crypto), $task->getNode(), $task->getUpid());
+        $status = $this->api->taskStatus($task->getCluster()->connection($this->crypto), $task->getNode(), $upid);
         if (($status['status'] ?? '') === 'stopped') {
             $success = ($status['exitstatus'] ?? '') === 'OK';
             $task->finish($success, $success ? 'OK' : 'upstream_failed');
@@ -414,6 +427,7 @@ final readonly class ProxmoxManager
         return [$task, true];
     }
 
+    /** @return \Closure(): array<array-key, mixed> */
     private function prepare(ProxmoxConnection $connection, string $node, string $kind, int $vmId, string $action, array $input, array $guest, ?string $allowedStorage, bool $customer, ?string $identityTag = null): \Closure
     {
         if ('disk-add' === $action) {
@@ -448,11 +462,11 @@ final readonly class ProxmoxManager
                 throw new \InvalidArgumentException('pve.error.resources_running');
             }
             $config = $this->api->guestConfig($connection, $node, $vmId, $kind);
-            $disk = is_string($input['disk'] ?? null) ? $input['disk'] : '';
+            $disk = JsonMap::strings($input)['disk'] ?? '';
             $size = $this->boundedInt($input['size_gib'] ?? '', 1, 65536);
             $expected = $this->boundedInt($input['expected_bytes'] ?? '', 1, 70368744177664);
             $attached = array_column(ProxmoxDisks::attached($config, $kind), null, 'device');
-            if (!isset($attached[$disk]) || !is_string($config['digest'] ?? null) || '' === $config['digest'] || !empty($config['lock'])) {
+            if (!isset($attached[$disk]) || !is_string(JsonMap::strings($config)['digest'] ?? null) || '' === $config['digest'] || !empty($config['lock'])) {
                 throw new \InvalidArgumentException('pve.error.disk_unavailable');
             }
             if ($attached[$disk]['size_bytes'] !== $expected || ($input['expected_digest'] ?? null) !== $config['digest']) {
@@ -477,8 +491,8 @@ final readonly class ProxmoxManager
                 throw new \InvalidArgumentException('pve.error.resources_running');
             }
             $config = $this->api->guestConfig($connection, $node, $vmId, $kind);
-            $digest = is_string($config['digest'] ?? null) ? $config['digest'] : null;
-            if ($customer && (!$identityTag || !in_array($identityTag, explode(';', (string) ($config['tags'] ?? '')), true))) {
+            $digest = JsonMap::strings($config)['digest'] ?? null;
+            if ($customer && ($identityTag === null || $identityTag === '' || !in_array($identityTag, explode(';', (string) ($config['tags'] ?? '')), true))) {
                 throw new \InvalidArgumentException('pve.error.identity');
             }
             if ('cloud-init' === $action) {
@@ -486,7 +500,7 @@ final readonly class ProxmoxManager
                     throw new \InvalidArgumentException('vm_config.no_cloud_init');
                 }
                 $hostname = VmProvisioningSettings::hostname($input['hostname'] ?? '');
-                $username = is_string($input['username'] ?? null) ? trim($input['username']) : '';
+                $username = trim(JsonMap::strings($input)['username'] ?? '');
                 if (!preg_match('/^[a-z_][a-z0-9_-]{0,30}$/D', $username)) {
                     throw new \InvalidArgumentException('vm_config.invalid_user');
                 }
@@ -495,9 +509,9 @@ final readonly class ProxmoxManager
                 return fn (): array => $this->api->updateProvisioning($connection, $node, $vmId, $hostname, $username, $keys, $digest);
             }
             if ('boot-order' === $action) {
-                $raw = is_string($input['boot_order'] ?? null) ? trim($input['boot_order']) : '';
+                $raw = trim(JsonMap::strings($input)['boot_order'] ?? '');
                 $devices = explode(';', $raw);
-                if (count($devices) < 1 || count($devices) > 8 || count(array_unique($devices)) !== count($devices) || array_diff($devices, VmProvisioningSettings::bootDevices($config))) {
+                if (count($devices) > 8 || count(array_unique($devices)) !== count($devices) || array_diff($devices, VmProvisioningSettings::bootDevices($config))) {
                     throw new \InvalidArgumentException('vm_config.invalid_boot');
                 }
 
@@ -520,7 +534,7 @@ final readonly class ProxmoxManager
             }
             $config = $this->api->guestConfig($connection, $node, $vmId, $kind);
 
-            return fn (): array => $this->api->updateResources($connection, $node, $vmId, $kind, $cores, $memory, is_string($config['digest'] ?? null) ? $config['digest'] : null);
+            return fn (): array => $this->api->updateResources($connection, $node, $vmId, $kind, $cores, $memory, JsonMap::strings($config)['digest'] ?? null);
         }
         if (in_array($action, ['start', 'stop', 'shutdown', 'reboot'], true)) {
             return fn (): array => $this->api->changePowerState($connection, $node, $vmId, $action, $kind);
@@ -600,7 +614,7 @@ final readonly class ProxmoxManager
                 throw new \InvalidArgumentException('pve.error.cdrom_slot');
             }
 
-            return fn (): array => $this->api->mountIso($connection, $node, $vmId, $volume, $slot, $config['digest'] ?? null);
+            return fn (): array => $this->api->mountIso($connection, $node, $vmId, $volume, $slot, JsonMap::strings($config)['digest'] ?? null);
         }
         if ('clone' === $action) {
             if (empty($guest['template'])) {
@@ -659,6 +673,10 @@ final readonly class ProxmoxManager
         throw new \InvalidArgumentException('pve.error.storage');
     }
 
+    /**
+     * @param list<array<array-key, mixed>> $storages
+     * @return list<array<array-key, mixed>>
+     */
     private function content(ProxmoxConnection $connection, string $node, array $storages, string $type): array
     {
         $items = [];

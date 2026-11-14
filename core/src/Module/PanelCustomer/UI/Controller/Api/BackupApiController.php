@@ -24,6 +24,18 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
+/**
+ * @psalm-type ValidSchedule = array{
+ *     error: null, cron_expression: string, retention_days: int, retention_count: int,
+ *     enabled: bool, time_zone: string, compression: string, stop_before: bool,
+ *     backup_target: BackupTarget|null
+ * }
+ * @psalm-type ValidationError = array{error: JsonResponse}
+ * @psalm-type ValidDefinition = array{
+ *     error: null, customer: User, target_type: BackupTargetType, target_id: string,
+ *     label: string|null, backup_target: BackupTarget|null, schedule: ValidSchedule|null
+ * }
+ */
 final class BackupApiController
 {
     public function __construct(
@@ -91,8 +103,8 @@ final class BackupApiController
             'backup_target_id' => $definition->getBackupTarget()?->getId(),
         ]);
 
-        if ($definition->getSchedule() !== null) {
-            $schedule = $definition->getSchedule();
+        $schedule = $definition->getSchedule();
+        if ($schedule !== null) {
             $this->auditLogger->log($actor, 'backup.schedule.created', [
                 'backup_id' => $definition->getId(),
                 'schedule_id' => $schedule->getId(),
@@ -191,6 +203,7 @@ final class BackupApiController
         return $actor;
     }
 
+    /** @return array<array-key, mixed> */
     private function parseJsonPayload(Request $request): array
     {
         try {
@@ -200,12 +213,16 @@ final class BackupApiController
         }
     }
 
+    /**
+     * @param array<array-key, mixed> $payload
+     * @return ValidDefinition|ValidationError
+     */
     private function validateDefinitionPayload(Request $request, User $actor, array $payload): array
     {
         $customerIdValue = $payload['customer_id'] ?? null;
-        $targetTypeValue = strtolower(trim((string) ($payload['target_type'] ?? '')));
-        $targetId = trim((string) ($payload['target_id'] ?? ''));
-        $label = trim((string) ($payload['label'] ?? ''));
+        $targetTypeValue = strtolower(trim(ScalarValue::text($payload['target_type'] ?? '')));
+        $targetId = trim(ScalarValue::text($payload['target_id'] ?? ''));
+        $label = trim(ScalarValue::text($payload['label'] ?? ''));
         $label = $label !== '' ? $label : null;
         $backupTargetId = $payload['backup_target_id'] ?? null;
 
@@ -277,16 +294,15 @@ final class BackupApiController
     }
 
     /**
-     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, cron_expression?: string,
-     * retention_days?: int, retention_count?: int, enabled?: bool, time_zone?: string, compression?:
-     * string, stop_before?: bool, backup_target?: \App\Module\Core\Domain\Entity\BackupTarget|null}
+     * @param array<array-key, mixed> $payload
+     * @return ValidSchedule|ValidationError
      */
     private function validateSchedulePayload(Request $request, array $payload, User $customer): array
     {
-        $cronExpression = trim((string) ($payload['cron_expression'] ?? ''));
+        $cronExpression = trim(ScalarValue::text($payload['cron_expression'] ?? ''));
         $retentionDaysValue = $payload['retention_days'] ?? null;
         $retentionCountValue = $payload['retention_count'] ?? null;
-        $enabledValue = $payload['enabled'] ?? true;
+        $enabled = filter_var($payload['enabled'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
         if ($cronExpression === '') {
             return ['error' => $this->responseEnvelopeFactory->error($request, 'Cron expression is required.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
@@ -310,12 +326,11 @@ final class BackupApiController
             return ['error' => $this->responseEnvelopeFactory->error($request, 'Retention count must be at least 1.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
-        $enabled = filter_var($enabledValue, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         if ($enabled === null) {
             return ['error' => $this->responseEnvelopeFactory->error($request, 'Enabled must be a boolean.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
-        $timeZone = trim((string) ($payload['time_zone'] ?? 'UTC'));
+        $timeZone = trim(ScalarValue::text($payload['time_zone'] ?? 'UTC'));
         $timeZone = $timeZone === '' ? 'UTC' : $timeZone;
         try {
             new \DateTimeZone($timeZone);
@@ -360,6 +375,7 @@ final class BackupApiController
         ];
     }
 
+    /** @param ValidSchedule $scheduleData */
     private function createSchedule(BackupDefinition $definition, array $scheduleData): BackupSchedule
     {
         $schedule = new BackupSchedule(

@@ -6,6 +6,9 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
+use App\Repository\EntityQueryResult;
 
 use App\Module\Core\Application\AgentMetricsIngestionService;
 use App\Module\Core\Application\AgentJwtVerifier;
@@ -183,8 +186,8 @@ final class AgentApiController
 
         $version = (string) ($payload['version'] ?? '');
         $stats = JsonArray::orEmpty($payload['stats'] ?? null);
-        $roles = JsonArray::orEmpty($payload['roles'] ?? null);
-        $metadata = is_array($payload['metadata'] ?? null) ? $payload['metadata'] : null;
+        $roles = array_filter(JsonArray::orEmpty($payload['roles'] ?? null), 'is_string');
+        $metadata = JsonArray::fromValue($payload['metadata'] ?? null);
         $status = isset($payload['status']) ? (string) $payload['status'] : null;
         $ip = $this->resolveAgentIpFromRequest($request);
 
@@ -259,7 +262,7 @@ final class AgentApiController
         }
 
         try {
-            $payload = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+            $payload = JsonArray::fromValue(json_decode($raw, true, 512, JSON_THROW_ON_ERROR)) ?? [];
         } catch (\JsonException $exception) {
             throw new BadRequestHttpException($this->translator->trans('error_invalid_json_payload'), $exception);
         }
@@ -421,18 +424,18 @@ final class AgentApiController
                 continue;
             }
 
-            if ($job->getAttempts() > 0 && $job->getLastAttemptAt() !== null) {
-                $retryAt = $job->getLastAttemptAt()->modify(sprintf('+%d seconds', $backoffSeconds));
+            $lastAttemptAt = $job->getLastAttemptAt();
+            if ($job->getAttempts() > 0 && $lastAttemptAt !== null) {
+                $retryAt = $lastAttemptAt->modify(sprintf('+%d seconds', $backoffSeconds));
                 if ($retryAt > $now) {
                     $rejections['backoff']++;
                     continue;
                 }
             }
 
-            $payload = $job->getPayload();
             $payload = $this->resolveDispatchPayload($job);
             $payload = $this->resolveBackupTargetPayload($job->getType(), $payload);
-            $targetAgentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : '';
+            $targetAgentId = JsonMap::strings($payload)['agent_id'] ?? '';
             if ($targetAgentId !== '' && $targetAgentId !== $agent->getId()) {
                 $rejections['agent_mismatch']++;
                 continue;
@@ -799,7 +802,7 @@ final class AgentApiController
             }
         }
         if (isset($output['logs']) && is_array($output['logs'])) {
-            foreach ($output['logs'] as $entry) {
+            foreach (array_filter($output['logs'], 'is_string') as $entry) {
                 if (is_string($entry) && trim($entry) !== '') {
                     $candidates[] = $entry;
                 }
@@ -834,7 +837,7 @@ final class AgentApiController
     private function normalizeLogLines(array $payload): array
     {
         $candidates = [];
-        $message = $payload['message'] ?? null;
+        $message = JsonMap::strings($payload)['message'] ?? null;
         if (is_string($message) && trim($message) !== '') {
             $candidates[] = $message;
         }
@@ -846,7 +849,7 @@ final class AgentApiController
         }
 
         if (isset($payload['logs']) && is_array($payload['logs'])) {
-            foreach ($payload['logs'] as $entry) {
+            foreach (array_filter($payload['logs'], 'is_string') as $entry) {
                 if (is_string($entry) && trim($entry) !== '') {
                     $candidates[] = $entry;
                 }
@@ -1001,7 +1004,7 @@ final class AgentApiController
         $errorCode = is_string($output['error_code'] ?? null) ? (string) $output['error_code'] : null;
         $message = null;
         foreach (['message', 'stderr', 'error'] as $key) {
-            $value = $output[$key] ?? null;
+            $value = JsonMap::strings($output)[$key] ?? null;
             if (is_string($value) && trim($value) !== '') {
                 $message = trim($value);
                 break;
@@ -1079,7 +1082,7 @@ final class AgentApiController
 
 
     /**
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private function resolveDispatchPayload(Job $job): array
     {
@@ -1103,8 +1106,16 @@ final class AgentApiController
             return null;
         }
 
+        $fields = JsonMap::strings($secretPayload);
+        if (!isset($fields['key_id'], $fields['nonce'], $fields['ciphertext'])) {
+            return null;
+        }
         try {
-            $secret = $this->encryptionService->decrypt($secretPayload);
+            $secret = $this->encryptionService->decrypt([
+                'key_id' => $fields['key_id'],
+                'nonce' => $fields['nonce'],
+                'ciphertext' => $fields['ciphertext'],
+            ]);
         } catch (\Throwable) {
             return null;
         }
@@ -1121,19 +1132,15 @@ final class AgentApiController
 
     private function cancelPendingJobsForDecommissionedAgent(Agent $agent, string $context): int
     {
-        $jobs = $this->jobRepository->createQueryBuilder('job')
+        $jobs = EntityQueryResult::all($this->jobRepository->createQueryBuilder('job')
             ->where('job.payload LIKE :agentPayload')
             ->andWhere('job.status IN (:statuses)')
             ->setParameter('agentPayload', '%"agent_id":"' . $agent->getId() . '"%')
             ->setParameter('statuses', [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running])
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), Job::class);
 
         $cancelled = 0;
         foreach ($jobs as $job) {
-            if (!$job instanceof Job) {
-                continue;
-            }
 
             if (!in_array($job->getStatus(), [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running], true)) {
                 continue;
@@ -1226,7 +1233,8 @@ final class AgentApiController
         $resolvedInstances = [];
         $instanceIds = [];
 
-        foreach ($samples as $sample) {
+        foreach (array_keys($samples) as $sampleKey) {
+            $sample = JsonArray::fromValue($samples[$sampleKey]);
             if (!is_array($sample) || !is_numeric($sample['instance_id'] ?? null)) {
                 continue;
             }
@@ -1247,12 +1255,13 @@ final class AgentApiController
 
         $latestCollectedMap = $this->instanceMetricSampleRepository->findLatestCollectedAtByInstanceIds($instanceIds);
 
-        foreach ($samples as $sample) {
+        foreach (array_keys($samples) as $sampleKey) {
+            $sample = JsonArray::fromValue($samples[$sampleKey]);
             if (!is_array($sample)) {
                 continue;
             }
 
-            $instanceId = $sample['instance_id'] ?? null;
+            $instanceId = self::numericValue($sample['instance_id'] ?? null);
             if (!is_numeric($instanceId)) {
                 continue;
             }
@@ -1263,9 +1272,6 @@ final class AgentApiController
             }
 
             $collectedAt = $this->parseMetricTimestamp($sample['collected_at'] ?? null);
-            if ($collectedAt === null) {
-                continue;
-            }
 
             $lastCollectedAt = $latestCollectedMap[$instanceId] ?? null;
             if ($lastCollectedAt instanceof \DateTimeImmutable && $collectedAt < $lastCollectedAt->modify('+5 minutes')) {
@@ -1580,7 +1586,7 @@ final class AgentApiController
 
         $jails = $output['jails'] ?? null;
         if (is_string($jails) && $jails !== '') {
-            $decoded = json_decode($jails, true);
+            $decoded = JsonArray::decode($jails);
             $jails = is_array($decoded) ? $decoded : null;
         }
         if (!is_array($jails)) {
@@ -1593,12 +1599,9 @@ final class AgentApiController
             }
 
             $name = is_string($jail['name'] ?? null) ? (string) $jail['name'] : null;
-            $banned = $jail['banned'] ?? null;
+            $banned = self::numericValue($jail['banned'] ?? null);
             $banned = is_numeric($banned) ? (int) $banned : null;
-            $bannedIps = $jail['banned_ips'] ?? [];
-            if (!is_array($bannedIps)) {
-                $bannedIps = [];
-            }
+            $bannedIps = array_filter(JsonArray::orEmpty($jail['banned_ips'] ?? null), 'is_string');
 
             foreach ($bannedIps as $ip) {
                 if (!is_string($ip) || trim($ip) === '') {
@@ -1692,7 +1695,7 @@ final class AgentApiController
             return;
         }
 
-        $ttlRaw = is_string($output['retention_ttl'] ?? null) ? trim($output['retention_ttl']) : '24h';
+        $ttlRaw = trim(JsonMap::strings($output)['retention_ttl'] ?? '24h');
         $expiresAt = $this->resolveSecurityEventExpiry($completedAt, $ttlRaw);
         $this->cleanupExpiredSecurityEvents();
 
@@ -1700,13 +1703,13 @@ final class AgentApiController
             if (!is_array($event)) {
                 continue;
             }
-            $direction = is_string($event['direction'] ?? null) ? $event['direction'] : 'blocked';
+            $direction = JsonMap::strings($event)['direction'] ?? 'blocked';
             $direction = in_array($direction, ['blocked', 'allowed'], true) ? $direction : 'blocked';
             $source = is_string($event['source'] ?? null) ? mb_substr(trim((string) $event['source']), 0, 32) : 'firewall';
             $reason = is_string($event['reason'] ?? null) ? mb_substr(trim((string) $event['reason']), 0, 120) : null;
             $ip = is_string($event['ip'] ?? null) ? mb_substr(trim((string) $event['ip']), 0, 64) : null;
             $rule = is_string($event['rule'] ?? null) ? mb_substr(trim((string) $event['rule']), 0, 120) : null;
-            $count = is_int($event['count'] ?? null) && $event['count'] > 0 ? $event['count'] : 1;
+            $count = self::positiveCount($event['count'] ?? null);
             $dedupKey = hash('sha256', implode('|', [$agent->getId(), $direction, $source, $ip ?? '', $rule ?? '', $completedAt->format(DATE_RFC3339)]));
             if ($this->entityManager->getRepository(SecurityEvent::class)->findOneBy(['dedupKey' => $dedupKey]) !== null) {
                 continue;
@@ -1833,7 +1836,7 @@ final class AgentApiController
     private function parseDdosPorts(mixed $value): array
     {
         if (is_string($value) && $value !== '') {
-            $decoded = json_decode($value, true);
+            $decoded = JsonArray::decode($value);
             if (is_array($decoded)) {
                 $value = $decoded;
             } else {
@@ -1878,7 +1881,7 @@ final class AgentApiController
     private function parseDdosPortStats(mixed $value): array
     {
         if (is_string($value) && $value !== '') {
-            $decoded = json_decode($value, true);
+            $decoded = JsonArray::decode($value);
             if (is_array($decoded)) {
                 $value = $decoded;
             }
@@ -1922,7 +1925,7 @@ final class AgentApiController
     private function parseDdosProtocols(mixed $value): array
     {
         if (is_string($value) && $value !== '') {
-            $decoded = json_decode($value, true);
+            $decoded = JsonArray::decode($value);
             if (is_array($decoded)) {
                 $value = $decoded;
             } else {
@@ -1957,7 +1960,7 @@ final class AgentApiController
     {
         $payload = $job->getPayload();
         $domain = null;
-        $domainId = $payload['domain_id'] ?? null;
+        $domainId = self::identifier($payload['domain_id'] ?? null);
         if (is_int($domainId) || is_string($domainId)) {
             $domain = $this->domainRepository->find((int) $domainId);
         }
@@ -2283,7 +2286,7 @@ final class AgentApiController
         }
 
         if (is_string($output['start_script_path'] ?? null)) {
-            $instance->setStartScriptPath($output['start_script_path']);
+            $instance->setStartScriptPath(JsonMap::strings($output)['start_script_path'] ?? null);
             $this->entityManager->persist($instance);
         }
 
@@ -2306,7 +2309,7 @@ final class AgentApiController
         $instance->setInstalledVersion($version);
         $instance->setInstalledChannel($this->resolveMinecraftInstalledChannel($instance));
         $javaVersion = is_string($output['java_version'] ?? null) ? (string) $output['java_version'] : null;
-        if ($javaVersion === null && is_array($job->getPayload())) {
+        if ($javaVersion === null) {
             $javaBin = (string) (($job->getPayload()['JAVA_BIN'] ?? $job->getPayload()['java_bin'] ?? ''));
             $javaVersion = preg_match('/(8|16|17|21|25)$/', $javaBin, $matches) ? $matches[1] : null;
         }
@@ -2327,7 +2330,7 @@ final class AgentApiController
     private function resolveMinecraftInstalledChannel(\App\Module\Core\Domain\Entity\Instance $instance): ?string
     {
         $resolver = $instance->getTemplate()->getInstallResolver();
-        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        $type = ScalarValue::text($resolver['type'] ?? '');
         return match ($type) {
             'minecraft_vanilla' => 'vanilla',
             'papermc_paper' => 'paper',
@@ -2390,7 +2393,8 @@ final class AgentApiController
 
         $paths = [];
         $files = JsonArray::orEmpty($payload['files'] ?? null);
-        foreach ($files as $file) {
+        foreach (array_keys($files) as $fileKey) {
+            $file = JsonArray::fromValue($files[$fileKey]);
             if (is_array($file) && is_string($file['path'] ?? null) && trim((string) $file['path']) !== '') {
                 $paths[] = trim((string) $file['path']);
             }
@@ -2406,7 +2410,10 @@ final class AgentApiController
             if ($path === '') {
                 continue;
             }
-            $entry = JsonArray::orEmpty($overrides[$path] ?? null);
+            $entry = $overrides[$path] ?? null;
+            if ($entry === null) {
+                continue;
+            }
             $entry['last_apply_status'] = $resultStatus === JobResultStatus::Succeeded ? 'succeeded' : 'failed';
             $entry['last_applied_at'] = $completedAt->format(DATE_RFC3339);
             if ($resultStatus === JobResultStatus::Succeeded) {
@@ -2491,13 +2498,13 @@ final class AgentApiController
             'job_id' => $job->getId(),
             'credential_id' => $credential->getId(),
             'rotated_at' => $completedAt->format(DATE_RFC3339),
-            'expires_at' => $expiresAt?->format(DATE_RFC3339),
+            'expires_at' => $expiresAt->format(DATE_RFC3339),
         ]);
 
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      */
     private function resolveSftpPasswordRevealExpiresAt(array $payload, DateTimeImmutable $completedAt): DateTimeImmutable
     {
@@ -2800,8 +2807,8 @@ final class AgentApiController
         $statusCache['status'] = $online ? 'online' : 'offline';
         $statusCache['players'] = is_numeric($output['players'] ?? null) ? (int) $output['players'] : null;
         $statusCache['max_players'] = is_numeric($output['max_players'] ?? null) ? (int) $output['max_players'] : null;
-        $statusCache['map'] = is_string($output['map'] ?? null) ? $output['map'] : null;
-        $statusCache['name'] = is_string($output['name'] ?? null) ? $output['name'] : null;
+        $statusCache['map'] = JsonMap::strings($output)['map'] ?? null;
+        $statusCache['name'] = JsonMap::strings($output)['name'] ?? null;
         $statusCache['last_error'] = $online ? null : $this->normalizePublicServerStatusError($output);
         $statusCache['query_duration_ms'] = is_numeric($output['query_duration_ms'] ?? $output['duration_ms'] ?? null) ? (int) ($output['query_duration_ms'] ?? $output['duration_ms']) : null;
         $statusCache['last_checked_at'] = $completedAt->format(DATE_RFC3339);
@@ -2820,11 +2827,12 @@ final class AgentApiController
     }
 
 
-    private function normalizePublicServerStatusError(array $output): ?string
+    private function normalizePublicServerStatusError(array $output): string
     {
         foreach (['last_error', 'error', 'message', 'reason'] as $key) {
-            if (is_string($output[$key] ?? null) && trim($output[$key]) !== '') {
-                return mb_substr(trim($output[$key]), 0, 240);
+            $text = JsonMap::strings($output)[$key] ?? '';
+            if (trim($text) !== '') {
+                return mb_substr(trim($text), 0, 240);
             }
         }
 
@@ -2907,8 +2915,8 @@ final class AgentApiController
 
 
     /**
-     * @param array<string, mixed> $payload
-     * @param array<string, mixed> $output
+     * @param array<array-key, mixed> $payload
+     * @param array<array-key, mixed> $output
      */
     private function shouldQueueA2sFallbackAttempt(JobResultStatus $resultStatus, array $payload, array $output): bool
     {
@@ -2935,7 +2943,7 @@ final class AgentApiController
     }
 
     /**
-     * @param array<string, mixed> $output
+     * @param array<array-key, mixed> $output
      */
     private function outputContainsUnreachableError(array $output): bool
     {
@@ -2944,7 +2952,8 @@ final class AgentApiController
             return true;
         }
 
-        $encoded = strtolower(json_encode($output, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '');
+        $json = json_encode($output, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $encoded = strtolower($json !== false ? $json : '');
 
         return str_contains($encoded, 'query_unreachable')
             || str_contains($encoded, 'query_timeout')
@@ -2956,11 +2965,11 @@ final class AgentApiController
 
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      */
     private function resolveFallbackQueryPort(array $payload, ?int $primaryQueryPort): ?int
     {
-        $fallbackPorts = $payload['fallback_query_ports'] ?? null;
+        $fallbackPorts = JsonArray::fromValue($payload['fallback_query_ports'] ?? null);
         if (is_array($fallbackPorts)) {
             foreach ($fallbackPorts as $candidate) {
                 if (!is_numeric($candidate)) {
@@ -2982,7 +2991,7 @@ final class AgentApiController
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      */
     private function queueA2sFallbackAttempt(Instance $instance, array $payload, DateTimeImmutable $completedAt): void
     {
@@ -2998,10 +3007,9 @@ final class AgentApiController
         $fallbackPayload['fallback_attempted'] = true;
         $fallbackPayload['fallback_from_query_port'] = (string) $primaryQueryPort;
 
-        if (!is_array($fallbackPayload['config'] ?? null)) {
-            $fallbackPayload['config'] = [];
-        }
-        $fallbackPayload['config']['fallback_attempted'] = true;
+        $config = JsonArray::orEmpty($fallbackPayload['config'] ?? null);
+        $config['fallback_attempted'] = true;
+        $fallbackPayload['config'] = $config;
 
         $this->entityManager->persist(new Job('instance.query.check', $fallbackPayload));
 
@@ -3032,7 +3040,7 @@ final class AgentApiController
         }
 
         $payload = $job->getPayload();
-        $backupId = $payload['backup_id'] ?? null;
+        $backupId = self::identifier($payload['backup_id'] ?? null);
         if (!is_int($backupId) && !is_string($backupId)) {
             return;
         }
@@ -3148,14 +3156,14 @@ final class AgentApiController
 
         $definition = null;
         if ($jobType === 'instance.backup.create') {
-            $definitionId = $payload['definition_id'] ?? null;
+            $definitionId = self::identifier($payload['definition_id'] ?? null);
             if (is_int($definitionId) || is_string($definitionId)) {
                 $definition = $this->backupDefinitionRepository->find((int) $definitionId);
             }
         }
 
         if ($jobType === 'instance.backup.restore') {
-            $backupId = $payload['backup_id'] ?? null;
+            $backupId = self::identifier($payload['backup_id'] ?? null);
             if (is_int($backupId) || is_string($backupId)) {
                 $backup = $this->backupRepository->find((int) $backupId);
                 $definition = $backup?->getDefinition();
@@ -3167,7 +3175,7 @@ final class AgentApiController
         }
 
         $target = null;
-        $payloadTargetId = $payload['backup_target_id'] ?? null;
+        $payloadTargetId = self::identifier($payload['backup_target_id'] ?? null);
         if ((is_int($payloadTargetId) || is_string($payloadTargetId)) && (string) $payloadTargetId !== '') {
             $target = $this->backupTargetRepository->find((int) $payloadTargetId);
         }
@@ -3190,7 +3198,7 @@ final class AgentApiController
             $encrypted = $target->getEncryptedCredentials();
             $secret = [];
             foreach (['password', 'token', 'username'] as $key) {
-                $credential = $encrypted[$key] ?? null;
+                $credential = JsonMap::strings($encrypted[$key] ?? null);
                 if (is_array($credential)
                     && is_string($credential['key_id'] ?? null)
                     && is_string($credential['nonce'] ?? null)
@@ -3317,42 +3325,18 @@ final class AgentApiController
     }
 
 
-    private function buildMetricSample(\App\Module\Core\Domain\Entity\Agent $agent, mixed $metrics): ?MetricSample
+    private static function numericValue(mixed $value): int|float|string|null
     {
-        if (!is_array($metrics)) {
-            return null;
-        }
-        $recordedAt = $this->parseMetricTimestamp($metrics['collected_at'] ?? null);
-        $cpuPercent = $this->parseMetricPercent($metrics, 'cpu');
-        $memoryPercent = $this->parseMetricPercent($metrics, 'memory');
-        $diskPercent = $this->parseMetricPercent($metrics, 'disk');
-        $netBytesSent = $this->parseMetricInt($metrics, ['net', 'bytes_sent']);
-        $netBytesRecv = $this->parseMetricInt($metrics, ['net', 'bytes_recv']);
-        return new MetricSample($agent, $recordedAt, $cpuPercent, $memoryPercent, $diskPercent, $netBytesSent, $netBytesRecv, $metrics);
+        return is_numeric($value) ? $value : null;
     }
 
-    private function parseMetricPercent(array $metrics, string $key): ?float
+    private static function identifier(mixed $value): int|string|null
     {
-        $value = $metrics[$key]['percent'] ?? null;
-        if (!is_numeric($value)) {
-            return null;
-        }
-        return (float) $value;
+        return is_int($value) || is_string($value) ? $value : null;
     }
 
-    private function parseMetricInt(array $metrics, array $path): ?int
+    private static function positiveCount(mixed $value): int
     {
-        $cursor = $metrics;
-        foreach ($path as $segment) {
-            if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
-                return null;
-            }
-            $cursor = $cursor[$segment];
-        }
-        if (!is_numeric($cursor)) {
-            return null;
-        }
-        return (int) $cursor;
+        return is_int($value) && $value > 0 ? $value : 1;
     }
-
 }

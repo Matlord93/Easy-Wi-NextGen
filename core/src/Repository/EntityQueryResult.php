@@ -27,6 +27,22 @@ final class EntityQueryResult
     /**
      * @template T of object
      * @param class-string<T> $entityClass
+     * @return \Generator<int, T>
+     */
+    public static function iterate(AbstractQuery $query, string $entityClass): \Generator
+    {
+        $rows = $query->toIterable();
+        $iterator = is_array($rows) ? new \ArrayIterator($rows) : new \IteratorIterator($rows);
+        $iterator->rewind();
+        while ($iterator->valid()) {
+            yield self::entity($iterator->current(), $entityClass);
+            $iterator->next();
+        }
+    }
+
+    /**
+     * @template T of object
+     * @param class-string<T> $entityClass
      * @return T|null
      */
     public static function one(AbstractQuery $query, string $entityClass): ?object

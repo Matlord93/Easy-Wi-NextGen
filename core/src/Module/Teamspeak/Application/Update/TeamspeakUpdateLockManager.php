@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\Application\Update;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
+
 final class TeamspeakUpdateLockManager
 {
     public function __construct(private readonly string $lockDir) {}
@@ -14,11 +17,11 @@ final class TeamspeakUpdateLockManager
         $path = $this->lockPath($instanceType, $instanceId);
         $now = time();
         if (is_file($path)) {
-            $content = json_decode((string) file_get_contents($path), true);
-            $expires = (int) ($content['expires_at'] ?? 0);
+            $content = JsonArray::decode((string) file_get_contents($path));
+            $expires = ScalarValue::integer($content['expires_at'] ?? null, 0);
             if ($expires > $now) { return false; }
         }
-        return false !== file_put_contents($path, json_encode(['expires_at' => $now + $ttlSeconds, 'created_at' => $now]), LOCK_EX);
+        return false !== file_put_contents($path, json_encode(['expires_at' => $now + $ttlSeconds, 'created_at' => $now], JSON_THROW_ON_ERROR), LOCK_EX);
     }
 
     public function release(string $instanceType, int $instanceId): void
@@ -29,6 +32,6 @@ final class TeamspeakUpdateLockManager
 
     private function lockPath(string $instanceType, int $instanceId): string
     {
-        return rtrim($this->lockDir, '/').sprintf('/%s-%d.lock', preg_replace('/[^a-z0-9_\-]/i', '', $instanceType), $instanceId);
+        return rtrim($this->lockDir, '/').sprintf('/%s-%d.lock', preg_replace('/[^a-z0-9_\-]/i', '', $instanceType) ?? '', $instanceId);
     }
 }

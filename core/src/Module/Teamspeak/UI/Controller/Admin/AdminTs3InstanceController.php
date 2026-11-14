@@ -126,6 +126,11 @@ final class AdminTs3InstanceController
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
+        if ($formData['customer'] === null || $formData['node'] === null || $formData['db_mode'] === null) {
+            $formData['errors'][] = 'Customer, node and DB mode are required.';
+            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+        }
+
         $instance = new Ts3Instance(
             $formData['customer'],
             $formData['node'],
@@ -248,6 +253,12 @@ final class AdminTs3InstanceController
         return $actor instanceof User && $actor->isAdmin();
     }
 
+    /**
+     * @return array{customer: User|null, node: \App\Module\Core\Domain\Entity\Agent|null, name: string,
+     * voice_port: int, query_port: int, file_port: int, db_mode: Ts3DatabaseMode|null,
+     * db_host: string|null, db_port: int|null, db_name: string|null, db_username: string|null,
+     * db_password: array{key_id: string, nonce: string, ciphertext: string}|null, errors: list<string>}
+     */
     private function parsePayload(Request $request): array
     {
         $customerId = $request->request->get('customer_id');
@@ -328,6 +339,7 @@ final class AdminTs3InstanceController
         ];
     }
 
+    /** @param list<string> $errors */
     private function parsePort(mixed $value, string $label, array &$errors): int
     {
         if ($value === null || $value === '' || !is_numeric($value)) {
@@ -341,6 +353,12 @@ final class AdminTs3InstanceController
         return $port;
     }
 
+    /**
+     * @param array{customer: User|null, node: \App\Module\Core\Domain\Entity\Agent|null, name: string,
+     * voice_port: int, query_port: int, file_port: int, db_mode: Ts3DatabaseMode|null,
+     * db_host: string|null, db_port: int|null, db_name: string|null, db_username: string|null,
+     * db_password: array{key_id: string, nonce: string, ciphertext: string}|null, errors: list<string>} $formData
+     */
     private function renderFormWithErrors(array $formData, int $status): Response
     {
         $formContext = $this->buildFormContext([
@@ -451,6 +469,7 @@ final class AdminTs3InstanceController
         return ['payload' => $payload, 'errors' => $errors];
     }
 
+    /** @param array<string, string> $extraPayload */
     private function queueTs3Job(string $type, Ts3Instance $instance, array $extraPayload): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob
     {
         $payload = array_merge([

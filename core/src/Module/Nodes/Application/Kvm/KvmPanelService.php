@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Nodes\Application\Kvm;
 
 use App\Repository\QueryParameter;
+use App\Repository\EntityQueryResult;
+use App\Infrastructure\Config\JsonArray;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
@@ -12,7 +14,13 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Nodes\Application\VmProvisioningSettings;
 use App\Repository\AgentJobRepository;
 
-/** The host owns the managed catalog. Agent jobs persist its observed state. */
+/**
+ * The host owns the managed catalog. Agent jobs persist its observed state.
+ * @psalm-type KvmInventory = array{
+ *     guests: list<array<array-key, mixed>>, templates: list<array<array-key, mixed>>,
+ *     networks: list<array<array-key, mixed>>, ...<array-key, mixed>
+ * }
+ */
 final readonly class KvmPanelService
 {
     private const UUID = '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D';
@@ -36,25 +44,44 @@ final readonly class KvmPanelService
         return null;
     }
 
+    /** @return KvmInventory|null */
     public function inventory(Agent $node): ?array
     {
         // Stream past failed inspections without discarding the last observation.
         // Creation order also prevents a late retry of an old job replacing it.
-        $rows = $this->jobs->createQueryBuilder('j')
+        $rows = EntityQueryResult::iterate($this->jobs->createQueryBuilder('j')
             ->where('j.node = :node')
             ->andWhere('j.type = :type')
             ->andWhere('j.resultPayload IS NOT NULL')
             ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('type', 'kvm.managed')
             ->orderBy('j.createdAt', 'DESC')
-            ->getQuery()->toIterable();
+            ->getQuery(), AgentJob::class);
         foreach ($rows as $job) {
-            if (is_array($job->getResultPayload()['inventory'] ?? null)) {
-                return $job->getResultPayload()['inventory'];
+            $inventory = JsonArray::fromValue($job->getResultPayload()['inventory'] ?? null);
+            if ($inventory !== null) {
+                $inventory['guests'] = self::inventoryRows($inventory['guests'] ?? null);
+                $inventory['templates'] = self::inventoryRows($inventory['templates'] ?? null);
+                $inventory['networks'] = self::inventoryRows($inventory['networks'] ?? null);
+                return $inventory;
             }
         }
 
         return null;
+    }
+
+    /** @return list<array<array-key, mixed>> */
+    private static function inventoryRows(mixed $value): array
+    {
+        $rows = JsonArray::orEmpty($value);
+        $result = [];
+        foreach (array_keys($rows) as $key) {
+            $row = JsonArray::fromValue($rows[$key]);
+            if ($row !== null) {
+                $result[] = $row;
+            }
+        }
+        return $result;
     }
 
     /** @return AgentJob[] */

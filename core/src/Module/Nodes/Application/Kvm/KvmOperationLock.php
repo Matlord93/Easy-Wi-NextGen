@@ -19,9 +19,14 @@ final readonly class KvmOperationLock
     {
     }
 
+    /**
+     * @template T
+     * @param callable(): T $operation
+     * @return T
+     */
     public function run(Agent $node, callable $operation): mixed
     {
-        return $this->em->getConnection()->transactional(function () use ($node, $operation): mixed {
+        return $this->em->getConnection()->transactional(/** @return T */ function () use ($node, $operation): mixed {
             // A write locks the existing node row on MySQL/MariaDB and obtains
             // SQLite's write lock in tests, without modifying any node data.
             $this->em->getConnection()->executeStatement('UPDATE agents SET id = id WHERE id = ?', [$node->getId()]);

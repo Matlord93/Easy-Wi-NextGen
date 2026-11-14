@@ -237,14 +237,13 @@ final class AdminTs3NodeController
         ]);
     }
 
-    private function requireAdmin(Request $request): User
+    private function requireAdmin(Request $request): void
     {
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
-        return $actor;
     }
 
     private function findNode(int $id): Ts3Node
@@ -311,8 +310,9 @@ final class AdminTs3NodeController
         $agents = $this->agentRepository->findBy([], ['name' => 'ASC']);
 
         foreach ($agents as $agent) {
-            $label = $agent->getName() !== null && $agent->getName() !== ''
-                ? sprintf('%s (%s)', $agent->getName(), $agent->getId())
+            $agentName = $agent->getName();
+            $label = $agentName !== null && $agentName !== ''
+                ? sprintf('%s (%s)', $agentName, $agent->getId())
                 : $agent->getId();
             $choices[$label] = $agent->getId();
         }

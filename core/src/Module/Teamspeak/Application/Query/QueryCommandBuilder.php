@@ -12,7 +12,7 @@ final class QueryCommandBuilder
     }
 
     /**
-     * @param array<int|string, scalar|null> $args
+     * @param array<array-key, mixed> $args
      */
     public function build(string $command, array $args = []): QueryCommand
     {
@@ -25,15 +25,18 @@ final class QueryCommandBuilder
             $this->validator->assertAllowed($normalized);
         }
 
-        foreach ($args as $key => $value) {
-            if (!is_int($key) && !is_string($key)) {
-                throw new QueryCommandException('Invalid query command key.');
-            }
-            if (!is_scalar($value) && $value !== null) {
-                throw new QueryCommandException(sprintf('Invalid query command value for %s.', (string) $key));
-            }
+        $normalizedArgs = [];
+        foreach (array_keys($args) as $key) {
+            $normalizedArgs[$key] = self::argument($args[$key], $key);
         }
 
-        return new QueryCommand($normalized, $args);
+        return new QueryCommand($normalized, $normalizedArgs);
+    }
+    private static function argument(mixed $value, int|string $key): null|bool|int|float|string
+    {
+        if (!is_scalar($value) && $value !== null) {
+            throw new QueryCommandException(sprintf('Invalid query command value for %s.', (string) $key));
+        }
+        return $value;
     }
 }

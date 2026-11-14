@@ -6,13 +6,14 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Template;
 
+/** @psalm-import-type TemplateSeed from GameTemplateSeedCatalog */
 final class GameTemplateSeedSyncService
 {
     public function __construct(private readonly GameTemplateSeedCatalog $catalog)
     {
     }
 
-    /** @return array<string,mixed>|null */
+    /** @return TemplateSeed|null */
     public function findSeedTemplate(Template $template): ?array
     {
         $entries = $this->catalog->listTemplates();
@@ -40,7 +41,7 @@ final class GameTemplateSeedSyncService
     public function compareSharedPaths(Template $template): array
     {
         $seed = $this->findSeedTemplate($template);
-        $seedPaths = is_array($seed['shared_paths'] ?? null) ? $this->normalizeSharedPaths($seed['shared_paths']) : [];
+        $seedPaths = $seed !== null && isset($seed['shared_paths']) ? $this->normalizeSharedPaths($seed['shared_paths']) : [];
         $current = $this->normalizeSharedPaths($template->getRequirements()['shared_paths'] ?? []);
 
         return [

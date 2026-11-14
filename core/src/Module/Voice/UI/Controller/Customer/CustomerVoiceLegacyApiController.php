@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Voice\UI\Controller\Customer;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
@@ -15,6 +19,8 @@ use App\Module\Core\Application\Ts6\Ts6VirtualServerService;
 use App\Module\Core\Domain\Entity\Ts3VirtualServer;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Ts3Viewer;
+use App\Module\Core\Domain\Entity\Ts6Viewer;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Dto\Ts3\ViewerDto as Ts3ViewerDto;
 use App\Module\Core\Dto\Ts6\ViewerDto as Ts6ViewerDto;
@@ -69,7 +75,6 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $activeToken = null;
         $viewer = null;
 
         if ($type === 'ts3' && $server instanceof Ts3VirtualServer) {
@@ -201,7 +206,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $serverGroupId = max(1, (int) ($body['server_group_id'] ?? 6));
 
         if ($type === 'ts3') {
@@ -230,10 +235,10 @@ final class CustomerVoiceLegacyApiController
 
         $cacheKey = sprintf('legacy_%s_%d_summary', $type, $id);
 
-        $payload = $this->cache->get($cacheKey, static function (ItemInterface $item): array {
+        $payload = JsonArray::fromValue($this->cache->get($cacheKey, static function (ItemInterface $item): array {
             $item->expiresAfter(30);
             return ['status' => 'pending'];
-        });
+        }));
 
         if (is_array($payload) && ($payload['status'] ?? 'pending') === 'ok') {
             $this->queryLimiter->reset($cacheKey);
@@ -275,10 +280,10 @@ final class CustomerVoiceLegacyApiController
 
         $cacheKey = sprintf('legacy_%s_%d_groups', $type, $id);
 
-        $payload = $this->cache->get($cacheKey, static function (ItemInterface $item): array {
+        $payload = JsonArray::fromValue($this->cache->get($cacheKey, static function (ItemInterface $item): array {
             $item->expiresAfter(60);
             return ['status' => 'pending', 'groups' => []];
-        });
+        }));
 
         if (is_array($payload) && ($payload['status'] ?? 'pending') === 'ok') {
             $this->queryLimiter->reset($cacheKey);
@@ -328,10 +333,10 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Unsupported query type.', 'voice_provider_unsupported', 400);
         }
 
-        $payload = $this->cache->get($cacheKey, static function (ItemInterface $item): array {
+        $payload = JsonArray::fromValue($this->cache->get($cacheKey, static function (ItemInterface $item): array {
             $item->expiresAfter(30);
             return ['status' => 'pending'];
-        });
+        }));
 
         if (is_array($payload) && ($payload['status'] ?? 'pending') === 'ok') {
             $this->queryLimiter->reset($cacheKey);
@@ -367,7 +372,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $publicHost = isset($body['public_host']) ? trim((string) $body['public_host']) : null;
         $publicHost = $publicHost !== '' ? $publicHost : null;
 
@@ -410,7 +415,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $enabled = (bool) ($body['enabled'] ?? true);
         $cacheTtlMs = max(500, (int) ($body['cache_ttl_ms'] ?? 1500));
         $domainAllowlist = isset($body['domain_allowlist']) ? trim((string) $body['domain_allowlist']) : null;
@@ -502,24 +507,24 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Invalid cache key.', 'voice_snapshot_key_invalid', 400);
         }
 
-        $payload = $this->cache->get($cacheKey, static function (ItemInterface $item): array {
+        $payload = JsonArray::fromValue($this->cache->get($cacheKey, static function (ItemInterface $item): array {
             $item->expiresAfter(30);
             return ['status' => 'pending'];
-        });
+        }));
 
-        $status = is_array($payload) ? strtolower(($payload['status'] ?? 'pending')) : 'pending';
+        $status = is_array($payload) ? strtolower(ScalarValue::text($payload['status'] ?? 'pending')) : 'pending';
         $agentError = $this->extractAgentError($payload);
         $snapshotContent = $this->extractSnapshotContent($payload);
         $payloadKeys = is_array($payload) ? array_keys($payload) : [];
-        $payloadPayloadKeys = (is_array($payload) && is_array($payload['payload'] ?? null)) ? array_keys($payload['payload']) : [];
+        $payloadPayloadKeys = is_array($payload) ? array_keys(JsonArray::orEmpty($payload['payload'] ?? null)) : [];
 
         $this->auditLogger->log($customer, 'voice.legacy.snapshot.poll.inspect', [
             'request_id' => $this->resolveRequestId($request),
             'cache_key' => $cacheKey,
-            'job_id' => is_array($payload) ? (string) ($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
+            'job_id' => is_array($payload) ? ScalarValue::text($payload['jobId'] ?? $payload['job_id'] ?? '') : '',
             'job_type' => $type === 'ts6' ? 'ts6.virtual.snapshot.create' : 'ts3.virtual.snapshot.create',
             'server_id' => $id,
-            'sid' => method_exists($server, 'getSid') ? (string) $server->getSid() : '',
+            'sid' => (string) $server->getSid(),
             'type' => $type,
             'raw_agent_status' => $status,
             'raw_result_keys' => implode(',', $payloadKeys),
@@ -553,7 +558,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $uploadedFile = $request->files->get('snapshot');
+        $uploadedFile = self::uploadedFile($request->files->get('snapshot'));
         $snapshotContent = null;
 
         if ($uploadedFile instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
@@ -564,7 +569,7 @@ final class CustomerVoiceLegacyApiController
         }
 
         if ($snapshotContent === null || $snapshotContent === '') {
-            $body = json_decode($request->getContent(), true) ?? [];
+            $body = JsonArray::decode($request->getContent()) ?? [];
             $snapshotContent = isset($body['snapshot']) ? trim((string) $body['snapshot']) : null;
         }
 
@@ -600,7 +605,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $reason = trim((string) ($body['reason'] ?? ''));
 
         if ($type === 'ts3') {
@@ -626,7 +631,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $message = trim((string) ($body['message'] ?? ''));
         if ($message === '') {
             return $this->responseEnvelopeFactory->error($request, 'Message is required.', 'voice_poke_message_required', 400);
@@ -655,7 +660,7 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $banParams = ['clid' => $clid];
         $banParams['duration'] = max(0, (int) ($body['duration'] ?? $body['time'] ?? 0));
         $banParams['reason'] = trim((string) ($body['reason'] ?? 'Banned via panel'));
@@ -683,11 +688,12 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        $body = json_decode($request->getContent(), true) ?? [];
+        $body = JsonArray::decode($request->getContent()) ?? [];
         $banParams = [];
         foreach (['ip', 'uid', 'name', 'time', 'banreason'] as $field) {
-            if (isset($body[$field]) && (string) $body[$field] !== '') {
-                $banParams[$field] = $body[$field];
+            $value = ScalarValue::text($body[$field] ?? null);
+            if ($value !== '') {
+                $banParams[$field] = $value;
             }
         }
 
@@ -732,6 +738,11 @@ final class CustomerVoiceLegacyApiController
         $this->cache->delete(sprintf('legacy_%s_%d_summary', $type, $id));
 
         return new JsonResponse(['status' => 'pending', 'action_id' => $job->getId()]);
+    }
+
+    private static function uploadedFile(mixed $file): ?\Symfony\Component\HttpFoundation\File\UploadedFile
+    {
+        return $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? $file : null;
     }
 
     private function requireCustomer(Request $request): User
@@ -781,7 +792,7 @@ final class CustomerVoiceLegacyApiController
         ];
     }
 
-    private function serializeViewer(object $viewer): array
+    private function serializeViewer(Ts3Viewer|Ts6Viewer $viewer): array
     {
         return [
             'enabled' => $viewer->isEnabled(),
@@ -807,18 +818,17 @@ final class CustomerVoiceLegacyApiController
             return null;
         }
 
+        $nested = JsonArray::orEmpty($payload['payload'] ?? null);
         $candidates = [
-            $payload['payload']['snapshot'] ?? null,
-            $payload['snapshot'] ?? null,
-            $payload['resultPayload']['snapshot'] ?? null,
-            $payload['result_payload']['snapshot'] ?? null,
-            $payload['result']['snapshot'] ?? null,
-            $payload['data']['snapshot'] ?? null,
-            $payload['payload']['resultPayload']['snapshot'] ?? null,
-            $payload['payload']['result_payload']['snapshot'] ?? null,
-            $payload['payload']['result']['snapshot'] ?? null,
-            $payload['payload']['data']['snapshot'] ?? null,
+            JsonMap::strings($nested)['snapshot'] ?? null,
+            JsonMap::strings($payload)['snapshot'] ?? null,
         ];
+        foreach (['resultPayload', 'result_payload', 'result', 'data'] as $field) {
+            $candidates[] = JsonMap::strings($payload[$field] ?? null)['snapshot'] ?? null;
+        }
+        foreach (['resultPayload', 'result_payload', 'result', 'data'] as $field) {
+            $candidates[] = JsonMap::strings($nested[$field] ?? null)['snapshot'] ?? null;
+        }
 
         foreach ($candidates as $candidate) {
             if (!is_string($candidate)) {
@@ -839,15 +849,17 @@ final class CustomerVoiceLegacyApiController
             return '';
         }
 
+        $fields = JsonMap::strings($payload);
+        $nestedFields = JsonMap::strings($payload['payload'] ?? null);
         $candidates = [
-            $payload['error'] ?? null,
-            $payload['message'] ?? null,
-            $payload['errorText'] ?? null,
-            $payload['error_text'] ?? null,
-            $payload['payload']['error'] ?? null,
-            $payload['payload']['message'] ?? null,
-            $payload['payload']['errorText'] ?? null,
-            $payload['payload']['error_text'] ?? null,
+            $fields['error'] ?? null,
+            $fields['message'] ?? null,
+            $fields['errorText'] ?? null,
+            $fields['error_text'] ?? null,
+            $nestedFields['error'] ?? null,
+            $nestedFields['message'] ?? null,
+            $nestedFields['errorText'] ?? null,
+            $nestedFields['error_text'] ?? null,
         ];
 
         foreach ($candidates as $candidate) {

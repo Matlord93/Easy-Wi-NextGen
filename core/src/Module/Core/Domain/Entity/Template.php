@@ -204,6 +204,7 @@ class Template
         $this->touch();
     }
 
+    /** @return array<array-key, string> */
     public function getRequiredPortLabels(): array
     {
         return array_map(static function (array $port): string {

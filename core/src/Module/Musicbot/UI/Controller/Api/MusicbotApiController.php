@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Api;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Http\RequestActor;
 
@@ -114,7 +116,22 @@ final class MusicbotApiController
     ) {
     }
 
-    #[Route(path: '/api/musicbots/status', name: 'api_musicbot_status', methods: ['GET'])]
+    /**
+ * @psalm-type InstanceCreatePayload = array{
+ *     customer: User|null,
+ *     node: Agent|null,
+ *     name: string,
+ *     cpu_limit: int,
+ *     ram_limit: int,
+ *     disk_limit: int,
+ *     teamspeak_enabled: bool,
+ *     discord_enabled: bool,
+ *     errors: list<string>,
+ *     teamspeak_secret_config: array{server_password: string, channel_password: string},
+ *     teamspeak_config: array{profile: string, backend: string, backend_type: string, backend_path: string, identity_path: string, command_prefix: string, commands_enabled: bool, events_enabled: bool, allowed_server_groups: array<array-key, mixed>, dj_server_groups: array<array-key, mixed>, admin_server_groups: array<array-key, mixed>, host: string, port: int, nickname: string, channel_id: string},
+ * }
+ */
+#[Route(path: '/api/musicbots/status', name: 'api_musicbot_status', methods: ['GET'])]
     public function status(): JsonResponse
     {
         return new JsonResponse(['status' => 'ok', 'data' => $this->statusProvider->getOverview()]);
@@ -155,7 +172,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::PlaybackControl);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $action = strtolower(trim((string) ($payload['action'] ?? '')));
         if (!in_array($action, self::PLAYBACK_ACTIONS, true)) {
             return $this->error('Unsupported playback action.', JsonResponse::HTTP_BAD_REQUEST);
@@ -171,7 +188,7 @@ final class MusicbotApiController
             }
             $payload['volume'] = $volume;
             $runtimePayload = $instance->getRuntimePayload() ?? [];
-            $runtimePayload['playback'] = array_merge($runtimePayload['playback'] ?? [], ['volume' => $volume, 'desired_volume' => $volume]);
+            $runtimePayload['playback'] = array_merge(JsonArray::orEmpty($runtimePayload['playback'] ?? null), ['volume' => $volume, 'desired_volume' => $volume]);
             $instance->setRuntimePayload($runtimePayload);
             $config = $instance->getInstanceConfig();
             $config['live_volume'] = $volume;
@@ -202,7 +219,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::QueueManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $trackId = $payload['track_id'] ?? null;
         $track = is_numeric($trackId) ? $this->trackRepository->findOneForCustomer((int) $trackId, $customer) : null;
         if (!$track instanceof MusicbotTrack) {
@@ -284,7 +301,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::YoutubeManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         try {
             $result = $this->youtubeService->importUrl($customer, $instance, (string) ($payload['url'] ?? ''), $payload);
         } catch (\Throwable $e) {
@@ -300,7 +317,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::YoutubeManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         try {
             $result = $this->youtubeService->playUrl($customer, $instance, (string) ($payload['url'] ?? ''));
         } catch (\Throwable $e) {
@@ -316,7 +333,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::YoutubeManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         try {
             $result = $this->youtubeService->queueUrl($customer, $instance, (string) ($payload['url'] ?? ''));
         } catch (\Throwable $e) {
@@ -419,7 +436,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::PlaylistsManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $visibility = MusicbotPlaylistVisibility::tryFrom((string) ($payload['visibility'] ?? 'private')) ?? MusicbotPlaylistVisibility::Private;
         try {
             $playlist = $this->playlistService->createPlaylist($customer, (string) ($payload['name'] ?? ''), $instance, $visibility, isset($payload['description']) ? (string) $payload['description'] : null);
@@ -444,7 +461,7 @@ final class MusicbotApiController
         $this->assertPerm($customer, $instance, MusicbotPermission::PlaylistsManage);
         $playlist = $this->playlistService->findPlaylistForCustomer($playlistId, $customer);
         if (!$playlist instanceof \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist) { return $this->error('Playlist not found.', JsonResponse::HTTP_NOT_FOUND); }
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $visibility = MusicbotPlaylistVisibility::tryFrom((string) ($payload['visibility'] ?? $playlist->getVisibility()->value)) ?? $playlist->getVisibility();
         $this->playlistService->updatePlaylist($customer, $playlist, (string) ($payload['name'] ?? $playlist->getName()), $visibility, array_key_exists('description', $payload) ? (string) $payload['description'] : $playlist->getDescription());
         $this->runtimeEventService->record($instance, 'playlist.updated', 'info', 'Playlist updated.', ['playlist_id' => $playlistId]);
@@ -476,7 +493,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::PlaylistsManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $playlist = $this->playlistService->findPlaylistForCustomer($playlistId, $customer);
         $track = isset($payload['track_id']) && is_numeric($payload['track_id']) ? $this->trackService->findTrackForCustomer((int) $payload['track_id'], $customer) : null;
         if (!$playlist instanceof \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist || !$track instanceof MusicbotTrack) { return $this->error('Playlist or track not found.', JsonResponse::HTTP_NOT_FOUND); }
@@ -511,7 +528,7 @@ final class MusicbotApiController
         $this->assertPerm($customer, $instance, MusicbotPermission::PlaylistsManage);
         $playlist = $this->playlistService->findPlaylistForCustomer($playlistId, $customer);
         if (!$playlist instanceof \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist) { return $this->error('Playlist not found.', JsonResponse::HTTP_NOT_FOUND); }
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $mode = (string) ($payload['mode'] ?? 'add');
         $items = $this->playlistService->loadPlaylistToQueueMode($customer, $playlist, $instance, $mode);
         $job = null;
@@ -533,7 +550,7 @@ final class MusicbotApiController
         $this->assertPerm($customer, $instance, MusicbotPermission::PlaylistsManage);
         $playlist = $this->playlistService->findPlaylistForCustomer($playlistId, $customer);
         if (!$playlist instanceof \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist) { return $this->error('Playlist not found.', JsonResponse::HTTP_NOT_FOUND); }
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $ids = array_values(array_filter(array_map('intval', (array) ($payload['item_ids'] ?? []))));
         try {
             $this->playlistService->reorderItems($customer, $playlist, $ids);
@@ -565,7 +582,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::PluginsManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         try {
             $plugin = $this->pluginService->assignPlugin($customer, $instance, (string) ($payload['identifier'] ?? ''));
         } catch (MusicbotQuotaExceededException $e) {
@@ -590,7 +607,7 @@ final class MusicbotApiController
         if (!$plugin instanceof MusicbotPlugin || $plugin->getInstance() !== $instance) {
             return $this->error('Plugin not found.', JsonResponse::HTTP_NOT_FOUND);
         }
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         if (array_key_exists('enabled', $payload)) {
             $this->pluginService->setEnabled($customer, $plugin, (bool) $payload['enabled']);
         }
@@ -599,7 +616,7 @@ final class MusicbotApiController
                 return $this->error('Plugin config must be an object.', JsonResponse::HTTP_BAD_REQUEST);
             }
             try {
-                $this->pluginService->saveConfig($customer, $plugin, $payload['config']);
+                $this->pluginService->saveConfig($customer, $plugin, JsonMap::fromValue($payload['config']) ?? []);
             } catch (\InvalidArgumentException $e) {
                 return $this->error($e->getMessage(), JsonResponse::HTTP_BAD_REQUEST);
             }
@@ -663,7 +680,7 @@ final class MusicbotApiController
     {
         $actor = $this->requireAdmin($request);
         $instance = $this->findAdminInstance($id);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         try {
             $plugin = $this->pluginService->assignPlugin($instance->getCustomer(), $instance, (string) ($payload['identifier'] ?? ''));
         } catch (\InvalidArgumentException $e) {
@@ -681,25 +698,30 @@ final class MusicbotApiController
     {
         $actor = $this->requireAdmin($request);
         $plugin = $this->pluginRepository->find($pluginId);
-        if (!$plugin instanceof MusicbotPlugin || !$plugin->getCustomer() instanceof User) {
+        if (!$plugin instanceof MusicbotPlugin) {
             return $this->error('Plugin not found.', JsonResponse::HTTP_NOT_FOUND);
         }
-        $payload = $request->toArray();
+        $customer = $plugin->getCustomer();
+        if (!$customer instanceof User) {
+            return $this->error('Plugin not found.', JsonResponse::HTTP_NOT_FOUND);
+        }
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         if (array_key_exists('enabled', $payload)) {
-            $this->pluginService->setEnabled($plugin->getCustomer(), $plugin, (bool) $payload['enabled']);
+            $this->pluginService->setEnabled($customer, $plugin, (bool) $payload['enabled']);
         }
         if (array_key_exists('config', $payload)) {
             if (!is_array($payload['config'])) {
                 return $this->error('Plugin config must be an object.', JsonResponse::HTTP_BAD_REQUEST);
             }
             try {
-                $this->pluginService->saveConfig($plugin->getCustomer(), $plugin, $payload['config']);
+                $this->pluginService->saveConfig($customer, $plugin, JsonMap::fromValue($payload['config']) ?? []);
             } catch (\InvalidArgumentException $e) {
                 return $this->error($e->getMessage(), JsonResponse::HTTP_BAD_REQUEST);
             }
         }
-        if ($plugin->getInstance() instanceof MusicbotInstance) {
-            $this->runtimeEventService->record($plugin->getInstance(), 'plugin.changed', 'info', 'Plugin updated by admin.', ['plugin_id' => $plugin->getId(), 'identifier' => $plugin->getIdentifier(), 'enabled' => $plugin->isEnabled()]);
+        $instance = $plugin->getInstance();
+        if ($instance instanceof MusicbotInstance) {
+            $this->runtimeEventService->record($instance, 'plugin.changed', 'info', 'Plugin updated by admin.', ['plugin_id' => $plugin->getId(), 'identifier' => $plugin->getIdentifier(), 'enabled' => $plugin->isEnabled()]);
         }
         $this->auditLogger->log($actor, 'musicbot.api_admin_plugin_updated', ['plugin_id' => $plugin->getId(), 'enabled' => $plugin->isEnabled()]);
         $this->entityManager->flush();
@@ -764,7 +786,7 @@ final class MusicbotApiController
         $actor = $this->requireAdmin($request);
         $instance = $this->findAdminInstance($id);
         $connection = $this->findConnectionForInstance($connId, $instance);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
 
         $allowed = MusicbotSecretConfigService::SECRET_KEYS;
         $updates = array_filter(
@@ -805,7 +827,7 @@ final class MusicbotApiController
         $actor = $this->requireAdmin($request);
         $instance = $this->findAdminInstance($id);
         $connection = $this->findConnectionForInstance($connId, $instance);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
 
         $key = trim((string) ($payload['key'] ?? ''));
         $value = (string) ($payload['value'] ?? '');
@@ -856,16 +878,17 @@ final class MusicbotApiController
     public function adminCreate(Request $request): JsonResponse
     {
         $actor = $this->requireAdmin($request);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $parsed = $this->parseAdminInstancePayload($payload);
         if ($parsed['errors'] !== []) {
             return $this->error(implode(' ', $parsed['errors']), JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        /** @var User $customer */
         $customer = $parsed['customer'];
-        /** @var Agent $node */
         $node = $parsed['node'];
+        if (!$customer instanceof User || !$node instanceof Agent) {
+            return $this->error('Customer and node are required.', JsonResponse::HTTP_BAD_REQUEST);
+        }
 
         try {
             $this->quotaService->assertCanCreateMusicbot($customer);
@@ -954,7 +977,7 @@ final class MusicbotApiController
         $actor = $this->requireAdmin($request);
         $instance = $this->findAdminInstance($id);
         $customer = $instance->getCustomer();
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
 
         $limits = $this->customerLimitsRepository->findByCustomer($customer);
         if (!$limits instanceof MusicbotCustomerLimits) {
@@ -1067,7 +1090,7 @@ final class MusicbotApiController
     {
         $actor = $this->requireAdmin($request);
         $instance = $this->findAdminInstance($id);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         if (isset($payload['name']) && trim((string) $payload['name']) !== '') {
             $instance->setName(trim((string) $payload['name']));
         }
@@ -1121,7 +1144,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::SchedulesManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
 
         $action = MusicbotScheduleAction::tryFrom((string) ($payload['action'] ?? ''));
         if ($action === null) {
@@ -1145,7 +1168,7 @@ final class MusicbotApiController
                 trim((string) ($payload['timezone'] ?? 'UTC')),
                 (bool) ($payload['enabled'] ?? true),
                 $action,
-                JsonArray::orEmpty($payload['payload'] ?? null),
+                JsonMap::fromValue($payload['payload'] ?? null) ?? [],
             );
         } catch (MusicbotQuotaExceededException $e) {
             return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
@@ -1203,7 +1226,7 @@ final class MusicbotApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::SchedulesManage);
         $schedule = $this->findCustomerSchedule($scheduleId, $customer, $instance);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
 
         $enabled = array_key_exists('enabled', $payload) ? (bool) $payload['enabled'] : !$schedule->isEnabled();
         $this->scheduleService->toggle($customer, $schedule, $enabled);
@@ -1399,7 +1422,7 @@ final class MusicbotApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WorkflowsManage);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
 
         $triggerType = MusicbotWorkflowTriggerType::tryFrom((string) ($payload['trigger_type'] ?? ''));
         if ($triggerType === null) {
@@ -1412,7 +1435,7 @@ final class MusicbotApiController
                 $instance,
                 trim((string) ($payload['name'] ?? '')),
                 $triggerType,
-                JsonArray::orEmpty($payload['trigger_config'] ?? null),
+                JsonMap::fromValue($payload['trigger_config'] ?? null) ?? [],
                 ($payload['description'] ?? null) !== null ? (string) $payload['description'] : null,
                 (bool) ($payload['enabled'] ?? true),
                 JsonArray::orEmpty($payload['conditions'] ?? null),
@@ -1474,7 +1497,7 @@ final class MusicbotApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WorkflowsManage);
         $workflow = $this->findCustomerWorkflow($wid, $customer, $instance);
-        $payload = $request->toArray();
+        $payload = JsonMap::fromValue($request->toArray()) ?? [];
         $enabled = (bool) ($payload['enabled'] ?? !$workflow->isEnabled());
         $this->workflowService->toggle($customer, $workflow, $enabled);
 
@@ -1488,7 +1511,7 @@ final class MusicbotApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WorkflowsManage);
         $workflow = $this->findCustomerWorkflow($wid, $customer, $instance);
-        $context = is_array($request->toArray()['context'] ?? null) ? $request->toArray()['context'] : [];
+        $context = JsonMap::fromValue($request->toArray()['context'] ?? null) ?? [];
 
         try {
             $execution = $this->workflowService->testRun($customer, $workflow, $context);
@@ -1934,7 +1957,7 @@ final class MusicbotApiController
 
     /**
      * @param MusicbotQueueItem[] $queue
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function normalizeQueue(array $queue): array
     {
@@ -1944,12 +1967,13 @@ final class MusicbotApiController
     /** @return array<string, mixed> */
     private function normalizeQueueItem(MusicbotQueueItem $item): array
     {
+        $requestedBy = $item->getRequestedBy();
         return [
             'id' => $item->getId(),
             'position' => $item->getPosition(),
             'status' => $item->getStatus(),
             'track' => $this->normalizeTrack($item->getTrack()),
-            'requested_by' => $item->getRequestedBy() instanceof User ? ['id' => $item->getRequestedBy()->getId(), 'email' => $item->getRequestedBy()->getEmail()] : null,
+            'requested_by' => $requestedBy instanceof User ? ['id' => $requestedBy->getId(), 'email' => $requestedBy->getEmail()] : null,
             'created_at' => $item->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }
@@ -2066,6 +2090,7 @@ final class MusicbotApiController
         return $queue[0]->getTrack();
     }
 
+    /** @param array<array-key, MusicbotQueueItem> $queue */
     private function nextQueuePosition(array $queue): int
     {
         $position = 0;
@@ -2149,8 +2174,8 @@ final class MusicbotApiController
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param array<array-key, mixed> $payload
+     * @return InstanceCreatePayload
      */
     private function parseAdminInstancePayload(array $payload): array
     {

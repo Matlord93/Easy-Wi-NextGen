@@ -30,26 +30,28 @@ final class VoiceProbeGuard
             $this->entityManager->persist($state);
         }
 
-        if ($state->getCircuitOpenUntil() !== null && $state->getCircuitOpenUntil() > $now) {
+        $circuitOpenUntil = $state->getCircuitOpenUntil();
+        if ($circuitOpenUntil !== null && $circuitOpenUntil > $now) {
             return [
                 'allowed' => false,
-                'retry_after' => max(1, $state->getCircuitOpenUntil()->getTimestamp() - $now->getTimestamp()),
+                'retry_after' => max(1, $circuitOpenUntil->getTimestamp() - $now->getTimestamp()),
                 'reason' => 'Circuit open.',
                 'error_code' => 'voice_circuit_open',
             ];
         }
 
-        if ($state->getLockedUntil() !== null && $state->getLockedUntil() > $now) {
+        $lockedUntil = $state->getLockedUntil();
+        if ($lockedUntil !== null && $lockedUntil > $now) {
             return [
                 'allowed' => false,
-                'retry_after' => max(1, $state->getLockedUntil()->getTimestamp() - $now->getTimestamp()),
+                'retry_after' => max(1, $lockedUntil->getTimestamp() - $now->getTimestamp()),
                 'reason' => 'Rate limited.',
                 'error_code' => 'voice_rate_limited',
             ];
         }
 
         $elapsed = max(0, $now->getTimestamp() - $state->getUpdatedAt()->getTimestamp());
-        $tokens = min(self::MAX_TOKENS, $state->getTokens() + ($elapsed * self::REFILL_PER_SECOND));
+        $tokens = min(self::MAX_TOKENS, $state->getTokens() + ((float) $elapsed * self::REFILL_PER_SECOND));
 
         if ($tokens < 1.0) {
             $missing = 1.0 - $tokens;

@@ -79,4 +79,37 @@ final class EntityQueryResultTest extends TestCase
         EntityQueryResult::affected($query);
     }
 
+    public function testIterationRemainsLazyAndPreservesEntityIdentity(): void
+    {
+        $first = new \stdClass();
+        $second = new \stdClass();
+        $read = 0;
+        $rows = static function () use ($first, $second, &$read): \Generator {
+            ++$read;
+            yield 'first' => $first;
+            ++$read;
+            yield 'second' => $second;
+        };
+        $query = $this->createStub(AbstractQuery::class);
+        $query->method('toIterable')->willReturn($rows());
+        $result = EntityQueryResult::iterate($query, \stdClass::class);
+
+        self::assertSame(0, $read);
+        self::assertSame($first, $result->current());
+        self::assertSame(1, $read);
+        $result->next();
+        self::assertSame($second, $result->current());
+        self::assertSame(2, $read);
+    }
+
+    public function testInvalidStreamingRowIsRejectedWhenReached(): void
+    {
+        $query = $this->createStub(AbstractQuery::class);
+        $query->method('toIterable')->willReturn([new \stdClass(), ['id' => 2]]);
+        $result = EntityQueryResult::iterate($query, \stdClass::class);
+        self::assertInstanceOf(\stdClass::class, $result->current());
+        $this->expectException(\UnexpectedValueException::class);
+        $result->next();
+    }
+
 }

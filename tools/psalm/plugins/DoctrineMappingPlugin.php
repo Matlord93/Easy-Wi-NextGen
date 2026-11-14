@@ -52,8 +52,26 @@ final class EasyWiDoctrineMappingPlugin implements PluginEntryPointInterface, Af
         $storage->public_api = true;
         $context = new Context();
         $context->calling_method_id = 'doctrine\\orm\\unitofwork::computechangesets';
+        // Psalm stores attributes of promoted properties on constructor
+        // parameters. Doctrine reflects the corresponding property attributes.
+        $promoted = [];
+        $node = $event->getStmt();
+        if ($node instanceof \PhpParser\Node\Stmt\Class_) {
+            foreach ($node->getMethod('__construct')?->params ?? [] as $parameter) {
+                if ($parameter->flags !== 0 && is_string($parameter->var->name)) {
+                    $promoted[$parameter->var->name] = true;
+                }
+            }
+        }
+        $promotedAttributes = [];
+        foreach ($storage->methods['__construct']->params ?? [] as $parameter) {
+            if (isset($promoted[$parameter->name])) {
+                $promotedAttributes[$parameter->name] = $parameter->attributes;
+            }
+        }
         foreach ($storage->properties as $name => $property) {
-            foreach ($property->attributes as $attribute) {
+            $attributes = array_merge($property->attributes, $promotedAttributes[$name] ?? []);
+            foreach ($attributes as $attribute) {
                 if (in_array($attribute->fq_class_name, self::MAPPED_FIELDS, true)) {
                     $event->getCodebase()->addReferenceToProperty(
                         strtolower($storage->name),

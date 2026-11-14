@@ -26,6 +26,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
+/** @psalm-import-type HistoryPoint from \App\Module\Nodes\Application\Monitoring\InfrastructureHistorySeries */
 final class InfrastructureMonitoringController extends AbstractController
 {
     public function __construct(private readonly EntityManagerInterface $em, private readonly InfrastructureTargets $targets, private readonly InfrastructureHistoryStore $history, private readonly InfrastructureAlerts $alerts, private readonly InfrastructureMonitoringSettings $settings, private readonly InfrastructureCollector $collector, private readonly AuditLogger $audit)
@@ -54,7 +55,7 @@ final class InfrastructureMonitoringController extends AbstractController
             }
         }
 
-        return $this->render('monitoring/index.html.twig', ['options' => $this->settings->get(), 'collector' => $this->settings->state(), 'error' => $error, 'activeNav' => 'monitoring'], new Response(status: $error ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
+        return $this->render('monitoring/index.html.twig', ['options' => $this->settings->get(), 'collector' => $this->settings->state(), 'error' => $error, 'activeNav' => 'monitoring'], new Response(status: $error !== null ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
     }
 
     #[Route('/admin/monitoring/{provider}/{connection}/{kind}/{reference}', name: 'admin_infrastructure_history', methods: ['GET', 'POST'])]
@@ -142,10 +143,10 @@ final class InfrastructureMonitoringController extends AbstractController
             return $this->csv($target, $history);
         }
 
-        return $this->render('monitoring/history.html.twig', ['target' => $target, 'admin' => $admin, 'options' => $this->settings->get(), 'policy' => $this->alerts->policy($target), 'error' => $error, 'activeNav' => 'monitoring'], new Response(status: $error ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
+        return $this->render('monitoring/history.html.twig', ['target' => $target, 'admin' => $admin, 'options' => $this->settings->get(), 'policy' => $this->alerts->policy($target), 'error' => $error, 'activeNav' => 'monitoring'], new Response(status: $error !== null ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
     }
 
-    /** @return list<int|mixed> */
+    /** @return array{0: int, 1: int} */
     private function range(Request $request): array
     {
         if ($request->query->has('from') || $request->query->has('to')) {
@@ -161,13 +162,13 @@ final class InfrastructureMonitoringController extends AbstractController
                     throw new \InvalidArgumentException();
                 }
                 $errors = \DateTimeImmutable::getLastErrors();
-                if ($errors && ($errors['warning_count'] || $errors['error_count'])) {
+                if ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0)) {
                     throw new \InvalidArgumentException();
                 }
                 $times[] = $date->getTimestamp();
             }
 
-            return $times;
+            return [$times[0], $times[1]];
         }
         $hours = filter_var($request->query->get('hours', '24'), FILTER_VALIDATE_INT);
         if (!in_array($hours, [1, 6, 24, 168, 720, 2160, 8760], true)) {
@@ -177,9 +178,15 @@ final class InfrastructureMonitoringController extends AbstractController
         return [time() - $hours * 3600, time()];
     }
 
+    /**
+     * @param array{from: int, to: int, resolution_seconds: int, points: list<HistoryPoint>} $history
+     */
     private function csv(InfrastructureTarget $target, array $history): Response
     {
         $handle = fopen('php://temp', 'w+');
+        if ($handle === false) {
+            throw new \RuntimeException('Cannot create monitoring CSV stream.');
+        }
         fputcsv($handle, ['bucket_start_utc', 'first_observed_utc', 'last_observed_utc', 'stream', 'resolution_seconds', 'samples', 'metric', 'average', 'minimum', 'maximum', 'sources', 'memory_sources', 'interval_min_seconds', 'interval_max_seconds'], ',', '"', '');
         foreach ($history['points'] as $point) {
             foreach ($point['metrics'] as $metric => $values) {
@@ -188,6 +195,10 @@ final class InfrastructureMonitoringController extends AbstractController
         }
         rewind($handle);
         $csv = stream_get_contents($handle);
+        if ($csv === false) {
+            fclose($handle);
+            throw new \RuntimeException('Cannot read monitoring CSV stream.');
+        }
         fclose($handle);
 
         return new Response("\xEF\xBB\xBF".$csv, 200, ['Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="monitoring-'.substr($target->key, 0, 12).'.csv"', 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);

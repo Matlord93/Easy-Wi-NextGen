@@ -4,10 +4,35 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+/**
+ * @psalm-type TemplateSeed = array{
+ *     game_key: string,
+ *     display_name: string,
+ *     description: string|null,
+ *     steam_app_id: int|null,
+ *     sniper_profile: string|null,
+ *     required_ports: array<int, array<string, mixed>>,
+ *     start_params: string,
+ *     env_vars: array<int, array<string, mixed>>,
+ *     config_files: array<int, array<string, mixed>>,
+ *     plugin_paths: array<int, string>,
+ *     fastdl_settings: array<string, mixed>,
+ *     install_command: string,
+ *     update_command: string,
+ *     install_resolver: array<string, mixed>,
+ *     allowed_switch_flags: array<int, string>,
+ *     supported_os: array<int, string>|null,
+ *     requirement_vars?: array<int, array<string, mixed>>,
+ *     requirement_secrets?: array<int, array<string, mixed>>,
+ *     requirements?: array<string, mixed>,
+ *     port_profile?: array<int, array<string, mixed>>,
+ *     shared_paths?: array<int, array<string, mixed>>,
+ * }
+ */
 final class GameTemplateSeedCatalog
 {
     /**
-     * @return array<int, array<string, mixed>>
+     * @return list<TemplateSeed>
      */
     public function listTemplates(): array
     {
@@ -1650,7 +1675,7 @@ final class GameTemplateSeedCatalog
 
         $catalog = $this->sharedPathCatalog();
         foreach ($templates as &$tpl) {
-            $gameKey = (string) ($tpl['game_key'] ?? '');
+            $gameKey = $tpl['game_key'];
             if ($gameKey !== '' && isset($catalog[$gameKey])) {
                 $tpl['shared_paths'] = $catalog[$gameKey];
             }
@@ -1669,7 +1694,7 @@ final class GameTemplateSeedCatalog
      * @param array<int, string> $allowedSwitchFlags
      * @param array<string, mixed> $installResolver
      * @param array<int, string>|null $supportedOs
-     * @return array<string, mixed>
+     * @return TemplateSeed
      */
     private function template(
         string $gameKey,

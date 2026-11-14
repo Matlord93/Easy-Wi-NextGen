@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Musicbot\Application;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -33,8 +35,8 @@ final class MusicbotWorkflowService
     }
 
     /**
-     * @param array<array{type: string, value?: string, sort_order?: int}> $conditions
-     * @param array<array{type: string, config?: array<string, mixed>, sort_order?: int}> $actions
+     * @param array<array-key, mixed> $conditions
+     * @param array<array-key, mixed> $actions
      * @throws \InvalidArgumentException
      */
     public function create(
@@ -53,7 +55,7 @@ final class MusicbotWorkflowService
         $this->validateName($name);
         $this->validateActions($actions);
 
-        $workflow = new MusicbotWorkflow($customer, $instance, $name, $triggerType, $triggerConfig, $description, $enabled);
+        $workflow = new MusicbotWorkflow($customer, $instance, $name, $triggerType, JsonMap::fromValue($triggerConfig) ?? [], $description, $enabled);
         $this->attachConditions($workflow, $conditions);
         $this->attachActions($workflow, $actions);
 
@@ -79,7 +81,7 @@ final class MusicbotWorkflowService
         $triggerType = isset($data['trigger_type'])
             ? MusicbotWorkflowTriggerType::from((string) $data['trigger_type'])
             : $workflow->getTriggerType();
-        $triggerConfig = array_key_exists('trigger_config', $data) ? (array) $data['trigger_config'] : $workflow->getTriggerConfig();
+        $triggerConfig = array_key_exists('trigger_config', $data) ? (JsonMap::fromValue($data['trigger_config']) ?? []) : $workflow->getTriggerConfig();
         $enabled = array_key_exists('enabled', $data) ? (bool) $data['enabled'] : $workflow->isEnabled();
 
         $this->validateName($name);
@@ -233,16 +235,18 @@ final class MusicbotWorkflowService
      */
     private function validateActions(array $actions): void
     {
-        foreach ($actions as $i => $action) {
-            $type = (string) ($action['type'] ?? '');
+        foreach (array_keys($actions) as $i) {
+            $action = JsonMap::fromValue($actions[$i]) ?? [];
+            $fields = JsonMap::strings($action);
+            $type = $fields['type'] ?? '';
             if (MusicbotWorkflowActionType::tryFrom($type) === null) {
-                throw new \InvalidArgumentException(sprintf('Unknown action type "%s" at index %d.', $type, $i));
+                throw new \InvalidArgumentException(sprintf('Unknown action type "%s" at index %s.', $type, $i));
             }
 
             if (MusicbotWorkflowActionType::from($type) === MusicbotWorkflowActionType::SendWebhook) {
-                $url = (string) ($action['config']['url'] ?? '');
+                $url = JsonMap::strings($action['config'] ?? null)['url'] ?? '';
                 if ($url === '') {
-                    throw new \InvalidArgumentException(sprintf('Action at index %d (send_webhook) requires a "url" in config.', $i));
+                    throw new \InvalidArgumentException(sprintf('Action at index %s (send_webhook) requires a "url" in config.', $i));
                 }
             }
         }
@@ -253,16 +257,18 @@ final class MusicbotWorkflowService
      */
     private function attachConditions(MusicbotWorkflow $workflow, array $conditionsData): void
     {
-        foreach ($conditionsData as $i => $data) {
-            $type = MusicbotWorkflowConditionType::tryFrom((string) ($data['type'] ?? ''));
+        foreach (array_keys($conditionsData) as $i) {
+            $data = JsonMap::fromValue($conditionsData[$i]) ?? [];
+            $typeName = JsonMap::strings($data)['type'] ?? '';
+            $type = MusicbotWorkflowConditionType::tryFrom($typeName);
             if ($type === null) {
-                throw new \InvalidArgumentException(sprintf('Unknown condition type "%s" at index %d.', $data['type'] ?? '', $i));
+                throw new \InvalidArgumentException(sprintf('Unknown condition type "%s" at index %s.', $typeName, $i));
             }
             $condition = new MusicbotWorkflowCondition(
                 $workflow,
                 $type,
-                isset($data['value']) ? (string) $data['value'] : null,
-                (int) ($data['sort_order'] ?? $i),
+                isset($data['value']) ? ScalarValue::text($data['value']) : null,
+                ScalarValue::integer($data['sort_order'] ?? $i, (int) $i),
             );
             $workflow->addCondition($condition);
         }
@@ -273,13 +279,15 @@ final class MusicbotWorkflowService
      */
     private function attachActions(MusicbotWorkflow $workflow, array $actionsData): void
     {
-        foreach ($actionsData as $i => $data) {
-            $type = MusicbotWorkflowActionType::from((string) ($data['type'] ?? ''));
+        foreach (array_keys($actionsData) as $i) {
+            $data = JsonMap::fromValue($actionsData[$i]) ?? [];
+            $typeName = JsonMap::strings($data)['type'] ?? '';
+            $type = MusicbotWorkflowActionType::from($typeName);
             $action = new MusicbotWorkflowAction(
                 $workflow,
                 $type,
-                JsonArray::orEmpty($data['config'] ?? null),
-                (int) ($data['sort_order'] ?? $i),
+                JsonMap::fromValue($data['config'] ?? null) ?? [],
+                ScalarValue::integer($data['sort_order'] ?? $i, (int) $i),
             );
             $workflow->addAction($action);
         }

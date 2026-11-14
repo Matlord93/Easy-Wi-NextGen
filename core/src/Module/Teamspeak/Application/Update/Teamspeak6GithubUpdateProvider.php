@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\Application\Update;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -39,10 +42,10 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
         foreach ($releases as $release) {
             $isPre = (bool) ($release['prerelease'] ?? false);
             if ($channel !== 'beta' && $isPre) { continue; }
-            $releaseTag = (string) ($release['tag_name'] ?? '');
+            $releaseTag = ScalarValue::text($release['tag_name'] ?? '');
             $tag = TeamspeakVersionNormalizer::normalize($releaseTag);
             if ($tag === null) { continue; }
-            $assets = (array) ($release['assets'] ?? []);
+            $assets = self::assetList($release['assets'] ?? null);
             $asset = $this->selectAsset($assets, $os, $arch);
             if ($asset === null) {
                 // The highest-version release does not have an asset for this platform.
@@ -52,18 +55,18 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
                     'release_tag' => $releaseTag,
                     'os' => strtolower($os),
                     'arch' => strtolower($arch),
-                    'assets' => implode(', ', array_values(array_filter(array_map(static fn(array $a): string => (string) ($a['name'] ?? ''), $assets)))),
+                    'assets' => implode(', ', array_values(array_filter(array_map(static fn(array $a): string => ScalarValue::text($a['name'] ?? ''), $assets)))),
                 ], null, null, null, $releaseTag);
                 continue;
             }
             $resolver = $this->checksumResolver ?? new TeamspeakChecksumResolver();
-            $checksum = $resolver->resolve($asset, $assets, (string) ($release['body'] ?? ''));
+            $checksum = $resolver->resolve($asset, $assets, ScalarValue::text($release['body'] ?? ''));
             $assetUrl = is_string($asset['browser_download_url'] ?? null) ? trim((string) $asset['browser_download_url']) : '';
             if ($assetUrl === '') {
                 return new UpdateResult('ts6', $normalizedInstalledVersion, $tag, false, 'asset_url_invalid', 'teamspeak.update.asset_url_invalid');
             }
             $available = version_compare($tag, $normalizedInstalledVersion, '>');
-            return new UpdateResult('ts6', $normalizedInstalledVersion, $tag, $available, $available ? 'update_available' : 'up_to_date', null, [], $assetUrl, (string) ($asset['name'] ?? null), isset($asset['size']) ? (int) $asset['size'] : null, $releaseTag, (string) ($release['body'] ?? null), $checksum);
+            return new UpdateResult('ts6', $normalizedInstalledVersion, $tag, $available, $available ? 'update_available' : 'up_to_date', null, [], $assetUrl, ScalarValue::text($asset['name'] ?? null), self::assetSize($asset['size'] ?? null), $releaseTag, ScalarValue::text($release['body'] ?? null), $checksum);
         }
 
         return $assetNotFoundResult ?? new UpdateResult('ts6', $normalizedInstalledVersion, null, false, 'no_update_available', 'teamspeak.update.no_update_available');
@@ -77,7 +80,7 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
         foreach ($releases as $release) {
             $isPre = (bool) ($release['prerelease'] ?? false);
             if ($channel !== 'beta' && $isPre) { continue; }
-            $assets = (array) ($release['assets'] ?? []);
+            $assets = self::assetList($release['assets'] ?? null);
             $asset = $this->selectAsset($assets, $os, $arch);
             if ($asset === null) { continue; }
             $url = is_string($asset['browser_download_url'] ?? null) ? trim((string) $asset['browser_download_url']) : '';
@@ -94,7 +97,7 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
             try {
                 $item = $this->cache->getItem(self::CACHE_KEY);
                 if ($item->isHit()) {
-                    $cached = $item->get();
+                    $cached = JsonArray::fromValue($item->get());
                     if (is_array($cached)) {
                         return $this->sortReleases($cached);
                     }
@@ -106,7 +109,7 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
 
         try {
             $headers = ['Accept' => 'application/vnd.github+json', 'User-Agent' => 'Easy-WI-TS6-Updater'];
-            if ($this->githubToken) { $headers['Authorization'] = 'Bearer '.$this->githubToken; }
+            if ($this->githubToken !== null && $this->githubToken !== '') { $headers['Authorization'] = 'Bearer '.$this->githubToken; }
             $releases = $this->httpClient->request('GET', self::RELEASE_URL, ['headers' => $headers, 'timeout' => $timeout, 'query' => ['per_page' => 100]])->toArray();
             $releases = $this->sortReleases($releases);
 
@@ -128,25 +131,34 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
     }
 
     /**
-     * @param array<int,array<string,mixed>> $releases
+     * @param array<array-key, mixed> $releases
      * @return list<array<string,mixed>>
      */
     private function sortReleases(array $releases): array
     {
-        $normalized = array_values(array_filter($releases, static fn(mixed $release): bool => is_array($release)));
+        $normalized = [];
+        foreach (array_keys($releases) as $key) {
+            $release = JsonMap::fromValue($releases[$key]);
+            if ($release !== null) {
+                $normalized[] = $release;
+            }
+        }
         usort($normalized, static function (array $a, array $b): int {
-            $versionA = TeamspeakVersionNormalizer::normalize((string) ($a['tag_name'] ?? '')) ?? '0.0.0';
-            $versionB = TeamspeakVersionNormalizer::normalize((string) ($b['tag_name'] ?? '')) ?? '0.0.0';
+            $versionA = TeamspeakVersionNormalizer::normalize(ScalarValue::text($a['tag_name'] ?? '')) ?? '0.0.0';
+            $versionB = TeamspeakVersionNormalizer::normalize(ScalarValue::text($b['tag_name'] ?? '')) ?? '0.0.0';
             $cmp = version_compare($versionB, $versionA);
             if ($cmp !== 0) { return $cmp; }
 
-            return strcmp((string) ($b['published_at'] ?? $b['created_at'] ?? ''), (string) ($a['published_at'] ?? $a['created_at'] ?? ''));
+            return strcmp(ScalarValue::text($b['published_at'] ?? $b['created_at'] ?? ''), ScalarValue::text($a['published_at'] ?? $a['created_at'] ?? ''));
         });
 
         return $normalized;
     }
 
-    /** @param array<int,array<string,mixed>> $assets */
+    /**
+     * @param array<array-key, array<string, mixed>> $assets
+     * @return array<string, mixed>|null
+     */
     public function selectAsset(array $assets, string $os, string $arch): ?array
     {
         $osNeedles = match (strtolower($os)) {
@@ -160,13 +172,32 @@ final class Teamspeak6GithubUpdateProvider implements TeamspeakUpdateProviderInt
             default => [strtolower($arch)],
         };
         foreach ($assets as $asset) {
-            $name = strtolower((string) ($asset['name'] ?? ''));
-            $url = (string) ($asset['browser_download_url'] ?? '');
+            $name = strtolower(ScalarValue::text($asset['name'] ?? ''));
+            $url = ScalarValue::text($asset['browser_download_url'] ?? '');
             if ($name === '' || !$this->containsAny($name, $osNeedles) || !$this->containsAny($name, $archNeedles)) { continue; }
             if (!str_starts_with($url, 'https://github.com/teamspeak/teamspeak6-server/')) { continue; }
             return $asset;
         }
         return null;
+    }
+
+    private static function assetSize(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function assetList(mixed $value): array
+    {
+        $raw = JsonArray::orEmpty($value);
+        $assets = [];
+        foreach (array_keys($raw) as $key) {
+            $asset = JsonMap::fromValue($raw[$key]);
+            if ($asset !== null) {
+                $assets[] = $asset;
+            }
+        }
+        return $assets;
     }
 
     /** @param array<int,string> $needles */

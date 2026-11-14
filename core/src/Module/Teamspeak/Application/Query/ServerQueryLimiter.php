@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\Application\Query;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
+
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
@@ -21,17 +24,17 @@ final class ServerQueryLimiter implements ServerQueryLimiterInterface
         $now = time();
         $rateKey = self::CACHE_PREFIX . $cacheKey;
 
-        $state = $this->cache->get($rateKey, function (ItemInterface $item) use ($baseDelaySeconds, $maxDelaySeconds): array {
+        $state = JsonArray::fromValue($this->cache->get($rateKey, function (ItemInterface $item) use ($baseDelaySeconds, $maxDelaySeconds): array {
             $item->expiresAfter(max($maxDelaySeconds * 2, $baseDelaySeconds));
             return [
                 'next_allowed_at' => 0,
                 'delay' => $baseDelaySeconds,
             ];
-        });
+        }));
 
         if (is_array($state)) {
-            $nextAllowedAt = ($state['next_allowed_at'] ?? 0);
-            $delay = ($state['delay'] ?? $baseDelaySeconds);
+            $nextAllowedAt = ScalarValue::integer($state['next_allowed_at'] ?? null, 0);
+            $delay = ScalarValue::integer($state['delay'] ?? null, $baseDelaySeconds);
         } else {
             $nextAllowedAt = 0;
             $delay = $baseDelaySeconds;

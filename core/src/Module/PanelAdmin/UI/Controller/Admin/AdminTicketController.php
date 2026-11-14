@@ -7,7 +7,6 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\MailService;
 use App\Module\Core\Application\NotificationService;
@@ -77,7 +76,6 @@ final class AdminTicketController
         private readonly AuditLogger $auditLogger,
         private readonly NotificationService $notificationService,
         private readonly MailService $mailService,
-        private readonly AppSettingsService $appSettingsService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
@@ -151,11 +149,17 @@ final class AdminTicketController
             return $this->renderFormWithErrors($formData, $customers, $templates, $actor, Response::HTTP_BAD_REQUEST);
         }
 
+        $customer = $formData['customer'];
+        if ($customer === null) {
+            $formData['errors'][] = 'Customer not found.';
+            return $this->renderFormWithErrors($formData, $customers, $templates, $actor, Response::HTTP_BAD_REQUEST);
+        }
+
         $includeSignature = $request->request->get('include_signature') === '1';
         $messageBody = $this->applySignature($actor, $formData['message'], $includeSignature);
 
         $ticket = new Ticket(
-            $formData['customer'],
+            $customer,
             $formData['subject'],
             $formData['category'],
             $formData['priority'],
@@ -198,8 +202,8 @@ final class AdminTicketController
             [
                 'ticket_id'         => $ticket->getId(),
                 'ticket_subject'    => $ticket->getSubject(),
-                'ticket_category'   => ucfirst(strtolower($ticket->getCategory()->value)),
-                'ticket_priority'   => ucfirst(strtolower($ticket->getPriority()->value)),
+                'ticket_category'   => ucfirst($ticket->getCategory()->value),
+                'ticket_priority'   => ucfirst($ticket->getPriority()->value),
                 'ticket_created_at' => $ticket->getCreatedAt()->format('d.m.Y H:i'),
                 'ticket_message'    => $message->getBody(),
                 'ticket_url'        => '/tickets/' . EntityIdentifier::require($ticket->getId()),
@@ -469,8 +473,8 @@ final class AdminTicketController
             $admin,
             $payload['form']['title'],
             $payload['form']['subject'],
-            $payload['form']['category'],
-            $payload['form']['priority'],
+            TicketCategory::from($payload['form']['category']),
+            TicketPriority::from($payload['form']['priority']),
             $payload['form']['body'],
         );
         $this->entityManager->persist($template);
@@ -510,8 +514,8 @@ final class AdminTicketController
 
         $template->setTitle($payload['form']['title']);
         $template->setSubject($payload['form']['subject']);
-        $template->setCategory($payload['form']['category']);
-        $template->setPriority($payload['form']['priority']);
+        $template->setCategory(TicketCategory::from($payload['form']['category']));
+        $template->setPriority(TicketPriority::from($payload['form']['priority']));
         $template->setBody($payload['form']['body']);
 
         $this->auditLogger->log($admin, 'ticket.template.updated', [
@@ -669,14 +673,6 @@ final class AdminTicketController
     private function attachmentFiles(Request $request): array
     {
         $files = $request->files->all('attachments');
-        if ($files instanceof UploadedFile) {
-            return [$files];
-        }
-
-        if (!is_array($files)) {
-            return [];
-        }
-
         return array_values(array_filter($files, static fn (mixed $file): bool => $file instanceof UploadedFile));
     }
 
@@ -690,7 +686,8 @@ final class AdminTicketController
                 return 'Attachment upload failed.';
             }
 
-            if ($file->getSize() === null || $file->getSize() > self::MAX_ATTACHMENT_BYTES) {
+            $size = $file->getSize();
+            if ($size === false || $size > self::MAX_ATTACHMENT_BYTES) {
                 return 'Attachment exceeds the maximum size of 10 MB.';
             }
 
@@ -715,8 +712,12 @@ final class AdminTicketController
     {
         foreach ($files as $file) {
             $mimeType = $file->getMimeType() ?? 'application/octet-stream';
-            $extension = $file->guessExtension() ?: pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin';
-            $safeExtension = preg_replace('/[^a-zA-Z0-9]/', '', strtolower($extension)) ?: 'bin';
+            $extension = $file->guessExtension();
+            if ($extension === null || $extension === '') {
+                $extension = pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION);
+            }
+            $safeExtension = preg_replace('/[^a-zA-Z0-9]/', '', strtolower($extension)) ?? '';
+            $safeExtension = $safeExtension !== '' ? $safeExtension : 'bin';
             if (in_array($safeExtension, self::BLOCKED_ATTACHMENT_EXTENSIONS, true)) {
                 $safeExtension = 'bin';
             }
@@ -729,9 +730,7 @@ final class AdminTicketController
             try {
                 $this->storage->writeStream($path, $stream);
             } finally {
-                if (is_resource($stream)) {
-                    fclose($stream);
-                }
+                fclose($stream);
             }
 
             $attachment = new TicketAttachment(
@@ -766,16 +765,10 @@ final class AdminTicketController
 
         $response = new StreamedResponse(function () use ($storagePath): void {
             $stream = $this->storage->readStream($storagePath);
-            if ($stream === false) {
-                return;
-            }
-
             try {
                 fpassthru($stream);
             } finally {
-                if (is_resource($stream)) {
-                    fclose($stream);
-                }
+                fclose($stream);
             }
         });
         $mimeType = $attachment->getMimeType();
@@ -786,7 +779,8 @@ final class AdminTicketController
         $fileSize = $this->storage->fileSize($storagePath);
         $response->headers->set('Content-Length', (string) $fileSize);
         $downloadName = $this->sanitizeAttachmentName($attachment->getOriginalName());
-        $fallbackName = preg_replace('/[^A-Za-z0-9._-]/', '_', $downloadName) ?: 'attachment';
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]/', '_', $downloadName) ?? '';
+        $fallbackName = $fallbackName !== '' ? $fallbackName : 'attachment';
         $response->headers->set('Content-Disposition', HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_ATTACHMENT, $downloadName, $fallbackName));
 
         return $response;
@@ -844,6 +838,7 @@ final class AdminTicketController
     }
 
     /**
+     * @param array<array-key, Ticket> $tickets
      * @return array{total: int, open: int, in_progress: int, pending: int, resolved: int, closed: int,
      * high_priority: int, resolved_today: int, assigned_to_me: int}
      */
@@ -963,6 +958,8 @@ final class AdminTicketController
      */
     private function normalizeTicket(Ticket $ticket): array
     {
+        $assigned = $ticket->getAssignedTo();
+
         return [
             'id' => $ticket->getId(),
             'subject' => $ticket->getSubject(),
@@ -973,9 +970,9 @@ final class AdminTicketController
                 'id' => $ticket->getCustomer()->getId(),
                 'email' => $ticket->getCustomer()->getEmail(),
             ],
-            'assigned_to' => $ticket->getAssignedTo() === null ? null : [
-                'id' => $ticket->getAssignedTo()->getId(),
-                'email' => $ticket->getAssignedTo()->getEmail(),
+            'assigned_to' => $assigned === null ? null : [
+                'id' => $assigned->getId(),
+                'email' => $assigned->getEmail(),
             ],
             'created_at' => $ticket->getCreatedAt(),
             'last_message_at' => $ticket->getLastMessageAt(),
@@ -983,12 +980,16 @@ final class AdminTicketController
         ];
     }
 
+    /** @param array<array-key, TicketMessage> $messages */
     private function normalizeMessages(array $messages): array
     {
         $attachmentsByMessage = $this->normalizeAttachmentsByMessage($messages, '/admin/tickets/attachments');
 
-        return array_map(fn (TicketMessage $message) => [
-            'id' => $message->getId(),
+        return array_map(function (TicketMessage $message) use ($attachmentsByMessage): array {
+            $messageId = $message->getId();
+
+            return [
+            'id' => $messageId,
             'author' => [
                 'id' => $message->getAuthor()->getId(),
                 'email' => $message->getAuthor()->getEmail(),
@@ -996,9 +997,10 @@ final class AdminTicketController
             ],
             'body' => $message->getBody(),
             'created_at' => $message->getCreatedAt(),
-            'attachments' => $attachmentsByMessage[$message->getId()] ?? [],
+            'attachments' => $messageId !== null ? ($attachmentsByMessage[$messageId] ?? []) : [],
             'is_internal' => $message->isInternal(),
-        ], $messages);
+            ];
+        }, $messages);
     }
 
     private function normalizeTemplates(array $templates): array
@@ -1040,12 +1042,9 @@ final class AdminTicketController
     }
 
     /**
-     * @return array{errors: list<string>, customer: \App\Module\Core\Domain\Entity\User|null, customer_id:
-     * string, subject: string, category:
-     * App\Module\Core\Domain\Enum\TicketCategory::Abuse|App\Module\Core\Domain\Enum\TicketCategory::Billing|App\Module\Core\Domain\Enum\TicketCategory::General|App\Module\Core\Domain\Enum\TicketCategory::Technical,
-     * priority:
-     * App\Module\Core\Domain\Enum\TicketPriority::High|App\Module\Core\Domain\Enum\TicketPriority::Low|App\Module\Core\Domain\Enum\TicketPriority::Normal|App\Module\Core\Domain\Enum\TicketPriority::Urgent,
-     * message: string, include_signature: bool}
+     * @return array{errors: list<string>, customer: User|null, customer_id: string,
+     *     subject: string, category: TicketCategory, priority: TicketPriority,
+     *     message: string, include_signature: bool}
      */
     private function parsePayload(Request $request): array
     {

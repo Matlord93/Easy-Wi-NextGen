@@ -240,6 +240,32 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         self::assertSame('CONFLICT', $payload['error_code']);
     }
 
+    public function testStructuredAutomationFieldsAreRejectedWithoutConversionWarnings(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+        $instance = $this->createStub(Instance::class);
+        $instance->method('getCustomer')->willReturn($customer);
+        $repo = $this->createStub(InstanceRepository::class);
+        $repo->method('find')->willReturn($instance);
+        $controller = $this->newController($repo);
+
+        foreach ([
+            ['auto_backup' => ['time' => ['03:00']]],
+            ['auto_restart' => ['time' => ['04:00']]],
+            ['auto_update' => ['time' => ['05:00']]],
+            ['auto_backup' => ['mode' => ['auto']]],
+        ] as $automation) {
+            $request = Request::create('/api/instances/7/settings/automation', 'PATCH', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['automation' => $automation], JSON_THROW_ON_ERROR));
+            $request->attributes->set('current_user', $customer);
+            $response = $controller->updateAutomation($request, 7);
+            $payload = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+
+            self::assertSame(422, $response->getStatusCode());
+            self::assertSame('INVALID_INPUT', $payload['error_code']);
+        }
+    }
+
     /** @return array{0: CustomerInstanceSettingsApiController, 1: User} */
     private function forbiddenFixture(): array
     {

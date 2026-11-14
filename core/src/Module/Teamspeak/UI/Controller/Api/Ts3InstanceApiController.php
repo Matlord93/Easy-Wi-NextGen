@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Teamspeak\UI\Controller\Api;
 
 use App\Infrastructure\Http\RequestActor;
+use App\Infrastructure\Config\ScalarValue;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Application\AuditLogger;
@@ -145,7 +146,7 @@ final class Ts3InstanceApiController
         }
 
         $payload = $this->parseJsonPayload($request);
-        $action = strtolower(trim((string) ($payload['action'] ?? '')));
+        $action = strtolower(trim(ScalarValue::text($payload['action'] ?? null)));
         if ($action === '') {
             return new JsonResponse(['error' => 'Action is required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -177,6 +178,11 @@ final class Ts3InstanceApiController
         ]);
     }
 
+    private static function numericInput(mixed $value): int|float|string|null
+    {
+        return is_int($value) || is_float($value) || is_string($value) ? $value : null;
+    }
+
     private function requireUser(Request $request): User
     {
         $actor = RequestActor::user($request);
@@ -187,6 +193,7 @@ final class Ts3InstanceApiController
         return $actor;
     }
 
+    /** @return array<array-key, mixed> */
     private function parseJsonPayload(Request $request): array
     {
         try {
@@ -196,20 +203,29 @@ final class Ts3InstanceApiController
         }
     }
 
+    /**
+     * @param array<array-key, mixed> $payload
+     * @return array{error: JsonResponse}|array{
+     *     error: null, customer: User, node: \App\Module\Core\Domain\Entity\Agent, name: string,
+     *     voice_port: int, query_port: int, file_port: int, db_mode: Ts3DatabaseMode,
+     *     db_host: string|null, db_port: int|null, db_name: string|null, db_username: string|null,
+     *     db_password: array{key_id: string, nonce: string, ciphertext: string}|null
+     * }
+     */
     private function validatePayload(array $payload): array
     {
-        $customerId = $payload['customer_id'] ?? null;
-        $nodeId = (string) ($payload['node_id'] ?? '');
-        $name = trim((string) ($payload['name'] ?? ''));
-        $voicePortValue = $payload['voice_port'] ?? null;
-        $queryPortValue = $payload['query_port'] ?? null;
-        $filePortValue = $payload['file_port'] ?? null;
-        $dbModeValue = strtolower(trim((string) ($payload['db_mode'] ?? '')));
-        $dbHost = trim((string) ($payload['db_host'] ?? ''));
-        $dbPortValue = $payload['db_port'] ?? null;
-        $dbName = trim((string) ($payload['db_name'] ?? ''));
-        $dbUsername = trim((string) ($payload['db_username'] ?? ''));
-        $dbPassword = trim((string) ($payload['db_password'] ?? ''));
+        $customerId = self::numericInput($payload['customer_id'] ?? null);
+        $nodeId = ScalarValue::text($payload['node_id'] ?? null);
+        $name = trim(ScalarValue::text($payload['name'] ?? null));
+        $voicePortValue = self::numericInput($payload['voice_port'] ?? null);
+        $queryPortValue = self::numericInput($payload['query_port'] ?? null);
+        $filePortValue = self::numericInput($payload['file_port'] ?? null);
+        $dbModeValue = strtolower(trim(ScalarValue::text($payload['db_mode'] ?? null)));
+        $dbHost = trim(ScalarValue::text($payload['db_host'] ?? null));
+        $dbPortValue = self::numericInput($payload['db_port'] ?? null);
+        $dbName = trim(ScalarValue::text($payload['db_name'] ?? null));
+        $dbUsername = trim(ScalarValue::text($payload['db_username'] ?? null));
+        $dbPassword = trim(ScalarValue::text($payload['db_password'] ?? null));
 
         if (!is_numeric($customerId)) {
             return ['error' => new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST)];
@@ -285,7 +301,7 @@ final class Ts3InstanceApiController
         ];
     }
 
-    /** @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, port?: int} */
+    /** @return array{error: JsonResponse}|array{error: null, port: int} */
     private function validatePort(mixed $value, string $field): array
     {
         if ($value === null || $value === '' || !is_numeric($value)) {
@@ -315,8 +331,8 @@ final class Ts3InstanceApiController
     }
 
     /**
-     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, payload?: array{action:
-     * string, slots?: string, backup_path?: string, restore_path?: string}}
+     * @param array<array-key, mixed> $payload
+     * @return array{error: JsonResponse}|array{error: null, payload: array{action: string, slots?: string, backup_path?: string, restore_path?: string}}
      */
     private function buildActionPayload(string $action, array $payload): array
     {
@@ -335,13 +351,13 @@ final class Ts3InstanceApiController
             $extra['slots'] = (string) $slots;
         }
         if ($action === 'backup') {
-            $backupPath = trim((string) ($payload['backup_path'] ?? ''));
+            $backupPath = trim(ScalarValue::text($payload['backup_path'] ?? null));
             if ($backupPath !== '') {
                 $extra['backup_path'] = $backupPath;
             }
         }
         if ($action === 'restore') {
-            $restorePath = trim((string) ($payload['restore_path'] ?? ''));
+            $restorePath = trim(ScalarValue::text($payload['restore_path'] ?? null));
             if ($restorePath === '') {
                 return ['error' => new JsonResponse(['error' => 'restore_path is required.'], JsonResponse::HTTP_BAD_REQUEST)];
             }
@@ -351,6 +367,7 @@ final class Ts3InstanceApiController
         return ['payload' => $extra, 'error' => null];
     }
 
+    /** @param array<string, string> $extraPayload */
     private function queueTs3Job(string $type, Ts3Instance $instance, array $extraPayload): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob
     {
         $payload = array_merge([

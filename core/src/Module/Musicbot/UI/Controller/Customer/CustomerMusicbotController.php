@@ -6,6 +6,7 @@ namespace App\Module\Musicbot\UI\Controller\Customer;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 
 use App\Infrastructure\Http\RequestActor;
 
@@ -302,8 +303,8 @@ final class CustomerMusicbotController
             $statusJob = $this->queueStatusRefresh($customer, $instance);
             $this->auditLogger->log($customer, 'musicbot.config_apply_requested', ['instance_id' => $id, 'job_id' => $applyJob->getId(), 'status_job_id' => $statusJob->getId(), 'section' => $section, 'live_reconnect' => 'queued']);
             $this->entityManager->flush();
-            $reconnectJob = $this->queueLiveReconnect($customer, $instance);
-            $this->flash($request, 'success', $reconnectJob !== null ? 'Einstellungen wurden gespeichert. Live-Übernahme wurde angefordert; falls nötig führt die Runtime automatisch einen Reconnect aus.' : 'Einstellungen wurden gespeichert. Status wird aktualisiert. Diese Änderung wird nach einem Neustart des Bots übernommen, falls die Runtime kein Live-Apply unterstützt.');
+            $this->queueLiveReconnect($customer, $instance);
+            $this->flash($request, 'success', 'Einstellungen wurden gespeichert. Live-Übernahme wurde angefordert; falls nötig führt die Runtime automatisch einen Reconnect aus.');
 
             if ($request->request->get('_action') === 'save_restart') {
                 $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.service.action', [
@@ -414,7 +415,7 @@ final class CustomerMusicbotController
         $instance = $this->findInstanceForCustomer($id, $customer);
 
         try {
-            $result = $this->streamService->rotateToken($customer, $instance);
+            $this->streamService->rotateToken($customer, $instance);
             $this->flash($request, 'success', 'Stream-Token wurde erfolgreich rotiert. Das neue Token ist auf der Einstellungsseite sichtbar.');
         } catch (\Throwable $e) {
             $this->flash($request, 'error', $e->getMessage());
@@ -487,7 +488,7 @@ final class CustomerMusicbotController
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstanceForCustomer($id, $customer);
         $rawIds = array_filter(array_map('trim', explode(',', (string) $request->request->get('queue_item_ids', ''))));
-        $this->queueService->sortQueue($customer, $instance, array_map('intval', $rawIds));
+        $this->queueService->sortQueue($customer, $instance, array_values(array_map('intval', $rawIds)));
         $this->queueStatusRefresh($customer, $instance);
         $this->flash($request, 'success', 'Queue wurde neu sortiert. Status wird aktualisiert.');
 
@@ -864,7 +865,7 @@ final class CustomerMusicbotController
         $playlist = $this->playlistService->findPlaylistForCustomer($playlistId, $customer);
         if (!$playlist instanceof \App\Module\Musicbot\Domain\Entity\MusicbotPlaylist) { throw new NotFoundHttpException($this->translator->trans('error_not_found')); }
         $rawIds = array_filter(array_map('trim', explode(',', (string) $request->request->get('playlist_item_ids', ''))));
-        $this->playlistService->reorderItems($customer, $playlist, array_map('intval', $rawIds));
+        $this->playlistService->reorderItems($customer, $playlist, array_values(array_map('intval', $rawIds)));
         $this->flash($request, 'success', 'Playlist-Reihenfolge wurde gespeichert.');
 
         return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
@@ -983,7 +984,7 @@ final class CustomerMusicbotController
             throw new NotFoundHttpException($this->translator->trans('error_not_found'));
         }
         $rawConfig = trim((string) $request->request->get('config_json', '{}'));
-        $config = JsonArray::decode($rawConfig === '' ? '{}' : $rawConfig);
+        $config = JsonMap::decode($rawConfig === '' ? '{}' : $rawConfig);
         if (!is_array($config)) {
             $this->flash($request, 'error', 'Plugin-Konfiguration muss valides JSON sein.');
             return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/musicbots/%d', $id)]);
@@ -1036,7 +1037,7 @@ final class CustomerMusicbotController
 
     /**
      * @param MusicbotInstance[] $instances
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function buildIndexRows(array $instances): array
     {
@@ -1094,7 +1095,7 @@ final class CustomerMusicbotController
         ));
     }
 
-    /** @return array<int, array<int, \App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem>> */
+    /** @return array<int, array<array-key, \App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem>> */
     private function buildPlaylistItems(User $customer, MusicbotInstance $instance): array
     {
         $items = [];
@@ -1143,9 +1144,9 @@ final class CustomerMusicbotController
     /** @param MusicbotQueueItem[] $queue */
     private function buildRuntimeStatus(MusicbotInstance $instance, array $queue): array
     {
-        $payload = $this->sanitizeForTemplate($this->runtimeStatusNormalizer->normalizePayload($instance->getRuntimePayload() ?? []));
-        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') === '1') {
-            error_log('[musicbot-status-flow] '.json_encode(['stage' => 'customer.controller.payload.normalized', 'instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        $payload = JsonArray::orEmpty($this->sanitizeForTemplate($this->runtimeStatusNormalizer->normalizePayload($instance->getRuntimePayload() ?? [])));
+        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW')) === '1') {
+            error_log(MusicbotPayloadLogSummarizer::formatRuntimePayload('customer.controller.payload.normalized', $instance->getId(), $payload));
         }
         $playback = JsonArray::orEmpty($payload['playback'] ?? null);
         $instanceConfig = $instance->getInstanceConfig();
@@ -1154,9 +1155,8 @@ final class CustomerMusicbotController
             $volume = max(0, min(100, (int) $instanceConfig['live_volume']));
         }
         $ps = JsonArray::orEmpty($payload['playback_status'] ?? null);
-        $pipeline = JsonArray::orEmpty($payload['audio_pipeline'] ?? null);
-        $normal = is_array($payload['playback_status'] ?? null) ? $payload['playback_status'] : $this->runtimeStatusNormalizer->buildPlaybackStatus($payload);
-        $audioReady = (bool) $normal['audio_backend_ready'];
+        $normal = $this->runtimeStatusNormalizer->buildPlaybackStatus($payload);
+        $audioReady = $normal['audio_backend_ready'];
         $nowPlaying = $this->runtimeStatusNormalizer->buildNowPlaying($payload, $this->queueItemForNowPlaying($queue));
 
         return [
@@ -1173,8 +1173,8 @@ final class CustomerMusicbotController
             'durationMs' => (int) ($ps['duration_ms'] ?? 0),
             'decoderBackend' => (string) ($ps['decoder_backend'] ?? ''),
             'decoderStatus' => (string) ($ps['decoder_status'] ?? ''),
-            'outputBackend' => (string) ($normal['output_backend'] ?? ''),
-            'outputStatus' => (string) ($normal['output_status'] ?? ''),
+            'outputBackend' => $normal['output_backend'],
+            'outputStatus' => $normal['output_status'],
             'framesProcessed' => (int) ($ps['frames_processed'] ?? 0),
             'lastStateChangeAt' => (string) ($ps['last_state_change_at'] ?? ''),
             'audioBackendReady' => $audioReady,
@@ -1212,25 +1212,25 @@ final class CustomerMusicbotController
 
     /**
      * @param mixed $value
-     * @return mixed
+     * @return null|scalar|array<array-key, mixed>
      */
-    private function sanitizeForTemplate(mixed $value, int $depth = 0): mixed
+    private function sanitizeForTemplate(mixed $value, int $depth = 0): null|bool|int|float|string|array
     {
         if ($depth > 20) {
             return '[truncated]';
         }
         if (!is_array($value)) {
-            return is_string($value) ? $this->sanitizeTextForTemplate($value) : $value;
+            return is_string($value) ? $this->sanitizeTextForTemplate($value) : (is_scalar($value) || $value === null ? $value : '[unsupported]');
         }
 
         $sanitized = [];
-        foreach ($value as $key => $item) {
+        foreach (array_keys($value) as $key) {
             $keyString = is_string($key) ? strtolower($key) : (string) $key;
             if (str_contains($keyString, 'token') || str_contains($keyString, 'password') || str_contains($keyString, 'secret') || str_contains($keyString, 'auth')) {
-                $sanitized[$key] = $item === null || $item === '' ? $item : '[redacted]';
+                $sanitized[$key] = $value[$key] === null || $value[$key] === '' ? $value[$key] : '[redacted]';
                 continue;
             }
-            $sanitized[$key] = $this->sanitizeForTemplate($item, $depth + 1);
+            $sanitized[$key] = $this->sanitizeForTemplate($value[$key], $depth + 1);
         }
 
         return $sanitized;
@@ -1258,14 +1258,14 @@ final class CustomerMusicbotController
      */
     private function buildMonitoring(MusicbotInstance $instance, array $queue): array
     {
-        $payload = $this->sanitizeForTemplate($this->runtimeStatusNormalizer->normalizePayload($instance->getRuntimePayload() ?? []));
-        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') === '1') {
-            error_log('[musicbot-status-flow] '.json_encode(['stage' => 'customer.controller.payload.normalized', 'instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        $payload = JsonArray::orEmpty($this->sanitizeForTemplate($this->runtimeStatusNormalizer->normalizePayload($instance->getRuntimePayload() ?? [])));
+        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW')) === '1') {
+            error_log(MusicbotPayloadLogSummarizer::formatRuntimePayload('customer.controller.payload.normalized', $instance->getId(), $payload));
         }
         $playback = JsonArray::orEmpty($payload['playback'] ?? null);
         return [
-            'cpu' => $payload['cpu'] ?? $payload['metrics']['cpu'] ?? null,
-            'ram' => $payload['ram'] ?? $payload['metrics']['ram'] ?? null,
+            'cpu' => $payload['cpu'] ?? JsonArray::orEmpty($payload['metrics'] ?? null)['cpu'] ?? null,
+            'ram' => $payload['ram'] ?? JsonArray::orEmpty($payload['metrics'] ?? null)['ram'] ?? null,
             'queueLength' => count($queue),
             'currentTrack' => $this->resolveCurrentTrack($queue),
             'lastPlaybackAction' => $playback['last_command'] ?? $payload['last_playback_action'] ?? null,
@@ -1274,20 +1274,20 @@ final class CustomerMusicbotController
     }
 
 
-    /** @return array<string, mixed> */
+    /** @return array<array-key, mixed> */
     private function parseTeamspeakCommandConfig(string $json): array
     {
         $json = trim($json);
         if ($json === '') {
             return [];
         }
-        $decoded = json_decode($json, true);
+        $decoded = JsonArray::decode($json);
 
-        return JsonArray::orEmpty($decoded);
+        return $decoded ?? [];
     }
 
 
-    private function queueLiveReconnect(User $customer, MusicbotInstance $instance): ?\App\Module\AgentOrchestrator\Domain\Entity\AgentJob
+    private function queueLiveReconnect(User $customer, MusicbotInstance $instance): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob
     {
         $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.playback.action', [
             'instance_id' => (string) $instance->getId(),

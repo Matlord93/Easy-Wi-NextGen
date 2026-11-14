@@ -31,7 +31,7 @@ final class QueryThrottle
             return false;
         }
 
-        $bucket['tokens'] -= $cost;
+        $bucket['tokens'] -= (float) $cost;
         $this->state[$scope] = $bucket;
 
         return true;
