@@ -3076,7 +3076,8 @@ configure_panel_vm_console() {
       return 0
     fi
   fi
-  local vm_vhost="$(detect_nginx_conf_dir "$(detect_os_family)")/easywi.conf"
+  local vm_vhost
+  vm_vhost="$(detect_nginx_conf_dir "$(detect_os_family)")/easywi.conf"
   local vm_php_path; vm_php_path="$(command -v "${php_bin}")"
   if EASYWI_VM_CONSOLE_WEB_USER="${web_user}" bash "${vm_setup}" "${core_dir}" "${public_origin}" "" "${vm_agent}" "${vm_vhost}" "${vm_php_path}"; then
     ok "VM-Konsole: Gateway, Panel-Konfiguration und WebSocket-Route eingerichtet."

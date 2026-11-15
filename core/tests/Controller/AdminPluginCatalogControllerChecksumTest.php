@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\PanelAdmin\UI\Controller\Admin\AdminPluginCatalogController;
+use App\Module\Core\Application\GamePluginSeedCatalog;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -60,7 +61,7 @@ final class AdminPluginCatalogControllerChecksumTest extends TestCase
 
     public function testRecommendedSeedEntriesUseEmptyChecksumForDynamicPlugins(): void
     {
-        $entries = $this->buildRecommendedSeedEntries();
+        $entries = (new GamePluginSeedCatalog())->listPlugins();
         $entriesByName = [];
         foreach ($entries as $entry) {
             $entriesByName[$entry['name']] = $entry;
@@ -104,14 +105,6 @@ final class AdminPluginCatalogControllerChecksumTest extends TestCase
         ], 0, &$errors]);
 
         return $errors;
-    }
-
-    /** @return array<int, array{game_key:string,name:string,version:string,checksum:string,download_url:string,description:string}> */
-    private function buildRecommendedSeedEntries(): array
-    {
-        $method = new \ReflectionMethod(AdminPluginCatalogController::class, 'buildRecommendedSeedEntries');
-
-        return $method->invoke($this->controller());
     }
 
     private function controller(): AdminPluginCatalogController

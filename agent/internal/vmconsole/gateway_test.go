@@ -232,7 +232,9 @@ func TestGatewayHealthRequiresSecretAndDoesNotConsumeConsoleTicket(t *testing.T)
 			t.Fatal(err)
 		}
 		body, _ := io.ReadAll(response.Body)
-		response.Body.Close()
+		if err := response.Body.Close(); err != nil {
+			t.Fatalf("close response body: %v", err)
+		}
 		if secret != "synthetic-gateway-secret" {
 			if response.StatusCode != http.StatusForbidden {
 				t.Fatal("unauthorized health probe accepted")
