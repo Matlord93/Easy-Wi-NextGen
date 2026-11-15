@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Repository\MinecraftVersionCatalogRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\PhpExecutableFinder;
 
+/** @psalm-import-type CatalogEntry from MinecraftUpstreamCatalog */
 final class MinecraftCatalogSynchronizer
 {
     private bool $prepared = false;
@@ -27,10 +29,11 @@ final class MinecraftCatalogSynchronizer
     ) {
     }
 
+    /** @return array{queued: bool, running: bool, ...} */
     public function status(): array
     {
         $file = $this->directory.'/status.json';
-        $status = is_file($file) ? json_decode((string) file_get_contents($file), true) : [];
+        $status = is_file($file) ? JsonArray::decode((string) file_get_contents($file)) ?? [] : [];
 
         $running = false;
         if (is_file($this->directory.'/sync.lock') && ($lock = @fopen($this->directory.'/sync.lock', 'r+')) !== false) {
@@ -41,7 +44,7 @@ final class MinecraftCatalogSynchronizer
             fclose($lock);
         }
 
-        return array_replace(JsonArray::orEmpty($status), ['queued' => is_file($this->directory.'/refresh'), 'running' => $running]);
+        return array_replace($status, ['queued' => is_file($this->directory.'/refresh'), 'running' => $running]);
     }
 
     /** First use works from release metadata; upstream checks happen in the background. */
@@ -70,9 +73,10 @@ final class MinecraftCatalogSynchronizer
     {
         $status = $this->status();
         $channels = [];
+        $channelStates = $this->channelStates($status['channels'] ?? null);
         foreach (MinecraftVersionCatalog::CHANNELS as $channel) {
-            $entry = $status['channels'][$channel] ?? [];
-            $channels[$channel] = ['updated_at' => (int) ($entry['success_at'] ?? 0), 'unavailable' => !empty($entry['error'])];
+            $entry = $channelStates[$channel] ?? [];
+            $channels[$channel] = ['updated_at' => ScalarValue::integer($entry['success_at'] ?? null, 0), 'unavailable' => !empty($entry['error'])];
         }
 
         return ['updating' => $status['queued'] || $status['running'], 'channels' => $channels];
@@ -146,11 +150,11 @@ final class MinecraftCatalogSynchronizer
                 $matchingVersion = PHP_BINDIR.'/php'.PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;
                 $binary = in_array(PHP_SAPI, ['cli', 'cli-server'], true) ? PHP_BINARY : (is_executable($matchingVersion) ? $matchingVersion : (new PhpExecutableFinder())->find(false));
             }
-            if (!$binary || !is_executable($binary) || is_dir($binary) || str_contains(basename($binary), 'fpm')) {
+            if ($binary === false || $binary === '' || !is_executable($binary) || is_dir($binary) || str_contains(basename($binary), 'fpm')) {
                 throw new \RuntimeException('No PHP CLI binary available for catalog updates.');
             }
             $command = 'nohup '.escapeshellarg($binary);
-            if ($ini = php_ini_loaded_file()) {
+            if (($ini = php_ini_loaded_file()) !== false && $ini !== '') {
                 $command .= ' -c '.escapeshellarg($ini);
             }
             $command .= ' '.escapeshellarg($console).' catalog:sync:minecraft --no-interaction >> '.escapeshellarg($this->directory.'/sync.log').' 2>&1 < /dev/null &';
@@ -187,24 +191,25 @@ final class MinecraftCatalogSynchronizer
             $status['attempted_at'] = time();
             $status['queued'] = false;
             $this->writeStatus($status);
+            $channelStates = $this->channelStates($status['channels'] ?? null);
             // Discover channels without bundled metadata before the large Mojang history.
             foreach (array_unique(['spigot', 'bungeecord', ...MinecraftVersionCatalog::CHANNELS]) as $channel) {
                 try {
                     // Fully fetch a provider before changing its previous successful catalog.
-                    $items = iterator_to_array($this->upstream->entries($channel), false);
-                    if ([] === $items) {
-                        throw new \RuntimeException('Provider returned no installable versions.');
-                    }
-                    foreach ($items as &$item) {
-                        if (!is_string($item['version'] ?? null) || !str_starts_with((string) ($item['url'] ?? ''), 'https://')) {
+                    $items = [];
+                    foreach ($this->upstream->entries($channel) as $item) {
+                        if ($item['version'] === '' || !str_starts_with($item['url'], 'https://')) {
                             throw new \RuntimeException('Invalid upstream artifact metadata.');
                         }
-                        $item['date'] = isset($item['released']) ? new \DateTimeImmutable($item['released']) : null;
+                        $date = isset($item['released']) ? new \DateTimeImmutable($item['released']) : null;
                         if (isset($item['java'])) {
-                            (new MinecraftJavaVersionResolver())->resolve($item['version'], (string) $item['java']);
+                            (new MinecraftJavaVersionResolver())->resolve($item['version'], $item['java']);
                         }
+                        $items[] = $item + ['date' => $date];
                     }
-                    unset($item);
+                    if ($items === []) {
+                        throw new \RuntimeException('Provider returned no installable versions.');
+                    }
                     $count = 0;
                     foreach ($items as $item) {
                         $criteria = ['channel' => $channel, 'mcVersion' => $item['version'], 'build' => $item['build'] ?? null];
@@ -226,13 +231,13 @@ final class MinecraftCatalogSynchronizer
                         ++$count;
                     }
                     $this->em->flush();
-                    $status['channels'][$channel] = ['success_at' => time(), 'count' => $count, 'error' => null];
+                    $channelStates[$channel] = ['success_at' => time(), 'count' => $count, 'error' => null];
                 } catch (\Throwable $error) {
-                    $previous = $status['channels'][$channel] ?? [];
-                    $status['channels'][$channel] = $previous + ['count' => 0];
-                    $status['channels'][$channel]['error'] = $error->getMessage();
+                    $channelStates[$channel] = ($channelStates[$channel] ?? []) + ['count' => 0];
+                    $channelStates[$channel]['error'] = $error->getMessage();
                     $this->logger?->warning('minecraft.catalog_provider_failed', ['channel' => $channel, 'exception' => $error]);
                 }
+                $status['channels'] = $channelStates;
                 $this->writeStatus($status);
             }
 
@@ -243,9 +248,10 @@ final class MinecraftCatalogSynchronizer
         }
     }
 
+    /** @param array<array-key, mixed> $status */
     private function retryInterval(array $status): int
     {
-        foreach ($status['channels'] ?? [] as $channel) {
+        foreach ($this->channelStates($status['channels'] ?? null) as $channel) {
             if (!empty($channel['success_at'])) {
                 return 3600;
             }
@@ -254,12 +260,29 @@ final class MinecraftCatalogSynchronizer
         return 60;
     }
 
+    /** @param array<array-key, mixed> $status */
     private function writeStatus(array $status): void
     {
         $tmp = tempnam($this->directory, 'status-');
         if (false === $tmp || false === file_put_contents($tmp, json_encode($status, JSON_THROW_ON_ERROR)) || !rename($tmp, $this->directory.'/status.json')) {
             throw new \RuntimeException('Cannot save catalog synchronization status.');
         }
+    }
+
+    /** @return array<string, array<array-key, mixed>> */
+    private function channelStates(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+        $channels = [];
+        foreach (array_keys($value) as $key) {
+            if (is_string($key) && is_array($value[$key])) {
+                $channels[$key] = $value[$key];
+            }
+        }
+
+        return $channels;
     }
 
     private function ensureDirectory(): void

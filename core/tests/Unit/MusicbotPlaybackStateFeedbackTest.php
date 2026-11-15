@@ -31,14 +31,25 @@ final class MusicbotPlaybackStateFeedbackTest extends TestCase
         $eventService = $this->buildEventService();
 
         $instanceRepo = new class ($instance) implements MusicbotInstanceRepositoryInterface {
-            public function __construct(private readonly MusicbotInstance $i) {}
+            public function __construct(private readonly MusicbotInstance $i)
+            {
+            }
 
-            public function findById(int $id): ?MusicbotInstance { return $this->i; }
+            public function findById(int $id): ?MusicbotInstance
+            {
+                return $this->i;
+            }
 
             /** @return MusicbotInstance[] */
-            public function findByCustomer(\App\Module\Core\Domain\Entity\User $customer): array { return []; }
+            public function findByCustomer(\App\Module\Core\Domain\Entity\User $customer): array
+            {
+                return [];
+            }
 
-            public function findOneForCustomer(int $id, \App\Module\Core\Domain\Entity\User $customer): ?MusicbotInstance { return null; }
+            public function findOneForCustomer(int $id, \App\Module\Core\Domain\Entity\User $customer): ?MusicbotInstance
+            {
+                return null;
+            }
         };
 
         $applier = (new \ReflectionClass(AgentJobResultApplier::class))->newInstanceWithoutConstructor();
@@ -79,7 +90,9 @@ final class MusicbotPlaybackStateFeedbackTest extends TestCase
 
         return new class ($eventLog) implements MusicbotRuntimeEventServiceInterface {
             /** @param list<array> $log */
-            public function __construct(private array &$log) {}
+            public function __construct(private array &$log)
+            {
+            }
 
             public function record(MusicbotInstance $instance, string $type, string $level = 'info', string $message = '', array $context = []): MusicbotRuntimeEvent
             {
@@ -103,19 +116,40 @@ final class MusicbotPlaybackStateFeedbackTest extends TestCase
                 $this->st = MusicbotInstanceStatus::Running;
             }
 
-            public function getId(): ?int { return 42; }
+            public function getId(): ?int
+            {
+                return 42;
+            }
 
-            public function getRuntimePayload(): ?array { return $this->rp; }
+            public function getRuntimePayload(): ?array
+            {
+                return $this->rp;
+            }
 
-            public function setRuntimePayload(?array $rp): void { $this->rp = $rp; }
+            public function setRuntimePayload(?array $rp): void
+            {
+                $this->rp = $rp;
+            }
 
-            public function getLastError(): ?string { return $this->le; }
+            public function getLastError(): ?string
+            {
+                return $this->le;
+            }
 
-            public function setLastError(?string $e): void { $this->le = $e; }
+            public function setLastError(?string $e): void
+            {
+                $this->le = $e;
+            }
 
-            public function getStatus(): MusicbotInstanceStatus { return $this->st; }
+            public function getStatus(): MusicbotInstanceStatus
+            {
+                return $this->st;
+            }
 
-            public function setStatus(MusicbotInstanceStatus $s): void { $this->st = $s; }
+            public function setStatus(MusicbotInstanceStatus $s): void
+            {
+                $this->st = $s;
+            }
         };
     }
 
@@ -282,4 +316,46 @@ final class MusicbotPlaybackStateFeedbackTest extends TestCase
         $stored = $instance->getRuntimePayload();
         self::assertSame('null', $stored['playback_status']['output_backend'] ?? null, 'NullAudioOutput must surface as "null"');
     }
+    public function testPartialRuntimeMergePreservesNestedListsAndExplicitClears(): void
+    {
+        $instance = $this->makeInstance(['custom' => [
+            'title' => 'Keep this title',
+            'error' => 'Old error',
+            'enabled' => true,
+            'count' => 4,
+            'items' => [['name' => 'first'], ['name' => 'second']],
+        ]]);
+        $applier = $this->buildApplier($instance);
+
+        $applier->apply($this->makeJob('musicbot.update'), AgentJobStatus::Success, ['runtime' => ['custom' => [
+            'title' => '',
+            'error' => null,
+            'enabled' => false,
+            'count' => 0,
+            'items' => [['name' => 'updated']],
+        ]]]);
+
+        self::assertSame([
+            'title' => 'Keep this title',
+            'error' => null,
+            'enabled' => false,
+            'count' => 0,
+            'items' => [['name' => 'updated'], ['name' => 'second']],
+        ], $instance->getRuntimePayload()['custom']);
+    }
+
+    public function testMalformedErrorFieldFallsBackToStringError(): void
+    {
+        $instance = $this->makeInstance();
+        $applier = $this->buildApplier($instance);
+
+        $applier->apply($this->makeJob('musicbot.update'), AgentJobStatus::Failed, [
+            'last_error' => ['invalid'],
+            'error' => 'Agent operation failed',
+        ]);
+
+        self::assertSame('Agent operation failed', $instance->getLastError());
+        self::assertSame(MusicbotInstanceStatus::Error, $instance->getStatus());
+    }
+
 }

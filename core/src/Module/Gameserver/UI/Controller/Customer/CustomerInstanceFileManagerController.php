@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
@@ -54,7 +57,6 @@ final class CustomerInstanceFileManagerController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim($request->query->getString('path', ''));
-        $fileApiAvailable = true;
         $fileApiError = null;
 
         try {
@@ -228,7 +230,7 @@ final class CustomerInstanceFileManagerController
             throw new BadRequestHttpException($this->translator->trans('gs_api_missing_file_name'));
         }
 
-        $job = $this->queueFileJob('instance.files.write', $instance, $customer, $path, [
+        $this->queueFileJob('instance.files.write', $instance, $customer, $path, [
             'name' => $name,
             'content_base64' => base64_encode($content),
         ], 'instance.files.write_requested');
@@ -262,7 +264,7 @@ final class CustomerInstanceFileManagerController
             throw new BadRequestHttpException('Failed to read upload.');
         }
 
-        $job = $this->queueFileJob('instance.files.write', $instance, $customer, $path, [
+        $this->queueFileJob('instance.files.write', $instance, $customer, $path, [
             'name' => $upload->getClientOriginalName(),
             'content_base64' => base64_encode($contents),
         ], 'instance.files.upload_requested');
@@ -289,7 +291,7 @@ final class CustomerInstanceFileManagerController
             throw new BadRequestHttpException($this->translator->trans('customer_instance_files_error_missing_folder_name'));
         }
 
-        $job = $this->queueFileJob('instance.files.mkdir', $instance, $customer, $path, [
+        $this->queueFileJob('instance.files.mkdir', $instance, $customer, $path, [
             'name' => $name,
         ], 'instance.files.mkdir_requested');
         $this->entityManager->flush();
@@ -315,7 +317,7 @@ final class CustomerInstanceFileManagerController
             throw new BadRequestHttpException($this->translator->trans('customer_instance_files_error_missing_target_name'));
         }
 
-        $job = $this->queueFileJob('instance.files.delete', $instance, $customer, $path, [
+        $this->queueFileJob('instance.files.delete', $instance, $customer, $path, [
             'name' => $name,
         ], 'instance.files.delete_requested');
         $this->entityManager->flush();
@@ -472,16 +474,23 @@ final class CustomerInstanceFileManagerController
         ];
     }
 
-    /** @return list<array{path: string, dir: string, name: string, description: string}> */
+    /**
+     * @param array<array-key, mixed> $configFiles
+     * @return list<array{path: string, dir: string, name: string, description: string}>
+     */
     private function normalizeConfigFiles(array $configFiles): array
     {
         $normalized = [];
-        foreach ($configFiles as $entry) {
-            $path = trim((string) ($entry['path'] ?? ''));
+        foreach (array_keys($configFiles) as $key) {
+            if (!is_array($configFiles[$key])) {
+                continue;
+            }
+            $entry = $configFiles[$key];
+            $path = trim(ScalarValue::text($entry['path'] ?? ''));
             if ($path === '') {
                 continue;
             }
-            $description = trim((string) ($entry['description'] ?? ''));
+            $description = trim(ScalarValue::text($entry['description'] ?? ''));
             $name = basename($path);
             $dir = dirname($path);
             $normalized[] = [
@@ -503,24 +512,23 @@ final class CustomerInstanceFileManagerController
         $plugins = $this->gamePluginRepository->findByTemplateGameKey($instance->getTemplate());
 
         $installedVersions = [];
-        $installedRaw = $instance->getConfigOverrides()['addons'] ?? [];
-        if (is_array($installedRaw)) {
-            foreach ($installedRaw as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                $name = strtolower(trim(($entry['name'] ?? '')));
-                if ($name === '') {
-                    continue;
-                }
-                $installedVersions[$name] = trim((string) ($entry['version'] ?? ''));
+        $installedRaw = JsonArray::orEmpty($instance->getConfigOverrides()['addons'] ?? null);
+        foreach (array_keys($installedRaw) as $key) {
+            if (!is_array($installedRaw[$key])) {
+                continue;
             }
+            $entry = $installedRaw[$key];
+            $name = strtolower(trim(ScalarValue::text($entry['name'] ?? '')));
+            if ($name === '') {
+                continue;
+            }
+            $installedVersions[$name] = trim(ScalarValue::text($entry['version'] ?? ''));
         }
 
-        return array_map(static function ($plugin) use ($installedVersions): array {
+        return array_map(static function (GamePlugin $plugin) use ($installedVersions): array {
             $latestVersion = $plugin->getVersion();
             $installedVersion = $installedVersions[strtolower($plugin->getName())] ?? null;
-            $installedVersion = is_string($installedVersion) && trim($installedVersion) !== '' ? trim($installedVersion) : null;
+            $installedVersion = $installedVersion !== null && trim($installedVersion) !== '' ? trim($installedVersion) : null;
 
             return [
                 'id' => $plugin->getId(),
@@ -595,7 +603,12 @@ final class CustomerInstanceFileManagerController
             return $entries;
         }
 
-        foreach (preg_split('/\\r?\\n/', $rawEntries) as $line) {
+        $lines = preg_split('/\\r?\\n/', $rawEntries);
+        if ($lines === false) {
+            return [];
+        }
+
+        foreach ($lines as $line) {
             $line = trim($line);
             if ($line === '') {
                 continue;

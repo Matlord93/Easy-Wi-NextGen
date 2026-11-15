@@ -16,12 +16,24 @@ final class EntityQueryResult
     public static function all(AbstractQuery $query, string $entityClass): array
     {
         $rows = self::rows($query->getResult());
-        $entities = [];
-        foreach (array_keys($rows) as $key) {
-            $entities[] = self::entity($rows[$key], $entityClass);
-        }
+        self::validateEntities($rows, $entityClass);
 
-        return $entities;
+        return array_values($rows);
+    }
+
+    /**
+     * @template T of object
+     * @param array<array-key, mixed> $rows
+     * @param class-string<T> $entityClass
+     * @psalm-assert array<array-key, T> $rows
+     */
+    private static function validateEntities(array $rows, string $entityClass): void
+    {
+        foreach ($rows as $row) {
+            if (!$row instanceof $entityClass) {
+                throw new \UnexpectedValueException(sprintf('Entity query returned %s; expected %s.', get_debug_type($row), $entityClass));
+            }
+        }
     }
 
     /**

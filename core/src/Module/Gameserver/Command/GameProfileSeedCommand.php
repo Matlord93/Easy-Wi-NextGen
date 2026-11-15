@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Command;
 
 use App\Module\Gameserver\Domain\Entity\GameProfile;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Gameserver\Domain\Enum\EnforceMode;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -33,9 +34,9 @@ final class GameProfileSeedCommand extends Command
             return Command::FAILURE;
         }
 
-        $raw = Yaml::parseFile($this->configPath);
-        $profiles = $raw['profiles'] ?? [];
-        if (!is_array($profiles)) {
+        $raw = JsonMap::fromValue(Yaml::parseFile($this->configPath));
+        $profiles = JsonMap::fromValue($raw['profiles'] ?? []);
+        if ($profiles === null) {
             $output->writeln('<error>Profiles section missing.</error>');
             return Command::FAILURE;
         }
@@ -44,8 +45,9 @@ final class GameProfileSeedCommand extends Command
         foreach ($resolved as $gameKey => $definition) {
             $enforcePorts = EnforceMode::from((string) ($definition['enforce_mode_ports'] ?? EnforceMode::EnforceByConfig->value));
             $enforceSlots = EnforceMode::from((string) ($definition['enforce_mode_slots'] ?? EnforceMode::EnforceByConfig->value));
-            $portRoles = $definition['port_roles'] ?? [];
-            $slotRule = $definition['slot_rule'] ?? [];
+            $portRoles = self::portRoles($definition['port_roles'] ?? []);
+            $slotRule = JsonMap::fromValue($definition['slot_rule'] ?? [])
+                ?? throw new \RuntimeException(sprintf('Profile %s slot_rule must be an object.', $gameKey));
 
             $profile = $this->gameProfileRepository->findOneByGameKey($gameKey);
             if ($profile === null) {
@@ -73,7 +75,7 @@ final class GameProfileSeedCommand extends Command
     private function resolveProfiles(array $profiles): array
     {
         $resolved = [];
-        foreach ($profiles as $gameKey => $definition) {
+        foreach (array_keys($profiles) as $gameKey) {
             $resolved[$gameKey] = $this->resolveProfile($gameKey, $profiles, []);
         }
 
@@ -90,22 +92,46 @@ final class GameProfileSeedCommand extends Command
         if (isset($stack[$gameKey])) {
             throw new \RuntimeException(sprintf('Circular inherit detected for %s', $gameKey));
         }
-        $definition = $profiles[$gameKey] ?? null;
-        if (!is_array($definition)) {
+        $definition = JsonMap::fromValue($profiles[$gameKey] ?? null);
+        if ($definition === null) {
             throw new \RuntimeException(sprintf('Profile %s not defined', $gameKey));
         }
 
-        $inherit = $definition['inherit'] ?? null;
+        $inherit = self::optionalText($definition['inherit'] ?? null);
         if (is_string($inherit) && isset($profiles[$inherit])) {
             $stack[$gameKey] = true;
             $base = $this->resolveProfile($inherit, $profiles, $stack);
             unset($definition['inherit']);
 
-            return array_replace_recursive($base, $definition);
+            return JsonMap::fromValue(array_replace_recursive($base, $definition)) ?? [];
         }
 
         unset($definition['inherit']);
 
         return $definition;
     }
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private static function portRoles(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new \RuntimeException('Profile port_roles must be an array.');
+        }
+
+        $roles = [];
+        foreach (array_keys($value) as $key) {
+            if (!is_int($key)) {
+                throw new \RuntimeException('Profile port_roles must use integer keys.');
+            }
+            $roles[$key] = JsonMap::fromValue($value[$key])
+                ?? throw new \RuntimeException('Profile port_roles entries must be objects.');
+        }
+
+        return $roles;
+    }
+
 }

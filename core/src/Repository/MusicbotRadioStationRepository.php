@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotRadioStation;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -87,105 +87,65 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     // -------------------------------------------------------------------------
 
     /**
-     * Search the global catalog with optional filters.
-     *
-     * @param array{query?: string, genre?: string, country?: string, language?: string, format?: string, min_bitrate?: int, max_bitrate?: int, active_only?: bool, limit?: int, offset?: int} $filters
-     * @return MusicbotRadioStation[]
+     * @param array<array-key, mixed> $filters
+     * @return list<MusicbotRadioStation>
      */
     public function searchCatalog(array $filters = []): array
     {
-        $qb = $this->createQueryBuilder('r')
-            ->where('r.isGlobal = true');
+        $qb = $this->catalogQuery($filters)
+            ->orderBy('r.name', 'ASC')
+            ->setMaxResults(min(200, max(1, ScalarValue::integer($filters['limit'] ?? null, 50))))
+            ->setFirstResult(max(0, ScalarValue::integer($filters['offset'] ?? null, 0)));
 
-        $activeOnly = ($filters['active_only'] ?? true);
-        if ($activeOnly) {
-            $qb->andWhere('r.isActive = true');
-        }
-
-        if (!empty($filters['query'])) {
-            $q = '%' . mb_strtolower($filters['query']) . '%';
-            $qb->andWhere('LOWER(r.name) LIKE :q OR LOWER(r.genre) LIKE :q OR LOWER(r.description) LIKE :q OR LOWER(r.country) LIKE :q')
-               ->setParameter('q', $q);
-        }
-
-        if (!empty($filters['genre'])) {
-            $qb->andWhere('LOWER(r.genre) LIKE :genre')
-               ->setParameter('genre', '%' . mb_strtolower($filters['genre']) . '%');
-        }
-
-        if (!empty($filters['country'])) {
-            $qb->andWhere('LOWER(r.country) = :country')
-               ->setParameter('country', mb_strtolower($filters['country']));
-        }
-
-        if (!empty($filters['language'])) {
-            $qb->andWhere('LOWER(r.language) = :language')
-               ->setParameter('language', mb_strtolower($filters['language']));
-        }
-
-        if (!empty($filters['format'])) {
-            $qb->andWhere('LOWER(r.format) = :format')
-               ->setParameter('format', mb_strtolower($filters['format']));
-        }
-
-        if (isset($filters['min_bitrate']) && $filters['min_bitrate'] > 0) {
-            $qb->andWhere('r.bitrate >= :min_bitrate')
-               ->setParameter('min_bitrate', $filters['min_bitrate']);
-        }
-
-        if (isset($filters['max_bitrate']) && $filters['max_bitrate'] > 0) {
-            $qb->andWhere('r.bitrate <= :max_bitrate')
-               ->setParameter('max_bitrate', $filters['max_bitrate']);
-        }
-
-        $limit = min(200, max(1, ($filters['limit'] ?? 50)));
-        $offset = max(0, ($filters['offset'] ?? 0));
-
-        $qb->orderBy('r.name', 'ASC')
-           ->setMaxResults($limit)
-           ->setFirstResult($offset);
-
-        return EntityQueryResult::all($qb->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
+        return EntityQueryResult::all($qb->getQuery(), MusicbotRadioStation::class);
     }
 
+    /** @param array<array-key, mixed> $filters */
     public function countCatalog(array $filters = []): int
     {
-        $qb = $this->createQueryBuilder('r')
+        return (int) $this->catalogQuery($filters)
             ->select('COUNT(r.id)')
-            ->where('r.isGlobal = true');
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 
-        $activeOnly = (bool) ($filters['active_only'] ?? true);
-        if ($activeOnly) {
+    /** @param array<array-key, mixed> $filters */
+    private function catalogQuery(array $filters): QueryBuilder
+    {
+        $qb = $this->createQueryBuilder('r')->where('r.isGlobal = true');
+        if ((bool) ($filters['active_only'] ?? true)) {
             $qb->andWhere('r.isActive = true');
         }
 
-        if (!empty($filters['query'])) {
-            $q = '%' . mb_strtolower($filters['query']) . '%';
-            $qb->andWhere('LOWER(r.name) LIKE :q OR LOWER(r.genre) LIKE :q OR LOWER(r.description) LIKE :q OR LOWER(r.country) LIKE :q')
-               ->setParameter('q', $q);
+        foreach (['query', 'genre', 'country', 'language', 'format'] as $field) {
+            $value = self::filterText($filters[$field] ?? null);
+            if ($value === null) {
+                continue;
+            }
+            $condition = match ($field) {
+                'query' => 'LOWER(r.name) LIKE :query OR LOWER(r.genre) LIKE :query OR LOWER(r.description) LIKE :query OR LOWER(r.country) LIKE :query',
+                'genre' => 'LOWER(r.genre) LIKE :genre',
+                default => sprintf('LOWER(r.%s) = :%s', $field, $field),
+            };
+            $qb->andWhere($condition)->setParameter(
+                $field,
+                in_array($field, ['query', 'genre'], true) ? '%' . $value . '%' : $value
+            );
         }
 
-        if (!empty($filters['genre'])) {
-            $qb->andWhere('LOWER(r.genre) LIKE :genre')
-               ->setParameter('genre', '%' . mb_strtolower($filters['genre']) . '%');
+        foreach (['min_bitrate' => '>=', 'max_bitrate' => '<='] as $field => $comparison) {
+            $value = ScalarValue::integer($filters[$field] ?? null, 0);
+            if ($value > 0) {
+                $qb->andWhere(sprintf('r.bitrate %s :%s', $comparison, $field))->setParameter($field, $value);
+            }
         }
 
-        if (!empty($filters['country'])) {
-            $qb->andWhere('LOWER(r.country) = :country')
-               ->setParameter('country', mb_strtolower($filters['country']));
-        }
+        return $qb;
+    }
 
-        if (!empty($filters['language'])) {
-            $qb->andWhere('LOWER(r.language) = :language')
-               ->setParameter('language', mb_strtolower($filters['language']));
-        }
-
-        if (!empty($filters['format'])) {
-            $qb->andWhere('LOWER(r.format) = :format')
-               ->setParameter('format', mb_strtolower($filters['format']));
-        }
-
-        return (int) $qb->getQuery()->getSingleScalarResult();
+    private static function filterText(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? mb_strtolower($value) : null;
     }
 
     /** @return MusicbotRadioStation[] */
@@ -233,7 +193,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->getQuery()
             ->getSingleColumnResult();
 
-        return array_values(array_filter($rows));
+        return array_values(array_filter($rows, static fn (mixed $value): bool => is_string($value) && $value !== ''));
     }
 
     /** @return string[] */
@@ -248,7 +208,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->getQuery()
             ->getSingleColumnResult();
 
-        return array_values(array_filter($rows));
+        return array_values(array_filter($rows, static fn (mixed $value): bool => is_string($value) && $value !== ''));
     }
 
     // -------------------------------------------------------------------------

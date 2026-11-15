@@ -6,6 +6,8 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Message\InstanceActionMessage;
@@ -141,10 +143,10 @@ final class AdminBackupController
         $admin = $this->requireAdmin($request);
         $payload = $this->parsePayload($request);
 
-        $targetId = $payload['target_id'] ?? null;
+        $targetId = $this->numericId($payload['target_id'] ?? null);
         $target = null;
-        if (is_numeric($targetId)) {
-            $target = $this->backupTargetRepository->find((int) $targetId);
+        if ($targetId !== null) {
+            $target = $this->backupTargetRepository->find($targetId);
             if (!$target instanceof BackupTarget) {
                 return $this->responseEnvelopeFactory->error($request, $this->translator->trans('backup_target_not_found'), 'backup_target_invalid', JsonResponse::HTTP_NOT_FOUND);
             }
@@ -202,7 +204,7 @@ final class AdminBackupController
             );
         }
 
-        if ($isNew) {
+        if (!$target instanceof BackupTarget) {
             $target = new BackupTarget($admin, $type, $label, $config, null, $enabled);
         } else {
             $target->setType($type);
@@ -275,7 +277,8 @@ final class AdminBackupController
             }
             @unlink($tmp);
 
-            $resultDetails['disk_free_bytes'] = @disk_free_space($basePath) ?: null;
+            $freeBytes = @disk_free_space($basePath);
+            $resultDetails['disk_free_bytes'] = $freeBytes === false || $freeBytes === 0.0 ? null : $freeBytes;
             $resultDetails['status'] = 'ok';
 
             $this->auditLogger->log($admin, 'admin.backup.target.tested', ['target_id' => $target->getId(), 'result' => 'ok', 'request_id' => $this->resolveRequestId($request)]);
@@ -408,9 +411,9 @@ final class AdminBackupController
             'request_id' => $this->resolveRequestId($request),
         ]);
 
-        $jobId = $this->dispatchJob($message)['job_id'] ?? '';
+        $jobId = ScalarValue::text($this->dispatchJob($message)['job_id'] ?? '');
 
-        return $this->responseEnvelopeFactory->success($request, (string) $jobId, $this->translator->trans('admin_backup_queued'), JsonResponse::HTTP_ACCEPTED);
+        return $this->responseEnvelopeFactory->success($request, $jobId, $this->translator->trans('admin_backup_queued'), JsonResponse::HTTP_ACCEPTED);
     }
 
     #[Route(path: '/api/instances/{id}/backup-restore', name: 'admin_instance_backup_restore', methods: ['POST'])]
@@ -453,9 +456,9 @@ final class AdminBackupController
             'request_id' => $this->resolveRequestId($request),
         ]);
 
-        $jobId = $this->dispatchJob($message)['job_id'] ?? '';
+        $jobId = ScalarValue::text($this->dispatchJob($message)['job_id'] ?? '');
 
-        return $this->responseEnvelopeFactory->success($request, (string) $jobId, 'Restore queued.', JsonResponse::HTTP_ACCEPTED);
+        return $this->responseEnvelopeFactory->success($request, $jobId, 'Restore queued.', JsonResponse::HTTP_ACCEPTED);
     }
 
     private function resolveDefinition(Instance $instance, ?BackupTarget $target): BackupDefinition
@@ -518,13 +521,12 @@ final class AdminBackupController
         return JsonArray::orEmpty($payload);
     }
 
-    /** @return array<string,mixed> */
+    /** @return array<array-key, mixed> */
     private function dispatchJob(InstanceActionMessage $message): array
     {
         $envelope = $this->messageBus->dispatch($message);
         $handled = $envelope->last(HandledStamp::class);
-        $result = $handled?->getResult();
-        return JsonArray::orEmpty($result);
+        return JsonArray::orEmpty($handled?->getResult());
     }
 
     private function hasWebdavSecret(?BackupTarget $target): bool
@@ -540,25 +542,19 @@ final class AdminBackupController
     }
 
     /**
-     * @param array<string,mixed> $encryptedCredentials
+     * @param array<array-key, mixed> $encryptedCredentials
      *
-     * @return array{key_id?: string, nonce?: string, ciphertext?: string}|null
+     * @return array{key_id: string, nonce: string, ciphertext: string}|null
      */
     private function encryptedCredentialPayload(array $encryptedCredentials, string $key): ?array
     {
-        $payload = $encryptedCredentials[$key] ?? null;
-        if (!is_array($payload)) {
+        $payload = JsonMap::strings($encryptedCredentials[$key] ?? null);
+        if (!isset($payload['key_id'], $payload['nonce'], $payload['ciphertext'])
+            || $payload['key_id'] === '' || $payload['nonce'] === '' || $payload['ciphertext'] === '') {
             return null;
         }
 
-        return is_string($payload['key_id'] ?? null)
-            && is_string($payload['nonce'] ?? null)
-            && is_string($payload['ciphertext'] ?? null)
-            && $payload['key_id'] !== ''
-            && $payload['nonce'] !== ''
-            && $payload['ciphertext'] !== ''
-            ? $payload
-            : null;
+        return ['key_id' => $payload['key_id'], 'nonce' => $payload['nonce'], 'ciphertext' => $payload['ciphertext']];
     }
 
     /** @return array<string,mixed> */
@@ -597,7 +593,7 @@ final class AdminBackupController
         http_clear_last_response_headers();
         $result = @file_get_contents($url, false, $context);
         $headers = http_get_last_response_headers() ?? [];
-        $statusLine = is_string($headers[0] ?? null) ? $headers[0] : '';
+        $statusLine = ScalarValue::text($headers[0] ?? '');
 
         return [$statusLine, is_string($result) ? substr($result, 0, 128) : null];
     }
@@ -617,6 +613,11 @@ final class AdminBackupController
         $port = isset($parts['port']) ? ':' . $parts['port'] : '';
 
         return $host . $port;
+    }
+
+    private function numericId(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
     }
 
     private function resolveRequestId(Request $request): string

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\AgentOrchestrator\Application;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\SecretsCrypto;
@@ -214,9 +215,9 @@ final class AgentJobResultApplier
             if ($status === AgentJobStatus::Success && is_array($payload)) {
                 $previousRuntimePayload = $instance->getRuntimePayload() ?? [];
                 $previousPlaybackStatus = JsonArray::orEmpty($previousRuntimePayload['playback_status'] ?? null);
-                $previousState = is_string($previousPlaybackStatus['playback_state'] ?? null) ? $previousPlaybackStatus['playback_state'] : '';
+                $previousState = self::optionalText($previousPlaybackStatus['playback_state'] ?? null) ?? '';
 
-                $runtimeStatus = is_string($payload['status'] ?? null) ? MusicbotInstanceStatus::tryFrom($payload['status']) : null;
+                $runtimeStatus = MusicbotInstanceStatus::tryFrom(self::optionalText($payload['status'] ?? null) ?? '');
                 if ($runtimeStatus instanceof MusicbotInstanceStatus) {
                     $instance->setStatus($runtimeStatus);
                 } elseif (array_key_exists('running', $payload)) {
@@ -254,18 +255,18 @@ final class AgentJobResultApplier
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      * @return array<string, mixed>
      */
     private function mergeRuntimePayload(MusicbotInstance $instance, array $payload): array
     {
         $existing = $instance->getRuntimePayload() ?? [];
-        $incoming = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
+        $incoming = JsonArray::fromValue($payload['runtime'] ?? null) ?? $payload;
         $payloadKind = $this->musicbotRuntimeStatusNormalizer->classifyPayload($payload);
         $this->debugMusicbotPayload('agent.payload.parsed', ['instance_id' => $instance->getId(), 'payload_kind' => $payloadKind] + MusicbotPayloadLogSummarizer::summarizeJobPayload($payload));
         $merged = $this->mergeArraysPreservingExisting($existing, $incoming);
-        $normalized = $this->musicbotRuntimeStatusNormalizer->normalizePayload($merged);
-        $stored = $this->musicbotSecretConfigService->sanitizePayload($normalized);
+        $normalized = JsonMap::fromValue($this->musicbotRuntimeStatusNormalizer->normalizePayload($merged)) ?? [];
+        $stored = JsonMap::fromValue($this->musicbotSecretConfigService->sanitizePayload($normalized)) ?? [];
         $this->debugMusicbotPayload('database.payload.before_persist', ['instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($stored));
         $instance->setRuntimePayload($stored);
         $this->debugMusicbotPayload('database.payload.after_persist', ['instance_id' => $instance->getId()] + MusicbotPayloadLogSummarizer::summarizeRuntimePayload($instance->getRuntimePayload() ?? []));
@@ -274,28 +275,39 @@ final class AgentJobResultApplier
     }
 
     /**
-     * @param array<string, mixed> $existing
-     * @param array<string, mixed> $incoming
-     * @return array<string, mixed>
+     * @param array<array-key, mixed> $existing
+     * @param array<array-key, mixed> $incoming
+     * @return array<array-key, mixed>
      */
     private function mergeArraysPreservingExisting(array $existing, array $incoming): array
     {
-        foreach ($incoming as $key => $value) {
-            if (is_array($value) && is_array($existing[$key] ?? null)) {
-                $existing[$key] = $this->mergeArraysPreservingExisting($existing[$key], $value);
+        foreach (array_keys($incoming) as $key) {
+            if (is_array($incoming[$key]) && is_array($existing[$key] ?? null)) {
+                $existing[$key] = $this->mergeArraysPreservingExisting(JsonArray::orEmpty($existing[$key]), JsonArray::orEmpty($incoming[$key]));
                 continue;
             }
-            // Explicit null from the runtime clears the field; empty string is treated as "no update".
-            if (array_key_exists($key, $incoming) && $value === null) {
-                $existing[$key] = null;
-                continue;
-            }
-            if ($value !== null && $value !== '') {
-                $existing[$key] = $value;
+            // Explicit null clears a field; an empty string means no update.
+            if ($incoming[$key] !== '') {
+                self::assignField($existing, $key, $incoming[$key]);
             }
         }
 
         return $existing;
+    }
+
+    /**
+     * @template TValue
+     * @param array<array-key, TValue> $fields
+     * @param TValue $value
+     */
+    private static function assignField(array &$fields, int|string $key, mixed $value): void
+    {
+        $fields[$key] = $value;
+    }
+
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
 
@@ -311,11 +323,12 @@ final class AgentJobResultApplier
     /** @param array<string, mixed> $context */
     private function debugMusicbotPayload(string $stage, array $context): void
     {
-        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW') ?: '') !== '1') {
+        if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW')) !== '1') {
             return;
         }
 
-        error_log('[musicbot-status-flow] '.json_encode(['stage' => $stage] + $context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        $encoded = json_encode(['stage' => $stage] + $context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+        error_log('[musicbot-status-flow] '.($encoded === false ? '{}' : $encoded));
     }
 
     private function applyMusicbotTeamspeakBackendResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
@@ -330,7 +343,7 @@ final class AgentJobResultApplier
             return;
         }
 
-        $payload = JsonArray::orEmpty($payload);
+        $payload = JsonMap::fromValue($payload) ?? [];
         if ($status === AgentJobStatus::Success) {
             $config->applyAgentResult($payload + ['status' => 'ready']);
             if (($payload['status'] ?? '') === 'connected') {
@@ -366,7 +379,7 @@ final class AgentJobResultApplier
     private function recordPlaybackStateTransition(MusicbotInstance $instance, string $previousState, array $runtimePayload, ?string $jobId): void
     {
         $playbackStatus = JsonArray::orEmpty($runtimePayload['playback_status'] ?? null);
-        $newState = is_string($playbackStatus['playback_state'] ?? null) ? $playbackStatus['playback_state'] : '';
+        $newState = self::optionalText($playbackStatus['playback_state'] ?? null) ?? '';
 
         if ($previousState === '' || $newState === '' || $previousState === $newState) {
             return;
@@ -444,7 +457,7 @@ final class AgentJobResultApplier
             return;
         }
         if ($status === AgentJobStatus::Success) {
-            $runtimeStatus = is_string($payload['status'] ?? null) ? MusicbotConnectionStatus::tryFrom($payload['status']) : null;
+            $runtimeStatus = MusicbotConnectionStatus::tryFrom(self::optionalText($payload['status'] ?? null) ?? '');
             $connection->setStatus($runtimeStatus ?? MusicbotConnectionStatus::Connected);
             $connection->setLastConnectedAt(new \DateTimeImmutable());
             $connection->setLastError(null);
@@ -477,14 +490,9 @@ final class AgentJobResultApplier
 
     private function extractError(AgentJob $job, ?array $payload): ?string
     {
-        if (is_array($payload) && is_string($payload['last_error'] ?? null)) {
-            return $payload['last_error'];
-        }
-        if (is_array($payload) && is_string($payload['error'] ?? null)) {
-            return $payload['error'];
-        }
-
-        return $job->getErrorText();
+        return self::optionalText($payload['last_error'] ?? null)
+            ?? self::optionalText($payload['error'] ?? null)
+            ?? $job->getErrorText();
     }
 
     private function applyTs3NodeResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
@@ -645,14 +653,11 @@ final class AgentJobResultApplier
         if (!is_array($payload)) {
             return;
         }
-        $dependencies = $payload['dependencies'] ?? null;
-        if (!is_array($dependencies)) {
-            $dependencies = $payload;
-        }
+        $dependencies = JsonArray::fromValue($payload['dependencies'] ?? null) ?? $payload;
 
         $node->setTs3ClientInstalled((bool) ($dependencies['ts3_client_installed'] ?? $node->isTs3ClientInstalled()));
-        $node->setTs3ClientVersion(is_string($dependencies['ts3_client_version'] ?? null) ? $dependencies['ts3_client_version'] : null);
-        $node->setTs3ClientPath(is_string($dependencies['ts3_client_path'] ?? null) ? $dependencies['ts3_client_path'] : null);
+        $node->setTs3ClientVersion(self::optionalText($dependencies['ts3_client_version'] ?? null));
+        $node->setTs3ClientPath(self::optionalText($dependencies['ts3_client_path'] ?? null));
     }
 
     private function applyAdminSshKeyResult(AgentJob $job, AgentJobStatus $status): void
@@ -716,7 +721,7 @@ final class AgentJobResultApplier
                 $server->setFiletransferPort((int) $payload['filetransfer_port']);
             }
             $server->setStatus('running');
-            $this->applyVirtualToken($server, Ts3Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
+            $this->applyVirtualToken($server, $payload['token'] ?? null, $payload['token_type'] ?? null);
         }
 
         if ($job->getType() === 'ts3.virtual.action') {
@@ -730,7 +735,7 @@ final class AgentJobResultApplier
         }
 
         if ($job->getType() === 'ts3.virtual.token.rotate' && is_array($payload)) {
-            $this->applyVirtualToken($server, Ts3Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
+            $this->applyVirtualToken($server, $payload['token'] ?? null, $payload['token_type'] ?? null);
         }
     }
 
@@ -842,7 +847,7 @@ final class AgentJobResultApplier
                 if (isset($payload['filetransfer_port'])) {
                     $server->setFiletransferPort((int) $payload['filetransfer_port']);
                 }
-                $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
+                $this->applyVirtualToken($server, $payload['token'] ?? null, $payload['token_type'] ?? null);
             }
             $server->setStatus('running');
         }
@@ -858,7 +863,7 @@ final class AgentJobResultApplier
         }
 
         if ($job->getType() === 'ts6.virtual.token.rotate' && is_array($payload)) {
-            $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
+            $this->applyVirtualToken($server, $payload['token'] ?? null, $payload['token_type'] ?? null);
         }
     }
 
@@ -1022,6 +1027,12 @@ final class AgentJobResultApplier
         }
     }
 
+    /**
+     * @template T of Ts3InstanceStatus|Ts6InstanceStatus
+     * @param T $running
+     * @param T $stopped
+     * @return T
+     */
     private function resolveInstanceActionStatus(AgentJob $job, Ts3InstanceStatus|Ts6InstanceStatus $running, Ts3InstanceStatus|Ts6InstanceStatus $stopped): Ts3InstanceStatus|Ts6InstanceStatus
     {
         $action = strtolower((string) ($job->getPayload()['action'] ?? ''));
@@ -1032,15 +1043,13 @@ final class AgentJobResultApplier
         return $running;
     }
 
-    /**
-     * @param class-string $tokenClass
-     */
-    private function applyVirtualToken(Ts3VirtualServer|Ts6VirtualServer $server, string $tokenClass, mixed $tokenValue, mixed $tokenType = null): void
+    private function applyVirtualToken(Ts3VirtualServer|Ts6VirtualServer $server, mixed $tokenValue, mixed $tokenType = null): void
     {
         if (!is_string($tokenValue) || $tokenValue === '') {
             return;
         }
 
+        $tokenClass = $server instanceof Ts3VirtualServer ? Ts3Token::class : Ts6Token::class;
         $type = is_string($tokenType) && $tokenType !== '' ? $tokenType : 'owner';
         $existing = $this->entityManager->getRepository($tokenClass)->findOneBy([
             'virtualServer' => $server,
@@ -1050,7 +1059,7 @@ final class AgentJobResultApplier
             $existing->deactivate();
         }
 
-        if ($tokenClass === Ts3Token::class) {
+        if ($server instanceof Ts3VirtualServer) {
             $token = new Ts3Token($server, $this->crypto->encrypt($tokenValue), $type);
         } else {
             $token = new Ts6Token($server, $this->crypto->encrypt($tokenValue), $type);

@@ -1,0 +1,15 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'vm_console' %}
+{% set pageTitle = 'setup.title'|trans %}
+{% block content %}
+<div class="infra-page" data-console-setup data-command-prefix="{{ commandPrefix }}" data-gateway-origin="{{ gateway.origin|default('') }}" data-origin-match="{{ 'setup.origin_match'|trans }}" data-origin-mismatch="{{ 'setup.origin_mismatch'|trans }}">
+  <header class="infra-hero"><div><h1>{{ pageTitle }}</h1><p>{{ 'setup.hint'|trans }}</p></div></header>
+  <div class="infra-grid">
+    <section class="infra-card"><div class="infra-card__head"><h2>{{ 'setup.gateway'|trans }}</h2></div><p role="status">{{ ('setup.state.' ~ gateway.state)|trans }}</p><p class="infra-muted">{{ 'setup.probe_scope'|trans }}</p>{% if gateway.origin %}<p data-console-origin-status></p>{% endif %}</section>
+    <section class="infra-card"><div class="infra-card__head"><h2>{{ 'setup.install'|trans }}</h2></div><p>{{ 'setup.command_hint'|trans }}</p>{% if helperAvailable %}<pre style="white-space:pre-wrap;overflow-wrap:anywhere;"><code data-console-setup-command>{{ 'setup.loading_origin'|trans }}</code></pre>{% else %}<p>{{ 'setup.helper_missing'|trans }}</p>{% endif %}<p class="infra-muted">{{ 'setup.permissions'|trans }}</p></section>
+  </div>
+  <section class="infra-card"><h2>{{ 'setup.nodes'|trans }}</h2><div class="infra-grid">{% for node in nodes %}<article class="infra-card"><h3><a href="{{ path('admin_kvm_node', {id: node.id}) }}">{{ node.name }}</a></h3><p>{{ (node.console ? 'setup.node_ready' : 'setup.node_update')|trans }}</p>{% if not node.transport %}<p>{{ 'setup.node_transport'|trans }}</p>{% endif %}</article>{% else %}<p>{{ 'setup.no_nodes'|trans }}</p>{% endfor %}</div><p>{{ 'setup.kvm_prepare'|trans }}</p></section>
+  <section class="infra-card"><h2>{{ 'setup.checks'|trans }}</h2><ol><li>{{ 'setup.check_running'|trans }}</li><li>{{ 'setup.check_pve'|trans }}</li><li>{{ 'setup.check_proxy'|trans }}</li><li>{{ 'setup.check_client'|trans }}</li></ol><p>{{ 'setup.no_vm_change'|trans }}</p></section>
+</div>
+<script type="module" src="{{ asset('js/vm-console-setup.js') }}"></script>
+{% endblock %}

@@ -6,13 +6,14 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\GamePluginSeedCatalog;
 use App\Module\Core\Application\GameTemplateSeeder;
 use App\Module\Core\Domain\Entity\GamePlugin;
+use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\GamePluginRepository;
 use App\Repository\TemplateRepository;
@@ -395,7 +396,6 @@ final class AdminPluginCatalogController
 
         foreach ($parsedPlugins as $pluginData) {
             $plugin = $this->pluginRepository->findDuplicateForGameKey($pluginData['game_key'], $pluginData['name'], $pluginData['version']);
-            $source = 'import';
 
             if ($plugin === null) {
                 $plugin = new GamePlugin(
@@ -549,14 +549,19 @@ final class AdminPluginCatalogController
         ]), $status);
     }
 
+    /**
+     * @param array<array-key, mixed> $entry
+     * @param list<string> $errors
+     * @return array{template: Template, game_key: string, name: string, version: string, checksum: string, download_url: string, description: ?string}|null
+     */
     private function parseImportEntry(array $entry, int $index, array &$errors): ?array
     {
-        $gameKey = strtolower(trim((string) ($entry['game_key'] ?? ($entry['template_game_key'] ?? ''))));
-        $name = trim((string) ($entry['name'] ?? ''));
-        $version = trim((string) ($entry['version'] ?? ''));
-        $checksum = trim((string) ($entry['checksum'] ?? ''));
-        $downloadUrl = trim((string) ($entry['download_url'] ?? ''));
-        $description = trim((string) ($entry['description'] ?? ''));
+        $gameKey = strtolower(trim(ScalarValue::text($entry['game_key'] ?? ($entry['template_game_key'] ?? ''))));
+        $name = trim(ScalarValue::text($entry['name'] ?? ''));
+        $version = trim(ScalarValue::text($entry['version'] ?? ''));
+        $checksum = trim(ScalarValue::text($entry['checksum'] ?? ''));
+        $downloadUrl = trim(ScalarValue::text($entry['download_url'] ?? ''));
+        $description = trim(ScalarValue::text($entry['description'] ?? ''));
 
         $entryErrors = [];
         $template = null;
@@ -585,7 +590,7 @@ final class AdminPluginCatalogController
             $entryErrors[] = 'Download URL must be valid.';
         }
 
-        if ($entryErrors !== []) {
+        if ($entryErrors !== [] || $template === null) {
             foreach ($entryErrors as $entryError) {
                 $errors[] = $this->formatImportError($index, $entryError);
             }
@@ -633,7 +638,7 @@ final class AdminPluginCatalogController
         }
 
         parse_str($matches[3], $query);
-        $assetPattern = is_string($query['asset'] ?? null) ? trim($query['asset']) : '';
+        $assetPattern = trim(ScalarValue::text($query['asset'] ?? null));
 
         return $assetPattern !== '';
     }
@@ -720,12 +725,15 @@ final class AdminPluginCatalogController
         ];
     }
 
-    /** @return list<array{game_key: string, label: string}> */
+    /**
+     * @param Template[] $templates
+     * @return list<array{game_key: string, label: string}>
+     */
     private function normalizeTemplates(array $templates): array
     {
         $distinct = [];
         foreach ($templates as $template) {
-            $gameKey = strtolower(trim((string) $template->getGameKey()));
+            $gameKey = strtolower(trim($template->getGameKey()));
             if ($gameKey === '' || isset($distinct[$gameKey])) {
                 continue;
             }
@@ -749,25 +757,6 @@ final class AdminPluginCatalogController
         }
 
         return $this->templateRepository->findOneBy(['gameKey' => $normalized]);
-    }
-
-
-    /**
-     * @return array<int,
-     * array{game_key:string,name:string,version:string,checksum:string,download_url:string,description:string}>
-     */
-    private function buildRecommendedSeedEntries(): array
-    {
-        return array_map(static function (array $entry): array {
-            return [
-                'game_key' => (string) ($entry['template_game_key'] ?? ''),
-                'name' => (string) ($entry['name'] ?? ''),
-                'version' => (string) ($entry['version'] ?? ''),
-                'checksum' => (string) ($entry['checksum'] ?? ''),
-                'download_url' => (string) ($entry['download_url'] ?? ''),
-                'description' => (string) ($entry['description'] ?? ''),
-            ];
-        }, (new GamePluginSeedCatalog())->listPlugins());
     }
 
 

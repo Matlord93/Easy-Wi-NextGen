@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Musicbot\Application;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotAutoDjSettings;
@@ -75,7 +76,7 @@ final class MusicbotAutoDjService
         if (array_key_exists('mode', $data)) {
             $mode = MusicbotAutoDjMode::tryFrom((string) $data['mode']);
             if ($mode === null) {
-                throw new \InvalidArgumentException(sprintf('Invalid Auto-DJ mode: "%s".', $data['mode']));
+                throw new \InvalidArgumentException(sprintf('Invalid Auto-DJ mode: "%s".', ScalarValue::text($data['mode'])));
             }
             $settings->setMode($mode);
         }
@@ -85,16 +86,16 @@ final class MusicbotAutoDjService
         }
         foreach (['shuffle' => 'setShuffle', 'repeat' => 'setRepeat', 'allow_youtube' => 'setAllowYoutube', 'allow_uploads' => 'setAllowUploads', 'avoid_same_artist' => 'setAvoidSameArtist', 'avoidSameArtist' => 'setAvoidSameArtist'] as $key => $setter) {
             if (array_key_exists($key, $data)) {
-                if ($key === 'allow_youtube' && (bool) $data[$key]) {
+                if ($key === 'allow_youtube' && (bool) ($data[$key] ?? null)) {
                     $this->quotaService->assertYoutubeAllowed($customer);
                 }
-                $settings->{$setter}((bool) $data[$key]);
+                $settings->{$setter}((bool) ($data[$key] ?? null));
             }
         }
         foreach (['idle_seconds' => 'setIdleSeconds', 'volume_override' => 'setVolumeOverride', 'repeat_protection_window' => 'setRepeatProtectionWindow'] as $key => $setter) {
             if (array_key_exists($key, $data)) {
                 if ($key === 'volume_override') {
-                    $settings->{$setter}($data[$key] !== null && $data[$key] !== '' ? (int) $data[$key] : null);
+                    $settings->{$setter}(($data[$key] ?? null) !== null && ($data[$key] ?? '') !== '' ? (int) ($data[$key] ?? 0) : null);
                     continue;
                 }
                 $settings->{$setter}((int) $data[$key]);
@@ -102,10 +103,10 @@ final class MusicbotAutoDjService
         }
         foreach (['time_window_start' => 'setTimeWindowStart', 'time_window_end' => 'setTimeWindowEnd', 'webradio_fallback_url' => 'setWebradioFallbackUrl'] as $key => $setter) {
             if (array_key_exists($key, $data)) {
-                if ($key === 'webradio_fallback_url' && trim((string) $data[$key]) !== '') {
+                if ($key === 'webradio_fallback_url' && trim((string) ($data[$key] ?? '')) !== '') {
                     $this->quotaService->assertWebradioAllowed($customer);
                 }
-                $settings->{$setter}($data[$key] !== null ? (string) $data[$key] : null);
+                $settings->{$setter}(($data[$key] ?? null) !== null ? (string) ($data[$key] ?? '') : null);
             }
         }
 
@@ -119,12 +120,14 @@ final class MusicbotAutoDjService
 
         if (array_key_exists('playlist_ids', $data)) {
             $playlistIds = [];
-            foreach ((array) $data['playlist_ids'] as $playlistId) {
-                $playlist = $this->playlistRepository->findOneForCustomer((int) $playlistId, $customer);
+            $requestedPlaylistIds = (array) $data['playlist_ids'];
+            foreach (array_keys($requestedPlaylistIds) as $key) {
+                $playlistId = (int) $requestedPlaylistIds[$key];
+                $playlist = $this->playlistRepository->findOneForCustomer($playlistId, $customer);
                 if (!$playlist instanceof MusicbotPlaylist) {
                     throw new \InvalidArgumentException('Auto-DJ playlist not found or does not belong to you.');
                 }
-                $playlistIds[] = (int) $playlistId;
+                $playlistIds[] = $playlistId;
             }
             if ($playlistIds !== []) {
                 $this->assertPlaylistsAllowed($customer);
@@ -281,19 +284,20 @@ final class MusicbotAutoDjService
         }
 
         $tracks = $this->selectTracks($settings, $instance, $needed);
-        if ($tracks === [] && $settings->getWebradioFallbackUrl() !== null) {
+        $fallbackUrl = $settings->getWebradioFallbackUrl();
+        if ($tracks === [] && $fallbackUrl !== null) {
             $this->quotaService->assertWebradioAllowed($customer);
             $tracks = [$this->queueService->createTrackForCustomer(
                 $customer,
                 'AutoDJ Webradio Fallback',
                 MusicbotTrackSourceType::Webradio,
                 'audio/mpeg',
-                hash('sha256', 'autodj-webradio:' . $settings->getWebradioFallbackUrl()),
+                hash('sha256', 'autodj-webradio:' . $fallbackUrl),
                 0,
                 $instance,
                 null,
                 null,
-                ['stream_url' => $settings->getWebradioFallbackUrl(), 'autodj_fallback' => true],
+                ['stream_url' => $fallbackUrl, 'autodj_fallback' => true],
             )];
         }
 
@@ -315,7 +319,9 @@ final class MusicbotAutoDjService
         foreach ($tracks as $track) {
             try {
                 $this->queueService->addTrackToQueue($customer, $instance, $track, $customer);
-                $newIds[] = $track->getId();
+                if (($trackId = $track->getId()) !== null) {
+                    $newIds[] = $trackId;
+                }
                 ++$added;
             } catch (\Throwable $e) {
                 $this->runtimeEventService->record(
@@ -333,9 +339,9 @@ final class MusicbotAutoDjService
             $recentIds = array_merge($newIds, $settings->getLastPlayedTrackIds());
             $settings->setLastPlayedTrackIds(array_slice($recentIds, 0, max($settings->getRepeatProtectionWindow(), self::RECENT_TRACK_WINDOW)));
             $payload = $instance->getRuntimePayload() ?? [];
-            $payload['autodj'] = array_merge($payload['autodj'] ?? [], ['last_action' => 'filled_queue', 'last_added' => $added, 'last_run_at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM)]);
-            if ($settings->getVolumeOverride() !== null) { $payload['playback'] = array_merge($payload['playback'] ?? [], ['volume' => $settings->getVolumeOverride(), 'desired_volume' => $settings->getVolumeOverride()]); }
-            if ($settings->isRepeat()) { $payload['playback'] = array_merge($payload['playback'] ?? [], ['repeat_mode' => 'all']); }
+            $payload['autodj'] = array_merge(JsonArray::orEmpty($payload['autodj'] ?? null), ['last_action' => 'filled_queue', 'last_added' => $added, 'last_run_at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM)]);
+            if ($settings->getVolumeOverride() !== null) { $payload['playback'] = array_merge(JsonArray::orEmpty($payload['playback'] ?? null), ['volume' => $settings->getVolumeOverride(), 'desired_volume' => $settings->getVolumeOverride()]); }
+            if ($settings->isRepeat()) { $payload['playback'] = array_merge(JsonArray::orEmpty($payload['playback'] ?? null), ['repeat_mode' => 'all']); }
             $instance->setRuntimePayload($payload);
             $this->entityManager->flush();
 
@@ -380,8 +386,8 @@ final class MusicbotAutoDjService
         $tracks = [];
         $playlistIds = $settings->getPlaylistIds();
         $fallbackPlaylist = $settings->getFallbackPlaylist();
-        if ($fallbackPlaylist instanceof MusicbotPlaylist && $fallbackPlaylist->getId() !== null && !in_array($fallbackPlaylist->getId(), $playlistIds, true)) {
-            $playlistIds[] = $fallbackPlaylist->getId();
+        if ($fallbackPlaylist instanceof MusicbotPlaylist && ($fallbackId = $fallbackPlaylist->getId()) !== null && !in_array($fallbackId, $playlistIds, true)) {
+            $playlistIds[] = $fallbackId;
         }
         if ($playlistIds !== []) {
             $this->assertPlaylistsAllowed($instance->getCustomer());
@@ -441,12 +447,13 @@ final class MusicbotAutoDjService
         $recentArtists = [];
         if ($settings->isAvoidSameArtist()) {
             foreach ($tracks as $track) {
-                if (isset($recentIds[$track->getId()]) && $track->getArtist() !== null) { $recentArtists[strtolower($track->getArtist())] = true; }
+                if (($trackId = $track->getId()) !== null && isset($recentIds[$trackId]) && ($artist = $track->getArtist()) !== null) { $recentArtists[strtolower($artist)] = true; }
             }
         }
         $filtered = array_values(array_filter($tracks, static function (MusicbotTrack $track) use ($recentIds, $recentArtists, $settings): bool {
-            if (isset($recentIds[$track->getId()])) { return false; }
-            return !$settings->isAvoidSameArtist() || $track->getArtist() === null || !isset($recentArtists[strtolower($track->getArtist())]);
+            if (($trackId = $track->getId()) !== null && isset($recentIds[$trackId])) { return false; }
+            $artist = $track->getArtist();
+            return !$settings->isAvoidSameArtist() || $artist === null || !isset($recentArtists[strtolower($artist)]);
         }));
         return $filtered !== [] ? $filtered : $tracks;
     }

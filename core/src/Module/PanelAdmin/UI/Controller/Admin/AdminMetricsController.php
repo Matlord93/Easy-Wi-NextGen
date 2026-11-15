@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Application\MetricsLiveBuffer;
 use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceMetricSampleRepository;
@@ -55,21 +56,14 @@ final class AdminMetricsController
             return new JsonResponse(['error' => 'agent parameter required.'], Response::HTTP_BAD_REQUEST);
         }
 
-        $agents = $this->agentRepository->findBy([]);
-        $agent = null;
-        foreach ($agents as $a) {
-            if ($a->getId() === $agentId) {
-                $agent = $a;
-                break;
-            }
-        }
+        $agent = $this->agentRepository->find($agentId);
 
         if ($agent === null) {
             return new JsonResponse(['error' => 'Agent not found.'], Response::HTTP_NOT_FOUND);
         }
 
         $samples = $this->liveBuffer->fetchSamples($agent);
-        $heartbeat = $agent->getLastHeartbeatStats();
+        $heartbeat = $agent->getLastHeartbeatStats() ?? [];
         $lastSeenAt = $agent->getLastHeartbeatAt();
 
         return new JsonResponse([
@@ -123,7 +117,7 @@ final class AdminMetricsController
             $loadError = 'agents';
         }
 
-        $selectedAgent = $this->resolveSelectedAgent($agents, $request->query->getString('agent', ''), $selectedInstanceId);
+        $selectedAgent = $this->resolveSelectedAgent($agents, $request->query->getString('agent', ''), $selectedInstance);
 
         $recentSamples = [];
         $sparklineSamples = [];
@@ -152,7 +146,7 @@ final class AdminMetricsController
         try {
             if ($selectedAgent !== null) {
                 $aggregate = $this->metricSampleRepository->fetchAggregateSnapshotForAgentSince($selectedAgent, $since);
-                $totalSamples = $this->metricSampleRepository->countSamplesForAgentSince($selectedAgent, $since);
+                $totalSamples = $aggregate['count'];
                 $recentSamples = $this->metricSampleRepository->findRecentSamplesForAgentSince($selectedAgent, $since, $page, $perPage);
                 $sparklineSamples = $this->metricSampleRepository->findSparklineSeriesForAgentSince($selectedAgent, $since, 240);
                 $hostTotalPages = max(1, (int) ceil(max(1, $totalSamples) / $perPage));
@@ -177,7 +171,7 @@ final class AdminMetricsController
 
             if ($selectedInstance !== null) {
                 $instanceMetricAggregate = $this->instanceMetricSampleRepository->fetchAggregateForInstanceSince($selectedInstance, $since);
-                $instanceMetricTotal = $this->instanceMetricSampleRepository->countForInstanceSince($selectedInstance, $since);
+                $instanceMetricTotal = $instanceMetricAggregate['count'];
                 $instanceMetricRecent = $this->instanceMetricSampleRepository->findRecentForInstanceSince($selectedInstance, $since, $page, $perPage);
                 $instanceSparkline = $this->instanceMetricSampleRepository->findSparklineForInstanceSince($selectedInstance, $since, 500);
                 $instanceCpuPoints = $this->buildSparklinePoints($this->buildInstanceSeries($instanceSparkline, 'cpu'));
@@ -217,9 +211,13 @@ final class AdminMetricsController
         if ($selectedAgent !== null && $nodeLastSeenAt !== null) {
             $age = time() - $nodeLastSeenAt->getTimestamp();
             $nodeHealthStatus = $age > $this->heartbeatGraceSeconds ? 'offline' : 'ok';
-            $metrics = $selectedAgent->getLastHeartbeatStats()['metrics'] ?? null;
-            if (is_array($metrics) && $nodeHealthStatus !== 'offline') {
-                $peak = max((float) ($metrics['cpu']['percent'] ?? 0), (float) ($metrics['memory']['percent'] ?? 0), (float) ($metrics['disk']['percent'] ?? 0));
+            $metrics = JsonArray::orEmpty(($selectedAgent->getLastHeartbeatStats() ?? [])['metrics'] ?? null);
+            if ($metrics !== [] && $nodeHealthStatus !== 'offline') {
+                $peak = max(
+                    $this->numericValue(JsonArray::orEmpty($metrics['cpu'] ?? null)['percent'] ?? null) ?? 0.0,
+                    $this->numericValue(JsonArray::orEmpty($metrics['memory'] ?? null)['percent'] ?? null) ?? 0.0,
+                    $this->numericValue(JsonArray::orEmpty($metrics['disk'] ?? null)['percent'] ?? null) ?? 0.0,
+                );
                 if ($peak >= 95.0) {
                     $nodeHealthStatus = 'critical';
                 } elseif ($peak >= 85.0) {
@@ -304,16 +302,13 @@ final class AdminMetricsController
     /**
      * @param Agent[] $agents
      */
-    private function resolveSelectedAgent(array $agents, string $agentId, string $instanceId): ?Agent
+    private function resolveSelectedAgent(array $agents, string $agentId, ?Instance $instance): ?Agent
     {
-        if ($instanceId !== '' && ctype_digit($instanceId)) {
-            $instance = $this->instanceRepository->find((int) $instanceId);
-            if ($instance !== null) {
-                $instanceAgentId = $instance->getNode()->getId();
-                foreach ($agents as $agent) {
-                    if ($agent->getId() === $instanceAgentId) {
-                        return $agent;
-                    }
+        if ($instance !== null) {
+            $instanceAgentId = $instance->getNode()->getId();
+            foreach ($agents as $agent) {
+                if ($agent->getId() === $instanceAgentId) {
+                    return $agent;
                 }
             }
         }
@@ -341,8 +336,8 @@ final class AdminMetricsController
     }
 
     /**
-     * @param array<int, array{recordedAt: mixed, netBytesSent: mixed, netBytesRecv: mixed}> $samples
-     * @return array{upload: float[], download: float[], latestUpload: ?float, latestDownload: ?float}
+     * @param array<int, array{recordedAt: mixed, netBytesSent: mixed, netBytesRecv: mixed, ...}> $samples
+     * @return array{upload: list<float>, download: list<float>, latestUpload: ?float, latestDownload: ?float}
      */
     private function calculateBandwidth(array $samples): array
     {
@@ -373,10 +368,10 @@ final class AdminMetricsController
             $recvDelta = $this->toNonNegativeDelta($sample['netBytesRecv'] ?? null, $previous['netBytesRecv'] ?? null);
 
             if ($sentDelta !== null) {
-                $upload[] = ($sentDelta * 8) / $seconds / 1_000_000;
+                $upload[] = ($sentDelta * 8.0) / (float) $seconds / 1_000_000.0;
             }
             if ($recvDelta !== null) {
-                $download[] = ($recvDelta * 8) / $seconds / 1_000_000;
+                $download[] = ($recvDelta * 8.0) / (float) $seconds / 1_000_000.0;
             }
 
             $previous = $sample;
@@ -391,7 +386,7 @@ final class AdminMetricsController
     }
 
     /**
-     * @param array<int, array{id: mixed, recordedAt: mixed, netBytesSent: mixed, netBytesRecv: mixed}> $samples
+     * @param array<int, array{id: mixed, recordedAt: mixed, netBytesSent: mixed, netBytesRecv: mixed, ...}> $samples
      * @return array<int, array{upload: ?float, download: ?float}>
      */
     private function calculateSampleBandwidth(array $samples): array
@@ -427,8 +422,8 @@ final class AdminMetricsController
             $recvDelta = $this->toNonNegativeDelta($sample['netBytesRecv'] ?? null, $previous['netBytesRecv'] ?? null);
 
             $bySampleId[(int) $sampleId] = [
-                'upload' => $sentDelta !== null ? (($sentDelta * 8) / $seconds / 1_000_000) : null,
-                'download' => $recvDelta !== null ? (($recvDelta * 8) / $seconds / 1_000_000) : null,
+                'upload' => $sentDelta !== null ? (($sentDelta * 8.0) / (float) $seconds / 1_000_000.0) : null,
+                'download' => $recvDelta !== null ? (($recvDelta * 8.0) / (float) $seconds / 1_000_000.0) : null,
             ];
         }
 
@@ -448,23 +443,23 @@ final class AdminMetricsController
 
     /**
      * @param array<int, array<string, mixed>> $samples
-     * @return float[]
+     * @return list<float>
      */
     private function buildSeries(array $samples, string $metric): array
     {
         $values = [];
         foreach ($samples as $sample) {
             $value = match ($metric) {
-                'cpu' => $sample['cpuPercent'] ?? null,
-                'memory' => $sample['memoryPercent'] ?? null,
-                'disk' => $sample['diskPercent'] ?? null,
-                'net_sent' => $sample['netBytesSent'] ?? null,
-                'net_recv' => $sample['netBytesRecv'] ?? null,
+                'cpu' => $this->numericValue($sample['cpuPercent'] ?? null),
+                'memory' => $this->numericValue($sample['memoryPercent'] ?? null),
+                'disk' => $this->numericValue($sample['diskPercent'] ?? null),
+                'net_sent' => $this->numericValue($sample['netBytesSent'] ?? null),
+                'net_recv' => $this->numericValue($sample['netBytesRecv'] ?? null),
                 default => null,
             };
 
             if ($value !== null) {
-                $values[] = (float) $value;
+                $values[] = $value;
             }
         }
 
@@ -473,7 +468,7 @@ final class AdminMetricsController
 
     /**
      * @param array<int, array<string, mixed>> $samples
-     * @return float[]
+     * @return list<float>
      */
     private function buildTemperatureSeries(array $samples): array
     {
@@ -498,30 +493,22 @@ final class AdminMetricsController
             return null;
         }
 
-        $payload = $sample['payload'] ?? null;
-        if (!is_array($payload)) {
-            return null;
-        }
+        $payload = JsonArray::orEmpty($sample['payload'] ?? null);
 
-        $candidates = [
-            $payload['temperature']['celsius'] ?? null,
-            $payload['temp']['celsius'] ?? null,
-            $payload['thermal']['celsius'] ?? null,
-            $payload['temperature'] ?? null,
-            $payload['temp'] ?? null,
-        ];
+        return $this->numericValue(JsonArray::orEmpty($payload['temperature'] ?? null)['celsius'] ?? null)
+            ?? $this->numericValue(JsonArray::orEmpty($payload['temp'] ?? null)['celsius'] ?? null)
+            ?? $this->numericValue(JsonArray::orEmpty($payload['thermal'] ?? null)['celsius'] ?? null)
+            ?? $this->numericValue($payload['temperature'] ?? null)
+            ?? $this->numericValue($payload['temp'] ?? null);
+    }
 
-        foreach ($candidates as $candidate) {
-            if (is_numeric($candidate)) {
-                return (float) $candidate;
-            }
-        }
-
-        return null;
+    private function numericValue(mixed $value): ?float
+    {
+        return is_numeric($value) ? (float) $value : null;
     }
 
     /**
-     * @param float[] $values
+     * @param list<float> $values
      * @return array{avg: ?float, max: ?float}
      */
     private function buildAggregate(array $values): array
@@ -531,7 +518,7 @@ final class AdminMetricsController
         }
 
         return [
-            'avg' => array_sum($values) / count($values),
+            'avg' => array_sum($values) / (float) count($values),
             'max' => max($values),
         ];
     }
@@ -539,22 +526,22 @@ final class AdminMetricsController
 
     /**
      * @param array<int, array<string, mixed>> $samples
-     * @return float[]
+     * @return list<float>
      */
     private function buildInstanceSeries(array $samples, string $metric): array
     {
         $values = [];
         foreach ($samples as $sample) {
             $value = match ($metric) {
-                'cpu' => $sample['cpuPercent'] ?? null,
+                'cpu' => $this->numericValue($sample['cpuPercent'] ?? null),
                 'memory' => isset($sample['memUsedBytes']) && is_numeric($sample['memUsedBytes'])
-                    ? ((float) $sample['memUsedBytes'] / 1024 / 1024)
+                    ? ((float) $sample['memUsedBytes'] / 1024.0 / 1024.0)
                     : null,
                 default => null,
             };
 
             if ($value !== null) {
-                $values[] = (float) $value;
+                $values[] = $value;
             }
         }
 
@@ -566,6 +553,7 @@ final class AdminMetricsController
         return sprintf('%s %d,%d 0,%d', $linePoints, $width, $height, $height);
     }
 
+    /** @param list<float> $values */
     private function buildSparklinePoints(array $values, int $width = 240, int $height = 60): ?string
     {
         if (count($values) < 2) {
@@ -575,14 +563,14 @@ final class AdminMetricsController
         $min = min($values);
         $max = max($values);
         $range = $max - $min;
-        $range = $range > 0 ? $range : 1;
+        $range = $range > 0.0 ? $range : 1.0;
 
         $points = [];
         $count = count($values);
         foreach ($values as $index => $value) {
-            $x = (int) round($index * ($width / max($count - 1, 1)));
+            $x = (int) round((float) $index * ((float) $width / (float) max($count - 1, 1)));
             $normalized = ($value - $min) / $range;
-            $y = (int) round($height - ($normalized * $height));
+            $y = (int) round((float) $height - ($normalized * (float) $height));
             $points[] = sprintf('%d,%d', $x, $y);
         }
 

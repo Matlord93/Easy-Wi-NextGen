@@ -50,7 +50,7 @@ def configure(args):
     base = core / '.env'
     combined = base.read_text() if base.exists() else ''
     local = env_file.read_text() if env_file.exists() else ''
-    origin = args.origin or env_value(local, 'CONSOLE_PUBLIC_ORIGIN') or env_value(combined, 'DEFAULT_URI')
+    origin = args.origin or env_value(local, 'CONSOLE_PUBLIC_ORIGIN') or env_value(local, 'DEFAULT_URI') or env_value(combined, 'DEFAULT_URI')
     origin = (origin or '').rstrip('/')
     if re.search(r'[\s\x00-\x1f\x7f\"\'#$]', origin):
         raise ValueError('Invalid public panel origin')

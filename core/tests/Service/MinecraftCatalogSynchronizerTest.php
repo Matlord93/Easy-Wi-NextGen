@@ -30,7 +30,9 @@ final class MinecraftCatalogSynchronizerTest extends TestCase
                 phpCliBinary: PHP_BINARY,
             );
             $synchronizer->startIfDue();
-            for ($attempt = 0; $attempt < 100 && !is_file($root.'/worker.json'); ++$attempt) { usleep(10000); }
+            for ($attempt = 0; $attempt < 100 && !is_file($root.'/worker.json'); ++$attempt) {
+                usleep(10000);
+            }
             self::assertFileExists($root.'/worker.json');
             $worker = json_decode((string) file_get_contents($root.'/worker.json'), true);
             self::assertSame('cli', $worker['sapi']);
@@ -69,4 +71,30 @@ final class MinecraftCatalogSynchronizerTest extends TestCase
             rmdir($directory);
         }
     }
+    public function testMalformedChannelStateDoesNotBreakPublicStatus(): void
+    {
+        $directory = sys_get_temp_dir().'/minecraft-state-'.bin2hex(random_bytes(8));
+        mkdir($directory, 0700);
+        try {
+            file_put_contents($directory.'/status.json', json_encode(['channels' => [
+                'vanilla' => 'invalid row',
+                'paper' => ['success_at' => ['invalid'], 'error' => 'provider failed'],
+            ]], JSON_THROW_ON_ERROR));
+            $sync = new MinecraftCatalogSynchronizer(
+                new MinecraftUpstreamCatalog(new MockHttpClient(), new ArrayAdapter()),
+                new MinecraftVersionCatalogRepository($this->createStub(\Doctrine\Persistence\ManagerRegistry::class)),
+                $this->createStub(EntityManagerInterface::class),
+                $directory,
+            );
+
+            $status = $sync->publicStatus();
+
+            self::assertFalse($status['updating']);
+            self::assertSame(['updated_at' => 0, 'unavailable' => false], $status['channels']['vanilla']);
+            self::assertSame(['updated_at' => 0, 'unavailable' => true], $status['channels']['paper']);
+        } finally {
+            (new \Symfony\Component\Filesystem\Filesystem())->remove($directory);
+        }
+    }
+
 }

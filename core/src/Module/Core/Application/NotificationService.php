@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Notification;
+use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InvoiceStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InvoiceRepository;
+use App\Repository\EntityQueryResult;
 use App\Repository\NotificationRepository;
 use App\Repository\NotificationPreferenceRepository;
 use App\Repository\UserRepository;
@@ -46,11 +48,10 @@ final class NotificationService
 
     public function notifyAdmins(string $eventKey, string $title, string $body, string $category, ?string $actionUrl = null): void
     {
-        $admins = $this->userRepository->createQueryBuilder('user')
+        $admins = EntityQueryResult::all($this->userRepository->createQueryBuilder('user')
             ->andWhere('user.type IN (:types)')
             ->setParameter('types', [UserType::Admin->value, UserType::Superadmin->value])
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), User::class);
         foreach ($admins as $admin) {
             $this->notify($admin, $eventKey, $title, $body, $category, $actionUrl);
         }
@@ -58,16 +59,15 @@ final class NotificationService
 
     public function syncAdminPaymentNotifications(): void
     {
-        $pastDueInvoices = $this->invoiceRepository->createQueryBuilder('invoice')
+        $pastDueInvoices = EntityQueryResult::all($this->invoiceRepository->createQueryBuilder('invoice')
             ->andWhere('invoice.status IN (:statuses)')
             ->setParameter('statuses', [InvoiceStatus::Open->value, InvoiceStatus::PastDue->value])
             ->orderBy('invoice.dueDate', 'ASC')
             ->setMaxResults(15)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), Invoice::class);
 
         foreach ($pastDueInvoices as $invoice) {
-            $eventKey = sprintf('invoice.due.%s', $invoice->getId());
+            $eventKey = sprintf('invoice.due.%s', (string) $invoice->getId());
             $title = sprintf('Payment due · #%s', $invoice->getNumber());
             $body = sprintf('%s · %s %s', $invoice->getCustomer()->getEmail(), $invoice->getAmountDueCents() / 100, $invoice->getCurrency());
             $this->notifyAdmins($eventKey, $title, $body, 'billing', '/admin/billing');

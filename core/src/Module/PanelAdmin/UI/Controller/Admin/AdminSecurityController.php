@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
@@ -114,7 +115,7 @@ final class AdminSecurityController
         }, $agents);
 
         return new JsonResponse([
-            'panels' => array_values($panels),
+            'panels' => $panels,
             'fetchedAt' => (new \DateTimeImmutable())->format('H:i:s'),
         ]);
     }
@@ -429,7 +430,8 @@ final class AdminSecurityController
 
         foreach ($targets as $targetNode) {
             $canonicalRules = $this->canonicalizeUnifiedRules($sanitizedRules);
-            $rulesHash = hash('sha256', json_encode($canonicalRules) ?: '[]');
+            $encodedRules = json_encode($canonicalRules);
+            $rulesHash = hash('sha256', $encodedRules === false ? '[]' : $encodedRules);
             $revision = $this->buildPolicyRevision($targetNode, 'unified_ruleset', ['rules' => $canonicalRules, 'hash' => $rulesHash], $admin);
             $this->cleanupLegacyDistributedSecurity($targetNode);
             $job = new Job('security.ruleset.apply', [
@@ -625,13 +627,15 @@ final class AdminSecurityController
     }
 
     /**
-     * @param array<int, mixed> $rules
+     * @param array<array-key, mixed> $rules
      * @return array<int, array<string, mixed>>
      */
     private function sanitizeUnifiedRules(array $rules): array
     {
         $sanitized = [];
+        $position = 0;
         foreach ($rules as $idx => $rule) {
+            ++$position;
             if (!is_array($rule)) {
                 continue;
             }
@@ -642,7 +646,9 @@ final class AdminSecurityController
             $priority = (int) ($rule['priority'] ?? 100);
             $enabled = filter_var($rule['enabled'] ?? true, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
             $reason = trim((string) ($rule['reason'] ?? ''));
-            $service = trim((string) (($rule['target']['service'] ?? '')));
+            $target = JsonArray::orEmpty($rule['target'] ?? null);
+            $service = trim(ScalarValue::text($target['service'] ?? ''));
+            $protocol = ScalarValue::text($rule['protocol'] ?? 'tcp');
 
             if (!in_array($type, ['firewall', 'fail2ban'], true) || !in_array($action, ['allow', 'block', 'ban'], true)) {
                 continue;
@@ -658,10 +664,10 @@ final class AdminSecurityController
             }
 
             $sanitized[] = [
-                'id' => (string) ($rule['id'] ?? sprintf('rule-%d', $idx + 1)),
+                'id' => (string) ($rule['id'] ?? sprintf('rule-%d', is_int($idx) ? $idx + 1 : $position)),
                 'type' => $type,
                 'action' => $action,
-                'protocol' => in_array(($rule['protocol'] ?? 'tcp'), ['tcp', 'udp'], true) ? $rule['protocol'] : 'tcp',
+                'protocol' => in_array($protocol, ['tcp', 'udp'], true) ? $protocol : 'tcp',
                 'port' => $port,
                 'priority' => max(1, min(1000, $priority)),
                 'enabled' => $enabled ?? true,
@@ -669,7 +675,7 @@ final class AdminSecurityController
                 'source_ip' => filter_var(($rule['source_ip'] ?? null), FILTER_VALIDATE_IP) ? (string) $rule['source_ip'] : null,
                 'source_asn' => is_string($rule['source_asn'] ?? null) ? mb_substr(trim((string) $rule['source_asn']), 0, 16) : null,
                 'target' => [
-                    'scope' => is_string($rule['target']['scope'] ?? null) ? $rule['target']['scope'] : 'global',
+                    'scope' => $this->optionalString($target['scope'] ?? null) ?? 'global',
                     'service' => $service !== '' ? mb_substr($service, 0, 64) : null,
                 ],
             ];
@@ -697,7 +703,7 @@ final class AdminSecurityController
             $sourceIp = trim((string) ($rule['source_ip'] ?? ''));
             if ($sourceIp !== '' && str_contains($sourceIp, '/')) {
                 [$ip, $mask] = array_pad(explode('/', $sourceIp, 2), 2, null);
-                $packed = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) ? ip2long($ip) : false;
+                $packed = is_string($ip) && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false ? ip2long($ip) : false;
                 if ($packed !== false && is_numeric($mask)) {
                     $maskInt = max(0, min(32, (int) $mask));
                     $network = long2ip($packed & (-1 << (32 - $maskInt)));
@@ -716,7 +722,7 @@ final class AdminSecurityController
 
         usort($rules, static fn (array $left, array $right): int => [$left['priority'], $left['id'], $left['port']] <=> [$right['priority'], $right['id'], $right['port']]);
 
-        return array_values($rules);
+        return $rules;
     }
 
     private function cleanupLegacyDistributedSecurity(\App\Module\Core\Domain\Entity\Agent $agent): void
@@ -724,7 +730,7 @@ final class AdminSecurityController
         $jobs = $this->jobRepository->findBy(['status' => \App\Module\Core\Domain\Enum\JobStatus::Queued], ['createdAt' => 'DESC']);
         foreach ($jobs as $job) {
             $payload = $job->getPayload();
-            $agentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : null;
+            $agentId = $this->optionalString($payload['agent_id'] ?? null);
             if ($agentId !== $agent->getId()) {
                 continue;
             }
@@ -769,7 +775,7 @@ final class AdminSecurityController
 
     /**
      * @return array{enabled: bool, bantime: string, findtime: string, maxretry: int, ignore_ips:
-     * array<array-key, string>, jails: list<string|mixed>, action_type: string, backend: string,
+     * array<array-key, string>, jails: list<string>, action_type: string, backend: string,
      * advanced_config: string, dry_run: bool}
      */
     private function parseFail2banPayload(Request $request): array
@@ -796,7 +802,7 @@ final class AdminSecurityController
         $jailsFromCheckboxes = $request->request->all('jails');
         $jailsFromCustom = $this->parseCsvList((string) $request->request->get('jails_custom', ''));
         $jails = array_values(array_unique(array_merge(
-            array_filter(array_map('trim', $jailsFromCheckboxes)),
+            array_filter(array_map(static fn (mixed $jail): string => trim(ScalarValue::text($jail)), $jailsFromCheckboxes)),
             $jailsFromCustom
         )));
         if ($jails === []) {
@@ -919,7 +925,7 @@ final class AdminSecurityController
         $index = [];
         foreach ($jobs as $job) {
             $payload = $job->getPayload();
-            $agentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : null;
+            $agentId = $this->optionalString($payload['agent_id'] ?? null);
             if ($agentId === null || $agentId === '') {
                 continue;
             }
@@ -937,8 +943,8 @@ final class AdminSecurityController
     }
 
     /**
-     * @param array<int, array<string, mixed>> $rules
-     * @return array<int, array{port: int, protocol: string, status: string}>
+     * @param array<array-key, mixed> $rules
+     * @return list<array{port: int, protocol: string, status: string}>
      */
     private function normalizeRules(array $rules): array
     {
@@ -948,8 +954,8 @@ final class AdminSecurityController
                 continue;
             }
             $port = $rule['port'] ?? null;
-            $protocol = is_string($rule['protocol'] ?? null) ? strtolower($rule['protocol']) : '';
-            $status = is_string($rule['status'] ?? null) ? strtolower($rule['status']) : '';
+            $protocol = strtolower($this->optionalString($rule['protocol'] ?? null) ?? '');
+            $status = strtolower($this->optionalString($rule['status'] ?? null) ?? '');
 
             if (!is_int($port) && !is_numeric($port)) {
                 continue;
@@ -1027,6 +1033,11 @@ final class AdminSecurityController
         return 'offline';
     }
 
+    private function optionalString(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
     private function requireAdmin(Request $request): User
     {
         $actor = RequestActor::user($request);
@@ -1055,7 +1066,7 @@ final class AdminSecurityController
     }
 
     /**
-     * @param array<int, mixed> $ports
+     * @param array<array-key, mixed> $ports
      * @return int[]
      */
     private function parsePortsFromSelection(array $ports): array
@@ -1070,6 +1081,7 @@ final class AdminSecurityController
         return $this->normalizePorts($parsed);
     }
 
+    /** @return list<int> */
     private function parsePortsFromInput(string $raw): array
     {
         $ports = [];
@@ -1084,8 +1096,8 @@ final class AdminSecurityController
     }
 
     /**
-     * @param int[] $ports
-     * @return int[]
+     * @param array<array-key, mixed> $ports
+     * @return list<int>
      */
     private function normalizePorts(array $ports): array
     {
@@ -1105,7 +1117,7 @@ final class AdminSecurityController
     }
 
     /**
-     * @param array<int, mixed> $protocols
+     * @param array<array-key, mixed> $protocols
      * @return string[]
      */
     private function normalizeProtocols(array $protocols): array

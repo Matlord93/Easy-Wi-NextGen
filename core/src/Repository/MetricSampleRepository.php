@@ -22,28 +22,24 @@ final class MetricSampleRepository extends ServiceEntityRepository
 
     /**
      * @return array<int, array{id: int, recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent:
-     * ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}>
+     * ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int}>
      */
     public function findRecentSamplesForAgentSince(Agent $agent, \DateTimeImmutable $since, int $page, int $perPage): array
     {
         $page = max(1, $page);
         $perPage = max(1, min(200, $perPage));
 
-        return $this->buildRecentSamplesQueryBuilder($agent, $since, $page, $perPage)
+        return MetricSampleRow::map($this->buildRecentSamplesQueryBuilder($agent, $since, $page, $perPage)
             ->getQuery()
-            ->getArrayResult();
-    }
-
-    public function countSamplesForAgentSince(Agent $agent, \DateTimeImmutable $since): int
-    {
-        return (int) $this->createQueryBuilder('sample')
-            ->select('COUNT(sample.id)')
-            ->andWhere('sample.agent = :agent')
-            ->andWhere('sample.recordedAt >= :since')
-            ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
-            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
-            ->getQuery()
-            ->getSingleScalarResult();
+            ->getArrayResult(), static fn (array $row): array => [
+                'id' => MetricSampleRow::integer($row['id'] ?? null),
+                'recordedAt' => MetricSampleRow::date($row['recordedAt'] ?? null),
+                'cpuPercent' => MetricSampleRow::number($row['cpuPercent'] ?? null),
+                'memoryPercent' => MetricSampleRow::number($row['memoryPercent'] ?? null),
+                'diskPercent' => MetricSampleRow::number($row['diskPercent'] ?? null),
+                'netBytesSent' => MetricSampleRow::nullableInteger($row['netBytesSent'] ?? null),
+                'netBytesRecv' => MetricSampleRow::nullableInteger($row['netBytesRecv'] ?? null),
+            ]);
     }
 
     public function findLatestRecordedAtForAgent(Agent $agent): ?\DateTimeImmutable
@@ -62,9 +58,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
             return null;
         }
 
-        $recordedAt = $row['recordedAt'] ?? null;
-
-        return $recordedAt instanceof \DateTimeImmutable ? $recordedAt : null;
+        return MetricSampleRow::nullableDate($row['recordedAt'] ?? null);
     }
 
     /**
@@ -73,8 +67,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
      */
     public function fetchAggregateSnapshotForAgentSince(Agent $agent, \DateTimeImmutable $since): array
     {
-        /** @var array<string, mixed> $row */
-        $row = $this->createQueryBuilder('sample')
+        $row = MetricSampleRow::row($this->createQueryBuilder('sample')
             ->select('COUNT(sample.id) as sample_count')
             ->addSelect('AVG(sample.cpuPercent) as cpu_avg')
             ->addSelect('MAX(sample.cpuPercent) as cpu_max')
@@ -87,16 +80,16 @@ final class MetricSampleRepository extends ServiceEntityRepository
             ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
-            ->getSingleResult();
+            ->getSingleResult());
 
         return [
-            'count' => (int) ($row['sample_count'] ?? 0),
-            'cpu_avg' => isset($row['cpu_avg']) ? (float) $row['cpu_avg'] : null,
-            'cpu_max' => isset($row['cpu_max']) ? (float) $row['cpu_max'] : null,
-            'memory_avg' => isset($row['memory_avg']) ? (float) $row['memory_avg'] : null,
-            'memory_max' => isset($row['memory_max']) ? (float) $row['memory_max'] : null,
-            'disk_avg' => isset($row['disk_avg']) ? (float) $row['disk_avg'] : null,
-            'disk_max' => isset($row['disk_max']) ? (float) $row['disk_max'] : null,
+            'count' => MetricSampleRow::integer($row['sample_count'] ?? 0),
+            'cpu_avg' => MetricSampleRow::number($row['cpu_avg'] ?? null),
+            'cpu_max' => MetricSampleRow::number($row['cpu_max'] ?? null),
+            'memory_avg' => MetricSampleRow::number($row['memory_avg'] ?? null),
+            'memory_max' => MetricSampleRow::number($row['memory_max'] ?? null),
+            'disk_avg' => MetricSampleRow::number($row['disk_avg'] ?? null),
+            'disk_max' => MetricSampleRow::number($row['disk_max'] ?? null),
         ];
     }
 
@@ -106,7 +99,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
      */
     public function findSparklineSeriesForAgentSince(Agent $agent, \DateTimeImmutable $since, int $limit = 240): array
     {
-        $rows = $this->createQueryBuilder('sample')
+        return MetricSampleRow::map($this->createQueryBuilder('sample')
             ->select(
                 'sample.recordedAt AS recordedAt',
                 'sample.cpuPercent AS cpuPercent',
@@ -123,9 +116,15 @@ final class MetricSampleRepository extends ServiceEntityRepository
             ->orderBy('sample.recordedAt', 'ASC')
             ->setMaxResults(max(2, min(500, $limit)))
             ->getQuery()
-            ->getArrayResult();
-
-        return $rows;
+            ->getArrayResult(), static fn (array $row): array => [
+                'recordedAt' => MetricSampleRow::date($row['recordedAt'] ?? null),
+                'cpuPercent' => MetricSampleRow::number($row['cpuPercent'] ?? null),
+                'memoryPercent' => MetricSampleRow::number($row['memoryPercent'] ?? null),
+                'diskPercent' => MetricSampleRow::number($row['diskPercent'] ?? null),
+                'netBytesSent' => MetricSampleRow::nullableInteger($row['netBytesSent'] ?? null),
+                'netBytesRecv' => MetricSampleRow::nullableInteger($row['netBytesRecv'] ?? null),
+                'payload' => MetricSampleRow::payload($row['payload'] ?? null),
+            ]);
     }
 
     public function buildRecentSamplesQueryBuilder(Agent $agent, \DateTimeImmutable $since, int $page, int $perPage): QueryBuilder

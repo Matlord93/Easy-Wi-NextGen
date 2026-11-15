@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Setup\Application;
 
 use App\Infrastructure\Config\JsonArray;
-
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Config\DbConfigProvider;
 use App\Infrastructure\Filesystem\WritablePathProbe;
 use App\Module\Core\Application\EncryptionService;
@@ -30,6 +31,10 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Process\PhpExecutableFinder;
 
+/**
+ * @psalm-type InstallConnection = array{driver?: 'pdo_mysql', host?: string, port?: int, user?: string, password?: string, dbname?: string, charset?: string, serverVersion?: string}
+ * @psalm-type DatabaseConfig = array{url: string, connection: InstallConnection}
+ */
 final class InstallerService
 {
     private const MIN_SUPPORTED_PHP_VERSION_ID = 80401;
@@ -199,7 +204,7 @@ final class InstallerService
     /**
      * @param array<string, mixed> $databaseState
      *
-     * @return array<int, array<string, mixed>>
+     * @return list<array{key: string, params?: array<string, string>}>
      */
     public function validateDatabaseInput(array $databaseState): array
     {
@@ -226,7 +231,7 @@ final class InstallerService
     /**
      * @param array<string, mixed> $databaseState
      *
-     * @return array{url: string, connection: array<string, mixed>}
+     * @return DatabaseConfig
      */
     public function buildDatabaseConfig(array $databaseState): array
     {
@@ -251,7 +256,7 @@ final class InstallerService
                 $portSuffix,
                 $database,
             ),
-            'connection' => array_filter([
+            'connection' => $this->normalizeConnectionParams(array_filter([
                 'driver' => 'pdo_mysql',
                 'host' => $host,
                 'port' => $port,
@@ -259,12 +264,13 @@ final class InstallerService
                 'password' => $password !== '' ? $password : null,
                 'dbname' => (string) $databaseState['name'],
                 'charset' => 'utf8mb4',
-            ], static fn ($value) => $value !== null && $value !== ''),
+            ], static fn ($value) => $value !== null && $value !== '')),
         ];
     }
 
     /**
      * @param array<string, mixed> $databaseState
+     * @return array<string, int|string>
      */
     public function buildPersistentDatabaseConfig(array $databaseState): array
     {
@@ -285,7 +291,7 @@ final class InstallerService
     }
 
     /**
-     * @param array<string, mixed> $databaseConfig
+     * @param DatabaseConfig $databaseConfig
      *
      * @throws DbalException
      */
@@ -298,7 +304,7 @@ final class InstallerService
     }
 
     /**
-     * @param array<string, mixed> $databaseConfig
+     * @param DatabaseConfig $databaseConfig
      *
      * @throws DbalException
      */
@@ -306,12 +312,12 @@ final class InstallerService
     {
         $connection = DriverManager::getConnection($databaseConfig['connection']);
 
-        $grants = $connection->fetchFirstColumn('SHOW GRANTS FOR CURRENT_USER');
+        $grants = array_values(array_filter($connection->fetchFirstColumn('SHOW GRANTS FOR CURRENT_USER'), 'is_string'));
         if ($grants === []) {
             throw new \RuntimeException('Unable to read grants for current MySQL user.');
         }
 
-        $databaseName = strtolower((string) ($databaseConfig['connection']['dbname'] ?? ''));
+        $databaseName = strtolower($databaseConfig['connection']['dbname'] ?? '');
         $requiredPrivileges = ['create', 'alter', 'index'];
 
         if (!$this->hasRequiredMySqlPrivileges($grants, $databaseName, $requiredPrivileges)) {
@@ -441,6 +447,7 @@ final class InstallerService
         return $this->ensureDirectory($this->projectDir . '/' . $normalized);
     }
 
+    /** @param array<string, mixed> $payload */
     public function storeDatabaseConfig(array $payload): void
     {
         $this->ensureSecretKeyExists();
@@ -503,7 +510,11 @@ final class InstallerService
             \RecursiveIteratorIterator::CHILD_FIRST,
         );
 
-        foreach ($iterator as $item) {
+        for ($iterator->rewind(); $iterator->valid(); $iterator->next()) {
+            if (!$iterator->current() instanceof \SplFileInfo) {
+                continue;
+            }
+            $item = self::fileInfo($iterator->current());
             $path = $item->getRealPath();
             if ($path === false || !str_starts_with($path, $realCacheDir . DIRECTORY_SEPARATOR)) {
                 continue;
@@ -778,12 +789,9 @@ final class InstallerService
         $preferred = [];
         $others = [];
 
-        foreach (glob($baseDir . '/*/bin/php') ?: [] as $path) {
-            if (!is_string($path) || $path === '') {
-                continue;
-            }
-
-            $normalized = realpath($path) ?: $path;
+        foreach (($paths = glob($baseDir . '/*/bin/php')) === false ? [] : $paths as $path) {
+            $resolved = realpath($path);
+            $normalized = $resolved === false ? $path : $resolved;
             if (preg_match('#/opt/plesk/php/([0-9]+\.[0-9]+)/bin/php$#', $normalized, $matches) === 1) {
                 if ($matches[1] === $currentVersion) {
                     $preferred[] = $normalized;
@@ -852,6 +860,9 @@ final class InstallerService
 
         $output = '';
         foreach ([1, 2] as $index) {
+            if (!isset($pipes[$index]) || !is_resource($pipes[$index])) {
+                continue;
+            }
             $chunk = stream_get_contents($pipes[$index]);
             if (is_string($chunk)) {
                 $output .= $chunk;
@@ -862,7 +873,7 @@ final class InstallerService
         $exitCode = proc_close($process);
 
         return [
-            'exitCode' => is_int($exitCode) ? $exitCode : 1,
+            'exitCode' => $exitCode,
             'output' => trim($output),
         ];
     }
@@ -948,22 +959,12 @@ final class InstallerService
      */
     public function storeAppSettings(EntityManagerInterface $entityManager, array $settings): void
     {
-        foreach ($settings as $key => $value) {
-            if (!is_string($key) || $key === '') {
+        foreach (array_keys($settings) as $key) {
+            if ($key === '') {
                 continue;
             }
 
-            if (in_array($key, self::SECRET_SETTING_KEYS, true) && is_string($value)) {
-                $value = trim($value) === '' ? null : $this->encryptionService->encrypt($value);
-            }
-
-            $setting = $entityManager->find(AppSetting::class, $key);
-            if ($setting instanceof AppSetting) {
-                $setting->setValue($value);
-                continue;
-            }
-
-            $entityManager->persist(new AppSetting($key, $value));
+            $this->storeAppSetting($entityManager, $key, $this->settingValue($key, $settings[$key]));
         }
 
 
@@ -985,7 +986,7 @@ final class InstallerService
             return [];
         }
 
-        $decoded = JsonArray::decode($contents);
+        $decoded = JsonMap::decode($contents);
         if (!is_array($decoded)) {
             return [];
         }
@@ -1129,20 +1130,67 @@ final class InstallerService
             $connectionParams = $this->configProvider->toConnectionParams($payload);
         }
 
-        $connectionParams['driver'] = (string) ($connectionParams['driver'] ?? 'pdo_mysql');
+        $connectionParams['driver'] = ScalarValue::text($connectionParams['driver'] ?? 'pdo_mysql');
         if ($connectionParams['driver'] !== 'pdo_mysql') {
             throw new \RuntimeException(sprintf('Unsupported installer database driver: %s', $connectionParams['driver']));
         }
 
         unset($connectionParams['url'], $connectionParams['path']);
 
-        $connection = DriverManager::getConnection($connectionParams);
+        $connection = DriverManager::getConnection($this->normalizeConnectionParams($connectionParams));
 
         return new EntityManager(
             $connection,
             $this->defaultEntityManager->getConfiguration(),
             new EventManager(),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @return InstallConnection
+     */
+    private function normalizeConnectionParams(array $params): array
+    {
+        $connection = ['driver' => 'pdo_mysql'];
+        foreach (['host', 'user', 'password', 'dbname', 'charset', 'serverVersion'] as $key) {
+            if (isset($params[$key])) {
+                $connection[$key] = ScalarValue::text($params[$key]);
+            }
+        }
+        if (isset($params['port'])) {
+            $connection['port'] = ScalarValue::integer($params['port'], 3306);
+        }
+
+        return $connection;
+    }
+
+    private static function fileInfo(mixed $value): \SplFileInfo
+    {
+        if (!$value instanceof \SplFileInfo) {
+            throw new \UnexpectedValueException('Cache iterator did not return a filesystem entry.');
+        }
+
+        return $value;
+    }
+
+    private function storeAppSetting(EntityManagerInterface $entityManager, string $key, mixed $value): void
+    {
+        $setting = $entityManager->find(AppSetting::class, $key);
+        if ($setting instanceof AppSetting) {
+            $setting->setValue($value);
+        } else {
+            $entityManager->persist(new AppSetting($key, $value));
+        }
+    }
+
+    private function settingValue(string $key, mixed $value): mixed
+    {
+        if (in_array($key, self::SECRET_SETTING_KEYS, true) && is_string($value)) {
+            return trim($value) === '' ? null : $this->encryptionService->encrypt($value);
+        }
+
+        return $value;
     }
 
     /**

@@ -3,6 +3,7 @@ package vmconsole
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -69,6 +70,17 @@ func (g *Gateway) broker(ctx context.Context, path, cookie string, body any, out
 }
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
+	// Internal diagnostics only; the public proxy exposes exclusively /ws.
+	if r.URL.Path == "/vm-console/health" && r.Method == http.MethodGet {
+		if g.Secret == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-EasyWI-Console-Gateway")), []byte(g.Secret)) != 1 {
+			http.Error(w, "Console authorization denied", http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "protocol_version": 1, "public_origin": g.Origin})
+		return
+	}
 	if r.URL.Path != "/vm-console/ws" || r.Method != "GET" {
 		http.NotFound(w, r)
 		return

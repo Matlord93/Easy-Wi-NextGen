@@ -57,6 +57,25 @@ final class BackupTargetCredentialsPayloadTest extends TestCase
         self::assertSame($type->value, $agentPayload['backup_target_type']);
     }
 
+    #[DataProvider('destinations')]
+    public function testMalformedCredentialEnvelopesAreNotForwardedOrDecrypted(BackupDestinationType $type): void
+    {
+        $encryption = new EncryptionService('test', 'test:'.base64_encode(str_repeat('k', 32)));
+        $customer = new User('backup@example.test', UserType::Customer);
+        $target = new BackupTarget($customer, $type, 'Remote', ['url' => 'https://backup.example.test'], [
+            'username' => $encryption->encrypt('backup-user'),
+            'password' => 'invalid-plaintext',
+            'token' => ['key_id' => 'test', 'nonce' => [], 'ciphertext' => 'invalid'],
+        ]);
+        $definition = new BackupDefinition($customer, BackupTargetType::Game, '42', null, $target);
+        $backup = new Backup($definition, BackupStatus::Succeeded);
+        $controller = $this->uninitializedController(CustomerInstanceActionApiController::class, $encryption);
+        $payload = (new \ReflectionMethod($controller, 'buildBackupDownloadPayload'))->invoke($controller, $backup, '/backups/42.tar.gz');
+
+        self::assertSame(['username' => 'backup-user'], $payload['backup_target_secret']);
+        self::assertStringNotContainsString('invalid-plaintext', json_encode($payload, JSON_THROW_ON_ERROR));
+    }
+
     public static function destinations(): iterable
     {
         yield 'webdav' => [BackupDestinationType::Webdav];

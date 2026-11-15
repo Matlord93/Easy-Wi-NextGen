@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\ConfigSchema\ConfigSchemaService;
 use App\Module\Core\Domain\Entity\ConfigSchema;
@@ -21,13 +22,11 @@ use App\Module\Gameserver\Application\ConfigTemplateRegistry;
 use App\Module\Gameserver\Application\InstanceAddonResolver;
 use App\Module\Gameserver\Application\InstanceConfigPathResolver;
 use App\Module\Gameserver\Application\InstanceSlotService;
-use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
-use App\Repository\TemplateRepository;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -56,8 +55,6 @@ final class CustomerInstanceConfigApiController
         private readonly InstanceAddonResolver $instanceAddonResolver,
         private readonly ConfigTemplateRegistry $configTemplateRegistry,
         private readonly InstanceConfigPathResolver $instanceConfigPathResolver,
-        private readonly AgentGameServerClient $agentGameServerClient,
-        private readonly TemplateRepository $templateRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
@@ -177,6 +174,7 @@ final class CustomerInstanceConfigApiController
         ]);
     }
 
+    /** @param array<string, mixed> $payload */
     private function applyTemplateInternal(Request $request, int $id, string $targetId, array $payload, bool $create): JsonResponse
     {
         try {
@@ -194,7 +192,7 @@ final class CustomerInstanceConfigApiController
             }
 
             $existingContent = $localFile !== null ? (new \Symfony\Component\Filesystem\Filesystem())->readFile($localFile) : '';
-            $variables = $this->buildConfigVariables($instance, JsonArray::orEmpty($payload['values'] ?? null));
+            $variables = $this->buildConfigVariables($instance, JsonMap::fromValue($payload['values'] ?? null) ?? []);
             $content = $this->renderTemplateContent($target, $payload, $existingContent, $variables);
             if (strlen($content) > 256 * 1024) {
                 return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
@@ -250,16 +248,17 @@ final class CustomerInstanceConfigApiController
     /**
      * @param array<string, mixed> $target
      * @param array<string, mixed> $payload
+     * @param array<array-key, string> $variables
      */
     private function renderTemplateContent(array $target, array $payload, string $existing, array $variables): string
     {
         $mode = (string) ($target['apply_mode'] ?? 'render_text');
         $raw = trim((string) ($payload['content'] ?? ''));
-        $values = JsonArray::orEmpty($payload['values'] ?? null);
+        $values = JsonMap::fromValue($payload['values'] ?? null) ?? [];
         $template = (string) ($target['template_content'] ?? '');
 
-        foreach ($values as $value) {
-            if (is_string($value) && str_contains($value, self::LINE_FEED)) {
+        foreach (array_keys($values) as $key) {
+            if (is_string($values[$key]) && str_contains(ScalarValue::text($values[$key]), self::LINE_FEED)) {
                 throw new \RuntimeException('INVALID_INPUT');
             }
         }
@@ -294,16 +293,16 @@ final class CustomerInstanceConfigApiController
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $matches) === 1) {
                 $key = $matches[1];
                 if (array_key_exists($key, $values)) {
-                    $line = $this->buildSourceCfgLine($key, (string) $values[$key]);
+                    $line = $this->buildSourceCfgLine($key, ScalarValue::text(self::scalarConfigValue($values[$key])));
                     $seen[$key] = true;
                 }
             }
             $out[] = $line;
         }
 
-        foreach ($values as $key => $value) {
+        foreach (array_keys($values) as $key) {
             if (!isset($seen[$key])) {
-                $out[] = $this->buildSourceCfgLine($key, (string) $value);
+                $out[] = $this->buildSourceCfgLine($key, ScalarValue::text(self::scalarConfigValue($values[$key])));
             }
         }
 
@@ -323,16 +322,16 @@ final class CustomerInstanceConfigApiController
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $matches) === 1) {
                 $key = $matches[1];
                 if (array_key_exists($key, $values)) {
-                    $line = $this->buildPropertyLine($key, (string) $values[$key]);
+                    $line = $this->buildPropertyLine($key, ScalarValue::text(self::scalarConfigValue($values[$key])));
                     $seen[$key] = true;
                 }
             }
             $out[] = $line;
         }
 
-        foreach ($values as $key => $value) {
+        foreach (array_keys($values) as $key) {
             if (!isset($seen[$key])) {
-                $out[] = $this->buildPropertyLine($key, (string) $value);
+                $out[] = $this->buildPropertyLine($key, ScalarValue::text(self::scalarConfigValue($values[$key])));
             }
         }
 
@@ -382,7 +381,9 @@ final class CustomerInstanceConfigApiController
 
     private function resolveRequestId(Request $request): string
     {
-        return trim((string) ($request->headers->get('X-Request-ID') ?: $request->attributes->get('request_id') ?: ''));
+        $header = $request->headers->get('X-Request-ID');
+        $attribute = ScalarValue::text($request->attributes->get('request_id'));
+        return trim($header !== null && $header !== '' && $header !== '0' ? $header : ($attribute === '0' ? '' : $attribute));
     }
 
     #[Route(path: '/api/customer/instances/{id}/configs', name: 'customer_instance_configs_api_list', methods: ['GET'])]
@@ -441,8 +442,8 @@ final class CustomerInstanceConfigApiController
         $this->assertConfigEditable($instance, $configSchema);
         $payload = $this->parsePayload($request);
 
-        $values = $payload['values'] ?? [];
-        if (!is_array($values)) {
+        $values = JsonMap::fromValue($payload['values'] ?? []);
+        if ($values === null) {
             throw new BadRequestHttpException('Invalid values payload.');
         }
 
@@ -632,9 +633,7 @@ final class CustomerInstanceConfigApiController
     private function supportsOfflineEdit(ConfigSchema $configSchema): bool
     {
         $schema = $configSchema->getSchema();
-        $offline = $schema['offline_edit'] ?? $schema['offlineEdit'] ?? false;
-
-        return filter_var($offline, FILTER_VALIDATE_BOOLEAN);
+        return filter_var($schema['offline_edit'] ?? $schema['offlineEdit'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
@@ -872,7 +871,7 @@ final class CustomerInstanceConfigApiController
 
     /**
      * @param array<string, mixed> $values
-     * @return array<string, string>
+     * @return array<array-key, string>
      */
     private function buildConfigVariables(Instance $instance, array $values): array
     {
@@ -883,13 +882,14 @@ final class CustomerInstanceConfigApiController
                 return;
             }
             if (is_array($value)) {
-                $value = implode(',', array_map('strval', $value));
+                $value = implode(',', array_map(static fn (mixed $item): string => ScalarValue::text($item), $value));
             }
             $variables[$normalized] = (string) ($value ?? '');
         };
 
         $ports = $this->portBlockRepository->findByInstance($instance)?->getPorts() ?? [];
-        $put('server_name', $instance->getServerName() ?: $instance->getTemplate()->getDisplayName());
+        $name = $instance->getServerName();
+        $put('server_name', $name !== null && $name !== '' && $name !== '0' ? $name : $instance->getTemplate()->getDisplayName());
         $put('slots', $instance->getSlots());
         $put('max_slots', $instance->getMaxSlots());
         $put('ports', $ports);
@@ -899,16 +899,17 @@ final class CustomerInstanceConfigApiController
         $put('steam_gslt', $instance->getGslKey() ?? '');
         $put('steam_account', $instance->getSteamAccount() ?? '');
 
-        foreach ($instance->getTemplate()->getEnvVars() as $entry) {
-            if (is_array($entry)) {
-                $put((string) ($entry['key'] ?? ''), $entry['value'] ?? '');
-            }
+        $envVars = $instance->getTemplate()->getEnvVars();
+        foreach (array_keys($envVars) as $index) {
+            $entry = JsonArray::orEmpty($envVars[$index]);
+            $put(ScalarValue::text($entry['key'] ?? ''), $entry['value'] ?? '');
         }
-        foreach ($instance->getSetupVars() as $key => $value) {
-            $put((string) $key, $value);
+        $setupVars = $instance->getSetupVars();
+        foreach (array_keys($setupVars) as $key) {
+            $put((string) $key, $setupVars[$key]);
         }
-        foreach ($values as $key => $value) {
-            $put($key, $value);
+        foreach (array_keys($values) as $key) {
+            $put($key, $values[$key]);
         }
 
         // Common aliases used by existing template catalog rows.
@@ -920,7 +921,7 @@ final class CustomerInstanceConfigApiController
     }
 
     /**
-     * @param array<string, string> $variables
+     * @param array<array-key, string> $variables
      */
     private function renderTemplateString(string $template, array $variables): string
     {
@@ -945,7 +946,7 @@ final class CustomerInstanceConfigApiController
 
     /**
      * @param array<int, array{relative_path:string,content:string,backup?:bool}> $files
-     * @param array<string, string> $variables
+     * @param array<array-key, string> $variables
      */
     private function queueConfigApplyJob(Instance $instance, User $customer, array $files, array $variables, string $applyMode, ?ConfigSchema $schema, ?string $targetId): Job
     {
@@ -1040,7 +1041,7 @@ final class CustomerInstanceConfigApiController
             $type = strtolower((string) ($field['type'] ?? 'string'));
             $required = filter_var($field['required'] ?? false, FILTER_VALIDATE_BOOLEAN);
             $exists = array_key_exists($id, $values);
-            $value = $exists ? $values[$id] : null;
+            $value = self::scalarConfigValue($values[$id] ?? null);
 
             if ($required && (!$exists || $value === null || $value === '')) {
                 $errors[] = ['field' => $id, 'message' => sprintf('%s is required.', $label), 'code' => 'required'];
@@ -1147,13 +1148,22 @@ final class CustomerInstanceConfigApiController
     {
         if ($request->getContentTypeFormat() === 'json') {
             try {
-                return $request->toArray();
+                return JsonMap::fromValue($request->toArray()) ?? [];
             } catch (\JsonException $exception) {
                 throw new BadRequestHttpException('Invalid JSON payload.', $exception);
             }
         }
 
-        return $request->request->all();
+        return JsonMap::fromValue($request->request->all()) ?? [];
+    }
+
+    private static function scalarConfigValue(mixed $value): string|int|float|bool|null
+    {
+        if ($value === null || is_scalar($value)) {
+            return $value;
+        }
+
+        throw new BadRequestHttpException('Config values must be scalar.');
     }
 
     private function decodeFileContent(string $encoded, ?string &$error): string

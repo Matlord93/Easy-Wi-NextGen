@@ -4,89 +4,124 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-/** Fetches metadata only; server binaries are downloaded on the node. */
+/**
+ * Fetches metadata only; server binaries are downloaded on the node.
+ *
+ * @psalm-type CatalogEntry = array{version: string, url: string, build?: string, sha256?: ?string,
+ * java?: string, released?: ?string, metadata: array<array-key, mixed>}
+ */
 final class MinecraftUpstreamCatalog
 {
     public function __construct(private readonly HttpClientInterface $http, private readonly CacheInterface $cache)
     {
     }
 
+    /** @return \Generator<int, CatalogEntry> */
     public function entries(string $channel): iterable
     {
-        yield from match ($channel) {
-            'vanilla' => $this->vanilla(),
-            'paper' => $this->paper(),
-            'spigot' => $this->spigot(),
-            'bungeecord' => $this->bungee(),
-            'bedrock' => $this->bedrock(),
-            default => throw new \InvalidArgumentException('Unsupported Minecraft channel.'),
-        };
+        switch ($channel) {
+            case 'vanilla':
+                yield from $this->vanilla();
+                return;
+            case 'paper':
+                yield from $this->paper();
+                return;
+            case 'spigot':
+                yield from $this->spigot();
+                return;
+            case 'bungeecord':
+                yield from $this->bungee();
+                return;
+            case 'bedrock':
+                yield from $this->bedrock();
+                return;
+            default:
+                throw new \InvalidArgumentException('Unsupported Minecraft channel.');
+        }
     }
 
+    /** @return array<array-key, mixed> */
     private function json(string $url, int $ttl = 3600): array
     {
-        return $this->cache->get('minecraft.upstream.'.hash('sha256', $url), function (ItemInterface $item) use ($url, $ttl): array {
+        return $this->cachedJson($this->cache->get('minecraft.upstream.'.hash('sha256', $url), function (ItemInterface $item) use ($url, $ttl): array {
             $item->expiresAfter($ttl);
 
             return $this->http->request('GET', $url, ['headers' => ['User-Agent' => 'EasyWi-MinecraftCatalog/1.0 (https://github.com/Matlord93/webinterface)'], 'timeout' => 20, 'max_duration' => 45])->toArray();
-        });
+        }));
     }
 
+    /** @return array<array-key, mixed> */
+    private function cachedJson(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new \RuntimeException('Invalid cached upstream metadata.');
+        }
+
+        return $value;
+    }
+
+    /** @return \Generator<int, array<array-key, mixed>> */
+    private function rows(mixed $value): \Generator
+    {
+        if (!is_array($value)) {
+            return;
+        }
+        foreach (array_keys($value) as $key) {
+            if (is_array($value[$key])) {
+                yield $value[$key];
+            }
+        }
+    }
+
+    /** @return \Generator<int, CatalogEntry> */
     private function vanilla(): iterable
     {
         $manifest = $this->json('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
         if (!isset($manifest['versions']) || !is_array($manifest['versions'])) {
             throw new \RuntimeException('Invalid Mojang version manifest.');
         }
-        foreach ($manifest['versions'] as $version) {
-            $id = (string) ($version['id'] ?? '');
-            $url = (string) ($version['url'] ?? '');
+        foreach ($this->rows($manifest['versions']) as $version) {
+            $id = ScalarValue::text($version['id'] ?? null);
+            $url = ScalarValue::text($version['url'] ?? null);
             if ('' === $id || !str_starts_with($url, 'https://piston-meta.mojang.com/')) {
                 continue;
             }
             $details = $this->json($url, 86400 * 30);
-            $server = $details['downloads']['server'] ?? null;
-            if (!is_array($server) || empty($server['url'])) {
+            $server = JsonArray::orEmpty(JsonArray::orEmpty($details['downloads'] ?? null)['server'] ?? null);
+            $downloadUrl = ScalarValue::text($server['url'] ?? null);
+            if ($downloadUrl === '') {
                 continue;
             }
-            yield ['version' => $id, 'url' => $server['url'], 'java' => (string) ($details['javaVersion']['majorVersion'] ?? (new MinecraftJavaVersionResolver())->resolve($id)), 'released' => $details['releaseTime'] ?? null, 'metadata' => ['sha1' => $server['sha1'] ?? null, 'release_type' => $version['type'] ?? 'release']];
+            yield ['version' => $id, 'url' => $downloadUrl, 'java' => ScalarValue::text(JsonArray::orEmpty($details['javaVersion'] ?? null)['majorVersion'] ?? (new MinecraftJavaVersionResolver())->resolve($id)), 'released' => $this->optionalText($details['releaseTime'] ?? null), 'metadata' => ['sha1' => $server['sha1'] ?? null, 'release_type' => $version['type'] ?? 'release']];
         }
     }
 
+    /** @return \Generator<int, CatalogEntry> */
     private function paper(): iterable
     {
         $base = 'https://fill.papermc.io/v3/projects/paper';
         $project = $this->json($base);
-        $versions = $project['versions'] ?? [];
-        // v3 groups versions by Minecraft release family.
-        $flat = [];
-        foreach ($versions as $value) {
-            foreach (is_array($value) ? $value : [$value] as $version) {
-                $flat[] = $version;
-            }
-        }
-        if ([] === $flat) {
-            throw new \RuntimeException('Paper returned no versions.');
-        }
-        foreach (array_unique($flat) as $version) {
-            $builds = $this->json($base.'/versions/'.rawurlencode((string) $version).'/builds');
-            foreach ($builds['builds'] ?? $builds as $build) {
-                if (!is_array($build)) {
+        foreach ($this->paperVersions($project['versions'] ?? null) as $version) {
+            $builds = $this->json($base.'/versions/'.rawurlencode($version).'/builds');
+            foreach ($this->rows($builds['builds'] ?? $builds) as $build) {
+                $download = JsonArray::orEmpty(JsonArray::orEmpty($build['downloads'] ?? null)['server:default'] ?? null);
+                $downloadUrl = ScalarValue::text($download['url'] ?? null);
+                $buildId = ScalarValue::text($build['id'] ?? null);
+                if ($downloadUrl === '' || $buildId === '' || $buildId === '0') {
                     continue;
                 }
-                $download = $build['downloads']['server:default'] ?? null;
-                if (!is_array($download) || empty($download['url']) || empty($build['id'])) {
-                    continue;
-                }
-                yield ['version' => (string) $version, 'build' => (string) $build['id'], 'url' => $download['url'], 'sha256' => $download['checksums']['sha256'] ?? null, 'java' => (new MinecraftJavaVersionResolver())->resolve((string) $version), 'released' => $build['time'] ?? null, 'metadata' => ['release_type' => 'stable' === strtolower((string) ($build['channel'] ?? 'stable')) && preg_match('/^\d+\.\d+(\.\d+)?$/', (string) $version) ? 'release' : 'snapshot']];
+                yield ['version' => $version, 'build' => $buildId, 'url' => $downloadUrl, 'sha256' => $this->optionalText(JsonArray::orEmpty($download['checksums'] ?? null)['sha256'] ?? null), 'java' => (new MinecraftJavaVersionResolver())->resolve($version), 'released' => $this->optionalText($build['time'] ?? null), 'metadata' => ['release_type' => 'stable' === strtolower(ScalarValue::text($build['channel'] ?? 'stable')) && preg_match('/^\d+\.\d+(\.\d+)?$/', $version) ? 'release' : 'snapshot']];
             }
         }
     }
 
+    /** @return \Generator<int, CatalogEntry> */
     private function spigot(): iterable
     {
         $html = $this->http->request('GET', 'https://hub.spigotmc.org/versions/', ['timeout' => 20, 'max_duration' => 45])->getContent();
@@ -95,21 +130,28 @@ final class MinecraftUpstreamCatalog
             throw new \RuntimeException('Spigot returned no version metadata.');
         }
         $tool = $this->json('https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/api/json?tree=number');
-        $number = (int) ($tool['number'] ?? 0);
+        $number = ScalarValue::integer($tool['number'] ?? null, 0);
         if ($number < 1) {
             throw new \RuntimeException('BuildTools build is unavailable.');
         }
         $url = 'https://hub.spigotmc.org/jenkins/job/BuildTools/'.$number.'/artifact/target/BuildTools.jar';
         // Pin the official HTTPS artifact and pass its digest to the node.
-        $sha = $this->cache->get('minecraft.buildtools.'.$number, function (ItemInterface $item) use ($url): string {
+        $sha = $this->cachedDigest($this->cache->get('minecraft.buildtools.'.$number, function (ItemInterface $item) use ($url): string {
             $item->expiresAfter(86400 * 30);
 
-            return hash('sha256', $this->http->request('GET', $url, ['timeout' => 30, 'max_duration' => 90])->getContent());
-        });
+            $response = $this->http->request('GET', $url, ['timeout' => 30, 'max_duration' => 90, 'buffer' => false]);
+            $response->getHeaders();
+            $hash = hash_init('sha256');
+            foreach ($this->http->stream($response) as $chunk) {
+                hash_update($hash, $chunk->getContent());
+            }
+
+            return hash_final($hash);
+        }));
         foreach (array_unique($matches[1]) as $version) {
             $info = $this->json('https://hub.spigotmc.org/versions/'.rawurlencode($version).'.json', 3600);
             $java = (new MinecraftJavaVersionResolver())->resolve($version);
-            $minimum = (int) ($info['javaVersions'][0] ?? 0);
+            $minimum = ScalarValue::integer(JsonArray::orEmpty($info['javaVersions'] ?? null)[0] ?? null, 0);
             if ($minimum > 44) {
                 $java = (string) ($minimum - 44);
             }
@@ -117,6 +159,7 @@ final class MinecraftUpstreamCatalog
         }
     }
 
+    /** @return \Generator<int, CatalogEntry> */
     private function bungee(): iterable
     {
         $base = 'https://hub.spigotmc.org/jenkins/job/BungeeCord';
@@ -124,39 +167,81 @@ final class MinecraftUpstreamCatalog
         if (!is_array($job['builds'] ?? null)) {
             throw new \RuntimeException('Invalid BungeeCord build list.');
         }
-        foreach ($job['builds'] as $build) {
+        foreach ($this->rows($job['builds']) as $build) {
             if (($build['result'] ?? '') !== 'SUCCESS') {
                 continue;
             }
-            foreach ($build['artifacts'] ?? [] as $artifact) {
+            foreach ($this->rows($build['artifacts'] ?? null) as $artifact) {
                 if (($artifact['fileName'] ?? '') !== 'BungeeCord.jar') {
                     continue;
                 }
-                $id = (string) $build['number'];
-                yield ['version' => 'BungeeCord', 'build' => $id, 'url' => $base.'/'.$id.'/artifact/'.implode('/', array_map('rawurlencode', explode('/', $artifact['relativePath']))), 'java' => '17', 'released' => isset($build['timestamp']) ? '@'.(int) ($build['timestamp'] / 1000) : null, 'metadata' => ['release_type' => 'release', 'strategy' => 'proxy']];
+                $id = ScalarValue::text($build['number'] ?? null);
+                $path = ScalarValue::text($artifact['relativePath'] ?? null);
+                if ($id === '' || $path === '') {
+                    continue;
+                }
+                yield ['version' => 'BungeeCord', 'build' => $id, 'url' => $base.'/'.$id.'/artifact/'.implode('/', array_map('rawurlencode', explode('/', $path))), 'java' => '17', 'released' => is_numeric($build['timestamp'] ?? null) ? '@'.(int) ((float) $build['timestamp'] / 1000.0) : null, 'metadata' => ['release_type' => 'release', 'strategy' => 'proxy']];
             }
         }
     }
 
+    /** @return \Generator<int, CatalogEntry> */
     private function bedrock(): iterable
     {
         // Microsoft only publishes current downloadable builds; keep historical DB entries.
         $data = $this->json('https://net-secondary.web.minecraft-services.net/api/v1.0/download/links');
-        $links = $data['result']['links'] ?? [];
+        $links = JsonArray::orEmpty(JsonArray::orEmpty($data['result'] ?? null)['links'] ?? null);
         $found = false;
-        foreach ($links as $link) {
-            if (!in_array($link['downloadType'] ?? '', ['serverBedrockLinux', 'serverBedrockPreviewLinux'], true)) {
+        foreach ($this->rows($links) as $link) {
+            $downloadType = ScalarValue::text($link['downloadType'] ?? null);
+            if (!in_array($downloadType, ['serverBedrockLinux', 'serverBedrockPreviewLinux'], true)) {
                 continue;
             }
-            $url = (string) ($link['downloadUrl'] ?? '');
+            $url = ScalarValue::text($link['downloadUrl'] ?? null);
             if (!preg_match('/bedrock-server-([0-9.]+)\.zip/', $url, $match)) {
                 continue;
             }
             $found = true;
-            yield ['version' => $match[1], 'url' => $url, 'metadata' => ['release_type' => str_contains($link['downloadType'], 'Preview') ? 'snapshot' : 'release', 'os' => 'linux']];
+            yield ['version' => $match[1], 'url' => $url, 'metadata' => ['release_type' => str_contains($downloadType, 'Preview') ? 'snapshot' : 'release', 'os' => 'linux']];
         }
         if (!$found) {
             throw new \RuntimeException('No downloadable Linux Bedrock release was returned.');
         }
     }
+    private function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    private function cachedDigest(mixed $value): string
+    {
+        if (!is_string($value) || preg_match('/^[a-f0-9]{64}$/', $value) !== 1) {
+            throw new \RuntimeException('Invalid cached BuildTools digest.');
+        }
+
+        return $value;
+    }
+
+    /** @return \Generator<int, string> */
+    private function paperVersions(mixed $versions): \Generator
+    {
+        if (!is_array($versions)) {
+            throw new \RuntimeException('Paper returned no versions.');
+        }
+        $seen = [];
+        foreach (array_keys($versions) as $key) {
+            $group = is_array($versions[$key]) ? $versions[$key] : [$versions[$key]];
+            foreach (array_keys($group) as $versionKey) {
+                $version = ScalarValue::text($group[$versionKey]);
+                if ($version !== '' && !isset($seen[$version])) {
+                    $seen[$version] = true;
+                    yield $version;
+                }
+            }
+        }
+        if ($seen === []) {
+            throw new \RuntimeException('Paper returned no versions.');
+        }
+    }
+
 }

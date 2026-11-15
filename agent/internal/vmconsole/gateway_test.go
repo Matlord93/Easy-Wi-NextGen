@@ -221,6 +221,36 @@ func TestGatewayRejectsCrossOriginBeforeConsumingGrant(t *testing.T) {
 		t.Fatal("cross-origin console accepted")
 	}
 }
+
+func TestGatewayHealthRequiresSecretAndDoesNotConsumeConsoleTicket(t *testing.T) {
+	f := newGatewayFixture(t, time.Second)
+	for _, secret := range []string{"", "wrong", "synthetic-gateway-secret"} {
+		req, _ := http.NewRequest(http.MethodGet, f.gateway.URL+"/vm-console/health", nil)
+		req.Header.Set("X-EasyWI-Console-Gateway", secret)
+		response, err := f.gateway.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(response.Body)
+		response.Body.Close()
+		if secret != "synthetic-gateway-secret" {
+			if response.StatusCode != http.StatusForbidden {
+				t.Fatal("unauthorized health probe accepted")
+			}
+			continue
+		}
+		var result map[string]any
+		if response.StatusCode != http.StatusOK || json.Unmarshal(body, &result) != nil || result["public_origin"] != "https://panel.test" || result["protocol_version"] != float64(1) {
+			t.Fatal("invalid health response")
+		}
+		if strings.Contains(string(body), f.broker.URL) || strings.Contains(string(body), "synthetic-gateway-secret") || strings.Contains(string(body), "upstream") {
+			t.Fatal("sensitive health response")
+		}
+	}
+	if f.claimed.Load() {
+		t.Fatal("health check consumed a customer ticket")
+	}
+}
 func TestGatewayRejectsReusedGrant(t *testing.T) {
 	f := newGatewayFixture(t, time.Second)
 	ws, _, err := f.dial("https://panel.test")

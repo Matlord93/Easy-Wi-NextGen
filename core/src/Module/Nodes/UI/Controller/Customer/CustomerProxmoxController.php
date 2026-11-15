@@ -42,15 +42,18 @@ final class CustomerProxmoxController extends AbstractController
         $actor = $this->actor($request);
         $assignment = $this->owned($actor, $id);
         $detail = null;
+        $consoleGuest = null;
         $error = null;
         try {
-            $this->manager->assignedGuest($assignment, $actor);
+            $consoleGuest = $this->manager->assignedGuest($assignment, $actor);
             $detail = $this->manager->detail($assignment->getCluster(), $assignment->getKind(), $assignment->getVmId(), $assignment->getBackupStorage(), true, $assignment->getIdentityTag());
         } catch (\Throwable) {
             $error = 'pve.error.guest_unavailable';
         }
 
-        return $this->render('customer/proxmox/guest.html.twig', ['assignment' => $assignment, 'kind' => $assignment->getKind(), 'vmId' => $assignment->getVmId(), 'detail' => $detail, 'error' => $error, 'tasks' => $this->tasks($assignment), 'requestKey' => bin2hex(random_bytes(16)), 'actionUrl' => $this->generateUrl('customer_proxmox_action', ['id' => $id]), 'csrfId' => 'proxmox-customer-'.$id, 'admin' => false, 'consoleConfigured' => $this->console->configured(), 'activeNav' => 'proxmox']);
+        $consoleReason = $this->console->unavailableReason($consoleGuest);
+
+        return $this->render('customer/proxmox/guest.html.twig', ['assignment' => $assignment, 'kind' => $assignment->getKind(), 'vmId' => $assignment->getVmId(), 'detail' => $detail, 'error' => $error, 'tasks' => $this->tasks($assignment), 'requestKey' => bin2hex(random_bytes(16)), 'actionUrl' => $this->generateUrl('customer_proxmox_action', ['id' => $id]), 'csrfId' => 'proxmox-customer-'.$id, 'admin' => false, 'consoleConfigured' => null === $consoleReason, 'consoleUnavailableReason' => $consoleReason, 'activeNav' => 'proxmox']);
     }
 
     #[Route('/{id<\d+>}/guest-agent', name: 'customer_proxmox_guest_agent', methods: ['POST'])]

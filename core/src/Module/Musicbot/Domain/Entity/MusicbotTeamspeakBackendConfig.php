@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Musicbot\Domain\Entity;
 
 use App\Module\Core\Domain\Entity\Agent;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakBackendStatus;
 use App\Repository\MusicbotTeamspeakBackendConfigRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -205,30 +206,31 @@ class MusicbotTeamspeakBackendConfig
     /** @param array<string, mixed> $payload */
     public function applyAgentResult(array $payload): void
     {
-        $status = MusicbotTeamspeakBackendStatus::tryFrom((string) ($payload['status'] ?? '')) ?? MusicbotTeamspeakBackendStatus::Failed;
+        $payload = JsonMap::strings($payload);
+        $status = MusicbotTeamspeakBackendStatus::tryFrom(($payload['status'] ?? '')) ?? MusicbotTeamspeakBackendStatus::Failed;
         $this->status = $status;
-        if (is_string($payload['checksum'] ?? null) && $payload['checksum'] !== '') {
+        if (isset($payload['checksum']) && $payload['checksum'] !== '') {
             $this->checksum = $payload['checksum'];
         }
-        if (is_string($payload['version'] ?? null) && $payload['version'] !== '') {
+        if (isset($payload['version']) && $payload['version'] !== '') {
             $this->version = $payload['version'];
         }
-        if (is_string($payload['library_path'] ?? null) && $payload['library_path'] !== '') {
+        if (isset($payload['library_path']) && $payload['library_path'] !== '') {
             $this->libraryPath = $payload['library_path'];
         }
-        if (is_string($payload['opus_library_path'] ?? null) && $payload['opus_library_path'] !== '') {
+        if (isset($payload['opus_library_path']) && $payload['opus_library_path'] !== '') {
             $this->opusLibraryPath = $payload['opus_library_path'];
         }
-        if (is_string($payload['official_client_install_path'] ?? null) && $payload['official_client_install_path'] !== '') {
+        if (isset($payload['official_client_install_path']) && $payload['official_client_install_path'] !== '') {
             $this->officialClientInstallPath = $payload['official_client_install_path'];
         }
-        if (is_string($payload['official_client_last_installed_at'] ?? null) && $payload['official_client_last_installed_at'] !== '') {
+        if (isset($payload['official_client_last_installed_at']) && $payload['official_client_last_installed_at'] !== '') {
             $this->officialClientLastInstalledAt = new \DateTimeImmutable($payload['official_client_last_installed_at']);
         }
-        if (is_string($payload['backend_type_suggestion'] ?? null) && $payload['backend_type_suggestion'] !== '' && in_array($payload['backend_type_suggestion'], ['client_library', 'native_sdk', 'external_client_bridge'], true)) {
+        if (isset($payload['backend_type_suggestion']) && $payload['backend_type_suggestion'] !== '' && in_array($payload['backend_type_suggestion'], ['client_library', 'native_sdk', 'external_client_bridge'], true)) {
             $this->backendType = $payload['backend_type_suggestion'];
         }
-        if (is_string($payload['backend_path_suggestion'] ?? null) && $payload['backend_path_suggestion'] !== '' && trim($this->backendPath) === '') {
+        if (isset($payload['backend_path_suggestion']) && $payload['backend_path_suggestion'] !== '' && trim($this->backendPath) === '') {
             $this->backendPath = $payload['backend_path_suggestion'];
             if (trim($this->binaryPath) === '') {
                 $this->binaryPath = $payload['backend_path_suggestion'];
@@ -236,31 +238,31 @@ class MusicbotTeamspeakBackendConfig
         }
         if (str_starts_with($status->value, 'official_client_')) {
             $this->officialClientStatus = $status->value;
-            $this->officialClientLastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
+            $this->officialClientLastError = isset($payload['last_error']) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
         }
         if (str_starts_with($status->value, 'sdk_client_')) {
             $this->sdkClientStatus = $status->value;
-            $this->sdkClientLastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
-            if (is_string($payload['sdk_client_install_path'] ?? null) && $payload['sdk_client_install_path'] !== '') {
+            $this->sdkClientLastError = isset($payload['last_error']) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
+            if (isset($payload['sdk_client_install_path']) && $payload['sdk_client_install_path'] !== '') {
                 $this->sdkClientInstallPath = $payload['sdk_client_install_path'];
             }
-            if (is_string($payload['sdk_client_last_installed_at'] ?? null) && $payload['sdk_client_last_installed_at'] !== '') {
+            if (isset($payload['sdk_client_last_installed_at']) && $payload['sdk_client_last_installed_at'] !== '') {
                 $this->sdkClientLastInstalledAt = new \DateTimeImmutable($payload['sdk_client_last_installed_at']);
             }
         }
-        if (is_string($payload['client_binary_path'] ?? null) && $payload['client_binary_path'] !== '') {
+        if (isset($payload['client_binary_path']) && $payload['client_binary_path'] !== '') {
             $this->officialClientBinaryPath = $payload['client_binary_path'];
         }
-        if (is_string($payload['client_runscript_path'] ?? null) && $payload['client_runscript_path'] !== '') {
+        if (isset($payload['client_runscript_path']) && $payload['client_runscript_path'] !== '') {
             $this->officialClientRunscriptPath = $payload['client_runscript_path'];
         }
-        if (is_string($payload['bridge_path'] ?? null) && $payload['bridge_path'] !== '') {
+        if (isset($payload['bridge_path']) && $payload['bridge_path'] !== '') {
             $this->bridgePath = $payload['bridge_path'];
         }
         if (str_starts_with($status->value, 'external_bridge_') || in_array($status->value, ['xvfb_missing', 'audio_backend_missing', 'client_binary_missing'], true)) {
-            $this->lastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
+            $this->lastError = isset($payload['last_error']) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
         }
-        $this->lastError = is_string($payload['last_error'] ?? null) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
+        $this->lastError = isset($payload['last_error']) && $payload['last_error'] !== '' ? $payload['last_error'] : null;
         $this->lastCheckedAt = new \DateTimeImmutable();
     }
 

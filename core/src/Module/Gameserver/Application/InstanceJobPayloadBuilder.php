@@ -5,10 +5,16 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Ports\Infrastructure\Repository\PortBlockFinderInterface;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
 use App\Repository\SharedStorageTemplateLocatorInterface;
 
+/**
+ * @psalm-type SharedPath = array{source:string,target:string,mode:string,readonly:bool,exclude:list<string>}
+ * @psalm-type JobPayload = array{ports: array<array-key,int>, port_reservations:list<array{role:string,protocol:string,port:int}>, env_vars:list<array{key:string,value:string}>, secrets:list<array{key:string,placeholder:string}>, shared_paths?:list<SharedPath>, ...<string,string>}
+ */
 final class InstanceJobPayloadBuilder
 {
     private MinecraftCatalogService $minecraftCatalogService;
@@ -21,32 +27,56 @@ final class InstanceJobPayloadBuilder
         private readonly SharedStorageTemplateLocatorInterface $templateRepository,
         ?MinecraftCatalogService $minecraftCatalogService = null,
         ?MinecraftJavaVersionResolver $minecraftJavaVersionResolver = null,
-        private readonly ?JavaBinaryConfig $javaBinaryConfig = null,
+        ?JavaBinaryConfig $javaBinaryConfig = null,
     ) {
         $this->managedCatalogAvailable = $minecraftCatalogService !== null;
         $this->minecraftCatalogService = $minecraftCatalogService ?? new MinecraftCatalogService(new class () implements MinecraftVersionCatalogRepositoryInterface {
             #[\Override]
-            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array { return []; }
+            public function findVersionsByChannel(string $channel, bool $activeOnly = true): array
+            {
+                return [];
+            }
             #[\Override]
-            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array { return []; }
+            public function findBuildsGroupedByVersion(string $channel, bool $activeOnly = true): array
+            {
+                return [];
+            }
             #[\Override]
-            public function findActiveByChannel(string $channel): array { return []; }
+            public function findActiveByChannel(string $channel): array
+            {
+                return [];
+            }
             #[\Override]
-            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string { return null; }
+            public function findLatestVersion(string $channel, bool $activeOnly = true): ?string
+            {
+                return null;
+            }
             #[\Override]
-            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string { return null; }
+            public function findLatestBuild(string $channel, string $version, bool $activeOnly = true): ?string
+            {
+                return null;
+            }
             #[\Override]
-            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog { return null; }
+            public function findEntry(string $channel, string $version, ?string $build, bool $activeOnly = true): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
+            {
+                return null;
+            }
             #[\Override]
-            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool { return false; }
+            public function versionExists(string $channel, string $version, bool $activeOnly = true): bool
+            {
+                return false;
+            }
             #[\Override]
-            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool { return false; }
+            public function buildExists(string $channel, string $version, string $build, bool $activeOnly = true): bool
+            {
+                return false;
+            }
         });
-        $this->minecraftJavaVersionResolver = $minecraftJavaVersionResolver ?? new MinecraftJavaVersionResolver($this->javaBinaryConfig);
+        $this->minecraftJavaVersionResolver = $minecraftJavaVersionResolver ?? new MinecraftJavaVersionResolver($javaBinaryConfig);
     }
 
     /**
-     * @return array<string, string>
+     * @return JobPayload
      */
     public function buildSniperInstallPayload(Instance $instance, bool $useSharedStorage = false): array
     {
@@ -69,7 +99,7 @@ final class InstanceJobPayloadBuilder
     }
 
     /**
-     * @return array<string, string>
+     * @return JobPayload
      */
     public function buildSniperUpdatePayload(Instance $instance, ?string $targetBuildId = null, ?string $targetVersion = null): array
     {
@@ -86,7 +116,7 @@ final class InstanceJobPayloadBuilder
     }
 
     /**
-     * @return array{config_files: array<int, array{path: string, content_base64: string}>, ...<array-key, mixed>}
+     * @return JobPayload&array{config_files:list<array{path:string,content_base64:string}>}
      */
     public function buildRuntimePayload(Instance $instance): array
     {
@@ -97,7 +127,7 @@ final class InstanceJobPayloadBuilder
     }
 
     /**
-     * @return array<string, string>
+     * @return JobPayload
      */
     private function buildBasePayload(Instance $instance, bool $install = true, ?string $targetVersion = null, ?string $targetBuild = null): array
     {
@@ -125,22 +155,22 @@ final class InstanceJobPayloadBuilder
         ];
         $payload['shared_runtime_mode'] = $this->resolveSharedRuntimeMode($template->getGameKey(), $template->getSharedPaths());
 
-        if ($instance->getInstanceBaseDir() !== null) {
-            $payload['base_dir'] = $instance->getInstanceBaseDir();
+        if (($value = $instance->getInstanceBaseDir()) !== null) {
+            $payload['base_dir'] = $value;
         }
-        if ($instance->getInstallPath() !== null) {
-            $payload['install_path'] = $instance->getInstallPath();
+        if (($value = $instance->getInstallPath()) !== null) {
+            $payload['install_path'] = $value;
         }
 
         $payload = array_merge($payload, $this->buildPortPayload($instance));
 
         $payload['autostart'] = 'false';
 
-        if ($instance->getLockedBuildId() !== null) {
-            $payload['locked_build_id'] = $instance->getLockedBuildId();
+        if (($value = $instance->getLockedBuildId()) !== null) {
+            $payload['locked_build_id'] = $value;
         }
-        if ($instance->getLockedVersion() !== null) {
-            $payload['locked_version'] = $instance->getLockedVersion();
+        if (($value = $instance->getLockedVersion()) !== null) {
+            $payload['locked_version'] = $value;
         }
 
         $javaBin = $this->resolveMinecraftJavaBin($instance);
@@ -156,13 +186,20 @@ final class InstanceJobPayloadBuilder
         $channel = $this->minecraftCatalogService->channelFromResolver($instance);
         $managedCapable = ($instance->getNode()->getMetadata()['minecraft_managed_install'] ?? false) === true;
         $linux = strtolower((string) ($instance->getNode()->getMetadata()['os'] ?? $instance->getNode()->getLastHeartbeatStats()['os'] ?? 'linux')) !== 'windows';
-        if ($channel !== null && $this->managedCatalogAvailable && $linux && $install && !$managedCapable) { throw new \RuntimeException('MINECRAFT_AGENT_UPDATE_REQUIRED'); }
+        if ($channel !== null && $this->managedCatalogAvailable && $linux && $install && !$managedCapable) {
+            throw new \RuntimeException('MINECRAFT_AGENT_UPDATE_REQUIRED');
+        }
         if ($channel !== null && $this->managedCatalogAvailable && $linux && $managedCapable) {
             $version = $install ? ($targetVersion ?? $instance->getLockedVersion()) : ($instance->getInstalledVersion() ?? $instance->getLockedVersion());
             $build = $install ? ($targetBuild ?? $instance->getLockedBuildId()) : ($instance->getInstalledBuildId() ?? $instance->getLockedBuildId());
             $entry = $install ? $this->minecraftCatalogService->resolveEntry($channel, $version, $build) : $this->minecraftCatalogService->resolveInstalledEntry($channel, $version, $build);
-            if ($entry === null && !$install && $version !== null) { $entry = new \App\Module\Core\Domain\Entity\MinecraftVersionCatalog($channel, $version, $build, ''); $entry->setJavaVersion($instance->getInstalledJavaVersion()); }
-            if ($entry === null) { throw new \RuntimeException('No installable Minecraft catalog entry. Synchronize the catalog first.'); }
+            if ($entry === null && !$install && $version !== null) {
+                $entry = new \App\Module\Core\Domain\Entity\MinecraftVersionCatalog($channel, $version, $build, '');
+                $entry->setJavaVersion($instance->getInstalledJavaVersion());
+            }
+            if ($entry === null) {
+                throw new \RuntimeException('No installable Minecraft catalog entry. Synchronize the catalog first.');
+            }
             $payload['minecraft_managed'] = 'true';
             $payload['minecraft_channel'] = $channel;
             $payload['minecraft_version'] = $entry->getMcVersion();
@@ -175,7 +212,7 @@ final class InstanceJobPayloadBuilder
             $payload['minecraft_sha1'] = (string) ($entry->getMetadata()['sha1'] ?? '');
             if ($channel !== 'bedrock') {
                 $payload['minecraft_java_version'] = !$install && $instance->getInstalledJavaVersion() !== null
-                    ? $instance->getInstalledJavaVersion()
+                    ? ($instance->getInstalledJavaVersion() ?? '')
                     : $this->minecraftJavaVersionResolver->resolve($entry->getMcVersion(), $entry->getJavaVersion());
             }
             // The agent owns configuration and Java selection, including legacy seeded templates.
@@ -207,7 +244,7 @@ final class InstanceJobPayloadBuilder
 
         $entry = $this->minecraftCatalogService->resolveEntry($channel, $instance->getLockedVersion(), $instance->getLockedBuildId());
         $mcVersion = $entry?->getMcVersion() ?? $instance->getLockedVersion() ?? $instance->getInstalledVersion();
-        $javaVersion = $entry?->getJavaVersion() ?? $instance->getInstalledJavaVersion();
+        $javaVersion = $entry?->getJavaVersion() ?? ($instance->getInstalledJavaVersion() ?? '');
 
         return $this->minecraftJavaVersionResolver->javaBin($mcVersion, $javaVersion);
     }
@@ -243,16 +280,13 @@ final class InstanceJobPayloadBuilder
     }
 
     /**
-     * @return array<int, array{path: string, content_base64: string}>
+     * @return list<array{path: string, content_base64: string}>
      */
     private function buildConfigOverridePayload(Instance $instance): array
     {
         $entries = [];
         foreach ($instance->getConfigOverrides() as $path => $payload) {
-            if (!is_string($path) || $path === '') {
-                continue;
-            }
-            if (!is_array($payload)) {
+            if ($path === '') {
                 continue;
             }
             $content = $payload['content'] ?? null;
@@ -270,7 +304,7 @@ final class InstanceJobPayloadBuilder
     }
 
     /**
-     * @return array<string, array<int, mixed>>
+     * @return array{ports:array<array-key,int>,port_reservations:list<array{role:string,protocol:string,port:int}>}
      */
     private function buildPortPayload(Instance $instance): array
     {
@@ -291,8 +325,8 @@ final class InstanceJobPayloadBuilder
             }
 
             $reservations[] = [
-                'role' => (string) ($definition['name'] ?? 'port'),
-                'protocol' => (string) ($definition['protocol'] ?? 'udp'),
+                'role' => $definition['name'],
+                'protocol' => $definition['protocol'],
                 'port' => $ports[$index],
             ];
         }
@@ -304,38 +338,40 @@ final class InstanceJobPayloadBuilder
     }
 
     /**
-     * @return array<int, array{key: string, value: string}>
+     * @return list<array{key: string, value: string}>
      */
     private function buildEnvVars(Instance $instance): array
     {
         $vars = [];
         $envVars = $instance->getTemplate()->getEnvVars();
-        foreach ($envVars as $entry) {
-            $key = trim((string) ($entry['key'] ?? ''));
+        foreach (array_keys($envVars) as $envIndex) {
+            $entry = JsonArray::orEmpty($envVars[$envIndex]);
+            $key = trim(ScalarValue::text($entry['key'] ?? ''));
             if ($key === '') {
                 continue;
             }
-            $vars[$key] = (string) ($entry['value'] ?? '');
+            $vars[$key] = ScalarValue::text($entry['value'] ?? '');
         }
 
         $setupVarKeys = [];
-        foreach ($instance->getSetupVars() as $key => $value) {
+        $setupVars = $instance->getSetupVars();
+        foreach (array_keys($setupVars) as $key) {
             $normalizedKey = trim((string) $key);
             if ($normalizedKey === '') {
                 continue;
             }
             $setupVarKeys[$normalizedKey] = true;
-            $vars[$normalizedKey] = (string) $value;
+            $vars[$normalizedKey] = ScalarValue::text($setupVars[$key]);
         }
 
-        if ($instance->getSteamAccount() !== null && $instance->getSteamAccount() !== '') {
-            $vars['STEAM_ACCOUNT'] = $instance->getSteamAccount();
+        if (($value = $instance->getSteamAccount()) !== null && $value !== '') {
+            $vars['STEAM_ACCOUNT'] = $value;
         }
-        if ($instance->getGslKey() !== null && $instance->getGslKey() !== '') {
-            $vars['STEAM_GSLT'] = $instance->getGslKey();
+        if (($value = $instance->getGslKey()) !== null && $value !== '') {
+            $vars['STEAM_GSLT'] = $value;
         }
-        if ($instance->getServerName() !== null && $instance->getServerName() !== '') {
-            $vars['SERVER_NAME'] = $instance->getServerName();
+        if (($value = $instance->getServerName()) !== null && $value !== '') {
+            $vars['SERVER_NAME'] = $value;
         }
 
         $steamAccount = $vars['STEAM_ACCOUNT'] ?? '';
@@ -373,10 +409,10 @@ final class InstanceJobPayloadBuilder
 
         if ($this->minecraftCatalogService->channelFromResolver($instance) !== null) {
             // Leave native JVM overhead below the systemd memory ceiling.
-            $heap = max(128, (int) floor($instance->getRamLimit() * 0.75));
+            $heap = max(128, (int) floor((float) $instance->getRamLimit() * 0.75));
             $vars['JAVA_XMX'] = $heap.'M';
             $vars['JAVA_XMS'] = min(512, $heap).'M';
-            $vars['MAX_PLAYERS'] = (string) ($instance->getCurrentSlots() ?? $instance->getSlots());
+            $vars['MAX_PLAYERS'] = (string) ($instance->getCurrentSlots());
         }
 
         $normalized = [];
@@ -391,7 +427,7 @@ final class InstanceJobPayloadBuilder
     }
 
     /**
-     * @return array<int, array{key: string, placeholder: string}>
+     * @return list<array{key: string, placeholder: string}>
      */
     private function buildSecretPlaceholders(Instance $instance): array
     {

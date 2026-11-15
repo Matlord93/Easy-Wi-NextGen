@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Setup\UI\Controller;
 
 use App\Module\Setup\Application\InstallerService;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Setup\Application\InstallerSshKeyException;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\DBAL\Exception\TableNotFoundException;
@@ -45,7 +47,7 @@ final class InstallController
             ];
         }
         $success = [];
-        $dbVersion = $state['database']['version'] ?? null;
+        $dbVersion = ScalarValue::text((JsonMap::fromValue($state['database'] ?? null) ?? [])['version'] ?? null);
         $requirements = $this->installerService->checkRequirements();
         $requirementsOk = $this->installerService->requirementsSatisfied($requirements);
         $debugAvailable = file_exists($this->installerService->getDebugReportPath());
@@ -77,21 +79,21 @@ final class InstallController
             'sftp_private_key_passphrase' => '',
         ];
 
-        $databaseState = array_merge($databaseDefaults, $state['database'] ?? []);
-        $applicationState = array_merge($applicationDefaults, $state['application'] ?? []);
-        $settingsState = array_merge($settingsDefaults, $state['settings'] ?? []);
+        $databaseState = array_merge($databaseDefaults, JsonMap::fromValue($state['database'] ?? null) ?? []);
+        $applicationState = array_merge($applicationDefaults, JsonMap::fromValue($state['application'] ?? null) ?? []);
+        $settingsState = array_merge($settingsDefaults, JsonMap::fromValue($state['settings'] ?? null) ?? []);
         if (($databaseState['saved'] ?? false) !== true) {
             $databaseState['initialized'] = false;
         }
 
         $this->installerService->ensureProjectDirectory('var/easywi');
 
-        $storedPassword = $databaseState['password'] ?? '';
+        $storedPassword = ScalarValue::text($databaseState['password'] ?? '');
         $databaseState['password'] = '';
 
         if ($request->isMethod('POST')) {
             $payload = $request->request->all();
-            $action = (string) ($payload['action'] ?? '');
+            $action = ScalarValue::text($payload['action'] ?? '');
             $postedStep = (int) ($payload['step'] ?? $step);
             $step = max(1, min(5, $postedStep));
 
@@ -114,11 +116,11 @@ final class InstallController
                 }
             } elseif ($step === 3) {
                 $databaseState = array_merge($databaseState, [
-                    'host' => trim((string) ($payload['db_host'] ?? $databaseState['host'])),
-                    'port' => trim((string) ($payload['db_port'] ?? $databaseState['port'])),
-                    'name' => trim((string) ($payload['db_name'] ?? $databaseState['name'])),
-                    'user' => trim((string) ($payload['db_user'] ?? $databaseState['user'])),
-                    'password' => (string) ($payload['db_password'] ?? ''),
+                    'host' => trim(ScalarValue::text($payload['db_host'] ?? $databaseState['host'])),
+                    'port' => trim(ScalarValue::text($payload['db_port'] ?? $databaseState['port'])),
+                    'name' => trim(ScalarValue::text($payload['db_name'] ?? $databaseState['name'])),
+                    'user' => trim(ScalarValue::text($payload['db_user'] ?? $databaseState['user'])),
+                    'password' => ScalarValue::text($payload['db_password'] ?? ''),
                 ]);
 
                 if ($databaseState['password'] === '' && $storedPassword !== '') {
@@ -166,7 +168,7 @@ final class InstallController
                         }
                     }
 
-                    if ($errors === [] && $connectionOk) {
+                    if ($errors === [] && $connectionOk && $dbConfig !== null) {
                         $databaseState['version'] = $dbVersion ?? null;
                         $databaseState['host'] = $attemptedHost;
                         $success[] = ['key' => 'messages.db_connection_success'];
@@ -237,13 +239,13 @@ final class InstallController
                 }
             } elseif ($step === 5) {
                 $applicationState = array_merge($applicationState, [
-                    'site_name' => trim((string) ($payload['site_name'] ?? $applicationState['site_name'])),
-                    'site_host' => trim((string) ($payload['site_host'] ?? $applicationState['site_host'])),
-                    'admin_name' => trim((string) ($payload['admin_name'] ?? $applicationState['admin_name'])),
-                    'admin_email' => trim((string) ($payload['admin_email'] ?? $applicationState['admin_email'])),
-                    'admin_ssh_key' => trim((string) ($payload['admin_ssh_key'] ?? $applicationState['admin_ssh_key'])),
-                    'cms_template' => trim((string) ($payload['cms_template'] ?? $applicationState['cms_template'])),
-                    'cms_homepage_slug' => trim((string) ($payload['cms_homepage_slug'] ?? $applicationState['cms_homepage_slug'])),
+                    'site_name' => trim(ScalarValue::text($payload['site_name'] ?? $applicationState['site_name'])),
+                    'site_host' => trim(ScalarValue::text($payload['site_host'] ?? $applicationState['site_host'])),
+                    'admin_name' => trim(ScalarValue::text($payload['admin_name'] ?? $applicationState['admin_name'])),
+                    'admin_email' => trim(ScalarValue::text($payload['admin_email'] ?? $applicationState['admin_email'])),
+                    'admin_ssh_key' => trim(ScalarValue::text($payload['admin_ssh_key'] ?? $applicationState['admin_ssh_key'])),
+                    'cms_template' => trim(ScalarValue::text($payload['cms_template'] ?? $applicationState['cms_template'])),
+                    'cms_homepage_slug' => trim(ScalarValue::text($payload['cms_homepage_slug'] ?? $applicationState['cms_homepage_slug'])),
                 ]);
                 // Step 5 intentionally only captures site/CMS/admin data.
                 // Core and SFTP settings can be configured later in admin settings.
@@ -252,8 +254,8 @@ final class InstallController
                     $databaseState['password'] = $storedPassword;
                 }
 
-                $adminPassword = (string) ($payload['admin_password'] ?? '');
-                $adminPasswordConfirm = (string) ($payload['admin_password_confirm'] ?? '');
+                $adminPassword = ScalarValue::text($payload['admin_password'] ?? '');
+                $adminPasswordConfirm = ScalarValue::text($payload['admin_password_confirm'] ?? '');
 
                 if ($applicationState['site_name'] === '' || $applicationState['site_host'] === '') {
                     $errors[] = ['key' => 'errors.site_required'];
@@ -368,7 +370,7 @@ final class InstallController
                 }
             }
 
-            $databaseState['password'] = $databaseState['password'] ?? '';
+            $databaseState['password'] = ScalarValue::text($databaseState['password'] ?? '');
             $this->installerService->writeState([
                 'step' => $step,
                 'database' => $databaseState,
@@ -417,7 +419,7 @@ final class InstallController
     }
 
     #[Route(path: '/install/debug', name: 'public_install_debug', methods: ['GET'])]
-    public function debugReport(Request $request): Response
+    public function debugReport(): Response
     {
         if ($this->installerService->isLocked()) {
             return new Response('', Response::HTTP_FORBIDDEN);
@@ -455,6 +457,7 @@ final class InstallController
 
     /**
      * @param array<string, mixed> $databaseState
+     * @return array{key: string, params?: array<string, string>}
      */
     private function resolveDatabaseMigrationError(array $databaseState, \Throwable $exception): array
     {
@@ -476,7 +479,7 @@ final class InstallController
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return array{key: string, params: array<string, string>}|null
      */
     private function resolvePhpVersionRequirementError(\Throwable $exception): ?array
     {
@@ -524,8 +527,8 @@ final class InstallController
      */
     private function resolveDriverExtension(array $databaseState): string
     {
-        $driver = $databaseState['driver'] ?? null;
-        $driverName = is_string($driver) && $driver !== '' ? $driver : 'pdo_mysql';
+        $driver = ScalarValue::text($databaseState['driver'] ?? null);
+        $driverName = $driver !== '' ? $driver : 'pdo_mysql';
 
         return match ($driverName) {
             'mysqli' => 'mysqli',

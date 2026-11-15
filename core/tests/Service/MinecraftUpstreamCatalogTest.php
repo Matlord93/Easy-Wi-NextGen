@@ -97,4 +97,85 @@ final class MinecraftUpstreamCatalogTest extends TestCase
         $this->expectException(\RuntimeException::class);
         iterator_to_array($provider->entries('paper'));
     }
+    public function testMalformedVanillaRowsAreIgnoredWithoutArrayConversionWarnings(): void
+    {
+        $provider = $this->provider([
+            'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json' => ['versions' => [
+                'invalid row',
+                ['id' => ['invalid'], 'url' => 'https://piston-meta.mojang.com/ignored.json'],
+                ['id' => '1.21', 'url' => 'https://piston-meta.mojang.com/valid.json'],
+            ]],
+            'https://piston-meta.mojang.com/valid.json' => ['downloads' => ['server' => ['url' => 'https://piston-data.mojang.com/server.jar']]],
+        ]);
+
+        $entries = iterator_to_array($provider->entries('vanilla'));
+
+        self::assertCount(1, $entries);
+        self::assertSame('1.21', $entries[0]['version']);
+    }
+
+    public function testPaperDeduplicatesGroupedVersionsAndRequestsEachBuildListOnce(): void
+    {
+        $requests = [];
+        $base = 'https://fill.papermc.io/v3/projects/paper';
+        $http = new MockHttpClient(static function (string $method, string $url) use (&$requests, $base): MockResponse {
+            $requests[] = $url;
+            $data = $url === $base
+                ? ['versions' => ['1.21' => ['1.21.1', '1.21.1'], 'other' => ['1.21.1', null, ['invalid']]]]
+                : ['builds' => [['id' => 1, 'downloads' => ['server:default' => ['url' => 'https://fill-data.papermc.io/server.jar']]]]];
+
+            return new MockResponse(json_encode($data, JSON_THROW_ON_ERROR));
+        });
+        $provider = new MinecraftUpstreamCatalog($http, new ArrayAdapter());
+
+        self::assertCount(1, iterator_to_array($provider->entries('paper')));
+        self::assertSame([$base, $base.'/versions/1.21.1/builds'], $requests);
+    }
+
+    public function testBuildToolsDigestIsComputedFromUnbufferedChunks(): void
+    {
+        $chunksRead = 0;
+        $binaryRequests = 0;
+        $http = new MockHttpClient(static function (string $method, string $url, array $options) use (&$chunksRead, &$binaryRequests): MockResponse {
+            if (str_ends_with($url, '/BuildTools.jar')) {
+                self::assertFalse($options['buffer']);
+                ++$binaryRequests;
+                $body = static function () use (&$chunksRead): \Generator {
+                    ++$chunksRead;
+                    yield 'first chunk';
+                    ++$chunksRead;
+                    yield 'second chunk';
+                };
+
+                return new MockResponse($body());
+            }
+            if (str_ends_with($url, '/versions/')) {
+                return new MockResponse('<a href="1.21.1.json">1.21.1</a>');
+            }
+            $data = str_ends_with($url, '/1.21.1.json') ? ['javaVersions' => [65]] : ['number' => 200];
+
+            return new MockResponse(json_encode($data, JSON_THROW_ON_ERROR));
+        });
+        $provider = new MinecraftUpstreamCatalog($http, new ArrayAdapter());
+
+        $entry = iterator_to_array($provider->entries('spigot'))[0];
+        $cachedEntry = iterator_to_array($provider->entries('spigot'))[0];
+
+        self::assertSame(hash('sha256', 'first chunksecond chunk'), $entry['sha256']);
+        self::assertSame($entry, $cachedEntry);
+        self::assertSame(2, $chunksRead);
+        self::assertSame(1, $binaryRequests);
+    }
+
+    public function testInvalidCachedMetadataIsRejectedAtTheBoundary(): void
+    {
+        $cache = $this->createStub(\Symfony\Contracts\Cache\CacheInterface::class);
+        $cache->method('get')->willReturn('invalid cached metadata');
+        $provider = new MinecraftUpstreamCatalog(new MockHttpClient(), $cache);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Invalid cached upstream metadata.');
+        iterator_to_array($provider->entries('vanilla'));
+    }
+
 }

@@ -967,6 +967,7 @@ SQL
 
 configure_nginx() {
   local family="$1" server_name="$2" web_root="$3" php_fpm_socket="$4"
+  local console_origin="${5:-}"
   local conf_dir; conf_dir="$(detect_nginx_conf_dir "${family}")"
   local enabled_dir; enabled_dir="$(detect_nginx_enabled_dir "${family}")"
   local config_file="${conf_dir}/easywi.conf"
@@ -1009,9 +1010,11 @@ NGINX
   # Reuse the panel reverse proxy for event-driven agent consoles; no relay daemon.
   local console_setup="${web_root%/public}/tools/console/configure-live-console.py"
   if [[ -f "${console_setup}" ]]; then
-    python3 "${console_setup}" --core "${web_root%/public}" --vhost "${config_file}" --php-fpm "${php_fpm_socket}"
+    local -a console_args=()
+    [[ -n "${console_origin}" ]] && console_args+=(--origin "${console_origin}")
+    python3 "${console_setup}" --core "${web_root%/public}" --vhost "${config_file}" --php-fpm "${php_fpm_socket}" "${console_args[@]}"
   else
-    warn "Live-Konsole: Konfigurationsskript fehlt im Release (${console_setup})."
+    fatal "Live-Konsole: Konfigurationsskript fehlt im Release (${console_setup})."
   fi
 
   # Debian/Ubuntu use symlinks
@@ -1222,15 +1225,12 @@ detect_existing_php_fpm_socket() {
 
 update_default_uri() {
   local env_path="$1" default_uri="$2"
-  local contents="" line
-  line="DEFAULT_URI=${default_uri}"
-  [[ -f "${env_path}" ]] && contents="$(cat "${env_path}")"
-
-  if [[ "${contents}" =~ (^|$'\n')DEFAULT_URI= ]]; then
-    printf '%s\n' "${contents}" | sed "s#^DEFAULT_URI=.*#${line}#" > "${env_path}"
-  else
-    { [[ -n "${contents}" ]] && printf '%s\n' "${contents}"; printf '%s\n' "${line}"; } > "${env_path}"
-  fi
+  local contents=""
+  [[ -f "${env_path}" ]] && contents="$(sed '/^DEFAULT_URI=/d; /^CONSOLE_PUBLIC_ORIGIN=/d' "${env_path}")"
+  {
+    [[ -n "${contents}" ]] && printf '%s\n' "${contents}"
+    printf 'DEFAULT_URI=%s\nCONSOLE_PUBLIC_ORIGIN=%s\n' "${default_uri}" "${default_uri}"
+  } > "${env_path}"
 }
 
 # ---------------------------------------------------------------------------
@@ -1279,6 +1279,7 @@ APP_ENV=prod
 APP_SECRET="${app_secret}"
 DATABASE_URL="${db_url}"
 DEFAULT_URI=${default_uri}
+CONSOLE_PUBLIC_ORIGIN=${default_uri}
 MESSENGER_TRANSPORT_DSN=${messenger_dsn}
 MAILER_DSN=${mailer_dsn}
 REDIS_DSN=redis://127.0.0.1:6379
@@ -2789,6 +2790,11 @@ install_agent_binaries() {
   ok "easywi-agent installiert: /usr/local/bin/easywi-agent"
 
   command -v easywi-agent >/dev/null || fatal "easywi-agent nicht im PATH nach Installation."
+  if has_systemctl && systemctl is-active --quiet easywi-vm-console.service 2>/dev/null; then
+    if ! systemctl restart easywi-vm-console.service; then
+      warn "VM-Konsolen-Gateway konnte nach dem Binary-Update nicht neu gestartet werden."
+    fi
+  fi
 
 }
 
@@ -3047,6 +3053,38 @@ prepare_agent_dirs() {
 # Panel install core logic
 # ---------------------------------------------------------------------------
 
+configure_panel_vm_console() {
+  local core_dir="$1" public_origin="$2" agent_version="$3" php_bin="$4" web_user="$5"
+  local vm_setup="${core_dir}/tools/console/setup-vm-console.sh"
+  local vm_agent="${EASYWI_VM_CONSOLE_AGENT_BINARY:-/usr/local/bin/easywi-agent}"
+  if ! has_systemctl; then
+    warn "VM-Konsole: automatisches Gateway-Setup benötigt systemd."
+    return 0
+  fi
+  if [[ "${public_origin}" != https://* && "${public_origin}" != http://127.0.0.1* && "${public_origin}" != 'http://[::1]'* ]]; then
+    warn "VM-Konsole: öffentlichen HTTPS-Panel-Origin einrichten; anschließend ${vm_setup} ${core_dir} https://PANEL-DOMAIN ausführen."
+    return 0
+  fi
+  if [[ ! -f "${vm_setup}" ]]; then
+    warn "VM-Konsole: Setup-Helfer fehlt im Release. Panel-Release aktualisieren."
+    return 0
+  fi
+  # A panel-only host needs the executable, not a registered/running node agent.
+  if [[ ! -x "${vm_agent}" ]]; then
+    if ! (install_agent_binaries "$(detect_arch_suffix)" "${agent_version}"); then
+      warn "VM-Konsole: Gateway-Binary konnte nicht bereitgestellt werden. ${vm_setup} später erneut ausführen."
+      return 0
+    fi
+  fi
+  local vm_vhost="$(detect_nginx_conf_dir "$(detect_os_family)")/easywi.conf"
+  local vm_php_path; vm_php_path="$(command -v "${php_bin}")"
+  if EASYWI_VM_CONSOLE_WEB_USER="${web_user}" bash "${vm_setup}" "${core_dir}" "${public_origin}" "" "${vm_agent}" "${vm_vhost}" "${vm_php_path}"; then
+    ok "VM-Konsole: Gateway, Panel-Konfiguration und WebSocket-Route eingerichtet."
+  else
+    warn "VM-Konsole konnte nicht vollständig eingerichtet werden. Voraussetzungen prüfen und ${vm_setup} erneut ausführen; bestehende VMs bleiben unverändert."
+  fi
+}
+
 install_panel() {
   local install_dir="$1" _repo_url="$2" release_version="$3"
   local db_driver="$4" db_system="$5" db_root_pw="$6"
@@ -3126,8 +3164,30 @@ install_panel() {
 
   [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]] && web_scheme="https"
 
-  local default_uri="${web_scheme}://${web_hostname}"
-  [[ "${web_hostname}" == "_" ]] && default_uri="${web_scheme}://localhost"
+  local suggested_host="${web_hostname}" default_uri="${EASYWI_PANEL_ORIGIN:-}"
+  if [[ "${suggested_host}" == "_" ]]; then
+    suggested_host="$(detect_primary_ipv4)"
+  fi
+  local suggested_origin=""
+  [[ -n "${suggested_host}" ]] && suggested_origin="${web_scheme}://${suggested_host}"
+  prompt_value default_uri "Öffentliche Panel-Adresse (wie im Browser, z.B. http://192.168.178.46)" "${suggested_origin}"
+  default_uri="${default_uri:-${suggested_origin}}"
+  default_uri="${default_uri%/}"
+  python3 - "${default_uri}" <<'PY_PANEL_ORIGIN' || fatal "Ungültige Panel-Adresse. EASYWI_PANEL_ORIGIN auf die tatsächliche http(s)://Adresse setzen."
+import re
+import sys
+from urllib.parse import urlsplit
+origin = sys.argv[1]
+try:
+    url = urlsplit(origin)
+    valid = (url.scheme in ('http', 'https') and url.hostname and url.hostname != '_'
+             and not (url.username or url.password or url.path or url.query or url.fragment)
+             and not re.search(r"[\s\x00-\x1f\x7f\"'#$]", origin))
+    url.port
+except ValueError:
+    valid = False
+sys.exit(0 if valid else 1)
+PY_PANEL_ORIGIN
 
   # Write the runtime configuration before installing dependencies so manual
   # Symfony maintenance commands can boot in prod. Composer auto-scripts are
@@ -3151,7 +3211,7 @@ install_panel() {
   preflight_panel_update_paths "${install_dir}" "${core_dir}" "$(detect_web_user)"
   configure_php_fpm_easywi_sandbox "${PHP_FPM_SERVICE}"
 
-  configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
+  configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}" "${default_uri}"
 
   if [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]]; then
     if setup_certbot "${manager}" "${web_hostname}" "${ssl_email}"; then
@@ -3195,6 +3255,7 @@ install_panel() {
 
   write_panel_messenger_service        "${php_bin}" "${core_dir}/bin/console" "${core_dir}" "${system_user}" "${web_group}"
   write_panel_scheduler_service        "${php_bin}" "${core_dir}/bin/console" "${core_dir}" "${system_user}" "${web_group}"
+  configure_panel_vm_console           "${core_dir}" "${default_uri}" "${release_version}" "${php_bin}" "${system_user}"
   ok "Die Live-Konsole verwendet den Agent direkt; ein separater Console-Relay wird nicht aktiviert."
   write_panel_console_wrapper          "${php_bin}" "${core_dir}/bin/console"
   write_panel_cron                     "${php_bin}" "${core_dir}/bin/console" "${system_user}"
@@ -3754,21 +3815,12 @@ HDR
 
   # ── Schritt 2: Agent gegen das soeben installierte Panel registrieren ────
   # Bootstrap-Call geht immer gegen 127.0.0.1 – kein DNS nötig, Panel läuft bereits.
-  # Die echte Panel-URL kommt in agent.conf als api_url; bei Wildcard-Hostname
-  # wird die primäre Server-IP ermittelt, damit der Agent das Panel auch von
-  # anderen Hosts aus erreichen kann.
+  # Reuse the exact public origin selected during panel setup, including
+  # explicit overrides for multi-interface hosts and external proxies.
   local bootstrap_url="http://127.0.0.1"
-  local real_panel_url="${web_scheme}://${web_hostname}"
-  if [[ "${web_hostname}" == "_" ]]; then
-    local server_ip
-    server_ip="$(detect_primary_ipv4)"
-    if [[ -n "${server_ip}" ]]; then
-      real_panel_url="${web_scheme}://${server_ip}"
-    else
-      real_panel_url="http://127.0.0.1"
-      warn "Server-IP konnte nicht ermittelt werden – api_url fällt auf 127.0.0.1 zurück."
-    fi
-  fi
+  local real_panel_url
+  real_panel_url="$(sed -n 's/^DEFAULT_URI=//p' "${install_dir}/core/.env.local" | tail -n1)"
+  [[ -n "${real_panel_url}" ]] || fatal "Öffentliche Panel-Adresse fehlt nach der Installation."
 
   menu_output <<'HDR'
 
@@ -4297,9 +4349,15 @@ INFO
   manager="$(detect_package_manager)"
 
   service_enable_start nginx
-  configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${php_fpm_socket}"
+  configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${php_fpm_socket}" "https://${web_hostname}"
   setup_certbot "${manager}" "${web_hostname}" "${ssl_email}" || fatal "SSL-Zertifikat konnte nicht ausgestellt werden."
   update_default_uri "${core_dir}/.env.local" "https://${web_hostname}"
+  if [[ -f "${core_dir}/.env.local.php" ]]; then
+    run_composer dump-env prod --working-dir "${core_dir}"
+  fi
+  local php_bin="php" web_user
+  web_user="$(detect_web_user)"
+  runuser -u "${web_user}" -- "${php_bin}" "${core_dir}/bin/console" cache:clear --env=prod --no-debug
 
   ok "Panel-SSL wurde nachträglich eingerichtet. DEFAULT_URI=https://${web_hostname}"
 }

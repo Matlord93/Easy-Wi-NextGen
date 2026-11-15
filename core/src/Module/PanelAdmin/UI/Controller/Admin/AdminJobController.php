@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -203,9 +205,10 @@ final class AdminJobController
         ];
     }
 
+    /** @param Job[] $jobs */
     private function normalizeJobs(array $jobs): array
     {
-        return array_map(static function ($job): array {
+        return array_map(static function (Job $job): array {
             return [
                 'id' => $job->getId(),
                 'type' => $job->getType(),
@@ -223,7 +226,7 @@ final class AdminJobController
             'id' => $job->getId(),
             'type' => $job->getType(),
             'status' => $job->getStatus()->value,
-            'payload' => $this->jobPayloadMasker->maskPayload($job->getPayload()),
+            'payload' => JsonArray::orEmpty($this->jobPayloadMasker->maskValue($job->getPayload())),
             'createdAt' => $job->getCreatedAt(),
             'updatedAt' => $job->getUpdatedAt(),
             'lockedBy' => $job->getLockedBy(),
@@ -249,28 +252,45 @@ final class AdminJobController
             return [];
         }
 
-        $output = $this->jobPayloadMasker->maskValue($result->getOutput());
+        $output = JsonArray::orEmpty($this->jobPayloadMasker->maskValue($result->getOutput()));
         $lines = [];
+        $log = $this->optionalString($output['log'] ?? null);
+        $logs = JsonArray::fromValue($output['logs'] ?? null);
 
-        if (isset($output['log']) && is_string($output['log'])) {
-            $lines = preg_split('/\r\n|\r|\n/', $output['log']);
-        } elseif (isset($output['logs']) && is_array($output['logs'])) {
-            $lines = array_values(array_map('strval', $output['logs']));
+        if ($log !== null) {
+            $lines = $this->splitLogLines($log);
+        } elseif ($logs !== null) {
+            $lines = array_values(array_map(static fn (mixed $line): string => ScalarValue::text($line), $logs));
         } elseif (isset($output['stdout']) || isset($output['stderr'])) {
             foreach (['stdout' => 'STDOUT', 'stderr' => 'STDERR'] as $key => $label) {
-                if (isset($output[$key]) && is_string($output[$key]) && $output[$key] !== '') {
-                    $sectionLines = preg_split('/\r\n|\r|\n/', $output[$key]);
+                $section = $this->optionalString($output[$key] ?? null);
+                if ($section !== null && $section !== '') {
+                    $sectionLines = $this->splitLogLines($section);
                     $lines[] = sprintf('--- %s ---', $label);
                     $lines = array_merge($lines, $sectionLines);
                 }
             }
         } else {
-            $lines = preg_split('/\r\n|\r|\n/', json_encode($output, JSON_PRETTY_PRINT) ?: '');
+            $encoded = json_encode($output, JSON_PRETTY_PRINT);
+            $lines = $this->splitLogLines($encoded === false ? '' : $encoded);
         }
 
         $lines = array_values(array_filter(array_map('trim', $lines), static fn ($line) => $line !== ''));
 
         return array_slice($lines, -200);
+    }
+
+    /** @return list<string> */
+    private function splitLogLines(string $text): array
+    {
+        $lines = preg_split('/\r\n|\r|\n/', $text);
+
+        return $lines === false ? [] : $lines;
+    }
+
+    private function optionalString(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     /**
@@ -303,6 +323,7 @@ final class AdminJobController
         ];
     }
 
+    /** @return array{errors: list<string>, type: string, payload: array<array-key, mixed>, payload_raw: string} */
     private function parseJobPayload(Request $request): array
     {
         $errors = [];

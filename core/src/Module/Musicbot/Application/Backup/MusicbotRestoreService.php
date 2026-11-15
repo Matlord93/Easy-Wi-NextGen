@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Musicbot\Application\Backup;
 
 use App\Module\Musicbot\Domain\Entity\MusicbotAutoDjSettings;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlaylist;
@@ -104,7 +107,7 @@ final class MusicbotRestoreService
             return;
         }
 
-        $config = (array) ($instanceData['instance_config'] ?? []);
+        $config = JsonMap::fromValue($instanceData['instance_config'] ?? null) ?? [];
 
         foreach (self::EXCLUDED_CONFIG_FIELDS as $field) {
             unset($config[$field]);
@@ -120,7 +123,7 @@ final class MusicbotRestoreService
 
             foreach (self::EXCLUDED_CONFIG_FIELDS as $field) {
                 if (isset($existing[$field])) {
-                    $merged[$field] = $existing[$field];
+                    self::setField($merged, $field, $existing[$field]);
                 }
             }
 
@@ -153,8 +156,8 @@ final class MusicbotRestoreService
                     }
                 }
 
-                $connectionConfig = (array) ($connData['connection_config'] ?? []);
-                $secretConfig = (array) ($connData['secret_config'] ?? []);
+                $connectionConfig = JsonMap::fromValue($connData['connection_config'] ?? null) ?? [];
+                $secretConfig = JsonMap::fromValue($connData['secret_config'] ?? null) ?? [];
 
                 if ($existing !== null) {
                     $existing->setConnectionConfig($connectionConfig);
@@ -208,12 +211,14 @@ final class MusicbotRestoreService
                 }
 
                 $playlist->setVisibility($visibility);
-                $playlist->setDescription(is_string($plData['description'] ?? null) ? $plData['description'] : null);
+                $playlist->setDescription(self::optionalText($plData['description'] ?? null));
                 $playlist->setSortOrder((int) ($plData['sort_order'] ?? 0));
                 $this->entityManager->flush();
 
-                foreach ((array) ($plData['items'] ?? []) as $itemData) {
-                    if (!is_array($itemData)) {
+                $itemsData = (array) ($plData['items'] ?? []);
+                foreach (array_keys($itemsData) as $itemIndex) {
+                    $itemData = JsonArray::fromValue($itemsData[$itemIndex]);
+                    if ($itemData === null) {
                         continue;
                     }
 
@@ -223,7 +228,7 @@ final class MusicbotRestoreService
                     if ($track === null) {
                         $warnings[] = sprintf(
                             'Track "%s" (sha256: %s) not found for playlist "%s".',
-                            $itemData['track_title'] ?? '',
+                            ScalarValue::text($itemData['track_title'] ?? ''),
                             $sha256,
                             $name,
                         );
@@ -241,7 +246,7 @@ final class MusicbotRestoreService
 
                     if (!$alreadyExists) {
                         $item = new MusicbotPlaylistItem($playlist, $track, (int) ($itemData['position'] ?? 0));
-                        $item->setMetadata((array) ($itemData['metadata'] ?? []));
+                        $item->setMetadata(JsonMap::fromValue($itemData['metadata'] ?? null) ?? []);
                         $this->entityManager->persist($item);
                     }
                 }
@@ -283,12 +288,12 @@ final class MusicbotRestoreService
                 if ($existing === null) {
                     $station = new MusicbotRadioStation($instance->getCustomer(), $name, $url);
                     $station->setInstance($instance);
-                    $station->setGenre(is_string($stData['genre'] ?? null) ? $stData['genre'] : null);
-                    $station->setDescription(is_string($stData['description'] ?? null) ? $stData['description'] : null);
-                    $station->setHomepage(is_string($stData['homepage'] ?? null) ? $stData['homepage'] : null);
-                    $station->setLogoUrl(is_string($stData['logo_url'] ?? null) ? $stData['logo_url'] : null);
-                    $station->setCountry(is_string($stData['country'] ?? null) ? $stData['country'] : null);
-                    $station->setLanguage(is_string($stData['language'] ?? null) ? $stData['language'] : null);
+                    $station->setGenre(self::optionalText($stData['genre'] ?? null));
+                    $station->setDescription(self::optionalText($stData['description'] ?? null));
+                    $station->setHomepage(self::optionalText($stData['homepage'] ?? null));
+                    $station->setLogoUrl(self::optionalText($stData['logo_url'] ?? null));
+                    $station->setCountry(self::optionalText($stData['country'] ?? null));
+                    $station->setLanguage(self::optionalText($stData['language'] ?? null));
                     $this->entityManager->persist($station);
                     $this->entityManager->flush();
                 }
@@ -363,8 +368,8 @@ final class MusicbotRestoreService
                 }
 
                 $plugin->setEnabled((bool) ($pluginData['enabled'] ?? false));
-                $plugin->setConfig((array) ($pluginData['config'] ?? []));
-                $plugin->setPermissions((array) ($pluginData['permissions'] ?? []));
+                $plugin->setConfig(JsonMap::fromValue($pluginData['config'] ?? null) ?? []);
+                $plugin->setPermissions(JsonMap::fromValue($pluginData['permissions'] ?? null) ?? []);
 
                 $this->entityManager->flush();
             }
@@ -374,4 +379,19 @@ final class MusicbotRestoreService
 
         return $count;
     }
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * @template TValue
+     * @param array<string, TValue> $fields
+     * @param TValue $value
+     */
+    private static function setField(array &$fields, string $key, mixed $value): void
+    {
+        $fields[$key] = $value;
+    }
+
 }

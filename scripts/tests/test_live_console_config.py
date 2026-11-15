@@ -46,6 +46,23 @@ class ConsoleConfigTest(unittest.TestCase):
                 module.configure(args)
             self.assertEqual(vhost.read_text(), before)
 
+    def test_origin_uses_local_default_and_explicit_override(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            core = base / 'core'
+            (core / 'public').mkdir(parents=True)
+            (core / '.env').write_text('DEFAULT_URI=http://localhost\n')
+            (core / '.env.local').write_text('DEFAULT_URI=http://192.168.178.46\n')
+            vhost = base / 'panel.conf'
+            vhost.write_text('server {\n root ' + str(core / 'public') + ';\n}\n')
+            args = argparse.Namespace(core=str(core), vhost=str(vhost), php_fpm='/run/php/php8.5-fpm.sock', origin=None, resolver=['127.0.0.1'], ca_bundle='/etc/ssl/certs/ca-certificates.crt', fastcgi_params='/etc/nginx/fastcgi_params')
+            with contextlib.redirect_stdout(io.StringIO()):
+                module.configure(args)
+                self.assertEqual(module.env_value((core / '.env.local').read_text(), 'CONSOLE_PUBLIC_ORIGIN'), 'http://192.168.178.46')
+                args.origin = 'https://panel.example.test'
+                module.configure(args)
+            self.assertEqual(module.env_value((core / '.env.local').read_text(), 'CONSOLE_PUBLIC_ORIGIN'), 'https://panel.example.test')
+
 
 if __name__ == '__main__':
     unittest.main()

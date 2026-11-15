@@ -6,6 +6,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 bash -n "$repo_root/installer/linux-agent/install-agent.sh"
 bash -n "$repo_root/installer/easywi-installer-menu-linux.sh"
 python3 "$repo_root/installer/tests/test-agent-service-security.py"
+python3 "$repo_root/installer/tests/test-panel-origin.py"
+python3 "$repo_root/core/tools/console/test_vm_console_setup.py"
+python3 "$repo_root/installer/tests/test-vm-console-integration.py"
 
 
 python3 - "$repo_root/installer/easywi-installer-menu-linux.sh" <<'PY_PHP85_TESTS'

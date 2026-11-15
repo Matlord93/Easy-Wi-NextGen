@@ -10,6 +10,7 @@ use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Nodes\Application\Kvm\KvmPanelService;
 use App\Module\Nodes\Application\Proxmox\ProxmoxApiClient;
 use App\Module\Nodes\Application\Proxmox\ProxmoxManager;
@@ -44,6 +45,56 @@ final readonly class VmConsoleBroker
     public function configured(): bool
     {
         return strlen($this->gatewaySecret ?? '') >= 32;
+    }
+
+    public function unavailableReason(?array $guest, ?Agent $node = null): ?string
+    {
+        if (!$this->configured()) {
+            return 'console.not_configured';
+        }
+        if ($node && 1 !== ($node->getMetadata()['kvm_managed']['console_version'] ?? null)) {
+            return 'console.agent_update';
+        }
+        if ($node && $this->kvm->availability($node)) {
+            return 'console.node_unavailable';
+        }
+        if ($node && !$this->kvmTransportAvailable($node)) {
+            return 'console.transport_required';
+        }
+        if (!$guest || !empty($guest['template'])) {
+            return 'console.vm_unavailable';
+        }
+        if ('running' !== ($guest['state'] ?? $guest['status'] ?? null)) {
+            return 'console.vm_stopped';
+        }
+        if ($node && false === ($guest['console_enabled'] ?? null)) {
+            return 'console.prepare_required';
+        }
+
+        return null;
+    }
+
+    public function kvmTransportAvailable(Agent $node): bool
+    {
+        try {
+            $this->kvmConsoleBase($node);
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function kvmConsoleBase(Agent $node): string
+    {
+        $base = rtrim($this->endpoints->resolveForAgent($node)->getBaseUrl(), '/');
+        $parts = parse_url($base);
+        $scheme = strtolower($parts['scheme'] ?? '');
+        if (!is_array($parts) || empty($parts['host']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || ('https' !== $scheme && !('http' === $scheme && in_array($parts['host'], ['127.0.0.1', '[::1]', '::1'], true)))) {
+            throw new \RuntimeException('KVM console requires HTTPS or loopback HTTP.');
+        }
+
+        return $scheme.substr($base, strpos($base, ':'));
     }
 
     public function assertGateway(Request $request): void
@@ -128,11 +179,7 @@ final readonly class VmConsoleBroker
 
             return ['session_id' => $grant->getId(), 'expires_at' => $grant->getExpiresAt()->getTimestamp(), 'url' => $url, 'authorization' => 'PVEAPIToken='.$connection->tokenId.'='.$connection->tokenSecret, 'password' => $vnc['ticket'], 'skip_tls_verify' => !$connection->verifyTls];
         }
-        $base = rtrim($this->endpoints->resolveForAgent($assignment->getNode())->getBaseUrl(), '/');
-        $host = parse_url($base, PHP_URL_HOST);
-        if ('https' !== parse_url($base, PHP_URL_SCHEME) && !('http' === parse_url($base, PHP_URL_SCHEME) && in_array($host, ['127.0.0.1', '[::1]', '::1'], true))) {
-            throw new \RuntimeException('KVM console requires HTTPS or loopback HTTP.');
-        }
+        $base = $this->kvmConsoleBase($assignment->getNode());
         $url = preg_replace('/^http/', 'ws', $base).'/v1/kvm/console/'.$assignment->getVmUuid();
 
         return ['session_id' => $grant->getId(), 'expires_at' => $grant->getExpiresAt()->getTimestamp(), 'url' => $url, 'authorization' => 'Bearer '.$this->credentials->resolveForAgent($assignment->getNode())->getSecret(), 'password' => ''];

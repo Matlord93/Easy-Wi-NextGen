@@ -6,9 +6,9 @@ namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
-
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
-
 use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
@@ -33,9 +33,7 @@ use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\GithubReleaseAssetUrlResolver;
-use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\BackupTargetRepository;
@@ -72,7 +70,6 @@ final class CustomerInstanceActionApiController
         private readonly BackupRepository $backupRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
         private readonly GamePluginRepository $gamePluginRepository,
-        private readonly PortBlockRepository $portBlockRepository,
         private readonly JobRepository $jobRepository,
         private readonly JobLogRepository $jobLogRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
@@ -82,7 +79,6 @@ final class CustomerInstanceActionApiController
         private readonly SetupChecker $setupChecker,
         private readonly AppSettingsService $appSettingsService,
         private readonly MinecraftCatalogService $minecraftCatalogService,
-        private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly TemplateRepository $templateRepository,
         #[Autowire(service: 'limiter.instance_console_commands')]
@@ -173,7 +169,7 @@ final class CustomerInstanceActionApiController
             ]);
 
             return $this->apiOk($request, [
-                'current_state' => strtolower($instance->getStatus()->value),
+                'current_state' => $instance->getStatus()->value,
                 'desired_state' => $action === 'stop' ? 'stopped' : 'running',
                 'transition' => true,
                 'job_id' => $existingJob->getId(),
@@ -214,7 +210,7 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $instanceState = strtolower($instance->getStatus()->value);
+        $instanceState = $instance->getStatus()->value;
         if (($action === 'start' && $instance->getStatus() === InstanceStatus::Running) || ($action === 'stop' && $instance->getStatus() === InstanceStatus::Stopped)) {
             $this->auditLogger->log($customer, 'instance.power.noop', [
                 'instance_id' => $instance->getId(),
@@ -237,7 +233,7 @@ final class CustomerInstanceActionApiController
             'action' => $action,
         ];
         if (in_array($action, ['start', 'restart'], true)) {
-            $jobPayload = array_merge($this->instanceJobPayloadBuilder->buildRuntimePayload($instance), $jobPayload);
+            $jobPayload = array_merge(JsonMap::fromValue($this->instanceJobPayloadBuilder->buildRuntimePayload($instance)) ?? [], $jobPayload);
         }
         $message = new InstanceActionMessage(sprintf('instance.%s', $action), EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $jobPayload);
 
@@ -257,9 +253,8 @@ final class CustomerInstanceActionApiController
             'job_id' => $result['job_id'],
         ]);
 
-        $supportsSharedStorage = $this->supportsSharedStorage($instance);
         return $this->apiOk($request, [
-            'current_state' => strtolower($instance->getStatus()->value),
+            'current_state' => $instance->getStatus()->value,
             'desired_state' => $action === 'stop' ? 'stopped' : 'running',
             'transition' => true,
             'job_id' => $result['job_id'],
@@ -653,7 +648,7 @@ final class CustomerInstanceActionApiController
 
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
-            'instance_status' => strtolower($instance->getStatus()->value),
+            'instance_status' => $instance->getStatus()->value,
             'backup_supported' => true,
             'supports_backup_download' => true,
             'supports_backup_mode' => true,
@@ -723,7 +718,8 @@ final class CustomerInstanceActionApiController
                 echo $chunk;
             }
         });
-        $response->headers->set('Content-Type', $download['content_type'] ?: 'application/gzip');
+        $contentType = $download['content_type'];
+        $response->headers->set('Content-Type', $contentType !== null && $contentType !== '' && $contentType !== '0' ? $contentType : 'application/gzip');
         $response->headers->set('Content-Disposition', $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $downloadName));
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Request-ID', $this->resolveRequestId($request));
@@ -751,12 +747,13 @@ final class CustomerInstanceActionApiController
         $versions = [];
         $channel = MinecraftCatalogService::channelFromResolver($instance);
         if ($channel !== null) {
-            $catalog = $this->minecraftCatalogService->getUiCatalog($channel)[$channel];
-            $versions = array_values(array_filter($catalog['versions'], static fn (string $version): bool => ($catalog['release_types'][$version] ?? 'release') === 'release'));
+            $catalog = JsonArray::orEmpty($this->minecraftCatalogService->getUiCatalog($channel)[$channel] ?? null);
+            $releaseTypes = JsonArray::orEmpty($catalog['release_types'] ?? null);
+            $versions = array_values(array_filter(array_filter(JsonArray::orEmpty($catalog['versions'] ?? null), 'is_string'), static fn (string $version): bool => ($releaseTypes[$version] ?? 'release') === 'release'));
         }
 
         foreach ($versions as $version) {
-            if (!is_string($version) || trim($version) === '') {
+            if (trim($version) === '') {
                 continue;
             }
             $options[] = [
@@ -928,7 +925,7 @@ final class CustomerInstanceActionApiController
 
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
-            'instance_status' => strtolower($instance->getStatus()->value),
+            'instance_status' => $instance->getStatus()->value,
             'tasks_supported' => true,
         ]);
     }
@@ -1127,7 +1124,7 @@ final class CustomerInstanceActionApiController
         ]);
 
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
-        $data = json_decode((string) $response->getContent(), true);
+        $data = JsonArray::decode((string) $response->getContent());
         if (is_array($data) && is_string($data['job_id'] ?? null)) {
             $this->auditLogger->log($customer, 'instance.console.command_queued', [
                 'instance_id' => $instance->getId(),
@@ -1309,7 +1306,7 @@ final class CustomerInstanceActionApiController
         $liveOutputStatus = 'ok';
         $liveOutputMessage = null;
 
-        if (isset($this->consoleStreamDiagnostics) && $this->consoleStreamDiagnostics instanceof ConsoleStreamDiagnostics) {
+        if (isset($this->consoleStreamDiagnostics)) {
             if ($this->consoleStreamDiagnostics->isNullClient()) {
                 $supportsLiveOutput = false;
                 $liveOutputStatus = 'backend_not_configured';
@@ -1334,7 +1331,7 @@ final class CustomerInstanceActionApiController
             try {
                 $logsPayload = $this->agentGameServerClient->getConsoleLogs($instance);
                 $logsData = AgentGameServerClient::unwrapAgentEnvelope($logsPayload);
-                $session = is_array($logsData['session'] ?? null) ? $logsData['session'] : (JsonArray::orEmpty($logsData['meta'] ?? null));
+                $session = JsonArray::fromValue($logsData['session'] ?? null) ?? JsonArray::orEmpty($logsData['meta'] ?? null);
                 $logsSessionConnected = (bool) ($session['connected'] ?? false) || strtolower((string) ($session['state'] ?? '')) === 'connected';
             } catch (\Throwable) {
             }
@@ -1354,7 +1351,7 @@ final class CustomerInstanceActionApiController
 
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
-            'instance_status' => strtolower($instance->getStatus()->value),
+            'instance_status' => $instance->getStatus()->value,
             'runtime_status' => $runtimeStatus,
             'can_send_command' => $canSendCommand,
             'unit_name' => sprintf('gs-%d', EntityIdentifier::require($instance->getId())),
@@ -1560,7 +1557,7 @@ final class CustomerInstanceActionApiController
             throw new BadRequestHttpException($this->translator->trans('error_invalid_json'), $exception);
         }
 
-        return JsonArray::orEmpty($payload);
+        return JsonMap::fromValue($payload) ?? [];
     }
 
     private function instanceUsesSharedStorage(Instance $instance): bool
@@ -1704,7 +1701,7 @@ final class CustomerInstanceActionApiController
 
         return $this->responseEnvelopeFactory->success(
             $request,
-            $result['job_id'],
+            self::optionalText($result['job_id']) ?? '',
             'Addon action queued.',
             JsonResponse::HTTP_ACCEPTED,
             ['action' => $action],
@@ -1836,17 +1833,17 @@ final class CustomerInstanceActionApiController
 
         if (in_array($target->getType()->value, ['webdav', 'nextcloud'], true)) {
             $secret = [];
-            foreach ($target->getEncryptedCredentials() as $key => $value) {
-                if (is_string($key) && in_array($key, ['password', 'token', 'username'], true)
-                    && is_array($value)
-                    && is_string($value['key_id'] ?? null)
-                    && is_string($value['nonce'] ?? null)
-                    && is_string($value['ciphertext'] ?? null)
-                ) {
+            $credentials = $target->getEncryptedCredentials();
+            foreach (array_keys($credentials) as $key) {
+                if (!is_string($key) || !in_array($key, ['password', 'token', 'username'], true)) {
+                    continue;
+                }
+                $encrypted = JsonMap::strings($credentials[$key]);
+                if (isset($encrypted['key_id'], $encrypted['nonce'], $encrypted['ciphertext'])) {
                     $secret[$key] = $this->encryptionService->decrypt([
-                        'key_id' => $value['key_id'],
-                        'nonce' => $value['nonce'],
-                        'ciphertext' => $value['ciphertext'],
+                        'key_id' => $encrypted['key_id'],
+                        'nonce' => $encrypted['nonce'],
+                        'ciphertext' => $encrypted['ciphertext'],
                     ]);
                 }
             }
@@ -1889,7 +1886,7 @@ final class CustomerInstanceActionApiController
 
     private function resolveDefinition(User $customer, Instance $instance, array $payload): ?BackupDefinition
     {
-        $definitionId = $payload['definition_id'] ?? null;
+        $definitionId = self::identifier($payload['definition_id'] ?? null);
         if (is_int($definitionId) || is_string($definitionId)) {
             $definition = $this->backupDefinitionRepository->find((int) $definitionId);
             if ($definition === null) {
@@ -1926,13 +1923,13 @@ final class CustomerInstanceActionApiController
 
     private function resolveRequestedOrDefaultBackupTarget(User $customer, array $payload): ?BackupTarget
     {
-        $targetId = $payload['target_id'] ?? $payload['backup_target_id'] ?? null;
-        if (!is_scalar($targetId) || trim((string) $targetId) === '') {
+        $targetId = ScalarValue::text($payload['target_id'] ?? $payload['backup_target_id'] ?? null);
+        if (trim($targetId) === '') {
             $settings = $this->appSettingsService->getSettings();
-            $targetId = $settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID] ?? null;
+            $targetId = ScalarValue::text($settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID] ?? null);
         }
 
-        if (!is_scalar($targetId) || !is_numeric((string) $targetId)) {
+        if (!is_numeric($targetId)) {
             return null;
         }
 
@@ -2021,7 +2018,7 @@ final class CustomerInstanceActionApiController
         $limiter = $this->consoleLimiter->create($this->buildConsoleLimiterKey($request, $instance, $customer));
         $result = $limiter->consume();
         $retryAfter = $result->getRetryAfter();
-        $retrySeconds = $retryAfter === null ? 1 : max(1, $retryAfter->getTimestamp() - (new \DateTimeImmutable())->getTimestamp());
+        $retrySeconds = max(1, $retryAfter->getTimestamp() - (new \DateTimeImmutable())->getTimestamp());
 
         return [
             'accepted' => $result->isAccepted(),
@@ -2054,7 +2051,7 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'INTERNAL_ERROR', 'Invalid console response payload.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $legacyErrorCode = is_string($payload['error_code'] ?? null) ? $payload['error_code'] : null;
+        $legacyErrorCode = self::optionalText($payload['error_code'] ?? null);
         if ($statusCode >= 400 || $legacyErrorCode !== null || isset($payload['error'])) {
             $message = (string) ($payload['message'] ?? $payload['error'] ?? 'Console command failed.');
             $normalized = $this->normalizeConsoleErrorCode($legacyErrorCode, $statusCode);
@@ -2062,7 +2059,7 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, $normalized, $message, $statusCode);
         }
 
-        $jobId = is_string($payload['job_id'] ?? null) ? $payload['job_id'] : null;
+        $jobId = self::optionalText($payload['job_id'] ?? null);
         if ($jobId === null || $jobId === '') {
             return $this->apiError($request, 'INTERNAL_ERROR', 'Console command queue result missing job id.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
@@ -2127,7 +2124,7 @@ final class CustomerInstanceActionApiController
                     $running = $runtimeStatus === InstanceStatus::Running;
                     if ($running || !$commandSocketActive) {
                         return [
-                            'runtime_status' => strtolower($runtimeStatus->value),
+                            'runtime_status' => $runtimeStatus->value,
                             'running' => $running,
                             'query_status' => $queryRuntime,
                             'command_socket_active' => $commandSocketActive,
@@ -2164,9 +2161,20 @@ final class CustomerInstanceActionApiController
     }
 
 
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    private static function identifier(mixed $value): int|string|null
+    {
+        return is_int($value) || is_string($value) ? $value : null;
+    }
+
     protected function isCommandSocketActive(int $instanceId): bool
     {
-        $runtimeBase = rtrim((getenv('EASYWI_RUNTIME_DIR') ?: '/run/easywi'), '/');
+        $configuredRuntime = getenv('EASYWI_RUNTIME_DIR');
+        $runtimeBase = rtrim($configuredRuntime !== false && $configuredRuntime !== '' && $configuredRuntime !== '0' ? $configuredRuntime : '/run/easywi', '/');
         $socketPath = sprintf('%s/instances/%d/console.sock', $runtimeBase, $instanceId);
 
         return file_exists($socketPath) && (is_writable($socketPath) || is_readable($socketPath));

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Infrastructure\Config\DbConfigProvider;
+use App\Infrastructure\Config\JsonMap;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\Migrations\Configuration\Connection\ExistingConnection;
@@ -33,6 +34,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
     }
 
     /**
+     * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
     public function createJob(string $type, ?string $createdBy, array $payload = []): array
@@ -96,7 +98,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
             }
         }
 
-        return $latestPath ? $this->readJob($latestPath) : null;
+        return $latestPath !== null && $latestPath !== '' && $latestPath !== '0' ? $this->readJob($latestPath) : null;
     }
 
     /**
@@ -242,8 +244,9 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
         }
 
         $job = $this->getJob($jobId);
-        $jobLogPath = is_array($job) && is_string($job['logPath'] ?? null) && $job['logPath'] !== ''
-            ? $job['logPath']
+        $storedLogPath = self::optionalText($job['logPath'] ?? null);
+        $jobLogPath = $storedLogPath !== null && $storedLogPath !== ''
+            ? $storedLogPath
             : rtrim($this->logsDir, '/') . '/' . $jobId . '.log';
 
         $escapedCoreDir = escapeshellarg($this->coreDir);
@@ -283,13 +286,13 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
 
         $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
         $job['status'] = 'failed';
-        $job['startedAt'] = $job['startedAt'] ?? $now;
+        self::setField($job, 'startedAt', $job['startedAt'] ?? $now);
         $job['finishedAt'] = $now;
         $job['exitCode'] = 1;
         $job['error'] = $message;
         $this->writeJob($path, $job);
 
-        $logPath = is_string($job['logPath'] ?? null) ? $job['logPath'] : null;
+        $logPath = self::optionalText($job['logPath'] ?? null);
         if ($logPath !== null && $logPath !== '') {
             @file_put_contents($logPath, '[' . date('c') . '] ' . $message . PHP_EOL, FILE_APPEND);
         }
@@ -312,7 +315,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
                 return ['pending' => null, 'executedUnavailable' => null, 'error' => 'db_invalid'];
             }
             $connectionParams = $this->configProvider->toConnectionParams($payload);
-            $connection = DriverManager::getConnection($connectionParams);
+            $connection = DriverManager::getConnection(self::connectionOptions($connectionParams));
             $connection->executeQuery('SELECT 1');
         } catch (\Throwable $exception) {
             $this->logger->warning('update.migration_status_failed', [
@@ -394,7 +397,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
     private function normalizePayload(array $payload): array
     {
         if (array_key_exists('download_url', $payload) && !array_key_exists('package_url', $payload)) {
-            $payload['package_url'] = $payload['download_url'];
+            self::setField($payload, 'package_url', $payload['download_url']);
         }
 
         if (!array_key_exists('package_url', $payload) && $this->defaultPackageUrl !== null && trim($this->defaultPackageUrl) !== '') {
@@ -418,8 +421,7 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
         if ($contents === false) {
             return null;
         }
-        $decoded = json_decode($contents, true);
-        return is_array($decoded) ? $decoded : null;
+        return JsonMap::decode($contents);
     }
 
     /**
@@ -455,6 +457,40 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
         } catch (\Symfony\Component\Process\Exception\ExceptionInterface) {
             return null;
         }
+    }
+
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * @template TValue
+     * @param array<string, TValue> $fields
+     * @param TValue $value
+     */
+    private static function setField(array &$fields, string $key, mixed $value): void
+    {
+        $fields[$key] = $value;
+    }
+
+    /**
+     * @param array<string, int|string> $params
+     * @return array{driver:'pdo_mysql',host?:string,dbname?:string,user?:string,password?:string,charset?:string,serverVersion?:string,port?:int}
+     */
+    private static function connectionOptions(array $params): array
+    {
+        $options = ['driver' => 'pdo_mysql'];
+        foreach (['host', 'dbname', 'user', 'password', 'charset', 'serverVersion'] as $key) {
+            if (isset($params[$key])) {
+                $options[$key] = (string) $params[$key];
+            }
+        }
+        if (isset($params['port'])) {
+            $options['port'] = (int) $params['port'];
+        }
+
+        return $options;
     }
 
     private function buildDependencyFactory(Connection $connection): DependencyFactory

@@ -71,7 +71,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
             ->addOption('max-runtime', null, InputOption::VALUE_REQUIRED, 'Optional maximum runtime in seconds for loop mode.');
     }
 
-    /** @return list<int> */
+    /** @return list<\SIG*> */
     #[\Override]
     public function getSubscribedSignals(): array
     {
@@ -112,14 +112,14 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
                 $this->writeSchedulerHeartbeat('success');
                 $this->entityManager->clear();
 
-                if (!$loop || $this->shouldStop || $this->maxRuntimeReached($startedAt, $maxRuntimeSeconds)) {
+                if (!$loop || $this->stopRequested() || $this->maxRuntimeReached($startedAt, $maxRuntimeSeconds)) {
                     break;
                 }
 
                 $this->sleepInterruptibly($sleepSeconds);
-            } while (!$this->shouldStop);
+            } while (!$this->stopRequested());
 
-            $this->writeSchedulerHeartbeat($this->shouldStop ? 'stopped' : 'success');
+            $this->writeSchedulerHeartbeat($this->stopRequested() ? 'stopped' : 'success');
 
             return Command::SUCCESS;
         } finally {
@@ -127,7 +127,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         }
     }
 
-    private function runSchedulePass(OutputInterface $output): int
+    private function runSchedulePass(OutputInterface $output): void
     {
         // Hourly, non-destructive catalog refresh; provider failures do not stop schedules.
         try { $this->minecraftCatalogSynchronizer?->startIfDue(); }
@@ -154,6 +154,9 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
             }
 
             $timeZone = $schedule->getTimeZone() ?? 'UTC';
+            if ($timeZone === '') {
+                continue;
+            }
             try {
                 $timeZoneObj = new \DateTimeZone($timeZone);
             } catch (\Exception) {
@@ -195,7 +198,6 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
                 continue;
             }
 
-            $job = null;
             $activeJob = $this->findActiveAutomationJob($instance, $action);
             if ($activeJob instanceof Job) {
                 $errorCode = match ($action) {
@@ -352,7 +354,10 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
                 continue;
             }
 
-            $scheduleTz = $schedule->getTimeZone() !== '' ? $schedule->getTimeZone() : 'UTC';
+            $scheduleTz = $schedule->getTimeZone();
+            if ($scheduleTz === '') {
+                $scheduleTz = 'UTC';
+            }
             try {
                 $timeZone = new \DateTimeZone($scheduleTz);
             } catch (\Throwable) {
@@ -446,7 +451,6 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
 
         $output->writeln(sprintf('Queued %d scheduled job(s).', $queued));
 
-        return $queued;
     }
 
     private function maxRuntimeReached(\DateTimeImmutable $startedAt, ?int $maxRuntimeSeconds): bool
@@ -458,9 +462,14 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         return (new \DateTimeImmutable())->getTimestamp() - $startedAt->getTimestamp() >= $maxRuntimeSeconds;
     }
 
+    private function stopRequested(): bool
+    {
+        return $this->shouldStop;
+    }
+
     private function sleepInterruptibly(int $sleepSeconds): void
     {
-        for ($remaining = $sleepSeconds; $remaining > 0 && !$this->shouldStop; $remaining--) {
+        for ($remaining = $sleepSeconds; $remaining > 0 && !$this->stopRequested(); $remaining--) {
             sleep(1);
         }
     }
@@ -586,12 +595,14 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
 
     private function resolveBackupTargetId(BackupDefinition $definition, \App\Module\Core\Domain\Entity\BackupSchedule $schedule): ?string
     {
-        if ($schedule->getBackupTarget() instanceof \App\Module\Core\Domain\Entity\BackupTarget) {
-            return (string) $schedule->getBackupTarget()->getId();
+        $scheduleTarget = $schedule->getBackupTarget();
+        if ($scheduleTarget instanceof \App\Module\Core\Domain\Entity\BackupTarget) {
+            return (string) $scheduleTarget->getId();
         }
 
-        if ($definition->getBackupTarget() instanceof \App\Module\Core\Domain\Entity\BackupTarget) {
-            return (string) $definition->getBackupTarget()->getId();
+        $definitionTarget = $definition->getBackupTarget();
+        if ($definitionTarget instanceof \App\Module\Core\Domain\Entity\BackupTarget) {
+            return (string) $definitionTarget->getId();
         }
 
         $settings = $this->appSettingsService->getSettings();

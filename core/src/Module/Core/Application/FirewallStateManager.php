@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\FirewallState;
 use App\Module\Core\Domain\Entity\Job;
@@ -108,7 +110,7 @@ final class FirewallStateManager
     public function portsFromJob(Job $job): array
     {
         $payload = $job->getPayload();
-        $raw = is_string($payload['ports'] ?? null) ? $payload['ports'] : '';
+        $raw = self::text($payload['ports'] ?? null);
         if ($raw === '') {
             return [];
         }
@@ -134,7 +136,7 @@ final class FirewallStateManager
      */
     private function portsFromOutput(array $output): array
     {
-        $raw = is_string($output['ports'] ?? null) ? $output['ports'] : '';
+        $raw = self::text($output['ports'] ?? null);
         if ($raw === '') {
             return [];
         }
@@ -160,16 +162,10 @@ final class FirewallStateManager
      */
     private function rulesFromOutput(array $output): array
     {
-        $raw = $output['rules'] ?? null;
-        $decoded = null;
+        $raw = self::text($output['rules'] ?? null);
+        $decoded = $raw !== '' ? JsonArray::decode($raw) : JsonArray::fromValue($output['rules'] ?? null);
 
-        if (is_string($raw) && $raw !== '') {
-            $decoded = json_decode($raw, true);
-        } elseif (is_array($raw)) {
-            $decoded = $raw;
-        }
-
-        if (!is_array($decoded)) {
+        if ($decoded === null) {
             return [];
         }
 
@@ -197,25 +193,20 @@ final class FirewallStateManager
     }
 
     /**
-     * @param array<int, array<string, mixed>> $rules
+     * @param array<array-key, mixed> $rules
      * @return array<int, array{port: int, protocol: string, status: string}>
      */
     private function normalizeRules(array $rules): array
     {
         $normalized = [];
-        foreach ($rules as $rule) {
-            if (!is_array($rule)) {
+        foreach (array_keys($rules) as $key) {
+            $rule = JsonArray::fromValue($rules[$key]);
+            if ($rule === null) {
                 continue;
             }
-            $port = $rule['port'] ?? null;
-            $protocol = is_string($rule['protocol'] ?? null) ? strtolower($rule['protocol']) : '';
-            $status = is_string($rule['status'] ?? null) ? strtolower($rule['status']) : '';
-
-            if (!is_int($port) && !is_numeric($port)) {
-                continue;
-            }
-
-            $port = (int) $port;
+            $port = ScalarValue::integer($rule['port'] ?? null, 0);
+            $protocol = strtolower(self::text($rule['protocol'] ?? null));
+            $status = strtolower(self::text($rule['status'] ?? null));
             if ($port <= 0 || $port > 65535) {
                 continue;
             }
@@ -294,6 +285,11 @@ final class FirewallStateManager
     private function ruleKey(array $rule): string
     {
         return sprintf('%d/%s', $rule['port'], $rule['protocol']);
+    }
+
+    private static function text(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
     }
 
     /**

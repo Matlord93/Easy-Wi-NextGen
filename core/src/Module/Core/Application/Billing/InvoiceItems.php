@@ -4,22 +4,29 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+
 final class InvoiceItems
 {
     public const MAX_ITEMS = 100;
 
-    /** Quantities have three decimal places; all calculations use integers. */
+    /**
+     * Quantities have three decimal places; all calculations use integers.
+     * @return array{items: list<array{tax_mode: string, tax_rate_bps: int, net_cents: int, tax_cents: int, gross_cents: int, description: string, quantity_milli: int, unit_price_cents: int}>, tax_breakdown: list<array{tax_rate_bps: int, net_cents: int, tax_cents: int, gross_cents: int}>, tax_mode: string, tax_rate_bps: int, mixed_tax_rates: bool, net_cents: int, tax_cents: int, gross_cents: int, pricing_basis: 'gross', rounding_basis: 'tax_group'}
+     */
     public static function calculate(mixed $rows, string $mode): array
     {
         if (!is_array($rows) || count($rows) < 1 || count($rows) > self::MAX_ITEMS) {
             throw new \InvalidArgumentException('billing.invalid_items');
         }
         $items = $groups = [];
-        $net = $tax = $gross = $descriptionBytes = 0;
+        $gross = $descriptionBytes = 0;
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 throw new \InvalidArgumentException('billing.invalid_items');
             }
+            $row = JsonMap::strings($row);
             foreach (['description', 'quantity', 'unit_price', 'tax_rate'] as $key) {
                 if (!is_string($row[$key] ?? null)) {
                     throw new \InvalidArgumentException('billing.invalid_items');
@@ -46,8 +53,6 @@ final class InvoiceItems
             foreach (['net_cents', 'tax_cents', 'gross_cents'] as $field) {
                 $groups[$rate][$field] += $line[$field];
             }
-            $net += $line['net_cents'];
-            $tax += $line['tax_cents'];
             $gross += $lineGross;
         }
         if (0 === $gross) {
@@ -114,7 +119,16 @@ final class InvoiceItems
     {
         $details = $invoice->getBillingDetails();
 
-        return $details['items'] ?? [['description' => $details['description'] ?? $invoice->getNumber(), 'quantity_milli' => 1000,
+        if (isset($details['items'])) {
+            $items = JsonArray::fromValue($details['items']);
+            if ($items === null) {
+                throw new \UnexpectedValueException('Stored invoice items must be an array.');
+            }
+
+            return $items;
+        }
+
+        return [['description' => $details['description'] ?? $invoice->getNumber(), 'quantity_milli' => 1000,
             'unit_price_cents' => $invoice->getAmountTotalCents(), 'net_cents' => $details['net_cents'] ?? $invoice->getAmountTotalCents(),
             'tax_cents' => $details['tax_cents'] ?? 0, 'gross_cents' => $invoice->getAmountTotalCents(), 'tax_rate_bps' => $details['tax_rate_bps'] ?? 0]];
     }

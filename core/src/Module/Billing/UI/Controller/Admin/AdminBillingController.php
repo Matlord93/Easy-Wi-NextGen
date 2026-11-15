@@ -6,6 +6,7 @@ namespace App\Module\Billing\UI\Controller\Admin;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AppSettingsService;
@@ -81,7 +82,7 @@ final readonly class AdminBillingController
     {
         $this->actor($request);
         $invoices = $this->invoiceRepository->findRecent(100);
-        $archives = $this->invoiceArchiveRepository->findArchivedInvoiceIds(array_map(static fn (Invoice $i) => $i->getId(), $invoices));
+        $archives = $this->invoiceArchiveRepository->findArchivedInvoiceIds(array_values(array_filter(array_map(static fn (Invoice $i) => $i->getId(), $invoices), static fn (?int $id): bool => $id !== null)));
 
         return new Response($this->twig->render('admin/billing/index.html.twig', [
             'activeNav' => 'billing',
@@ -113,8 +114,10 @@ final readonly class AdminBillingController
             if (null !== $this->invoiceRepository->findOneBy(['number' => $number])) {
                 throw new \InvalidArgumentException('billing.duplicate_number');
             }
-            $rows = array_key_exists('items', $data) ? $data['items'] : [['description' => $data['description'] ?? '', 'quantity' => '1', 'unit_price' => $data['amount'] ?? '', 'tax_rate' => $data['tax_rate'] ?? '19.00']];
-            $tax = InvoiceItems::calculate($rows, is_string($data['tax_mode'] ?? null) ? $data['tax_mode'] : 'standard');
+            $tax = InvoiceItems::calculate(
+                array_key_exists('items', $data) ? $data['items'] : [['description' => $data['description'] ?? '', 'quantity' => '1', 'unit_price' => $data['amount'] ?? '', 'tax_rate' => $data['tax_rate'] ?? '19.00']],
+                self::inputText($data['tax_mode'] ?? null, 'standard'),
+            );
             $tax['electronic_invoice'] = \App\Module\Core\Application\Billing\ElectronicInvoiceData::fromInput($data);
             $gross = $tax['gross_cents'];
             $due = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) ($data['due_date'] ?? ''));
@@ -129,7 +132,7 @@ final readonly class AdminBillingController
                 $this->entityManager->persist($invoice);
                 $this->entityManager->flush();
                 $this->auditLogger->log($actor, 'billing.invoice.created', ['invoice_id' => $invoice->getId(), 'number' => $invoice->getNumber(), 'amount_total_cents' => $invoice->getAmountTotalCents(), 'tax' => array_intersect_key($invoice->getBillingDetails(), array_flip(['tax_mode', 'tax_rate_bps', 'net_cents', 'tax_cents']))]);
-                $this->invoiceArchiveManager->archiveInvoiceContent($invoice, $this->documents->generate($invoice, $request), preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()).'.pdf', 'application/pdf', $actor);
+                $this->invoiceArchiveManager->archiveInvoiceContent($invoice, $this->documents->generate($invoice, $request), (preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()) ?? 'invoice').'.pdf', 'application/pdf', $actor);
             });
         } catch (\InvalidArgumentException $exception) {
             return $this->form($data, [$this->message($exception)], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -187,7 +190,7 @@ final readonly class AdminBillingController
         $actor = $this->actor($request, true);
         $invoice = $this->invoice($id);
         try {
-            $this->entityManager->wrapInTransaction(function () use ($invoice, $actor): void {
+            $this->entityManager->wrapInTransaction(function () use ($invoice, $actor): null {
                 $this->entityManager->refresh($invoice, LockMode::PESSIMISTIC_WRITE);
                 if (InvoiceStatus::Cancelled === $invoice->getStatus()) {
                     throw new \DomainException('billing.cancelled_invoice');
@@ -204,6 +207,8 @@ final readonly class AdminBillingController
                 }
                 $this->invoiceStatusUpdater->syncStatus($invoice, $actor);
                 $this->auditLogger->log($actor, 'billing.payment.manual_reversed', ['invoice_id' => $invoice->getId()]);
+
+                return null;
             });
         } catch (\DomainException $exception) {
             return $this->detail($request, $invoice, [$this->message($exception)], Response::HTTP_CONFLICT);
@@ -257,7 +262,7 @@ final readonly class AdminBillingController
             return $this->detail($request, $invoice, [$this->translator->trans('billing.already_archived', [], 'billing')], Response::HTTP_CONFLICT);
         }
         try {
-            $this->invoiceArchiveManager->archiveInvoiceContent($invoice, $this->documents->generate($invoice, $request), preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()).'.pdf', 'application/pdf', $actor);
+            $this->invoiceArchiveManager->archiveInvoiceContent($invoice, $this->documents->generate($invoice, $request), (preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()) ?? 'invoice').'.pdf', 'application/pdf', $actor);
         } catch (\InvalidArgumentException $exception) {
             return $this->detail($request, $invoice, [$this->message($exception)], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
@@ -271,7 +276,7 @@ final readonly class AdminBillingController
         $actor = $this->actor($request, true);
         $invoice = $this->invoice($id);
         $file = $request->files->get('invoice_pdf');
-        if (null !== $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]) || !$file instanceof UploadedFile || !$file->isValid() || ($file->getSize() ?? 0) > InvoiceArchiveManager::MAX_FILE_SIZE || 'application/pdf' !== $file->getMimeType() || '%PDF-' !== file_get_contents($file->getPathname(), false, null, 0, 5)) {
+        if (null !== $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]) || !$file instanceof UploadedFile || !$file->isValid() || (int) $file->getSize() > InvoiceArchiveManager::MAX_FILE_SIZE || 'application/pdf' !== $file->getMimeType() || '%PDF-' !== file_get_contents($file->getPathname(), false, null, 0, 5)) {
             return $this->detail($request, $invoice, [$this->translator->trans('billing.invalid_pdf', [], 'billing')], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
         $this->invoiceArchiveManager->archiveInvoice($invoice, $file, $actor);
@@ -289,7 +294,7 @@ final readonly class AdminBillingController
         }
         $name = preg_replace('/[^a-zA-Z0-9._-]/', '_', $archive->getFileName());
 
-        return new Response($archive->getPdfContents(), Response::HTTP_OK, ['Content-Type' => $archive->getContentType(), 'Content-Disposition' => HeaderUtils::makeDisposition('attachment', $name ?: 'invoice.pdf'), 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
+        return new Response($archive->getPdfContents(), Response::HTTP_OK, ['Content-Type' => $archive->getContentType(), 'Content-Disposition' => HeaderUtils::makeDisposition('attachment', ($name !== null && $name !== '' && $name !== '0' ? $name : 'invoice.pdf')), 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
     #[Route('/layout', name: 'admin_billing_layout_update', methods: ['POST'])]
@@ -344,7 +349,7 @@ final readonly class AdminBillingController
             $csv = $this->accountingExportService->exportPayments($this->paymentRepository->findForExport($year));
         } else {
             $invoices = $this->invoiceRepository->findForExport($year);
-            $ids = array_map(static fn (Invoice $i) => $i->getId(), $invoices);
+            $ids = array_values(array_filter(array_map(static fn (Invoice $i) => $i->getId(), $invoices), static fn (?int $id): bool => $id !== null));
             $csv = $this->accountingExportService->exportInvoices($invoices, $this->invoiceArchiveRepository->findArchiveMetadataByInvoiceIds($ids));
         }
 
@@ -384,21 +389,29 @@ final readonly class AdminBillingController
     private function form(array $data = [], array $errors = [], int $status = Response::HTTP_OK): Response
     {
         $options = $this->billingSettings->get();
-        $data += ['customer_id' => null, 'number' => 'INV-'.date('Ymd').'-'.bin2hex(random_bytes(6)), 'amount' => '', 'currency' => 'EUR', 'due_date' => date('Y-m-d', strtotime('+14 days')), 'tax_mode' => $options['tax_mode'], 'tax_rate' => $options['tax_rate'], 'description' => ''];
-        $data['items'] ??= [['description' => $data['description'], 'quantity' => '1', 'unit_price' => $data['amount'], 'tax_rate' => $data['tax_rate']]];
-        if (!is_array($data['items'])) {
-            $data['items'] = [];
-        }
-        $data['items'] = array_slice(array_values($data['items']), 0, InvoiceItems::MAX_ITEMS);
-        foreach ($data['items'] as &$row) {
-            $row = JsonArray::orEmpty($row);
-            foreach (['description', 'quantity', 'unit_price', 'tax_rate'] as $key) {
-                $row[$key] = is_string($row[$key] ?? null) ? $row[$key] : '';
-            }
-        } unset($row);
+        $data += ['customer_id' => null, 'number' => 'INV-'.date('Ymd').'-'.bin2hex(random_bytes(6)), 'amount' => '', 'currency' => 'EUR', 'due_date' => (new \DateTimeImmutable('+14 days'))->format('Y-m-d'), 'tax_mode' => $options['tax_mode'], 'tax_rate' => $options['tax_rate'], 'description' => ''];
+        $rows = array_slice(array_values(JsonArray::orEmpty($data['items'] ?? [['description' => $data['description'], 'quantity' => '1', 'unit_price' => $data['amount'], 'tax_rate' => $data['tax_rate']]])), 0, InvoiceItems::MAX_ITEMS);
+        $data['items'] = array_map(self::formItem(...), $rows);
         $data['errors'] = $errors;
 
         return new Response($this->twig->render('admin/billing/create.html.twig', ['activeNav' => 'billing', 'customers' => $this->userRepository->findCustomers(), 'form' => $data]), $status);
+    }
+
+    private static function inputText(mixed $value, string $default = ''): string
+    {
+        return is_string($value) ? $value : $default;
+    }
+
+    /** @return array<array-key, mixed> */
+    private static function formItem(mixed $value): array
+    {
+        $row = JsonArray::orEmpty($value);
+        $strings = JsonMap::strings($row);
+        foreach (['description', 'quantity', 'unit_price', 'tax_rate'] as $key) {
+            $row[$key] = $strings[$key] ?? '';
+        }
+
+        return $row;
     }
 
     private function detail(Request $request, Invoice $invoice, array $errors = [], int $status = Response::HTTP_OK): Response

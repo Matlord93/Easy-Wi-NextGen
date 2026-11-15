@@ -138,12 +138,43 @@ final class MinecraftAutomaticCatalogTest extends KernelTestCase
         }
     }
 
+    public function testInvalidLateProviderEntryCannotPartiallyUpdateTheCatalog(): void
+    {
+        $originalUrl = 'https://example.test/original.jar';
+        $entry = new MinecraftVersionCatalog('vanilla', '1.21.1', null, $originalUrl);
+        $this->em->persist($entry);
+        $this->em->flush();
+        $http = new MockHttpClient(static function (string $method, string $url): MockResponse {
+            $data = match ($url) {
+                'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json' => ['versions' => [
+                    ['id' => '1.21.1', 'url' => 'https://piston-meta.mojang.com/first.json'],
+                    ['id' => '1.21.2', 'url' => 'https://piston-meta.mojang.com/second.json'],
+                ]],
+                'https://piston-meta.mojang.com/first.json' => ['downloads' => ['server' => ['url' => 'https://example.test/updated.jar']]],
+                'https://piston-meta.mojang.com/second.json' => ['downloads' => ['server' => ['url' => 'http://example.test/insecure.jar']]],
+                default => null,
+            };
+
+            return $data === null ? new MockResponse('unavailable', ['http_code' => 503]) : new MockResponse(json_encode($data, JSON_THROW_ON_ERROR));
+        });
+        $sync = new MinecraftCatalogSynchronizer(new MinecraftUpstreamCatalog($http, new ArrayAdapter()), $this->repository, $this->em, $this->directory);
+
+        $status = $sync->synchronize(true);
+
+        self::assertNotEmpty($status['channels']['vanilla']['error']);
+        self::assertSame($originalUrl, $entry->getDownloadUrl());
+        self::assertSame(1, $this->repository->count([]));
+    }
+
     private function synchronizer(?MinecraftVersionImportService $importer = null): MinecraftCatalogSynchronizer
     {
         return new MinecraftCatalogSynchronizer(
             new MinecraftUpstreamCatalog(new MockHttpClient(static fn () => new MockResponse('unavailable', ['http_code' => 503])), new ArrayAdapter()),
-            $this->repository, $this->em, $this->directory,
-            self::getContainer()->get(GameTemplateSeeder::class), $importer,
+            $this->repository,
+            $this->em,
+            $this->directory,
+            self::getContainer()->get(GameTemplateSeeder::class),
+            $importer,
         );
     }
 }

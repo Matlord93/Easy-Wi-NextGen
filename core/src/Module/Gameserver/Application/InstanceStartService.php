@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Module\Ports\Application\PortAllocatorService;
@@ -36,7 +37,7 @@ final class InstanceStartService
         $this->entityManager->persist($instance);
         $this->entityManager->flush();
 
-        $allocations = $this->portAllocatorService->allocatePorts($instance, $profile);
+        $allocations = array_values($this->portAllocatorService->allocatePorts($instance, $profile));
 
         $checks = array_map(static fn ($allocation) => [
             'proto' => $allocation->getProto(),
@@ -45,7 +46,7 @@ final class InstanceStartService
         $results = $this->agentClient->checkFreePorts($instance, $checks);
         $now = new \DateTimeImmutable();
         foreach ($allocations as $index => $allocation) {
-            $isFree = (bool) ($results[$index]['free'] ?? false);
+            $isFree = $results[$index]['free'] ?? false;
             $allocation->setLastCheck($now, $isFree);
             if (!$isFree) {
                 $this->entityManager->persist($allocation);
@@ -66,7 +67,7 @@ final class InstanceStartService
             }
         }
 
-        $startResult = $this->agentClient->startInstance($instance, $payload);
+        $startResult = JsonMap::fromValue($this->agentClient->startInstance($instance, $payload)) ?? [];
         if (!($startResult['ok'] ?? false)) {
             throw new \RuntimeException('Instance start failed.');
         }

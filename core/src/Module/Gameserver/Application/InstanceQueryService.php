@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\InstanceStatus;
@@ -22,6 +25,7 @@ use App\Module\Gameserver\Application\Query\RconQueryAdapter;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use Doctrine\ORM\EntityManagerInterface;
 
+/** @psalm-type ResolvedQueryConfig = array{type: string, via: string, config: array{timeout_ms: int}} */
 final class InstanceQueryService
 {
     private const CACHE_TTL_SECONDS = 15;
@@ -91,9 +95,11 @@ final class InstanceQueryService
         if ($instance->getStatus() !== InstanceStatus::Running) {
             $offline = $cached;
             $offline['status'] = 'offline';
-            if (is_array($offline['result'] ?? null)) {
-                $offline['result']['online'] = false;
-                $offline['result']['status'] = 'offline';
+            $offlineResult = JsonArray::fromValue($offline['result'] ?? null);
+            if ($offlineResult !== null) {
+                $offlineResult['online'] = false;
+                $offlineResult['status'] = 'offline';
+                $offline['result'] = $offlineResult;
             }
             return $offline;
         }
@@ -107,12 +113,14 @@ final class InstanceQueryService
         return $this->buildSnapshot($instance->getQueryStatusCache(), $instance->getQueryCheckedAt(), $type);
     }
 
+    /** @param ResolvedQueryConfig $config */
     private function shouldRunHttpQuery(array $config): bool
     {
         return ($config['via'] ?? 'agent') === 'backend';
     }
 
     /**
+     * @param ResolvedQueryConfig $config
      * @return array<string, mixed>
      */
     private function runHttpQuery(Instance $instance, ?PortBlock $portBlock, array $config): array
@@ -138,7 +146,7 @@ final class InstanceQueryService
     }
 
     /**
-     * @param array<string, mixed> $cache
+     * @param array<array-key, mixed> $cache
      */
     private function isQueueCooldown(array $cache): bool
     {
@@ -158,7 +166,7 @@ final class InstanceQueryService
     }
 
     /**
-     * @param array<string, mixed> $config
+     * @param ResolvedQueryConfig $config
      */
     private function queueQueryJob(Instance $instance, ?PortBlock $portBlock, array $config): void
     {
@@ -174,7 +182,7 @@ final class InstanceQueryService
             'protocol' => $config['type'],
             'host' => $context->getHost(),
             'ip' => $context->getHost(),
-            'timeout_ms' => (int) ($config['config']['timeout_ms'] ?? 4000),
+            'timeout_ms' => ($config['config']['timeout_ms'] ?? 4000),
             'network_mode' => (string) ($spec->getExtra()['network_mode'] ?? 'isolated'),
             'resolved_host_source' => (string) ($spec->getExtra()['resolved_host_source'] ?? 'instance_ip'),
             'port' => $context->getGamePort() !== null ? (string) $context->getGamePort() : null,
@@ -203,6 +211,7 @@ final class InstanceQueryService
         $this->entityManager->flush();
     }
 
+    /** @param array<string, mixed> $config */
     private function buildContext(Instance $instance, ?PortBlock $portBlock, InstanceQuerySpec $spec, array $config): QueryContext
     {
         $host = $spec->getHost();
@@ -223,12 +232,13 @@ final class InstanceQueryService
         $requiredPorts = $instance->getTemplate()->getRequiredPorts();
         if ($portBlock !== null) {
             $ports = $portBlock->getPorts();
-            foreach ($requiredPorts as $index => $definition) {
+            foreach (array_keys($requiredPorts) as $index) {
+                $definition = JsonArray::orEmpty($requiredPorts[$index]);
                 if (!isset($ports[$index])) {
                     continue;
                 }
 
-                $name = strtolower((string) ($definition['name'] ?? ''));
+                $name = strtolower(ScalarValue::text($definition['name'] ?? null));
                 if ($name === 'game' || str_contains($name, 'game')) {
                     return $ports[$index];
                 }
@@ -269,12 +279,13 @@ final class InstanceQueryService
 
         if ($portBlock !== null) {
             $ports = $portBlock->getPorts();
-            foreach ($requiredPorts as $index => $definition) {
+            foreach (array_keys($requiredPorts) as $index) {
+                $definition = JsonArray::orEmpty($requiredPorts[$index]);
                 if (!isset($ports[$index])) {
                     continue;
                 }
 
-                $name = strtolower((string) ($definition['name'] ?? ''));
+                $name = strtolower(ScalarValue::text($definition['name'] ?? null));
                 if ($name === 'game' || str_contains($name, 'game') || $name === 'query' || str_contains($name, 'query')) {
                     $portCandidates[] = $ports[$index];
                 }
@@ -304,14 +315,13 @@ final class InstanceQueryService
     }
 
     /**
-     * @param array<string, mixed> $cache
+     * @param array<array-key, mixed> $cache
      * @return array<string, mixed>
      */
     private function buildSnapshot(array $cache, ?\DateTimeImmutable $checkedAt, string $type): array
     {
-        $normalized = is_array($cache['result'] ?? null)
-            ? $cache['result']
-            : QueryResultNormalizer::fromLegacyCache($cache, $type);
+        $normalized = JsonArray::fromValue($cache['result'] ?? null)
+            ?? QueryResultNormalizer::fromLegacyCache(JsonMap::fromValue($cache) ?? [], $type);
 
         return [
             'available' => $type !== 'none',

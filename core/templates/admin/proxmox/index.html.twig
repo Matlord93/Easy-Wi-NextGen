@@ -4,6 +4,7 @@
 {% block content %}
 <div class="infra-page">{% include 'proxmox/_alerts.html.twig' %}
 <header class="infra-hero"><div><span class="infra-eyebrow">{{ 'infra.infrastructure'|trans({}, 'infrastructure') }}</span><h1>{{ pageTitle }}</h1><p>{{ 'infra.proxmox_hint'|trans({}, 'infrastructure') }}</p></div><span class="infra-tag">{{ clusters|length }} {{ 'infra.connections'|trans({}, 'infrastructure') }}</span></header>
+<p><a class="ui-button ui-button--ghost" href="{{ path('admin_vm_console') }}">{{ 'setup.title'|trans({}, 'vm_console') }}</a></p>
 <div class="infra-grid infra-grid--wide"><section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.connections'|trans({}, 'infrastructure') }}</h2></div><div class="infra-grid">{% for cluster in clusters %}<article class="infra-card"><div class="infra-card__head"><h2><a href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ cluster.name }}</a></h2><span class="infra-tag">{{ (cluster.enabled ? 'pve.enabled' : 'pve.disabled')|trans }}</span></div><p class="infra-muted">{{ cluster.baseUrl }}</p><a class="ui-button ui-button--primary" href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ 'infra.open'|trans({}, 'infrastructure') }}</a></article>{% else %}<p class="infra-empty">{{ 'pve.no_clusters'|trans }}</p>{% endfor %}</div></section>
 <section class="ng-data-card">
   <div class="ng-data-card__header"><h2>{{ 'pve.add_cluster'|trans }}</h2></div>

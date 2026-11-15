@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
@@ -61,8 +62,8 @@ final class TicketApiController
         $payload = $this->parseJsonPayload($request);
 
         $formData = $this->validateCreatePayload($actor, $payload);
-        if ($formData['error'] instanceof JsonResponse) {
-            return $formData['error'];
+        if ($formData instanceof JsonResponse) {
+            return $formData;
         }
 
         $ticket = new Ticket(
@@ -132,7 +133,7 @@ final class TicketApiController
         }
 
         $payload = $this->parseJsonPayload($request);
-        $messageBody = trim((string) ($payload['message'] ?? ''));
+        $messageBody = trim(ScalarValue::text($payload['message'] ?? ''));
         if ($messageBody === '') {
             return new JsonResponse(['error' => $this->translator->trans('error_message_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -238,6 +239,7 @@ final class TicketApiController
         return $actor;
     }
 
+    /** @return array<array-key, mixed> */
     private function parseJsonPayload(Request $request): array
     {
         try {
@@ -248,56 +250,51 @@ final class TicketApiController
     }
 
     /**
-     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, customer?:
-     * \App\Module\Core\Domain\Entity\User, subject?: string, category?:
-     * App\Module\Core\Domain\Enum\TicketCategory::Abuse|App\Module\Core\Domain\Enum\TicketCategory::Billing|App\Module\Core\Domain\Enum\TicketCategory::General|App\Module\Core\Domain\Enum\TicketCategory::Technical,
-     * priority?:
-     * App\Module\Core\Domain\Enum\TicketPriority::High|App\Module\Core\Domain\Enum\TicketPriority::Low|App\Module\Core\Domain\Enum\TicketPriority::Normal|App\Module\Core\Domain\Enum\TicketPriority::Urgent,
-     * message?: string}
+     * @param array<array-key, mixed> $payload
+     * @return array{customer: User, subject: string, category: TicketCategory, priority: TicketPriority, message: string}|JsonResponse
      */
-    private function validateCreatePayload(User $actor, array $payload): array
+    private function validateCreatePayload(User $actor, array $payload): array|JsonResponse
     {
-        $subject = trim((string) ($payload['subject'] ?? ''));
-        $categoryValue = strtolower(trim((string) ($payload['category'] ?? '')));
-        $priorityValue = strtolower(trim((string) ($payload['priority'] ?? '')));
-        $message = trim((string) ($payload['message'] ?? ''));
+        $subject = trim(ScalarValue::text($payload['subject'] ?? ''));
+        $categoryValue = strtolower(trim(ScalarValue::text($payload['category'] ?? '')));
+        $priorityValue = strtolower(trim(ScalarValue::text($payload['priority'] ?? '')));
+        $message = trim(ScalarValue::text($payload['message'] ?? ''));
         $customerId = $payload['customer_id'] ?? null;
 
         if ($subject === '') {
-            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_subject_required')], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => $this->translator->trans('error_subject_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $category = TicketCategory::tryFrom($categoryValue);
         if ($category === null) {
-            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_category_required')], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => $this->translator->trans('error_category_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $priority = TicketPriority::tryFrom($priorityValue);
         if ($priority === null) {
-            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_priority_required')], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => $this->translator->trans('error_priority_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if ($message === '') {
-            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_message_required')], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => $this->translator->trans('error_message_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $customer = $actor;
         if ($actor->isAdmin()) {
             if (!is_numeric($customerId)) {
-                return ['error' => new JsonResponse(['error' => $this->translator->trans('error_customer_required')], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => $this->translator->trans('error_customer_required')], JsonResponse::HTTP_BAD_REQUEST);
             }
             $customer = $this->userRepository->find((int) $customerId);
             if ($customer === null || $customer->getType() !== UserType::Customer) {
-                return ['error' => new JsonResponse(['error' => $this->translator->trans('error_customer_not_found')], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => $this->translator->trans('error_customer_not_found')], JsonResponse::HTTP_BAD_REQUEST);
             }
         }
 
         if ($customer->getType() !== UserType::Customer) {
-            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_invalid_customer')], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => $this->translator->trans('error_invalid_customer')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         return [
-            'error' => null,
             'customer' => $customer,
             'subject' => $subject,
             'category' => $category,

@@ -6,8 +6,9 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\TicketStatus;
 use App\Module\Core\Domain\Enum\UserType;
@@ -118,6 +119,10 @@ final class AdminDashboardController
         return $actor instanceof User && $actor->isAdmin();
     }
 
+    /**
+     * @param list<Agent> $agents
+     * @return array{total: int, online: int, degraded: int, offline: int}
+     */
     private function buildAgentSummary(array $agents): array
     {
         $summary = [
@@ -135,6 +140,7 @@ final class AdminDashboardController
         return $summary;
     }
 
+    /** @return 'online'|'degraded'|'offline' */
     private function resolveAgentStatus(?\DateTimeImmutable $lastHeartbeatAt): string
     {
         if ($lastHeartbeatAt === null) {
@@ -153,9 +159,13 @@ final class AdminDashboardController
         return 'offline';
     }
 
+    /**
+     * @param list<Agent> $agents
+     * @return list<array{id: string, name: string, status: string, lastHeartbeatAt: ?\DateTimeImmutable, lastHeartbeatIp: ?string, lastHeartbeatVersion: ?string, cpu: ?string, memory: ?string, disk: ?string, queue: ?string}>
+     */
     private function normalizeAgents(array $agents): array
     {
-        return array_map(function ($agent): array {
+        return array_map(function (Agent $agent): array {
             $status = $this->resolveAgentStatus($agent->getLastHeartbeatAt());
             $stats = $agent->getLastHeartbeatStats() ?? [];
             $metrics = JsonArray::orEmpty($stats['metrics'] ?? null);
@@ -184,26 +194,30 @@ final class AdminDashboardController
         }, $agents);
     }
 
+    /** @param array<array-key, mixed> $metrics */
     private function extractMetricPercent(array $metrics, string $key): ?float
     {
-        $metric = $metrics[$key] ?? null;
-        if (is_array($metric)) {
-            $value = $metric['percent'] ?? null;
-            return is_numeric($value) ? (float) $value : null;
+        if (is_array($metrics[$key] ?? null)) {
+            return $this->numericValue($metrics[$key]['percent'] ?? null);
         }
 
-        return is_numeric($metric) ? (float) $metric : null;
+        return $this->numericValue($metrics[$key] ?? null);
     }
 
+    private function numericValue(mixed $value): ?float
+    {
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    /** @param array<array-key, mixed> $metrics */
     private function extractMetricValue(array $metrics, string $key): ?string
     {
-        $metric = $metrics[$key] ?? null;
-        if (is_scalar($metric)) {
-            $value = trim((string) $metric);
-            return $value !== '' ? $value : null;
+        if (!is_scalar($metrics[$key] ?? null)) {
+            return null;
         }
+        $value = trim((string) $metrics[$key]);
 
-        return null;
+        return $value !== '' ? $value : null;
     }
 
     private function formatPercent(?float $value): ?string
@@ -250,12 +264,12 @@ final class AdminDashboardController
                 continue;
             }
 
-            $total = $sent + $recv;
+            $total = (float) $sent + (float) $recv;
             if ($previous !== null) {
                 $deltaBytes = $total - $previous['total'];
                 $deltaSeconds = $row['recordedAt']->getTimestamp() - $previous['recordedAt']->getTimestamp();
                 if ($deltaBytes >= 0 && $deltaSeconds > 0) {
-                    $mbit = ($deltaBytes * 8) / ($deltaSeconds * 1024 * 1024);
+                    $mbit = ($deltaBytes * 8.0) / ((float) $deltaSeconds * 1024.0 * 1024.0);
                     $values[] = $mbit;
                     $latest = $mbit;
                 }
@@ -276,9 +290,13 @@ final class AdminDashboardController
         return $formatted . ' Mbit/s';
     }
 
+    /**
+     * @param array<array-key, Job> $jobs
+     * @return array<array-key, array{id: string, type: string, status: string, createdAt: \DateTimeImmutable, lockedBy: ?string, lockedAt: ?\DateTimeImmutable}>
+     */
     private function normalizeJobs(array $jobs): array
     {
-        return array_map(static function ($job): array {
+        return array_map(static function (Job $job): array {
             return [
                 'id' => $job->getId(),
                 'type' => $job->getType(),

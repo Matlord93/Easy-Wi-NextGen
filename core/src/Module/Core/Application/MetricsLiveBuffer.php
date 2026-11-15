@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Agent;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
@@ -36,14 +38,18 @@ final class MetricsLiveBuffer
     {
         $key = $this->liveKey($agent);
         $samples = $this->fetchSamples($agent);
+        $cpu = JsonArray::orEmpty($row['cpu'] ?? null);
+        $memory = JsonArray::orEmpty($row['memory'] ?? null);
+        $disk = JsonArray::orEmpty($row['disk'] ?? null);
+        $network = JsonArray::orEmpty($row['net'] ?? null);
 
         $samples[] = [
             'ts' => $row['collected_at'] ?? (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
-            'cpu' => is_numeric($row['cpu']['percent'] ?? null) ? (float) $row['cpu']['percent'] : null,
-            'mem' => is_numeric($row['memory']['percent'] ?? null) ? (float) $row['memory']['percent'] : null,
-            'disk' => is_numeric($row['disk']['percent'] ?? null) ? (float) $row['disk']['percent'] : null,
-            'net_sent' => is_numeric($row['net']['bytes_sent'] ?? null) ? (int) $row['net']['bytes_sent'] : null,
-            'net_recv' => is_numeric($row['net']['bytes_recv'] ?? null) ? (int) $row['net']['bytes_recv'] : null,
+            'cpu' => is_numeric($cpu['percent'] ?? null) ? (float) $cpu['percent'] : null,
+            'mem' => is_numeric($memory['percent'] ?? null) ? (float) $memory['percent'] : null,
+            'disk' => is_numeric($disk['percent'] ?? null) ? (float) $disk['percent'] : null,
+            'net_sent' => is_numeric($network['bytes_sent'] ?? null) ? (int) $network['bytes_sent'] : null,
+            'net_recv' => is_numeric($network['bytes_recv'] ?? null) ? (int) $network['bytes_recv'] : null,
         ];
 
         if (count($samples) > self::MAX_SAMPLES) {
@@ -64,11 +70,10 @@ final class MetricsLiveBuffer
      */
     public function fetchSamples(Agent $agent): array
     {
-        $result = $this->cache->get($this->liveKey($agent), static function (ItemInterface $item): array {
+        return self::sampleRows($this->cache->get($this->liveKey($agent), static function (ItemInterface $item): array {
             $item->expiresAfter(self::LIVE_TTL);
             return [];
-        });
-        return is_array($result) ? array_values($result) : [];
+        }));
     }
 
     /**
@@ -77,11 +82,14 @@ final class MetricsLiveBuffer
      */
     public function getLastWrittenAt(Agent $agent): ?\DateTimeImmutable
     {
-        $raw = $this->cache->get($this->lastWrittenKey($agent), static function (ItemInterface $item): ?string {
+        return self::writtenAt($this->cache->get($this->lastWrittenKey($agent), static function (ItemInterface $item): ?string {
             $item->expiresAfter(self::LAST_WRITTEN_TTL);
             return null;
-        });
+        }));
+    }
 
+    private static function writtenAt(mixed $raw): ?\DateTimeImmutable
+    {
         if (!is_string($raw) || $raw === '') {
             return null;
         }
@@ -105,6 +113,23 @@ final class MetricsLiveBuffer
             $item->expiresAfter(self::LAST_WRITTEN_TTL);
             return $raw;
         });
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function sampleRows(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+        $rows = [];
+        foreach (array_keys($value) as $key) {
+            $row = JsonMap::fromValue($value[$key]);
+            if ($row !== null) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
     }
 
     private function liveKey(Agent $agent): string

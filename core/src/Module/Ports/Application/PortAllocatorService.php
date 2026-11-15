@@ -92,10 +92,16 @@ final class PortAllocatorService
         foreach ($roles as $role) {
             $roleKey = (string) ($role['role_key'] ?? '');
             $proto = (string) ($role['proto'] ?? 'udp');
-            $purpose = $role['purpose'] ?? null;
+            $purpose = null;
+            if (isset($role['purpose']) && is_string($role['purpose'])) {
+                $purpose = $role['purpose'];
+            }
             $strategy = (string) ($role['allocation_strategy'] ?? 'pool_single');
             $required = (bool) ($role['required'] ?? true);
-            $poolTag = $role['pool_tag'] ?? null;
+            $poolTag = null;
+            if (isset($role['pool_tag']) && is_string($role['pool_tag'])) {
+                $poolTag = $role['pool_tag'];
+            }
             if ('' === $roleKey) {
                 continue;
             }
@@ -124,7 +130,7 @@ final class PortAllocatorService
                 if (1 !== count($checks) || ($checks[0]['free'] ?? false) !== true || ($checks[0]['port'] ?? null) !== $port || ($checks[0]['proto'] ?? null) !== $proto) {
                     throw new \RuntimeException('Derived port could not be verified as free on the node.');
                 }
-                $allocation = new PortAllocation($instance, $node, $roleKey, $proto, $port, $strategy, $required, $poolTag, is_string($purpose) ? $purpose : null, $baseRole, $offset);
+                $allocation = new PortAllocation($instance, $node, $roleKey, $proto, $port, $strategy, $required, $poolTag, $purpose, $baseRole, $offset);
                 $allocation->setLastCheck(new \DateTimeImmutable(), true);
                 $this->entityManager->persist($allocation);
                 $this->entityManager->flush();
@@ -139,7 +145,7 @@ final class PortAllocatorService
                 }
                 continue;
             }
-            $allocation = new PortAllocation($instance, $node, $roleKey, $proto, $port, $strategy, $required, $poolTag, is_string($purpose) ? $purpose : null);
+            $allocation = new PortAllocation($instance, $node, $roleKey, $proto, $port, $strategy, $required, $poolTag, $purpose);
             $allocation->setLastCheck(new \DateTimeImmutable(), true);
             $this->entityManager->persist($allocation);
             $this->entityManager->flush();
@@ -183,8 +189,7 @@ final class PortAllocatorService
     {
         if (!$this->blockedByLease($instance, $defaultPort) && $defaultPort >= $pool->getStartPort() && $defaultPort <= $pool->getEndPort() && !$this->portAllocationRepository->isPortAllocated($pool->getNode(), $proto, $defaultPort)) {
             $checks = $this->agentClient->checkFreePorts($instance, [['proto' => $proto, 'port' => $defaultPort]]);
-            $result = $checks[0]['free'] ?? false;
-            if (true === $result) {
+            if (($checks[0]['free'] ?? false) === true) {
                 return $defaultPort;
             }
         }
@@ -242,12 +247,12 @@ final class PortAllocatorService
     }
 
     /**
-     * @param array<int, array{free: bool}> $results
+     * @param array<array-key, mixed> $results
      */
     private function allFree(array $results): bool
     {
-        foreach ($results as $result) {
-            if (($result['free'] ?? false) !== true) {
+        foreach (array_keys($results) as $key) {
+            if (!is_array($results[$key]) || ($results[$key]['free'] ?? false) !== true) {
                 return false;
             }
         }

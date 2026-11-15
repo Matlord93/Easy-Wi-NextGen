@@ -6,7 +6,6 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\MailService;
@@ -268,7 +267,7 @@ final class CustomerTicketController
             [
                 'ticket_id'      => $ticket->getId(),
                 'ticket_subject' => $ticket->getSubject(),
-                'ticket_status'  => ucfirst(strtolower($ticket->getStatus()->value)),
+                'ticket_status'  => ucfirst($ticket->getStatus()->value),
                 'customer_name'  => $actor->getName() ?? $actor->getEmail(),
                 'customer_email' => $actor->getEmail(),
                 'reply_message'  => $messageBody,
@@ -306,11 +305,15 @@ final class CustomerTicketController
      */
     private function attachmentFiles(Request $request): array
     {
-        $files = $request->files->all('attachments');
+        return $this->uploadedFiles($request->files->get('attachments', []));
+    }
+
+    /** @return list<UploadedFile> */
+    private function uploadedFiles(mixed $files): array
+    {
         if ($files instanceof UploadedFile) {
             return [$files];
         }
-
         if (!is_array($files)) {
             return [];
         }
@@ -328,7 +331,7 @@ final class CustomerTicketController
                 return 'Attachment upload failed.';
             }
 
-            if ($file->getSize() === null || $file->getSize() > self::MAX_ATTACHMENT_BYTES) {
+            if (($size = $file->getSize()) === false || $size > self::MAX_ATTACHMENT_BYTES) {
                 return 'Attachment exceeds the maximum size of 10 MB.';
             }
 
@@ -353,8 +356,14 @@ final class CustomerTicketController
     {
         foreach ($files as $file) {
             $mimeType = $file->getMimeType() ?? 'application/octet-stream';
-            $extension = $file->guessExtension() ?: pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin';
-            $safeExtension = preg_replace('/[^a-zA-Z0-9]/', '', strtolower($extension)) ?: 'bin';
+            $extension = $file->guessExtension();
+            if ($extension === null || $extension === '' || $extension === '0') {
+                $extension = pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION);
+            }
+            $safeExtension = preg_replace('/[^a-zA-Z0-9]/', '', strtolower($extension));
+            if ($safeExtension === null || $safeExtension === '' || $safeExtension === '0') {
+                $safeExtension = 'bin';
+            }
             if (in_array($safeExtension, self::BLOCKED_ATTACHMENT_EXTENSIONS, true)) {
                 $safeExtension = 'bin';
             }
@@ -367,9 +376,7 @@ final class CustomerTicketController
             try {
                 $this->storage->writeStream($path, $stream);
             } finally {
-                if (is_resource($stream)) {
-                    fclose($stream);
-                }
+                fclose($stream);
             }
 
             $attachment = new TicketAttachment(
@@ -404,16 +411,11 @@ final class CustomerTicketController
 
         $response = new StreamedResponse(function () use ($storagePath): void {
             $stream = $this->storage->readStream($storagePath);
-            if ($stream === false) {
-                return;
-            }
 
             try {
                 fpassthru($stream);
             } finally {
-                if (is_resource($stream)) {
-                    fclose($stream);
-                }
+                fclose($stream);
             }
         });
         $mimeType = $attachment->getMimeType();
@@ -424,7 +426,10 @@ final class CustomerTicketController
         $fileSize = $this->storage->fileSize($storagePath);
         $response->headers->set('Content-Length', (string) $fileSize);
         $downloadName = $this->sanitizeAttachmentName($attachment->getOriginalName());
-        $fallbackName = preg_replace('/[^A-Za-z0-9._-]/', '_', $downloadName) ?: 'attachment';
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]/', '_', $downloadName);
+        if ($fallbackName === null || $fallbackName === '' || $fallbackName === '0') {
+            $fallbackName = 'attachment';
+        }
         $response->headers->set('Content-Disposition', HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_ATTACHMENT, $downloadName, $fallbackName));
 
         return $response;
@@ -481,6 +486,7 @@ final class CustomerTicketController
     }
 
     /**
+     * @param Ticket[] $tickets
      * @return array{total: int, open: int, in_progress: int, pending: int, resolved: int, closed: int,
      * high_priority: int, resolved_today: int}
      */
@@ -554,6 +560,7 @@ final class CustomerTicketController
         ];
     }
 
+    /** @param Ticket[] $tickets */
     private function normalizeTickets(array $tickets): array
     {
         return array_map(fn (Ticket $ticket) => $this->normalizeTicket($ticket), $tickets);
@@ -577,21 +584,26 @@ final class CustomerTicketController
         ];
     }
 
+    /** @param TicketMessage[] $messages */
     private function normalizeMessages(array $messages): array
     {
         $attachmentsByMessage = $this->normalizeAttachmentsByMessage($messages, '/tickets/attachments');
 
-        return array_map(fn (TicketMessage $message) => [
-            'id' => $message->getId(),
-            'author' => [
-                'id' => $message->getAuthor()->getId(),
-                'email' => $message->getAuthor()->getEmail(),
-                'type' => $message->getAuthor()->getType()->value,
-            ],
-            'body' => $message->getBody(),
-            'created_at' => $message->getCreatedAt(),
-            'attachments' => $attachmentsByMessage[$message->getId()] ?? [],
-        ], $messages);
+        return array_map(static function (TicketMessage $message) use ($attachmentsByMessage): array {
+            $messageId = $message->getId();
+
+            return [
+                'id' => $messageId,
+                'author' => [
+                    'id' => $message->getAuthor()->getId(),
+                    'email' => $message->getAuthor()->getEmail(),
+                    'type' => $message->getAuthor()->getType()->value,
+                ],
+                'body' => $message->getBody(),
+                'created_at' => $message->getCreatedAt(),
+                'attachments' => $messageId === null ? [] : ($attachmentsByMessage[$messageId] ?? []),
+            ];
+        }, $messages);
     }
 
     private function buildFormContext(?array $overrides = null): array
@@ -608,11 +620,8 @@ final class CustomerTicketController
     }
 
     /**
-     * @return array{errors: list<string>, subject: string, category:
-     * App\Module\Core\Domain\Enum\TicketCategory::Abuse|App\Module\Core\Domain\Enum\TicketCategory::Billing|App\Module\Core\Domain\Enum\TicketCategory::General|App\Module\Core\Domain\Enum\TicketCategory::Technical,
-     * priority:
-     * App\Module\Core\Domain\Enum\TicketPriority::High|App\Module\Core\Domain\Enum\TicketPriority::Low|App\Module\Core\Domain\Enum\TicketPriority::Normal|App\Module\Core\Domain\Enum\TicketPriority::Urgent,
-     * message: string}
+     * @return array{errors: list<string>, subject: string, category: TicketCategory,
+     * priority: TicketPriority, message: string}
      */
     private function parsePayload(Request $request): array
     {
@@ -689,8 +698,8 @@ final class CustomerTicketController
         return [
             'ticket_id'         => $ticket->getId(),
             'ticket_subject'    => $ticket->getSubject(),
-            'ticket_category'   => ucfirst(strtolower($ticket->getCategory()->value)),
-            'ticket_priority'   => ucfirst(strtolower($ticket->getPriority()->value)),
+            'ticket_category'   => ucfirst($ticket->getCategory()->value),
+            'ticket_priority'   => ucfirst($ticket->getPriority()->value),
             'ticket_created_at' => $ticket->getCreatedAt()->format('d.m.Y H:i'),
             'ticket_message'    => $messageBody,
             'ticket_url'        => '/tickets/' . EntityIdentifier::require($ticket->getId()),

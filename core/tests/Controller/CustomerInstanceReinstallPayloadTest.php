@@ -124,7 +124,6 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(BackupRepository::class),
             $this->newInstanceWithoutConstructor(BackupTargetRepository::class),
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
-            $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $jobRepository,
             $this->newInstanceWithoutConstructor(JobLogRepository::class),
             $diskEnforcementService,
@@ -134,7 +133,6 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             new SetupChecker(),
             $appSettings,
             $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
-            $templateResolver,
             $payloadBuilder,
             $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
@@ -208,7 +206,6 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(BackupRepository::class),
             $this->newInstanceWithoutConstructor(BackupTargetRepository::class),
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
-            $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $jobRepository,
             $this->newInstanceWithoutConstructor(\App\Repository\JobLogRepository::class),
             $diskEnforcementService,
@@ -218,7 +215,6 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             new SetupChecker(),
             $appSettings,
             $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
-            $templateResolver,
             $payloadBuilder,
             $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
@@ -252,7 +248,6 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(new \App\Module\Core\Domain\Entity\Job('instance.backup.create', []));
 
-        $templateResolver = $this->newInstanceWithoutConstructor(TemplateInstallResolver::class);
         $payloadBuilder = $this->newInstanceWithoutConstructor(InstanceJobPayloadBuilder::class);
         $appSettings = $this->createStub(AppSettingsService::class);
 
@@ -262,19 +257,20 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(BackupRepository::class),
             $this->newInstanceWithoutConstructor(BackupTargetRepository::class),
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
-            $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $jobRepository,
             $this->newInstanceWithoutConstructor(JobLogRepository::class),
             new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver(), $this->createStub(TranslatorInterface::class)),
             $this->newInstanceWithoutConstructor(AuditLogger::class),
             new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
-                public function getCustomerConsoleAllowedCommands(): array { return []; }
+                public function getCustomerConsoleAllowedCommands(): array
+                {
+                    return [];
+                }
             }),
             $this->newInstanceWithoutConstructor(GameServerPathResolver::class),
             new SetupChecker(),
             $appSettings,
             $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
-            $templateResolver,
             $payloadBuilder,
             $this->newInstanceWithoutConstructor(TemplateRepository::class),
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),

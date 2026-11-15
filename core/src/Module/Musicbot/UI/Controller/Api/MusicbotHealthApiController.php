@@ -18,6 +18,7 @@ use App\Module\Musicbot\Application\MusicbotQuotaService;
 use App\Module\Musicbot\Application\MusicbotRepairService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotPermission;
+use App\Module\Musicbot\Domain\Enum\MusicbotHealthStatus;
 use App\Module\Musicbot\Domain\Exception\MusicbotPermissionDeniedException;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
 use App\Repository\MusicbotInstanceRepository;
@@ -28,6 +29,10 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
+/**
+ * @psalm-import-type HealthCheck from MusicbotHealthService
+ * @psalm-type HealthReport = array{overall: MusicbotHealthStatus, checks: array<string, HealthCheck>, checked_at: string}
+ */
 final class MusicbotHealthApiController
 {
     public function __construct(
@@ -336,7 +341,7 @@ final class MusicbotHealthApiController
     }
 
     /**
-     * @param array<string, mixed> $report
+     * @param HealthReport $report
      * @return array<string, mixed>
      */
     private function normalizeReportForCustomer(array $report): array
@@ -366,7 +371,7 @@ final class MusicbotHealthApiController
     }
 
     /**
-     * @param array<string, mixed> $report
+     * @param HealthReport $report
      * @return array<string, mixed>
      */
     private function normalizeReportForAdmin(MusicbotInstance $instance, array $report): array

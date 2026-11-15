@@ -27,6 +27,10 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
+/**
+ * @psalm-import-type DesignOptions from InvoiceDesign
+ * @psalm-type DesignState = array{options: DesignOptions, layout: string, mode: 'visual'|'custom'}
+ */
 #[Route('/admin/billing/design')]
 final readonly class AdminInvoiceDesignController
 {
@@ -85,6 +89,10 @@ final readonly class AdminInvoiceDesignController
         }
     }
 
+    /**
+     * @param DesignState $current
+     * @return DesignState
+     */
     private function submitted(Request $request, array $current): array
     {
         $mode = $request->request->get('mode');
@@ -98,7 +106,7 @@ final readonly class AdminInvoiceDesignController
             if ('1' === $request->request->get('remove_logo')) {
                 $input['logo_data_uri'] = '';
             } elseif ($file = $request->files->get('logo')) {
-                if (!$file instanceof UploadedFile || !$file->isValid() || ($file->getSize() ?? 0) > 49152) {
+                if (!$file instanceof UploadedFile || !$file->isValid() || (int) $file->getSize() > 49152) {
                     throw new \InvalidArgumentException('billing.invalid_logo');
                 }
                 $mime = $file->getMimeType();

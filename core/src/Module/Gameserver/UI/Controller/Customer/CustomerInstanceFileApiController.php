@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
@@ -83,7 +84,7 @@ final class CustomerInstanceFileApiController
             return $this->handleListingError($request, EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $source, $exception, $startedAt, $this->canExposeTechnicalDetails($customer));
         }
 
-        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000.0);
         $this->logger->info('instance.files.list', [
             'request_id' => $this->getRequestId($request),
             'user_id' => $customer->getId(),
@@ -596,12 +597,11 @@ final class CustomerInstanceFileApiController
         $payload = $this->parsePayload($request);
         $path = trim((string) ($payload['path'] ?? ''));
         $name = trim((string) ($payload['name'] ?? ''));
-        $modeValue = $payload['mode'] ?? null;
-        if ($name === '' || $modeValue === null || $modeValue === '') {
+        if ($name === '' || ($payload['mode'] ?? null) === null || $payload['mode'] === '') {
             throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_missing_permissions'));
         }
 
-        $mode = $this->parseMode($modeValue);
+        $mode = $this->parseMode($payload['mode']);
         if ($mode === null) {
             throw new BadRequestHttpException($this->t($request, 'customer_instance_files_error_invalid_permissions'));
         }
@@ -792,7 +792,7 @@ final class CustomerInstanceFileApiController
             $details = $exception->getDetails();
         }
 
-        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000.0);
         $this->logger->warning('instance.files.list', [
             'request_id' => $requestId,
             'user_id' => $userId,
@@ -809,7 +809,7 @@ final class CustomerInstanceFileApiController
     }
 
     /**
-     * @param callable(): array{root_path: string, path: string, entries: array<int, array{name: string, size: int, mode: string, modified_at: string, is_dir: bool}>} $probe
+     * @param callable(): array{root_path: string, path: string, entries: list<array<array-key, mixed>>, warnings?: list<array<array-key, mixed>>, total?: int, truncated?: bool, ...} $probe
      * @return array<string, mixed>
      */
     private function runDiagnosticsProbe(string $source, callable $probe, bool $exposeTechnicalDetails): array
@@ -824,9 +824,9 @@ final class CustomerInstanceFileApiController
                 'path' => $listing['path'] ?? '',
                 'entry_count' => count($listing['entries'] ?? []),
                 'warnings' => $this->normalizeListingWarnings($listing['warnings'] ?? [], $exposeTechnicalDetails),
-                'total' => (int) ($listing['total'] ?? count($listing['entries'] ?? [])),
-                'truncated' => (bool) ($listing['truncated'] ?? false),
-                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'total' => $listing['total'] ?? count($listing['entries'] ?? []),
+                'truncated' => $listing['truncated'] ?? false,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000.0),
             ];
         } catch (FileServiceException $exception) {
             return $this->diagnosticsErrorResult($source, $exception, $startedAt, $exposeTechnicalDetails);
@@ -835,6 +835,7 @@ final class CustomerInstanceFileApiController
         }
     }
 
+    /** @return array<string, mixed> */
     private function diagnosticsErrorResult(string $source, \RuntimeException $exception, float $startedAt, bool $exposeTechnicalDetails): array
     {
         $statusCode = JsonResponse::HTTP_BAD_GATEWAY;
@@ -854,7 +855,7 @@ final class CustomerInstanceFileApiController
             'message' => $exception->getMessage(),
             'status_code' => $statusCode,
             'details' => $this->filterErrorDetails($details, $exposeTechnicalDetails),
-            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000.0),
         ];
     }
 
@@ -933,6 +934,11 @@ final class CustomerInstanceFileApiController
         return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $sample) !== 1;
     }
 
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
     private function getRequestId(Request $request): string
     {
         $requestId = $request->headers->get('X-Request-ID');
@@ -940,7 +946,7 @@ final class CustomerInstanceFileApiController
             return $requestId;
         }
 
-        $attribute = $request->attributes->get('request_id');
+        $attribute = self::optionalText($request->attributes->get('request_id'));
         if (is_string($attribute) && $attribute !== '') {
             return $attribute;
         }
@@ -1004,7 +1010,7 @@ final class CustomerInstanceFileApiController
 
     private function resolveUploadBytes(Request $request, \Symfony\Component\HttpFoundation\File\UploadedFile $upload): int
     {
-        $uploadSize = (int) ($upload->getSize() ?? 0);
+        $uploadSize = (int) $upload->getSize();
         if ($uploadSize > 0) {
             return $uploadSize;
         }
@@ -1018,7 +1024,7 @@ final class CustomerInstanceFileApiController
     }
 
     /**
-     * @param array{name: string, size: int, mode: string, modified_at: string, is_dir: bool} $entry
+     * @param array<array-key, mixed> $entry
       * @return array{name: bool|string, size: int, size_human: string, mode: string, modified_at: string,
       * is_dir: bool, is_symlink: bool, link_broken: bool, name_valid_utf8: bool, metadata_available: bool,
       * actions_supported: bool, error_code: null|string, error_message?: null|string, link_target?:
@@ -1026,7 +1032,7 @@ final class CustomerInstanceFileApiController
      */
     private function normalizeEntry(array $entry, bool $exposeTechnicalDetails = false): array
     {
-        $name = ($entry['name'] ?? '');
+        $name = ScalarValue::text($entry['name'] ?? null);
         if (!$this->isUtf8($name)) {
             $this->logger->warning('instance.files.invalid_utf8_response_name', [
                 'entry_error_code' => $entry['error_code'] ?? null,
@@ -1034,25 +1040,25 @@ final class CustomerInstanceFileApiController
             $name = mb_convert_encoding($name, 'UTF-8', 'UTF-8');
         }
 
-        $size = ($entry['size'] ?? 0);
+        $size = ScalarValue::integer($entry['size'] ?? null, 0);
         $normalized = [
             'name' => $name,
             'size' => $size,
             'size_human' => $this->formatBytes($size),
-            'mode' => ($entry['mode'] ?? '????'),
-            'modified_at' => ($entry['modified_at'] ?? ''),
-            'is_dir' => ($entry['is_dir'] ?? false),
+            'mode' => ScalarValue::text($entry['mode'] ?? null, '????'),
+            'modified_at' => ScalarValue::text($entry['modified_at'] ?? null),
+            'is_dir' => (bool) ($entry['is_dir'] ?? false),
             'is_symlink' => (bool) ($entry['is_symlink'] ?? false),
             'link_broken' => (bool) ($entry['link_broken'] ?? false),
             'name_valid_utf8' => (bool) ($entry['name_valid_utf8'] ?? true),
             'metadata_available' => (bool) ($entry['metadata_available'] ?? true),
             'actions_supported' => (bool) ($entry['actions_supported'] ?? true),
-            'error_code' => isset($entry['error_code']) ? (string) $entry['error_code'] : null,
+            'error_code' => isset($entry['error_code']) ? ScalarValue::text($entry['error_code']) : null,
         ];
 
         if ($exposeTechnicalDetails) {
-            $normalized['error_message'] = isset($entry['error_message']) ? (string) $entry['error_message'] : null;
-            $normalized['link_target'] = isset($entry['link_target']) ? (string) $entry['link_target'] : null;
+            $normalized['error_message'] = isset($entry['error_message']) ? ScalarValue::text($entry['error_message']) : null;
+            $normalized['link_target'] = isset($entry['link_target']) ? ScalarValue::text($entry['link_target']) : null;
         }
 
         return $normalized;
@@ -1076,19 +1082,19 @@ final class CustomerInstanceFileApiController
     }
 
     /**
-     * @param array<int, mixed> $warnings
+     * @param mixed $warnings
      * @return array<int, array{code:string,message:string,path?:string}>
      */
-    private function normalizeListingWarnings(array $warnings, bool $exposeTechnicalDetails): array
+    private function normalizeListingWarnings(mixed $warnings, bool $exposeTechnicalDetails): array
     {
         $normalized = [];
-        foreach ($warnings as $warning) {
+        foreach (JsonArray::orEmpty($warnings) as $warning) {
             if (!is_array($warning)) {
                 continue;
             }
             $item = [
-                'code' => (string) ($warning['code'] ?? 'LISTING_WARNING'),
-                'message' => (string) ($warning['message'] ?? 'A file entry could not be processed completely.'),
+                'code' => ScalarValue::text($warning['code'] ?? null, 'LISTING_WARNING'),
+                'message' => ScalarValue::text($warning['message'] ?? null, 'A file entry could not be processed completely.'),
             ];
             if (isset($warning['path']) && is_string($warning['path']) && $warning['path'] !== '') {
                 $item['path'] = $exposeTechnicalDetails ? $warning['path'] : basename(str_replace('\\', '/', $warning['path']));
@@ -1117,7 +1123,7 @@ final class CustomerInstanceFileApiController
         $safe = [];
         foreach (['status_code', 'error_code'] as $key) {
             if (array_key_exists($key, $details)) {
-                $safe[$key] = $details[$key];
+                $safe += [$key => $details[$key]];
             }
         }
 
@@ -1135,7 +1141,6 @@ final class CustomerInstanceFileApiController
     private function jsonResponse(Request $request, array $payload, int $statusCode = JsonResponse::HTTP_OK): JsonResponse
     {
         try {
-            json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $response = new JsonResponse(null, $statusCode);
             $response->setEncodingOptions(JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $response->setData($payload);

@@ -88,8 +88,9 @@ final class CustomerDashboardController
             : null;
         $nextPayment = $this->resolveNextPayment($invoices);
         $site = $this->siteResolver->resolve($request);
-        $panelNews = $site?->getId() !== null
-            ? $this->normalizePanelNews($this->changelogRepository->findVisiblePublicBySite(EntityIdentifier::require($site->getId()), 3))
+        $siteId = $site?->getId();
+        $panelNews = $siteId !== null
+            ? $this->normalizePanelNews($this->changelogRepository->findVisiblePublicBySite(EntityIdentifier::require($siteId), 3))
             : [];
 
         return new Response($this->twig->render('customer/dashboard/index.html.twig', [
@@ -108,7 +109,7 @@ final class CustomerDashboardController
 
     /**
      * @param ChangelogEntry[] $entries
-     * @return array<int, array{title: string, version: string|null, content: string, published_at:
+     * @return array<array-key, array{title: string, version: string|null, content: string, published_at:
      * \DateTimeImmutable}>
      */
     private function normalizePanelNews(array $entries): array
@@ -133,10 +134,13 @@ final class CustomerDashboardController
 
     /**
      * @param Instance[] $instances
+     * @param array<int, array{cpu_percent: ?float, mem_used_bytes: ?int, tasks_current: ?int, collected_at: \DateTimeImmutable, error_code: ?string}> $latestInstanceMetrics
      */
     private function normalizeInstances(array $instances, array $latestInstanceMetrics): array
     {
         return array_map(function (Instance $instance) use ($latestInstanceMetrics): array {
+            $instanceId = $instance->getId();
+            $metrics = $instanceId === null ? [] : ($latestInstanceMetrics[$instanceId] ?? []);
             $statusLabel = ucwords(str_replace('_', ' ', $instance->getStatus()->value));
             $queryCache = $instance->getQueryStatusCache();
             $latencyMs = isset($queryCache['latency_ms']) && is_numeric($queryCache['latency_ms'])
@@ -144,7 +148,7 @@ final class CustomerDashboardController
                 : null;
             $diskLimitBytes = max(0, $instance->getDiskLimitBytes());
             $diskUsedBytes = max(0, $instance->getDiskUsedBytes());
-            $diskUsagePercent = $diskLimitBytes > 0 ? round(($diskUsedBytes / $diskLimitBytes) * 100, 1) : null;
+            $diskUsagePercent = $diskLimitBytes > 0 ? round(((float) $diskUsedBytes / (float) $diskLimitBytes) * 100.0, 1) : null;
 
             return [
                 'id' => $instance->getId(),
@@ -162,9 +166,9 @@ final class CustomerDashboardController
                 'disk_limit_human' => $diskLimitBytes > 0 ? $this->diskUsageFormatter->formatBytes($diskLimitBytes) : null,
                 'disk_used_human' => $this->diskUsageFormatter->formatBytes($diskUsedBytes),
                 'disk_usage_percent' => $diskUsagePercent,
-                'cpu_percent' => is_numeric($latestInstanceMetrics[$instance->getId()]['cpu_percent'] ?? null) ? (float) $latestInstanceMetrics[$instance->getId()]['cpu_percent'] : null,
-                'mem_used_bytes' => is_numeric($latestInstanceMetrics[$instance->getId()]['mem_used_bytes'] ?? null) ? (int) $latestInstanceMetrics[$instance->getId()]['mem_used_bytes'] : null,
-                'metrics_reason' => is_string($latestInstanceMetrics[$instance->getId()]['error_code'] ?? null) ? $latestInstanceMetrics[$instance->getId()]['error_code'] : null,
+                'cpu_percent' => $metrics['cpu_percent'] ?? null,
+                'mem_used_bytes' => $metrics['mem_used_bytes'] ?? null,
+                'metrics_reason' => $metrics['error_code'] ?? null,
             ];
         }, $instances);
     }
@@ -235,10 +239,11 @@ final class CustomerDashboardController
         $rows = [];
 
         foreach ($instances as $instance) {
-            $diskLimitBytes += $instance->getDiskLimitBytes();
-            $diskUsedBytes += $instance->getDiskUsedBytes();
+            $diskLimitBytes += (float) $instance->getDiskLimitBytes();
+            $diskUsedBytes += (float) $instance->getDiskUsedBytes();
 
-            $metrics = $latestInstanceMetrics[$instance->getId()] ?? null;
+            $instanceId = $instance->getId();
+            $metrics = $instanceId === null ? null : ($latestInstanceMetrics[$instanceId] ?? null);
             $rows[] = [
                 'booked_cpu_cores' => (float) $instance->getCpuLimit(),
                 'booked_ram_bytes' => $instance->getRamLimit() * 1024 * 1024,
@@ -248,7 +253,7 @@ final class CustomerDashboardController
         }
 
         foreach ($webspaces as $webspace) {
-            $diskLimitBytes += max(0, (float) $webspace->getDiskLimitBytes());
+            $diskLimitBytes += max(0.0, (float) $webspace->getDiskLimitBytes());
         }
 
         $totals = $this->bookedResourceUsageAggregator->aggregate($rows);
@@ -275,7 +280,7 @@ final class CustomerDashboardController
             return 0.0;
         }
 
-        return round(($used / $total) * 100, 1);
+        return round(($used / $total) * 100.0, 1);
     }
 
 

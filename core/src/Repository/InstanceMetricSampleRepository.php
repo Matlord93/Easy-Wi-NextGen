@@ -40,7 +40,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->andWhere('latest.instance IN (:instances)')
             ->groupBy('latest.instance');
 
-        $rows = $this->createQueryBuilder('sample')
+        $rows = MetricSampleRow::map($this->createQueryBuilder('sample')
             ->select(
                 'IDENTITY(sample.instance) AS instance_id',
                 'sample.cpuPercent AS cpu_percent',
@@ -52,22 +52,24 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->andWhere(sprintf('sample.id IN (%s)', $latestSampleIds->getDQL()))
             ->setParameter('instances', $instances)
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult(), static fn (array $row): array => [
+                'instance_id' => MetricSampleRow::nullableInteger($row['instance_id'] ?? null),
+                'cpu_percent' => MetricSampleRow::number($row['cpu_percent'] ?? null),
+                'mem_used_bytes' => MetricSampleRow::nullableInteger($row['mem_used_bytes'] ?? null),
+                'tasks_current' => MetricSampleRow::nullableInteger($row['tasks_current'] ?? null),
+                'collected_at' => MetricSampleRow::nullableDate($row['collected_at'] ?? null) ?? new \DateTimeImmutable(),
+                'error_code' => MetricSampleRow::nullableText($row['error_code'] ?? null),
+            ]);
 
         $latest = [];
         foreach ($rows as $row) {
-            $instanceId = is_numeric($row['instance_id'] ?? null) ? (int) $row['instance_id'] : null;
+            $instanceId = $row['instance_id'];
             if ($instanceId === null) {
                 continue;
             }
 
-            $latest[$instanceId] = [
-                'cpu_percent' => is_numeric($row['cpu_percent'] ?? null) ? (float) $row['cpu_percent'] : null,
-                'mem_used_bytes' => is_numeric($row['mem_used_bytes'] ?? null) ? (int) $row['mem_used_bytes'] : null,
-                'tasks_current' => is_numeric($row['tasks_current'] ?? null) ? (int) $row['tasks_current'] : null,
-                'collected_at' => $row['collected_at'] instanceof \DateTimeImmutable ? $row['collected_at'] : new \DateTimeImmutable(),
-                'error_code' => is_string($row['error_code'] ?? null) ? $row['error_code'] : null,
-            ];
+            unset($row['instance_id']);
+            $latest[$instanceId] = $row;
         }
 
         return $latest;
@@ -90,23 +92,26 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
      */
     public function findLatestCollectedAtByInstanceIds(array $instanceIds): array
     {
-        $instanceIds = array_values(array_unique(array_filter($instanceIds, static fn (mixed $id): bool => is_int($id) && $id > 0)));
+        $instanceIds = array_values(array_unique(array_filter($instanceIds, static fn (int $id): bool => $id > 0)));
         if ($instanceIds === []) {
             return [];
         }
 
-        $rows = $this->createQueryBuilder('sample')
+        $rows = MetricSampleRow::map($this->createQueryBuilder('sample')
             ->select('IDENTITY(sample.instance) AS instance_id')
             ->addSelect('MAX(sample.collectedAt) AS max_collected_at')
             ->andWhere('sample.instance IN (:instanceIds)')
             ->setParameter('instanceIds', $instanceIds)
             ->groupBy('sample.instance')
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult(), static fn (array $row): array => [
+                'instance_id' => MetricSampleRow::nullableInteger($row['instance_id'] ?? null),
+                'max_collected_at' => MetricSampleRow::nullableDate($row['max_collected_at'] ?? null),
+            ]);
 
         $latest = [];
         foreach ($rows as $row) {
-            $instanceId = is_numeric($row['instance_id'] ?? null) ? (int) $row['instance_id'] : 0;
+            $instanceId = $row['instance_id'] ?? 0;
             $collectedAt = $row['max_collected_at'] ?? null;
             if ($instanceId <= 0 || !$collectedAt instanceof \DateTimeImmutable) {
                 continue;
@@ -123,8 +128,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
      */
     public function fetchAggregateForInstanceSince(Instance $instance, \DateTimeImmutable $since): array
     {
-        /** @var array<string, mixed> $row */
-        $row = $this->createQueryBuilder('sample')
+        $row = MetricSampleRow::row($this->createQueryBuilder('sample')
             ->select('COUNT(sample.id) AS sample_count')
             ->addSelect('AVG(sample.cpuPercent) AS cpu_avg')
             ->addSelect('MAX(sample.cpuPercent) AS cpu_max')
@@ -135,14 +139,14 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
             ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->getQuery()
-            ->getSingleResult();
+            ->getSingleResult());
 
         return [
-            'count' => (int) ($row['sample_count'] ?? 0),
-            'cpu_avg' => isset($row['cpu_avg']) ? (float) $row['cpu_avg'] : null,
-            'cpu_max' => isset($row['cpu_max']) ? (float) $row['cpu_max'] : null,
-            'mem_avg' => isset($row['mem_avg']) ? (float) $row['mem_avg'] : null,
-            'mem_max' => isset($row['mem_max']) ? (float) $row['mem_max'] : null,
+            'count' => MetricSampleRow::integer($row['sample_count'] ?? 0),
+            'cpu_avg' => MetricSampleRow::number($row['cpu_avg'] ?? null),
+            'cpu_max' => MetricSampleRow::number($row['cpu_max'] ?? null),
+            'mem_avg' => MetricSampleRow::number($row['mem_avg'] ?? null),
+            'mem_max' => MetricSampleRow::number($row['mem_max'] ?? null),
         ];
     }
 
@@ -155,7 +159,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
         $page = max(1, $page);
         $perPage = max(1, min(200, $perPage));
 
-        return $this->createQueryBuilder('sample')
+        return MetricSampleRow::map($this->createQueryBuilder('sample')
             ->select(
                 'sample.id AS id',
                 'sample.collectedAt AS collectedAt',
@@ -173,7 +177,14 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->setFirstResult(($page - 1) * $perPage)
             ->setMaxResults($perPage)
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult(), static fn (array $row): array => [
+                'id' => MetricSampleRow::integer($row['id'] ?? null),
+                'collectedAt' => MetricSampleRow::date($row['collectedAt'] ?? null),
+                'cpuPercent' => MetricSampleRow::number($row['cpuPercent'] ?? null),
+                'memUsedBytes' => MetricSampleRow::nullableInteger($row['memUsedBytes'] ?? null),
+                'tasksCurrent' => MetricSampleRow::nullableInteger($row['tasksCurrent'] ?? null),
+                'errorCode' => MetricSampleRow::nullableText($row['errorCode'] ?? null),
+            ]);
     }
 
     /**
@@ -181,7 +192,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
      */
     public function findSparklineForInstanceSince(Instance $instance, \DateTimeImmutable $since, int $limit = 240): array
     {
-        return $this->createQueryBuilder('sample')
+        return MetricSampleRow::map($this->createQueryBuilder('sample')
             ->select(
                 'sample.collectedAt AS collectedAt',
                 'sample.cpuPercent AS cpuPercent',
@@ -194,19 +205,11 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->orderBy('sample.collectedAt', 'ASC')
             ->setMaxResults(max(2, min(500, $limit)))
             ->getQuery()
-            ->getArrayResult();
-    }
-
-    public function countForInstanceSince(Instance $instance, \DateTimeImmutable $since): int
-    {
-        return (int) $this->createQueryBuilder('sample')
-            ->select('COUNT(sample.id)')
-            ->andWhere('sample.instance = :instance')
-            ->andWhere('sample.collectedAt >= :since')
-            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
-            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
-            ->getQuery()
-            ->getSingleScalarResult();
+            ->getArrayResult(), static fn (array $row): array => [
+                'collectedAt' => MetricSampleRow::date($row['collectedAt'] ?? null),
+                'cpuPercent' => MetricSampleRow::number($row['cpuPercent'] ?? null),
+                'memUsedBytes' => MetricSampleRow::nullableInteger($row['memUsedBytes'] ?? null),
+            ]);
     }
 
     /**
@@ -222,9 +225,22 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
         ?string $customer,
         ?int $instanceId,
     ): array {
-        return $this->buildAdminBrowseQueryBuilder($since, $page, $perPage, $nodeId, $customer, $instanceId)
+        return MetricSampleRow::map($this->buildAdminBrowseQueryBuilder($since, $page, $perPage, $nodeId, $customer, $instanceId)
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult(), static fn (array $row): array => [
+                'sample_id' => MetricSampleRow::integer($row['sample_id'] ?? null),
+                'instance_id' => MetricSampleRow::integer($row['instance_id'] ?? null),
+                'customer_id' => MetricSampleRow::text($row['customer_id'] ?? null),
+                'customer_email' => MetricSampleRow::text($row['customer_email'] ?? null),
+                'node_id' => MetricSampleRow::text($row['node_id'] ?? null),
+                'node_name' => MetricSampleRow::nullableText($row['node_name'] ?? null),
+                'cpu_percent' => MetricSampleRow::number($row['cpu_percent'] ?? null),
+                'mem_used_bytes' => MetricSampleRow::nullableInteger($row['mem_used_bytes'] ?? null),
+                'booked_cpu_cores' => MetricSampleRow::integer($row['booked_cpu_cores'] ?? null),
+                'booked_ram_mb' => MetricSampleRow::integer($row['booked_ram_mb'] ?? null),
+                'collected_at' => MetricSampleRow::date($row['collected_at'] ?? null),
+                'error_code' => MetricSampleRow::nullableText($row['error_code'] ?? null),
+            ]);
     }
 
     public function countAdminBrowseRows(\DateTimeImmutable $since, ?string $nodeId, ?string $customer, ?int $instanceId): int
@@ -304,7 +320,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
         $deleted = 0;
 
         do {
-            $rows = $this->createQueryBuilder('sample')
+            $ids = MetricSampleRow::map($this->createQueryBuilder('sample')
                 ->select('sample.id AS id')
                 ->andWhere('sample.instance = :instance')
                 ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Core\Domain\Entity\Instance::class))
@@ -313,19 +329,17 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
                 ->setFirstResult($maximumSamples)
                 ->setMaxResults($batchSize)
                 ->getQuery()
-                ->getScalarResult();
-            $ids = array_values(array_filter(array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $rows)));
+                ->getScalarResult(), static fn (array $row): int => MetricSampleRow::integer($row['id'] ?? null));
 
             if ($ids === []) {
                 break;
             }
 
-            $deleted += $this->createQueryBuilder('sample')
+            $deleted += EntityQueryResult::affected($this->createQueryBuilder('sample')
                 ->delete()
                 ->andWhere('sample.id IN (:ids)')
                 ->setParameter('ids', $ids)
-                ->getQuery()
-                ->execute();
+                ->getQuery());
         } while (count($ids) === $batchSize);
 
         return $deleted;

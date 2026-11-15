@@ -44,16 +44,18 @@ final class CustomerKvmController extends AbstractController
     public function guest(Request $request, int $id): Response
     {
         $actor = $this->actor($request);
-        $assignment = $this->console->assignment('kvm', $id, $actor);
+        $assignment = $this->assignment($id, $actor);
+        $guest = $this->kvm->guest($assignment, $actor);
+        $consoleReason = $this->console->unavailableReason($guest, $assignment->getNode());
 
-        return $this->render('customer/kvm/guest.html.twig', ['assignment' => $assignment, 'guest' => $this->kvm->guest($assignment, $actor), 'jobs' => $this->kvm->recent($assignment, $actor), 'operationId' => Uuid::v4()->toRfc4122(), 'consoleConfigured' => $this->console->configured() && 1 === ($assignment->getNode()->getMetadata()['kvm_managed']['console_version'] ?? null), 'activeNav' => 'kvm'], new Response(headers: ['Cache-Control' => 'private, no-store']));
+        return $this->render('customer/kvm/guest.html.twig', ['assignment' => $assignment, 'guest' => $guest, 'jobs' => $this->kvm->recent($assignment, $actor), 'operationId' => Uuid::v4()->toRfc4122(), 'consoleConfigured' => null === $consoleReason, 'consoleUnavailableReason' => $consoleReason, 'activeNav' => 'kvm'], new Response(headers: ['Cache-Control' => 'private, no-store']));
     }
 
     #[Route('/{id<\d+>}/action', name: 'customer_kvm_action', methods: ['POST'])]
     public function action(Request $request, int $id): Response
     {
         $actor = $this->actor($request);
-        $assignment = $this->console->assignment('kvm', $id, $actor);
+        $assignment = $this->assignment($id, $actor);
         if (!$this->isCsrfTokenValid('kvm-customer-'.$id, (string) $request->request->get('_token', ''))) {
             throw new AccessDeniedHttpException();
         }
@@ -77,13 +79,23 @@ final class CustomerKvmController extends AbstractController
     #[Route('/{id<\d+>}/jobs/{jobId}', name: 'customer_kvm_job', methods: ['GET'])]
     public function job(Request $request, int $id, string $jobId): JsonResponse
     {
-        $assignment = $this->console->assignment('kvm', $id, $this->actor($request));
+        $assignment = $this->assignment($id, $this->actor($request));
         $job = $this->em->find(AgentJob::class, $jobId);
         if (!$job || 'kvm.managed' !== $job->getType() || $job->getNode()->getId() !== $assignment->getNode()->getId() || ($job->getPayload()['vm_id'] ?? '') !== $assignment->getVmUuid() || !in_array($job->getPayload()['action'] ?? '', CustomerKvmService::ACTIONS, true)) {
             throw $this->createNotFoundException();
         }
 
         return new JsonResponse($this->kvm->jobView($job), 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    private function assignment(int $id, User $actor): KvmGuestAssignment
+    {
+        $assignment = $this->console->assignment('kvm', $id, $actor);
+        if (!$assignment instanceof KvmGuestAssignment) {
+            throw $this->createNotFoundException();
+        }
+
+        return $assignment;
     }
 
     private function actor(Request $request): User
@@ -99,8 +111,9 @@ final class CustomerKvmController extends AbstractController
     #[Route('/{id<\d+>}/usage', name: 'customer_kvm_usage', methods: ['GET'])]
     public function usage(Request $request, int $id, InfrastructureUsage $usage): JsonResponse
     {
-        $assignment = $this->console->assignment('kvm', $id, $this->actor($request));
-        if (!$this->console->kvmGuest($assignment)) {
+        $assignment = $this->assignment($id, $this->actor($request));
+        $guest = $this->console->kvmGuest($assignment);
+        if ($guest === null || $guest === []) {
             return new JsonResponse(['error' => 'console.unavailable'], 503, ['Cache-Control' => 'private, no-store']);
         }
 

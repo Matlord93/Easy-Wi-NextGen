@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Update\UpdateResult;
 use App\Module\Setup\Application\WebinterfaceUpdateServiceInterface;
 
@@ -68,8 +69,8 @@ final class PanelUpdateTickProcessor
 
             $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
             $job['status'] = 'running';
-            $job['startedAt'] = $job['startedAt'] ?? $now;
-            $job['lastStep'] = $job['currentStep'] ?? 'created';
+            $job['startedAt'] = self::optionalText($job['startedAt'] ?? null) ?? $now;
+            $job['lastStep'] = self::optionalText($job['currentStep'] ?? null) ?? 'created';
             $job['currentStep'] = $step;
             $job['nextStep'] = $this->nextStepAfter($steps, $step);
             $job['lock'] = [
@@ -78,7 +79,7 @@ final class PanelUpdateTickProcessor
                 'startedAt' => $now,
                 'expiresAfterSeconds' => self::LOCK_STALE_AFTER_SECONDS,
             ];
-            $payload = JsonArray::orEmpty($job['payload'] ?? null);
+            $payload = JsonMap::fromValue($job['payload'] ?? null) ?? [];
             $payload['panel_tick'] = [
                 'timeLimitSeconds' => self::TICK_TIME_LIMIT_SECONDS,
                 'legacySynchronousSteps' => ['apply_update', 'apply_migrations'],
@@ -109,7 +110,7 @@ final class PanelUpdateTickProcessor
 
             if (!$result->success) {
                 $job = $this->failJob($job, $result->error ?? 'update_failed', $result->message);
-                $this->appendLog($job, 'Update fehlgeschlagen: ' . ($job['error'] ?? $result->message));
+                $this->appendLog($job, 'Update fehlgeschlagen: ' . ScalarValue::text($job['error'] ?? null, $result->message));
                 $this->writeJob($jobPath, $job);
 
                 return ['job' => $job, 'locked' => false, 'notFound' => false];
@@ -164,12 +165,12 @@ final class PanelUpdateTickProcessor
      */
     private function resolveNextStep(array $job, array $steps): ?string
     {
-        $candidate = is_string($job['nextStep'] ?? null) ? $job['nextStep'] : null;
+        $candidate = self::optionalText($job['nextStep'] ?? null);
         if ($candidate !== null && in_array($candidate, $steps, true)) {
             return $candidate;
         }
 
-        $current = is_string($job['currentStep'] ?? null) ? $job['currentStep'] : null;
+        $current = self::optionalText($job['currentStep'] ?? null);
         if ($current !== null && in_array($current, $steps, true)) {
             return $this->nextStepAfter($steps, $current);
         }
@@ -234,6 +235,7 @@ final class PanelUpdateTickProcessor
         return $job;
     }
 
+    /** @return resource|null */
     private function acquireJobLock(string $jobId): mixed
     {
         $lockPath = $this->lockPath($jobId);
@@ -250,14 +252,20 @@ final class PanelUpdateTickProcessor
         }
 
         ftruncate($handle, 0);
-        fwrite($handle, json_encode([
+        $metadata = json_encode([
             'jobId' => $jobId,
             'lockedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
             'owner' => 'panel-http-tick',
-        ], JSON_UNESCAPED_SLASHES) ?: '');
+        ], JSON_UNESCAPED_SLASHES);
+        fwrite($handle, $metadata === false ? '' : $metadata);
         fflush($handle);
 
         return $handle;
+    }
+
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     private function jobPath(string $jobId): string
@@ -279,7 +287,7 @@ final class PanelUpdateTickProcessor
     /** @param array<string, mixed> $job */
     private function appendLog(array $job, string $message): void
     {
-        $logPath = is_string($job['logPath'] ?? null) ? $job['logPath'] : null;
+        $logPath = self::optionalText($job['logPath'] ?? null);
         if ($logPath === null || $logPath === '') {
             return;
         }

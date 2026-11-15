@@ -6,7 +6,6 @@ namespace App\Module\Teamspeak\UI\Controller\Api;
 
 use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Config\ScalarValue;
-
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
@@ -63,8 +62,8 @@ final class Ts3InstanceApiController
 
         $payload = $this->parseJsonPayload($request);
         $formData = $this->validatePayload($payload);
-        if ($formData['error'] instanceof JsonResponse) {
-            return $formData['error'];
+        if ($formData instanceof JsonResponse) {
+            return $formData;
         }
 
         $instance = new Ts3Instance(
@@ -107,7 +106,7 @@ final class Ts3InstanceApiController
             'db_port' => $instance->getDatabasePort() !== null ? (string) $instance->getDatabasePort() : '',
             'db_name' => $instance->getDatabaseName() ?? '',
             'db_username' => $instance->getDatabaseUsername() ?? '',
-            'db_password' => $instance->getDatabasePassword() !== null ? json_encode($instance->getDatabasePassword()) : '',
+            'db_password' => $instance->getDatabasePassword() !== null ? json_encode($instance->getDatabasePassword(), JSON_THROW_ON_ERROR) : '',
         ]);
 
         $this->auditLogger->log($actor, 'ts3.instance_created', [
@@ -157,18 +156,18 @@ final class Ts3InstanceApiController
         }
 
         $actionPayload = $this->buildActionPayload($action, $payload);
-        if ($actionPayload['error'] instanceof JsonResponse) {
-            return $actionPayload['error'];
+        if ($actionPayload instanceof JsonResponse) {
+            return $actionPayload;
         }
 
-        $job = $this->queueTs3Job($jobType, $instance, $actionPayload['payload']);
+        $job = $this->queueTs3Job($jobType, $instance, $actionPayload);
         $this->auditLogger->log($actor, sprintf('ts3.instance_%s', $action), [
             'instance_id' => $instance->getId(),
             'customer_id' => $instance->getCustomer()->getId(),
             'node_id' => $instance->getNode()->getId(),
             'action' => $action,
             'job_id' => $job->getId(),
-            'payload' => $actionPayload['payload'],
+            'payload' => $actionPayload,
         ]);
         $this->entityManager->flush();
 
@@ -205,14 +204,14 @@ final class Ts3InstanceApiController
 
     /**
      * @param array<array-key, mixed> $payload
-     * @return array{error: JsonResponse}|array{
-     *     error: null, customer: User, node: \App\Module\Core\Domain\Entity\Agent, name: string,
+     * @return JsonResponse|array{
+     *     customer: User, node: \App\Module\Core\Domain\Entity\Agent, name: string,
      *     voice_port: int, query_port: int, file_port: int, db_mode: Ts3DatabaseMode,
      *     db_host: string|null, db_port: int|null, db_name: string|null, db_username: string|null,
      *     db_password: array{key_id: string, nonce: string, ciphertext: string}|null
      * }
      */
-    private function validatePayload(array $payload): array
+    private function validatePayload(array $payload): array|JsonResponse
     {
         $customerId = self::numericInput($payload['customer_id'] ?? null);
         $nodeId = ScalarValue::text($payload['node_id'] ?? null);
@@ -228,90 +227,89 @@ final class Ts3InstanceApiController
         $dbPassword = trim(ScalarValue::text($payload['db_password'] ?? null));
 
         if (!is_numeric($customerId)) {
-            return ['error' => new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
         if ($nodeId === '') {
-            return ['error' => new JsonResponse(['error' => 'Node is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => 'Node is required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
         if ($name === '') {
-            return ['error' => new JsonResponse(['error' => 'Name is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => 'Name is required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $voicePort = $this->validatePort($voicePortValue, 'voice_port');
-        if ($voicePort['error'] instanceof JsonResponse) {
+        if ($voicePort instanceof JsonResponse) {
             return $voicePort;
         }
         $queryPort = $this->validatePort($queryPortValue, 'query_port');
-        if ($queryPort['error'] instanceof JsonResponse) {
+        if ($queryPort instanceof JsonResponse) {
             return $queryPort;
         }
         $filePort = $this->validatePort($filePortValue, 'file_port');
-        if ($filePort['error'] instanceof JsonResponse) {
+        if ($filePort instanceof JsonResponse) {
             return $filePort;
         }
 
         $dbMode = Ts3DatabaseMode::tryFrom($dbModeValue);
         if ($dbMode === null) {
-            return ['error' => new JsonResponse(['error' => 'Invalid db_mode.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => 'Invalid db_mode.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $dbPort = null;
         $encryptedPassword = null;
         if ($dbMode === Ts3DatabaseMode::Mysql) {
             if ($dbHost === '' || $dbName === '' || $dbUsername === '') {
-                return ['error' => new JsonResponse(['error' => 'MySQL settings are required.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => 'MySQL settings are required.'], JsonResponse::HTTP_BAD_REQUEST);
             }
             if ($dbPortValue === null || $dbPortValue === '' || !is_numeric($dbPortValue)) {
-                return ['error' => new JsonResponse(['error' => 'MySQL port must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => 'MySQL port must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
             }
             $dbPort = (int) $dbPortValue;
             if ($dbPort <= 0 || $dbPort > 65535) {
-                return ['error' => new JsonResponse(['error' => 'MySQL port must be between 1 and 65535.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => 'MySQL port must be between 1 and 65535.'], JsonResponse::HTTP_BAD_REQUEST);
             }
             if ($dbPassword === '') {
-                return ['error' => new JsonResponse(['error' => 'MySQL password is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => 'MySQL password is required.'], JsonResponse::HTTP_BAD_REQUEST);
             }
             $encryptedPassword = $this->encryptionService->encrypt($dbPassword);
         }
 
         $customer = $this->userRepository->find((int) $customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
-            return ['error' => new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND)];
+            return new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
         $node = $this->agentRepository->find($nodeId);
         if ($node === null) {
-            return ['error' => new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND)];
+            return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
         return [
             'customer' => $customer,
             'node' => $node,
             'name' => $name,
-            'voice_port' => $voicePort['port'],
-            'query_port' => $queryPort['port'],
-            'file_port' => $filePort['port'],
+            'voice_port' => $voicePort,
+            'query_port' => $queryPort,
+            'file_port' => $filePort,
             'db_mode' => $dbMode,
             'db_host' => $dbMode === Ts3DatabaseMode::Mysql ? $dbHost : null,
             'db_port' => $dbPort,
             'db_name' => $dbMode === Ts3DatabaseMode::Mysql ? $dbName : null,
             'db_username' => $dbMode === Ts3DatabaseMode::Mysql ? $dbUsername : null,
             'db_password' => $encryptedPassword,
-            'error' => null,
         ];
     }
 
-    /** @return array{error: JsonResponse}|array{error: null, port: int} */
-    private function validatePort(mixed $value, string $field): array
+    /** @return int|JsonResponse */
+    private function validatePort(mixed $value, string $field): int|JsonResponse
     {
         if ($value === null || $value === '' || !is_numeric($value)) {
-            return ['error' => new JsonResponse(['error' => sprintf('%s must be numeric.', $field)], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => sprintf('%s must be numeric.', $field)], JsonResponse::HTTP_BAD_REQUEST);
         }
         $port = (int) $value;
         if ($port <= 0 || $port > 65535) {
-            return ['error' => new JsonResponse(['error' => sprintf('%s must be between 1 and 65535.', $field)], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => sprintf('%s must be between 1 and 65535.', $field)], JsonResponse::HTTP_BAD_REQUEST);
         }
-        return ['port' => $port, 'error' => null];
+        return $port;
     }
 
     private function actionToJobType(string $action): ?string
@@ -332,9 +330,9 @@ final class Ts3InstanceApiController
 
     /**
      * @param array<array-key, mixed> $payload
-     * @return array{error: JsonResponse}|array{error: null, payload: array{action: string, slots?: string, backup_path?: string, restore_path?: string}}
+     * @return JsonResponse|array{action: string, slots?: string, backup_path?: string, restore_path?: string}
      */
-    private function buildActionPayload(string $action, array $payload): array
+    private function buildActionPayload(string $action, array $payload): array|JsonResponse
     {
         $extra = [
             'action' => $action,
@@ -342,11 +340,11 @@ final class Ts3InstanceApiController
         if ($action === 'slots') {
             $slotsValue = $payload['slots'] ?? null;
             if ($slotsValue === null || $slotsValue === '' || !is_numeric($slotsValue)) {
-                return ['error' => new JsonResponse(['error' => 'Slots must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => 'Slots must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
             }
             $slots = (int) $slotsValue;
             if ($slots <= 0) {
-                return ['error' => new JsonResponse(['error' => 'Slots must be positive.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => 'Slots must be positive.'], JsonResponse::HTTP_BAD_REQUEST);
             }
             $extra['slots'] = (string) $slots;
         }
@@ -359,12 +357,12 @@ final class Ts3InstanceApiController
         if ($action === 'restore') {
             $restorePath = trim(ScalarValue::text($payload['restore_path'] ?? null));
             if ($restorePath === '') {
-                return ['error' => new JsonResponse(['error' => 'restore_path is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return new JsonResponse(['error' => 'restore_path is required.'], JsonResponse::HTTP_BAD_REQUEST);
             }
             $extra['restore_path'] = $restorePath;
         }
 
-        return ['payload' => $extra, 'error' => null];
+        return $extra;
     }
 
     /** @param array<string, string> $extraPayload */

@@ -28,6 +28,27 @@ final class EntityQueryResultTest extends TestCase
         EntityQueryResult::all($query, \stdClass::class);
     }
 
+    public function testValidationRejectsInvalidRowsAfterValidEntities(): void
+    {
+        $query = $this->createStub(AbstractQuery::class);
+        $query->method('getResult')->willReturn([new \stdClass(), 'invalid']);
+
+        $this->expectException(\UnexpectedValueException::class);
+        EntityQueryResult::all($query, \stdClass::class);
+    }
+
+    public function testNormalizationPreservesOrderAndDoesNotModifyIndexedResults(): void
+    {
+        $first = new \stdClass();
+        $second = new \stdClass();
+        $rows = ['second' => $second, 42 => $first];
+        $query = $this->createStub(AbstractQuery::class);
+        $query->method('getResult')->willReturn($rows);
+
+        self::assertSame([$second, $first], EntityQueryResult::all($query, \stdClass::class));
+        self::assertSame(['second' => $second, 42 => $first], $rows);
+    }
+
     public function testUnexpectedResultShapeIsRejected(): void
     {
         $query = $this->createStub(AbstractQuery::class);

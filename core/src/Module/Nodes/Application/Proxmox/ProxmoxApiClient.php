@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Proxmox;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use Psr\Log\LoggerInterface;
@@ -152,7 +153,7 @@ final readonly class ProxmoxApiClient
             throw new ProxmoxApiException('Invalid guest agent response.');
         }
 
-        return $data['result'];
+        return JsonArray::orEmpty($data['result']);
     }
 
     /** @return list<array<array-key, mixed>> */
@@ -171,7 +172,7 @@ final readonly class ProxmoxApiClient
             throw new ProxmoxApiException('Invalid RRD response.');
         }
 
-        return array_slice($data, 0, 256);
+        return array_values(array_filter(array_slice($data, 0, 256), 'is_array'));
     }
 
     /** @return array<array-key, mixed> */
@@ -218,7 +219,7 @@ final readonly class ProxmoxApiClient
     /** @return array<array-key, mixed> */
     public function updateProvisioning(ProxmoxConnection $connection, string $node, int $vmId, string $hostname, string $username, array $keys, ?string $digest): array
     {
-        $body = ['name' => $hostname, 'ciuser' => $username, 'sshkeys' => rawurlencode(implode("\n", $keys))];
+        $body = ['name' => $hostname, 'ciuser' => $username, 'sshkeys' => rawurlencode(implode("\n", self::stringValues($keys)))];
         if (null !== $digest) {
             $body['digest'] = $digest;
         }
@@ -229,7 +230,7 @@ final readonly class ProxmoxApiClient
     /** @return array<array-key, mixed> */
     public function updateBootOrder(ProxmoxConnection $connection, string $node, int $vmId, array $devices, ?string $digest): array
     {
-        $body = ['boot' => 'order='.implode(';', $devices)];
+        $body = ['boot' => 'order='.implode(';', self::stringValues($devices))];
         if (null !== $digest) {
             $body['digest'] = $digest;
         }
@@ -362,11 +363,12 @@ final readonly class ProxmoxApiClient
     {
         $this->assertGuestKind($kind);
         $data = $this->item($connection, sprintf('/nodes/%s/%s/%d/vncproxy', rawurlencode($node), $kind, $vmId), 'POST', ['websocket' => 1]);
-        if (!is_string($data['ticket'] ?? null) || strlen($data['ticket']) < 8 || strlen($data['ticket']) > 8192 || !is_numeric($data['port'] ?? null) || (int) $data['port'] < 1 || (int) $data['port'] > 65535) {
+        $ticket = self::optionalText($data['ticket'] ?? null);
+        if ($ticket === null || strlen($ticket) < 8 || strlen($ticket) > 8192 || !is_numeric($data['port'] ?? null) || (int) $data['port'] < 1 || (int) $data['port'] > 65535) {
             throw new ProxmoxApiException('Invalid Proxmox console response.');
         }
 
-        return ['ticket' => $data['ticket'], 'port' => (int) $data['port']];
+        return ['ticket' => $ticket, 'port' => (int) $data['port']];
     }
 
     /** @return array<array-key, mixed> */
@@ -395,15 +397,42 @@ final readonly class ProxmoxApiClient
     /** @return array<array-key, mixed> */
     private function item(ProxmoxConnection $connection, string $path, string $method = 'GET', array $body = []): array
     {
-        $data = $this->request($connection, $method, $path, ['body' => $body]);
+        return self::itemData($this->request($connection, $method, $path, ['body' => $body]));
+    }
 
+    /** @return array<array-key, mixed> */
+    private static function itemData(mixed $data): array
+    {
         return is_array($data) ? $data : ['task' => $data];
     }
 
+    /**
+     * @param array<array-key, mixed> $values
+     * @return array<array-key, string>
+     */
+    private static function stringValues(array $values): array
+    {
+        return array_map(static function (mixed $value): string {
+            if (!is_string($value)) {
+                throw new \InvalidArgumentException('Proxmox configuration values must be strings.');
+            }
+
+            return $value;
+        }, $values);
+    }
+
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * @param array{query?: array<array-key, mixed>, body?: array<array-key, mixed>, headers?: array<array-key, mixed>, timeout?: int|float, max_duration?: int|float, on_progress?: \Closure(int): void} $options
+     */
     private function request(ProxmoxConnection $connection, string $method, string $path, array $options): mixed
     {
         $url = rtrim($connection->baseUrl, '/').'/api2/json'.$path;
-        $options['headers']['Authorization'] = 'PVEAPIToken='.$connection->tokenId.'='.$connection->tokenSecret;
+        $options['headers'] = ['Authorization' => 'PVEAPIToken='.$connection->tokenId.'='.$connection->tokenSecret] + JsonArray::orEmpty($options['headers'] ?? null);
         $options['verify_peer'] = $connection->verifyTls;
         $options['verify_host'] = $connection->verifyTls;
         $options['timeout'] ??= 10;
@@ -429,7 +458,7 @@ final readonly class ProxmoxApiClient
         }
 
         if ($status < 200 || $status >= 300) {
-            $message = is_string($payload['message'] ?? null) ? $payload['message'] : 'Proxmox API request failed.';
+            $message = self::optionalText($payload['message'] ?? null) ?? 'Proxmox API request failed.';
             $this->logger->warning('Proxmox API rejected a request.', ['path' => $path, 'status' => $status]);
             throw new ProxmoxApiException($message, $status, $path);
         }

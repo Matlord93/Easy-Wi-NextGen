@@ -6,6 +6,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
@@ -15,6 +16,7 @@ use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Application\MailDnsCheckService;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
@@ -134,7 +136,7 @@ final class CustomerMailController
             }
         }
 
-        if ($errors !== []) {
+        if ($errors !== [] || $domain === null) {
             return $this->renderWithErrors($customer, $errors);
         }
 
@@ -356,8 +358,10 @@ final class CustomerMailController
 
         $mailDomain = $this->mailDomainRepository->findOneByDomain($mailbox->getDomain());
         $mailNode = $mailDomain?->getNode();
-        $clientHost = $mailNode?->getImapHost() ?: sprintf('mail.%s', $mailbox->getDomain()->getName());
-        $smtpHost = $mailNode?->getSmtpHost() ?: $clientHost;
+        $clientHost = $mailNode?->getImapHost();
+        $clientHost = $clientHost === null || $clientHost === '' || $clientHost === '0' ? sprintf('mail.%s', $mailbox->getDomain()->getName()) : $clientHost;
+        $smtpHost = $mailNode?->getSmtpHost();
+        $smtpHost = $smtpHost === null || $smtpHost === '' || $smtpHost === '0' ? $clientHost : $smtpHost;
         $lastJob = $this->findLastMailboxProvisioningJob($mailbox->getAddress());
 
         $policy = $this->mailPolicyRepository->findOneByDomain($mailbox->getDomain());
@@ -435,7 +439,7 @@ final class CustomerMailController
             }
         }
 
-        if ($errors !== []) {
+        if ($errors !== [] || $domain === null) {
             return $this->renderWithErrors($customer, $errors);
         }
 
@@ -919,7 +923,10 @@ final class CustomerMailController
         return $settings;
     }
 
-    /** @return list<array{domain: string, url: string}> */
+    /**
+     * @param Domain[] $domains
+     * @return list<array{domain: string, url: string}>
+     */
     private function buildRoundcubeBindings(array $domains): array
     {
         $bindings = [];
@@ -934,15 +941,16 @@ final class CustomerMailController
         return $bindings;
     }
 
+    /** @param array<array-key, mixed> $metadata */
     private function resolveMetadataValue(array $metadata, string $primaryKey, string $fallbackKey, string $default): string
     {
-        $primary = $metadata[$primaryKey] ?? null;
-        if (is_string($primary) && trim($primary) !== '') {
+        $primary = $this->optionalString($metadata[$primaryKey] ?? null);
+        if ($primary !== null && trim($primary) !== '') {
             return trim($primary);
         }
 
-        $fallback = $metadata[$fallbackKey] ?? null;
-        if (is_string($fallback) && trim($fallback) !== '') {
+        $fallback = $this->optionalString($metadata[$fallbackKey] ?? null);
+        if ($fallback !== null && trim($fallback) !== '') {
             return trim($fallback);
         }
 
@@ -950,7 +958,7 @@ final class CustomerMailController
     }
 
     /**
-     * @param array<string,mixed>|null $stats
+     * @param array<array-key, mixed>|null $stats
      * @return array{available: bool, used_bytes: int, used_mb: float, quota_mb: int, percent: float,
      * percent_bar: float, truncated: bool}
      */
@@ -959,15 +967,15 @@ final class CustomerMailController
         $mail = JsonArray::orEmpty($stats['mail'] ?? null);
         $usageMap = JsonArray::orEmpty($mail['mailbox_usage'] ?? null);
         $lookupAddress = strtolower($address);
-        $entry = is_array($usageMap[$lookupAddress] ?? null) ? $usageMap[$lookupAddress] : (is_array($usageMap[$address] ?? null) ? $usageMap[$address] : null);
+        $entry = JsonArray::fromValue($usageMap[$lookupAddress] ?? null) ?? JsonArray::fromValue($usageMap[$address] ?? null);
         if ($entry === null) {
             return ['available' => false, 'used_bytes' => 0, 'used_mb' => 0.0, 'quota_mb' => max(0, $quotaMb), 'percent' => 0.0, 'percent_bar' => 0.0, 'truncated' => (bool) ($mail['mailbox_usage_truncated'] ?? false)];
         }
 
-        $usedBytes = max(0, is_numeric($entry['used_bytes'] ?? null) ? (int) $entry['used_bytes'] : 0);
-        $usedMb = round($usedBytes / 1024 / 1024, 1);
+        $usedBytes = max(0, ScalarValue::integer($entry['used_bytes'] ?? null, 0));
+        $usedMb = round((float) $usedBytes / 1024.0 / 1024.0, 1);
         $quota = max(0, $quotaMb);
-        $percent = $quota > 0 ? round(($usedMb / $quota) * 100, 1) : 0.0;
+        $percent = $quota > 0 ? round(($usedMb / (float) $quota) * 100.0, 1) : 0.0;
 
         return ['available' => true, 'used_bytes' => $usedBytes, 'used_mb' => $usedMb, 'quota_mb' => $quota, 'percent' => $percent, 'percent_bar' => min(100.0, $percent), 'truncated' => (bool) ($mail['mailbox_usage_truncated'] ?? false)];
     }
@@ -994,13 +1002,18 @@ final class CustomerMailController
         }
 
         $output = $latest->getResult()?->getOutput() ?? [];
-        $error = $output['error_message'] ?? $output['error'] ?? $latest->getLastError();
+        $error = $this->optionalString($output['error_message'] ?? $output['error'] ?? $latest->getLastError());
 
         return [
             'type' => $latest->getType(),
             'status' => $latest->getStatus()->value,
-            'error' => is_string($error) ? $error : null,
+            'error' => $error,
         ];
+    }
+
+    private function optionalString(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     private function resolvePort(mixed $value, int $default): int

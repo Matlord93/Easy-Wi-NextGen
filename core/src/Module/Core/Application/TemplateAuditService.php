@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Template;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Repository\TemplateRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -106,42 +108,43 @@ final class TemplateAuditService
         $invalid = [];
         foreach ($templates as $template) {
             $issues = [];
-            $gameKey = $template->getGameKey();
 
             $requiredPorts = $template->getRequiredPorts();
-            if (!is_array($requiredPorts) || $requiredPorts === []) {
+            if ($requiredPorts === []) {
                 $issues[] = 'required_ports missing or empty.';
             } else {
-                foreach ($requiredPorts as $index => $entry) {
-                    if (!is_array($entry)) {
-                        $issues[] = sprintf('required_ports entry %d must be an object.', $index + 1);
+                foreach (array_keys($requiredPorts) as $index) {
+                    $entry = JsonArray::fromValue($requiredPorts[$index]);
+                    if ($entry === null) {
+                        $issues[] = sprintf('required_ports entry %s must be an object.', self::entryPosition($index));
                         continue;
                     }
-                    $name = trim((string) ($entry['name'] ?? ''));
-                    $protocol = trim((string) ($entry['protocol'] ?? ''));
+                    $name = trim(ScalarValue::text($entry['name'] ?? ''));
+                    $protocol = trim(ScalarValue::text($entry['protocol'] ?? ''));
                     if ($name === '' || $protocol === '') {
-                        $issues[] = sprintf('required_ports entry %d missing name/protocol.', $index + 1);
+                        $issues[] = sprintf('required_ports entry %s missing name/protocol.', self::entryPosition($index));
                     }
                 }
             }
 
             $portProfile = $template->getPortProfile();
-            if (!is_array($portProfile) || $portProfile === []) {
+            if ($portProfile === []) {
                 $issues[] = 'port_profile missing or empty.';
             } else {
-                foreach ($portProfile as $index => $entry) {
-                    if (!is_array($entry)) {
-                        $issues[] = sprintf('port_profile entry %d must be an object.', $index + 1);
+                foreach (array_keys($portProfile) as $index) {
+                    $entry = JsonArray::fromValue($portProfile[$index]);
+                    if ($entry === null) {
+                        $issues[] = sprintf('port_profile entry %s must be an object.', self::entryPosition($index));
                         continue;
                     }
-                    $role = trim((string) ($entry['role'] ?? ''));
-                    $protocol = trim((string) ($entry['protocol'] ?? ''));
-                    $count = $entry['count'] ?? null;
+                    $role = trim(ScalarValue::text($entry['role'] ?? ''));
+                    $protocol = trim(ScalarValue::text($entry['protocol'] ?? ''));
+                    $validCount = self::validPortCount($entry['count'] ?? null);
                     if ($role === '' || $protocol === '') {
-                        $issues[] = sprintf('port_profile entry %d missing role/protocol.', $index + 1);
+                        $issues[] = sprintf('port_profile entry %s missing role/protocol.', self::entryPosition($index));
                     }
-                    if (!is_int($count) || $count < 1) {
-                        $issues[] = sprintf('port_profile entry %d count must be >= 1.', $index + 1);
+                    if (!$validCount) {
+                        $issues[] = sprintf('port_profile entry %s count must be >= 1.', self::entryPosition($index));
                     }
                 }
             }
@@ -155,16 +158,17 @@ final class TemplateAuditService
             }
 
             $configFiles = $template->getConfigFiles();
-            if (is_array($configFiles) && $configFiles !== []) {
+            if ($configFiles !== []) {
                 $paths = [];
-                foreach ($configFiles as $index => $entry) {
-                    if (!is_array($entry)) {
-                        $issues[] = sprintf('config_files entry %d must be an object.', $index + 1);
+                foreach (array_keys($configFiles) as $index) {
+                    $entry = JsonArray::fromValue($configFiles[$index]);
+                    if ($entry === null) {
+                        $issues[] = sprintf('config_files entry %s must be an object.', self::entryPosition($index));
                         continue;
                     }
-                    $path = trim((string) ($entry['path'] ?? ''));
+                    $path = trim(ScalarValue::text($entry['path'] ?? ''));
                     if ($path === '') {
-                        $issues[] = sprintf('config_files entry %d missing path.', $index + 1);
+                        $issues[] = sprintf('config_files entry %s missing path.', self::entryPosition($index));
                         continue;
                     }
                     $normalized = strtolower($path);
@@ -273,7 +277,8 @@ final class TemplateAuditService
             'requirements' => $template->getRequirements(),
         ];
 
-        return hash('sha256', json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '');
+        $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return hash('sha256', $encoded === false ? '' : $encoded);
     }
 
     public function resolveBaseGameKey(string $gameKey): string
@@ -284,7 +289,7 @@ final class TemplateAuditService
     public function resolveTemplateOs(Template $template): ?string
     {
         $supported = $template->getSupportedOs();
-        if (is_array($supported) && count($supported) === 1) {
+        if (count($supported) === 1) {
             $value = strtolower((string) $supported[0]);
             if (in_array($value, ['linux', 'windows'], true)) {
                 return $value;
@@ -300,6 +305,16 @@ final class TemplateAuditService
         }
 
         return null;
+    }
+
+    private static function entryPosition(int|string $index): int|string
+    {
+        return is_int($index) ? $index + 1 : $index;
+    }
+
+    private static function validPortCount(mixed $value): bool
+    {
+        return is_int($value) && $value >= 1;
     }
 
     private function normalizeCommand(string $command): string

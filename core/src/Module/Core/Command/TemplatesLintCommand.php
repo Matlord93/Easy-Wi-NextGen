@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\Command;
 
 use App\Repository\TemplateRepository;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -32,44 +34,45 @@ final class TemplatesLintCommand extends Command
             $gameKey = $template->getGameKey();
 
             $supportedOs = $template->getSupportedOs();
-            if (!is_array($supportedOs) || $supportedOs === []) {
+            if ($supportedOs === []) {
                 $errors[] = sprintf('%s: supported_os is missing.', $gameKey);
             } else {
-                $invalidOs = array_diff($supportedOs, ['linux', 'windows']);
+                $invalidOs = self::invalidOsValues($supportedOs);
                 if ($invalidOs !== []) {
                     $errors[] = sprintf('%s: supported_os has invalid values (%s).', $gameKey, implode(', ', $invalidOs));
                 }
             }
 
             $portProfile = $template->getPortProfile();
-            if (!is_array($portProfile) || $portProfile === []) {
+            if ($portProfile === []) {
                 $errors[] = sprintf('%s: port_profile is missing.', $gameKey);
             } else {
-                foreach ($portProfile as $index => $entry) {
-                    if (!is_array($entry)) {
-                        $errors[] = sprintf('%s: port_profile entry %d must be an object.', $gameKey, $index + 1);
+                foreach (array_keys($portProfile) as $index) {
+                    $entry = JsonArray::fromValue($portProfile[$index]);
+                    if ($entry === null) {
+                        $errors[] = sprintf('%s: port_profile entry %s must be an object.', $gameKey, self::entryPosition($index));
                         continue;
                     }
-                    $role = (string) ($entry['role'] ?? '');
-                    $protocol = (string) ($entry['protocol'] ?? '');
-                    $count = $entry['count'] ?? null;
+                    $role = ScalarValue::text($entry['role'] ?? '');
+                    $protocol = ScalarValue::text($entry['protocol'] ?? '');
+                    $validCount = self::validPortCount($entry['count'] ?? null);
                     if ($role === '' || $protocol === '') {
-                        $errors[] = sprintf('%s: port_profile entry %d missing role/protocol.', $gameKey, $index + 1);
+                        $errors[] = sprintf('%s: port_profile entry %s missing role/protocol.', $gameKey, self::entryPosition($index));
                     }
-                    if (!is_int($count) || $count < 1) {
-                        $errors[] = sprintf('%s: port_profile entry %d count must be >= 1.', $gameKey, $index + 1);
+                    if (!$validCount) {
+                        $errors[] = sprintf('%s: port_profile entry %s count must be >= 1.', $gameKey, self::entryPosition($index));
                     }
                     if (!array_key_exists('required', $entry) || !is_bool($entry['required'])) {
-                        $errors[] = sprintf('%s: port_profile entry %d required flag invalid.', $gameKey, $index + 1);
+                        $errors[] = sprintf('%s: port_profile entry %s required flag invalid.', $gameKey, self::entryPosition($index));
                     }
                     if (!array_key_exists('contiguous', $entry) || !is_bool($entry['contiguous'])) {
-                        $errors[] = sprintf('%s: port_profile entry %d contiguous flag invalid.', $gameKey, $index + 1);
+                        $errors[] = sprintf('%s: port_profile entry %s contiguous flag invalid.', $gameKey, self::entryPosition($index));
                     }
                 }
             }
 
             $requirements = $template->getRequirements();
-            if (!is_array($requirements) || $requirements === []) {
+            if ($requirements === []) {
                 $errors[] = sprintf('%s: requirements are missing.', $gameKey);
             } else {
                 $requiredKeys = [
@@ -92,13 +95,13 @@ final class TemplatesLintCommand extends Command
                 }
 
                 foreach (['required_vars', 'required_secrets', 'customer_allowed_vars', 'customer_allowed_secrets'] as $listKey) {
-                    $list = $requirements[$listKey] ?? null;
-                    if (!is_array($list)) {
+                    $list = JsonArray::fromValue($requirements[$listKey] ?? null);
+                    if ($list === null) {
                         $errors[] = sprintf('%s: requirements %s must be an array.', $gameKey, $listKey);
                         continue;
                     }
-                    foreach ($list as $value) {
-                        if (!is_string($value) || $value === '') {
+                    foreach (array_keys($list) as $key) {
+                        if (!self::nonEmptyText($list[$key])) {
                             $errors[] = sprintf('%s: requirements %s entries must be non-empty strings.', $gameKey, $listKey);
                             break;
                         }
@@ -120,4 +123,36 @@ final class TemplatesLintCommand extends Command
 
         return Command::SUCCESS;
     }
+    private static function entryPosition(int|string $index): int|string
+    {
+        return is_int($index) ? $index + 1 : $index;
+    }
+
+    private static function validPortCount(mixed $value): bool
+    {
+        return is_int($value) && $value >= 1;
+    }
+
+    private static function nonEmptyText(mixed $value): bool
+    {
+        return is_string($value) && $value !== '';
+    }
+
+    /**
+     * @param array<array-key, mixed> $values
+     * @return list<string>
+     */
+    private static function invalidOsValues(array $values): array
+    {
+        $invalid = [];
+        foreach (array_keys($values) as $key) {
+            $os = ScalarValue::text($values[$key], get_debug_type($values[$key]));
+            if (!in_array($os, ['linux', 'windows'], true)) {
+                $invalid[] = $os;
+            }
+        }
+
+        return $invalid;
+    }
+
 }

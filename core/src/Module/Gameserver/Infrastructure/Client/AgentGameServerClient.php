@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Infrastructure\Client;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -41,13 +42,14 @@ class AgentGameServerClient
         if ($response->getStatusCode() !== 200) {
             throw new \RuntimeException('Portprüfung auf dem Node nicht verfügbar. Es wurden keine Ports vergeben.');
         }
-        $data = self::unwrapAgentEnvelope($response->toArray());
-        if (!is_array($data['results'] ?? null)) {
-            throw new \RuntimeException('Ungültige Antwort der Node-Portprüfung.');
-        }
-        return $data['results'];
+        $data = self::unwrapAgentEnvelope(JsonMap::fromValue($response->toArray()) ?? []);
+        return self::portCheckResults($data['results'] ?? null);
     }
 
+    /**
+     * @param array<int, array{proto: string, port: int}> $checks
+     * @return array<int, array{proto: string, port: int, free: bool}>
+     */
     public function checkFreePorts(Instance $instance, array $checks): array
     {
         return $this->checkFreePortsForNode($instance->getNode(), $checks);
@@ -125,11 +127,12 @@ class AgentGameServerClient
         $content = $response->getContent(false);
         $message = 'Agent backup download failed.';
         try {
-            $decoded = json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
-            if (is_array($decoded) && is_string($decoded['message'] ?? null) && $decoded['message'] !== '') {
-                $message = $decoded['message'];
-            } elseif (is_array($decoded) && is_string($decoded['error'] ?? null) && $decoded['error'] !== '') {
-                $message = $decoded['error'];
+            $decoded = JsonMap::fromValue(json_decode($content, true, 512, \JSON_THROW_ON_ERROR));
+            $fields = JsonMap::strings($decoded);
+            if (($fields['message'] ?? '') !== '') {
+                $message = $fields['message'];
+            } elseif (($fields['error'] ?? '') !== '') {
+                $message = $fields['error'];
             }
         } catch (\JsonException) {
             if (trim($content) !== '') {
@@ -240,10 +243,7 @@ class AgentGameServerClient
     public static function unwrapAgentEnvelope(array $payload): array
     {
         if (($payload['ok'] ?? null) === true && is_array($payload['data'] ?? null)) {
-            /** @var array<string, mixed> $data */
-            $data = $payload['data'];
-
-            return $data;
+            return JsonMap::fromValue($payload['data']) ?? [];
         }
 
         return $payload;
@@ -304,14 +304,13 @@ class AgentGameServerClient
             throw new \RuntimeException('Agent response was not a JSON object.');
         }
 
-        return $decoded;
+        return JsonMap::fromValue($decoded) ?? [];
     }
 
     /** @param array<string,mixed> $payload */
     private function encodeJsonBody(array $payload): string
     {
         $body = json_encode($payload, \JSON_THROW_ON_ERROR);
-        \assert(is_string($body));
 
         return $body;
     }
@@ -343,18 +342,18 @@ class AgentGameServerClient
         $metadata = $node->getMetadata();
         $metadata = JsonArray::orEmpty($metadata);
 
-        $url = $metadata['gamesvc_url'] ?? null;
+        $url = self::optionalText($metadata['gamesvc_url'] ?? null);
         if (is_string($url) && trim($url) !== '') {
             return $this->normalizeBaseUrl($url);
         }
 
 
         $heartbeatIp = trim((string) $node->getLastHeartbeatIp());
-        $metadataScheme = $metadata['agent_service_scheme'] ?? null;
-        $metadataPort = $metadata['agent_service_port'] ?? null;
-        if ($heartbeatIp !== '' && is_numeric($metadataPort)) {
-            $scheme = is_string($metadataScheme) && trim($metadataScheme) !== '' ? trim($metadataScheme) : 'https';
-            return sprintf('%s://%s:%d', $scheme, $heartbeatIp, (int) $metadataPort);
+        $metadataScheme = self::optionalText($metadata['agent_service_scheme'] ?? null);
+        $metadataPort = self::optionalInteger($metadata['agent_service_port'] ?? null);
+        if ($heartbeatIp !== '' && $metadataPort !== null) {
+            $scheme = $metadataScheme !== null && trim($metadataScheme) !== '' ? trim($metadataScheme) : 'https';
+            return sprintf('%s://%s:%d', $scheme, $heartbeatIp, $metadataPort);
         }
 
         $heartbeatIp = trim((string) $node->getLastHeartbeatIp());
@@ -363,6 +362,48 @@ class AgentGameServerClient
         }
 
         throw new \RuntimeException('Game service base URL not configured.');
+    }
+
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    private static function optionalInteger(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    /** @return array<int, array{proto: string, port: int, free: bool}> */
+    private static function portCheckResults(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new \RuntimeException('Ungültige Antwort der Node-Portprüfung.');
+        }
+
+        $results = [];
+        foreach (array_keys($value) as $key) {
+            if (!is_int($key)) {
+                throw new \RuntimeException('Ungültige Antwort der Node-Portprüfung.');
+            }
+            $results[$key] = self::portCheckResult($value[$key]);
+        }
+
+        return $results;
+    }
+
+    /** @return array{proto: string, port: int, free: bool} */
+    private static function portCheckResult(mixed $value): array
+    {
+        if (!is_array($value)
+            || !is_string($value['proto'] ?? null)
+            || !is_int($value['port'] ?? null)
+            || !is_bool($value['free'] ?? null)
+        ) {
+            throw new \RuntimeException('Ungültige Antwort der Node-Portprüfung.');
+        }
+
+        return ['proto' => (string) $value['proto'], 'port' => (int) $value['port'], 'free' => (bool) $value['free']];
     }
 
     private function normalizeBaseUrl(string $url): string

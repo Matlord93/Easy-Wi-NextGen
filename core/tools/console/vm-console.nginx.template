@@ -1,0 +1,16 @@
+# Include inside the existing HTTPS server {} for the EasyWI panel.
+# The agent/control API remains private. Only this gateway path is public.
+location = /vm-console/ws {
+    proxy_pass http://127.0.0.1:7457;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header Origin $http_origin;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header Sec-WebSocket-Protocol $http_sec_websocket_protocol;
+    proxy_set_header Authorization "";
+    proxy_buffering off;
+    proxy_read_timeout 75s;
+    proxy_send_timeout 75s;
+}

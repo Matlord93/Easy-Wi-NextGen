@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DnsRecordHelper;
 use App\Module\Core\Domain\Entity\DnsRecord;
+use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DnsRecordRepository;
@@ -40,8 +41,8 @@ final class DnsRecordApiController
         $payload = $this->parseJsonPayload($request);
 
         $formData = $this->validatePayload($payload);
-        if ($formData['error'] !== null) {
-            return $formData['error'];
+        if ($formData instanceof JsonResponse) {
+            return $formData;
         }
 
         $domain = $formData['domain'];
@@ -103,8 +104,8 @@ final class DnsRecordApiController
 
         $payload = $this->parseJsonPayload($request);
         $formData = $this->validatePayload($payload);
-        if ($formData['error'] !== null) {
-            return $formData['error'];
+        if ($formData instanceof JsonResponse) {
+            return $formData;
         }
 
         $domain = $formData['domain'];
@@ -199,6 +200,7 @@ final class DnsRecordApiController
         return $actor;
     }
 
+    /** @return array<array-key, mixed> */
     private function parseJsonPayload(Request $request): array
     {
         try {
@@ -211,45 +213,33 @@ final class DnsRecordApiController
     }
 
     /**
-     * @return array{error: \Symfony\Component\HttpFoundation\JsonResponse|null, domain?:
-     * \App\Module\Core\Domain\Entity\Domain, name?: string, type?: string, content?: string, ttl?: int,
-     * priority?: int|null}
+     * @param array<array-key, mixed> $payload
+     * @return array{domain: Domain, name: string, type: string, content: string, ttl: int, priority: ?int}|JsonResponse
      */
-    private function validatePayload(array $payload): array
+    private function validatePayload(array $payload): array|JsonResponse
     {
         $domainId = $payload['domain_id'] ?? null;
-        $name = $this->recordHelper->normalizeName((string) ($payload['name'] ?? ''));
-        $type = strtoupper(trim((string) ($payload['type'] ?? '')));
-        $content = $this->recordHelper->normalizeContent((string) ($payload['content'] ?? ''), $type);
-        $ttlValue = $payload['ttl'] ?? null;
-        $priorityValue = $payload['priority'] ?? null;
-
-        $ttl = null;
-        if ($ttlValue !== null && $ttlValue !== '') {
-            $ttl = is_numeric($ttlValue) ? (int) $ttlValue : null;
-        }
-
-        $priority = null;
-        if ($priorityValue !== null && $priorityValue !== '') {
-            $priority = is_numeric($priorityValue) ? (int) $priorityValue : null;
-        }
+        $name = $this->recordHelper->normalizeName(ScalarValue::text($payload['name'] ?? ''));
+        $type = strtoupper(trim(ScalarValue::text($payload['type'] ?? '')));
+        $content = $this->recordHelper->normalizeContent(ScalarValue::text($payload['content'] ?? ''), $type);
+        $ttl = $this->optionalInteger($payload['ttl'] ?? null);
+        $priority = $this->optionalInteger($payload['priority'] ?? null);
 
         $errors = $this->recordHelper->validate($name, $type, $content, $ttl, $priority);
         if ($errors !== []) {
-            return ['error' => new JsonResponse(['errors' => $errors], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['errors' => $errors], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         if (!is_numeric($domainId)) {
-            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_domain_required')], JsonResponse::HTTP_BAD_REQUEST)];
+            return new JsonResponse(['error' => $this->translator->trans('error_domain_required')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $domain = $this->domainRepository->find((int) $domainId);
         if ($domain === null) {
-            return ['error' => new JsonResponse(['error' => $this->translator->trans('error_domain_not_found')], JsonResponse::HTTP_NOT_FOUND)];
+            return new JsonResponse(['error' => $this->translator->trans('error_domain_not_found')], JsonResponse::HTTP_NOT_FOUND);
         }
 
         return [
-            'error' => null,
             'domain' => $domain,
             'name' => $name,
             'type' => $type,
@@ -257,6 +247,11 @@ final class DnsRecordApiController
             'ttl' => $ttl ?? 0,
             'priority' => $priority,
         ];
+    }
+
+    private function optionalInteger(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
     }
 
     private function canAccessDomain(User $actor, \App\Module\Core\Domain\Entity\Domain $domain): bool
