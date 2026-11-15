@@ -156,7 +156,13 @@ final class VmConsoleHttpTest extends AbstractWebTestCase
         self::assertStringContainsString('no-store', $client->getResponse()->headers->get('Cache-Control'));
         $html = json_decode((string) $client->getResponse()->getContent(), true)['html'];
         self::assertStringContainsString('37.5 %', $html);
-        self::assertStringContainsString('12.5 %', $html);
+        self::assertStringNotContainsString('12.5 %', $html, 'Node load must not be exposed to customers.');
+        $fragment = new \Symfony\Component\DomCrawler\Crawler($html);
+        self::assertCount(1, $fragment->filterXPath('//*[@data-series-role="server"]'));
+        self::assertCount(0, $fragment->filterXPath('//*[@data-series-role="node"]'));
+        self::assertCount(1, $fragment->filterXPath('//*[@data-history-sample]'));
+        $sample = json_decode($fragment->filterXPath('//*[@data-history-sample]')->text(), true, 32, JSON_THROW_ON_ERROR);
+        self::assertSame(37.5, $sample['cpu_percent']);
         foreach (['host-secret', 'private-agent.example', '127.0.0.1', 'synthetic-agent-secret'] as $secret) {
             self::assertStringNotContainsString($secret, $html);
         }
