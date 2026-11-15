@@ -22,7 +22,7 @@ func TestPhpFpmRuntimeDirsIgnoresNonEasyWISocket(t *testing.T) {
 
 func TestPhpFpmTmpfilesRuleUsesNginxGroup(t *testing.T) {
 	got := phpFpmTmpfilesRule("www-data")
-	want := "d /run/easywi 0750 root www-data -\nd /run/easywi/php-fpm 0750 root www-data -\n"
+	want := "d /run/easywi/php-fpm 0750 root www-data -\n"
 	if got != want {
 		t.Fatalf("expected tmpfiles rule %q, got %q", want, got)
 	}

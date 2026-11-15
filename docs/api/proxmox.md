@@ -153,3 +153,27 @@ absolutem `size=<GiB>G` und dem frisch gelesenen `digest`. Frei übermittelte
 Volume-Pfade und relative Größen werden nicht weitergereicht. Synchrone Erfolge
 und zurückgegebene UPIDs werden über den bestehenden Aufgabenverlauf verarbeitet.
 Details: [Festplatten-Erweiterung](../reports/vm-festplatten-erweitern.md).
+## Gast-Dateisystembelegung
+
+Die schreibgeschützte QGA-Allowlist enthält zusätzlich `get-fsinfo`. Aktuelle
+QEMU-Auslastungsansichten verwenden dessen validierte lokale Dateisystemwerte;
+das Statusfeld `disk` und die zugewiesene Kapazität werden nicht als tatsächlich
+belegte Gast-Bytes ausgegeben. Laufzustand, aktivierter Agent und bei Kunden die
+aktuelle VM-Identität werden vor der Abfrage geprüft. Die Kunden-Auslastungsroute
+enthält ausschließlich die Serverkarte und keine Node-Messwerte. Details:
+[Dateisystembelegung und Kundensicht](../reports/vm-dateisystem-belegung-kundenansicht.md).
+
+`GET /customer/proxmox/{assignmentId}/usage?view=summary` liefert für die
+Kundenliste ausschließlich das Messwertefragment (CPU, RAM, Gast-Dateisysteme und
+kurzer Verlauf), ohne zusätzliche Serverkarten-Überschrift und ohne Durchsatz.
+Diese Variante überspringt RRD und verwendet dieselben Eigentümer- und aktuellen
+VM-Identitätsprüfungen wie die Detailansicht. Ohne `view=summary` bleibt die
+vollständige Serverkarte einschließlich VM-Durchsatz erhalten. Beide Varianten
+geben ausschließlich eigene VM-Daten aus und setzen `Cache-Control: private,
+no-store`.
+
+`GET /admin/proxmox/{cluster}/guests/{kind}/{vmid}/usage?view=disk` ergänzt die
+Admin-Tabelle um ein kompaktes Datenträgerfragment mit belegten/gesamten GiB,
+Prozentwert und Messzeitpunkt. Nur Admins dürfen es abrufen. RRD wird für diese
+Variante nicht gelesen. Die vollständige Server-/Node-Auslastungsantwort ohne
+`view=disk` bleibt erhalten. Antworten sind `private, no-store`.

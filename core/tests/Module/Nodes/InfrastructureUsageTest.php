@@ -35,7 +35,8 @@ final class InfrastructureUsageTest extends TestCase
             $values = $usage->proxmox(['vmid' => 101, 'type' => $type, 'disk' => 0, 'maxdisk' => 40 * 1073741824]);
             self::assertNull($values['disk_used_bytes']);
             self::assertNull($values['disk_percent']);
-            self::assertSame(40.0 * 1073741824, $values['disk_total_bytes']);
+            self::assertNull($values['disk_total_bytes']);
+            self::assertTrue($values['disk_requires_agent']);
         }
         self::assertSame(25.0, $usage->proxmox(['vmid' => 102, 'type' => 'lxc', 'disk' => 25, 'maxdisk' => 100])['disk_percent']);
     }
@@ -74,5 +75,24 @@ final class InfrastructureUsageTest extends TestCase
         self::assertSame('proxmox_cluster', $usage->proxmox(['node' => 'pve-a'])['load_source']);
         self::assertNull($usage->normalize(['load_source' => 'private arbitrary provider text'])['load_source']);
         self::assertSame('agent_heartbeat', $usage->normalize(['load_source' => 'agent_heartbeat'])['load_source']);
+    }
+
+    public function testGuestFilesystemUsesItsOwnCapacityAndTimestamp(): void
+    {
+        $filesystem = ['state' => 'available', 'used_bytes' => 250, 'total_bytes' => 1000, 'filesystems' => 1, 'partial' => false, 'observed_at' => date(DATE_ATOM)];
+        $usage = new InfrastructureUsage();
+        $values = $usage->proxmox(['vmid' => 101, 'type' => 'qemu', 'disk' => 9999, 'maxdisk' => 10000, 'guest_filesystem' => $filesystem]);
+        self::assertSame(25.0, $values['disk_percent']);
+        self::assertSame(1000.0, $values['disk_total_bytes']);
+        self::assertSame('guest_filesystem', $values['disk_source']);
+        self::assertSame($values, $usage->normalize($values), 'Monitoring normalizes provider views a second time.');
+        foreach ([['observed_at' => date(DATE_ATOM, time() - 300)], ['observed_at' => date(DATE_ATOM, time() + 300)], ['observed_at' => 'tomorrow'], ['used_bytes' => 1001]] as $bad) {
+            $values = $usage->proxmox(['vmid' => 101, 'guest_filesystem' => array_replace($filesystem, $bad)]);
+            self::assertNull($values['disk_used_bytes']);
+            self::assertNull($values['disk_percent']);
+        }
+        $partial = $usage->proxmox(['vmid' => 101, 'guest_filesystem' => array_replace($filesystem, ['partial' => true])]);
+        self::assertTrue($partial['disk_partial']);
+        self::assertNull($partial['disk_percent']);
     }
 }

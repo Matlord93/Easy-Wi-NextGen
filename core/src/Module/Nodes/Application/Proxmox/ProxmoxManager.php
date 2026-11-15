@@ -57,7 +57,7 @@ final readonly class ProxmoxManager
     }
 
     /** @return array{server: array<array-key, mixed>, node: array<array-key, mixed>} */
-    public function usage(ProxmoxCluster $cluster, string $kind, int $vmId, ?string $identityTag = null): array
+    public function usage(ProxmoxCluster $cluster, string $kind, int $vmId, ?string $identityTag = null, bool $includeIo = true): array
     {
         $overview = $this->overview($cluster);
         $guest = $this->findGuest($overview['guests'], $kind, $vmId);
@@ -66,13 +66,14 @@ final readonly class ProxmoxManager
         }
         $node = [];
         foreach ($overview['nodes'] as $row) {
-            if (($row['node'] ?? '') === $guest['node']) {
+            if (null === $identityTag && ($row['node'] ?? '') === $guest['node']) {
                 $node = $row;
                 break;
             }
         }
 
         $connection = $cluster->connection($this->crypto);
+        $config = null;
         if (null !== $identityTag) {
             $config = $this->api->guestConfig($connection, (string) $guest['node'], $vmId, $kind);
             if (!in_array($identityTag, explode(';', (string) ($config['tags'] ?? '')), true)) {
@@ -80,7 +81,10 @@ final readonly class ProxmoxManager
             }
         }
         $server = $this->api->status($connection, (string) $guest['node'], $vmId, $kind) + $guest;
-        $server += $this->rrd->forGuest($connection, (string) $guest['node'], $kind, $vmId, $server);
+        if ($includeIo) {
+            $server += $this->rrd->forGuest($connection, (string) $guest['node'], $kind, $vmId, $server);
+        }
+        $server['guest_filesystem'] = $this->filesystemUsage($connection, $server, $config);
 
         return ['server' => $server, 'node' => $node];
     }
@@ -93,6 +97,7 @@ final readonly class ProxmoxManager
         $node = (string) $guest['node'];
         $kind = (string) $guest['type'];
         $vmId = (int) $guest['vmid'];
+        $config = null;
         if (null !== $identityTag) {
             $config = $this->api->guestConfig($connection, $node, $vmId, $kind);
             if (!in_array($identityTag, explode(';', (string) ($config['tags'] ?? '')), true)) {
@@ -100,7 +105,7 @@ final readonly class ProxmoxManager
             }
         }
 
-        return $guest + $this->rrd->forGuest($connection, $node, $kind, $vmId, $guest);
+        return $guest + $this->rrd->forGuest($connection, $node, $kind, $vmId, $guest) + ['guest_filesystem' => $this->filesystemUsage($connection, $guest, $config)];
     }
 
     /** @return list<array{assignment: ProxmoxGuestAssignment, guest: array<array-key, mixed>|null}> */
@@ -201,17 +206,44 @@ final readonly class ProxmoxManager
         if (empty($guest['template'])) {
             $status += $this->rrd->forGuest($connection, $node, $kind, $vmId, $status);
         }
+        $status['guest_filesystem'] = $this->filesystemUsage($connection, $status + $guest, $configuration);
 
         return [
             'guest' => $guest, 'status' => $status, 'configuration' => $customer ? null : $configuration, 'provisioning' => $provisioning, 'bootDevices' => !$customer && $configuration !== null ? VmProvisioningSettings::bootDevices($configuration) : [],
             'disks' => $configuration !== null ? ProxmoxDisks::attached($configuration, $kind) : [],
             'extraDiskOptions' => !$customer && $configuration !== null ? ['devices' => ProxmoxExtraDisk::slots($configuration, $kind), 'storages' => array_values(array_filter($storages, fn (array $s): bool => $this->supports($s, 'qemu' === $kind ? 'images' : 'rootdir')))] : null,
-            'nodeUsage' => array_values(array_filter($overview['nodes'], static fn (array $row): bool => ($row['node'] ?? '') === $node))[0] ?? [],
+            'nodeUsage' => $customer ? [] : (array_values(array_filter($overview['nodes'], static fn (array $row): bool => ($row['node'] ?? '') === $node))[0] ?? []),
             'snapshots' => $this->api->snapshots($connection, $node, $vmId, $kind),
             'storages' => $customer ? array_values(array_filter($storages, fn (array $s): bool => ($s['storage'] ?? '') === $backupStorage && $this->supports($s, 'backup'))) : $storages,
             'backups' => $backups,
             'isos' => !$customer && 'qemu' === $kind ? $this->content($connection, $node, $storages, 'iso') : [],
         ];
+    }
+
+    /**
+     * @param array<array-key, mixed> $guest
+     * @param array<array-key, mixed>|null $config
+     * @return array<array-key, mixed>|null
+     */
+    private function filesystemUsage(ProxmoxConnection $connection, array $guest, ?array $config): ?array
+    {
+        if (($guest['type'] ?? '') !== 'qemu' || ($guest['status'] ?? '') !== 'running' || !empty($guest['template'])) {
+            return null;
+        }
+        try {
+            $node = (string) $guest['node'];
+            $vmId = (int) $guest['vmid'];
+            $config ??= $this->api->guestConfig($connection, $node, $vmId);
+            $enabled = explode(',', (string) ($config['agent'] ?? '0'));
+            if (!in_array('1', $enabled, true) && !in_array('enabled=1', $enabled, true)) {
+                return null;
+            }
+
+            return $this->guestAgent->filesystemUsage($connection, $node, $vmId, (string) ($config['digest'] ?? ''));
+        } catch (\App\Module\Nodes\Domain\Proxmox\ProxmoxApiException) {
+            // Missing guest metrics must not hide CPU/RAM or break the VM page.
+            return null;
+        }
     }
 
     public function guestAgentStatus(ProxmoxCluster $cluster, string $kind, int $vmId, User $actor): array

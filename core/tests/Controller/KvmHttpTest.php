@@ -121,6 +121,7 @@ final class KvmHttpTest extends AbstractWebTestCase
         foreach (['before-update', 'backup.restore', 'vm.limits', 'data-infra-usage-url', 'data-infra-tab'] as $text) {
             self::assertStringContainsString($text, $html);
         }
+        self::assertStringContainsString('data-series-role="node"', $html);
     }
 
     public function testMutationsRequireCsrfAndAreIdempotentEvenAfterCompletion(): void

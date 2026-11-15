@@ -605,6 +605,44 @@ final class ProxmoxManagerTest extends KernelTestCase
         $this->manager->guestAgentStatus($this->cluster, 'qemu', 101, $this->customer);
     }
 
+    public function testFilesystemReadsAreOptionalCachedAndNeverBypassIdentity(): void
+    {
+        $this->assign();
+        $this->fixture->guests[0]['status'] = 'running';
+        $this->fixture->configs[101] = ['agent' => 'enabled=1'];
+        $this->fixture->guestFilesystems = [['name' => 'root', 'mountpoint' => '/', 'type' => 'ext4', 'used-bytes' => 250, 'total-bytes' => 1000]];
+        $first = $this->manager->usage($this->cluster, 'qemu', 101, 'easywi-owned-0123456789abcdef');
+        $second = $this->manager->usage($this->cluster, 'qemu', 101, 'easywi-owned-0123456789abcdef');
+        self::assertSame(250.0, $first['server']['guest_filesystem']['used_bytes']);
+        self::assertSame([], $first['node']);
+        self::assertSame($first['server']['guest_filesystem'], $second['server']['guest_filesystem']);
+        $reads = static fn (array $r): bool => str_ends_with($r['path'], '/agent/get-fsinfo');
+        self::assertCount(1, array_filter($this->fixture->requests, $reads));
+        $this->fixture->configTags[101] = 'replaced';
+        try {
+            $this->manager->usage($this->cluster, 'qemu', 101, 'easywi-owned-0123456789abcdef');
+            self::fail('Changed ownership was accepted.');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('pve.error.identity', $error->getMessage());
+        }
+        self::assertCount(1, array_filter($this->fixture->requests, $reads));
+        self::assertSame([], $this->fixture->writes());
+    }
+
+    public function testMissingFilesystemAgentDoesNotBreakOtherUsageOrReadStoppedVm(): void
+    {
+        $this->fixture->configs[101] = ['agent' => 'enabled=1'];
+        $stopped = $this->manager->usage($this->cluster, 'qemu', 101);
+        self::assertNull($stopped['server']['guest_filesystem']);
+        self::assertSame([], array_values(array_filter($this->fixture->requests, static fn (array $r): bool => str_ends_with($r['path'], '/agent/get-fsinfo'))));
+        $this->fixture->guests[0]['status'] = 'running';
+        $this->fixture->guestFilesystemError = true;
+        $unavailable = $this->manager->usage($this->cluster, 'qemu', 101);
+        self::assertSame('unavailable', $unavailable['server']['guest_filesystem']['state']);
+        self::assertSame(.1, $unavailable['server']['cpu']);
+        self::assertArrayNotHasKey('message', $unavailable['server']['guest_filesystem']);
+    }
+
     public function testGuestAgentIsNotContactedForStoppedDisabledOrUnassignedVm(): void
     {
         self::assertSame('not_running', $this->manager->guestAgentStatus($this->cluster, 'qemu', 101, $this->admin)['state']);

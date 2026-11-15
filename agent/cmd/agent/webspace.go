@@ -388,7 +388,7 @@ func ensurePhpFpmRuntimeAccess(listen, listenGroup string) error {
 				return fmt.Errorf("chown php-fpm runtime dir %s: %w", dir, err)
 			}
 		}
-		if err := os.Chmod(dir, phpFpmRuntimeDirMode); err != nil {
+		if err := os.Chmod(dir, phpFpmRuntimeMode(dir)); err != nil {
 			return fmt.Errorf("chmod php-fpm runtime dir %s: %w", dir, err)
 		}
 	}
@@ -434,7 +434,7 @@ func ensurePhpFpmTmpfilesRule(listenGroup string) error {
 }
 
 func phpFpmTmpfilesRule(listenGroup string) string {
-	return fmt.Sprintf("d /run/easywi 0750 root %s -\nd /run/easywi/php-fpm 0750 root %s -\n", listenGroup, listenGroup)
+	return fmt.Sprintf("d /run/easywi/php-fpm 0750 root %s -\n", listenGroup)
 }
 
 func writeNginxInclude(path, docroot, logsDir, phpFpmListen string) error {
@@ -639,4 +639,13 @@ func missingValues(values []requiredValue) []string {
 		}
 	}
 	return missing
+}
+
+// The shared ancestor must remain traversable by isolated game users. The
+// PHP-specific directories and sockets retain their restrictive permissions.
+func phpFpmRuntimeMode(dir string) os.FileMode {
+	if filepath.Clean(dir) == "/run/easywi" {
+		return 0o751
+	}
+	return phpFpmRuntimeDirMode
 }

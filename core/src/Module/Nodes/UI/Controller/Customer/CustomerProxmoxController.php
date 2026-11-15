@@ -79,10 +79,15 @@ final class CustomerProxmoxController extends AbstractController
     public function usage(Request $request, int $id, InfrastructureUsage $usage): JsonResponse
     {
         $assignment = $this->owned($this->actor($request), $id);
+        $summary = 'summary' === $request->query->getString('view');
         try {
-            $rows = $this->manager->usage($assignment->getCluster(), $assignment->getKind(), $assignment->getVmId(), $assignment->getIdentityTag());
+            $rows = $this->manager->usage($assignment->getCluster(), $assignment->getKind(), $assignment->getVmId(), $assignment->getIdentityTag(), !$summary);
+            $serverUsage = $usage->proxmox($rows['server']);
 
-            return new JsonResponse(['html' => $this->renderView('infrastructure/_usage_pair.html.twig', ['serverUsage' => $usage->proxmox($rows['server']), 'nodeUsage' => $usage->proxmox($rows['node'])])], 200, ['Cache-Control' => 'private, no-store']);
+            return new JsonResponse(['html' => $this->renderView(
+                $summary ? 'infrastructure/_metrics.html.twig' : 'infrastructure/_server_usage.html.twig',
+                $summary ? ['usage' => $serverUsage, 'seriesRole' => 'server', 'withIo' => false] : ['serverUsage' => $serverUsage],
+            )], 200, ['Cache-Control' => 'private, no-store']);
         } catch (\Throwable) {
             return new JsonResponse(['error' => 'pve.error.unavailable'], 503, ['Cache-Control' => 'private, no-store']);
         }

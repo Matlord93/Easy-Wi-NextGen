@@ -57,13 +57,21 @@
                     const data = await json(panel.dataset.pveResourcesUrl);
                     if (typeof data.html !== 'string') throw new Error('Invalid resource response');
                     const filters = [...(panel.querySelectorAll?.('[data-infra-filter], [data-infra-state]') || [])].map(input => input.value);
+                    const diskCells = new Map([...panel.querySelectorAll('[data-pve-disk-key]')].map(cell => [cell.dataset.pveDiskKey, cell]));
                     panel.innerHTML = data.html;
+                    panel.querySelectorAll('[data-pve-disk-key]').forEach(cell => {
+                        const previous = diskCells.get(cell.dataset.pveDiskKey);
+                        if (!previous) return;
+                        if (previous.querySelector('[data-pve-disk-ready], [data-usage-error]:not([hidden])')) cell.innerHTML = previous.innerHTML;
+                        window.EasyWiInfrastructure?.transferState(previous, cell);
+                    });
                     [...(panel.querySelectorAll?.('[data-infra-filter], [data-infra-state]') || [])].forEach((input, index) => { input.value = filters[index] || ''; });
                     panel.querySelectorAll?.('[data-infra-list]').forEach(root => window.EasyWiInfrastructure?.filter(root));
                     const state = panel.closest('section')?.querySelector('[data-pve-refresh-state]');
                     if (state) state.textContent = (labels.updated || '{time}').replace('{time}', new Intl.DateTimeFormat(document.documentElement.lang, {timeStyle: 'medium'}).format(new Date()));
                     panel.dataset.pveUpdated = String(Date.now());
                     delete panel.dataset.pveFailures; delete panel.dataset.pveRetryAt;
+                    window.EasyWiInfrastructure?.refresh(true);
                 } catch (_) {
                     const failures = Math.min(5, Number(panel.dataset.pveFailures || 0) + 1);
                     panel.dataset.pveFailures = String(failures);

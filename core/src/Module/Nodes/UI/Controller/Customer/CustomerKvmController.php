@@ -117,6 +117,6 @@ final class CustomerKvmController extends AbstractController
             return new JsonResponse(['error' => 'console.unavailable'], 503, ['Cache-Control' => 'private, no-store']);
         }
 
-        return new JsonResponse(['html' => $this->renderView('infrastructure/_usage_pair.html.twig', ['serverUsage' => $usage->kvm($assignment->getNode(), $assignment->getVmUuid()), 'nodeUsage' => $usage->node($assignment->getNode())])], 200, ['Cache-Control' => 'private, no-store']);
+        return new JsonResponse(['html' => $this->renderView('infrastructure/_server_usage.html.twig', ['serverUsage' => $usage->kvm($assignment->getNode(), $assignment->getVmUuid())])], 200, ['Cache-Control' => 'private, no-store']);
     }
 }

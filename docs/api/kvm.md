@@ -48,3 +48,13 @@ Verwaltete Gäste enthalten UUID, Anzeigename, Template, hinterlegte Ressourcen,
 Mutationen liefern zusätzlich `operation_id`, `action` und – soweit abrufbar – einen aktuellen `inventory`-Stand. Ein `inventory_error` nach einer Mutation bedeutet, dass ein erneuter lesender Abruf erforderlich ist; es bedeutet nicht, dass die Mutation fehlgeschlagen ist. Ein fehlgeschlagener Vorgang kann ebenfalls einen aktualisierten Bestand enthalten. Ein unbestätigter Vorgang verwendet `KVM_OPERATION_UNCONFIRMED` im Fehlertext und sperrt weitere Mutationen auf diesem Host.
 
 Vorgangs-IDs nicht mit veränderten Parametern wiederverwenden. Vor einem neuen Versuch nach unklarem Ergebnis den Hostzustand prüfen. Die Anzeige des letzten Bestands ersetzt keine Echtzeitabfrage unmittelbar vor einer sicherheitsrelevanten Aktion; der Agent prüft die Bedingungen bei jeder Ausführung selbst.
+## Gast-Dateisystembelegung
+
+Aktuelle Node-Agents melden `kvm_managed.guest_filesystem_usage_version=1`.
+Unter `kvm_usage.guests.<uuid>.guest_filesystem` stehen ausschließlich
+`state`, `used_bytes`, `total_bytes`, `filesystems`, `partial` und `observed_at`.
+Die Werte stammen aus `guest-get-fsinfo` einer überprüften verwalteten VM;
+Mountpfade und Gerätedaten werden nicht weitergegeben. Ohne gültige Beobachtung
+bleiben die Datenträger-Messwerte unbekannt. Die Kunden-Auslastungsroute liefert
+nur die Serverkarte und keine Node-Messwerte. Details:
+[Dateisystembelegung und Kundensicht](../reports/vm-dateisystem-belegung-kundenansicht.md).

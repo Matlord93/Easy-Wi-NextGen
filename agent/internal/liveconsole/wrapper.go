@@ -28,7 +28,7 @@ func RunWrapper(instanceID, socketPath string, args []string) error {
 		return errors.New("wrapper: instance, socket and child command required")
 	}
 	if err := os.MkdirAll(filepath.Dir(socketPath), 0750); err != nil {
-		return err
+		return fmt.Errorf("create console runtime directory %s (check parent traversal permissions): %w", filepath.Dir(socketPath), err)
 	}
 	commands, err := ListenLocal(socketPath)
 	if err != nil {

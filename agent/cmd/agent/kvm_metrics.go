@@ -58,9 +58,15 @@ func collectKVMUsage() map[string]any {
 	}
 	now := time.Now()
 	kvmUsageState.Lock()
-	defer kvmUsageState.Unlock()
-	rows, next := kvmUsageSamples(parseKVMUsage(output.Bytes()), kvmUsageState.previous, now)
+	parsed := parseKVMUsage(output.Bytes())
+	rows, next := kvmUsageSamples(parsed, kvmUsageState.previous, now)
 	kvmUsageState.previous = next // Bound memory to the current set of at most 512 domains.
+	kvmUsageState.Unlock()
+	for id, filesystem := range kvmFilesystems.collect(parsed, now, readKVMFilesystem) {
+		if row, exists := rows[id]; exists {
+			row["guest_filesystem"] = filesystem
+		}
+	}
 	return map[string]any{"observed_at": now.UTC().Format(time.RFC3339), "guests": rows}
 }
 

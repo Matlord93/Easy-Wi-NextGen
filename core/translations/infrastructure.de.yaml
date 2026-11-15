@@ -64,3 +64,9 @@ infra.export_hint: 'Exportiert nur die Messwerte dieser Karte. Zeitstempel stehe
 infra.export_success: 'CSV erstellt: {rows} Messzeilen.'
 infra.export_empty: 'Für diesen Zeitraum sind keine exportierbaren Messwerte vorhanden.'
 infra.export_failed: 'CSV konnte nicht erstellt werden. Bitte erneut versuchen.'
+infra.disk_guest: "Belegt in den gemeldeten lokalen Gast-Dateisystemen. RAM- und Netzlaufwerke sind ausgeschlossen."
+infra.disk_partial: "Teilmessung: Weitere lokale Dateisysteme liefern keine gültigen Werte. Der Prozentwert gilt nur für die erfassten Dateisysteme."
+infra.disk_measured_scope: "Belegung der erfassten Dateisysteme (Teilwert)"
+infra.disk_loading: "Dateisystem-Belegung wird geladen …"
+infra.disk_unavailable_short: "Keine Gast-Messung verfügbar"
+infra.disk_agent_required: "Gast-Belegung nicht verfügbar. Benötigt eine laufende VM mit installiertem und aktiviertem QEMU Guest Agent. Die zugewiesene Kapazität steht unter Übersicht."

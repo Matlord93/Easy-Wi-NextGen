@@ -40,6 +40,11 @@ final readonly class InfrastructureHistoryStore
             }
             $values['source'] = 'load' === $stream ? $data['load_source'] : $data['io_source'];
             $values['memory_source'] = 'load' === $stream ? $data['memory_source'] : null;
+            if ('load' === $stream && $data['disk_source'] !== null) {
+                $values['disk_source'] = $data['disk_source'];
+                $values['disk_observed_at'] = $data['disk_observed_at'];
+                $values['disk_partial'] = $data['disk_partial'];
+            }
             $values['interval_seconds'] = 'io' === $stream ? $data['io_interval_seconds'] : null;
             $observed = (new \DateTimeImmutable($timestamp))->getTimestamp();
             if (null !== $target->visibleSince && ($observed <= $target->visibleSince || ('io' === $stream && (float) $observed - ($data['io_interval_seconds'] ?? 0.0) <= $target->visibleSince))) {

@@ -262,6 +262,9 @@ func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, fun
 	}
 
 	streamServiceLogs(job.ID, logSender, serviceName, 10*time.Second)
+	if err := ensureServiceActive(serviceName, time.Now().UTC()); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
 	if payloadValue(job.Payload, "minecraft_managed") == "true" {
@@ -363,6 +366,9 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 	}
 
 	streamServiceLogs(job.ID, logSender, serviceName, 10*time.Second)
+	if err := ensureServiceActive(serviceName, time.Now().UTC()); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
 	if payloadValue(job.Payload, "minecraft_managed") == "true" {
@@ -1904,6 +1910,7 @@ func parsePayloadBool(value string, defaultValue bool) bool {
 func ensureServiceActive(serviceName string, restartAt time.Time) error {
 	_ = runCommand("systemctl", "reset-failed", serviceName)
 	var lastErr error
+	healthy := false
 	for attempt := 1; attempt <= 6; attempt++ {
 		diag := collectServiceDiagnosticsSince(serviceName, restartAt)
 		log.Printf("post_update_healthcheck restart_timestamp=%s healthcheck_timestamp=%s service_name=%s service_state=%s service_failed=%s main_pid=%s process_running=%s process_command=%q",
@@ -1911,8 +1918,19 @@ func ensureServiceActive(serviceName string, restartAt time.Time) error {
 		status := diag["service_status"]
 		processRunning := diag["process_running"] == "true"
 		if status == "active" && processRunning {
-			return nil
+			// Type=simple may be active briefly before the wrapper exits.
+			// Require a second observation before reporting startup success.
+			if healthy {
+				return nil
+			}
+			healthy = true
+			lastErr = fmt.Errorf("service %s has not remained healthy yet", serviceName)
+			if attempt < 6 {
+				time.Sleep(time.Second)
+				continue
+			}
 		} else {
+			healthy = false
 			lastErr = fmt.Errorf("service %s not healthy (state=%s process_running=%t)", serviceName, status, processRunning)
 		}
 		if attempt < 6 {

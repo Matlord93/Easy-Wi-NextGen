@@ -142,7 +142,7 @@ final readonly class ProxmoxApiClient
     /** A fixed read-only QGA allowlist; arbitrary guest commands are never forwarded. */
     public function guestAgentRead(ProxmoxConnection $connection, string $node, int $vmId, string $command): array
     {
-        if (!in_array($command, ['info', 'get-host-name', 'get-osinfo', 'network-get-interfaces'], true)) {
+        if (!in_array($command, ['info', 'get-host-name', 'get-osinfo', 'network-get-interfaces', 'get-fsinfo'], true)) {
             throw new \InvalidArgumentException('Unsupported guest agent read.');
         }
         $data = $this->request($connection, 'GET', sprintf('/nodes/%s/qemu/%d/agent/%s', rawurlencode($node), $vmId, $command), [

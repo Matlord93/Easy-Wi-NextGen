@@ -64,3 +64,9 @@ infra.export_hint: 'Exports this card’s samples only. Timestamps use UTC; miss
 infra.export_success: 'CSV created: {rows} sample rows.'
 infra.export_empty: 'No exportable samples are available for this period.'
 infra.export_failed: 'Could not create CSV. Please try again.'
+infra.disk_guest: "Used space in reported local guest filesystems. RAM and network mounts are excluded."
+infra.disk_partial: "Partial reading: other local filesystems have no valid measurements. The percentage applies only to the measured filesystems."
+infra.disk_measured_scope: "Usage of measured filesystems (partial reading)"
+infra.disk_loading: "Loading guest filesystem usage …"
+infra.disk_unavailable_short: "Guest measurement unavailable"
+infra.disk_agent_required: "Guest disk usage unavailable. Requires a running VM with QEMU Guest Agent installed and enabled. Allocated capacity is shown under Overview."

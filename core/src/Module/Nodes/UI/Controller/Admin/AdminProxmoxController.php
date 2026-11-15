@@ -139,10 +139,15 @@ final class AdminProxmoxController extends AbstractController
     {
         $this->actor($request);
         $cluster = $this->findCluster($id);
+        $diskOnly = 'disk' === $request->query->getString('view');
         try {
-            $rows = $this->manager->usage($cluster, $kind, $vmId);
+            $rows = $this->manager->usage($cluster, $kind, $vmId, null, !$diskOnly);
+            $serverUsage = $usage->proxmox($rows['server']);
 
-            return new JsonResponse(['html' => $this->renderView('infrastructure/_usage_pair.html.twig', ['serverUsage' => $usage->proxmox($rows['server']), 'nodeUsage' => $usage->proxmox($rows['node'])])], 200, ['Cache-Control' => 'private, no-store']);
+            return new JsonResponse(['html' => $this->renderView(
+                $diskOnly ? 'infrastructure/_disk_usage.html.twig' : 'infrastructure/_usage_pair.html.twig',
+                $diskOnly ? ['usage' => $serverUsage, 'isTemplate' => !empty($rows['server']['template'])] : ['serverUsage' => $serverUsage, 'nodeUsage' => $usage->proxmox($rows['node'])],
+            )], 200, ['Cache-Control' => 'private, no-store']);
         } catch (\Throwable) {
             return new JsonResponse(['error' => 'pve.error.unavailable'], 503, ['Cache-Control' => 'private, no-store']);
         }

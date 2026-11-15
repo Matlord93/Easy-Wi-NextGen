@@ -55,6 +55,7 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
         $url = '/admin/proxmox/'.$this->clusterId.'/guests/qemu/101';
         $crawler = $client->request('GET', $url);
         self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filterXPath('//*[@data-series-role="node"]'));
         self::assertCount(1, $crawler->filterXPath('//*[@data-vm-disk-grow]//button[@disabled]'));
         self::assertStringContainsString('Snapshots', $crawler->filterXPath('//*[@data-vm-disk-grow]')->text());
         $this->fixture->snapshots = [['name' => 'current']];
@@ -149,12 +150,154 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
         self::assertStringContainsString('no-store', $client->getResponse()->headers->get('Cache-Control'));
         $html = json_decode((string) $client->getResponse()->getContent(), true)['html'];
         self::assertStringContainsString('data-usage-value', $html);
+        self::assertStringNotContainsString('data-series-role="node"', $html);
         foreach (['synthetic-pve-secret', 'pve.example.test', 'pve-a', 'pve-b', 'easywi-owned-'] as $private) {
             self::assertStringNotContainsString($private, $html);
         }
         $this->fixture->guests[0]['tags'] = 'changed-owner';
         $client->request('GET', '/customer/proxmox/'.$this->ownId.'/usage');
         self::assertResponseStatusCodeSame(503);
+    }
+
+    public function testCustomerPageAndRefreshExposeGuestFilesystemButNeverNodeMetrics(): void
+    {
+        $client = $this->client(false);
+        $this->fixture->guests[0]['status'] = 'running';
+        $this->fixture->configs[101] = ['agent' => 'enabled=1'];
+        $this->fixture->guestFilesystems = [['name' => 'sda1', 'mountpoint' => '/', 'type' => 'ext4', 'used-bytes' => 250, 'total-bytes' => 1000, 'private' => 'secret-filesystem-data']];
+        $crawler = $client->request('GET', '/customer/proxmox/'.$this->ownId);
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filterXPath('//*[@data-series-role="node"]'));
+        self::assertCount(1, $crawler->filterXPath('//*[@data-series-role="server"]'));
+        $sample = json_decode($crawler->filterXPath('//*[@data-history-sample]')->text(), true);
+        self::assertSame(250, $sample['disk_used_bytes']);
+        self::assertSame(1000, $sample['disk_total_bytes']);
+        $client->request('GET', '/customer/proxmox/'.$this->ownId.'/usage');
+        self::assertResponseIsSuccessful();
+        $html = json_decode((string) $client->getResponse()->getContent(), true)['html'];
+        foreach (['data-series-role="node"', 'secret-filesystem-data', 'sda1', 'pve-a'] as $private) {
+            self::assertStringNotContainsString($private, $html);
+        }
+        $reads = array_filter($this->fixture->requests, static fn (array $r): bool => str_ends_with($r['path'], '/agent/get-fsinfo'));
+        self::assertCount(1, $reads, 'Page and polling must share the bounded guest-filesystem cache.');
+        self::assertSame([], $this->fixture->writes());
+    }
+
+    public function testErofsRootProducesCompleteUsageButGenuinePartialUsageIsClearlyScoped(): void
+    {
+        $client = $this->client(false);
+        self::getContainer()->set(\App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent::class, new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()));
+        $this->fixture->guests[0]['status'] = 'running';
+        $this->fixture->configs[101] = ['agent' => 'enabled=1'];
+        $this->fixture->guestFilesystems = json_decode(file_get_contents(dirname(__DIR__).'/Fixtures/guest-filesystem-erofs-zram.json'), true, 32, JSON_THROW_ON_ERROR);
+        $crawler = $client->request('GET', '/customer/proxmox/'.$this->ownId.'?lang=de');
+        self::assertResponseIsSuccessful();
+        self::assertSame('13.8 %', $crawler->filterXPath('//*[@data-usage-value="disk"]')->text());
+        self::assertCount(0, $crawler->filterXPath('//*[@data-disk-scope]'));
+        $sample = json_decode($crawler->filterXPath('//*[@data-history-sample]')->text(), true);
+        self::assertFalse($sample['disk_partial']);
+        self::assertSame(17901221888, $sample['disk_used_bytes']);
+        // Use a fresh client/cache for a genuinely incomplete subsequent response.
+        $this->fixture->guestFilesystems[] = ['name' => 'unmeasured', 'mountpoint' => '/data', 'type' => 'ext4'];
+        self::ensureKernelShutdown();
+        $client = $this->client(false);
+        self::getContainer()->set(\App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent::class, new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()));
+        $crawler = $client->request('GET', '/customer/proxmox/'.$this->ownId.'?lang=de');
+        self::assertResponseIsSuccessful();
+        self::assertSame('13.8 %', $crawler->filterXPath('//*[@data-usage-value="disk"]')->text());
+        self::assertCount(1, $crawler->filterXPath('//*[@data-disk-scope]'));
+        $sample = json_decode($crawler->filterXPath('//*[@data-history-sample]')->text(), true);
+        self::assertTrue($sample['disk_partial']);
+        self::assertNull($sample['disk_percent'], 'A partial display must not become a full-VM monitoring percentage.');
+        self::assertCount(0, $crawler->filterXPath('//*[@data-series-role="node"]'));
+    }
+
+    public function testCustomerListAutomaticallyLoadsOwnedFilesystemSummaryWithoutIoOrNodeData(): void
+    {
+        $client = $this->client(false);
+        self::getContainer()->set(\App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent::class, new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()));
+        $this->fixture->guests[0]['status'] = 'running';
+        $this->fixture->guests[0]['uptime'] = 600;
+        $this->fixture->configs[101] = ['agent' => 'enabled=1'];
+        $this->fixture->guestFilesystems = json_decode(file_get_contents(dirname(__DIR__).'/Fixtures/guest-filesystem-erofs-zram.json'), true, 32, JSON_THROW_ON_ERROR);
+        $crawler = $client->request('GET', '/customer/proxmox?lang=de');
+        self::assertResponseIsSuccessful();
+        $panel = $crawler->filterXPath('//*[@data-infra-usage-url and @data-infra-refresh-immediate]');
+        self::assertCount(1, $panel);
+        self::assertSame('/customer/proxmox/'.$this->ownId.'/usage?view=summary', $panel->attr('data-infra-usage-url'));
+        self::assertStringContainsString('wird geladen', $panel->filterXPath('.//*[@data-disk-source]')->text());
+        self::assertStringNotContainsString('installiert', $panel->filterXPath('.//*[@data-disk-source]')->text());
+        self::assertCount(0, $crawler->filterXPath('//*[@data-series-role="node"]'));
+        self::assertCount(1, $this->fixture->requests, 'The initial list must not block on per-VM agent calls.');
+
+        $before = count($this->fixture->requests);
+        $client->request('GET', '/customer/proxmox/'.$this->otherId.'/usage?view=summary');
+        self::assertResponseStatusCodeSame(404);
+        self::assertCount($before, $this->fixture->requests);
+        $client->request('GET', $panel->attr('data-infra-usage-url'));
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('no-store', $client->getResponse()->headers->get('Cache-Control'));
+        $html = json_decode((string) $client->getResponse()->getContent(), true)['html'];
+        $fragment = new \Symfony\Component\DomCrawler\Crawler($html);
+        self::assertSame('13.8 %', $fragment->filterXPath('//*[@data-usage-value="disk"]')->text());
+        self::assertCount(0, $fragment->filterXPath('//h2'));
+        self::assertCount(0, $fragment->filterXPath('//*[@data-usage-rate]'));
+        foreach (['data-series-role="node"', 'pve-a', 'synthetic-pve-secret', 'Gast-Belegung nicht verfügbar'] as $private) {
+            self::assertStringNotContainsString($private, $html);
+        }
+        self::assertSame([], array_values(array_filter($this->fixture->requests, static fn (array $r): bool => str_ends_with($r['path'], '/rrddata'))));
+        self::assertSame([], $this->fixture->writes());
+
+        $before = count(array_filter($this->fixture->requests, static fn (array $r): bool => str_ends_with($r['path'], '/agent/get-fsinfo')));
+        $this->fixture->configTags[101] = 'changed-owner';
+        $client->request('GET', '/customer/proxmox/'.$this->ownId.'/usage?view=summary');
+        self::assertResponseStatusCodeSame(503);
+        self::assertSame($before, count(array_filter($this->fixture->requests, static fn (array $r): bool => str_ends_with($r['path'], '/agent/get-fsinfo'))));
+    }
+
+    public function testAdminTableLoadsCompactDiskUsageAndRetainsFullDetailUsage(): void
+    {
+        $client = $this->client();
+        self::getContainer()->set(\App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent::class, new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()));
+        $this->fixture->guests[0]['status'] = 'running';
+        $this->fixture->guests[0]['uptime'] = 600;
+        $this->fixture->configs[101] = ['agent' => 'enabled=1'];
+        $this->fixture->guestFilesystems = json_decode(file_get_contents(dirname(__DIR__).'/Fixtures/guest-filesystem-erofs-zram.json'), true, 32, JSON_THROW_ON_ERROR);
+        $crawler = $client->request('GET', '/admin/proxmox/'.$this->clusterId);
+        self::assertResponseIsSuccessful();
+        $cells = $crawler->filterXPath('//td[@data-infra-usage-url and @data-infra-refresh-immediate and @data-pve-disk-key]');
+        self::assertCount(1, $cells, 'Only running QEMU VMs require asynchronous filesystem reads.');
+        self::assertCount(2, $crawler->filterXPath('//*[@data-series-role="node"]'));
+        self::assertCount(1, $this->fixture->requests, 'The initial overview must remain a single inventory read.');
+        $url = '/admin/proxmox/'.$this->clusterId.'/guests/qemu/101/usage?view=disk';
+        self::assertSame($url, $cells->attr('data-infra-usage-url'));
+        $client->request('GET', $url);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('no-store', $client->getResponse()->headers->get('Cache-Control'));
+        $html = json_decode((string) $client->getResponse()->getContent(), true)['html'];
+        $fragment = new \Symfony\Component\DomCrawler\Crawler($html);
+        self::assertCount(1, $fragment->filterXPath('//*[@data-pve-disk-ready]'));
+        self::assertSame('13.8 %', $fragment->filterXPath('//*[@data-disk-percent]')->text());
+        self::assertStringContainsString('16.67 / 120.49 GiB', $html);
+        foreach (['data-series-role="node"', 'data-usage-rate', '<h2', 'synthetic-pve-secret', 'sda8', '/mnt/'] as $private) {
+            self::assertStringNotContainsString($private, $html);
+        }
+        self::assertSame([], array_values(array_filter($this->fixture->requests, static fn (array $r): bool => str_ends_with($r['path'], '/rrddata'))));
+        self::assertSame([], $this->fixture->writes());
+
+        $client->request('GET', '/admin/proxmox/'.$this->clusterId.'/guests/qemu/101/usage');
+        self::assertResponseIsSuccessful();
+        $html = json_decode((string) $client->getResponse()->getContent(), true)['html'];
+        self::assertStringContainsString('data-series-role="node"', $html);
+        self::assertStringContainsString('data-series-role="server"', $html);
+        self::assertStringContainsString('data-usage-rate', $html);
+        self::assertCount(1, array_filter($this->fixture->requests, static fn (array $r): bool => str_ends_with($r['path'], '/rrddata')));
+        $before = count($this->fixture->requests);
+        self::ensureKernelShutdown();
+        $client = $this->client(false);
+        $client->request('GET', $url);
+        self::assertContains($client->getResponse()->getStatusCode(), [401, 403]);
+        self::assertCount($before, $this->fixture->requests);
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('tlsCreateModes')]

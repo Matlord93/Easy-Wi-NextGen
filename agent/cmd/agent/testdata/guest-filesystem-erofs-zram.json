@@ -1,0 +1,63 @@
+[
+  {
+    "disk": [],
+    "mountpoint": "/tmp",
+    "name": "zram2",
+    "total-bytes": 14540800,
+    "total-bytes-privileged": 15708160,
+    "type": "ext4",
+    "used-bytes": 73728
+  },
+  {
+    "disk": [
+      {
+        "dev": "/dev/sda8"
+      }
+    ],
+    "mountpoint": "/mnt/data",
+    "name": "sda8",
+    "total-bytes": 129031237632,
+    "total-bytes-privileged": 134519283712,
+    "type": "ext4",
+    "used-bytes": 17669189632
+  },
+  {
+    "disk": [
+      {
+        "dev": "/dev/sda7"
+      }
+    ],
+    "mountpoint": "/mnt/overlay",
+    "name": "sda7",
+    "total-bytes": 81520640,
+    "total-bytes-privileged": 88566784,
+    "type": "ext4",
+    "used-bytes": 90112
+  },
+  {
+    "disk": [
+      {
+        "dev": "/dev/sda1"
+      }
+    ],
+    "mountpoint": "/mnt/boot",
+    "name": "sda1",
+    "total-bytes": 33470464,
+    "total-bytes-privileged": 33470464,
+    "type": "vfat",
+    "used-bytes": 755712
+  },
+  {
+    "disk": [
+      {
+        "dev": "/dev/sda3"
+      }
+    ],
+    "mountpoint": "/",
+    "name": "sda3",
+    "total-bytes": 231186432,
+    "total-bytes-privileged": 231186432,
+    "type": "erofs",
+    "used-bytes": 231186432
+  }
+]

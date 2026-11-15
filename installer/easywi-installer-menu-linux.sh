@@ -1958,7 +1958,22 @@ setup_certbot() {
   return 1
 }
 
+ensure_console_runtime_parents() {
+  install -d -m 0755 /etc/tmpfiles.d
+  cat > /etc/tmpfiles.d/easywi-console.conf <<'TMPFILES'
+d /run/easywi 0751 root root -
+d /run/easywi/instances 0751 root root -
+TMPFILES
+  if [[ -f /etc/tmpfiles.d/easywi-php-fpm.conf ]]; then
+    sed -i '/^d \/run\/easywi /d' /etc/tmpfiles.d/easywi-php-fpm.conf
+  fi
+  # Do not chown or chmod any per-instance directory or socket.
+  mkdir -p /run/easywi/instances
+  chmod o+x /run/easywi /run/easywi/instances
+}
+
 write_agent_service() {
+  ensure_console_runtime_parents
   local instance_base_dir="$1" sftp_base_dir="$2"
   local poll_interval_seconds="${3:-30}" heartbeat_interval_seconds="${4:-60}" request_timeout_seconds="${5:-15}"
 

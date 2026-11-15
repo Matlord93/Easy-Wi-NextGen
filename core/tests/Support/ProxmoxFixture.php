@@ -22,6 +22,8 @@ final class ProxmoxFixture
     public array $configTags = [];
     public int $guestAgentError = 0;
     public bool $guestNetworkError = false;
+    public bool $guestFilesystemError = false;
+    public array $guestFilesystems = [];
     public array $guestInterfaces = [['name' => 'eth0', 'hardware-address' => '52:54:00:12:34:56', 'ip-addresses' => [['ip-address-type' => 'ipv4', 'ip-address' => '192.0.2.10', 'prefix' => 24], ['ip-address-type' => 'ipv6', 'ip-address' => '2001:db8::10', 'prefix' => 64]]]];
     public array $guestAgentInfo = ['version' => '9.2.0', 'supported_commands' => [['name' => 'guest-get-host-name', 'enabled' => true], ['name' => 'guest-get-osinfo', 'enabled' => true], ['name' => 'guest-network-get-interfaces', 'enabled' => true]]];
     public bool $rrdFail = false;
@@ -94,7 +96,10 @@ final class ProxmoxFixture
             }
         } elseif (preg_match('~^/nodes/[^/]+/(qemu|lxc)/(\d+)/vncproxy$~', $path)) {
             $data = ['port' => '5900', 'ticket' => 'synthetic-proxmox-vnc-ticket'];
-        } elseif (preg_match('~^/nodes/[^/]+/qemu/(\d+)/agent/(info|get-host-name|get-osinfo|network-get-interfaces)$~', $path, $match)) {
+        } elseif (preg_match('~^/nodes/[^/]+/qemu/(\d+)/agent/(info|get-host-name|get-osinfo|network-get-interfaces|get-fsinfo)$~', $path, $match)) {
+            if ($this->guestFilesystemError && 'get-fsinfo' === $match[2]) {
+                return new MockResponse('{"data":null,"message":"private disk failure"}', ['http_code' => 500]);
+            }
             if ($this->guestNetworkError && 'network-get-interfaces' === $match[2]) {
                 return new MockResponse('{"data":null,"message":"private network failure"}', ['http_code' => 500]);
             }
@@ -102,7 +107,7 @@ final class ProxmoxFixture
                 return new MockResponse('{"data":null,"message":"private guest failure"}', ['http_code' => $this->guestAgentError]);
             }
             $data = ['result' => match ($match[2]) {
-                'info' => $this->guestAgentInfo, 'network-get-interfaces' => $this->guestInterfaces, 'get-host-name' => ['host-name' => 'actual-web', 'private' => '/secret'], default => ['pretty-name' => 'Debian GNU/Linux 13'],
+                'get-fsinfo' => $this->guestFilesystems, 'info' => $this->guestAgentInfo, 'network-get-interfaces' => $this->guestInterfaces, 'get-host-name' => ['host-name' => 'actual-web', 'private' => '/secret'], default => ['pretty-name' => 'Debian GNU/Linux 13'],
             }];
         } elseif (preg_match('~^/nodes/[^/]+/(qemu|lxc)/(\d+)/resize$~', $path, $match)) {
             $device = $body['disk'];

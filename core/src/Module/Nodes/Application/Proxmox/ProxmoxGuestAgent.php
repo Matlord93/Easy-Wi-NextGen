@@ -7,6 +7,7 @@ namespace App\Module\Nodes\Application\Proxmox;
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Nodes\Application\VmGuestAgentReport;
 use App\Module\Nodes\Application\VmGuestNetworkReport;
+use App\Module\Nodes\Application\VmFilesystemUsage;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use Symfony\Contracts\Cache\CacheInterface;
@@ -16,6 +17,26 @@ final readonly class ProxmoxGuestAgent
 {
     public function __construct(private ProxmoxApiClient $api, private CacheInterface $cache)
     {
+    }
+
+    /**
+     * Called after current guest identity, running state and agent configuration checks.
+     * @return array<array-key, mixed>
+     */
+    public function filesystemUsage(ProxmoxConnection $connection, string $node, int $vmId, string $digest): array
+    {
+        $key = 'vm_filesystem_v1.'.hash('sha256', json_encode([$connection->baseUrl, $connection->tokenId, hash('sha256', $connection->tokenSecret), $connection->verifyTls, $node, $vmId, $digest]));
+
+        return $this->cache->get($key, function (ItemInterface $item) use ($connection, $node, $vmId): array {
+            $item->expiresAfter(30);
+            try {
+                $report = VmFilesystemUsage::fromQga($this->api->guestAgentRead($connection, $node, $vmId, 'get-fsinfo'));
+            } catch (ProxmoxApiException) {
+                $report = VmFilesystemUsage::unavailable();
+            }
+
+            return $report + ['observed_at' => (new \DateTimeImmutable())->format(DATE_ATOM)];
+        });
     }
 
     /** Called only after fresh ownership, identity, running-state and config checks. */

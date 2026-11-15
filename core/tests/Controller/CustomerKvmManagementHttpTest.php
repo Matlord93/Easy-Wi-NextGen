@@ -50,6 +50,35 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
         self::ensureKernelShutdown();
     }
 
+    public function testCustomerPageAndPollingOnlyContainTheAssignedVmMetrics(): void
+    {
+        $client = $this->client();
+        $assignment = $this->em()->find(KvmGuestAssignment::class, $this->ownId);
+        $node = $assignment->getNode();
+        $filesystem = ['state' => 'available', 'used_bytes' => 250, 'total_bytes' => 1000, 'filesystems' => 1, 'partial' => false, 'observed_at' => date(DATE_ATOM)];
+        $node->recordHeartbeat([
+            'metrics' => ['cpu' => ['percent' => 73.3], 'disk' => ['used' => 999999999, 'total' => 1000000000], 'collected_at' => date(DATE_ATOM)],
+            'kvm_usage' => ['observed_at' => date(DATE_ATOM), 'guests' => [self::VM => ['cpu_percent' => 12.3, 'guest_filesystem' => $filesystem], self::OTHER => ['cpu_percent' => 98.7]]],
+        ], 'test', '127.0.0.1', [], $node->getMetadata(), 'active');
+        $this->em()->flush();
+        $crawler = $client->request('GET', $this->url());
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filterXPath('//*[@data-series-role="node"]'));
+        self::assertCount(1, $crawler->filterXPath('//*[@data-series-role="server"]'));
+        $sample = json_decode($crawler->filterXPath('//*[@data-history-sample]')->text(), true);
+        self::assertSame(12.3, $sample['cpu_percent']);
+        self::assertSame(25, $sample['disk_percent']);
+        self::assertSame(1000, $sample['disk_total_bytes']);
+        $client->request('GET', $this->url().'/usage');
+        self::assertResponseIsSuccessful();
+        $html = json_decode((string) $client->getResponse()->getContent(), true)['html'];
+        foreach (['data-series-role="node"', '73.3', '98.7', '999999999', self::OTHER] as $private) {
+            self::assertStringNotContainsString($private, $html);
+        }
+        $client->request('GET', '/customer/kvm/'.$this->foreignId.'/usage');
+        self::assertResponseStatusCodeSame(404);
+    }
+
     #[DataProvider('allowedActions')]
     public function testAllowedActionTargetsOnlyTheAssignedVm(string $action, array $extra): void
     {

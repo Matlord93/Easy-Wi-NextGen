@@ -6,6 +6,10 @@ Die Konsole nutzt einen WebSocket im vorhandenen Go-Agent. Ausgabe wird direkt a
 
 Der Linux-Installer richtet das WebSocket-Routing im vorhandenen Panel-Nginx ein und aktiviert `easywi-console-relay` nicht mehr. Das Release muss `core/tools/console/configure-live-console.py` und die danebenliegende `live-console.conf.template` enthalten. Nginx benötigt das übliche `http_auth_request`-Modul. `DEFAULT_URI` muss die öffentliche Paneladresse enthalten; ein vorgeschalteter TLS-Proxy muss WebSocket-Upgrades weiterreichen.
 
+Bei einer Installation mit dem Nginx-Wildcard-Hostnamen `_` schlägt der Installer die primäre Server-IP als öffentliche Panel-Adresse vor. Im interaktiven Modus kann die Adresse angepasst werden; für automatisierte Installationen setzt `EASYWI_PANEL_ORIGIN` die exakte Browser-Origin, zum Beispiel `http://192.168.178.46` oder `https://panel.example.test`. Bei mehreren Netzwerkkarten oder einem vorgeschalteten Proxy muss die tatsächlich vom Browser verwendete Adresse angegeben werden. Ohne ermittelbare Adresse bricht die Einrichtung ab, statt `localhost` zu hinterlegen.
+
+Der Installer schreibt dieselbe Adresse in `DEFAULT_URI` und `CONSOLE_PUBLIC_ORIGIN` und übergibt sie ausdrücklich an die Nginx-Konsoleneinrichtung. Die nachträgliche SSL-Einrichtung aktualisiert beide Werte, erneuert eine vorhandene `.env.local.php` und leert den Produktionscache. Ein Aufruf über eine andere IP oder Domain bleibt durch die Origin-Prüfung absichtlich gesperrt.
+
 Der Agent benötigt keine neue Listener-Adresse, keinen öffentlichen Verwaltungsport und keinen separaten Konsolendienst. Nur der Panelpfad `/console/live/{id}` ist für Browser bestimmt. Panel und Nginx benötigen privaten Netzwerkzugriff auf die bestehende Agent-Serviceadresse. Bei HTTPS-Agent-Adressen werden Hostname und Zertifikatskette geprüft; private CAs müssen auf dem Panelhost vertraut sein.
 
 ## Bestehende Installation umstellen

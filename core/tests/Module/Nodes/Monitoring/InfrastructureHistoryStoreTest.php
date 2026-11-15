@@ -58,6 +58,25 @@ final class InfrastructureHistoryStoreTest extends TestCase
         self::assertSame([], $store->history($this->target('assignment:1', 'other-cluster'), $now - 120, $now + 1)['points']);
     }
 
+    public function testNormalizedGuestFilesystemReadingsReachTheStoredHistory(): void
+    {
+        $store = $this->store();
+        $now = time() - 2;
+        $usage = (new InfrastructureUsage())->proxmox([
+            'vmid' => 101, 'type' => 'qemu', 'cpu' => .1, 'maxdisk' => 99999,
+            'observed_at' => gmdate(DATE_ATOM, $now),
+            'guest_filesystem' => ['state' => 'available', 'used_bytes' => 250, 'total_bytes' => 1000, 'filesystems' => 1, 'partial' => false, 'observed_at' => gmdate(DATE_ATOM, $now - 10)],
+        ]);
+        self::assertSame(1, $store->record($this->target(), $usage));
+        $history = $store->history($this->target(), $now - 120, $now + 1);
+        self::assertSame(250.0, $history['points'][0]['metrics']['disk_used_bytes']['average']);
+        self::assertSame(1000.0, $history['points'][0]['metrics']['disk_total_bytes']['average']);
+        self::assertSame(25.0, $history['points'][0]['metrics']['disk_percent']['average']);
+        $payload = json_decode($this->database->fetchOne('SELECT payload FROM infrastructure_samples'), true);
+        self::assertSame('guest_filesystem', $payload['disk_source']);
+        self::assertSame(gmdate(DATE_ATOM, $now - 10), $payload['disk_observed_at']);
+    }
+
     public function testStaleMissingAndInvalidMetricsAreNotManufactured(): void
     {
         $store = $this->store();

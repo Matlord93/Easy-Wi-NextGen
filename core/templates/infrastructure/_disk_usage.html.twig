@@ -1,0 +1,11 @@
+{% trans_default_domain 'infrastructure' %}
+{% set partial = usage.disk_partial|default(false) %}
+{% set percent = usage.disk_percent %}
+{% if partial and usage.disk_used_bytes is not null and usage.disk_total_bytes is not null and usage.disk_total_bytes > 0 %}{% set percent = usage.disk_used_bytes / usage.disk_total_bytes * 100 %}{% endif %}
+<div data-pve-disk-sample {% if not loadingDisk|default(false) %}data-pve-disk-ready{% endif %}>
+  <strong>{{ usage.disk_used_bytes is not null ? (usage.disk_used_bytes / 1073741824)|number_format(2) : '—' }} / {{ usage.disk_total_bytes is not null ? (usage.disk_total_bytes / 1073741824)|number_format(2) : '—' }} GiB</strong>
+  {% if percent is not null %}<small data-disk-percent>{{ percent|number_format(1) }} %{% if partial %} · {{ 'infra.disk_measured_scope'|trans }}{% endif %}</small>{% endif %}
+  {% if loadingDisk|default(false) %}<small>{{ 'infra.disk_loading'|trans }}</small>{% elseif usage.disk_requires_agent and usage.disk_source is null and not isTemplate|default(false) %}<small title="{{ 'infra.disk_agent_required'|trans }}">{{ 'infra.disk_unavailable_short'|trans }}</small>{% endif %}
+  {% if usage.disk_observed_at and usage.disk_source is not null %}<small><time datetime="{{ usage.disk_observed_at }}">{{ usage.disk_observed_at|date('d.m.Y H:i:s', 'Europe/Berlin') }}</time></small>{% endif %}
+</div>
+<small data-usage-error role="status" hidden>{{ 'infra.refresh_failed'|trans }}</small>

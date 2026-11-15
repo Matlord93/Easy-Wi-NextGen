@@ -51,7 +51,7 @@ func kvmAgentText(value any, limit int) string {
 }
 func (e *kvmEngine) readGuestAgent(id, command string) (any, error) {
 	switch command {
-	case "guest-info", "guest-get-host-name", "guest-get-osinfo", "guest-network-get-interfaces":
+	case "guest-info", "guest-get-host-name", "guest-get-osinfo", "guest-network-get-interfaces", "guest-get-fsinfo":
 	default:
 		return nil, errors.New("unsupported guest agent read")
 	}

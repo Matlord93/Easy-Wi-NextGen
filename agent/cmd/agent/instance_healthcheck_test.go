@@ -3,15 +3,18 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestEnsureServiceActiveSucceedsWhenRunningDespiteFailedState(t *testing.T) {
 	bin := t.TempDir()
+	observations := filepath.Join(bin, "observations")
+	t.Setenv("HEALTHCHECK_OBSERVATIONS", observations)
 	script := `#!/bin/sh
 if [ "$1" = "reset-failed" ]; then exit 0; fi
-if [ "$1" = "is-active" ]; then echo active; exit 0; fi
+if [ "$1" = "is-active" ]; then echo checked >> "$HEALTHCHECK_OBSERVATIONS"; echo active; exit 0; fi
 if [ "$1" = "is-failed" ]; then echo failed; exit 0; fi
 if [ "$1" = "show" ]; then echo 1234; exit 0; fi
 exit 0
@@ -30,6 +33,13 @@ exit 0
 
 	if err := ensureServiceActive("gs-1", time.Now().Add(-5*time.Second)); err != nil {
 		t.Fatalf("expected healthy, got %v", err)
+	}
+	checks, err := os.ReadFile(observations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(checks), "checked") < 2 {
+		t.Fatal("startup must survive more than one health observation")
 	}
 }
 

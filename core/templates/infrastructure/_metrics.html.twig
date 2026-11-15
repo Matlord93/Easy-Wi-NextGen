@@ -3,12 +3,20 @@
 <div class="infra-metrics" data-usage-metrics>
 {% for key, label in {cpu: 'infra.cpu', memory: 'infra.ram', disk: 'infra.disk'} %}
   {% set pct = key == 'cpu' ? usage.cpu_percent : attribute(usage, key ~ '_percent') %}
+  {% set partialDisk = key == 'disk' and usage.disk_partial|default(false) %}
+  {% if partialDisk and usage.disk_used_bytes is not null and usage.disk_total_bytes is not null and usage.disk_total_bytes > 0 %}
+    {% set pct = usage.disk_used_bytes / usage.disk_total_bytes * 100 %}
+  {% endif %}
   <div class="infra-metric">
     <div class="infra-metric__label">{{ label|trans }}</div>
     <strong data-usage-value="{{ key }}">{{ pct is not null ? pct|number_format(1) ~ ' %' : '—' }}</strong>
-    {% if pct is not null %}<meter min="0" max="100" value="{{ min(100, max(0, pct)) }}" aria-label="{{ label|trans }}">{{ pct|number_format(1) }} %</meter>{% else %}<div class="infra-meter-empty" aria-hidden="true"></div>{% endif %}
+    {% if partialDisk %}<small data-disk-scope>{{ 'infra.disk_measured_scope'|trans }}</small>{% endif %}
+    {% if pct is not null %}<meter min="0" max="100" value="{{ min(100, max(0, pct)) }}" aria-label="{{ (partialDisk ? 'infra.disk_measured_scope' : label)|trans }}">{{ pct|number_format(1) }} %</meter>{% else %}<div class="infra-meter-empty" aria-hidden="true"></div>{% endif %}
     <small>{% if key != 'cpu' %}{% set used = attribute(usage, key ~ '_used_bytes') %}{% set total = attribute(usage, key ~ '_total_bytes') %}{{ used is not null ? (used / 1073741824)|number_format(2) : '—' }} / {{ total is not null ? (total / 1073741824)|number_format(2) : '—' }} GiB{% elseif pct is null %}{{ 'infra.no_sample'|trans }}{% else %}{{ 'infra.cpu_hint'|trans }}{% endif %}</small>
     {% if key == 'memory' and usage.memory_source == 'host_rss' %}<small>{{ 'infra.host_memory'|trans }}</small>{% endif %}
+    {% if key == 'disk' and usage.disk_requires_agent|default(false) %}
+      <small data-disk-source>{% if usage.disk_source == 'guest_filesystem' %}{{ (usage.disk_partial ? 'infra.disk_partial' : 'infra.disk_guest')|trans }}{% if usage.disk_observed_at %} · <time datetime="{{ usage.disk_observed_at }}">{{ usage.disk_observed_at|date('d.m.Y H:i:s', 'Europe/Berlin') }}</time>{% endif %}{% elseif loadingDisk|default(false) %}{{ 'infra.disk_loading'|trans }}{% else %}{{ 'infra.disk_agent_required'|trans }}{% endif %}</small>
+    {% endif %}
   </div>
 {% endfor %}
 </div>

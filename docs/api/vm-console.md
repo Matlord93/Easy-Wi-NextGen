@@ -22,6 +22,27 @@ KVM verwendet intern `GET /v1/kvm/console/{vm-uuid}` am Agent mit Bearer-Authent
 
 Deployment und Rollen: [VM-Konsolen](../../wiki/VM-Konsolen.md).
 
+## Einrichtung und interne Diagnose
+
+`GET /admin/vm-console` ist ausschließlich für Administratoren erreichbar und
+liefert eine nicht gecachte Einrichtungs-/Statusseite. Die Statusprüfung geht
+ausschließlich an `http://127.0.0.1:7457/vm-console/health`, ohne Redirects,
+mit gemeinsamem Gateway-Secret und begrenzter Laufzeit/Antwortgröße. Die Seite
+enthält weder das Secret noch eine Upstream-Zieladresse oder API-Zugangsdaten.
+
+Die neue interne Gateway-Route `GET /vm-console/health` verlangt
+`X-EasyWI-Console-Gateway` und liefert bei Erfolg
+`{status:"ok",protocol_version:1,public_origin:"..."}`. Sie löst kein Kundenticket
+ein und prüft keine VM. Nginx veröffentlicht weiterhin ausschließlich
+`/vm-console/ws`; die Health-Route bleibt intern.
+
+Ein erfolgreiches Health-Ergebnis bestätigt Dienst und gemeinsames Secret.
+Origin, öffentlicher WebSocket-Proxy und Gastverbindung benötigen zusätzlich
+die Browser-/VM-Prüfung. Die Kundenseite unterscheidet fehlende Einrichtung,
+veralteten KVM-Agent, nicht erreichbaren Node, fehlende VNC-Vorbereitung und
+gestoppte VM. Bei deaktiviertem Verbindungsbutton zeigt sie keine irreführende
+Bereitschaftsmeldung mehr an.
+
 ## KVM-Verwaltung im Kundenbereich
 
 Zusätzlich zur Konsole stehen zugewiesenen Kunden folgende Panel-Routen bereit:

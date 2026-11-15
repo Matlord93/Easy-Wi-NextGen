@@ -42,6 +42,8 @@
 .infra-table td small { display:block; font-size:11px; color:var(--ng-text-muted); margin-top:4px; }
 .infra-table tbody tr:last-child td { border-bottom:0; }
 .infra-table tbody tr:hover { background:var(--ng-surface-soft); }
+.infra-table--pve-guests td:nth-child(4) { white-space:nowrap; }
+.infra-table--pve-guests [data-pve-disk-sample] { min-width:150px; max-width:230px; }
 .infra-empty { padding:30px; text-align:center; color:var(--ng-text-muted); border:1px dashed var(--ng-border); border-radius:10px; }
 .infra-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .infra-form label { display:grid; gap:6px; min-width:0; font-size:13px; }

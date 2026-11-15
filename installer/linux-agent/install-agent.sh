@@ -131,7 +131,22 @@ resolve_agent_asset() {
   fail "Kein passendes Agent-Asset gefunden (geprüft: ${baseName} mit '', .tar.gz, .zip)"
 }
 
+ensure_console_runtime_parents() {
+  install -d -m 0755 /etc/tmpfiles.d
+  cat > /etc/tmpfiles.d/easywi-console.conf <<'TMPFILES'
+d /run/easywi 0751 root root -
+d /run/easywi/instances 0751 root root -
+TMPFILES
+  if [[ -f /etc/tmpfiles.d/easywi-php-fpm.conf ]]; then
+    sed -i '/^d \/run\/easywi /d' /etc/tmpfiles.d/easywi-php-fpm.conf
+  fi
+  # Do not chown or chmod any per-instance directory or socket.
+  mkdir -p /run/easywi/instances
+  chmod o+x /run/easywi /run/easywi/instances
+}
+
 write_systemd_unit() {
+  ensure_console_runtime_parents
   local binaryPath="$1"
   local tmpUnit
   tmpUnit="$(mktemp)"

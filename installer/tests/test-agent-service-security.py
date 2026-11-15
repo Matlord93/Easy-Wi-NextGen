@@ -24,6 +24,29 @@ def function(name):
 
 
 class AgentServiceSecurityTest(unittest.TestCase):
+    def test_console_runtime_repair_in_both_installers(self):
+        standalone = (Path(__file__).resolve().parents[1] / 'linux-agent/install-agent.sh').read_text()
+        for source in [SOURCE, standalone]:
+            with self.subTest(installer=source[:40]), tempfile.TemporaryDirectory() as temp:
+                helper = re.search(r'^ensure_console_runtime_parents\(\) \{.*?^}', source, re.M | re.S).group()
+                config = Path(temp) / 'etc/tmpfiles.d'
+                config.mkdir(parents=True)
+                legacy = config / 'easywi-php-fpm.conf'
+                legacy.write_text('d /run/easywi 0750 root www-data -\nd /run/easywi/php-fpm 0750 root www-data -\n')
+                root = Path(temp) / 'run/easywi'
+                private = root / 'instances/1'
+                private.mkdir(parents=True)
+                for directory in [root, private.parent, private]:
+                    directory.chmod(0o750)
+                helper = helper.replace('/etc/tmpfiles.d', str(config)).replace('/run/easywi', str(root))
+                subprocess.run(['bash', '-c', 'set -euo pipefail\n' + helper + '\nensure_console_runtime_parents\nensure_console_runtime_parents'], check=True, capture_output=True)
+                self.assertEqual(root.stat().st_mode & 0o777, 0o751)
+                self.assertEqual(private.parent.stat().st_mode & 0o777, 0o751)
+                self.assertEqual(private.stat().st_mode & 0o777, 0o750)
+                self.assertNotIn('d /run/easywi ', legacy.read_text())
+                self.assertIn('d /run/easywi/php-fpm 0750', legacy.read_text())
+                self.assertIn('0751 root root', (config / 'easywi-console.conf').read_text())
+
     def test_listener_default_and_explicit_private_interface(self):
         for listen in ['', '10.1.2.3:7456']:
             with self.subTest(listen=listen), tempfile.TemporaryDirectory() as temp:

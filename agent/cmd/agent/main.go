@@ -102,6 +102,13 @@ func main() {
 	}
 	defer func() { _ = lock.Release() }()
 
+	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		if err := ensureConsoleRuntimeParents("/run/easywi"); err != nil {
+			logger.Error(context.Background(), "agent.runtime_init_failed", "RUNTIME_INIT_FAILED", err.Error(), nil)
+			os.Exit(1)
+		}
+	}
+
 	client, err := api.NewClient(cfg.APIURL, cfg.AgentID, cfg.Secret, version)
 	if err != nil {
 		logger.Error(context.Background(), "agent.client_init_failed", "CLIENT_INIT_FAILED", fmt.Sprintf("init api client: %v", err), nil)

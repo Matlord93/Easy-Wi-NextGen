@@ -16,6 +16,11 @@ use App\Infrastructure\Config\JsonMap;
  *     memory_total_bytes: float|null,
  *     disk_used_bytes: float|null,
  *     disk_total_bytes: float|null,
+ *     disk_source: string|null,
+ *     disk_observed_at: string|null,
+ *     disk_partial: bool,
+ *     disk_requires_agent: bool,
+ *     guest_filesystem: array{state: string, used_bytes: float|null, total_bytes: float|null, filesystems: int, partial: bool, observed_at: string|null}|null,
  *     disk_read_bytes: float|null,
  *     disk_write_bytes: float|null,
  *     net_rx_bytes: float|null,
@@ -68,6 +73,7 @@ final class InfrastructureUsage
         $m['observed_at'] = $this->timestamp($snapshot['observed_at'] ?? null);
         $m['series_key'] = hash('sha256', 'kvm:'.$node->getId().':'.$uuid);
         $m['load_source'] = 'agent_heartbeat';
+        $m['disk_requires_agent'] = true;
 
         return $this->normalize($m);
     }
@@ -85,6 +91,8 @@ final class InfrastructureUsage
             // Nodes and LXC root filesystems provide an actual used-byte value.
             'disk_used_bytes' => !isset($m['vmid']) || 'lxc' === ($m['type'] ?? null) ? ($m['disk'] ?? null) : null,
             'disk_total_bytes' => $m['maxdisk'] ?? null,
+            'disk_requires_agent' => isset($m['vmid']) && 'lxc' !== ($m['type'] ?? null),
+            'guest_filesystem' => $m['guest_filesystem'] ?? null,
             'observed_at' => $m['observed_at'] ?? (new \DateTimeImmutable())->format(DATE_ATOM),
             ...array_intersect_key($m, array_flip(['net_rx_bytes_per_second', 'net_tx_bytes_per_second', 'disk_read_bytes_per_second', 'disk_write_bytes_per_second', 'io_observed_at', 'io_interval_seconds', 'io_source'])),
         ]);
@@ -97,6 +105,22 @@ final class InfrastructureUsage
         $memoryTotal = self::measurement($input['memory_total_bytes'] ?? null);
         $diskUsed = self::measurement($input['disk_used_bytes'] ?? null);
         $diskTotal = self::measurement($input['disk_total_bytes'] ?? null);
+        $requiresAgent = true === ($input['disk_requires_agent'] ?? false);
+        $diskSource = null;
+        $diskObserved = null;
+        $diskPartial = false;
+        $filesystemReading = null;
+        if ($requiresAgent) {
+            $filesystem = VmFilesystemUsage::sanitize($input['guest_filesystem'] ?? null);
+            $raw = JsonArray::orEmpty($input['guest_filesystem'] ?? null);
+            $diskObserved = $this->timestamp($raw['observed_at'] ?? null);
+            $valid = $filesystem['state'] === 'available' && !$this->stale($diskObserved);
+            $diskUsed = $valid ? $filesystem['used_bytes'] : null;
+            $diskTotal = $valid ? $filesystem['total_bytes'] : null;
+            $diskSource = $valid ? 'guest_filesystem' : null;
+            $diskPartial = $valid && $filesystem['partial'];
+            $filesystemReading = $valid ? $filesystem + ['observed_at' => $diskObserved] : null;
+        }
         $observed = $this->timestamp($input['observed_at'] ?? null);
         $ioObserved = $this->timestamp($input['io_observed_at'] ?? null);
         $ioStale = $this->stale($ioObserved);
@@ -117,7 +141,12 @@ final class InfrastructureUsage
             'net_rx_bytes' => self::measurement($input['net_rx_bytes'] ?? null),
             'net_tx_bytes' => self::measurement($input['net_tx_bytes'] ?? null),
             'memory_percent' => self::percentage($memoryUsed, $memoryTotal),
-            'disk_percent' => self::percentage($diskUsed, $diskTotal),
+            'disk_percent' => $diskPartial ? null : self::percentage($diskUsed, $diskTotal),
+            'disk_source' => $diskSource,
+            'disk_observed_at' => $diskObserved,
+            'disk_partial' => $diskPartial,
+            'disk_requires_agent' => $requiresAgent,
+            'guest_filesystem' => $filesystemReading,
             'io_interval_seconds' => $interval,
             'net_rx_bytes_per_second' => $allowRates ? self::measurement($input['net_rx_bytes_per_second'] ?? null) : null,
             'net_tx_bytes_per_second' => $allowRates ? self::measurement($input['net_tx_bytes_per_second'] ?? null) : null,
