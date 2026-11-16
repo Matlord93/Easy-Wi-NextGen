@@ -260,6 +260,7 @@ final readonly class AdminWorkspaceGuide
         return array_map($this->present(...), self::GUIDES);
     }
 
+    /** @param array{key: string, steps: list<array{route: string, ...}>, ...} $guide */
     private function present(array $guide): array
     {
         foreach ($guide['steps'] as $index => &$step) {

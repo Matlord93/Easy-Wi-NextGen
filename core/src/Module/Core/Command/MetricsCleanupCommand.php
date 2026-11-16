@@ -82,7 +82,7 @@ final class MetricsCleanupCommand extends Command
                 $batch,
             );
 
-            $deleted = $this->connection->executeStatement($sql, ['threshold' => $threshold]);
+            $deleted = (int) $this->connection->executeStatement($sql, ['threshold' => $threshold]);
             if ($deleted <= 0) {
                 break;
             }

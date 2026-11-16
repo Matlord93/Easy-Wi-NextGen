@@ -24,7 +24,6 @@ final class ForumPostRepository extends ServiceEntityRepository
      */
     public function findVisibleByThreadWithAuthor(ForumThread $thread): array
     {
-        /** @var list<ForumPost> $rows */
         $rows = EntityQueryResult::all($this->createQueryBuilder('post')
             ->leftJoin('post.authorUser', 'author')->addSelect('author')
             ->andWhere('post.thread = :thread')
@@ -45,13 +44,10 @@ final class ForumPostRepository extends ServiceEntityRepository
             ->andWhere('post.thread = :thread')
             ->setParameter('thread', QueryParameter::entityId($thread->getId(), \App\Module\Core\Domain\Entity\ForumThread::class))
             ->orderBy('post.createdAt', 'ASC');
-
-        /** @var list<ForumPost> $items */
-        $items = $qb
+        $items = EntityQueryResult::all($qb
             ->setFirstResult(max(0, ($page - 1) * $perPage))
             ->setMaxResults($perPage)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), ForumPost::class);
 
         $total = (int) $this->createQueryBuilder('post_count')
             ->select('COUNT(post_count.id)')

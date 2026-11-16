@@ -40,7 +40,8 @@ final readonly class CustomerLiveConsoleController
         $deny = static fn (int $code): Response => new Response('', $code, ['Cache-Control' => 'no-store']);
         // Protect even a directly reachable PHP backend. This endpoint must never
         // expose an upstream credential or private target to a browser.
-        if (strlen($this->proxySecret ?? '') < 32 || !hash_equals($this->proxySecret, (string) $request->headers->get('X-EasyWI-Console-Proxy'))) {
+        $proxySecret = $this->proxySecret ?? '';
+        if (strlen($proxySecret) < 32 || !hash_equals($proxySecret, (string) $request->headers->get('X-EasyWI-Console-Proxy'))) {
             return $deny(403);
         }
         $actor = RequestActor::user($request);
@@ -48,12 +49,13 @@ final readonly class CustomerLiveConsoleController
             return $deny(401);
         }
         $instance = $this->instances->find($id);
-        if (!$instance || (!$actor->isAdmin() && $instance->getCustomer()?->getId() !== $actor->getId())) {
+        if (!$instance || (!$actor->isAdmin() && $instance->getCustomer()->getId() !== $actor->getId())) {
             return $deny(403);
         }
-        $origin = $this->publicOrigin ?: $request->getSchemeAndHttpHost();
+        $origin = $this->publicOrigin;
+        if ($origin === null || $origin === '' || $origin === '0') { $origin = $request->getSchemeAndHttpHost(); }
         $parsed = parse_url($origin);
-        if (!$parsed || !in_array($parsed['scheme'] ?? '', ['http', 'https'], true) || empty($parsed['host']) || isset($parsed['user']) || isset($parsed['query']) || isset($parsed['fragment']) || ($parsed['path'] ?? '') !== '' || !hash_equals($origin, (string) $request->headers->get('X-EasyWI-Console-Origin'))) {
+        if ($parsed === false || $parsed === [] || !in_array($parsed['scheme'] ?? '', ['http', 'https'], true) || !isset($parsed['host']) || $parsed['host'] === '' || $parsed['host'] === '0' || isset($parsed['user']) || isset($parsed['query']) || isset($parsed['fragment']) || ($parsed['path'] ?? '') !== '' || !hash_equals($origin, (string) $request->headers->get('X-EasyWI-Console-Origin'))) {
             return $deny(403);
         }
         if (!$this->connections->create('live-connect:'.EntityIdentifier::require($actor->getId()).':'.$id)->consume()->isAccepted()) {
@@ -75,8 +77,9 @@ final readonly class CustomerLiveConsoleController
         if (!$session) {
             return $deny(401);
         }
-        if ($session->getExpiresAt()) {
-            $until = min($until, $session->getExpiresAt()->getTimestamp());
+        $expiresAt = $session->getExpiresAt();
+        if ($expiresAt !== null) {
+            $until = min($until, $expiresAt->getTimestamp());
         }
         if (($minutes = $this->settings->getSessionAbsoluteTimeoutMinutes()) > 0) {
             $until = min($until, $session->getCreatedAt()->getTimestamp() + $minutes * 60);

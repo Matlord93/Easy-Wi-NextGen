@@ -14,6 +14,10 @@ final class TwoFactorService
 
     public function generateSecret(int $bytes = 20): string
     {
+        if ($bytes < 1) {
+            throw new \ValueError('Secret length must be greater than zero.');
+        }
+
         $random = random_bytes($bytes);
         return $this->base32Encode($random);
     }
@@ -79,9 +83,9 @@ final class TwoFactorService
     }
 
     /**
-     * @param string[] $hashedCodes
+     * @param array<array-key,string> $hashedCodes
      */
-    public function verifyRecoveryCode(string $code, array $hashedCodes): ?int
+    public function verifyRecoveryCode(string $code, array $hashedCodes): int|string|null
     {
         foreach ($hashedCodes as $index => $hash) {
             if (password_verify($code, $hash)) {
@@ -124,7 +128,7 @@ final class TwoFactorService
             if (strlen($chunk) < 5) {
                 $chunk = str_pad($chunk, 5, '0', STR_PAD_RIGHT);
             }
-            $encoded .= $alphabet[bindec($chunk)];
+            $encoded .= $alphabet[(int) bindec($chunk)];
         }
 
         return $encoded;
@@ -152,7 +156,7 @@ final class TwoFactorService
             if (strlen($byte) < 8) {
                 continue;
             }
-            $bytes .= chr(bindec($byte));
+            $bytes .= chr((int) bindec($byte));
         }
 
         return $bytes;

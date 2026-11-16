@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Nodes\Application\Proxmox;
 
 use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
@@ -22,7 +23,7 @@ final readonly class ProxmoxRrdUsage
         if (($status['status'] ?? '') !== 'running' || !is_numeric($uptime) || !is_finite((float) $uptime) || $uptime <= 0) {
             return [];
         }
-        $key = 'vm_io_v1.'.hash('sha256', json_encode([$connection->baseUrl, $connection->tokenId, hash('sha256', $connection->tokenSecret), $connection->verifyTls, $node, $kind, $vmId]));
+        $key = 'vm_io_v1.'.hash('sha256', json_encode([$connection->baseUrl, $connection->tokenId, hash('sha256', $connection->tokenSecret), $connection->verifyTls, $node, $kind, $vmId], JSON_THROW_ON_ERROR));
         $sample = $this->cache->get($key, function (ItemInterface $item) use ($connection, $node, $kind, $vmId): array {
             $item->expiresAfter(15);
             try {
@@ -31,16 +32,26 @@ final readonly class ProxmoxRrdUsage
                 return [];
             }
         });
-        if (!$sample) {
+        if (!isset($sample['io_observed_at'], $sample['io_interval_seconds'])) {
             return [];
         }
         $end = strtotime($sample['io_observed_at']);
         // Do not show an interval overlapping an earlier VM run/VM-ID reuse.
-        if ($end < time() - 120 || $end - $sample['io_interval_seconds'] < time() - (float) $uptime) {
+        if (false === $end || $end < time() - 120 || $end - $sample['io_interval_seconds'] < (float) time() - (float) $uptime) {
             return [];
         }
 
         return $sample;
+    }
+
+    private static function timestamp(mixed $value): ?int
+    {
+        return is_int($value) ? $value : null;
+    }
+
+    private static function rate(mixed $value): ?float
+    {
+        return is_numeric($value) && is_finite((float) $value) && $value >= 0 ? (float) $value : null;
     }
 
     /**
@@ -51,8 +62,9 @@ final readonly class ProxmoxRrdUsage
     public static function latest(array $rows, int $now): array
     {
         $byTime = [];
-        foreach (array_slice($rows, 0, 256) as $row) {
-            $time = is_array($row) ? ($row['time'] ?? null) : null;
+        foreach (array_keys(array_slice($rows, 0, 256, true)) as $index) {
+            $row = JsonArray::orEmpty($rows[$index]);
+            $time = self::timestamp($row['time'] ?? null);
             if (is_int($time) && $time >= $now - 300 && $time <= $now + 5) {
                 $byTime[$time] = $row;
             }
@@ -69,9 +81,9 @@ final readonly class ProxmoxRrdUsage
             }
             $result = [];
             foreach (['netin' => 'net_rx', 'netout' => 'net_tx', 'diskread' => 'disk_read', 'diskwrite' => 'disk_write'] as $source => $key) {
-                $value = $byTime[$time][$source] ?? null;
-                if (is_numeric($value) && is_finite((float) $value) && $value >= 0) {
-                    $result[$key.'_bytes_per_second'] = (float) $value;
+                $value = self::rate($byTime[$time][$source] ?? null);
+                if (null !== $value) {
+                    $result[$key.'_bytes_per_second'] = $value;
                 }
             }
             if ($result) {

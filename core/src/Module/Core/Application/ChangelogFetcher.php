@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use Psr\Cache\CacheItemPoolInterface;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 
 final class ChangelogFetcher
 {
@@ -41,7 +43,7 @@ final class ChangelogFetcher
         }
 
         $item = $this->cache->getItem(self::CACHE_KEY . '.' . hash('sha256', $this->repository));
-        $cached = $item->get();
+        $cached = self::cachedReleases($item->get());
         if ($item->isHit() && is_array($cached)) {
             return $cached;
         }
@@ -84,7 +86,7 @@ final class ChangelogFetcher
             }
 
             try {
-                $payload = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+                $payload = JsonArray::fromValue(json_decode($response, true, 512, JSON_THROW_ON_ERROR));
             } catch (\JsonException) {
                 return [];
             }
@@ -102,8 +104,8 @@ final class ChangelogFetcher
             if (!is_string($title) || $title === '') {
                 continue;
             }
-            $version = is_string($release['tag_name'] ?? null) ? $release['tag_name'] : null;
-            $content = is_string($release['body'] ?? null) ? $release['body'] : '';
+            $version = self::optionalText($release['tag_name'] ?? null);
+            $content = self::optionalText($release['body'] ?? null) ?? '';
             $publishedAt = $this->parsePublishedAt($release['published_at'] ?? null);
 
             $items[] = [
@@ -125,6 +127,46 @@ final class ChangelogFetcher
         }
 
         return $this->releaseResolver->getCacheStatus($this->repository, GithubReleaseResolver::CHANNEL_STABLE, 'changelog');
+    }
+
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    /** @return list<array{title:string,version:?string,content:string,published_at:?\DateTimeImmutable}>|null */
+    private static function cachedReleases(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $items = [];
+        foreach (array_keys($value) as $key) {
+            $row = JsonArray::fromValue($value[$key]);
+            if ($row === null || !is_string($row['title'] ?? null) || !is_string($row['content'] ?? null)) {
+                return null;
+            }
+
+            $date = self::cachedDate($row['published_at'] ?? null);
+            if (($row['published_at'] ?? null) !== null && $date === null) {
+                return null;
+            }
+
+            $items[] = [
+                'title' => self::optionalText($row['title']) ?? '',
+                'version' => self::optionalText($row['version'] ?? null),
+                'content' => self::optionalText($row['content']) ?? '',
+                'published_at' => $date,
+            ];
+        }
+
+        return $items;
+    }
+
+    private static function cachedDate(mixed $value): ?\DateTimeImmutable
+    {
+        return $value instanceof \DateTimeImmutable ? $value : null;
     }
 
     private function parsePublishedAt(mixed $value): ?\DateTimeImmutable

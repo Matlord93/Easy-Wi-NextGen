@@ -33,9 +33,9 @@ final class MusicbotInstallerService
     public function install(MusicbotInstance $instance, User $actor, array $options = []): array
     {
         $payload = $this->buildBasePayload($instance);
-        $payload['enable'] = $options['enable'] ?? true;
+        $payload['enable'] = self::booleanOption($options['enable'] ?? true);
         if (isset($options['runtime_binary'])) {
-            $payload['runtime_binary'] = $options['runtime_binary'];
+            $payload['runtime_binary'] = self::runtimeBinary($options['runtime_binary']);
         }
 
         $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.install', $payload);
@@ -60,9 +60,9 @@ final class MusicbotInstallerService
     public function update(MusicbotInstance $instance, User $actor, array $options = []): array
     {
         $payload = $this->buildBasePayload($instance);
-        $payload['restart'] = $options['restart'] ?? true;
+        $payload['restart'] = self::booleanOption($options['restart'] ?? true);
         if (isset($options['runtime_binary'])) {
-            $payload['runtime_binary'] = $options['runtime_binary'];
+            $payload['runtime_binary'] = self::runtimeBinary($options['runtime_binary']);
         }
 
         $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.update', $payload);
@@ -87,10 +87,10 @@ final class MusicbotInstallerService
     public function reinstall(MusicbotInstance $instance, User $actor, array $options = []): array
     {
         $payload = $this->buildBasePayload($instance);
-        $payload['enable'] = $options['enable'] ?? true;
+        $payload['enable'] = self::booleanOption($options['enable'] ?? true);
         $payload['reinstall'] = true;
         if (isset($options['runtime_binary'])) {
-            $payload['runtime_binary'] = $options['runtime_binary'];
+            $payload['runtime_binary'] = self::runtimeBinary($options['runtime_binary']);
         }
 
         $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.install', $payload);
@@ -113,7 +113,7 @@ final class MusicbotInstallerService
     {
         $payload = $this->buildBasePayload($instance);
         if (isset($options['runtime_binary'])) {
-            $payload['runtime_binary'] = $options['runtime_binary'];
+            $payload['runtime_binary'] = self::runtimeBinary($options['runtime_binary']);
         }
 
         $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.repair', $payload);
@@ -191,4 +191,21 @@ final class MusicbotInstallerService
         }
         return $result;
     }
+    private static function booleanOption(mixed $value): bool
+    {
+        $boolean = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($boolean === null) {
+            throw new \InvalidArgumentException('Installer option must be a boolean.');
+        }
+        return $boolean;
+    }
+
+    private static function runtimeBinary(mixed $value): string
+    {
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('Runtime binary must be a string.');
+        }
+        return $value;
+    }
+
 }

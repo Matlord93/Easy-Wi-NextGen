@@ -68,11 +68,11 @@ final class MusicbotTrackService
 
         $sourcePath = $file->getPathname();
         $sha256 = hash_file('sha256', $sourcePath);
-        if (!is_string($sha256) || $sha256 === '') {
+        if (!is_string($sha256)) {
             throw new \RuntimeException('Could not calculate track checksum.');
         }
 
-        $safeBaseName = $this->normalizeBaseName($title ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+        $safeBaseName = $this->normalizeBaseName(($title !== null && $title !== '' ? $title : null) ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
         if ($instance && $instance->getCustomer()->getId() !== $customer->getId()) {
             throw new \RuntimeException('Musicbot instance does not belong to the current customer.');
         }
@@ -253,11 +253,13 @@ final class MusicbotTrackService
     {
         // youtu.be/<id>
         if (str_contains($url, 'youtu.be/')) {
-            $path = parse_url($url, PHP_URL_PATH) ?? '';
+            $path = parse_url($url, PHP_URL_PATH);
+            if (!is_string($path)) { return ''; }
             return ltrim($path, '/');
         }
         // youtube.com/watch?v=<id>
-        parse_str(parse_url($url, PHP_URL_QUERY) ?? '', $query);
+        $queryString = parse_url($url, PHP_URL_QUERY);
+        parse_str(is_string($queryString) ? $queryString : '', $query);
 
         return isset($query['v']) && is_string($query['v']) ? $query['v'] : 'unknown';
     }

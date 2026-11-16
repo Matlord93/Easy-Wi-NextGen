@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Musicbot\Domain\Enum\MusicbotPermission;
 
@@ -14,7 +16,7 @@ final class TeamspeakCommandCatalog
     /** @var list<string> */
     public const SUPPORTED_COMMANDS = ['play', 'pause', 'resume', 'stop', 'skip', 'next', 'volume', 'queue', 'clear', 'shuffle', 'repeat', 'radio', 'yt', 'youtube', 'song', 'np', 'help'];
 
-    /** @return array<string, array<string, mixed>> */
+    /** @return array<string, array<array-key, mixed>> */
     public static function build(array $overrides = []): array
     {
         $commands = [];
@@ -30,7 +32,7 @@ final class TeamspeakCommandCatalog
         return $commands;
     }
 
-    /** @return array<string, array<string, mixed>> */
+    /** @return array<string, array<array-key, mixed>> */
     private static function defaults(): array
     {
         $basic = ['user'];
@@ -91,8 +93,8 @@ final class TeamspeakCommandCatalog
     {
         if (!is_array($value)) { return []; }
         $result = [];
-        foreach ($value as $item) {
-            $item = strtolower(trim((string) $item));
+        foreach (array_keys($value) as $key) {
+            $item = strtolower(trim(ScalarValue::text($value[$key])));
             if ($item === '' || ($allowed !== null && !in_array($item, $allowed, true))) { continue; }
             $result[] = $item;
         }

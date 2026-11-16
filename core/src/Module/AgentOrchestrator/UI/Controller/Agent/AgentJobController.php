@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\AgentOrchestrator\UI\Controller\Agent;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
 use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
 use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
@@ -103,8 +104,9 @@ final class AgentJobController
             default => throw new BadRequestHttpException('Invalid status.'),
         };
 
-        $rawResultPayload = $payload['result_payload'] ?? null;
-        $resultPayload = is_array($rawResultPayload) ? $rawResultPayload : null;
+        $resultPayload = JsonArray::fromValue($payload['result_payload'] ?? null);
+        $strings = JsonMap::strings($payload);
+        $rawResultPayload = $strings['result_payload'] ?? null;
 
         // Snapshot agents may return the snapshot content as a raw string instead of a wrapped array.
         if ($resultPayload === null && is_string($rawResultPayload) && $rawResultPayload !== '') {
@@ -113,14 +115,6 @@ final class AgentJobController
             }
         }
 
-        $snapshotContent = null;
-        if (is_array($resultPayload)) {
-            $snapshotContent = $resultPayload['snapshot'] ?? ($resultPayload['payload']['snapshot'] ?? null);
-        }
-        if (!is_string($snapshotContent)) {
-            $snapshotContent = null;
-        }
-        $snapshotLength = $snapshotContent !== null ? strlen(trim($snapshotContent)) : 0;
         $resultSummary = MusicbotPayloadLogSummarizer::summarizeJobPayload($resultPayload);
         $finishLogContext = [
             'stage' => 'finish',
@@ -141,11 +135,11 @@ final class AgentJobController
             $this->logger->warning('Agent job finished with failure status.', $finishLogContext);
         }
 
-        $job->setLogText(is_string($payload['log_text'] ?? null) ? $payload['log_text'] : null);
-        $job->setErrorText(is_string($payload['error_text'] ?? null) ? $payload['error_text'] : null);
+        $job->setLogText($strings['log_text'] ?? null);
+        $job->setErrorText($strings['error_text'] ?? null);
         $job->setResultPayload($resultPayload);
         $job->markFinished($status);
-        $this->resultApplier->apply($job, $status, $resultPayload);
+        $this->resultApplier->apply($job, $status, JsonMap::fromValue($resultPayload));
         $this->applyViewerSnapshotCache($job, $resultPayload);
         $this->applyServerGroupCache($job, $resultPayload);
         $this->applyServerSummaryCache($job, $resultPayload);
@@ -234,7 +228,7 @@ final class AgentJobController
             return;
         }
 
-        $normalized = ViewerSnapshotNormalizer::normalize($resultPayload);
+        $normalized = ViewerSnapshotNormalizer::normalize(JsonMap::fromValue($resultPayload) ?? []);
         $snapshot = [
             'status' => 'ok',
             'server' => $normalized['server'],
@@ -344,13 +338,13 @@ final class AgentJobController
         if (!isset($resultPayload[0]) && !empty($resultPayload)) {
             $jobType = $job->getType();
             if (str_contains($jobType, 'client')) {
-                $payloadArray = $resultPayload['clients'] ?? $resultPayload;
+                $payloadArray = JsonArray::fromValue($resultPayload['clients'] ?? null) ?? $resultPayload;
             } elseif (str_contains($jobType, 'channel')) {
-                $payloadArray = $resultPayload['channels'] ?? $resultPayload;
+                $payloadArray = JsonArray::fromValue($resultPayload['channels'] ?? null) ?? $resultPayload;
             } elseif (str_contains($jobType, 'ban')) {
-                $payloadArray = $resultPayload['bans'] ?? $resultPayload;
+                $payloadArray = JsonArray::fromValue($resultPayload['bans'] ?? null) ?? $resultPayload;
             } elseif (str_contains($jobType, 'log')) {
-                $payloadArray = $resultPayload['logs'] ?? $resultPayload['entries'] ?? $resultPayload;
+                $payloadArray = JsonArray::fromValue($resultPayload['logs'] ?? $resultPayload['entries'] ?? null) ?? $resultPayload;
             }
         }
 

@@ -7,7 +7,7 @@ namespace App\Module\HostingPanel\Application\Audit;
 use App\Module\HostingPanel\Domain\Entity\AuditLog;
 use Doctrine\ORM\EntityManagerInterface;
 
-class AuditLogWriter
+final class AuditLogWriter
 {
     public function __construct(private readonly EntityManagerInterface $entityManager)
     {

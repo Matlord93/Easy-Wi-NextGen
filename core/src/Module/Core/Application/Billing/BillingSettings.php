@@ -13,11 +13,12 @@ final readonly class BillingSettings
     {
     }
 
+    /** @return array{reminder_fees:list<string>,reminder_grace_days:int,...<array-key,mixed>} */
     public function get(): array
     {
         $stored = $this->settings->getSettings()[AppSettingsService::KEY_BILLING_OPTIONS] ?? [];
 
-        return array_replace([
+        $values = array_replace([
             'company_name' => '', 'company_address' => '', 'company_email' => '', 'company_vat_id' => '',
             'company_street' => '', 'company_postal' => '', 'company_city' => '', 'company_country' => 'DE',
             'company_contact' => '', 'company_phone' => '', 'company_tax_number' => '', 'company_iban' => '', 'company_bic' => '',
@@ -25,6 +26,9 @@ final readonly class BillingSettings
             'automation_enabled' => false, 'reminders_enabled' => false,
             'reminder_grace_days' => 7, 'reminder_fees' => ['0.00', '0.00', '0.00'],
         ], JsonArray::orEmpty($stored));
+        $values['reminder_fees'] = self::fees($values['reminder_fees']);
+        $values['reminder_grace_days'] = (int) $values['reminder_grace_days'];
+        return $values;
     }
 
     public function save(array $input): void
@@ -69,10 +73,15 @@ final readonly class BillingSettings
         if (!is_array($fees) || count($fees) !== 3) {
             throw new \InvalidArgumentException('billing.invalid_settings');
         }
-        foreach ($fees as $fee) {
-            BillingAmount::parse((string) $fee);
+        foreach (array_keys($fees) as $index) {
+            BillingAmount::parse((string) $fees[$index]);
         }
         $values['reminder_fees'] = array_values($fees);
         $this->settings->updateSettings([AppSettingsService::KEY_BILLING_OPTIONS => $values]);
+    }
+    /** @return list<string> */
+    private static function fees(mixed $value): array
+    {
+        return array_values(array_map(static fn (mixed $fee): string => is_scalar($fee) ? (string) $fee : '', JsonArray::orEmpty($value)));
     }
 }

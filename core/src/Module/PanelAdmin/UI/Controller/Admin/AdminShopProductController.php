@@ -144,10 +144,9 @@ final class AdminShopProductController
         $node = $this->agentRepository->find($formData['node_id']);
 
         if ($category === null || $template === null || $node === null) {
-            return $this->renderFormWithErrors([
-                ...$formData,
+            return $this->renderFormWithErrors(array_replace($formData, [
                 'errors' => ['Category, template, and node are required.'],
-            ], Response::HTTP_BAD_REQUEST);
+            ]), Response::HTTP_BAD_REQUEST);
         }
 
         if ($category->getSiteId() !== $site->getId()) {
@@ -210,10 +209,9 @@ final class AdminShopProductController
         $node = $this->agentRepository->find($formData['node_id']);
 
         if ($category === null || $template === null || $node === null) {
-            return $this->renderFormWithErrors([
-                ...$formData,
+            return $this->renderFormWithErrors(array_replace($formData, [
                 'errors' => ['Category, template, and node are required.'],
-            ], Response::HTTP_BAD_REQUEST, $product);
+            ]), Response::HTTP_BAD_REQUEST, $product);
         }
 
         $product->setCategory($category);
@@ -312,7 +310,7 @@ final class AdminShopProductController
             'name' => $name,
             'description' => $description,
             'image_url' => $imageUrl,
-            'price_monthly_cents' => (int) round($priceMonthly * 100),
+            'price_monthly_cents' => (int) round($priceMonthly * 100.0),
             'category_id' => $categoryId,
             'template_id' => $templateId,
             'node_id' => $nodeId,
@@ -348,6 +346,7 @@ final class AdminShopProductController
         ];
     }
 
+    /** @param array{errors: list<string>, ...} $formData */
     private function renderFormWithErrors(array $formData, int $status, ?ShopProduct $product = null): Response
     {
         return new Response($this->twig->render('admin/shop/products/_form.html.twig', [
@@ -384,9 +383,10 @@ final class AdminShopProductController
         ], $products);
     }
 
+    /** @param \App\Module\Core\Domain\Entity\ShopCategory[] $categories */
     private function normalizeCategories(array $categories): array
     {
-        return array_map(static fn ($category): array => [
+        return array_map(static fn (\App\Module\Core\Domain\Entity\ShopCategory $category): array => [
             'id' => $category->getId(),
             'name' => $category->getName(),
         ], $categories);

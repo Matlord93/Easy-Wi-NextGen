@@ -85,7 +85,7 @@ final class SystemHealthController
             'core_version' => $versionInfo,
             'recovery_required' => $recoveryRequired,
             'update_jobs' => [
-                'latest' => $latestJob ? [
+                'latest' => $latestJob !== null ? [
                     'id' => $latestJob['id'] ?? null,
                     'type' => $latestJob['type'] ?? null,
                     'status' => $latestJob['status'] ?? null,
@@ -178,12 +178,7 @@ final class SystemHealthController
     private function probeFileApiHealth(): array
     {
         try {
-            $instance = $this->instanceRepository
-                ->createQueryBuilder('instance')
-                ->orderBy('instance.id', 'DESC')
-                ->setMaxResults(1)
-                ->getQuery()
-                ->getOneOrNullResult();
+            $instance = $this->instanceRepository->findOneBy([], ['id' => 'DESC']);
         } catch (\Throwable $exception) {
             $this->logger->warning('file_api.health_query_failed', [
                 'exception' => $exception,

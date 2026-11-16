@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\Payment;
 
@@ -48,10 +50,10 @@ final class AccountingExportService
                 $invoice->getCurrency(),
                 $archive['archived_year'] ?? '',
                 $archive['pdf_hash'] ?? '',
-                $this->formatAmount($invoice->getBillingDetails()['net_cents'] ?? $invoice->getAmountTotalCents()),
-                $this->formatAmount($invoice->getBillingDetails()['tax_cents'] ?? 0),
-                !empty($invoice->getBillingDetails()['mixed_tax_rates']) ? 'mixed' : $this->formatAmount($invoice->getBillingDetails()['tax_rate_bps'] ?? 0),
-                $invoice->getBillingDetails()['tax_mode'] ?? 'legacy',
+                $this->formatAmount(ScalarValue::integer($invoice->getBillingDetails()['net_cents'] ?? null, $invoice->getAmountTotalCents())),
+                $this->formatAmount(ScalarValue::integer($invoice->getBillingDetails()['tax_cents'] ?? null, 0)),
+                !empty($invoice->getBillingDetails()['mixed_tax_rates']) ? 'mixed' : $this->formatAmount(ScalarValue::integer($invoice->getBillingDetails()['tax_rate_bps'] ?? null, 0)),
+                ScalarValue::text($invoice->getBillingDetails()['tax_mode'] ?? null, 'legacy'),
                 $this->formatAmount(array_sum(array_map(static fn ($credit) => $credit->getAmountCents(), $invoice->getCreditNotes()->toArray()))),
                 $this->formatAmount($invoice->getOutstandingCents()),
                 $this->safeCell($invoice->getCancellationReason() ?? ''),

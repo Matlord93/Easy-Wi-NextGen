@@ -123,7 +123,7 @@ final class AdminDnsRecordController
             $formData['errors'][] = 'Domain is required.';
         }
 
-        if ($formData['errors'] !== []) {
+        if ($formData['errors'] !== [] || $formData['domain'] === null) {
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST);
         }
 
@@ -183,7 +183,7 @@ final class AdminDnsRecordController
             $formData['errors'][] = 'Domain is required.';
         }
 
-        if ($formData['errors'] !== []) {
+        if ($formData['errors'] !== [] || $formData['domain'] === null) {
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST, $record);
         }
 
@@ -329,6 +329,7 @@ final class AdminDnsRecordController
         return $data;
     }
 
+    /** @param array{domain: \App\Module\Core\Domain\Entity\Domain|null, name: string, type: string, content: string, ttl: int, priority: int|null, errors: array<array-key, string>} $formData */
     private function renderFormWithErrors(array $domains, array $formData, int $status, ?DnsRecord $record = null): Response
     {
         $formContext = $this->buildFormContext($record, [

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Voice;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 final class ViewerSnapshotNormalizer
 {
     /**
@@ -15,7 +16,7 @@ final class ViewerSnapshotNormalizer
     public static function normalize(array $payload): array
     {
         $snapshot = self::extractSnapshot($payload);
-        $server = JsonArray::orEmpty($snapshot['server'] ?? null);
+        $server = JsonMap::fromValue($snapshot['server'] ?? null) ?? [];
         $channels = self::normalizeChannels(self::asArray($snapshot['channels'] ?? []));
         $clients = self::normalizeClients(self::asArray($snapshot['clients'] ?? []));
 
@@ -26,12 +27,13 @@ final class ViewerSnapshotNormalizer
         ];
     }
 
-    /** @return array<string,mixed> */
+    /** @param array<string,mixed> $payload
+     * @return array<string,mixed> */
     private static function extractSnapshot(array $payload): array
     {
         foreach (['snapshot', 'payload', 'data', 'viewer', 'resultPayload', 'result'] as $key) {
             if (is_array($payload[$key] ?? null)) {
-                return $payload[$key];
+                return JsonMap::fromValue($payload[$key]) ?? [];
             }
         }
         return $payload;
@@ -86,7 +88,7 @@ final class ViewerSnapshotNormalizer
     }
 
     /**
-     * @param array<string,mixed> $row
+     * @param array<array-key,mixed> $row
      * @param array<int,string> $keys
      */
     private static function firstString(array $row, array $keys): string
@@ -104,7 +106,7 @@ final class ViewerSnapshotNormalizer
     }
 
     /**
-     * @param array<string,mixed> $row
+     * @param array<array-key,mixed> $row
      * @param array<int,string> $keys
      */
     private static function firstIntOrNull(array $row, array $keys): ?int

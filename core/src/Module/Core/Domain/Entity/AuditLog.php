@@ -39,7 +39,7 @@ class AuditLog
     private ?string $hashPrev = null;
 
     #[ORM\Column(length: 64)]
-    private string $hashCurrent;
+    private ?string $hashCurrent = null;
 
     public function __construct(?User $actor, string $action, array $payload)
     {
@@ -91,6 +91,10 @@ class AuditLog
 
     public function getHashCurrent(): string
     {
+        if ($this->hashCurrent === null) {
+            throw new \LogicException('Audit log hash has not been calculated.');
+        }
+
         return $this->hashCurrent;
     }
 }

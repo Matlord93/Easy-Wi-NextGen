@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Module\Gameserver\Application\MinecraftCatalogSynchronizer;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -19,9 +22,11 @@ final class CatalogSyncMinecraftCommand extends Command
     {
         $status = $this->synchronizer->synchronize(true);
         $failed = false;
-        foreach ($status['channels'] ?? [] as $channel => $result) {
+        $channels = JsonArray::orEmpty($status['channels'] ?? null);
+        foreach (array_keys($channels) as $channel) {
+            $result = JsonArray::orEmpty($channels[$channel]);
             $failed = $failed || !empty($result['error']);
-            $output->writeln($channel.': '.($result['error'] ?? ((string) $result['count'].' entries')));
+            $output->writeln($channel.': '.ScalarValue::text($result['error'] ?? (ScalarValue::text($result['count'] ?? 0).' entries')));
         }
         return $failed ? Command::FAILURE : Command::SUCCESS;
     }

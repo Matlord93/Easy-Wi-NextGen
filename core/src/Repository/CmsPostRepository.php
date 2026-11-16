@@ -38,7 +38,7 @@ final class CmsPostRepository extends ServiceEntityRepository
             ->distinct();
 
         if ($category instanceof BlogCategory) {
-            $qb->andWhere('p.category = :category')->setParameter('category', $category);
+            $qb->andWhere('p.category = :category')->setParameter('category', QueryParameter::entityId($category->getId(), \App\Module\Core\Domain\Entity\BlogCategory::class));
         }
 
         if ($tag instanceof BlogTag) {
@@ -53,8 +53,6 @@ final class CmsPostRepository extends ServiceEntityRepository
                 ->andWhere('p.title LIKE :q OR p.excerpt LIKE :q OR p.content LIKE :q')
                 ->setParameter('q', '%' . $query . '%');
         }
-
-        /** @var list<CmsPost> $rows */
         $rows = EntityQueryResult::all($qb->getQuery(), \App\Module\Core\Domain\Entity\CmsPost::class);
 
         return $rows;

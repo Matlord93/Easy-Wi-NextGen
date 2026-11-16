@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application\Backup;
 
+use App\Infrastructure\Config\ScalarValue;
+
+use App\Infrastructure\Config\JsonMap;
+
+use App\Infrastructure\Config\JsonArray;
+
 final class MusicbotBackupManifest
 {
     public const SCHEMA_VERSION = '1';
@@ -40,21 +46,21 @@ final class MusicbotBackupManifest
         ];
     }
 
-    /** @param array<string, mixed> $raw */
+    /** @param array<array-key, mixed> $raw */
     public static function fromArray(array $raw): self
     {
-        $meta = $raw['metadata'] ?? [];
+        $meta = JsonArray::orEmpty($raw['metadata'] ?? null);
 
         return new self(
-            schemaVersion: (string) ($raw['schema_version'] ?? self::SCHEMA_VERSION),
-            backupType: (string) ($raw['backup_type'] ?? MusicbotBackupType::Customer->value),
-            instanceId: (string) ($meta['instance_id'] ?? ''),
-            customerId: (string) ($meta['customer_id'] ?? ''),
-            serviceName: (string) ($meta['service_name'] ?? ''),
-            appVersion: (string) ($meta['app_version'] ?? ''),
-            createdAt: new \DateTimeImmutable((string) ($meta['created_at'] ?? 'now')),
-            data: (array) ($raw['data'] ?? []),
-            checksum: (string) ($raw['checksum'] ?? ''),
+            schemaVersion: ScalarValue::text($raw['schema_version'] ?? self::SCHEMA_VERSION),
+            backupType: ScalarValue::text($raw['backup_type'] ?? MusicbotBackupType::Customer->value),
+            instanceId: ScalarValue::text($meta['instance_id'] ?? ''),
+            customerId: ScalarValue::text($meta['customer_id'] ?? ''),
+            serviceName: ScalarValue::text($meta['service_name'] ?? ''),
+            appVersion: ScalarValue::text($meta['app_version'] ?? ''),
+            createdAt: new \DateTimeImmutable(ScalarValue::text($meta['created_at'] ?? 'now')),
+            data: JsonMap::fromValue($raw['data'] ?? null) ?? [],
+            checksum: ScalarValue::text($raw['checksum'] ?? ''),
         );
     }
 }

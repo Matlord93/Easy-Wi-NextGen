@@ -60,7 +60,7 @@ final class InstanceStartService
         $payload = $this->instanceConfigService->buildStartPayload($instance, $profile, $allocations);
         $payload['slots'] = $slots;
 
-        if (!empty($payload['config'])) {
+        if (($payload['config'] ?? []) !== []) {
             $renderResult = $this->agentClient->renderConfig($instance, $payload);
             if (!($renderResult['ok'] ?? false)) {
                 throw new \RuntimeException('Config rendering failed.');

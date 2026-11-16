@@ -79,7 +79,7 @@ class ApiToken
         $this->tokenPrefix = $tokenPrefix;
         $this->tokenHash = $tokenHash;
         $this->encryptedToken = $encryptedToken;
-        $this->setScopes($scopes);
+        $this->scopes = $this->normalizeScopes($scopes);
         $this->expiresAt = $expiresAt;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
@@ -222,19 +222,15 @@ class ApiToken
     }
 
     /**
-     * @param string[] $scopes
+     * @param array<array-key, mixed> $scopes
      * @return string[]
      */
     private function normalizeScopes(array $scopes): array
     {
-        $normalized = array_values(array_unique(array_filter(array_map(static function ($scope): ?string {
-            if (!is_string($scope)) {
-                return null;
-            }
-
+        $normalized = array_values(array_unique(array_filter(array_map(static function (string $scope): ?string {
             $value = trim($scope);
             return $value !== '' ? $value : null;
-        }, $scopes))));
+        }, array_filter($scopes, 'is_string')))));
 
         sort($normalized);
 

@@ -29,12 +29,12 @@ final class InvoiceArchiveRepository extends ServiceEntityRepository
             return [];
         }
 
-        $rows = $this->createQueryBuilder('archive')
+        $rows = ScalarQueryResult::rows($this->createQueryBuilder('archive')
             ->select('IDENTITY(archive.invoice) AS invoice_id')
             ->andWhere('archive.invoice IN (:invoiceIds)')
             ->setParameter('invoiceIds', $invoiceIds)
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult());
 
         return array_map(static fn (array $row): int => (int) $row['invoice_id'], $rows);
     }
@@ -49,12 +49,12 @@ final class InvoiceArchiveRepository extends ServiceEntityRepository
             return [];
         }
 
-        $rows = $this->createQueryBuilder('archive')
+        $rows = ScalarQueryResult::rows($this->createQueryBuilder('archive')
             ->select('IDENTITY(archive.invoice) AS invoice_id', 'archive.archivedYear AS archived_year', 'archive.pdfHash AS pdf_hash')
             ->andWhere('archive.invoice IN (:invoiceIds)')
             ->setParameter('invoiceIds', $invoiceIds)
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult());
 
         $mapped = [];
         foreach ($rows as $row) {

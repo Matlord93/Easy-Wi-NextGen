@@ -320,7 +320,7 @@ final class AgentJobResultApplier
         ] + MusicbotPayloadLogSummarizer::summarizeJobPayload($payload));
     }
 
-    /** @param array<string, mixed> $context */
+    /** @param array<array-key, mixed> $context */
     private function debugMusicbotPayload(string $stage, array $context): void
     {
         if (($_ENV['MUSICBOT_DEBUG_STATUS_FLOW'] ?? $_SERVER['MUSICBOT_DEBUG_STATUS_FLOW'] ?? getenv('MUSICBOT_DEBUG_STATUS_FLOW')) !== '1') {

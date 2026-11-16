@@ -25,8 +25,8 @@ final class Teamspeak3Adapter implements VoiceProviderAdapter
 
         return new VoiceQueryResult(
             $result['status'],
-            is_numeric($result['players_online'] ?? null) ? (int) $result['players_online'] : null,
-            is_numeric($result['players_max'] ?? null) ? (int) $result['players_max'] : null,
+            $result['players_online'],
+            $result['players_max'],
             null,
             new \DateTimeImmutable(),
             $result['reason'] ?? null,

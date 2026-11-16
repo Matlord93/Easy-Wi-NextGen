@@ -7,6 +7,7 @@ namespace App\Module\Nodes\Application\Kvm;
 use App\Repository\QueryParameter;
 use App\Repository\EntityQueryResult;
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
@@ -33,7 +34,7 @@ final readonly class KvmPanelService
 
     public function availability(Agent $node): ?string
     {
-        $cap = $node->getMetadata()['kvm_managed'] ?? [];
+        $cap = JsonArray::orEmpty($node->getMetadata()['kvm_managed'] ?? null);
         if (1 !== ($cap['version'] ?? null) || true !== ($cap['supported'] ?? null)) {
             return 'kvm.update_agent';
         }
@@ -92,7 +93,8 @@ final readonly class KvmPanelService
 
     public function submit(Agent $node, string $action, array $input): AgentJob
     {
-        if ($error = $this->availability($node)) {
+        $error = $this->availability($node);
+        if (null !== $error) {
             throw new \InvalidArgumentException($error);
         }
         if (!in_array($action, self::ACTIONS, true)) {
@@ -154,8 +156,9 @@ final readonly class KvmPanelService
                 if ('1' !== ($input['confirm'] ?? null)) {
                     throw new \InvalidArgumentException('kvm.network_confirm');
                 }
-                if (is_string($input['network_choice'] ?? null)) {
-                    [$input['network_type'], $input['network']] = array_pad(explode(':', $input['network_choice'], 2), 2, '');
+                $networkChoice = JsonMap::strings($input)['network_choice'] ?? null;
+                if (null !== $networkChoice) {
+                    [$input['network_type'], $input['network']] = array_pad(explode(':', $networkChoice, 2), 2, '');
                 }
                 foreach (['network_type', 'expected_network_type'] as $field) {
                     $payload[$field] = $this->text($input, $field, '/^(network|bridge)$/D');
@@ -212,7 +215,7 @@ final readonly class KvmPanelService
         }
         if ('vm.agent_status' === $action) {
             foreach ($this->recent($node) as $job) {
-                if (($job->getPayload()['action'] ?? '') === $action && ($job->getPayload()['vm_id'] ?? '') === $payload['vm_id'] && (in_array($job->getStatus(), [AgentJobStatus::Queued, AgentJobStatus::Running], true) || $job->getCreatedAt() > new \DateTimeImmutable('-10 seconds'))) {
+                if (($job->getPayload()['action'] ?? '') === $action && ($job->getPayload()['vm_id'] ?? '') === ($payload['vm_id'] ?? null) && (in_array($job->getStatus(), [AgentJobStatus::Queued, AgentJobStatus::Running], true) || $job->getCreatedAt() > new \DateTimeImmutable('-10 seconds'))) {
                     return $job;
                 }
             }
@@ -229,6 +232,7 @@ final readonly class KvmPanelService
         return $this->dispatcher->dispatch($node, 'kvm.managed', $payload);
     }
 
+    /** @param non-empty-string $pattern */
     private function text(array $input, string $key, string $pattern): string
     {
         $value = $input[$key] ?? '';

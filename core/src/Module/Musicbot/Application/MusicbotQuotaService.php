@@ -57,7 +57,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         $maxUploadBytes = $limits->maxUploadSizeMb * 1024 * 1024;
         if ($fileSizeBytes > $maxUploadBytes) {
             throw new MusicbotQuotaExceededException(
-                sprintf('Upload size exceeds limit (%.1f MB / %d MB allowed per file).', $fileSizeBytes / 1024 / 1024, $limits->maxUploadSizeMb),
+                sprintf('Upload size exceeds limit (%.1f MB / %d MB allowed per file).', (float) $fileSizeBytes / 1024.0 / 1024.0, $limits->maxUploadSizeMb),
             );
         }
 
@@ -65,7 +65,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         $maxStorageBytes = $limits->maxStorageMb * 1024 * 1024;
         if ($usedBytes + $fileSizeBytes > $maxStorageBytes) {
             throw new MusicbotQuotaExceededException(
-                sprintf('Storage limit reached (%.1f/%d MB). Delete some tracks to free up space.', $usedBytes / 1024 / 1024, $limits->maxStorageMb),
+                sprintf('Storage limit reached (%.1f/%d MB). Delete some tracks to free up space.', (float) $usedBytes / 1024.0 / 1024.0, $limits->maxStorageMb),
             );
         }
     }

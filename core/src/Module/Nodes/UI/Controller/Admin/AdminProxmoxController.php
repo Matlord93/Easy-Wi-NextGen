@@ -52,7 +52,7 @@ final class AdminProxmoxController extends AbstractController
             }
         }
 
-        return $this->render('admin/proxmox/index.html.twig', ['clusters' => $this->em->getRepository(ProxmoxCluster::class)->findBy([], ['name' => 'ASC']), 'error' => $error, 'activeNav' => 'proxmox'], new Response(status: $error ? 422 : 200));
+        return $this->render('admin/proxmox/index.html.twig', ['clusters' => $this->em->getRepository(ProxmoxCluster::class)->findBy([], ['name' => 'ASC']), 'error' => $error, 'activeNav' => 'proxmox'], new Response(status: null !== $error ? 422 : 200));
     }
 
     #[Route('/{id<\d+>}', name: 'admin_proxmox_cluster', methods: ['GET'])]
@@ -185,7 +185,7 @@ final class AdminProxmoxController extends AbstractController
                 throw new \InvalidArgumentException('pve.error.customer');
             }
             $storage = trim((string) $request->request->get('backup_storage', ''));
-            if ('' !== $storage && !in_array($storage, array_column(array_filter($detail['storages'], static fn (array $s): bool => !empty($s['active']) && in_array('backup', explode(',', $s['content'] ?? ''), true)), 'storage'), true)) {
+            if ('' !== $storage && !in_array($storage, array_column(array_filter(\App\Infrastructure\Config\JsonArray::orEmpty($detail['storages'] ?? null), static fn (mixed $s): bool => is_array($s) && !empty($s['active']) && in_array('backup', explode(',', \App\Infrastructure\Config\JsonMap::strings($s)['content'] ?? ''), true)), 'storage'), true)) {
                 throw new \InvalidArgumentException('pve.error.storage');
             }
             $this->em->wrapInTransaction(function () use ($cluster, $vmId, $kind, $customer, $storage, $actor): void {
@@ -275,7 +275,7 @@ final class AdminProxmoxController extends AbstractController
             }
         }
 
-        return $this->render('admin/proxmox/task-review.html.twig', ['task' => $task, 'error' => $error, 'activeNav' => 'proxmox'], new Response(status: $error ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
+        return $this->render('admin/proxmox/task-review.html.twig', ['task' => $task, 'error' => $error, 'activeNav' => 'proxmox'], new Response(status: null !== $error ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
     }
 
     private function actor(Request $request): User
@@ -308,7 +308,7 @@ final class AdminProxmoxController extends AbstractController
         $rows = [...$repository->findBy($criteria + ['state' => ['submitting', 'running', 'uncertain']], ['id' => 'DESC']), ...$repository->findBy($criteria, ['id' => 'DESC'], 20)];
         $unique = [];
         foreach ($rows as $row) {
-            $unique[$row->getId()] = $row;
+            $unique[\App\Infrastructure\Doctrine\EntityIdentifier::require($row->getId())] = $row;
         }
 
         return array_values($unique);

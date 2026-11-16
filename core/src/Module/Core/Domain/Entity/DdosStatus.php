@@ -20,7 +20,7 @@ class DdosStatus
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
-    private int $id;
+    private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Agent::class)]
     #[ORM\JoinColumn(name: 'node_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
@@ -59,6 +59,7 @@ class DdosStatus
     /**
      * @param int[] $ports
      * @param string[] $protocols
+     * @param array<int, array{port: int, syn_recv: int, attack_active: bool}> $portStats
      */
     public function __construct(
         Agent $node,
@@ -85,7 +86,7 @@ class DdosStatus
 
     public function getId(): int
     {
-        return $this->id;
+        return \App\Infrastructure\Doctrine\EntityIdentifier::require($this->id);
     }
 
     public function getNode(): Agent
@@ -150,6 +151,7 @@ class DdosStatus
     /**
      * @param int[] $ports
      * @param string[] $protocols
+     * @param array<int, array{port: int, syn_recv: int, attack_active: bool}> $portStats
      */
     public function updateStatus(
         bool $attackActive,

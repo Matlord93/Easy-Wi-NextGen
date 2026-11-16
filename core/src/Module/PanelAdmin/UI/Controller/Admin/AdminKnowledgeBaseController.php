@@ -254,7 +254,7 @@ final class AdminKnowledgeBaseController
 
     /**
      * @return array{errors: list<string>, title: string, slug: string, content: string, category:
-     * App\Module\Core\Domain\Enum\TicketCategory::Abuse|App\Module\Core\Domain\Enum\TicketCategory::Billing|App\Module\Core\Domain\Enum\TicketCategory::General|App\Module\Core\Domain\Enum\TicketCategory::Technical,
+     * TicketCategory,
      * visible_public: bool}
      */
     private function parsePayload(Request $request, int $siteId, ?int $ignoreId = null): array
@@ -322,6 +322,7 @@ final class AdminKnowledgeBaseController
         return $data;
     }
 
+    /** @param array{errors: list<string>, title: string, slug: string, content: string, category: TicketCategory, visible_public: bool} $formData */
     private function renderFormWithErrors(array $formData, int $status, ?KnowledgeBaseArticle $article = null): Response
     {
         $formContext = $this->buildFormContext($article, [

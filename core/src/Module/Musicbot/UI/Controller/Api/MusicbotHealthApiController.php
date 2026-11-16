@@ -108,7 +108,7 @@ final class MusicbotHealthApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::Restart);
-        $action = trim((string) ($request->toArray()['action'] ?? ''));
+        $action = trim((string) ((JsonMap::fromValue($request->toArray()) ?? [])['action'] ?? ''));
         if ($action === '') {
             return $this->error('action is required.', JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -206,7 +206,7 @@ final class MusicbotHealthApiController
     {
         $admin = $this->requireAdmin($request);
         $instance = $this->findAdminInstance($id);
-        $action = trim((string) ($request->toArray()['action'] ?? ''));
+        $action = trim((string) ((JsonMap::fromValue($request->toArray()) ?? [])['action'] ?? ''));
         if ($action === '') {
             return $this->error('action is required.', JsonResponse::HTTP_BAD_REQUEST);
         }

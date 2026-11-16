@@ -34,12 +34,11 @@ final class VoiceNodeRepository extends ServiceEntityRepository
             $qb->andWhere('node.enabled = :enabled')->setParameter('enabled', $enabled);
         }
 
-        $items = (clone $qb)
+        $items = EntityQueryResult::all((clone $qb)
             ->orderBy('node.id', 'DESC')
             ->setFirstResult(($page - 1) * $perPage)
             ->setMaxResults($perPage)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), VoiceNode::class);
 
         $total = (int) (clone $qb)
             ->select('COUNT(node.id)')

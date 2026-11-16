@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Infrastructure\Redis;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 
 use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 
@@ -45,7 +46,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
             if (!is_string($raw)) {
                 continue;
             }
-            $payload = JsonArray::decode($raw);
+            $payload = JsonMap::decode($raw);
             if (!is_array($payload)) {
                 continue;
             }
@@ -71,7 +72,7 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
                     return;
                 }
 
-                $payload = json_decode($message, true);
+                $payload = JsonMap::decode($message);
                 if (is_array($payload)) {
                     $onEvent($payload);
                 }
@@ -127,13 +128,15 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
     public function getInstancesWithSubscribers(): array
     {
         $out = [];
-        $keys = $this->redis->keys('console_subscribers:*');
+        $keys = JsonArray::fromValue($this->redis->keys('console_subscribers:*'));
         if (is_array($keys)) {
             foreach ($keys as $key) {
                 if (!is_string($key) || !str_contains($key, ':')) {
                     continue;
                 }
-                $id = (int) substr($key, strrpos($key, ':') + 1);
+                $separator = strrpos($key, ':');
+                if ($separator === false) { continue; }
+                $id = (int) substr($key, $separator + 1);
                 if ($id > 0 && (int) $this->redis->get($this->subscriberKey($id)) > 0) {
                     $out[] = $id;
                 }

@@ -180,7 +180,7 @@ final class MusicbotInstallerApiController
             return [];
         }
         try {
-            return $request->toArray();
+            return (JsonMap::fromValue($request->toArray()) ?? []);
         } catch (\Throwable) {
             return [];
         }

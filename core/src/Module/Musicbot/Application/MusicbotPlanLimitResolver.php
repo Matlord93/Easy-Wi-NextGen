@@ -49,6 +49,8 @@ final class MusicbotPlanLimitResolver
             MusicbotPermission::customerDefaults(),
         );
 
+        $granted = $override?->getGrantedPermissions();
+
         return new MusicbotPlanLimits(
             maxMusicbots: self::resolveLimit($override?->getMaxMusicbots(), self::DEFAULTS['max_musicbots']),
             maxTracks: self::resolveLimit($override?->getMaxTracks(), self::DEFAULTS['max_tracks']),
@@ -65,10 +67,10 @@ final class MusicbotPlanLimitResolver
             allowApi: $override?->getAllowApi() ?? self::DEFAULTS['allow_api'],
             allowTeamspeak6Profile: $override?->getAllowTeamspeak6Profile() ?? self::DEFAULTS['allow_teamspeak6_profile'],
             allowWebradio: $override?->getAllowWebradio() ?? self::DEFAULTS['allow_webradio'],
-            allowYoutube: $override?->getGrantedPermissions() !== null ? in_array(MusicbotPermission::YoutubeManage->value, $override->getGrantedPermissions(), true) : self::DEFAULTS['allow_youtube'],
-            allowTeamspeakCommands: $override?->getGrantedPermissions() !== null ? in_array(MusicbotPermission::TeamspeakCommandsManage->value, $override->getGrantedPermissions(), true) : self::DEFAULTS['allow_teamspeak_commands'],
+            allowYoutube: $granted !== null ? in_array(MusicbotPermission::YoutubeManage->value, $granted, true) : self::DEFAULTS['allow_youtube'],
+            allowTeamspeakCommands: $granted !== null ? in_array(MusicbotPermission::TeamspeakCommandsManage->value, $granted, true) : self::DEFAULTS['allow_teamspeak_commands'],
             allowPlaylists: self::resolveLimit($override?->getMaxPlaylists(), self::DEFAULTS['max_playlists']) > 0,
-            allowAutoDj: $override?->getGrantedPermissions() !== null ? in_array(MusicbotPermission::AutoDjManage->value, $override->getGrantedPermissions(), true) : self::DEFAULTS['allow_autodj'],
+            allowAutoDj: $granted !== null ? in_array(MusicbotPermission::AutoDjManage->value, $granted, true) : self::DEFAULTS['allow_autodj'],
             allowPlugins: $override?->getAllowPlugins() ?? self::DEFAULTS['allow_plugins'],
             allowWorkflows: $override?->getAllowWorkflows() ?? self::DEFAULTS['allow_workflows'],
             allowScheduler: $override?->getAllowScheduler() ?? self::DEFAULTS['allow_scheduler'],

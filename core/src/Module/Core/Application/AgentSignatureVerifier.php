@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -50,7 +52,7 @@ final class AgentSignatureVerifier
             throw new UnauthorizedHttpException('hmac', 'missing_headers');
         }
 
-        $body = $request->getContent() ?? '';
+        $body = $request->getContent();
         $method = strtoupper($request->getMethod());
         $paths = $this->buildCandidatePaths($request);
         $path = $paths[0];
@@ -90,7 +92,7 @@ final class AgentSignatureVerifier
                 'timestamp' => $timestamp,
                 'nonce' => $nonce,
                 'signature_prefix' => substr($signature, 0, 12),
-                'expected_signature_prefix' => substr($expected, 0, 12),
+                'expected_signature_prefix' => $expected === null ? null : substr($expected, 0, 12),
                 'expected_signature_normalized_prefix' => $normalizedExpected === null ? null : substr($normalizedExpected, 0, 12),
             ]);
             throw new UnauthorizedHttpException('hmac', 'invalid_signature');
@@ -132,7 +134,7 @@ final class AgentSignatureVerifier
     public static function normalizeAgentIdHeaderValue(null|string|array $value): string
     {
         if (is_array($value)) {
-            $value = implode(',', $value);
+            $value = implode(',', array_map(static fn (mixed $item): string => ScalarValue::text($item), $value));
         }
 
         $normalized = trim((string) $value);

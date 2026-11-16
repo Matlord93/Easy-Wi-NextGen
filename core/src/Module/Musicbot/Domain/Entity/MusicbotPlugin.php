@@ -48,7 +48,7 @@ class MusicbotPlugin
     #[ORM\Column(type: 'json')]
     private array $config = [];
 
-    /** @var array<string, mixed> */
+    /** @var array<array-key, string> */
     #[ORM\Column(type: 'json')]
     private array $permissions = [];
 
@@ -60,7 +60,7 @@ class MusicbotPlugin
 
     /**
      * @param array<string, mixed> $config
-     * @param array<string, mixed> $permissions
+     * @param array<array-key, string> $permissions
      */
     public function __construct(string $identifier, string $name, string $version, ?User $customer = null, ?MusicbotInstance $instance = null, array $config = [], array $permissions = [])
     {
@@ -93,8 +93,8 @@ class MusicbotPlugin
     /** @return array<string, mixed> */ public function getSettings(): array { return $this->config; }
     /** @param array<string, mixed> $config */ public function setConfig(array $config): void { $this->config = $config; $this->touch(); }
     /** @param array<string, mixed> $settings */ public function setSettings(array $settings): void { $this->setConfig($settings); }
-    /** @return array<string, mixed> */ public function getPermissions(): array { return $this->permissions; }
-    /** @param array<string, mixed> $permissions */ public function setPermissions(array $permissions): void { $this->permissions = $permissions; $this->touch(); }
+    /** @return array<array-key, string> */ public function getPermissions(): array { return $this->permissions; }
+    /** @param array<array-key, string> $permissions */ public function setPermissions(array $permissions): void { $this->permissions = $permissions; $this->touch(); }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
     private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }

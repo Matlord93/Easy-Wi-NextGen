@@ -35,7 +35,7 @@ final class MailRateLimitRepository extends ServiceEntityRepository
             ->setMaxResults(max(1, min($limit, 1000)));
 
         if ($domain !== null) {
-            $qb->andWhere('d = :domain')->setParameter('domain', $domain);
+            $qb->andWhere('d = :domain')->setParameter('domain', QueryParameter::entityId($domain->getId(), \App\Module\Core\Domain\Entity\Domain::class));
         }
 
         return EntityQueryResult::all($qb->getQuery(), \App\Module\Core\Domain\Entity\MailRateLimit::class);

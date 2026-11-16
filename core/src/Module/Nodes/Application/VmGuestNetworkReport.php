@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+
 /** Bounded observations from the guest; never an IP allocation or host inventory. */
 final class VmGuestNetworkReport
 {
@@ -19,20 +22,22 @@ final class VmGuestNetworkReport
         }
         $rows = [];
         $limited = count($input) > 16;
-        foreach (array_slice($input, 0, 16) as $row) {
-            if (!is_array($row)) {
+        foreach (array_keys(array_slice($input, 0, 16)) as $index) {
+            $row = JsonArray::fromValue($input[$index]);
+            if (null === $row) {
                 $limited = true;
                 continue;
             }
-            $addresses = array_key_exists('ip-addresses', $row) ? $row['ip-addresses'] : [];
-            if (!is_array($addresses) || !array_is_list($addresses)) {
+            $addresses = JsonArray::fromValue(array_key_exists('ip-addresses', $row) ? $row['ip-addresses'] : []);
+            if (null === $addresses || !array_is_list($addresses)) {
                 $limited = true;
                 $addresses = [];
             }
             $limited = $limited || count($addresses) > 16;
             $ips = [];
-            foreach (array_slice($addresses, 0, 16) as $ip) {
-                if (!is_array($ip)) {
+            foreach (array_keys(array_slice($addresses, 0, 16)) as $index) {
+                $ip = JsonArray::fromValue($addresses[$index]);
+                if (null === $ip) {
                     $limited = true;
                     continue;
                 }
@@ -44,54 +49,68 @@ final class VmGuestNetworkReport
         return self::sanitize(['state' => 'available', 'interfaces' => $rows, 'limited' => $limited]);
     }
 
+    private static function prefix(mixed $value): ?int
+    {
+        return is_int($value) ? $value : null;
+    }
+
     public static function sanitize(mixed $input): array
     {
         if (!is_array($input)) {
             return self::empty('not_reported');
         }
-        $state = in_array($input['state'] ?? null, ['available', 'unsupported', 'unavailable', 'invalid_response', 'not_reported'], true) ? $input['state'] : 'invalid_response';
+        $strings = JsonMap::strings($input);
+        $state = in_array($strings['state'] ?? null, ['available', 'unsupported', 'unavailable', 'invalid_response', 'not_reported'], true) ? $strings['state'] : 'invalid_response';
         if ('available' !== $state) {
             return self::empty($state);
         }
-        $rows = $input['interfaces'] ?? null;
-        if (!is_array($rows) || !array_is_list($rows)) {
+        $rows = JsonArray::fromValue($input['interfaces'] ?? null);
+        if (null === $rows || !array_is_list($rows)) {
             return self::empty('invalid_response');
         }
         $out = [];
         $seenNames = [];
         $limited = ($input['limited'] ?? false) === true || count($rows) > 16;
-        foreach (array_slice($rows, 0, 16) as $row) {
-            $name = is_array($row) ? VmGuestAgentReport::text($row['name'] ?? null, 128) : null;
+        foreach (array_keys(array_slice($rows, 0, 16)) as $index) {
+            $row = JsonArray::orEmpty($rows[$index]);
+            $name = VmGuestAgentReport::text($row['name'] ?? null, 128);
             if (null === $name || isset($seenNames[$name])) {
                 $limited = true;
                 continue;
             }
             $seenNames[$name] = true;
-            $mac = $row['mac'] ?? null;
-            if (null !== $mac && (!is_string($mac) || strlen($mac) > 59 || !in_array(count(explode(':', $mac)), [6, 8, 20], true) || !preg_match('/^[a-f0-9]{2}(?::[a-f0-9]{2})+$/iD', $mac))) {
+            $mac = JsonMap::strings($row)['mac'] ?? null;
+            if (isset($row['mac']) && (null === $mac || strlen($mac) > 59 || !in_array(count(explode(':', $mac)), [6, 8, 20], true) || !preg_match('/^[a-f0-9]{2}(?::[a-f0-9]{2})+$/iD', $mac))) {
                 $mac = null;
                 $limited = true;
             }
-            $addresses = $row['addresses'] ?? [];
-            if (!is_array($addresses) || !array_is_list($addresses)) {
+            $addresses = JsonArray::fromValue($row['addresses'] ?? []);
+            if (null === $addresses || !array_is_list($addresses)) {
                 $limited = true;
                 $addresses = [];
             }
             $limited = $limited || count($addresses) > 16;
             $valid = [];
             $seenIPs = [];
-            foreach (array_slice($addresses, 0, 16) as $ip) {
-                $family = is_array($ip) ? ($ip['family'] ?? null) : null;
+            foreach (array_keys(array_slice($addresses, 0, 16)) as $index) {
+                $ip = JsonArray::orEmpty($addresses[$index]);
+                $strings = JsonMap::strings($ip);
+                $family = $strings['family'] ?? null;
                 $flag = match ($family) {
                     'ipv4' => FILTER_FLAG_IPV4, 'ipv6' => FILTER_FLAG_IPV6, default => null,
                 };
-                $address = is_array($ip) ? ($ip['address'] ?? null) : null;
-                $prefix = is_array($ip) ? ($ip['prefix'] ?? null) : null;
+                $address = $strings['address'] ?? null;
+                $prefix = self::prefix($ip['prefix'] ?? null);
                 if (null === $flag || !is_string($address) || strlen($address) > 45 || !filter_var($address, FILTER_VALIDATE_IP, $flag) || !is_int($prefix) || $prefix < 0 || $prefix > ('ipv4' === $family ? 32 : 128)) {
                     $limited = true;
                     continue;
                 }
-                $address = inet_ntop(inet_pton($address));
+                $packed = inet_pton($address);
+                $address = false === $packed ? false : inet_ntop($packed);
+                if (false === $address) {
+                    $limited = true;
+                    continue;
+                }
                 $key = $address.'/'.$prefix;
                 if (isset($seenIPs[$key])) {
                     $limited = true;

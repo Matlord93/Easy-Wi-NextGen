@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Domain\Entity\User;
@@ -54,7 +56,7 @@ final class MusicbotPlaybackCommandService
     {
         $this->assertCustomerOwnsInstance($customer, $instance);
         $payload = $instance->getRuntimePayload() ?? [];
-        $payload['playback'] = array_merge($payload['playback'] ?? [], ['repeat_mode' => $repeatMode->value]);
+        $payload['playback'] = array_merge(JsonArray::orEmpty($payload['playback'] ?? null), ['repeat_mode' => $repeatMode->value]);
         $instance->setRuntimePayload($payload);
         $this->entityManager->flush();
     }
@@ -63,7 +65,7 @@ final class MusicbotPlaybackCommandService
     {
         $this->assertCustomerOwnsInstance($customer, $instance);
         $payload = $instance->getRuntimePayload() ?? [];
-        $payload['playback'] = array_merge($payload['playback'] ?? [], ['shuffle' => $shuffle]);
+        $payload['playback'] = array_merge(JsonArray::orEmpty($payload['playback'] ?? null), ['shuffle' => $shuffle]);
         $instance->setRuntimePayload($payload);
         $this->entityManager->flush();
     }
@@ -75,7 +77,7 @@ final class MusicbotPlaybackCommandService
             throw new \InvalidArgumentException('Die Lautstärke muss eine Zahl zwischen 0 und 100 sein.');
         }
         $payload = $instance->getRuntimePayload() ?? [];
-        $payload['playback'] = array_merge($payload['playback'] ?? [], ['volume' => $volume, 'desired_volume' => $volume]);
+        $payload['playback'] = array_merge(JsonArray::orEmpty($payload['playback'] ?? null), ['volume' => $volume, 'desired_volume' => $volume]);
         $instance->setRuntimePayload($payload);
         $config = $instance->getInstanceConfig();
         $config['live_volume'] = $volume;

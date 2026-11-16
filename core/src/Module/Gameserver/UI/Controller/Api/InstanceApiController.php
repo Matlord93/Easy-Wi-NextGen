@@ -76,7 +76,10 @@ final class InstanceApiController
             if ($response->getStatusCode() >= 400) { throw new \App\Module\Ports\Application\PortAllocationAborted($response); }
             return $response;
         }); }
-        catch (\App\Module\Ports\Application\PortAllocationAborted $error) { return $error->response; }
+        catch (\App\Module\Ports\Application\PortAllocationAborted $error) {
+            if (!$error->response instanceof JsonResponse) { throw $error; }
+            return $error->response;
+        }
         catch (\App\Module\Ports\Application\PortCheckUnavailable $error) { return new JsonResponse(['error'=>$error->getMessage()],503); }
     }
 
@@ -88,13 +91,13 @@ final class InstanceApiController
         }
 
         $payload = $request->toArray();
-        $customerId = $payload['customer_id'] ?? null;
-        $templateId = $payload['template_id'] ?? null;
+        $customerId = is_scalar($payload['customer_id'] ?? null) ? (string) $payload['customer_id'] : null;
+        $templateId = is_scalar($payload['template_id'] ?? null) ? (string) $payload['template_id'] : null;
         $nodeId = (string) ($payload['node_id'] ?? '');
         $cpuLimitValue = $payload['cpu_limit'] ?? null;
         $ramLimitValue = $payload['ram_limit'] ?? null;
         $diskLimitValue = $payload['disk_limit'] ?? null;
-        $portBlockId = $payload['port_block_id'] ?? null;
+        $portBlockId = is_scalar($payload['port_block_id'] ?? null) ? (string) $payload['port_block_id'] : null;
         $maxSlotsValue = $payload['max_slots'] ?? null;
         $currentSlotsValue = $payload['current_slots'] ?? null;
         $instanceBaseDir = trim((string) ($payload['instance_base_dir'] ?? ''));
@@ -180,7 +183,7 @@ final class InstanceApiController
 
         $portBlock = null;
         if ($portBlockId !== null && $portBlockId !== '') {
-            $portBlock = $this->portBlockRepository->find((string) $portBlockId);
+            $portBlock = $this->portBlockRepository->find($portBlockId);
             if ($portBlock === null) {
                 return new JsonResponse(['error' => $this->translator->trans('gs_api_port_block_not_found')], JsonResponse::HTTP_NOT_FOUND);
             }
@@ -358,7 +361,7 @@ final class InstanceApiController
     }
 
     /**
-     * @param array<int, mixed> $supportedOs
+     * @param array<array-key, mixed> $supportedOs
      */
     private function isTemplateSupportedOnNode(array $supportedOs, Agent $node): bool
     {
@@ -505,7 +508,7 @@ final class InstanceApiController
         }
 
         $channel = $this->minecraftCatalog?->channelFromResolver($instance);
-        if ($channel !== null && ($error = $this->minecraftCatalog->validateSelection($channel, $lockedVersion, $lockedBuildId)) !== null) { return new JsonResponse(['error' => $error], 422); }
+        if ($channel !== null && $this->minecraftCatalog !== null && ($error = $this->minecraftCatalog->validateSelection($channel, $lockedVersion, $lockedBuildId)) !== null) { return new JsonResponse(['error' => $error], 422); }
         $instance->setUpdatePolicy($policy);
         $instance->setLockedBuildId($lockedBuildId !== '' ? $lockedBuildId : null);
         $instance->setLockedVersion($lockedVersion !== '' ? $lockedVersion : null);

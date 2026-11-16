@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use Symfony\Component\Yaml\Yaml;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 
 final class CmsTemplateCatalog
 {
@@ -15,7 +17,7 @@ final class CmsTemplateCatalog
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array{key:string,...<string,mixed>}>
      */
     public function listTemplates(): array
     {
@@ -46,7 +48,7 @@ final class CmsTemplateCatalog
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array{key:string,...<string,mixed>}>
      */
     private function defaultTemplates(): array
     {
@@ -58,7 +60,7 @@ final class CmsTemplateCatalog
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array{key:string,...<string,mixed>}>
      */
     private function loadExternalTemplates(): array
     {
@@ -85,12 +87,12 @@ final class CmsTemplateCatalog
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return array{key:string,...<string,mixed>}|null
      */
     private function parseTemplateFile(string $file): ?array
     {
         try {
-            $data = Yaml::parseFile($file);
+            $data = JsonMap::fromValue(Yaml::parseFile($file));
         } catch (\Throwable) {
             return null;
         }
@@ -99,30 +101,34 @@ final class CmsTemplateCatalog
             return null;
         }
 
-        $key = is_string($data['key'] ?? null) ? trim($data['key']) : '';
+        $key = trim(self::text($data['key'] ?? null));
         if ($key === '') {
             return null;
         }
 
         $pages = [];
-        foreach ($data['pages'] ?? [] as $pageData) {
-            if (!is_array($pageData)) {
+        $pageRows = JsonArray::orEmpty($data['pages'] ?? null);
+        foreach (array_keys($pageRows) as $pageIndex) {
+            $pageData = JsonArray::fromValue($pageRows[$pageIndex]);
+            if ($pageData === null) {
                 continue;
             }
 
-            $pageTitle = is_string($pageData['title'] ?? null) ? $pageData['title'] : '';
-            $pageSlug = is_string($pageData['slug'] ?? null) ? $pageData['slug'] : '';
+            $pageTitle = self::text($pageData['title'] ?? null);
+            $pageSlug = self::text($pageData['slug'] ?? null);
             if ($pageTitle === '' || $pageSlug === '') {
                 continue;
             }
 
             $blocks = [];
-            foreach ($pageData['blocks'] ?? [] as $blockData) {
-                if (!is_array($blockData)) {
+            $blockRows = JsonArray::orEmpty($pageData['blocks'] ?? null);
+            foreach (array_keys($blockRows) as $blockIndex) {
+                $blockData = JsonArray::fromValue($blockRows[$blockIndex]);
+                if ($blockData === null) {
                     continue;
                 }
 
-                $type = is_string($blockData['type'] ?? null) ? $blockData['type'] : '';
+                $type = self::text($blockData['type'] ?? null);
                 if ($type === '') {
                     continue;
                 }
@@ -131,7 +137,7 @@ final class CmsTemplateCatalog
                 if (isset($blockData['settings']) && is_array($blockData['settings'])) {
                     $content = (string) json_encode($blockData['settings']);
                 } elseif (is_string($blockData['content'] ?? null)) {
-                    $content = $blockData['content'];
+                    $content = self::text($blockData['content']);
                 }
 
                 $blocks[] = [
@@ -151,13 +157,13 @@ final class CmsTemplateCatalog
         return [
             'key' => $key,
             'label' => is_string($data['label'] ?? null) ? $data['label'] : $key,
-            'description' => is_string($data['description'] ?? null) ? $data['description'] : '',
+            'description' => self::text($data['description'] ?? null),
             'pages' => $pages,
         ];
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{key:string,...<string,mixed>}
      */
     private function hostingTemplate(): array
     {
@@ -221,7 +227,7 @@ final class CmsTemplateCatalog
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{key:string,...<string,mixed>}
      */
     private function privateTemplate(): array
     {
@@ -253,7 +259,7 @@ final class CmsTemplateCatalog
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{key:string,...<string,mixed>}
      */
     private function clanTemplate(): array
     {
@@ -1140,4 +1146,8 @@ HTML;
         HTML;
     }
 
+    private static function text(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
+    }
 }

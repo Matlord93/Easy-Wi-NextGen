@@ -121,7 +121,7 @@ final class AdminMailAliasController
         $formData = $this->parsePayload($request, true);
         $domains = $this->domainRepository->findBy([], ['name' => 'ASC']);
 
-        if ($formData['errors'] !== []) {
+        if ($formData['errors'] !== [] || $formData['domain'] === null) {
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST);
         }
 
@@ -183,7 +183,7 @@ final class AdminMailAliasController
         $formData = $this->parsePayload($request, false, $alias);
         $domains = $this->domainRepository->findBy([], ['name' => 'ASC']);
 
-        if ($formData['errors'] !== []) {
+        if ($formData['errors'] !== [] || $formData['domain'] === null) {
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST, $alias);
         }
 
@@ -393,6 +393,7 @@ final class AdminMailAliasController
         return $data;
     }
 
+    /** @param array{domain: \App\Module\Core\Domain\Entity\Domain|null, local_part: string, destinations: array<array-key, string>, destinations_input: string, enabled: bool, errors: list<string>} $formData */
     private function renderFormWithErrors(array $domains, array $formData, int $status, ?MailAlias $alias = null): Response
     {
         $formContext = $this->buildFormContext($alias, [

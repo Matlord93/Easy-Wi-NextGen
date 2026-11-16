@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
+use App\Infrastructure\Config\ScalarValue;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
@@ -116,7 +117,7 @@ final class AdminDatabaseController
             $errors[] = 'Database username already exists for this customer.';
         }
 
-        if ($errors !== []) {
+        if ($errors !== [] || !$customer instanceof User || !$node instanceof DatabaseNode) {
             return $this->renderWithErrors($errors);
         }
 
@@ -296,7 +297,7 @@ final class AdminDatabaseController
             $errors[] = 'Agent must have the DB role.';
         }
 
-        if ($errors !== []) {
+        if ($errors !== [] || $agent === null) {
             return $this->renderWithErrors($errors);
         }
 
@@ -362,14 +363,18 @@ final class AdminDatabaseController
         $host = $node->getHost();
         $port = $node->getPort();
         $timeout = 2.5;
-        $errorCode = null;
         try {
             $dsn = match (strtolower($node->getEngine())) {
                 EngineType::Postgresql->value => sprintf('pgsql:host=%s;port=%d;dbname=postgres', $host, $port),
                 EngineType::Mysql->value, EngineType::Mariadb->value => sprintf('mysql:host=%s;port=%d;dbname=information_schema;charset=utf8mb4', $host, $port),
                 default => throw new \RuntimeException('Unsupported database engine for health check.'),
             };
-            $secret = $node->getEncryptedAdminSecret() === null ? '' : $this->encryptionService->decrypt($node->getEncryptedAdminSecret());
+            $encrypted = $node->getEncryptedAdminSecret();
+            $secret = $encrypted === null ? '' : $this->encryptionService->decrypt([
+                'key_id' => ScalarValue::text($encrypted['key_id'] ?? ''),
+                'nonce' => ScalarValue::text($encrypted['nonce'] ?? ''),
+                'ciphertext' => ScalarValue::text($encrypted['ciphertext'] ?? ''),
+            ]);
             $pdo = new \PDO($dsn, (string) $node->getAdminUser(), $secret, [\PDO::ATTR_TIMEOUT => (int) $timeout]);
             $pdo->query('SELECT 1');
             $node->markHealthy('SELECT 1 ok');

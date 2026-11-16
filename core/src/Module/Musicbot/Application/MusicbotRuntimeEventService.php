@@ -61,7 +61,8 @@ final class MusicbotRuntimeEventService implements MusicbotRuntimeEventServiceIn
     public function sanitize(array $context): array
     {
         $sanitized = [];
-        foreach ($context as $key => $value) {
+        foreach (array_keys($context) as $key) {
+            $value = MusicbotInputValue::from($context[$key]);
             $lower = strtolower((string) $key);
             if ($this->isSensitiveKey($lower)) {
                 $sanitized[$key] = '********';

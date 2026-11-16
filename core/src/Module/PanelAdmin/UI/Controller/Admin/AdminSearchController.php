@@ -8,6 +8,7 @@ use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Repository\EntityQueryResult;
 use App\Repository\DomainRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\TicketRepository;
@@ -41,7 +42,8 @@ final class AdminSearchController
         $query = trim($request->query->getString('q', ''));
         $results = $query === '' ? [] : $this->performSearch($query);
 
-        $template = $request->headers->get('HX-Request') ? 'admin/search/_results.html.twig' : 'admin/search/index.html.twig';
+        $hxRequest = $request->headers->get('HX-Request');
+        $template = $hxRequest !== null && $hxRequest !== '' && $hxRequest !== '0' ? 'admin/search/_results.html.twig' : 'admin/search/index.html.twig';
 
         return new Response($this->twig->render($template, [
             'activeNav' => 'search',
@@ -60,39 +62,35 @@ final class AdminSearchController
     {
         $like = '%' . addcslashes($query, '%_') . '%';
 
-        $customers = $this->userRepository->createQueryBuilder('user')
+        $customers = EntityQueryResult::all($this->userRepository->createQueryBuilder('user')
             ->andWhere('user.type = :type')
             ->andWhere('user.email LIKE :query')
             ->setParameter('type', UserType::Customer->value)
             ->setParameter('query', $like)
             ->setMaxResults(5)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\User::class);
 
-        $instances = $this->instanceRepository->createQueryBuilder('instance')
+        $instances = EntityQueryResult::all($this->instanceRepository->createQueryBuilder('instance')
             ->leftJoin('instance.template', 'template')
             ->leftJoin('instance.customer', 'customer')
             ->andWhere('template.name LIKE :query OR customer.email LIKE :query')
             ->setParameter('query', $like)
             ->setMaxResults(5)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Instance::class);
 
-        $domains = $this->domainRepository->createQueryBuilder('domain')
+        $domains = EntityQueryResult::all($this->domainRepository->createQueryBuilder('domain')
             ->leftJoin('domain.customer', 'customer')
             ->andWhere('domain.name LIKE :query OR customer.email LIKE :query')
             ->setParameter('query', $like)
             ->setMaxResults(5)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Domain::class);
 
-        $tickets = $this->ticketRepository->createQueryBuilder('ticket')
+        $tickets = EntityQueryResult::all($this->ticketRepository->createQueryBuilder('ticket')
             ->leftJoin('ticket.customer', 'customer')
             ->andWhere('ticket.subject LIKE :query OR customer.email LIKE :query')
             ->setParameter('query', $like)
             ->setMaxResults(5)
-            ->getQuery()
-            ->getResult();
+            ->getQuery(), \App\Module\Core\Domain\Entity\Ticket::class);
 
         return [
             'customers' => $this->normalizeCustomers($customers),

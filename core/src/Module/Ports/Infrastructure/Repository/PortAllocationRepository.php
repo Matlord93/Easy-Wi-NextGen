@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Infrastructure\Repository;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Repository\QueryParameter;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -74,7 +76,9 @@ final class PortAllocationRepository extends ServiceEntityRepository
             ->groupBy('allocation.poolTag');
 
         $results = [];
-        foreach ($qb->getQuery()->getArrayResult() as $row) {
+        $rows = $qb->getQuery()->getArrayResult();
+        foreach (array_keys($rows) as $rowKey) {
+            $row = JsonArray::orEmpty($rows[$rowKey]);
             $results[] = [
                 'pool_tag' => (string) ($row['pool_tag'] ?? ''),
                 'allocated' => (int) ($row['allocated'] ?? 0),

@@ -66,13 +66,13 @@ class MusicbotRadioHistoryRepository extends ServiceEntityRepository
     /** @return array<int,int> stationId => playCount, sorted desc */
     public function getPopularStationIds(int $limit = 20): array
     {
-        $rows = $this->createQueryBuilder('h')
+        $rows = ScalarQueryResult::rows($this->createQueryBuilder('h')
             ->select('IDENTITY(h.station) AS station_id, COUNT(h.id) AS play_count')
             ->groupBy('h.station')
             ->orderBy('play_count', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
-            ->getScalarResult();
+            ->getScalarResult());
 
         $result = [];
         foreach ($rows as $row) {

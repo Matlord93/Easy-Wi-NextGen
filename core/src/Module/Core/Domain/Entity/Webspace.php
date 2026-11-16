@@ -94,6 +94,7 @@ class Webspace implements ResourceEventSource
     #[ORM\Column(length: 64)]
     private string $systemUsername;
 
+    /** @var array<string, string>|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $phpSettings = null;
 

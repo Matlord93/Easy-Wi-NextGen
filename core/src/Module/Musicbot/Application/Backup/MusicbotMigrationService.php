@@ -77,7 +77,7 @@ final class MusicbotMigrationService
 
         $payload = $migrated->toArray();
         unset($payload['checksum']);
-        $checksum = hash('sha256', json_encode($payload) ?: '');
+        $checksum = hash('sha256', ($encoded = json_encode($payload)) !== false ? $encoded : '');
 
         return new MusicbotBackupManifest(
             schemaVersion: $migrated->schemaVersion,

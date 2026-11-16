@@ -55,7 +55,7 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
 
     private function baseUrl(BackupStorageTarget $target): string
     {
-        $baseUrl = rtrim((string) ($target->config()['url'] ?? ''), '/');
+        $baseUrl = rtrim(self::configText($target->config()['url'] ?? ''), '/');
         if ($baseUrl === '') {
             throw new \InvalidArgumentException('WebDAV target requires url config.');
         }
@@ -73,7 +73,7 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
 
     private function remotePath(BackupStorageTarget $target): string
     {
-        $path = (string) ($target->config()['remote_path'] ?? $target->config()['root_path'] ?? '');
+        $path = self::configText($target->config()['remote_path'] ?? $target->config()['root_path'] ?? '');
         $segments = [];
         foreach (explode('/', trim($path, '/')) as $segment) {
             $segment = trim($segment);
@@ -141,7 +141,7 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
         $headers = [];
         $secrets = $target->secrets();
         if (is_string($secrets['token'] ?? null) && $secrets['token'] !== '') {
-            $headers['Authorization'] = 'Bearer '.$secrets['token'];
+            $headers['Authorization'] = 'Bearer '.self::configText($secrets['token']);
 
             return $headers;
         }
@@ -178,5 +178,14 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
         };
 
         return sprintf('%s with status %d (%s).', $prefix, $statusCode, $reason);
+    }
+
+    private static function configText(mixed $value): string
+    {
+        if ($value === null || is_scalar($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException('Backup target field must be scalar.');
     }
 }

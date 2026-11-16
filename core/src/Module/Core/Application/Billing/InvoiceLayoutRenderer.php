@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Repository\CustomerProfileRepository;
@@ -22,7 +24,6 @@ use Twig\Node\Expression\TestExpression;
 use Twig\Node\Expression\Binary\RangeBinary;
 use Twig\Source;
 use Twig\Node\Expression\GetAttrExpression;
-use Twig\Template;
 
 final class InvoiceLayoutRenderer
 {
@@ -69,7 +70,7 @@ final class InvoiceLayoutRenderer
             ]),
             'customer' => $parties['customer'], 'company' => $parties['company'],
         ];
-        $locale = $details['locale'] ?? $this->preferences->findOneByCustomer($invoice->getCustomer())?->getLocale() ?? 'de';
+        $locale = ScalarValue::text($details['locale'] ?? null, $this->preferences->findOneByCustomer($invoice->getCustomer())?->getLocale() ?? 'de');
         $labels = [];
         foreach (['invoice', 'number', 'date', 'due_date', 'bill_to', 'description', 'net', 'tax', 'total', 'outstanding', 'vat_id', 'cancelled', 'quantity', 'unit_price', 'line_total', 'unit_price_short', 'line_total_short', 'gross', 'tax_short'] as $label) {
             $labels[$label] = $this->translator->trans('billing.'.$label, [], 'billing', $locale);
@@ -78,7 +79,7 @@ final class InvoiceLayoutRenderer
         $context['decimal_separator'] = str_starts_with($locale, 'de') ? ',' : '.';
         $context['thousands_separator'] = str_starts_with($locale, 'de') ? '.' : ',';
         $context['date_format'] = str_starts_with($locale, 'de') ? 'd.m.Y' : 'Y-m-d';
-        $context['invoice']['tax_notice'] = $this->translator->trans('billing.notice.'.$context['invoice']['tax_mode'], [], 'billing', $locale);
+        $context['invoice']['tax_notice'] = $this->translator->trans('billing.notice.'.ScalarValue::text($context['invoice']['tax_mode']), [], 'billing', $locale);
         try {
             return $this->sandbox()->createTemplate($this->checkedLayout($layout))->render($context);
         } catch (\Twig\Error\Error $exception) {
@@ -141,7 +142,7 @@ final class InvoiceLayoutRenderer
     private function checkNode(Node $node): void
     {
         $tag = $node->getNodeTag();
-        $allowed = !$tag || in_array($tag, self::TAGS, true);
+        $allowed = ($tag === null || $tag === '' || $tag === '0') || in_array($tag, self::TAGS, true);
         if ($node instanceof FilterExpression) {
             $allowed = $allowed && in_array($node->getAttribute('name'), self::FILTERS, true);
         }
@@ -151,7 +152,7 @@ final class InvoiceLayoutRenderer
         if ($node instanceof FunctionExpression || $node instanceof RangeBinary || $node->hasAttribute('sandboxed_function_name')) {
             $allowed = false;
         }
-        if ($node instanceof GetAttrExpression && Template::METHOD_CALL === $node->getAttribute('type')) {
+        if ($node instanceof GetAttrExpression && 'method' === $node->getAttribute('type')) {
             $allowed = false;
         }
         if (!$allowed) {

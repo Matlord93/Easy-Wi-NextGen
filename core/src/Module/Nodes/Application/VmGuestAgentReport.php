@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Nodes\Application;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 /** Only observed guest fields may leave the provider boundary. */
 final class VmGuestAgentReport
 {
@@ -18,10 +19,11 @@ final class VmGuestAgentReport
     public static function sanitize(mixed $input): array
     {
         $input = JsonArray::orEmpty($input);
-        $state = in_array($input['state'] ?? null, self::STATES, true) ? $input['state'] : 'unavailable';
+        $strings = JsonMap::strings($input);
+        $state = in_array($strings['state'] ?? null, self::STATES, true) ? $strings['state'] : 'unavailable';
         $time = null;
-        if (is_string($input['observed_at'] ?? null) && strlen($input['observed_at']) <= 40) {
-            $canonical = str_ends_with($input['observed_at'], 'Z') ? substr($input['observed_at'], 0, -1).'+00:00' : $input['observed_at'];
+        if (isset($strings['observed_at']) && strlen($strings['observed_at']) <= 40) {
+            $canonical = str_ends_with($strings['observed_at'], 'Z') ? substr($strings['observed_at'], 0, -1).'+00:00' : $strings['observed_at'];
             $date = \DateTimeImmutable::createFromFormat(DATE_ATOM, $canonical);
             if ($date && $date->format(DATE_ATOM) === $canonical) {
                 $time = $date->format(DATE_ATOM);

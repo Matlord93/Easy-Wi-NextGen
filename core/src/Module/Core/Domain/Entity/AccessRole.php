@@ -30,13 +30,22 @@ class AccessRole
         #[ORM\Column(length: 100)] private string $name,
         array $permissions = [],
     ) {
-        $this->setPermissions($permissions);
+        $this->permissions = $this->normalizePermissions($permissions);
     }
 
     /** @param list<Permission> $permissions */
     public function setPermissions(array $permissions): void
     {
-        $this->permissions = array_values(array_unique(array_map(static fn (Permission $permission): string => $permission->value, $permissions)));
+        $this->permissions = $this->normalizePermissions($permissions);
+    }
+
+    /**
+     * @param list<Permission> $permissions
+     * @return list<string>
+     */
+    private function normalizePermissions(array $permissions): array
+    {
+        return array_values(array_unique(array_map(static fn (Permission $permission): string => $permission->value, $permissions)));
     }
 
     /** @return list<Permission> */

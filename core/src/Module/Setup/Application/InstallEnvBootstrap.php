@@ -138,7 +138,9 @@ final class InstallEnvBootstrap
                     continue;
                 }
 
-                [$rawKey, $rawValue] = array_map('trim', explode('=', $line, 2));
+                $parts = explode('=', $line, 2);
+                $rawKey = trim($parts[0]);
+                $rawValue = trim($parts[1] ?? '');
                 if (!in_array($rawKey, self::TARGET_KEYS, true)) {
                     continue;
                 }

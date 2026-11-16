@@ -399,6 +399,7 @@ class AgentGameServerClient
             || !is_string($value['proto'] ?? null)
             || !is_int($value['port'] ?? null)
             || !is_bool($value['free'] ?? null)
+            || !empty($value['error'])
         ) {
             throw new \RuntimeException('Ungültige Antwort der Node-Portprüfung.');
         }

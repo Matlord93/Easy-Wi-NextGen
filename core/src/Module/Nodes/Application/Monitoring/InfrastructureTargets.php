@@ -29,7 +29,9 @@ final readonly class InfrastructureTargets
 
     public function node(Agent $node): InfrastructureTarget
     {
-        return new InfrastructureTarget('kvm', $node->getId(), 'node', $node->getId(), 'node', $node->getName() ?: $node->getId(), '/admin/kvm/nodes/'.rawurlencode($node->getId()));
+        $name = $node->getName() ?? '';
+
+        return new InfrastructureTarget('kvm', $node->getId(), 'node', $node->getId(), 'node', (in_array($name, ['', '0'], true) ? $node->getId() : $name), '/admin/kvm/nodes/'.rawurlencode($node->getId()));
     }
 
     public function proxmox(ProxmoxCluster $cluster, string $kind, string $ref, string $label = ''): InfrastructureTarget

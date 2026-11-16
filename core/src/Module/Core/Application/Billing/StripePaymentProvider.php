@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Billing;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Enum\PaymentStatus;
@@ -90,7 +92,7 @@ final class StripePaymentProvider implements PaymentProviderInterface
         $body = $response->toArray(false);
 
         if ($status < 200 || $status >= 300) {
-            $error = $body['error']['message'] ?? 'unknown error';
+            $error = ScalarValue::text(JsonArray::orEmpty($body['error'] ?? null)['message'] ?? 'unknown error');
             throw new \RuntimeException(sprintf('Stripe Checkout Session creation failed (%d): %s', $status, $error));
         }
 
@@ -129,10 +131,10 @@ final class StripePaymentProvider implements PaymentProviderInterface
         $eventType = (string) ($event['type'] ?? '');
 
         if (in_array($eventType, ['checkout.session.completed', 'checkout.session.async_payment_succeeded'], true)) {
-            $this->handleCheckoutCompleted($event['data']['object'] ?? []);
+            $this->handleCheckoutCompleted(JsonMap::fromValue(JsonArray::orEmpty($event['data'] ?? null)['object'] ?? null) ?? []);
             $this->entityManager->flush();
         } elseif ($eventType === 'payment_intent.payment_failed') {
-            $this->handlePaymentFailed($event['data']['object'] ?? []);
+            $this->handlePaymentFailed(JsonMap::fromValue(JsonArray::orEmpty($event['data'] ?? null)['object'] ?? null) ?? []);
         }
 
         return new JsonResponse(['received' => true]);
@@ -145,7 +147,7 @@ final class StripePaymentProvider implements PaymentProviderInterface
             return;
         }
 
-        $params = ['limit' => 100, 'expand[]' => 'data.payment_intent'];
+        $params = $this->reconcileParameters();
         if ($since !== null) {
             $params['created[gte]'] = $since->getTimestamp();
         }
@@ -156,21 +158,30 @@ final class StripePaymentProvider implements PaymentProviderInterface
                 throw new \RuntimeException('Stripe reconciliation failed.');
             }
             $body = $response->toArray();
-            foreach ($body['data'] ?? [] as $session) {
-                if (is_array($session) && ($session['payment_status'] ?? '') === 'paid') {
+            $sessions = JsonArray::orEmpty($body['data'] ?? null);
+            foreach (array_keys($sessions) as $index) {
+                $session = JsonMap::fromValue($sessions[$index]);
+                if ($session !== null && ($session['payment_status'] ?? '') === 'paid') {
                     $this->handleCheckoutCompleted($session);
                 }
             }
             $hasMore = (bool) ($body['has_more'] ?? false);
             if ($hasMore) {
-                $last = $body['data'][array_key_last($body['data'] ?? [])]['id'] ?? null;
-                if (!is_string($last) || $last === '' || $last === ($params['starting_after'] ?? null)) {
+                $lastIndex = array_key_last($sessions);
+                $last = $lastIndex === null ? '' : ScalarValue::text(JsonArray::orEmpty($sessions[$lastIndex])['id'] ?? null);
+                if ($last === '' || $last === ($params['starting_after'] ?? null)) {
                     throw new \RuntimeException('Stripe returned an invalid pagination cursor.');
                 }
                 $params['starting_after'] = $last;
             }
         } while ($hasMore);
         $this->entityManager->flush();
+    }
+
+    /** @return array<string,int|string> */
+    private function reconcileParameters(): array
+    {
+        return ['limit' => 100, 'expand[]' => 'data.payment_intent'];
     }
 
     /**

@@ -46,7 +46,7 @@ final class MinecraftJavaVersionResolver
             return '25';
         }
 
-        if ($major === 1 && ($minor < 17 || ($minor === 16 && $patch <= 5))) {
+        if ($major === 1 && $minor < 17) {
             return '8';
         }
         if ($major === 1 && $minor === 17) {
@@ -67,6 +67,9 @@ final class MinecraftJavaVersionResolver
             return $this->config->getBinForVersion($version);
         }
 
-        return self::JAVA_BIN_BY_VERSION[$version] ?? 'java21';
+        foreach (self::JAVA_BIN_BY_VERSION as $knownVersion => $binary) {
+            if ((string) $knownVersion === $version) { return $binary; }
+        }
+        return 'java21';
     }
 }

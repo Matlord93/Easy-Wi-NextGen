@@ -269,6 +269,7 @@ class JobRepository extends ServiceEntityRepository
         return null;
     }
 
+    /** @param list<string> $types */
     public function findLatestActiveByTypesAndInstanceId(array $types, int $instanceId, int $limitPerType = 40): ?Job
     {
         $active = [];

@@ -58,6 +58,9 @@ final class MusicbotBackupAdapter implements BackupModuleAdapterInterface
         }
 
         foreach (new \RecursiveIteratorIterator($archive) as $file) {
+            if (!$file instanceof \SplFileInfo) {
+                throw new \InvalidArgumentException('Invalid archive entry.');
+            }
             $entryPath = $file->getPathname();
 
             if (str_contains($entryPath, '..')) {

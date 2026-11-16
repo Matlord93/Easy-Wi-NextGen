@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\ScalarValue;
+
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Config\JsonArray;
 
 use App\Module\Musicbot\Application\Dto\PluginManifest;
@@ -68,7 +72,7 @@ final class PluginRegistryService
             throw new \InvalidArgumentException('Plugin manifest path is outside the plugin registry.');
         }
 
-        $data = JsonArray::decode((string) file_get_contents($realPath));
+        $data = JsonMap::decode((string) file_get_contents($realPath));
         if (!is_array($data)) {
             throw new \InvalidArgumentException('Plugin manifest must be JSON.');
         }
@@ -83,9 +87,9 @@ final class PluginRegistryService
         $this->assertValidIdentifier($identifier);
         $permissions = $this->validateStringList($data['permissions'] ?? $data['required_permissions'] ?? [], MusicbotPluginPermission::values(), 'permission');
         $platforms = $this->validateStringList($data['supported_platforms'] ?? [], ['teamspeak', 'discord', 'both'], 'platform');
-        $events = $this->validateStringList($data['events'] ?? $data['plugin_api']['hooks'] ?? [], $this->supportedEvents(), 'event');
+        $events = $this->validateStringList($data['events'] ?? JsonArray::orEmpty($data['plugin_api'] ?? null)['hooks'] ?? [], $this->supportedEvents(), 'event');
         $actions = $this->validateStringList($data['actions'] ?? [], $this->supportedActions(), 'action');
-        $settingsSchema = is_array($data['settings_schema'] ?? null) ? $data['settings_schema'] : (JsonArray::orEmpty($data['config_schema'] ?? null));
+        $settingsSchema = JsonMap::fromValue($data['settings_schema'] ?? null) ?? JsonMap::fromValue($data['config_schema'] ?? null) ?? [];
 
         return new PluginManifest(
             $identifier,
@@ -95,8 +99,8 @@ final class PluginRegistryService
             trim((string) ($data['description'] ?? '')),
             $permissions,
             $platforms,
-            is_array($data['config_schema'] ?? null) ? $data['config_schema'] : $settingsSchema,
-            JsonArray::orEmpty($data['panel_extensions'] ?? null),
+            JsonMap::fromValue($data['config_schema'] ?? null) ?? $settingsSchema,
+            JsonMap::fromValue($data['panel_extensions'] ?? null) ?? [],
             $this->validateStringList($data['required_features'] ?? [], ['playlists', 'webradio', 'youtube', 'uploads', 'autodj', 'plugins'], 'feature'),
             $permissions,
             $settingsSchema,
@@ -122,7 +126,8 @@ final class PluginRegistryService
             if (!is_dir($root)) {
                 continue;
             }
-            foreach (glob($root.'/*/manifest.json') ?: [] as $path) {
+            $manifests = glob($root.'/*/manifest.json');
+            foreach ($manifests !== false ? $manifests : [] as $path) {
                 $paths[] = $path;
             }
         }
@@ -142,7 +147,6 @@ final class PluginRegistryService
     /** @return array<string, PluginManifest> */
     private function builtInManifests(): array
     {
-        $commonEvents = $this->supportedEvents();
 
         return [
             'easywi.welcome_song' => new PluginManifest(
@@ -207,8 +211,11 @@ final class PluginRegistryService
             return [];
         }
         $result = [];
-        foreach ($value as $item) {
-            $item = strtolower(trim((string) $item));
+        foreach (array_keys($value) as $key) {
+            if (!is_scalar($value[$key]) && $value[$key] !== null) {
+                throw new \InvalidArgumentException('Plugin '.$label.' must be a string.');
+            }
+            $item = strtolower(trim(ScalarValue::text($value[$key])));
             if ($label === 'event') { $item = str_replace('.', '_', $item); }
             if ($item === '') {
                 continue;

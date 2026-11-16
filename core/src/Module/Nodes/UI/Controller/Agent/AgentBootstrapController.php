@@ -49,9 +49,7 @@ final class AgentBootstrapController
             $response = new JsonResponse([
                 'error' => 'Too many bootstrap attempts. Please try again later.',
             ], JsonResponse::HTTP_TOO_MANY_REQUESTS);
-            if ($limit->getRetryAfter() !== null) {
-                $response->headers->set('Retry-After', (string) $limit->getRetryAfter()->getTimestamp());
-            }
+            $response->headers->set('Retry-After', (string) $limit->getRetryAfter()->getTimestamp());
 
             return $response;
         }

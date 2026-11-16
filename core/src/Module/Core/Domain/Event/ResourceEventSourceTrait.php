@@ -13,6 +13,6 @@ trait ResourceEventSourceTrait
 
     public function getResourceId(): string
     {
-        return $this->getId();
+        return sprintf('%s', \App\Infrastructure\Doctrine\EntityIdentifier::require($this->getId()));
     }
 }

@@ -19,7 +19,7 @@ final class ConfigTemplateRegistry
         $supportedOs = array_values(array_filter(array_map(static fn (mixed $v): string => strtolower(trim((string) $v)), $template->getSupportedOs())));
 
         $targets = [];
-        foreach ($template->getConfigFiles() as $index => $cfg) {
+        foreach (array_values($template->getConfigFiles()) as $index => $cfg) {
             if (!is_array($cfg)) {
                 continue;
             }
@@ -40,7 +40,7 @@ final class ConfigTemplateRegistry
                 'description' => (string) ($cfg['description'] ?? ''),
                 'platform' => $supportedOs !== [] ? $supportedOs : ['linux'],
                 'relative_path' => $relativePath,
-                'apply_mode' => (string) ($schema['apply_mode'] ?? 'render_text'),
+                'apply_mode' => $schema['apply_mode'] ?? 'render_text',
                 'template_content' => $templateContent,
                 'variables' => $this->extractVariables($templateContent),
                 'restart_hint' => 'recommended',
@@ -79,7 +79,7 @@ final class ConfigTemplateRegistry
     }
 
     /**
-     * @param array<string, mixed> $cfg
+     * @param array<array-key, mixed> $cfg
      * @param array<string, mixed> $schema
      */
     private function templateContent(array $cfg, array $schema): string

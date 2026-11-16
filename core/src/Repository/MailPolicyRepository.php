@@ -36,14 +36,14 @@ class MailPolicyRepository extends ServiceEntityRepository
      */
     public function countSecurityPosture(): array
     {
-        $result = $this->createQueryBuilder('p')
+        $result = ScalarQueryResult::row($this->createQueryBuilder('p')
             ->select('COUNT(p.id) AS total')
             ->addSelect('SUM(CASE WHEN p.requireTls = true THEN 1 ELSE 0 END) AS strict_tls')
             ->addSelect('SUM(CASE WHEN p.allowExternalForwarding = true THEN 1 ELSE 0 END) AS external_forwarding_enabled')
             ->addSelect("SUM(CASE WHEN p.spamProtectionLevel = 'high' THEN 1 ELSE 0 END) AS high_spam_protection")
             ->addSelect('SUM(CASE WHEN p.greylistingEnabled = true THEN 1 ELSE 0 END) AS greylisting_enabled')
             ->getQuery()
-            ->getSingleResult();
+            ->getSingleResult());
 
         return [
             'total' => (int) ($result['total'] ?? 0),

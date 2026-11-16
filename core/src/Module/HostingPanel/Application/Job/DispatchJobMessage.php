@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\HostingPanel\Application\Job;
 
-class DispatchJobMessage
+final class DispatchJobMessage
 {
     /** @param array<string,mixed> $payload */
     public function __construct(

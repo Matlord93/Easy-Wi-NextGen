@@ -6,7 +6,7 @@ namespace App\Module\HostingPanel\Application\Job;
 
 use App\Module\HostingPanel\Domain\Enum\JobStatus;
 
-class JobStateMachine
+final class JobStateMachine
 {
     public function canTransition(JobStatus $from, JobStatus $to): bool
     {

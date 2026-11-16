@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Musicbot\Application\Dto\PluginManifest;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlugin;
@@ -26,47 +28,45 @@ final class PluginConfigService
         if ($schema === []) {
             return $this->sanitizeScalarConfig($config);
         }
-        $properties = JsonArray::orEmpty($schema['properties'] ?? null);
+        $properties = JsonMap::fromValue($schema['properties'] ?? null) ?? [];
         if ($properties === []) {
             return $this->sanitizeScalarConfig($config);
         }
         $filtered = [];
-        foreach ($properties as $key => $definition) {
+        foreach (array_keys($properties) as $key) {
             if (!array_key_exists($key, $config)) {
                 continue;
             }
-            $filtered[$key] = $this->coerceValue($config[$key], is_array($definition) ? (string) ($definition['type'] ?? 'string') : 'string');
+            $filtered[$key] = $this->coerceValue($config[$key], JsonMap::strings($properties[$key])['type'] ?? 'string');
         }
 
         return $filtered;
     }
 
     /**
-     * @param array<string, mixed> $config
-     * @return array<string, mixed>
+     * @template TKey of array-key
+     * @param array<TKey, mixed> $config
+     * @return array<TKey, null|bool|int|float|string|array<array-key, mixed>>
      */
     private function sanitizeScalarConfig(array $config): array
     {
         $sanitized = [];
-        foreach ($config as $key => $value) {
-            if (is_int($key)) {
-                $safeKey = $key;
-            } elseif (is_string($key) && !str_contains($key, '..') && !str_contains($key, '/') && !str_contains($key, '\\')) {
-                $safeKey = $key;
-            } else {
+        foreach (array_keys($config) as $key) {
+            if (is_string($key) && (str_contains($key, '..') || str_contains($key, '/') || str_contains($key, '\\'))) {
                 continue;
             }
-            if (is_scalar($value) || $value === null) {
-                $sanitized[$safeKey] = $value;
-            } elseif (is_array($value)) {
-                $sanitized[$safeKey] = $this->sanitizeScalarConfig($value);
+            if (!is_scalar($config[$key]) && !is_array($config[$key]) && $config[$key] !== null) {
+                continue;
             }
+            $value = MusicbotInputValue::from($config[$key]);
+            $sanitized[$key] = is_array($value) ? $this->sanitizeScalarConfig($value) : $value;
         }
 
         return $sanitized;
     }
 
-    private function coerceValue(mixed $value, string $type): mixed
+    /** @return bool|int|float|string|array<array-key, null|bool|int|float|string|array<array-key, mixed>> */
+    private function coerceValue(mixed $value, string $type): bool|int|float|string|array
     {
         return match ($type) {
             'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,

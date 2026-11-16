@@ -34,7 +34,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private string $email;
 
     #[ORM\Column(length: 255)]
-    private string $passwordHash;
+    private ?string $passwordHash = null;
 
     #[ORM\Column(length: 20)]
     private string $type;
@@ -130,18 +130,26 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[\Override]
     public function getUserIdentifier(): string
     {
+        if ($this->email === '') {
+            throw new \LogicException('A user identifier requires a non-empty email address.');
+        }
+
         return $this->email;
     }
 
     #[\Override]
     public function getPassword(): string
     {
+        if ($this->passwordHash === null) {
+            throw new \LogicException('User password has not been initialized.');
+        }
+
         return $this->passwordHash;
     }
 
     public function setPasswordHash(string $passwordHash): void
     {
-        if (isset($this->passwordHash) && $this->passwordHash !== $passwordHash) {
+        if ($this->passwordHash !== null && $this->passwordHash !== $passwordHash) {
             $this->bumpCredentialsVersion();
         }
 

@@ -135,7 +135,7 @@ final class MusicbotRadioApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WebradioManage);
-        $payload = JsonMap::fromValue($request->toArray()) ?? [];
+        $payload = JsonMap::fromValue((JsonMap::fromValue($request->toArray()) ?? [])) ?? [];
 
         try {
             $station = $this->radioService->create($customer, $instance, $payload);
@@ -161,7 +161,7 @@ final class MusicbotRadioApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WebradioManage);
         $station = $this->findOwnedStation($stationId, $customer);
-        $payload = JsonMap::fromValue($request->toArray()) ?? [];
+        $payload = JsonMap::fromValue((JsonMap::fromValue($request->toArray()) ?? [])) ?? [];
 
         try {
             $this->radioService->update($station, $payload);
@@ -329,7 +329,7 @@ final class MusicbotRadioApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WebradioManage);
         $station = $this->findAccessibleStation($stationId, $customer);
-        $payload = JsonMap::fromValue($request->toArray()) ?? [];
+        $payload = JsonMap::fromValue((JsonMap::fromValue($request->toArray()) ?? [])) ?? [];
         $playlistId = (int) ($payload['playlist_id'] ?? 0);
 
         if ($playlistId <= 0) {
@@ -362,7 +362,7 @@ final class MusicbotRadioApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::WebradioManage);
-        $url = trim((string) ($request->toArray()['url'] ?? ''));
+        $url = trim((string) ((JsonMap::fromValue($request->toArray()) ?? [])['url'] ?? ''));
 
         if ($url === '') {
             return $this->error('url is required.', JsonResponse::HTTP_BAD_REQUEST);
@@ -462,7 +462,7 @@ final class MusicbotRadioApiController
         }
 
         try {
-            $this->radioService->update($station, $request->toArray());
+            $this->radioService->update($station, (JsonMap::fromValue($request->toArray()) ?? []));
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), JsonResponse::HTTP_BAD_REQUEST);
         }

@@ -675,7 +675,7 @@ final class CustomerWebspaceController
 
     /**
      * @param Webspace[] $webspaces
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function normalizeWebspaces(array $webspaces): array
     {
@@ -775,7 +775,7 @@ final class CustomerWebspaceController
     private function redirectWithFlash(string $url, string $type, string $message): RedirectResponse
     {
         $response = new RedirectResponse($url === '' ? '/customer/webspaces' : $url);
-        $response->headers->setCookie(new \Symfony\Component\HttpFoundation\Cookie('flash_'.$type, rawurlencode($message), strtotime('+30 seconds')));
+        $response->headers->setCookie(new \Symfony\Component\HttpFoundation\Cookie('flash_'.$type, rawurlencode($message), new \DateTimeImmutable('+30 seconds')));
         return $response;
     }
 
@@ -790,7 +790,7 @@ final class CustomerWebspaceController
             'name' => $domain->getName(),
             'status' => $domain->getStatus(),
             'ssl_expires_at' => $domain->getSslExpiresAt(),
-            'webspace_id' => $domain->getWebspace()->getId(),
+            'webspace_id' => $domain->getWebspace()?->getId(),
             'server_aliases' => $domain->getServerAliases(),
         ];
     }
@@ -901,11 +901,16 @@ final class CustomerWebspaceController
         return $job;
     }
 
+    /** @return array<string, string> */
     private function parseSettingsText(string $text): array
     {
         $settings = [];
-        foreach (preg_split('/\r\n|\r|\n/', $text) as $line) {
-            $line = trim((string) $line);
+        $lines = preg_split('/\r\n|\r|\n/', $text);
+        if ($lines === false) {
+            return [];
+        }
+        foreach ($lines as $line) {
+            $line = trim($line);
             if ($line === '' || str_starts_with($line, '#')) {
                 continue;
             }
@@ -923,9 +928,9 @@ final class CustomerWebspaceController
     {
         $domains = $this->domainRepository->findBy(['webspace' => $webspace], ['createdAt' => 'ASC']);
         if ($domains === []) {
-            return $webspace->getId();
+            return EntityIdentifier::require($webspace->getId());
         }
-        return $domains[0]->getId() ?? $webspace->getId();
+        return ($domains[0] ?? null)?->getId() ?? EntityIdentifier::require($webspace->getId());
     }
 
     private function findCustomerDomainByRequest(User $customer, Request $request): ?Domain

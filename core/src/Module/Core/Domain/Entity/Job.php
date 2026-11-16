@@ -17,6 +17,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'jobs')]
 class Job
 {
+    /** @var array<string, list<JobStatus>> */
     private const array ALLOWED_TRANSITIONS = [
         JobStatus::Queued->value => [JobStatus::Claimed, JobStatus::Running, JobStatus::Cancelled],
         JobStatus::Claimed->value => [JobStatus::Queued, JobStatus::Running, JobStatus::Failed, JobStatus::Cancelled],
@@ -198,9 +199,11 @@ class Job
 
     public function transitionTo(JobStatus $newStatus): void
     {
-        $allowed = self::ALLOWED_TRANSITIONS[$this->status->value] ?? [];
+        $currentStatusValue = $this->status->value;
+        $newStatusValue = $newStatus->value;
+        $allowed = self::ALLOWED_TRANSITIONS[$currentStatusValue] ?? [];
         if (!in_array($newStatus, $allowed, true)) {
-            throw new \InvalidArgumentException(sprintf('Invalid job status transition from %s to %s.', $this->status->value, $newStatus->value));
+            throw new \InvalidArgumentException(sprintf('Invalid job status transition from %s to %s.', $currentStatusValue, $newStatusValue));
         }
 
         $this->status = $newStatus;

@@ -498,10 +498,11 @@ final readonly class ProxmoxManager
             $size = $this->boundedInt($input['size_gib'] ?? '', 1, 65536);
             $expected = $this->boundedInt($input['expected_bytes'] ?? '', 1, 70368744177664);
             $attached = array_column(ProxmoxDisks::attached($config, $kind), null, 'device');
-            if (!isset($attached[$disk]) || !is_string(JsonMap::strings($config)['digest'] ?? null) || '' === $config['digest'] || !empty($config['lock'])) {
+            $digest = JsonMap::strings($config)['digest'] ?? null;
+            if (!isset($attached[$disk]) || null === $digest || '' === $digest || !empty($config['lock'])) {
                 throw new \InvalidArgumentException('pve.error.disk_unavailable');
             }
-            if ($attached[$disk]['size_bytes'] !== $expected || ($input['expected_digest'] ?? null) !== $config['digest']) {
+            if ($attached[$disk]['size_bytes'] !== $expected || ($input['expected_digest'] ?? null) !== $digest) {
                 throw new \InvalidArgumentException('pve.error.disk_changed');
             }
             if ($size * 1073741824 <= $expected) {
@@ -513,7 +514,7 @@ final readonly class ProxmoxManager
                 }
             }
 
-            return fn (): array => $this->api->growDisk($connection, $node, $vmId, $kind, $disk, $size, $config['digest']);
+            return fn (): array => $this->api->growDisk($connection, $node, $vmId, $kind, $disk, $size, $digest);
         }
         if (in_array($action, ['cloud-init', 'boot-order', 'guest-agent'], true)) {
             if ('qemu' !== $kind || ($customer && 'cloud-init' !== $action)) {

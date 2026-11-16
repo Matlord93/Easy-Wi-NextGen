@@ -16,7 +16,7 @@ use Doctrine\ORM\UnitOfWork;
 
 #[AsDoctrineListener(event: Events::onFlush)]
 #[AsDoctrineListener(event: Events::postPersist)]
-class AuditDoctrineSubscriber
+final class AuditDoctrineSubscriber
 {
     public function onFlush(OnFlushEventArgs $args): void
     {
@@ -31,9 +31,9 @@ class AuditDoctrineSubscriber
             $changes = $uow->getEntityChangeSet($entity);
             $before = [];
             $after = [];
-            foreach ($changes as $field => [$old, $new]) {
-                $before[$field] = is_scalar($old) || $old === null ? $old : get_debug_type($old);
-                $after[$field] = is_scalar($new) || $new === null ? $new : get_debug_type($new);
+            foreach (array_keys($changes) as $field) {
+                $before[$field] = self::auditValue($changes[$field][0]);
+                $after[$field] = self::auditValue($changes[$field][1]);
             }
 
             $targetId = $this->resolveTargetId($entity, $uow);
@@ -55,8 +55,8 @@ class AuditDoctrineSubscriber
         }
 
         $entityManager = $args->getObjectManager();
-        $identifier = $entityManager->getUnitOfWork()->getSingleIdentifierValue($entity);
-        if (!is_scalar($identifier)) {
+        $identifier = $this->resolveTargetId($entity, $entityManager->getUnitOfWork());
+        if (null === $identifier) {
             return;
         }
 
@@ -64,7 +64,7 @@ class AuditDoctrineSubscriber
             'actor' => 'system',
             'action' => 'create',
             'target_type' => $entity::class,
-            'target_id' => (string) $identifier,
+            'target_id' => $identifier,
             'before_state' => json_encode([], JSON_THROW_ON_ERROR),
             'after_state' => json_encode(['created' => true], JSON_THROW_ON_ERROR),
             'created_at' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
@@ -73,12 +73,17 @@ class AuditDoctrineSubscriber
 
     private function resolveTargetId(object $entity, UnitOfWork $uow): ?string
     {
-        $identifier = $uow->getSingleIdentifierValue($entity);
-        if (is_scalar($identifier)) {
-            return (string) $identifier;
-        }
+        return self::scalarIdentifier($uow->getSingleIdentifierValue($entity));
+    }
 
-        return null;
+    private static function scalarIdentifier(mixed $value): ?string
+    {
+        return is_scalar($value) ? (string) $value : null;
+    }
+
+    private static function auditValue(mixed $value): string|int|float|bool|null
+    {
+        return is_scalar($value) || null === $value ? $value : get_debug_type($value);
     }
 
     private function supports(object $entity): bool

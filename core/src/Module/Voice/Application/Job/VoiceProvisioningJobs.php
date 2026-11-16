@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Voice\Application\Job;
 
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Voice\Application\Driver\VoiceDriver;
 use App\Module\Voice\Application\Model\ActionLog;
 use App\Module\Voice\Application\Model\PermissionSet;
@@ -69,8 +70,9 @@ final class VoiceProvisioningJobs
      */
     private function sanitizeTokenMetadata(array $tokenResult): array
     {
+        $stringFields = JsonMap::strings($tokenResult);
         foreach (['token', 'value', 'key'] as $field) {
-            $candidate = $tokenResult[$field] ?? null;
+            $candidate = $stringFields[$field] ?? null;
             if (is_string($candidate) && $candidate !== '') {
                 return [
                     'redacted' => '[REDACTED]',

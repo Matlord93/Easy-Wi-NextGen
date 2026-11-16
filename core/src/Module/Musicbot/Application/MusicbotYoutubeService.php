@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -121,7 +123,7 @@ final class MusicbotYoutubeService
         return $result + ['playback_job_id' => $job->getId()];
     }
 
-    /** @return array<int, mixed> */
+    /** @return array<array-key, mixed> */
     public function history(MusicbotInstance $instance): array
     {
         $config = $instance->getInstanceConfig();
@@ -190,7 +192,7 @@ final class MusicbotYoutubeService
         $rows = [];
         foreach (explode("\n", trim($result['stdout'])) as $line) {
             if (trim($line) === '') { continue; }
-            $decoded = json_decode($line, true);
+            $decoded = JsonMap::decode($line);
             if (is_array($decoded)) { $rows[] = $decoded; }
         }
         return $rows;

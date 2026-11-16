@@ -201,7 +201,7 @@ class DatabaseNode
 
     public function setTags(array $tags): void
     {
-        $this->tags = array_values(array_filter(array_map('trim', $tags), static fn (string $tag): bool => $tag !== ''));
+        $this->tags = array_values(array_filter(array_map('trim', array_filter($tags, 'is_string')), static fn (string $tag): bool => $tag !== ''));
         $this->touch();
     }
 

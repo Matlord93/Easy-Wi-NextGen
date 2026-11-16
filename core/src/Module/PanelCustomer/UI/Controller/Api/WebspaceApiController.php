@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
@@ -63,7 +65,7 @@ final class WebspaceApiController
         }
 
         $payload = $request->toArray();
-        $customerId = $payload['customer_id'] ?? null;
+        $customerId = $this->numericCustomerId($payload['customer_id'] ?? null);
         $nodeId = (string) ($payload['node_id'] ?? '');
         $domain = trim((string) ($payload['domain'] ?? ''));
         $phpVersion = trim((string) ($payload['php_version'] ?? self::DEFAULT_PHP_VERSION));
@@ -712,10 +714,11 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}/ssl', name: 'customer_webspaces_domain_ssl_status_v1', methods: ['GET'])]
     public function sslStatus(Request $request, int $id, int $domainId): JsonResponse
     {
-        [$error, $webspace, $domain] = $this->resolveOwnedDomain($request, $id, $domainId);
-        if ($error instanceof JsonResponse) {
-            return $error;
+        $resolved = $this->resolveOwnedDomain($request, $id, $domainId);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
         }
+        [, $domain] = $resolved;
         $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']);
         return $this->responseEnvelopeFactory->success($request, null, 'SSL status loaded.', 200, [
             'ssl' => $this->certificatePayload($certificate),
@@ -725,10 +728,11 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}/ssl/issue', name: 'customer_webspaces_domain_ssl_issue_v1', methods: ['POST'])]
     public function sslIssue(Request $request, int $id, int $domainId): JsonResponse
     {
-        [$error, $webspace, $domain] = $this->resolveOwnedDomain($request, $id, $domainId);
-        if ($error instanceof JsonResponse) {
-            return $error;
+        $resolved = $this->resolveOwnedDomain($request, $id, $domainId);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
         }
+        [$webspace, $domain] = $resolved;
         $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']) ?? new Certificate($domain);
         $certificate->setStatus('pending');
         $certificate->setLastError(null);
@@ -742,10 +746,11 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}/ssl/disable', name: 'customer_webspaces_domain_ssl_disable_v1', methods: ['POST'])]
     public function sslDisable(Request $request, int $id, int $domainId): JsonResponse
     {
-        [$error, $webspace, $domain] = $this->resolveOwnedDomain($request, $id, $domainId);
-        if ($error instanceof JsonResponse) {
-            return $error;
+        $resolved = $this->resolveOwnedDomain($request, $id, $domainId);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
         }
+        [$webspace, $domain] = $resolved;
         $active = $this->findActiveWebspaceActionJob((string) $webspace->getId());
         if ($active !== null) {
             return $this->responseEnvelopeFactory->error($request, 'Another webspace action is already running.', 'webspace_action_in_progress', 409, 10, ['job_id' => $active->getId()]);
@@ -768,10 +773,11 @@ final class WebspaceApiController
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}/ssl/renew', name: 'customer_webspaces_domain_ssl_renew_v1', methods: ['POST'])]
     public function sslRenew(Request $request, int $id, int $domainId): JsonResponse
     {
-        [$error, $webspace, $domain] = $this->resolveOwnedDomain($request, $id, $domainId);
-        if ($error instanceof JsonResponse) {
-            return $error;
+        $resolved = $this->resolveOwnedDomain($request, $id, $domainId);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
         }
+        [$webspace, $domain] = $resolved;
         $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']);
         if (!$certificate instanceof Certificate) {
             return $this->responseEnvelopeFactory->error($request, 'No certificate found for domain.', 'certificate_not_found', 404);
@@ -867,7 +873,7 @@ final class WebspaceApiController
     }
 
     /**
-     * @param array<string, mixed>|null $metadata
+     * @param array<array-key, mixed>|null $metadata
      *
      * @return string[]
      */
@@ -885,7 +891,7 @@ final class WebspaceApiController
             return [];
         }
 
-        return array_values(array_filter(array_map('strval', $value), static fn (string $item): bool => $item !== ''));
+        return array_values(array_filter(array_map(static fn (mixed $entry): string => ScalarValue::text($entry), $value), static fn (string $item): bool => $item !== ''));
     }
 
 
@@ -1002,19 +1008,21 @@ final class WebspaceApiController
         ];
     }
 
-    /**
-     * @return array{0: \Symfony\Component\HttpFoundation\JsonResponse|null, 1:
-     * \App\Module\Core\Domain\Entity\Webspace|null, 2: \App\Module\Core\Domain\Entity\Domain|null}
-     */
-    private function resolveOwnedDomain(Request $request, int $webspaceId, int $domainId): array
+    private function numericCustomerId(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    /** @return array{Webspace, Domain}|JsonResponse */
+    private function resolveOwnedDomain(Request $request, int $webspaceId, int $domainId): array|JsonResponse
     {
         $actor = RequestActor::user($request);
         $webspace = $this->webspaceRepository->find($webspaceId);
         $domain = $this->domainRepository->find($domainId);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || !$domain instanceof Domain || $webspace->getCustomer()->getId() !== $actor->getId() || $domain->getWebspace()?->getId() !== $webspace->getId()) {
-            return [$this->responseEnvelopeFactory->error($request, 'Domain not found.', 'domain_not_found', 404), null, null];
+            return $this->responseEnvelopeFactory->error($request, 'Domain not found.', 'domain_not_found', 404);
         }
-        return [null, $webspace, $domain];
+        return [$webspace, $domain];
     }
 
     /**

@@ -70,7 +70,7 @@ class ScheduledTaskRun
         $this->startedAt = $startedAt;
         $this->status = $status;
         $this->message = $message;
-        $this->createdJobIds = array_values($createdJobIds);
+        $this->createdJobIds = $createdJobIds;
     }
 
     public function getId(): ?int { return $this->id; }
@@ -91,8 +91,8 @@ class ScheduledTaskRun
     {
         $this->status = $status;
         $this->message = $message;
-        $this->createdJobIds = array_values($createdJobIds);
+        $this->createdJobIds = $createdJobIds;
         $this->finishedAt = $finishedAt;
-        $this->durationMs = max(0, (int) round(((float) $finishedAt->format('U.u') - (float) $this->startedAt->format('U.u')) * 1000));
+        $this->durationMs = max(0, (int) round(((float) $finishedAt->format('U.u') - (float) $this->startedAt->format('U.u')) * 1000.0));
     }
 }

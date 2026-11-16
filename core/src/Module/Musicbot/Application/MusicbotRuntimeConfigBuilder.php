@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -229,10 +231,10 @@ final class MusicbotRuntimeConfigBuilder
         $runtimeConfig['binary_path'] = $backendConfig->getBinaryPath();
         $runtimeConfig['library_path'] = $libraryPath;
         $runtimeConfig['opus_library_path'] = $opusLibraryPath;
-        if ($backendConfig->getIdentityPath() !== null && trim($backendConfig->getIdentityPath()) !== '') {
+        if ($backendConfig->getIdentityPath() !== null && trim($backendConfig->getIdentityPath() ?? '') !== '') {
             $runtimeConfig['identity_path'] = $backendConfig->getIdentityPath();
         }
-        if ($backendConfig->getChecksum() !== null && trim($backendConfig->getChecksum()) !== '') {
+        if ($backendConfig->getChecksum() !== null && trim($backendConfig->getChecksum() ?? '') !== '') {
             $runtimeConfig['checksum'] = $backendConfig->getChecksum();
         }
 
@@ -320,8 +322,8 @@ final class MusicbotRuntimeConfigBuilder
             return ['channel', 'private'];
         }
         $scopes = [];
-        foreach ($value as $scope) {
-            $scope = strtolower(trim((string) $scope));
+        foreach (array_keys($value) as $key) {
+            $scope = strtolower(trim(ScalarValue::text($value[$key])));
             if (in_array($scope, ['channel', 'private'], true)) {
                 $scopes[] = $scope;
             }

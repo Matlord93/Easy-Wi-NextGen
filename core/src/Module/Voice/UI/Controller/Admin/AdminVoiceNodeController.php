@@ -59,7 +59,8 @@ final class AdminVoiceNodeController
 
         $rows = array_map(function (VoiceNode $node) use ($latestByNode): array {
             $state = $this->rateLimitRepository->findOneByNodeAndProvider($node, $node->getProviderType());
-            $latest = $latestByNode[$node->getId()] ?? null;
+            $nodeId = $node->getId();
+            $latest = $nodeId === null ? null : ($latestByNode[$nodeId] ?? null);
 
             return [
                 'node' => $node,

@@ -63,7 +63,7 @@ final readonly class InfrastructureCollector
             }
             $clusters = $this->em->getRepository(ProxmoxCluster::class)->findBy(['enabled' => true], ['id' => 'ASC']);
             $count = count($clusters);
-            $start = $count ? (int) ($state['cluster_cursor'] ?? 0) % $count : 0;
+            $start = $count ? ($state['cluster_cursor'] ?? 0) % $count : 0;
             for ($step = 0; $step < $count && $step < 4 && microtime(true) - $started < 25; ++$step) {
                 $index = ($start + $step) % $count;
                 $cluster = $clusters[$index];
@@ -88,7 +88,7 @@ final readonly class InfrastructureCollector
                     $guests = array_values(array_filter($overview['guests'], static fn (array $g): bool => empty($g['template'])));
                     usort($guests, static fn (array $a, array $b): int => [$a['vmid'], $a['type']] <=> [$b['vmid'], $b['type']]);
                     $guestCount = count($guests);
-                    $cursor = $guestCount ? (int) ($state['vm_cursors'][$clusterId] ?? 0) % $guestCount : 0;
+                    $cursor = $guestCount ? ($state['vm_cursors'][$clusterId] ?? 0) % $guestCount : 0;
                     for ($n = 0; $n < min($guestCount, $options['proxmox_batch_size']) && microtime(true) - $started < 25; ++$n) {
                         $guestIndex = ($cursor + $n) % $guestCount;
                         $guest = $guests[$guestIndex];
@@ -123,7 +123,7 @@ final readonly class InfrastructureCollector
                     }
                 }
             }
-            $result['pruned'] = $this->history->prune((int) $options['retention_days'], $now);
+            $result['pruned'] = $this->history->prune($options['retention_days'], $now);
             if (empty($state['rollups_initialized']) && microtime(true) - $started < 20) {
                 $backfill = $this->history->backfill(100, $now);
                 $result['rollups_backfilled'] = $backfill['created'];

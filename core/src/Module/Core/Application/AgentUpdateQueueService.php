@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
@@ -154,8 +156,8 @@ final class AgentUpdateQueueService
     {
         $currentVersion = $agent->getLastHeartbeatVersion();
         $stats = $agent->getLastHeartbeatStats() ?? [];
-        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
-        $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
+        $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
+        $arch = strtolower(JsonMap::strings($stats)['arch'] ?? '');
 
         $assetName = $this->resolveAgentAssetName($os, $arch);
         if ($assetName === null) {
@@ -199,8 +201,8 @@ final class AgentUpdateQueueService
     private function resolveAgentReleaseInfo(Agent $agent, ?string $latestVersion, string $channel): ?array
     {
         $stats = $agent->getLastHeartbeatStats() ?? [];
-        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
-        $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
+        $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
+        $arch = strtolower(JsonMap::strings($stats)['arch'] ?? '');
 
         $assetName = $this->resolveAgentAssetName($os, $arch);
         if ($assetName === null) {
@@ -230,7 +232,7 @@ final class AgentUpdateQueueService
     private function resolveAgentUpdateJobType(Agent $agent): string
     {
         $stats = $agent->getLastHeartbeatStats() ?? [];
-        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
+        $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
 
         return $os === 'windows' ? 'agent.self_update' : 'agent.update';
     }
@@ -266,8 +268,8 @@ final class AgentUpdateQueueService
             $analysis = $this->analyzeAgentUpdatePayload($agent, $latestVersion, $channel);
             if (($analysis['payload'] ?? null) === null) {
                 $stats = $agent->getLastHeartbeatStats() ?? [];
-                $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
-                $arch = is_string($stats['arch'] ?? null) ? strtolower($stats['arch']) : '';
+                $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
+                $arch = strtolower(JsonMap::strings($stats)['arch'] ?? '');
                 $expectedAssetName = $this->resolveAgentAssetName($os, $arch);
 
                 $skipped[] = [

@@ -171,7 +171,7 @@ final class AdminTs3InstanceController
             'db_port' => $instance->getDatabasePort() !== null ? (string) $instance->getDatabasePort() : '',
             'db_name' => $instance->getDatabaseName() ?? '',
             'db_username' => $instance->getDatabaseUsername() ?? '',
-            'db_password' => $instance->getDatabasePassword() !== null ? json_encode($instance->getDatabasePassword()) : '',
+            'db_password' => $instance->getDatabasePassword() !== null ? json_encode($instance->getDatabasePassword(), JSON_THROW_ON_ERROR) : '',
         ]);
 
         $this->auditLogger->log($actor, 'ts3.instance_created', [

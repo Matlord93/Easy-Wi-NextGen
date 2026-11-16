@@ -86,7 +86,7 @@ final class DunningWorkflow
         $options = $this->settings->get();
         $steps = [];
         foreach ($options['reminder_fees'] as $index => $fee) {
-            $steps[] = new DunningStep($index + 1, BillingAmount::parse((string) $fee), (int) $options['reminder_grace_days']);
+            $steps[] = new DunningStep($index + 1, BillingAmount::parse($fee), $options['reminder_grace_days']);
         }
 
         $latest = $this->reminderRepository->findLatestForInvoice($invoice);

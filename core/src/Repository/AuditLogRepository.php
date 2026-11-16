@@ -23,18 +23,18 @@ class AuditLogRepository extends ServiceEntityRepository
 
     public function findLatestHash(): ?string
     {
-        $result = $this->createQueryBuilder('audit')
+        $result = ScalarQueryResult::nullableRow($this->createQueryBuilder('audit')
             ->select('audit.hashCurrent')
             ->orderBy('audit.id', 'DESC')
             ->setMaxResults(1)
             ->getQuery()
-            ->getOneOrNullResult();
+            ->getOneOrNullResult());
 
         if ($result === null) {
             return null;
         }
 
-        return $result['hashCurrent'] ?? null;
+        return ScalarQueryResult::nullableString($result['hashCurrent'] ?? null);
     }
 
     /**
@@ -48,7 +48,7 @@ class AuditLogRepository extends ServiceEntityRepository
 
         if ($actor !== null) {
             $builder->andWhere('audit.actor = :actor')
-                ->setParameter('actor', $actor);
+                ->setParameter('actor', QueryParameter::entityId($actor->getId(), \App\Module\Core\Domain\Entity\User::class));
         }
 
         return EntityQueryResult::all($builder->getQuery(), \App\Module\Core\Domain\Entity\AuditLog::class);

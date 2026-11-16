@@ -1158,7 +1158,7 @@ final class CustomerVoiceApiController
         $rows = [];
         foreach ($this->ts3Servers->findBy(['customerId' => $customerId, 'archivedAt' => null], ['updatedAt' => 'DESC'], 200) as $server) {
             $id = EntityIdentifier::require($server->getId());
-            if (!is_int($id) || isset($known['ts3:' . $id])) {
+            if (isset($known['ts3:' . $id])) {
                 continue;
             }
             $rows[] = $this->normalizeLegacyTs3Server($server);
@@ -1166,7 +1166,7 @@ final class CustomerVoiceApiController
 
         foreach ($this->ts6Servers->findBy(['customerId' => $customerId, 'archivedAt' => null], ['updatedAt' => 'DESC'], 200) as $server) {
             $id = EntityIdentifier::require($server->getId());
-            if (!is_int($id) || isset($known['ts6:' . $id])) {
+            if (isset($known['ts6:' . $id])) {
                 continue;
             }
             $rows[] = $this->normalizeLegacyTs6Server($server);

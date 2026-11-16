@@ -70,7 +70,7 @@ final class MusicbotRoleApiController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstance($id, $customer);
-        $payload  = $request->toArray();
+        $payload  = (JsonMap::fromValue($request->toArray()) ?? []);
 
         $name = trim((string) ($payload['name'] ?? ''));
         if ($name === '') {
@@ -116,7 +116,7 @@ final class MusicbotRoleApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstance($id, $customer);
         $role     = $this->findRole($roleId, $instance);
-        $payload  = $request->toArray();
+        $payload  = (JsonMap::fromValue($request->toArray()) ?? []);
 
         $name = trim((string) ($payload['name'] ?? $role->getName()));
         if ($name === '') {
@@ -187,7 +187,7 @@ final class MusicbotRoleApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstance($id, $customer);
         $role     = $this->findRole($roleId, $instance);
-        $payload  = $request->toArray();
+        $payload  = (JsonMap::fromValue($request->toArray()) ?? []);
 
         $subjectTypeValue = trim((string) ($payload['subject_type'] ?? ''));
         $subjectId        = trim((string) ($payload['subject_id'] ?? ''));
@@ -240,7 +240,7 @@ final class MusicbotRoleApiController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findInstance($id, $customer);
-        $payload  = $request->toArray();
+        $payload  = (JsonMap::fromValue($request->toArray()) ?? []);
 
         $subjectTypeValue = trim((string) ($payload['subject_type'] ?? ''));
         $subjectId        = trim((string) ($payload['subject_id'] ?? ''));
@@ -316,7 +316,9 @@ final class MusicbotRoleApiController
         return $role;
     }
 
-    /** @param array<string, mixed> $payload */
+    /** @param array<string, mixed> $payload
+     * @return list<string>
+     */
     private function extractPermissions(array $payload): array
     {
         $raw   = $payload['permissions'] ?? [];
@@ -326,15 +328,24 @@ final class MusicbotRoleApiController
             throw new BadRequestHttpException('"permissions" must be an array.');
         }
 
-        $unknown = array_diff($raw, $valid);
+        $values = [];
+        foreach (array_keys($raw) as $key) {
+            if (!is_string($raw[$key])) {
+                throw new BadRequestHttpException('Role values must be strings.');
+            }
+            $values[] = $raw[$key];
+        }
+        $unknown = array_diff($values, $valid);
         if ($unknown !== []) {
             throw new BadRequestHttpException(sprintf('Unknown permissions: %s.', implode(', ', $unknown)));
         }
 
-        return array_values($raw);
+        return $values;
     }
 
-    /** @param array<string, mixed> $payload */
+    /** @param array<string, mixed> $payload
+     * @return list<string>
+     */
     private function extractChannels(array $payload): array
     {
         $raw   = $payload['channels'] ?? [];
@@ -344,12 +355,19 @@ final class MusicbotRoleApiController
             throw new BadRequestHttpException('"channels" must be an array.');
         }
 
-        $unknown = array_diff($raw, $valid);
+        $values = [];
+        foreach (array_keys($raw) as $key) {
+            if (!is_string($raw[$key])) {
+                throw new BadRequestHttpException('Role values must be strings.');
+            }
+            $values[] = $raw[$key];
+        }
+        $unknown = array_diff($values, $valid);
         if ($unknown !== []) {
             throw new BadRequestHttpException(sprintf('Unknown channels: %s.', implode(', ', $unknown)));
         }
 
-        return array_values($raw);
+        return $values;
     }
 
     /**

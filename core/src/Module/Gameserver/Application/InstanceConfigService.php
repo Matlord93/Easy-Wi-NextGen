@@ -9,11 +9,18 @@ use App\Module\Gameserver\Domain\Entity\GameProfile;
 use App\Module\Gameserver\Domain\Enum\EnforceMode;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 
+/**
+ * @psalm-type StartPayload = array{
+ *     instance_id: string, game_key: string, ports: array<string, int>, slots: int,
+ *     config: list<array{template: string, values: array<string, string>}>,
+ *     command: string|null, args: list<string>, env: array<string, string>, work_dir: string|null
+ * }
+ */
 final class InstanceConfigService
 {
     /**
      * @param PortAllocation[] $allocations
-     * @return array<string, mixed>
+     * @return StartPayload
      */
     public function buildStartPayload(Instance $instance, GameProfile $profile, array $allocations): array
     {
@@ -65,8 +72,8 @@ final class InstanceConfigService
 
     /**
      * @param array<string, int> $ports
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param StartPayload $payload
+     * @return StartPayload
      */
     private function applyPortEnforcement(GameProfile $profile, array $ports, array $payload): array
     {
@@ -77,8 +84,8 @@ final class InstanceConfigService
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param StartPayload $payload
+     * @return StartPayload
      */
     private function applySlotEnforcement(GameProfile $profile, int $slots, array $payload): array
     {
@@ -90,8 +97,8 @@ final class InstanceConfigService
 
     /**
      * @param array<string, int> $ports
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param StartPayload $payload
+     * @return StartPayload
      */
     private function buildArgsPayload(string $gameKey, array $ports, array $payload): array
     {
@@ -104,8 +111,8 @@ final class InstanceConfigService
 
     /**
      * @param array<string, int> $ports
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param StartPayload $payload
+     * @return StartPayload
      */
     private function buildConfigPayload(string $gameKey, array $ports, array $payload): array
     {
@@ -125,8 +132,8 @@ final class InstanceConfigService
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param StartPayload $payload
+     * @return StartPayload
      */
     private function buildArgsSlotPayload(string $gameKey, int $slots, array $payload): array
     {
@@ -139,8 +146,8 @@ final class InstanceConfigService
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param StartPayload $payload
+     * @return StartPayload
      */
     private function buildConfigSlotPayload(string $gameKey, int $slots, array $payload): array
     {
@@ -167,8 +174,8 @@ final class InstanceConfigService
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
+     * @param StartPayload $payload
+     * @return StartPayload
      */
     private function applyTemplateStartParams(Instance $instance, array $payload): array
     {
@@ -181,23 +188,24 @@ final class InstanceConfigService
             return $payload;
         }
         $command = array_shift($tokens);
-        if (!is_string($command) || trim($command) === '') {
+        if (trim($command) === '') {
             return $payload;
         }
         $payload['command'] = $command;
-        $payload['args'] = array_values(array_merge($payload['args'] ?? [], $tokens));
+        $payload['args'] = array_merge($payload['args'], $tokens);
         return $payload;
     }
 
     /**
-     * @return array<int, string>
+     * @return list<string>
      */
     private function tokenizeCommandLine(string $commandLine): array
     {
         if (trim($commandLine) === '') {
             return [];
         }
-        if (!preg_match_all("/\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|\\S+/", $commandLine, $matches)) {
+        $matched = preg_match_all("/\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|\\S+/", $commandLine, $matches);
+        if ($matched === false || $matched === 0) {
             return [];
         }
         $tokens = [];
@@ -217,29 +225,29 @@ final class InstanceConfigService
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @param array<int, string> $args
-     * @return array<string, mixed>
+     * @param StartPayload $payload
+     * @param list<string> $args
+     * @return StartPayload
      */
     private function withArgs(array $payload, array $args): array
     {
         $payload['command'] = $payload['command'] ?? 'start-server';
-        $payload['args'] = array_values(array_merge($payload['args'] ?? [], $args));
+        $payload['args'] = array_merge($payload['args'], $args);
         return $payload;
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param StartPayload $payload
      * @param array<string, string> $values
-     * @return array<string, mixed>
+     * @return StartPayload
      */
     private function withConfig(array $payload, string $templatePath, array $values): array
     {
-        $payload['config'] = $payload['config'] ?? [];
         foreach ($payload['config'] as $index => $entry) {
             if (($entry['template'] ?? null) === $templatePath) {
-                $merged = array_merge($entry['values'] ?? [], $values);
+                $merged = array_merge($entry['values'], $values);
                 $payload['config'][$index] = ['template' => $templatePath, 'values' => $merged];
+                $payload['config'] = array_values($payload['config']);
                 return $payload;
             }
         }

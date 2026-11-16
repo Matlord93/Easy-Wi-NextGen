@@ -122,7 +122,7 @@ final class AdminMailboxController
         $formData = $this->parsePayload($request, true);
         $domains = $this->domainRepository->findBy([], ['name' => 'ASC']);
 
-        if ($formData['errors'] !== []) {
+        if ($formData['errors'] !== [] || $formData['domain'] === null) {
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST);
         }
 
@@ -183,9 +183,6 @@ final class AdminMailboxController
     private function queueMailboxFirewall(Mailbox $mailbox): ?Job
     {
         $ports = array_values(array_unique(self::DEFAULT_MAIL_PORTS));
-        if ($ports === []) {
-            return null;
-        }
 
         $node = $mailbox->getDomain()->getWebspace()?->getNode();
         if ($node === null) {
@@ -442,6 +439,7 @@ final class AdminMailboxController
         return $data;
     }
 
+    /** @param array{domain: \App\Module\Core\Domain\Entity\Domain|null, local_part: string, password: string, quota: int, enabled: bool, errors: list<string>} $formData */
     private function renderFormWithErrors(array $domains, array $formData, int $status, ?Mailbox $mailbox = null): Response
     {
         $formContext = $this->buildFormContext($mailbox, [

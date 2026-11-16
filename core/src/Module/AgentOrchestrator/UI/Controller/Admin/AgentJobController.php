@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\AgentOrchestrator\UI\Controller\Admin;
 
-use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
@@ -40,7 +40,7 @@ final class AgentJobController
 
         $payload = $request->toArray();
         $type = trim((string) ($payload['type'] ?? ''));
-        $jobPayload = JsonArray::orEmpty($payload['payload'] ?? null);
+        $jobPayload = JsonMap::fromValue($payload['payload'] ?? null) ?? [];
 
         if ($type === '') {
             return new JsonResponse(['error' => 'Job type is required.'], JsonResponse::HTTP_BAD_REQUEST);

@@ -28,7 +28,7 @@ final class ConfiguredAgentEndpoint
         if ('' === $host || (false === filter_var($host, FILTER_VALIDATE_IP) && false === filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME))) {
             throw new \InvalidArgumentException('Agent URL has an invalid host.');
         }
-        $tls = 'https' === strtolower($parts['scheme']);
+        $tls = 'https' === strtolower($parts['scheme'] ?? '');
         $port = $parts['port'] ?? ($tls ? 443 : 80);
         if ($port < 1 || $port > 65535) {
             throw new \InvalidArgumentException('Agent URL has an invalid port.');

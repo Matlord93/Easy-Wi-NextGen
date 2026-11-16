@@ -24,7 +24,7 @@ class CmsTemplateVersion
 
     #[ORM\ManyToOne(targetEntity: CmsTemplate::class, inversedBy: 'versions')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private CmsTemplate $template;
+    private ?CmsTemplate $template = null;
 
     #[ORM\Column(name: 'version_number')]
     private int $versionNumber;
@@ -66,6 +66,10 @@ class CmsTemplateVersion
     }
     public function getTemplate(): CmsTemplate
     {
+        if ($this->template === null) {
+            throw new \LogicException('Template version has not been assigned to a template.');
+        }
+
         return $this->template;
     }
     public function getVersionNumber(): int

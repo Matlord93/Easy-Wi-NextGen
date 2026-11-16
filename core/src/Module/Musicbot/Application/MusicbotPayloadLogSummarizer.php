@@ -26,7 +26,7 @@ final class MusicbotPayloadLogSummarizer
 
     /**
      * @param array<array-key, mixed>|null $payload
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     public static function summarizeJobPayload(?array $payload): array
     {
@@ -121,16 +121,16 @@ final class MusicbotPayloadLogSummarizer
 
     /**
      * @param array<array-key, mixed> $payload
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private static function runtimePayload(array $payload): array
     {
-        return is_array($payload['runtime'] ?? null) ? $payload['runtime'] : $payload;
+        return JsonArray::fromValue($payload['runtime'] ?? null) ?? $payload;
     }
 
     /**
      * @param array<array-key, mixed> $payload
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private static function arrayAt(array $payload, string $key): array
     {
@@ -168,12 +168,14 @@ final class MusicbotPayloadLogSummarizer
      */
     private static function queueCount(array $runtime, array $playback, array $queue): ?int
     {
-        foreach ([$runtime['queue_count'] ?? null, $runtime['queue_length'] ?? null, $playback['queue_count'] ?? null, $playback['queue_length'] ?? null] as $value) {
+        foreach ([MusicbotInputValue::from($runtime['queue_count'] ?? null), MusicbotInputValue::from($runtime['queue_length'] ?? null), MusicbotInputValue::from($playback['queue_count'] ?? null), MusicbotInputValue::from($playback['queue_length'] ?? null)] as $rawValue) {
+            $value = MusicbotInputValue::from($rawValue);
             if (is_numeric($value)) {
                 return (int) $value;
             }
         }
-        return is_array($queue['items'] ?? null) ? count($queue['items']) : null;
+        $items = JsonArray::fromValue($queue['items'] ?? null);
+        return $items !== null ? count($items) : null;
     }
 
 }

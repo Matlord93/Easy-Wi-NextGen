@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
@@ -249,9 +251,7 @@ final class CustomerInstanceAddonsApiController
     {
         $envelope = $this->messageBus->dispatch($message);
         $handled = $envelope->last(HandledStamp::class);
-        $result = $handled?->getResult();
-
-        return is_array($result) ? $result : null;
+        return JsonMap::fromValue($handled?->getResult());
     }
 
     private function requireCustomer(Request $request): User

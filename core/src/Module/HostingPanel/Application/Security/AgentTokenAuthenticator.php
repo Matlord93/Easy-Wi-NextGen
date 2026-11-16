@@ -7,7 +7,7 @@ namespace App\Module\HostingPanel\Application\Security;
 use App\Module\HostingPanel\Domain\Entity\Agent;
 use Doctrine\ORM\EntityManagerInterface;
 
-class AgentTokenAuthenticator
+final class AgentTokenAuthenticator
 {
     public function __construct(private readonly EntityManagerInterface $entityManager)
     {

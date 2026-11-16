@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
@@ -55,7 +57,7 @@ final class CustomerInstanceConsoleCommandController
         if ($instance === null) {
             throw new NotFoundHttpException('Instance not found.');
         }
-        $isOwner = $instance->getCustomer()?->getId() === $actor->getId();
+        $isOwner = $instance->getCustomer()->getId() === $actor->getId();
         $isAdmin = $actor->isAdmin();
         if (!$isOwner && !$isAdmin) {
             $this->audit($actor, 'command_blocked', $id, null, 'forbidden');
@@ -81,7 +83,7 @@ final class CustomerInstanceConsoleCommandController
             );
         }
 
-        $body = json_decode($request->getContent(), true);
+        $body = JsonMap::decode($request->getContent()) ?? [];
         $command = $this->normalizeCommand((string) ($body['command'] ?? ''));
         if ($command === '' || strlen($command) > 1024) {
             $this->audit($actor, 'command_blocked', $id, $command, 'invalid_length');
@@ -105,7 +107,7 @@ final class CustomerInstanceConsoleCommandController
         }
 
         try {
-            $result = $this->grpcClient->sendCommand(new ConsoleCommandRequest($id, $command, $idempotency, (int) floor(microtime(true) * 1000), (string) ($actor->getId() ?? '0')));
+            $result = $this->grpcClient->sendCommand(new ConsoleCommandRequest($id, $command, $idempotency, (int) floor(microtime(true) * 1000.0), (string) ($actor->getId() ?? '0')));
         } catch (ConsoleUnavailableException $e) {
             // The agent is reachable but the console socket is definitively missing
             // (game server not running via agent wrapper). Return an actionable error

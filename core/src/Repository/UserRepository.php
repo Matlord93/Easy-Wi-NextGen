@@ -51,11 +51,11 @@ class UserRepository extends ServiceEntityRepository
      */
     public function findTwoFactorOverview(): array
     {
-        $rows = $this->createQueryBuilder('user')
+        $rows = ScalarQueryResult::rows($this->createQueryBuilder('user')
             ->select('user.id', 'user.email', 'user.type', 'user.totpEnabled')
             ->orderBy('user.email', 'ASC')
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult());
 
         return array_map(
             static fn (array $row): array => [

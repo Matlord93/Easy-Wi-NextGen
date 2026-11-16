@@ -6,6 +6,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
+use App\Infrastructure\Config\JsonArray;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
@@ -78,6 +79,10 @@ final class DatabaseApiController
         $validated = $this->validateCreatePayload($request, $actor, $payload);
         if ($validated['error'] instanceof JsonResponse) {
             return $validated['error'];
+        }
+
+        if ($validated['customer'] === null || $validated['node'] === null) {
+            throw new \LogicException('Successful database validation requires customer and node.');
         }
 
         $customer = $validated['customer'];
@@ -307,7 +312,7 @@ final class DatabaseApiController
     }
 
     /**
-     * @param array<string,mixed> $payload
+     * @param array<array-key, mixed> $payload
      * @return array{customer:?User,node:?DatabaseNode,name:string,username:string,error:?JsonResponse}
      */
     private function validateCreatePayload(Request $request, User $actor, array $payload): array
@@ -445,8 +450,8 @@ final class DatabaseApiController
             'updated_at' => $job->getUpdatedAt()->format(DATE_RFC3339),
             'error_code' => $job->getLastErrorCode(),
             'error_message' => $job->getLastError(),
-            'payload' => $this->jobPayloadMasker->maskPayload($job->getPayload()),
-            'result' => $result instanceof JobResult ? $this->jobPayloadMasker->maskPayload($result->getOutput()) : null,
+            'payload' => JsonArray::orEmpty($this->jobPayloadMasker->maskValue($job->getPayload())),
+            'result' => $result instanceof JobResult ? JsonArray::orEmpty($this->jobPayloadMasker->maskValue($result->getOutput())) : null,
         ];
     }
 }

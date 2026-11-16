@@ -11,6 +11,7 @@ final readonly class PluginManifest
      * @param string[] $supportedPlatforms
      * @param string[] $requiredFeatures
      * @param string[] $requiredPermissions
+     * @param array<string, mixed> $configSchema
      * @param array<string, mixed> $settingsSchema
      * @param string[] $events
      * @param string[] $actions

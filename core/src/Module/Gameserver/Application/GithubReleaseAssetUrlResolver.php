@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class GithubReleaseAssetUrlResolver
@@ -21,7 +22,7 @@ final class GithubReleaseAssetUrlResolver
         }
 
         parse_str($matches[3], $query);
-        $assetPattern = is_string($query['asset'] ?? null) ? trim($query['asset']) : '';
+        $assetPattern = trim(JsonMap::strings($query)['asset'] ?? '');
         if ($assetPattern === '') {
             return null;
         }
@@ -45,8 +46,9 @@ final class GithubReleaseAssetUrlResolver
                 continue;
             }
 
-            $name = is_string($asset['name'] ?? null) ? $asset['name'] : '';
-            $browserDownloadUrl = is_string($asset['browser_download_url'] ?? null) ? trim($asset['browser_download_url']) : '';
+            $strings = JsonMap::strings($asset);
+            $name = $strings['name'] ?? '';
+            $browserDownloadUrl = trim($strings['browser_download_url'] ?? '');
             if ($name === '' || $browserDownloadUrl === '') {
                 continue;
             }

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Command;
 
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Nodes\Application\Proxmox\ProxmoxManager;
 use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Repository\EntityQueryResult;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -36,19 +38,20 @@ final class ProxmoxTaskSyncCommand extends Command
 
             return Command::INVALID;
         }
-        $tasks = $this->em->createQueryBuilder()->select('task')->from(ProxmoxTask::class, 'task')->join('task.cluster', 'cluster')->where('task.state IN (:states)')->andWhere('cluster.enabled = true')->setParameter('states', ['submitting', 'running'])->orderBy('task.id', 'ASC')->setMaxResults($limit)->getQuery()->getResult();
+        $tasks = EntityQueryResult::all($this->em->createQueryBuilder()->select('task')->from(ProxmoxTask::class, 'task')->join('task.cluster', 'cluster')->where('task.state IN (:states)')->andWhere('cluster.enabled = true')->setParameter('states', ['submitting', 'running'])->orderBy('task.id', 'ASC')->setMaxResults($limit)->getQuery(), ProxmoxTask::class);
         $errors = 0;
         $checked = 0;
         foreach ($tasks as $task) {
             if (!$task->getCluster()->isEnabled()) {
                 continue;
             }
+            $taskId = EntityIdentifier::require($task->getId());
             try {
                 $this->manager->refreshTask($task);
                 ++$checked;
             } catch (\Throwable) {
                 ++$errors;
-                $output->writeln('<error>Task '.$task->getId().': status currently unavailable.</error>');
+                $output->writeln('<error>Task '.$taskId.': status currently unavailable.</error>');
             }
         }
         $output->writeln(sprintf('Checked %d Proxmox task(s); %d unavailable.', $checked, $errors));

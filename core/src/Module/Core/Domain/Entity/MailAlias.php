@@ -60,7 +60,7 @@ class MailAlias implements ResourceEventSource
      */
     public function __construct(Domain $domain, string $localPart, array $destinations, bool $enabled = true)
     {
-        $this->setIdentity($domain, $localPart);
+        $this->initializeIdentity($domain, $localPart);
         $this->destinations = $destinations;
         $this->enabled = $enabled;
         $this->createdAt = new \DateTimeImmutable();
@@ -117,11 +117,16 @@ class MailAlias implements ResourceEventSource
 
     public function setIdentity(Domain $domain, string $localPart): void
     {
+        $this->initializeIdentity($domain, $localPart);
+        $this->touch();
+    }
+
+    private function initializeIdentity(Domain $domain, string $localPart): void
+    {
         $this->domain = $domain;
         $this->customer = $domain->getCustomer();
         $this->localPart = $localPart;
         $this->address = sprintf('%s@%s', $localPart, $domain->getName());
-        $this->touch();
     }
 
     /**

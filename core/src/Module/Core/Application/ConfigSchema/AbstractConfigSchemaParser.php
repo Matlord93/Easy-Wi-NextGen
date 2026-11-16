@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\ConfigSchema;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+
 abstract class AbstractConfigSchemaParser implements ConfigSchemaParserInterface
 {
     /**
@@ -13,12 +16,13 @@ abstract class AbstractConfigSchemaParser implements ConfigSchemaParserInterface
      */
     protected function buildResult(array $schema, array $parsed, array $warnings, bool $sectioned): ConfigSchemaParseResult
     {
-        $fields = $schema['fields'] ?? [];
+        $fields = JsonArray::orEmpty($schema['fields'] ?? null);
         $values = [];
         $knownKeys = [];
 
-        foreach ($fields as $field) {
-            if (!is_array($field)) {
+        foreach (array_keys($fields) as $fieldIndex) {
+            $field = JsonMap::fromValue($fields[$fieldIndex]);
+            if ($field === null) {
                 continue;
             }
             $id = trim((string) ($field['id'] ?? ''));
@@ -27,35 +31,24 @@ abstract class AbstractConfigSchemaParser implements ConfigSchemaParserInterface
             }
             $key = trim((string) ($field['key'] ?? $id));
             $section = $sectioned ? trim((string) ($field['section'] ?? '')) : '';
-            $rawValue = $sectioned
-                ? (($parsed[$section] ?? [])[$key] ?? null)
-                : ($parsed[$key] ?? null);
-            $missing = $rawValue === null || $rawValue === '';
-            if ($missing && array_key_exists('default', $field)) {
-                $rawValue = $field['default'];
-                $warnings[] = sprintf('Missing %s%s; using default.', $section !== '' ? $section . '.' : '', $key);
-            } elseif ($missing) {
-                $warnings[] = sprintf('Missing %s%s in config.', $section !== '' ? $section . '.' : '', $key);
-            }
-            $values[$id] = $this->castValue($rawValue, (string) ($field['type'] ?? 'string'));
-            if ($rawValue !== null && $rawValue !== '') {
-                $knownKeys[$this->normalizeKey($section, $key)] = true;
-            }
+            $this->processField($values, $warnings, $knownKeys, $field, $id, $section, $key,
+                $sectioned ? (JsonArray::orEmpty($parsed[$section] ?? null)[$key] ?? null) : ($parsed[$key] ?? null));
         }
 
         if ($sectioned) {
-            foreach ($parsed as $section => $entries) {
-                if (!is_array($entries)) {
+            foreach (array_keys($parsed) as $section) {
+                $entries = JsonArray::fromValue($parsed[$section]);
+                if ($entries === null) {
                     continue;
                 }
-                foreach ($entries as $key => $value) {
+                foreach (array_keys($entries) as $key) {
                     if (!isset($knownKeys[$this->normalizeKey((string) $section, (string) $key)])) {
                         $warnings[] = sprintf('Unknown setting: %s%s', $section !== '' ? $section . '.' : '', $key);
                     }
                 }
             }
         } else {
-            foreach ($parsed as $key => $value) {
+            foreach (array_keys($parsed) as $key) {
                 if (!isset($knownKeys[$this->normalizeKey('', (string) $key)])) {
                     $warnings[] = sprintf('Unknown setting: %s', $key);
                 }
@@ -63,6 +56,49 @@ abstract class AbstractConfigSchemaParser implements ConfigSchemaParserInterface
         }
 
         return new ConfigSchemaParseResult($values, $warnings);
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     * @param array<array-key,string> $warnings
+     * @param array<string,bool> $knownKeys
+     * @param array<string,mixed> $field
+     */
+    private function processField(
+        array &$values,
+        array &$warnings,
+        array &$knownKeys,
+        array $field,
+        string $id,
+        string $section,
+        string $key,
+        mixed $rawValue,
+        bool $defaultUsed = false,
+    ): void
+    {
+        $missing = $rawValue === null || $rawValue === '';
+        if ($missing && !$defaultUsed) {
+            if (array_key_exists('default', $field)) {
+                $warnings[] = sprintf('Missing %s%s; using default.', $section !== '' ? $section.'.' : '', $key);
+                $this->processField($values, $warnings, $knownKeys, $field, $id, $section, $key, $field['default'], true);
+                return;
+            }
+            $warnings[] = sprintf('Missing %s%s in config.', $section !== '' ? $section.'.' : '', $key);
+        }
+        self::setField($values, $id, $this->castValue($rawValue, (string) ($field['type'] ?? 'string')));
+        if (!$missing) {
+            $knownKeys[$this->normalizeKey($section, $key)] = true;
+        }
+    }
+
+    /**
+     * @template T
+     * @param array<string,T> $values
+     * @param T $value
+     */
+    private static function setField(array &$values, string $key, mixed $value): void
+    {
+        $values[$key] = $value;
     }
 
     protected function castValue(mixed $value, string $type): mixed

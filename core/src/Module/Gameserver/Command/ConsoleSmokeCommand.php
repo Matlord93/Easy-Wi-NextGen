@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Command;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;
 use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
@@ -60,7 +63,7 @@ final class ConsoleSmokeCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $instanceId = (int) $input->getArgument('instance-id');
         $sendCommand = trim(($input->getOption('send') ?? ''));
-        $maxLines = max(1, (int) ($input->getOption('lines') ?? 10));
+        $maxLines = max(1, (int) $input->getOption('lines'));
 
         $io->title(sprintf('Console smoke-test – Instance #%d', $instanceId));
 
@@ -106,8 +109,8 @@ final class ConsoleSmokeCommand extends Command
         } else {
             try {
                 $logsPayload = $this->grpcClient->getConsoleLogs($instanceId);
-                $data = $logsPayload['data'] ?? [];
-                $lines = (array) ($data['lines'] ?? []);
+                $data = JsonMap::fromValue($logsPayload['data'] ?? null) ?? [];
+                $lines = JsonArray::orEmpty($data['lines'] ?? null);
                 $meta = (array) ($data['meta'] ?? []);
 
                 $state = (string) ($meta['state'] ?? 'unknown');
@@ -120,7 +123,8 @@ final class ConsoleSmokeCommand extends Command
                 } else {
                     $recent = array_slice($lines, -$maxLines);
                     $io->writeln(sprintf('  Last %d line(s):', count($recent)));
-                    foreach ($recent as $line) {
+                    foreach (array_keys($recent) as $lineKey) {
+                        $line = JsonMap::strings($recent[$lineKey]);
                         $io->writeln(sprintf('    <fg=gray>%s</> %s', $line['ts'] ?? '', $line['text'] ?? ''));
                     }
                 }
@@ -138,7 +142,7 @@ final class ConsoleSmokeCommand extends Command
                     $instanceId,
                     $sendCommand,
                     bin2hex(random_bytes(8)),
-                    (int) floor(microtime(true) * 1000),
+                    (int) floor(microtime(true) * 1000.0),
                     'smoke-test',
                 ));
                 $io->success(sprintf(
@@ -165,15 +169,16 @@ final class ConsoleSmokeCommand extends Command
     /** @param array<string,mixed> $health */
     private function printHealth(SymfonyStyle $io, array $health): void
     {
-        $data = $health['data'] ?? $health;
+        $data = JsonMap::fromValue($health['data'] ?? null) ?? $health;
+        $journal = JsonMap::fromValue($data['journal_session'] ?? null) ?? [];
 
         $logAvail  = (bool) ($data['log_file_available'] ?? false);
         $sockExist = (bool) ($data['socket_exists'] ?? false);
         $journalOk = (bool) ($data['journal_available'] ?? false);
-        $connected = (bool) (($data['journal_session'] ?? [])['connected'] ?? false);
+        $connected = (bool) ($journal['connected'] ?? false);
         $logPath   = (string) ($data['log_file_path'] ?? '/run/easywi/instances/…/console.log');
         $sockPath  = (string) ($data['socket_path'] ?? '/run/easywi/instances/…/console.sock');
-        $restarts  = (int) (($data['journal_session'] ?? [])['restarts'] ?? 0);
+        $restarts  = (int) ($journal['restarts'] ?? 0);
 
         $io->definitionList(
             ['Log file available' => $logAvail  ? '<info>YES</info> (' . $logPath . ')' : '<comment>NO</comment> (wrapper not running or game server not started)'],

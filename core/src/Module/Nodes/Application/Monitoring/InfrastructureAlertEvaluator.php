@@ -37,7 +37,7 @@ final class InfrastructureAlertEvaluator
                 $state[$metric]['since'] = null;
                 continue;
             }
-            $high = $metric === 'offline' ? !$available : $value !== null && $value >= (float) $thresholds[$metric];
+            $high = $metric === 'offline' ? !$available : $value >= (float) $thresholds[$metric];
             $hold = $metric === 'offline' ? $thresholds['offline_seconds'] : $thresholds['hold_seconds'];
             $next = $old;
             if ($high) {
@@ -47,7 +47,7 @@ final class InfrastructureAlertEvaluator
                     $next['active'] = true;
                     $events[] = ['metric' => $metric, 'active' => true, 'episode' => $next['since']];
                 }
-            } elseif ($metric === 'offline' || !$old['active'] || ($value !== null && $value < max(0.0, (float) $thresholds[$metric] - 5.0))) {
+            } elseif ($metric === 'offline' || !$old['active'] || ($value < max(0.0, (float) $thresholds[$metric] - 5.0))) {
                 $next['since'] = null;
                 if ($old['active']) {
                     $next['active'] = false;

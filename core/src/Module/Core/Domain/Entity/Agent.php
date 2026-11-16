@@ -335,17 +335,20 @@ class Agent
      */
     public function setRoles(array $roles): void
     {
-        $normalized = array_values(array_unique(array_filter(array_map(static function ($role): ?string {
-            if (!is_string($role)) {
-                return null;
-            }
+        $this->roles = $this->normalizeRoles($roles);
+        $this->touch();
+    }
 
+    /**
+     * @param array<array-key, mixed> $roles
+     * @return list<string>
+     */
+    private function normalizeRoles(array $roles): array
+    {
+        return array_values(array_unique(array_filter(array_map(static function (string $role): ?string {
             $value = trim($role);
             return $value !== '' ? $value : null;
-        }, $roles))));
-
-        $this->roles = $normalized;
-        $this->touch();
+        }, array_filter($roles, 'is_string')))));
     }
 
     public function getStatus(): string
@@ -385,7 +388,7 @@ class Agent
         $this->lastHeartbeatStats = $stats;
         $resolvedVersion = $version;
         if ($resolvedVersion === '') {
-            $statsVersion = $stats['version'] ?? null;
+            $statsVersion = \App\Infrastructure\Config\JsonMap::strings($stats)['version'] ?? null;
             if (is_string($statsVersion)) {
                 $resolvedVersion = $statsVersion;
             }

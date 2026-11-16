@@ -661,11 +661,13 @@ final class CustomerInstanceSettingsApiController
                 continue;
             }
 
-            $format = is_string($override['format'] ?? null) && $override['format'] !== ''
-                ? (string) $override['format']
+            $formatValue = $override['format'] ?? '';
+            $nameValue = $override['name'] ?? '';
+            $format = $formatValue !== ''
+                ? $formatValue
                 : $this->inferFormatFromPath($filePath);
-            $name = is_string($override['name'] ?? null) && trim((string) $override['name']) !== ''
-                ? trim((string) $override['name'])
+            $name = trim($nameValue) !== ''
+                ? trim($nameValue)
                 : basename($filePath);
 
             $configs[] = [
@@ -741,7 +743,7 @@ final class CustomerInstanceSettingsApiController
         }
 
         foreach (['name', 'format', 'source', 'scope'] as $key) {
-            if (isset($metadata[$key])) {
+            if (isset($metadata[$key]) && is_string($metadata[$key])) {
                 $overrides[$filePath][$key] = $metadata[$key];
             }
         }

@@ -26,7 +26,7 @@ final class NfsBackupTargetWriter implements BackupTargetWriterInterface
     #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
-        $basePath = rtrim((string) ($target->config()['path'] ?? ''), '/');
+        $basePath = rtrim(self::configText($target->config()['path'] ?? ''), '/');
         if ($basePath === '') {
             throw new \InvalidArgumentException('NFS backup target requires path config (local NFS mount point).');
         }
@@ -88,5 +88,14 @@ final class NfsBackupTargetWriter implements BackupTargetWriterInterface
             'Path "%s" does not appear to be on an NFS mount. Verify the share is mounted before using this target.',
             $path,
         ));
+    }
+
+    private static function configText(mixed $value): string
+    {
+        if ($value === null || is_scalar($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException('Backup target field must be scalar.');
     }
 }

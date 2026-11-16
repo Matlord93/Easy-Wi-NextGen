@@ -155,7 +155,7 @@ final class InstanceConfigPathResolver
 
         if ($os === 'windows') {
             if (preg_match('/^[a-zA-Z]:$/', $parts[0] ?? '') === 1) {
-                $drive = array_shift($parts);
+                $drive = array_shift($parts) ?? '';
                 return $drive . '/' . implode('/', $parts);
             }
 

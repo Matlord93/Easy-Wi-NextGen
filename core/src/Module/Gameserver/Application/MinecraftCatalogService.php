@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -24,11 +25,19 @@ final class MinecraftCatalogService
         $catalog = [];
         foreach ($onlyChannel === null ? MinecraftVersionCatalog::CHANNELS : [$onlyChannel] as $channel) {
             $active = $this->catalogRepository->findActiveByChannel($channel);
+            $buildTypes = [];
+            $releaseTypes = [];
+            foreach ($active as $entry) {
+                $version = $entry->getMcVersion();
+                $kind = ScalarValue::text($entry->getMetadata()['release_type'] ?? 'release', 'release');
+                $buildTypes[$version][$entry->getBuild() ?? ''] = $kind;
+                if (($releaseTypes[$version] ?? null) !== 'release') { $releaseTypes[$version] = $kind; }
+            }
             $catalog[$channel] = [
                 'versions' => $this->sortVersions($this->catalogRepository->findVersionsByChannel($channel, true)),
                 'builds' => $this->sortBuilds($this->catalogRepository->findBuildsGroupedByVersion($channel, true)),
-                'build_release_types' => array_reduce($active, static function (array $types, MinecraftVersionCatalog $entry): array { $types[$entry->getMcVersion()][$entry->getBuild() ?? ''] = $entry->getMetadata()['release_type'] ?? 'release'; return $types; }, []),
-                'release_types' => array_reduce($active, static function (array $types, MinecraftVersionCatalog $entry): array { $version = $entry->getMcVersion(); $kind = $entry->getMetadata()['release_type'] ?? 'release'; if (($types[$version] ?? null) !== 'release') { $types[$version] = $kind; } return $types; }, []),
+                'build_release_types' => $buildTypes,
+                'release_types' => $releaseTypes,
             ];
         }
         return $catalog;
@@ -48,7 +57,7 @@ final class MinecraftCatalogService
             $entries = $this->catalogRepository->findActiveByChannel($channel);
             usort($entries, fn (MinecraftVersionCatalog $a, MinecraftVersionCatalog $b): int => $this->compareVersions($b->getMcVersion(), $a->getMcVersion()));
             foreach ($entries as $entry) {
-                $kind = $entry->getMetadata()['release_type'] ?? 'release';
+                $kind = ScalarValue::text($entry->getMetadata()['release_type'] ?? 'release', 'release');
                 if ($kind === 'release') { return $entry->getMcVersion(); }
             }
             return $entries === [] ? $this->catalogRepository->findLatestVersion($channel, true) : null;
@@ -119,14 +128,15 @@ final class MinecraftCatalogService
     public function findNewerAvailable(\App\Module\Core\Domain\Entity\Instance $instance): ?MinecraftVersionCatalog
     {
         $channel = $this->channelFromResolver($instance);
-        if ($channel === null || $instance->getInstalledVersion() === null) {
+        $installedVersion = $instance->getInstalledVersion();
+        if ($channel === null || $installedVersion === null) {
             return null;
         }
         $latest = $this->resolveEntry($channel, null, null);
         if (!$latest instanceof MinecraftVersionCatalog) {
             return null;
         }
-        if (($comparison = $this->compareVersions($latest->getMcVersion(), $instance->getInstalledVersion())) < 0) { return null; }
+        if (($comparison = $this->compareVersions($latest->getMcVersion(), $installedVersion)) < 0) { return null; }
         if ($comparison === 0 && strnatcmp((string) $latest->getBuild(), (string) $instance->getInstalledBuildId()) <= 0) { return null; }
         return $latest;
     }
@@ -134,7 +144,7 @@ final class MinecraftCatalogService
     public static function channelFromResolver(\App\Module\Core\Domain\Entity\Instance $instance): ?string
     {
         $resolver = $instance->getTemplate()->getInstallResolver();
-        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        $type = ScalarValue::text($resolver['type'] ?? null);
         return match ($type) {
             'minecraft_vanilla' => 'vanilla',
             'papermc_paper' => 'paper',
@@ -177,8 +187,10 @@ final class MinecraftCatalogService
 
     private function compareVersions(string $left, string $right): int
     {
-        $leftNormalized = preg_replace('/[^0-9.].*$/', '', $left) ?: $left;
-        $rightNormalized = preg_replace('/[^0-9.].*$/', '', $right) ?: $right;
+        $leftNormalized = preg_replace('/[^0-9.].*$/', '', $left);
+        $leftNormalized = $leftNormalized === null || $leftNormalized === '' || $leftNormalized === '0' ? $left : $leftNormalized;
+        $rightNormalized = preg_replace('/[^0-9.].*$/', '', $right);
+        $rightNormalized = $rightNormalized === null || $rightNormalized === '' || $rightNormalized === '0' ? $right : $rightNormalized;
         $result = version_compare($leftNormalized, $rightNormalized);
         return $result !== 0 ? $result : strnatcmp($left, $right);
     }

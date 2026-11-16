@@ -51,7 +51,8 @@ final class MusicbotDiagnosticBundleService
     private function maskSecrets(array $data): array
     {
         $result = [];
-        foreach ($data as $key => $value) {
+        foreach (array_keys($data) as $key) {
+            $value = MusicbotInputValue::from($data[$key]);
             if ($this->isSecretKey((string) $key)) {
                 $result[$key] = '***';
             } elseif (is_array($value)) {

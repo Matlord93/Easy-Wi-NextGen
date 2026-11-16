@@ -22,7 +22,6 @@ final class ContactMessageRepository extends ServiceEntityRepository
     /** @return list<ContactMessage> */
     public function findBySite(Site $site, int $limit = 50, int $offset = 0): array
     {
-        /** @var list<ContactMessage> $rows */
         $rows = EntityQueryResult::all($this->createQueryBuilder('m')
             ->andWhere('m.site = :site')
             ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))

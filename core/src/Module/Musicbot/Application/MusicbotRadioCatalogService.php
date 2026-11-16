@@ -55,7 +55,7 @@ class MusicbotRadioCatalogService
         ];
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /** @return array<array-key, array<string, mixed>> */
     public function getPopular(User $customer, int $limit = 20): array
     {
         $this->assertWebradioAllowed($customer);
@@ -66,7 +66,7 @@ class MusicbotRadioCatalogService
         return array_map(fn (MusicbotRadioStation $s): array => $this->normalize($s, $favoriteIds), $stations);
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /** @return array<array-key, array<string, mixed>> */
     public function getNewest(User $customer, int $limit = 20): array
     {
         $this->assertWebradioAllowed($customer);
@@ -80,7 +80,7 @@ class MusicbotRadioCatalogService
     // Favorites
     // -------------------------------------------------------------------------
 
-    /** @return array<int, array<string, mixed>> */
+    /** @return array<array-key, array<string, mixed>> */
     public function getFavorites(User $customer): array
     {
         $this->assertWebradioAllowed($customer);
@@ -113,7 +113,7 @@ class MusicbotRadioCatalogService
     // History
     // -------------------------------------------------------------------------
 
-    /** @return array<int, array<string, mixed>> */
+    /** @return array<array-key, array<string, mixed>> */
     public function getHistory(User $customer, int $limit = 20): array
     {
         $this->assertWebradioAllowed($customer);
@@ -159,13 +159,13 @@ class MusicbotRadioCatalogService
         $station->setLastCheckedAt(new \DateTimeImmutable());
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /** @return array<array-key, array<string, mixed>> */
     public function getPendingCustomerStations(): array
     {
         return array_map(fn (MusicbotRadioStation $s): array => $this->normalize($s, []), $this->stationRepository->findPendingCustomerStations());
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /** @return array<array-key, array<string, mixed>> */
     public function getAllGlobal(bool $includeInactive = true): array
     {
         return array_map(fn (MusicbotRadioStation $s): array => $this->normalize($s, []), $this->stationRepository->findAllGlobal($includeInactive));

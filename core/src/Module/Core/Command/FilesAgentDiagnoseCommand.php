@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Application\FileServiceClient;
@@ -100,7 +103,7 @@ final class FilesAgentDiagnoseCommand extends Command
         $io->section('File API health');
         $fileApiStart = microtime(true);
         $fileApiHealth = $this->fileServiceClient->ping($instance);
-        $fileApiLatency = (int) round((microtime(true) - $fileApiStart) * 1000);
+        $fileApiLatency = (int) round((microtime(true) - $fileApiStart) * 1000.0);
         if ($fileApiHealth['ok']) {
             $io->success(sprintf(
                 'File API health OK (%s, %d ms, HTTP %s).',
@@ -254,12 +257,12 @@ final class FilesAgentDiagnoseCommand extends Command
             ]);
             $status = $response->getStatusCode();
             $body = $response->getContent(false);
-            $decoded = json_decode($body, true);
+            $decoded = JsonArray::decode($body);
             if ($status >= 200 && $status < 300) {
                 return [
                     'status' => 'ok',
                     'url' => $healthUrl,
-                    'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                    'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000.0),
                     'status_code' => $status,
                     'body' => is_array($decoded) ? $decoded : null,
                 ];
@@ -268,7 +271,7 @@ final class FilesAgentDiagnoseCommand extends Command
             return [
                 'status' => 'bad_status',
                 'url' => $healthUrl,
-                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000.0),
                 'status_code' => $status,
                 'body' => is_array($decoded) ? $decoded : null,
             ];
@@ -276,7 +279,7 @@ final class FilesAgentDiagnoseCommand extends Command
             return [
                 'status' => 'timeout',
                 'url' => $healthUrl,
-                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000.0),
                 'status_code' => null,
                 'body' => null,
             ];
@@ -284,7 +287,7 @@ final class FilesAgentDiagnoseCommand extends Command
             return [
                 'status' => 'unreachable',
                 'url' => $healthUrl,
-                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000.0),
                 'status_code' => null,
                 'body' => null,
             ];
@@ -292,12 +295,12 @@ final class FilesAgentDiagnoseCommand extends Command
     }
 
     /**
-     * @param array<int, array<string, mixed>> $entries
+     * @param array<int, array<array-key, mixed>> $entries
      */
     private function pickReadablePath(array $entries): string
     {
         foreach ($entries as $entry) {
-            if (!is_array($entry) || !empty($entry['is_dir'])) {
+            if (!empty($entry['is_dir'])) {
                 continue;
             }
             $name = (string) ($entry['name'] ?? '');
@@ -341,7 +344,7 @@ final class FilesAgentDiagnoseCommand extends Command
     {
         if ($exception instanceof FileServiceException) {
             $details = $exception->getDetails();
-            $statusCode = $details['status_code'] ?? null;
+            $statusCode = self::statusCode($details['status_code'] ?? null);
             if ($statusCode === 413) {
                 $io->text('Hint: HTTP 413 - check nginx client_max_body_size and PHP post_max_size/upload_max_filesize.');
                 return;
@@ -357,11 +360,16 @@ final class FilesAgentDiagnoseCommand extends Command
     {
         if ($exception instanceof FileServiceException) {
             $details = $exception->getDetails();
-            $statusCode = $details['status_code'] ?? null;
+            $statusCode = self::statusCode($details['status_code'] ?? null);
             if ($statusCode !== null) {
                 return sprintf('%s (HTTP %s)', $exception->getMessage(), $statusCode);
             }
         }
         return $exception->getMessage();
+    }
+
+    private static function statusCode(mixed $value): int|string|null
+    {
+        return is_int($value) || is_string($value) ? $value : null;
     }
 }

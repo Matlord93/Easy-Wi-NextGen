@@ -62,7 +62,7 @@ final class MusicbotBackupService
 
         $payload = $manifest->toArray();
         unset($payload['checksum']);
-        $checksum = hash('sha256', json_encode($payload) ?: '');
+        $checksum = hash('sha256', ($encoded = json_encode($payload)) !== false ? $encoded : '');
 
         return new MusicbotBackupManifest(
             schemaVersion: $manifest->schemaVersion,
@@ -120,7 +120,7 @@ final class MusicbotBackupService
     {
         $payload = $manifest->toArray();
         unset($payload['checksum']);
-        $expected = hash('sha256', json_encode($payload) ?: '');
+        $expected = hash('sha256', ($encoded = json_encode($payload)) !== false ? $encoded : '');
 
         return hash_equals($expected, $manifest->checksum);
     }

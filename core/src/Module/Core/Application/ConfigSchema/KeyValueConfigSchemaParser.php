@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\ConfigSchema;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+
 final class KeyValueConfigSchemaParser extends AbstractConfigSchemaParser
 {
     #[\Override]
@@ -18,8 +21,8 @@ final class KeyValueConfigSchemaParser extends AbstractConfigSchemaParser
         $parsed = [];
         $warnings = [];
 
-        foreach (preg_split('/\r\n|\r|\n/', $content) as $line) {
-            $trimmed = trim((string) $line);
+        foreach (preg_split('/\r\n|\r|\n/', $content) ?: [] as $line) {
+            $trimmed = trim($line);
             if ($trimmed === '' || str_starts_with($trimmed, ';') || str_starts_with($trimmed, '#')) {
                 continue;
             }
@@ -27,7 +30,7 @@ final class KeyValueConfigSchemaParser extends AbstractConfigSchemaParser
                 $warnings[] = sprintf('Unrecognized line: %s', $trimmed);
                 continue;
             }
-            [$key, $value] = explode('=', $trimmed, 2);
+            [$key, $value] = array_pad(explode('=', $trimmed, 2), 2, '');
             $key = trim($key);
             if ($key === '') {
                 $warnings[] = sprintf('Unrecognized line: %s', $trimmed);
@@ -42,19 +45,19 @@ final class KeyValueConfigSchemaParser extends AbstractConfigSchemaParser
     #[\Override]
     public function generate(array $schema, array $values): string
     {
-        $fields = $schema['fields'] ?? [];
+        $fields = JsonArray::orEmpty($schema['fields'] ?? null);
         $lines = [];
 
-        foreach ($fields as $field) {
-            if (!is_array($field)) {
+        foreach (array_keys($fields) as $fieldIndex) {
+            $field = JsonMap::fromValue($fields[$fieldIndex]);
+            if ($field === null) {
                 continue;
             }
             $key = trim((string) ($field['key'] ?? $field['id'] ?? ''));
             if ($key === '') {
                 continue;
             }
-            $rawValue = $this->valueForField($field, $values);
-            $value = $this->stringifyValue($rawValue, (string) ($field['type'] ?? 'string'));
+            $value = $this->stringifyValue($this->valueForField($field, $values), (string) ($field['type'] ?? 'string'));
             $lines[] = sprintf('%s=%s', $key, $value);
         }
 

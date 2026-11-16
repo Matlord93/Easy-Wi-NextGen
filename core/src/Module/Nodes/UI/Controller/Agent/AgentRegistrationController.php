@@ -55,7 +55,6 @@ final class AgentRegistrationController
         $registerToken = (string) ($payload['register_token'] ?? '');
         $rotateExisting = (bool) ($payload['rotate_existing'] ?? false);
         $registrationToken = null;
-        $signatureSecret = '';
 
         if ($registerToken !== '') {
             $tokenHash = hash('sha256', $registerToken);
@@ -84,7 +83,7 @@ final class AgentRegistrationController
         $serviceUrl = trim((string) ($payload['service_base_url'] ?? ''));
         if ($serviceUrl !== '') {
             $parts = parse_url($serviceUrl);
-            if ($parts === false || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || empty($parts['host']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || !in_array($parts['path'] ?? '', ['', '/'], true)) {
+            if ($parts === false || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || '' === ($parts['host'] ?? '') || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || !in_array($parts['path'] ?? '', ['', '/'], true)) {
                 throw new BadRequestHttpException('Invalid agent service URL.');
             }
         }

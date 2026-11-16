@@ -33,14 +33,14 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             $qb->andWhere('catalog.isActive = true');
         }
 
-        $rows = $qb
+        $rows = ScalarQueryResult::rows($qb
             ->groupBy('catalog.mcVersion')
             ->orderBy('releasedAt', 'DESC')
             ->addOrderBy('catalog.mcVersion', 'DESC')
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult());
 
-        return array_values(array_map(static fn (array $row): string => (string) ($row['version'] ?? ''), $rows));
+        return array_map(static fn (array $row): string => (string) ($row['version'] ?? ''), $rows);
     }
 
     /**
@@ -59,12 +59,12 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             $qb->andWhere('catalog.isActive = true');
         }
 
-        $rows = $qb
+        $rows = ScalarQueryResult::rows($qb
             ->orderBy('catalog.mcVersion', 'DESC')
             ->addOrderBy('catalog.releasedAt', 'DESC')
             ->addOrderBy('catalog.build', 'DESC')
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult());
 
         $grouped = [];
         foreach ($rows as $row) {

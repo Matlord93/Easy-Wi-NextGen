@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Proxmox;
 
+use App\Infrastructure\Config\JsonMap;
+
 /** New managed volumes only: existing slots and host paths cannot be overwritten. */
 final class ProxmoxExtraDisk
 {
@@ -41,12 +43,12 @@ final class ProxmoxExtraDisk
         }
         $mountpoint = '';
         if ('lxc' === $kind) {
-            $mountpoint = $input['mountpoint'] ?? '';
-            if (!is_string($mountpoint) || !preg_match('~^/(?:mnt|srv)/[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$~D', $mountpoint)) {
+            $mountpoint = JsonMap::strings($input)['mountpoint'] ?? '';
+            if (!preg_match('~^/(?:mnt|srv)/[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$~D', $mountpoint)) {
                 throw new \InvalidArgumentException('pve.error.mountpoint');
             }
-            foreach ($config as $key => $value) {
-                if (is_string($value) && preg_match('/^mp\d+$/D', (string) $key) && in_array('mp='.$mountpoint, explode(',', $value), true)) {
+            foreach (JsonMap::strings($config) as $key => $value) {
+                if (preg_match('/^mp\d+$/D', $key) && in_array('mp='.$mountpoint, explode(',', $value), true)) {
                     throw new \InvalidArgumentException('pve.error.mountpoint');
                 }
             }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
+use App\Infrastructure\Config\ScalarValue;
 
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AgentUpdateQueueService;
@@ -118,7 +119,7 @@ final class AdminUpdateController
         }
 
         $job = $this->updateJobService->createJob($type, $createdBy, $payload);
-        $jobPath = rtrim($this->updateJobService->getJobsDir(), '/') . '/' . $job['id'] . '.json';
+        $jobPath = rtrim($this->updateJobService->getJobsDir(), '/') . '/' . ScalarValue::text($job['id'] ?? '') . '.json';
         $job['currentStep'] = 'created';
         $job['nextStep'] = $type === 'migrate' ? 'apply_migrations' : 'apply_update';
         file_put_contents($jobPath, (string) json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
@@ -167,7 +168,7 @@ final class AdminUpdateController
             return new Response('Not Found.', Response::HTTP_NOT_FOUND);
         }
 
-        return new Response(json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}', HttpResponse::HTTP_OK, [
+        return new Response($this->encodeJobJson($job), HttpResponse::HTTP_OK, [
             'Content-Type' => 'application/json; charset=UTF-8',
         ]);
     }
@@ -184,12 +185,12 @@ final class AdminUpdateController
             return new Response('Not Found.', Response::HTTP_NOT_FOUND);
         }
 
-        $lines = $this->updateJobService->tailLog($job['logPath'] ?? null);
+        $lines = $this->updateJobService->tailLog($this->optionalString($job['logPath'] ?? null));
 
-        return new Response(json_encode([
+        return new Response($this->encodeJobJson([
             'job_id' => $id,
             'lines' => $lines,
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}', HttpResponse::HTTP_OK, [
+        ]), HttpResponse::HTTP_OK, [
             'Content-Type' => 'application/json; charset=UTF-8',
         ]);
     }
@@ -338,7 +339,7 @@ final class AdminUpdateController
         $versionInfo = $this->updateJobService->getVersionInfo();
         $migrationStatus = $this->updateJobService->getMigrationStatus();
         $latestJob = $this->updateJobService->getLatestJob();
-        $logLines = $this->updateJobService->tailLog($latestJob['logPath'] ?? null, 50);
+        $logLines = $this->updateJobService->tailLog($this->optionalString($latestJob['logPath'] ?? null), 50);
         $backups = $this->updateJobService->listBackups();
 
         return [
@@ -372,7 +373,7 @@ final class AdminUpdateController
                 'both' => $this->csrfTokenManager->getToken('admin_update_both')->getValue(),
                 'rollback' => $this->csrfTokenManager->getToken('admin_update_rollback')->getValue(),
                 'core_channel' => $this->csrfTokenManager->getToken('admin_update_core_channel')->getValue(),
-                'tick' => is_array($latestJob) && is_string($latestJob['id'] ?? null) ? $this->csrfTokenManager->getToken('admin_update_tick_' . $latestJob['id'])->getValue() : null,
+                'tick' => is_array($latestJob) && is_string($latestJob['id'] ?? null) ? $this->csrfTokenManager->getToken('admin_update_tick_' . ScalarValue::text($latestJob['id'] ?? ''))->getValue() : null,
             ],
         ];
     }
@@ -415,8 +416,7 @@ final class AdminUpdateController
     private function agentReleaseErrorMessage(array $cacheStatus, string $locale): string
     {
         if (($cacheStatus['last_error_type'] ?? null) === 'RATE_LIMIT') {
-            $reset = $cacheStatus['rate_limit_reset'] ?? null;
-            $resetAt = is_int($reset) || (is_string($reset) && ctype_digit($reset)) ? date('Y-m-d H:i:s', (int) $reset) : '—';
+            $resetAt = $this->rateLimitReset($cacheStatus['rate_limit_reset'] ?? null);
 
             return $this->translateUpdateMessage('admin_updates_agent_rate_limit', $locale, ['%time%' => $resetAt]);
         }
@@ -455,14 +455,22 @@ final class AdminUpdateController
         ]));
     }
 
-    private function htmxRefresh(): Response
+    private function optionalString(mixed $value): ?string
     {
-        return $this->withNoCache(new Response('', HttpResponse::HTTP_NO_CONTENT, ['HX-Refresh' => 'true']));
+        return is_string($value) ? $value : null;
     }
 
-    private function htmxRedirect(string $url): Response
+    private function rateLimitReset(mixed $value): string
     {
-        return $this->withNoCache(new Response('', HttpResponse::HTTP_NO_CONTENT, ['HX-Redirect' => $url]));
+        return is_int($value) || (is_string($value) && ctype_digit($value)) ? date('Y-m-d H:i:s', (int) $value) : '—';
+    }
+
+    /** @param array<array-key, mixed> $value */
+    private function encodeJobJson(array $value): string
+    {
+        $encoded = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        return $encoded === false ? '{}' : $encoded;
     }
 
     private function withNoCache(Response $response): Response

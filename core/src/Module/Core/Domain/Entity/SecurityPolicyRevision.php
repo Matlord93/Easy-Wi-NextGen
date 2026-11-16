@@ -73,7 +73,7 @@ class SecurityPolicyRevision
         $this->appliedAt = $appliedAt;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
-        $this->checksum = hash('sha256', json_encode($payload));
+        $this->checksum = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
     }
 
     public function getId(): ?int

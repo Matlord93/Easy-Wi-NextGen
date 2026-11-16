@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application\Query;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\Instance;
 
 final class InstanceQueryHostResolver
@@ -135,7 +136,7 @@ final class InstanceQueryHostResolver
     }
 
     /**
-     * @param array<string, mixed> $setupVars
+     * @param array<array-key, mixed> $setupVars
      */
     private function resolveNetworkMode(Instance $instance, array $setupVars): string
     {
@@ -145,13 +146,10 @@ final class InstanceQueryHostResolver
         }
 
         $requirements = $instance->getTemplate()->getRequirements();
-        $queryConfigRaw = $requirements['query'] ?? null;
-        $queryConfig = JsonArray::orEmpty($queryConfigRaw);
-        $shareHostNetwork = $queryConfig['share_host_network'] ?? $queryConfig['local_only'] ?? null;
+        $queryConfig = JsonArray::orEmpty($requirements['query'] ?? null);
+        $shareHostNetwork = strtolower(trim(ScalarValue::text($queryConfig['share_host_network'] ?? $queryConfig['local_only'] ?? null)));
 
-        $shareHost = is_bool($shareHostNetwork)
-            ? $shareHostNetwork
-            : in_array(strtolower(trim((string) $shareHostNetwork)), ['1', 'true', 'yes'], true);
+        $shareHost = in_array($shareHostNetwork, ['1', 'true', 'yes'], true);
 
         return $shareHost ? 'host' : 'isolated';
     }

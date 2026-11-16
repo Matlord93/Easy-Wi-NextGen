@@ -7,7 +7,7 @@ namespace App\Module\HostingPanel\Application\Security;
 use App\Module\HostingPanel\Domain\Entity\Secret;
 use Doctrine\ORM\EntityManagerInterface;
 
-class SecretVault
+final class SecretVault
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -46,7 +46,12 @@ class SecretVault
             return null;
         }
 
-        $plain = sodium_crypto_secretbox_open(base64_decode($secret->getCiphertext(), true) ?: '', base64_decode($secret->getNonce(), true) ?: '', $this->binaryKey());
+        $ciphertext = base64_decode($secret->getCiphertext(), true);
+        $nonce = base64_decode($secret->getNonce(), true);
+        if (false === $ciphertext || false === $nonce) {
+            return null;
+        }
+        $plain = sodium_crypto_secretbox_open($ciphertext, $nonce, $this->binaryKey());
 
         return is_string($plain) ? $plain : null;
     }

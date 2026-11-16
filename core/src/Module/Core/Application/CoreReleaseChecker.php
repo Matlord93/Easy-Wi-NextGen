@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+
 use Psr\Cache\CacheItemPoolInterface;
 
 final class CoreReleaseChecker
@@ -52,7 +53,7 @@ final class CoreReleaseChecker
         $channel = $this->resolver()->normalizeChannel($channel);
         $cacheKey = sprintf('%s.%s.%s', self::CACHE_KEY, hash('sha256', $this->repository), $channel);
         $item = $this->cache->getItem($cacheKey);
-        $cached = $item->get();
+        $cached = self::cacheText($item->get());
         if (!$force && $item->isHit() && is_string($cached) && $cached !== '') {
             return $cached;
         }
@@ -202,5 +203,10 @@ final class CoreReleaseChecker
         }
 
         throw new \LogicException('GithubReleaseResolver service is not configured.');
+    }
+
+    private static function cacheText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 }

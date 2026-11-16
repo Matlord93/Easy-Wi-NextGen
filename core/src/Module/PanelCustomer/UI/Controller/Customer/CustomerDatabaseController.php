@@ -6,6 +6,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
+use App\Infrastructure\Config\ScalarValue;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
@@ -98,7 +99,7 @@ final class CustomerDatabaseController
 
         $scopedName = $this->namingPolicy->buildCustomerScopedName(EntityIdentifier::require($customer->getId()), $name);
         $errors = array_merge($errors, $this->namingPolicy->validateDatabaseName($scopedName));
-        if ($errors !== []) {
+        if ($errors !== [] || $node === null) {
             return $this->renderWithErrors($customer, $errors);
         }
 
@@ -274,8 +275,8 @@ final class CustomerDatabaseController
             $primary = $request->request->all('column_primary');
             $auto = $request->request->all('column_auto_increment');
             $columns = [];
-            foreach ($names as $i => $n) {
-                $name = trim((string) $n);
+            foreach (array_keys($names) as $i) {
+                $name = trim(ScalarValue::text($names[$i]));
                 if ($name === '') {
                     continue;
                 }
@@ -396,7 +397,7 @@ final class CustomerDatabaseController
             return new Response($this->translator->trans('customer_databases_export_system_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $filename = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $database->getName()) . '.sql';
+        $filename = (preg_replace('/[^a-zA-Z0-9_\-]/', '_', $database->getName()) ?? '') . '.sql';
         $lines = $this->databaseTableService->exportDatabaseSql($database);
         $response = new StreamedResponse(self::sqlChunks($lines));
         $response->headers->set('Content-Type', 'application/sql; charset=UTF-8');
@@ -425,7 +426,7 @@ final class CustomerDatabaseController
             return new Response($this->translator->trans('customer_databases_invalid_table_name'), Response::HTTP_BAD_REQUEST);
         }
 
-        $filename = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $database->getName() . '_' . $table) . '.sql';
+        $filename = (preg_replace('/[^a-zA-Z0-9_\-]/', '_', $database->getName() . '_' . $table) ?? '') . '.sql';
         $response = new StreamedResponse(self::sqlChunks($lines));
         $response->headers->set('Content-Type', 'application/sql; charset=UTF-8');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
@@ -449,7 +450,7 @@ final class CustomerDatabaseController
             return $this->renderWithErrors($customer, ['customer_databases_import_system_forbidden']);
         }
 
-        $file = $request->files->get('sql_file');
+        $file = $this->uploadedSqlFile($request->files->get('sql_file'));
         $filename = $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? $file->getClientOriginalName() : '';
         $content = $file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? (string) file_get_contents($file->getPathname()) : '';
 
@@ -476,6 +477,11 @@ final class CustomerDatabaseController
         }
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases/'.EntityIdentifier::require($database->getId()).'/tables']);
+    }
+
+    private function uploadedSqlFile(mixed $value): ?\Symfony\Component\HttpFoundation\File\UploadedFile
+    {
+        return $value instanceof \Symfony\Component\HttpFoundation\File\UploadedFile ? $value : null;
     }
 
     private function findLatestSuccessfulCredentialJob(Database $database): ?Job

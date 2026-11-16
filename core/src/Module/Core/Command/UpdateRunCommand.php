@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Module\Core\Application\UpdateJobServiceInterface;
 use App\Module\Setup\Application\WebinterfaceUpdateServiceInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -62,8 +64,10 @@ final class UpdateRunCommand extends Command
             $job['status'] = 'running';
             $job['currentStep'] = 'apply_update';
             $job['nextStep'] = 'await_agent_reload';
-            $job['payload']['reload_job_id'] = $result->reloadJobId;
-            $job['logPath'] = $result->logPath ?? ($job['logPath'] ?? null);
+            $payload = JsonMap::fromValue($job['payload'] ?? null) ?? [];
+            $payload['reload_job_id'] = $result->reloadJobId;
+            $job['payload'] = $payload;
+            $job['logPath'] = $result->logPath ?? self::logPath($job['logPath'] ?? null);
             $job['finishedAt'] = null;
             $job['exitCode'] = null;
             file_put_contents($jobPath,(string)json_encode($job,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n");
@@ -73,7 +77,7 @@ final class UpdateRunCommand extends Command
         $job['status'] = $result->success ? 'success' : 'failed';
         $job['finishedAt'] = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
         $job['exitCode'] = $result->success ? 0 : 1;
-        $job['logPath'] = $result->logPath ?? ($job['logPath'] ?? null);
+        $job['logPath'] = $result->logPath ?? self::logPath($job['logPath'] ?? null);
         if (!$result->success && $result->error !== null) {
             $job['error'] = $result->error;
         }
@@ -91,8 +95,8 @@ final class UpdateRunCommand extends Command
             'update' => $this->runStep($job, $jobPath, 'update', fn () => $this->updateService->applyUpdate()),
             'migrate' => $this->runStep($job, $jobPath, 'migrate', fn () => $this->updateService->applyMigrations()),
             'both' => $this->runBoth($job, $jobPath),
-            'rollback' => new \App\Module\Core\Update\UpdateResult(false, 'Rollback ist aktuell nicht implementiert.', 'rollback_not_implemented', $job['logPath'] ?? null, null, null),
-            default => new \App\Module\Core\Update\UpdateResult(false, 'Unbekannter Job-Typ.', 'unknown_job_type: ' . $type, $job['logPath'] ?? null, null, null),
+            'rollback' => new \App\Module\Core\Update\UpdateResult(false, 'Rollback ist aktuell nicht implementiert.', 'rollback_not_implemented', self::logPath($job['logPath'] ?? null), null, null),
+            default => new \App\Module\Core\Update\UpdateResult(false, 'Unbekannter Job-Typ.', 'unknown_job_type: ' . $type, self::logPath($job['logPath'] ?? null), null, null),
         };
     }
 
@@ -117,5 +121,10 @@ final class UpdateRunCommand extends Command
         $job['lastStep'] = $step;
         file_put_contents($jobPath, (string) json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
         return $callback();
+    }
+
+    private static function logPath(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 }

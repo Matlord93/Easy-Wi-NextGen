@@ -120,7 +120,7 @@ class Instance implements ResourceEventSource
     #[ORM\Column(type: 'json')]
     private array $setupSecrets = [];
 
-    /** @var array<string, array{content: string, updated_at: string, format?: string, name?: string, source?: string, scope?: string, editable?: bool, last_updated_at?: string, last_hash?: string, previous_hash?: string, last_applied_at?: string, last_apply_error_code?: ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}> */
+    /** @var array<string, array{content: string, updated_at: string, format?: string, name?: string, source?: string, scope?: string, editable?: bool, last_updated_at?: string, last_hash?: string, previous_hash?: null|string, last_applied_at?: string, last_apply_error_code?: ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}> */
     #[ORM\Column(type: 'json', name: 'config_overrides')]
     private array $configOverrides = [];
 
@@ -564,7 +564,7 @@ class Instance implements ResourceEventSource
 
     /**
      * @return array<string, array{content: string, updated_at: string, format?: string, name?: string, source?: string, scope?: string, editable?: bool, last_updated_at?: string,
-     * last_hash?: string, previous_hash?: string, last_applied_at?: string, last_apply_error_code?:
+     * last_hash?: string, previous_hash?: null|string, last_applied_at?: string, last_apply_error_code?:
      * ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}>
      */
     public function getConfigOverrides(): array
@@ -573,7 +573,7 @@ class Instance implements ResourceEventSource
     }
 
     /**
-     * @param array<string, array{content: string, updated_at: string, format?: string, name?: string, source?: string, scope?: string, editable?: bool, last_updated_at?: string, last_hash?: string, previous_hash?: string, last_applied_at?: string, last_apply_error_code?: ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}> $configOverrides
+     * @param array<string, array{content: string, updated_at: string, format?: string, name?: string, source?: string, scope?: string, editable?: bool, last_updated_at?: string, last_hash?: string, previous_hash?: null|string, last_applied_at?: string, last_apply_error_code?: ?string, last_apply_error_message?: ?string, last_apply_status?: 'failed'|'succeeded'}> $configOverrides
      */
     public function setConfigOverrides(array $configOverrides): void
     {
@@ -591,10 +591,9 @@ class Instance implements ResourceEventSource
         $now = (new \DateTimeImmutable())->format(DATE_ATOM);
         $newHash = hash('sha256', $content);
         $previousHash = null;
-        if (isset($this->configOverrides[$normalized]) && is_array($this->configOverrides[$normalized])) {
-            $previousHash = is_string($this->configOverrides[$normalized]['last_hash'] ?? null)
-                ? (string) $this->configOverrides[$normalized]['last_hash']
-                : hash('sha256', ($this->configOverrides[$normalized]['content'] ?? ''));
+        if (isset($this->configOverrides[$normalized])) {
+            $previousHash = $this->configOverrides[$normalized]['last_hash']
+                ?? hash('sha256', $this->configOverrides[$normalized]['content']);
         }
 
         $this->configOverrides[$normalized] = [

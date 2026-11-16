@@ -137,7 +137,7 @@ final class AdminMaintenanceWindowController
         }
 
         $formData = $this->parsePayload($request);
-        if ($formData['errors'] !== []) {
+        if ($formData['errors'] !== [] || !$formData['start_at'] instanceof \DateTimeImmutable || !$formData['end_at'] instanceof \DateTimeImmutable) {
             return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
         }
 
@@ -197,7 +197,7 @@ final class AdminMaintenanceWindowController
         }
 
         $formData = $this->parsePayload($request);
-        if ($formData['errors'] !== []) {
+        if ($formData['errors'] !== [] || !$formData['start_at'] instanceof \DateTimeImmutable || !$formData['end_at'] instanceof \DateTimeImmutable) {
             return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST, $window);
         }
 
@@ -336,6 +336,7 @@ final class AdminMaintenanceWindowController
         return $data;
     }
 
+    /** @param array{errors: list<string>, title: string, message: null|string, visible_public: bool, start_at: \DateTimeImmutable|null, end_at: \DateTimeImmutable|null, affected_component_ids: array<array-key, int>} $formData */
     private function renderFormWithErrors(Request $request, array $formData, int $status, ?MaintenanceWindow $window = null): Response
     {
         $site = $this->siteResolver->resolve($request);
@@ -422,8 +423,9 @@ final class AdminMaintenanceWindowController
     {
         $ids = [];
         foreach ($components as $component) {
-            if ($component->getId() !== null) {
-                $ids[] = $component->getId();
+            $id = $component->getId();
+            if ($id !== null) {
+                $ids[] = $id;
             }
         }
 
@@ -443,8 +445,9 @@ final class AdminMaintenanceWindowController
         $components = $this->componentRepository->findBy(['siteId' => $siteId, 'id' => $componentIds]);
         $componentsById = [];
         foreach ($components as $component) {
-            if ($component->getId() !== null) {
-                $componentsById[$component->getId()] = $component;
+            $id = $component->getId();
+            if ($id !== null) {
+                $componentsById[$id] = $component;
             }
         }
 
@@ -465,8 +468,8 @@ final class AdminMaintenanceWindowController
     private function toIntArray(array $values): array
     {
         $result = [];
-        foreach ($values as $value) {
-            $intValue = $this->toInt($value);
+        foreach (array_keys($values) as $key) {
+            $intValue = $this->toInt($values[$key]);
             if ($intValue !== null) {
                 $result[] = $intValue;
             }

@@ -23,12 +23,12 @@ final class ProxmoxDisks
         return $kind === 'qemu' && preg_match('/^(?:ide[0-3]|sata[0-5]|scsi(?:[0-9]|[12][0-9]|30)|virtio(?:[0-9]|1[0-5]))$/D', $device) === 1;
     }
 
-    /** @return list<array{device: array-key, size_bytes: int, minimum_gib: int}> */
+    /** @return list<array{device: string, size_bytes: int, minimum_gib: int}> */
     public static function attached(array $config, string $kind): array
     {
         $disks = [];
         foreach ($config as $device => $raw) {
-            if (!self::validDevice($kind, (string) $device) || !is_string($raw)) {
+            if (!is_string($device) || !self::validDevice($kind, $device) || !is_string($raw)) {
                 continue;
             }
             $parts = explode(',', $raw);

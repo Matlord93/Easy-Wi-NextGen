@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
+use Doctrine\ORM\QueryBuilder;
+
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Domain;
@@ -56,7 +60,6 @@ final class MailPipelineDiagnoseCommand extends Command
 
     private function runDiagnostics(SymfonyStyle $io): int
     {
-        $hasAdvisories = false;
         $hasOperationalIssues = false;
         $hasBlockingProvisioningIssues = false;
 
@@ -175,8 +178,7 @@ final class MailPipelineDiagnoseCommand extends Command
             $io->error('Mail pipeline has blocking provisioning inconsistencies. Bind affected domains and re-trigger apply jobs.');
         } elseif ($hasOperationalIssues) {
             $io->warning('Mail pipeline has operational issues. Resolve warnings above and re-run diagnostics.');
-        } elseif ($hasAdvisories) {
-            $io->note('Mail pipeline is operational, but advisory inconsistencies were detected.');
+
         } else {
             $io->success('Mail pipeline looks consistent.');
         }
@@ -211,7 +213,8 @@ final class MailPipelineDiagnoseCommand extends Command
             ->getArrayResult();
 
         $names = [];
-        foreach ($rows as $row) {
+        foreach (array_keys($rows) as $index) {
+            $row = JsonArray::orEmpty($rows[$index]);
             $name = trim((string) ($row['domain_name'] ?? ''));
             if ($name !== '') {
                 $names[] = $name;
@@ -300,7 +303,8 @@ final class MailPipelineDiagnoseCommand extends Command
 
         $rows = $qb->getQuery()->getArrayResult();
         $counts = [];
-        foreach ($rows as $row) {
+        foreach (array_keys($rows) as $index) {
+            $row = JsonArray::orEmpty($rows[$index]);
             $status = $this->normalizeStatusKey($row['status'] ?? null);
             $counts[$status] = (int) ($row['total'] ?? 0);
         }
@@ -378,7 +382,7 @@ final class MailPipelineDiagnoseCommand extends Command
     /**
      * @return list<string>
      */
-    private function mailTypePredicates($qb): array
+    private function mailTypePredicates(QueryBuilder $qb): array
     {
         $predicates = [];
         foreach (self::MAIL_JOB_PREFIXES as $index => $prefix) {

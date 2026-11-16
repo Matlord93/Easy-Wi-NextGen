@@ -99,7 +99,7 @@ final readonly class VmConsoleBroker
 
     public function assertGateway(Request $request): void
     {
-        if (!$this->configured() || !hash_equals($this->gatewaySecret, $request->headers->get('X-EasyWI-Console-Gateway', ''))) {
+        if (null === $this->gatewaySecret || !$this->configured() || !hash_equals($this->gatewaySecret, $request->headers->get('X-EasyWI-Console-Gateway', ''))) {
             throw new AccessDeniedHttpException();
         }
     }
@@ -175,12 +175,12 @@ final readonly class VmConsoleBroker
             $connection = $assignment->getCluster()->connection($this->crypto);
             $node = (string) $guest['node'];
             $vnc = $this->api->vncProxy($connection, $node, $assignment->getVmId(), $assignment->getKind());
-            $url = preg_replace('/^https:/', 'wss:', rtrim($connection->baseUrl, '/')).'/api2/json/nodes/'.rawurlencode($node).'/'.$assignment->getKind().'/'.$assignment->getVmId().'/vncwebsocket?'.http_build_query(['port' => $vnc['port'], 'vncticket' => $vnc['ticket']], '', '&', PHP_QUERY_RFC3986);
+            $url = (str_starts_with($connection->baseUrl, 'https:') ? 'wss:'.substr(rtrim($connection->baseUrl, '/'), 6) : rtrim($connection->baseUrl, '/')).'/api2/json/nodes/'.rawurlencode($node).'/'.$assignment->getKind().'/'.$assignment->getVmId().'/vncwebsocket?'.http_build_query(['port' => $vnc['port'], 'vncticket' => $vnc['ticket']], '', '&', PHP_QUERY_RFC3986);
 
             return ['session_id' => $grant->getId(), 'expires_at' => $grant->getExpiresAt()->getTimestamp(), 'url' => $url, 'authorization' => 'PVEAPIToken='.$connection->tokenId.'='.$connection->tokenSecret, 'password' => $vnc['ticket'], 'skip_tls_verify' => !$connection->verifyTls];
         }
         $base = $this->kvmConsoleBase($assignment->getNode());
-        $url = preg_replace('/^http/', 'ws', $base).'/v1/kvm/console/'.$assignment->getVmUuid();
+        $url = ('ws'.substr($base, 4)).'/v1/kvm/console/'.$assignment->getVmUuid();
 
         return ['session_id' => $grant->getId(), 'expires_at' => $grant->getExpiresAt()->getTimestamp(), 'url' => $url, 'authorization' => 'Bearer '.$this->credentials->resolveForAgent($assignment->getNode())->getSecret(), 'password' => ''];
     }
@@ -224,7 +224,7 @@ final readonly class VmConsoleBroker
 
             return;
         }
-        if (1 !== ($assignment->getNode()->getMetadata()['kvm_managed']['console_version'] ?? null) || $this->kvm->availability($assignment->getNode())) {
+        if (1 !== ($assignment->getNode()->getMetadata()['kvm_managed']['console_version'] ?? null) || null !== $this->kvm->availability($assignment->getNode())) {
             throw new \RuntimeException('KVM node unavailable.');
         }
         // Fresh validation of the domain and Unix socket is performed by the

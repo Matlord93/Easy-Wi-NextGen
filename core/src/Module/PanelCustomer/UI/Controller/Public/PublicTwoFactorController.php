@@ -145,7 +145,7 @@ final class PublicTwoFactorController
         return $user;
     }
 
-    private function clearPending($session): void
+    private function clearPending(\Symfony\Component\HttpFoundation\Session\SessionInterface $session): void
     {
         $session->remove('auth_pending_user_id');
         $session->remove('auth_pending_since');
@@ -168,6 +168,6 @@ final class PublicTwoFactorController
     {
         $loader = $this->twig->getLoader();
 
-        return method_exists($loader, 'exists') && $loader->exists($template);
+        return $loader->exists($template);
     }
 }

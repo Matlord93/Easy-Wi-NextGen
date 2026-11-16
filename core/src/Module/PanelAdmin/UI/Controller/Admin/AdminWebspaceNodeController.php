@@ -64,7 +64,7 @@ final class AdminWebspaceNodeController
             return $validation;
         }
 
-        $node = new WebspaceNode((string) $data['name'], (string) $data['host'], (string) $data['base_path'], $validation['agent']);
+        $node = new WebspaceNode((string) $data['name'], (string) $data['host'], (string) $data['base_path'], $validation['agent'] ?? throw new \LogicException('Validated new webspace node requires an agent.'));
         $this->hydrateNode($node, $data);
         $this->entityManager->persist($node);
         $this->entityManager->flush();
@@ -94,7 +94,7 @@ final class AdminWebspaceNodeController
         }
 
         if (isset($validation['agent'])) {
-            $node->setAgent($validation['agent']);
+            $node->setAgent($validation['agent'] ?? throw new \LogicException('Validated new webspace node requires an agent.'));
         }
         if (isset($data['name'])) {
             $node->setName((string) $data['name']);
@@ -183,7 +183,7 @@ final class AdminWebspaceNodeController
     }
 
     /**
-     * @param array<string,mixed> $data
+     * @param array<array-key, mixed> $data
      * @return array{agent?:\App\Module\Core\Domain\Entity\Agent}|JsonResponse
      */
     private function validateNodePayload(array $data, bool $partial = false): array|JsonResponse
@@ -213,7 +213,7 @@ final class AdminWebspaceNodeController
     }
 
     /**
-     * @param array<string,mixed> $data
+     * @param array<array-key, mixed> $data
      */
     private function hydrateNode(WebspaceNode $node, array $data): void
     {

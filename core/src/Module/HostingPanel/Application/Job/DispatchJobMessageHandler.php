@@ -11,7 +11,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
-class DispatchJobMessageHandler
+final class DispatchJobMessageHandler
 {
     public function __construct(private readonly EntityManagerInterface $entityManager)
     {

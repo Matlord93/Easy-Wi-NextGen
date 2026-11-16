@@ -61,9 +61,9 @@ final class MailAutodiscoverController
         }
 
         $imapHost = $node->getImapHost() !== '' ? $node->getImapHost() : sprintf('mail.%s', $domain);
-        $imapPort = $node?->getImapPort() ?? 993;
+        $imapPort = $node->getImapPort();
         $smtpHost = $node->getSmtpHost() !== '' ? $node->getSmtpHost() : sprintf('mail.%s', $domain);
-        $smtpPort = $node?->getSmtpPort() ?? 587;
+        $smtpPort = $node->getSmtpPort();
 
         $imapSocketType = $imapPort === 993 ? 'SSL' : 'STARTTLS';
         $smtpSocketType = $smtpPort === 465 ? 'SSL' : 'STARTTLS';
@@ -98,7 +98,8 @@ final class MailAutodiscoverController
 
     private function extractEmailFromOutlookXml(string $body): ?string
     {
-        if (trim($body) === '') {
+        $body = trim($body);
+        if ($body === '') {
             return null;
         }
 
@@ -135,7 +136,6 @@ final class MailAutodiscoverController
         string $smtpAuth,
     ): string {
         $email       = htmlspecialchars($email, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-        $displayName = htmlspecialchars($displayName, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         $imapHost    = htmlspecialchars($imapHost, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         $smtpHost    = htmlspecialchars($smtpHost, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         $imapSsl     = htmlspecialchars($imapSsl, ENT_XML1 | ENT_QUOTES, 'UTF-8');

@@ -128,6 +128,6 @@ class MetricAggregate
         }
 
         $n = max(1, $this->sampleCount - 1);
-        return (($currentAvg * $n) + $value) / ($n + 1);
+        return (($currentAvg * (float) $n) + $value) / (float) ($n + 1);
     }
 }

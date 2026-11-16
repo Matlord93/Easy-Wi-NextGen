@@ -37,12 +37,6 @@ final class MusicbotRuntimeStatusNormalizer
 
         $status = $this->buildPlaybackStatus($payload);
         $payload['playback_status'] = $status + (JsonArray::orEmpty($payload['playback_status'] ?? null));
-        // Ensure normalized values win over stale legacy fields in downstream templates.
-        foreach ($status as $key => $value) {
-            if (in_array($key, ['connected','state_connected','ts_server_connected','voice_client_available','capability_status','audio_injection_ready','audio_backend_ready','audio_backend_status','audio_backend_message','diagnostic','runtime_ready','teamspeak_connected','backend','active_backend','output_backend'], true)) {
-                $payload['playback_status'][$key] = $value;
-            }
-        }
         $payload['runtime_ready'] = $status['runtime_ready'];
         $payload['teamspeak_connected'] = $status['teamspeak_connected'];
         $payload['audio_backend_ready'] = $status['audio_backend_ready'];

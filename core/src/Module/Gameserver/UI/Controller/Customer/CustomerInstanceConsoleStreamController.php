@@ -48,7 +48,7 @@ final class CustomerInstanceConsoleStreamController
             throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
         }
 
-        $isOwner = $instance->getCustomer()?->getId() === $actor->getId();
+        $isOwner = $instance->getCustomer()->getId() === $actor->getId();
         $isAdmin = $actor->getType() === UserType::Admin;
         if (!$isOwner && !$isAdmin) {
             throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));

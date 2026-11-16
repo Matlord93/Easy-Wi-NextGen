@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Infrastructure\Config\JsonArray;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Musicbot\Application\MusicbotAutoDjService;
@@ -54,7 +56,7 @@ final class MusicbotWorkflowExecutor
                 $logLines[] = $this->runAction($action, $workflow->getInstance(), $workflow, $context);
             }
 
-            $durationMs = (int) ((microtime(true) - $start) * 1000);
+            $durationMs = (int) ((microtime(true) - $start) * 1000.0);
             $execution->markCompleted(implode("\n", $logLines), $durationMs);
 
             $this->runtimeEventService->record(
@@ -65,7 +67,7 @@ final class MusicbotWorkflowExecutor
                 ['workflow_id' => $workflow->getId(), 'duration_ms' => $durationMs],
             );
         } catch (\Throwable $e) {
-            $durationMs = (int) ((microtime(true) - $start) * 1000);
+            $durationMs = (int) ((microtime(true) - $start) * 1000.0);
             $execution->markFailed($e->getMessage(), implode("\n", $logLines), $durationMs);
 
             $this->runtimeEventService->record(
@@ -164,7 +166,7 @@ final class MusicbotWorkflowExecutor
             throw new \RuntimeException(sprintf('Webhook request to "%s" failed.', $url));
         }
 
-        $statusLine = $responseHeaders[0] ?? 'Unknown';
+        $statusLine = ScalarValue::text($responseHeaders[0] ?? null, 'Unknown');
         preg_match('/HTTP\/\S+\s+(\d+)/', $statusLine, $m);
         $statusCode = (int) ($m[1] ?? 0);
 

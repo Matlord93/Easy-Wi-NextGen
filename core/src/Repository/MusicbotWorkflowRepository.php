@@ -72,7 +72,7 @@ final class MusicbotWorkflowRepository extends ServiceEntityRepository
         if (isset($filters['trigger_type'])) {
             $type = MusicbotWorkflowTriggerType::tryFrom((string) $filters['trigger_type']);
             if ($type !== null) {
-                $qb->andWhere('w.triggerType = :triggerType')->setParameter('triggerType', $type);
+                $qb->andWhere('w.triggerType = :triggerType')->setParameter('triggerType', $type->value);
             }
         }
         if (isset($filters['enabled'])) {

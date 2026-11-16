@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\ChangelogFetcher;
 use App\Module\Core\Application\CoreReleaseChecker;
@@ -72,12 +74,12 @@ final class UpdateDiagnoseCommand extends Command
             $io->text('No jobs found.');
         } else {
             $io->listing([
-                sprintf('ID: %s', $latestJob['id'] ?? 'n/a'),
-                sprintf('Type: %s', $latestJob['type'] ?? 'n/a'),
-                sprintf('Status: %s', $latestJob['status'] ?? 'n/a'),
-                sprintf('Started: %s', $latestJob['startedAt'] ?? 'n/a'),
-                sprintf('Finished: %s', $latestJob['finishedAt'] ?? 'n/a'),
-                sprintf('Exit: %s', $latestJob['exitCode'] ?? 'n/a'),
+                sprintf('ID: %s', ScalarValue::text($latestJob['id'] ?? null, 'n/a')),
+                sprintf('Type: %s', ScalarValue::text($latestJob['type'] ?? null, 'n/a')),
+                sprintf('Status: %s', ScalarValue::text($latestJob['status'] ?? null, 'n/a')),
+                sprintf('Started: %s', ScalarValue::text($latestJob['startedAt'] ?? null, 'n/a')),
+                sprintf('Finished: %s', ScalarValue::text($latestJob['finishedAt'] ?? null, 'n/a')),
+                sprintf('Exit: %s', ScalarValue::text($latestJob['exitCode'] ?? null, 'n/a')),
             ]);
         }
 
@@ -177,7 +179,7 @@ final class UpdateDiagnoseCommand extends Command
         }
 
         $owner = function_exists('posix_getpwuid') ? posix_getpwuid((int) fileowner($projectDir)) : false;
-        $io->text(sprintf('Repository owner: %s', is_array($owner) ? (string) ($owner['name'] ?? 'unknown') : (string) fileowner($projectDir)));
+        $io->text(sprintf('Repository owner: %s', is_array($owner) ? $owner['name'] ?? 'unknown' : (string) fileowner($projectDir)));
         $safeDirectories = $this->optionalCommandOutput(['git', 'config', '--global', '--get-all', 'safe.directory']);
         $isSafe = in_array($projectDir, preg_split('/\R/', $safeDirectories) ?: [], true);
         $io->text(sprintf('safe.directory: %s', $isSafe ? 'configured' : 'not configured for this user'));

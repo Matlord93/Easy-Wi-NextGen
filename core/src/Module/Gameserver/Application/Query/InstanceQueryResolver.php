@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application\Query;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Domain\Entity\PortBlock;
 
@@ -27,10 +28,9 @@ final class InstanceQueryResolver
     {
         $template = $instance->getTemplate();
         $requirements = $template->getRequirements();
-        $queryConfigRaw = $requirements['query'] ?? null;
-        $queryConfig = JsonArray::orEmpty($queryConfigRaw);
+        $queryConfig = JsonMap::fromValue($requirements['query'] ?? null) ?? [];
 
-        $type = $this->resolveQueryType($instance, $requirements, $queryConfigRaw, $queryConfig);
+        $type = $this->resolveQueryType($instance, $requirements, $requirements['query'] ?? null, $queryConfig);
         if ($type === null) {
             return InstanceQuerySpec::unsupported();
         }
@@ -70,7 +70,7 @@ final class InstanceQueryResolver
     }
 
     /**
-     * @param array<string, mixed> $requirements
+     * @param array<array-key, mixed> $requirements
      * @param array<string, mixed> $queryConfig
      */
     private function resolveQueryType(Instance $instance, array $requirements, mixed $queryConfigRaw, array $queryConfig): ?string
@@ -137,7 +137,8 @@ final class InstanceQueryResolver
         $requiredPorts = $instance->getTemplate()->getRequiredPorts();
 
         $hasDedicatedQueryPort = false;
-        foreach ($requiredPorts as $definition) {
+        foreach (array_keys($requiredPorts) as $definitionKey) {
+            $definition = JsonArray::orEmpty($requiredPorts[$definitionKey]);
             $name = strtolower((string) ($definition['name'] ?? ''));
             if ($name === 'query' || str_contains($name, 'query')) {
                 $hasDedicatedQueryPort = true;
@@ -222,7 +223,7 @@ final class InstanceQueryResolver
     }
 
     /**
-     * @param array<string, mixed> $setupVars
+     * @param array<array-key, mixed> $setupVars
      */
     private function resolveGamePortFromSetupVars(array $setupVars): ?int
     {
@@ -244,7 +245,7 @@ final class InstanceQueryResolver
     }
 
     /**
-     * @param array<int, array<string, mixed>> $requiredPorts
+     * @param array<array-key, mixed> $requiredPorts
      */
     private function resolvePort(?PortBlock $portBlock, array $requiredPorts, string $target): ?int
     {
@@ -254,7 +255,8 @@ final class InstanceQueryResolver
 
         $ports = $portBlock->getPorts();
 
-        foreach ($requiredPorts as $index => $definition) {
+        foreach (array_keys($requiredPorts) as $index) {
+            $definition = JsonArray::orEmpty($requiredPorts[$index]);
             if (!isset($ports[$index])) {
                 continue;
             }

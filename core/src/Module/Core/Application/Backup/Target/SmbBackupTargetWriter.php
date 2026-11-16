@@ -31,11 +31,11 @@ final class SmbBackupTargetWriter implements BackupTargetWriterInterface
     #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
-        $host     = (string) ($target->config()['host'] ?? '');
-        $share    = (string) ($target->config()['share'] ?? '');
-        $path     = trim((string) ($target->config()['path'] ?? ''), '/\\');
-        $username = (string) ($target->secrets()['username'] ?? '');
-        $password = (string) ($target->secrets()['password'] ?? '');
+        $host     = self::configText($target->config()['host'] ?? '');
+        $share    = self::configText($target->config()['share'] ?? '');
+        $path     = trim(self::configText($target->config()['path'] ?? ''), '/\\');
+        $username = self::configText($target->secrets()['username'] ?? '');
+        $password = self::configText($target->secrets()['password'] ?? '');
 
         if ($host === '' || $share === '') {
             throw new \InvalidArgumentException('SMB backup target requires host and share.');
@@ -87,5 +87,14 @@ final class SmbBackupTargetWriter implements BackupTargetWriterInterface
         $remotePath = $path !== '' ? $path.'/'.$archiveName : $archiveName;
 
         return sprintf('smb://%s/%s/%s', $host, $share, $remotePath);
+    }
+
+    private static function configText(mixed $value): string
+    {
+        if ($value === null || is_scalar($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException('Backup target field must be scalar.');
     }
 }

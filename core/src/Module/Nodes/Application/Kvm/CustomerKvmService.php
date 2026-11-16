@@ -55,9 +55,10 @@ final readonly class CustomerKvmService
             }
             $safe['snapshots'] = array_values(array_filter(JsonArray::orEmpty($row['snapshots'] ?? null), static fn ($name): bool => is_string($name) && 1 === preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $name)));
             $safe['backups'] = [];
-            foreach (JsonArray::orEmpty($row['backups'] ?? null) as $rawBackup) {
-                $backup = JsonMap::strings($rawBackup);
-                $raw = JsonArray::orEmpty($rawBackup);
+            $backups = JsonArray::orEmpty($row['backups'] ?? null);
+            foreach (array_keys($backups) as $index) {
+                $raw = JsonArray::orEmpty($backups[$index]);
+                $backup = JsonMap::strings($raw);
                 if (!isset($backup['id']) || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $backup['id'])) {
                     continue;
                 }

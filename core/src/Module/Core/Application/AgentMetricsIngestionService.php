@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\MetricAggregate;
 use App\Module\Core\Domain\Entity\MetricSample;
@@ -75,9 +77,9 @@ final class AgentMetricsIngestionService
         }
 
         $max = max(
-            (float) ($metrics['cpu']['percent'] ?? 0),
-            (float) ($metrics['memory']['percent'] ?? 0),
-            (float) ($metrics['disk']['percent'] ?? 0),
+            (float) (JsonArray::orEmpty($metrics['cpu'] ?? null)['percent'] ?? 0),
+            (float) (JsonArray::orEmpty($metrics['memory'] ?? null)['percent'] ?? 0),
+            (float) (JsonArray::orEmpty($metrics['disk'] ?? null)['percent'] ?? 0),
         );
 
         if ($max >= $critical) {
@@ -98,11 +100,11 @@ final class AgentMetricsIngestionService
             return null;
         }
 
-        $cpu = is_numeric($metrics['cpu']['percent'] ?? null) ? (float) $metrics['cpu']['percent'] : null;
-        $memory = is_numeric($metrics['memory']['percent'] ?? null) ? (float) $metrics['memory']['percent'] : null;
-        $disk = is_numeric($metrics['disk']['percent'] ?? null) ? (float) $metrics['disk']['percent'] : null;
-        $sent = is_numeric($metrics['net']['bytes_sent'] ?? null) ? (int) $metrics['net']['bytes_sent'] : null;
-        $recv = is_numeric($metrics['net']['bytes_recv'] ?? null) ? (int) $metrics['net']['bytes_recv'] : null;
+        $cpu = is_numeric(JsonArray::orEmpty($metrics['cpu'] ?? null)['percent'] ?? null) ? (float) JsonArray::orEmpty($metrics['cpu'] ?? null)['percent'] : null;
+        $memory = is_numeric(JsonArray::orEmpty($metrics['memory'] ?? null)['percent'] ?? null) ? (float) JsonArray::orEmpty($metrics['memory'] ?? null)['percent'] : null;
+        $disk = is_numeric(JsonArray::orEmpty($metrics['disk'] ?? null)['percent'] ?? null) ? (float) JsonArray::orEmpty($metrics['disk'] ?? null)['percent'] : null;
+        $sent = is_numeric(JsonArray::orEmpty($metrics['net'] ?? null)['bytes_sent'] ?? null) ? (int) JsonArray::orEmpty($metrics['net'] ?? null)['bytes_sent'] : null;
+        $recv = is_numeric(JsonArray::orEmpty($metrics['net'] ?? null)['bytes_recv'] ?? null) ? (int) JsonArray::orEmpty($metrics['net'] ?? null)['bytes_recv'] : null;
 
         return new MetricSample($agent, $recordedAt, $cpu, $memory, $disk, $sent, $recv, $metrics);
     }

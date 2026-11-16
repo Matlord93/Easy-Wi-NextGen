@@ -28,7 +28,7 @@ final class CmsTemplateSeeder
         $skipped = 0;
 
         foreach ($this->catalog->listTemplates() as $templateData) {
-            $key = (string) ($templateData['key'] ?? '');
+            $key = $templateData['key'] ?? '';
             if ($key === '') {
                 continue;
             }

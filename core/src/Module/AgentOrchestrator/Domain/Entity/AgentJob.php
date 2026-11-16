@@ -200,7 +200,7 @@ class AgentJob
             return null;
         }
         $clean = [];
-        foreach ($data as $key => $value) {
+        foreach (array_keys($data) as $key) {
             $lower = strtolower((string) $key);
             $isSensitive = false;
             foreach (self::REDACTED_KEYS as $k) {
@@ -212,7 +212,8 @@ class AgentJob
             if ($isSensitive) {
                 continue;
             }
-            $clean[$key] = is_array($value) ? $this->stripSecretKeys($value) : $value;
+            $nested = \App\Infrastructure\Config\JsonArray::fromValue($data[$key]);
+            $clean += [$key => $nested !== null ? $this->stripSecretKeys($nested) : $data[$key]];
         }
 
         return $clean;

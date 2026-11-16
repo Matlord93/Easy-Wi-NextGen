@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Infrastructure\Config\JsonArray;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\Core\Application\AuditLogger;
@@ -207,7 +209,18 @@ final class MusicbotInstanceService
                 if (!array_key_exists($field, $tsConfig)) {
                     continue;
                 }
-                $value = $tsConfig[$field];
+                if ($field === 'chat_scopes') {
+                    $connConfig[$field] = $this->normalizeTeamspeakChatScopes($tsConfig['chat_scopes'] ?? null);
+                    continue;
+                }
+                if ($field === 'command_config') {
+                    $connConfig[$field] = JsonArray::orEmpty($tsConfig['command_config'] ?? null);
+                    continue;
+                }
+                $value = MusicbotInputValue::from($tsConfig[$field]);
+                if (is_array($value)) {
+                    throw new \InvalidArgumentException('TeamSpeak connection fields must contain scalar values.');
+                }
                 if ($field === 'commands_enabled' && (bool) $value) {
                     $this->quotaService->assertTeamspeakCommandsAllowed($customer);
                 }
@@ -221,10 +234,8 @@ final class MusicbotInstanceService
                     'port' => max(1, min(65535, (int) $value)),
                     'codec_bitrate' => trim((string) $value) === '' ? '' : max(1, min(512, (int) $value)),
                     'commands_enabled' => (bool) $value,
-                    'chat_scopes' => $this->normalizeTeamspeakChatScopes($value),
-                    'command_config' => JsonArray::orEmpty($value),
                     'nickname' => substr(trim((string) $value), 0, 30),
-                    'command_prefix' => substr(trim((string) $value), 0, 5) ?: ($connConfig['command_prefix'] ?? $cfg['command_prefix'] ?? '!'),
+                    'command_prefix' => substr(trim((string) $value), 0, 5) ?: ScalarValue::text($connConfig['command_prefix'] ?? $cfg['command_prefix'] ?? '!'),
                     default => trim((string) $value),
                 };
             }
@@ -298,8 +309,8 @@ final class MusicbotInstanceService
             return ['channel', 'private'];
         }
         $scopes = [];
-        foreach ($value as $scope) {
-            $scope = strtolower(trim((string) $scope));
+        foreach (array_keys($value) as $key) {
+            $scope = strtolower(trim(ScalarValue::text($value[$key])));
             if (in_array($scope, ['channel', 'private'], true)) {
                 $scopes[] = $scope;
             }
@@ -315,7 +326,7 @@ final class MusicbotInstanceService
             if (!array_key_exists($field, $tsConfig)) {
                 continue;
             }
-            $value = $tsConfig[$field];
+            $value = MusicbotInputValue::from($tsConfig[$field]);
             if (is_array($value) ? $value !== [] : trim((string) $value) !== '') {
                 return true;
             }

@@ -369,7 +369,15 @@ final class MusicbotRestoreService
 
                 $plugin->setEnabled((bool) ($pluginData['enabled'] ?? false));
                 $plugin->setConfig(JsonMap::fromValue($pluginData['config'] ?? null) ?? []);
-                $plugin->setPermissions(JsonMap::fromValue($pluginData['permissions'] ?? null) ?? []);
+                $permissionValues = JsonArray::orEmpty($pluginData['permissions'] ?? null);
+                $permissions = [];
+                foreach (array_keys($permissionValues) as $permissionKey) {
+                    if (!is_string($permissionValues[$permissionKey])) {
+                        throw new \InvalidArgumentException('Plugin backup permissions must contain strings.');
+                    }
+                    $permissions[] = $permissionValues[$permissionKey];
+                }
+                $plugin->setPermissions($permissions);
 
                 $this->entityManager->flush();
             }

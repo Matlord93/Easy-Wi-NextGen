@@ -212,7 +212,7 @@ final class AdminPortPoolController
         return new Response($this->twig->render('admin/port-pools/index.html.twig', [
             'gameTemplates' => $this->templateRepository->findBy([], ['displayName' => 'ASC']),
             'scopeTokens' => array_reduce($pools, function (array $tokens, PortPool $pool): array {
-                $tokens[$pool->getId()] = $this->csrfTokens->getToken('port-pool-scope-'.EntityIdentifier::require($pool->getId()))->getValue();
+                $tokens[EntityIdentifier::require($pool->getId())] = $this->csrfTokens->getToken('port-pool-scope-'.EntityIdentifier::require($pool->getId()))->getValue();
 
                 return $tokens;
             }, []),

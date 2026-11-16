@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\MinecraftCatalogSynchronizer;
+use App\Repository\EntityQueryResult;
 use App\Repository\TemplateRepository;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -32,7 +33,7 @@ final readonly class AdminMinecraftController
             return new Response('Forbidden', 403);
         }
         $catalog = $this->catalog->getUiCatalog();
-        $templates = $this->templates->createQueryBuilder('t')->where("t.gameKey LIKE 'minecraft_%'")->orderBy('t.gameKey', 'ASC')->getQuery()->getResult();
+        $templates = EntityQueryResult::all($this->templates->createQueryBuilder('t')->where("t.gameKey LIKE 'minecraft_%'")->orderBy('t.gameKey', 'ASC')->getQuery(), \App\Module\Core\Domain\Entity\Template::class);
         $byChannel = [];
         $keys = ['minecraft_vanilla_all' => 'vanilla', 'minecraft_paper_all' => 'paper', 'minecraft_spigot_all' => 'spigot', 'minecraft_bedrock' => 'bedrock', 'minecraft_bungeecord_all' => 'bungeecord'];
         foreach ($templates as $template) {

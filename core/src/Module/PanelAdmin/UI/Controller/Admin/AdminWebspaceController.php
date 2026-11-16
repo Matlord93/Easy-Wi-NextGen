@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
@@ -640,7 +642,7 @@ final class AdminWebspaceController
     }
 
     /**
-     * @param array<string, mixed>|null $metadata
+     * @param array<array-key, mixed>|null $metadata
      *
      * @return string[]
      */
@@ -658,7 +660,7 @@ final class AdminWebspaceController
             return [];
         }
 
-        return array_values(array_filter(array_map('strval', $value), static fn (string $item): bool => $item !== ''));
+        return array_values(array_filter(array_map(static fn (mixed $entry): string => ScalarValue::text($entry), $value), static fn (string $item): bool => $item !== ''));
     }
 
     /**

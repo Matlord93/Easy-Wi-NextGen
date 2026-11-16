@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -206,7 +209,7 @@ final class InstanceInstallService
     }
 
     /**
-     * @return array{ports: array<int, int>, reservations: array<int, array{role: string, protocol: string,
+     * @return array{ports: array<array-key, int>, reservations: list<array{role: string, protocol: string,
      * port: int}>, port_block_id: string|null}
      */
     private function allocateDefaultPorts(Instance $instance): array
@@ -267,9 +270,9 @@ final class InstanceInstallService
     }
 
     /**
-     * @param int[] $ports
-     * @param array<int, array<string, mixed>> $requiredPorts
-     * @return array<int, array{role: string, protocol: string, port: int}>
+     * @param array<array-key, int> $ports
+     * @param list<array{name:string,protocol:string,...<array-key,mixed>}> $requiredPorts
+     * @return list<array{role: string, protocol: string, port: int}>
      */
     private function buildPortReservations(array $ports, array $requiredPorts): array
     {
@@ -280,8 +283,8 @@ final class InstanceInstallService
             }
 
             $reservations[] = [
-                'role' => (string) ($definition['name'] ?? 'port'),
-                'protocol' => (string) ($definition['protocol'] ?? 'udp'),
+                'role' => $definition['name'],
+                'protocol' => $definition['protocol'],
                 'port' => $ports[$index],
             ];
         }
@@ -296,32 +299,34 @@ final class InstanceInstallService
     {
         $vars = [];
         $envVars = $instance->getTemplate()->getEnvVars();
-        foreach ($envVars as $entry) {
+        foreach (array_keys($envVars) as $entryKey) {
+            $entry = JsonArray::orEmpty($envVars[$entryKey]);
             $key = trim((string) ($entry['key'] ?? ''));
             if ($key === '') {
                 continue;
             }
-            $vars[$key] = (string) ($entry['value'] ?? '');
+            $vars[$key] = ScalarValue::text($entry['value'] ?? null);
         }
 
         $setupVarKeys = [];
-        foreach ($instance->getSetupVars() as $key => $value) {
+        $setupVars = $instance->getSetupVars();
+        foreach (array_keys($setupVars) as $key) {
             $normalizedKey = trim((string) $key);
             if ($normalizedKey === '') {
                 continue;
             }
             $setupVarKeys[$normalizedKey] = true;
-            $vars[$normalizedKey] = (string) $value;
+            $vars[$normalizedKey] = ScalarValue::text($setupVars[$key]);
         }
 
         if ($instance->getSteamAccount() !== null && $instance->getSteamAccount() !== '') {
-            $vars['STEAM_ACCOUNT'] = $instance->getSteamAccount();
+            $vars['STEAM_ACCOUNT'] = $instance->getSteamAccount() ?? '';
         }
         if ($instance->getGslKey() !== null && $instance->getGslKey() !== '') {
-            $vars['STEAM_GSLT'] = $instance->getGslKey();
+            $vars['STEAM_GSLT'] = $instance->getGslKey() ?? '';
         }
         if ($instance->getServerName() !== null && $instance->getServerName() !== '') {
-            $vars['SERVER_NAME'] = $instance->getServerName();
+            $vars['SERVER_NAME'] = $instance->getServerName() ?? '';
         }
 
         $steamAccount = $vars['STEAM_ACCOUNT'] ?? '';

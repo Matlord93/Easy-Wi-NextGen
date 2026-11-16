@@ -75,7 +75,10 @@ abstract class AbstractTeamspeakDriver implements VoiceDriver
     /** @return list<array{0:string,1:array<string, scalar|null>}> */
     abstract protected function tokenCommands(PermissionSet $permissions): array;
 
-    /** @param list<array{0:string,1:array<string, scalar|null>}> $spec */
+    /**
+     * @param list<array{0:string,1:array<string, scalar|null>}> $spec
+     * @return array<string, mixed>
+     */
     private function executeCommands(array $spec): array
     {
         $commands = [];

@@ -25,7 +25,7 @@ class TemplateInstallResolver
             return $this->finalizeCommand($installCommand, $instance);
         }
         $resolver = $template->getInstallResolver();
-        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        $type = (string) ($resolver['type'] ?? '');
 
         $command = match ($type) {
             'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
@@ -45,7 +45,7 @@ class TemplateInstallResolver
             return $this->finalizeCommand($updateCommand, $instance);
         }
         $resolver = $template->getInstallResolver();
-        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        $type = (string) ($resolver['type'] ?? '');
 
         $command = match ($type) {
             'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
@@ -67,7 +67,7 @@ class TemplateInstallResolver
     public function resolveJavaBin(Instance $instance): ?string
     {
         $resolver = $instance->getTemplate()->getInstallResolver();
-        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        $type = (string) ($resolver['type'] ?? '');
         $channel = match ($type) {
             'minecraft_vanilla' => 'vanilla',
             'papermc_paper'     => 'paper',
@@ -244,7 +244,7 @@ class TemplateInstallResolver
     {
         $config = $this->javaBinaryConfig ?? JavaBinaryConfig::defaults();
 
-        $javaBin = ($catalogJavaVersion !== null && isset(MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION[$catalogJavaVersion]))
+        $javaBin = ($catalogJavaVersion !== null && in_array($catalogJavaVersion, array_map(strval(...), array_keys(MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION)), true))
             ? $config->getBinForVersion($catalogJavaVersion)
             : '{{JAVA_BIN}}';
 
@@ -303,7 +303,7 @@ BASH;
     {
         $config = $this->javaBinaryConfig ?? JavaBinaryConfig::defaults();
 
-        $javaBin = ($catalogJavaVersion !== null && isset(MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION[$catalogJavaVersion]))
+        $javaBin = ($catalogJavaVersion !== null && in_array($catalogJavaVersion, array_map(strval(...), array_keys(MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION)), true))
             ? $config->getBinForVersion($catalogJavaVersion)
             : '{{JAVA_BIN}}';
 

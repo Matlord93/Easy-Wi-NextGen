@@ -95,6 +95,7 @@ class GdprExport
         );
     }
 
+    /** @param array{key_id: string, nonce: string, ciphertext: string} $encryptedPayload */
     public function markReady(string $fileName, int $fileSize, array $encryptedPayload, \DateTimeImmutable $expiresAt, ?\DateTimeImmutable $readyAt = null): void
     {
         if ($this->status !== GdprExportStatus::Running) {

@@ -47,7 +47,7 @@ final class SystemRecoveryController
 
         $migrationStatus = $this->updateJobService->getMigrationStatus();
         $latestJob = $this->updateJobService->getLatestJob();
-        $logLines = $this->updateJobService->tailLog($latestJob['logPath'] ?? null);
+        $logLines = $this->updateJobService->tailLog(\App\Infrastructure\Config\JsonMap::strings($latestJob)['logPath'] ?? null);
         $versionInfo = $this->updateJobService->getVersionInfo();
 
         return new Response($this->twig->render('system/recovery_database.html.twig', [
@@ -79,7 +79,11 @@ final class SystemRecoveryController
         $actor = RequestActor::user($request);
         $createdBy = $actor instanceof User ? $actor->getEmail() : 'recovery';
         $job = $this->updateJobService->createJob('migrate', $createdBy);
-        $this->updateJobService->triggerRunner($job['id']);
+        $jobId = \App\Infrastructure\Config\JsonMap::strings($job)['id'] ?? null;
+        if ($jobId === null || $jobId === '') {
+            throw new \UnexpectedValueException('Created recovery job has no identifier.');
+        }
+        $this->updateJobService->triggerRunner($jobId);
 
         return new RedirectResponse('/system/recovery/database?notice=job_created', Response::HTTP_SEE_OTHER);
     }
@@ -108,7 +112,7 @@ final class SystemRecoveryController
         }
 
         $latestJob = $this->updateJobService->getLatestJob();
-        $lines = $this->updateJobService->tailLog($latestJob['logPath'] ?? null);
+        $lines = $this->updateJobService->tailLog(\App\Infrastructure\Config\JsonMap::strings($latestJob)['logPath'] ?? null);
 
         return new JsonResponse([
             'job_id' => $latestJob['id'] ?? null,

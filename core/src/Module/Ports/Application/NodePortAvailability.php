@@ -13,7 +13,10 @@ final class NodePortAvailability
     {
     }
 
-    /** @return list<int> */
+    /**
+     * @param array<array-key,int> $ports
+     * @return list<int>
+     */
     public function blockedPorts(Agent $node, array $ports): array
     {
         $checks = [];
@@ -36,7 +39,7 @@ final class NodePortAvailability
             throw new PortCheckUnavailable('Unvollständige Antwort der Node-Portprüfung.');
         }
         foreach ($results as $result) {
-            if (!is_array($result) || !is_int($result['port'] ?? null) || !in_array($result['proto'] ?? null, ['tcp', 'udp'], true) || !is_bool($result['free'] ?? null) || !empty($result['error'])) {
+            if (!in_array($result['proto'], ['tcp', 'udp'], true)) {
                 throw new PortCheckUnavailable('Unvollständige oder ungültige Antwort der Node-Portprüfung.');
             }
             $key = $result['proto'].':'.$result['port'];

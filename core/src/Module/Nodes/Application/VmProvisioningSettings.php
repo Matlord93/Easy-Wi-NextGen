@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application;
 
+use App\Infrastructure\Config\JsonMap;
 use phpseclib3\Crypt\PublicKeyLoader;
 
 final class VmProvisioningSettings
@@ -44,8 +45,8 @@ final class VmProvisioningSettings
 
     public static function hasCloudInit(array $config): bool
     {
-        foreach ($config as $device => $value) {
-            if (preg_match('/^(ide|sata|scsi)\d+$/D', (string) $device) && is_string($value) && str_contains($value, 'media=cdrom') && preg_match('~(?:^|[:/])(?:vm-\d+-)?cloudinit(?:\.(?:raw|qcow2))?(?:,|$)~', $value)) {
+        foreach (JsonMap::strings($config) as $device => $value) {
+            if (preg_match('/^(ide|sata|scsi)\d+$/D', $device) && str_contains($value, 'media=cdrom') && preg_match('~(?:^|[:/])(?:vm-\d+-)?cloudinit(?:\.(?:raw|qcow2))?(?:,|$)~', $value)) {
                 return true;
             }
         }
@@ -53,12 +54,12 @@ final class VmProvisioningSettings
         return false;
     }
 
-    /** @return list<array-key> */
+    /** @return list<string> */
     public static function bootDevices(array $config): array
     {
         $devices = [];
-        foreach ($config as $key => $value) {
-            if (is_string($value) && preg_match('/^(?:ide[0-3]|sata[0-5]|scsi(?:[0-9]|[12][0-9]|30)|virtio(?:[0-9]|1[0-5])|net(?:[0-9]|[12][0-9]|3[01]))$/D', (string) $key) && !str_contains(strtolower($value), 'cloudinit')) {
+        foreach (JsonMap::strings($config) as $key => $value) {
+            if (preg_match('/^(?:ide[0-3]|sata[0-5]|scsi(?:[0-9]|[12][0-9]|30)|virtio(?:[0-9]|1[0-5])|net(?:[0-9]|[12][0-9]|3[01]))$/D', $key) && !str_contains(strtolower($value), 'cloudinit')) {
                 $devices[] = $key;
             }
         }
@@ -69,6 +70,8 @@ final class VmProvisioningSettings
 
     public static function proxmoxView(array $config, string $hostname): array
     {
-        return ['hostname' => is_string($config['name'] ?? null) ? $config['name'] : $hostname, 'username' => is_string($config['ciuser'] ?? null) ? $config['ciuser'] : '', 'ssh_keys' => is_string($config['sshkeys'] ?? null) ? rawurldecode($config['sshkeys']) : '', 'supported' => self::hasCloudInit($config) && empty($config['cicustom'])];
+        $strings = JsonMap::strings($config);
+
+        return ['hostname' => $strings['name'] ?? $hostname, 'username' => $strings['ciuser'] ?? '', 'ssh_keys' => rawurldecode($strings['sshkeys'] ?? ''), 'supported' => self::hasCloudInit($config) && empty($config['cicustom'])];
     }
 }

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\ScalarValue;
+
+use App\Infrastructure\Config\JsonMap;
+
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlugin;
 use App\Repository\MusicbotPluginRepository;
@@ -122,18 +126,18 @@ final class MusicbotPluginEventService
     /** @param array<string, mixed> $config */
     private function isAllowedChannel(array $config, string $channelId): bool
     {
-        $allowed = array_filter(array_map('strval', (array) ($config['allowed_channels'] ?? [])));
+        $allowed = array_filter(array_map(ScalarValue::text(...), (array) ($config['allowed_channels'] ?? [])));
         return $allowed === [] || in_array($channelId, $allowed, true);
     }
 
     /**
      * @param array<string, mixed> $config
-     * @param array<int, mixed> $groups
+     * @param array<array-key, mixed> $groups
      */
     private function hasIgnoredGroup(array $config, array $groups): bool
     {
-        $ignored = array_map('strval', (array) ($config['ignored_server_groups'] ?? []));
-        return array_intersect($ignored, array_map('strval', $groups)) !== [];
+        $ignored = array_map(ScalarValue::text(...), (array) ($config['ignored_server_groups'] ?? []));
+        return array_intersect($ignored, array_map(ScalarValue::text(...), $groups)) !== [];
     }
 
     private function isIdle(MusicbotInstance $instance): bool
@@ -146,15 +150,17 @@ final class MusicbotPluginEventService
     private function cooldownAllowed(MusicbotPlugin $plugin, int $seconds): bool
     {
         $last = (string) ($plugin->getConfig()['_last_triggered_at'] ?? '');
-        return $last === '' || (time() - strtotime($last)) >= max(0, $seconds);
+        $timestamp = strtotime($last);
+        return $last === '' || $timestamp === false || (time() - $timestamp) >= max(0, $seconds);
     }
 
     private function dailyLimitAllowed(MusicbotPlugin $plugin, string $userKey, int $limit): bool
     {
         if ($limit <= 0) { return true; }
-        $plays = $plugin->getConfig()['_daily_plays'] ?? [];
+        $plays = JsonMap::fromValue($plugin->getConfig()['_daily_plays'] ?? null) ?? [];
         $today = (new \DateTimeImmutable())->format('Y-m-d');
-        return (int) ($plays[$today][$userKey] ?? 0) < $limit;
+        $todayPlays = JsonMap::fromValue($plays[$today] ?? null) ?? [];
+        return (int) ($todayPlays[$userKey] ?? 0) < $limit;
     }
 
     /** @param array<string, mixed> $config */
@@ -173,7 +179,11 @@ final class MusicbotPluginEventService
         $config['_last_error'] = null;
         $config['_last_triggered_at'] = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
         $today = (new \DateTimeImmutable())->format('Y-m-d');
-        $config['_daily_plays'][$today][$userKey] = (int) ($config['_daily_plays'][$today][$userKey] ?? 0) + 1;
+        $plays = JsonMap::fromValue($config['_daily_plays'] ?? null) ?? [];
+        $todayPlays = JsonMap::fromValue($plays[$today] ?? null) ?? [];
+        $todayPlays[$userKey] = (int) ($todayPlays[$userKey] ?? 0) + 1;
+        $plays[$today] = $todayPlays;
+        $config['_daily_plays'] = $plays;
         $plugin->setConfig($config);
         $this->entityManager->flush();
     }

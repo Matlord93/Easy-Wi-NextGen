@@ -205,7 +205,7 @@ final class MusicbotBackupApiController
     private function parseJsonPayload(Request $request): array
     {
         try {
-            return $request->toArray();
+            return (JsonMap::fromValue($request->toArray()) ?? []);
         } catch (\JsonException) {
             return [];
         }

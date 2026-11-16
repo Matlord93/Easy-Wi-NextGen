@@ -38,12 +38,12 @@ final class S3BackupTargetWriter implements BackupTargetWriterInterface
     #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
-        $bucket    = (string) ($target->config()['bucket'] ?? '');
-        $region    = (string) ($target->config()['region'] ?? 'us-east-1');
-        $endpoint  = rtrim((string) ($target->config()['endpoint'] ?? ''), '/');
-        $prefix    = trim((string) ($target->config()['prefix'] ?? ''), '/');
-        $accessKey = (string) ($target->secrets()['access_key'] ?? '');
-        $secretKey = (string) ($target->secrets()['secret_key'] ?? '');
+        $bucket    = self::configText($target->config()['bucket'] ?? '');
+        $region    = self::configText($target->config()['region'] ?? 'us-east-1');
+        $endpoint  = rtrim(self::configText($target->config()['endpoint'] ?? ''), '/');
+        $prefix    = trim(self::configText($target->config()['prefix'] ?? ''), '/');
+        $accessKey = self::configText($target->secrets()['access_key'] ?? '');
+        $secretKey = self::configText($target->secrets()['secret_key'] ?? '');
 
         if ($bucket === '' || $accessKey === '' || $secretKey === '') {
             throw new \InvalidArgumentException('S3 backup target requires bucket, access_key and secret_key.');
@@ -58,7 +58,8 @@ final class S3BackupTargetWriter implements BackupTargetWriterInterface
             $path = '/'.$objectKey;
         } else {
             // Path-style for custom endpoints (MinIO, Hetzner, etc.)
-            $host = parse_url($endpoint, PHP_URL_HOST) ?? '';
+            $parsedHost = parse_url($endpoint, PHP_URL_HOST);
+            $host = is_string($parsedHost) ? $parsedHost : '';
             $baseUrl = $endpoint.'/'.$bucket;
             $path = '/'.$objectKey;
         }
@@ -166,5 +167,14 @@ final class S3BackupTargetWriter implements BackupTargetWriterInterface
         $kService = hash_hmac('sha256', $service, $kRegion, true);
 
         return hash_hmac('sha256', 'aws4_request', $kService, true);
+    }
+
+    private static function configText(mixed $value): string
+    {
+        if ($value === null || is_scalar($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException('Backup target field must be scalar.');
     }
 }

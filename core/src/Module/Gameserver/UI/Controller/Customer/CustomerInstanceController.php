@@ -1960,8 +1960,10 @@ final class CustomerInstanceController
     private function buildDefaultCustomerVars(Template $template): array
     {
         $envKeys = [];
-        foreach ($template->getEnvVars() as $entry) {
-            if (is_array($entry) && isset($entry['key'])) {
+        $envVars = $template->getEnvVars();
+        foreach (array_keys($envVars) as $entryKey) {
+            $entry = JsonArray::orEmpty($envVars[$entryKey]);
+            if (isset($entry['key'])) {
                 $key = strtoupper(trim((string) $entry['key']));
                 if ($key !== '') {
                     $envKeys[$key] = true;
@@ -2148,9 +2150,9 @@ final class CustomerInstanceController
         $primaryPort = null;
 
         foreach ($ports as $portEntry) {
-            $label = (string) ($portEntry['name'] ?? 'port');
-            $protocol = (string) ($portEntry['protocol'] ?? 'udp');
-            $port = (int) ($portEntry['port'] ?? 0);
+            $label = $portEntry['name'] ?? 'port';
+            $protocol = $portEntry['protocol'] ?? 'udp';
+            $port = $portEntry['port'] ?? 0;
             if ($port <= 0) {
                 continue;
             }

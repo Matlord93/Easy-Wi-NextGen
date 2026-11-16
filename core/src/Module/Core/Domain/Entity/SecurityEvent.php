@@ -26,7 +26,7 @@ class SecurityEvent
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
-    private int $id;
+    private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Agent::class)]
     #[ORM\JoinColumn(name: 'node_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
@@ -96,7 +96,7 @@ class SecurityEvent
 
     public function getId(): int
     {
-        return $this->id;
+        return \App\Infrastructure\Doctrine\EntityIdentifier::require($this->id);
     }
 
     public function getNode(): Agent

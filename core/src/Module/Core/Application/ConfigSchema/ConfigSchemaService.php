@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\ConfigSchema;
 
 use App\Module\Core\Domain\Entity\ConfigSchema;
+use App\Infrastructure\Config\JsonMap;
 
 final class ConfigSchemaService
 {
@@ -20,7 +21,7 @@ final class ConfigSchemaService
      */
     public function normalizeSchema(ConfigSchema $configSchema): array
     {
-        return $this->normalizeSchemaArray($configSchema->getSchema(), $configSchema->getFormat());
+        return $this->normalizeSchemaArray(JsonMap::fromValue($configSchema->getSchema()) ?? [], $configSchema->getFormat());
     }
 
     public function parse(ConfigSchema $configSchema, string $content): ConfigSchemaParseResult
@@ -70,7 +71,7 @@ final class ConfigSchemaService
             ];
 
             if (array_key_exists('default', $field)) {
-                $normalized['default'] = $field['default'];
+                self::setField($normalized, 'default', $field['default']);
             }
             if (isset($field['options']) && is_array($field['options'])) {
                 $normalized['options'] = $field['options'];
@@ -94,5 +95,14 @@ final class ConfigSchemaService
             'convar', 'convar_lines' => $this->conVarParser,
             default => $this->keyValueParser,
         };
+    }
+    /**
+     * @template T
+     * @param array<string,T> $fields
+     * @param T $value
+     */
+    private static function setField(array &$fields, string $key, mixed $value): void
+    {
+        $fields[$key] = $value;
     }
 }

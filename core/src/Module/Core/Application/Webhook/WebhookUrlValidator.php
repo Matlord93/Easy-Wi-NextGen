@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Webhook;
 
+use App\Infrastructure\Config\JsonMap;
+
 class WebhookUrlValidator
 {
     public function validate(string $url): string
@@ -17,7 +19,12 @@ class WebhookUrlValidator
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             $addresses[] = $host;
         } else {
-            foreach (dns_get_record($host, DNS_A | DNS_AAAA) as $record) {
+            $records = dns_get_record($host, DNS_A | DNS_AAAA);
+            if ($records === false) {
+                $records = [];
+            }
+            foreach (array_keys($records) as $index) {
+                $record = JsonMap::strings($records[$index]);
                 $address = $record['ip'] ?? $record['ipv6'] ?? null;
                 if (is_string($address)) {
                     $addresses[] = $address;

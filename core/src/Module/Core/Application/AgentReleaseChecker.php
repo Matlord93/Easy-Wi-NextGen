@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+
 use Psr\Cache\CacheItemPoolInterface;
 
 final class AgentReleaseChecker implements AgentReleaseCheckerInterface
@@ -57,7 +58,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         $channel = $this->resolver()->normalizeChannel($channel);
         $cacheKey = sprintf('%s.%s.%s', self::CACHE_KEY, hash('sha256', $this->repository), $channel);
         $item = $this->cache->getItem($cacheKey);
-        $cached = $item->get();
+        $cached = self::cacheText($item->get());
         if (!$force && $item->isHit() && is_string($cached) && $cached !== '') {
             return $cached;
         }
@@ -134,7 +135,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
     public function releaseAssetRequiresPanelProxy(array $releaseInfo): bool
     {
         foreach (['download_url', 'checksums_url', 'signature_url'] as $key) {
-            $url = $releaseInfo[$key] ?? null;
+            $url = self::cacheText($releaseInfo[$key] ?? null);
             if (is_string($url) && $url !== '' && self::isAuthenticatedGithubApiAssetUrl($url)) {
                 return true;
             }
@@ -170,7 +171,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
     /** @internal test compatibility */
     private function selectLatestReleaseAsset(array $releases, string $channel, string $assetName, ?string $targetVersion = null): ?array
     {
-        $selected = $this->resolver()->selectLatestAsset($releases, $channel, $assetName, self::CHECKSUMS_ASSET, self::SIGNATURE_ASSET, $targetVersion);
+        $selected = $this->resolver()->selectLatestAsset(array_values($releases), $channel, $assetName, self::CHECKSUMS_ASSET, self::SIGNATURE_ASSET, $targetVersion);
         if ($selected === null) {
             return null;
         }
@@ -203,5 +204,10 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         }
 
         throw new \LogicException('GithubReleaseResolver service is not configured.');
+    }
+
+    private static function cacheText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 }

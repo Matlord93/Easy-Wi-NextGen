@@ -93,15 +93,15 @@ final class TemplatesSharedPathsMigrateCommand extends Command
     }
 
     /**
-     * @return array<string, list<array{source:string,target:string,mode:string,readonly:bool}>>
+     * @return array<string, array<int,array<string,mixed>>>
      */
     private function buildSharedPathIndex(): array
     {
         $index = [];
         foreach ($this->catalog->listTemplates() as $tpl) {
-            $gameKey = (string) ($tpl['game_key'] ?? '');
+            $gameKey = $tpl['game_key'] ?? '';
             $paths = $tpl['shared_paths'] ?? [];
-            if ($gameKey !== '' && is_array($paths) && $paths !== []) {
+            if ($gameKey !== '' && $paths !== []) {
                 $index[$gameKey] = $paths;
             }
         }

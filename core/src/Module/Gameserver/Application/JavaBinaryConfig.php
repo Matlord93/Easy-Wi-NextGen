@@ -20,9 +20,11 @@ final class JavaBinaryConfig
 
     public function getBinForVersion(string $version): string
     {
-        return $this->overrides[$version]
-            ?? MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION[$version]
-            ?? 'java'.$version;
+        if (isset($this->overrides[$version])) { return $this->overrides[$version]; }
+        foreach (MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION as $knownVersion => $binary) {
+            if ((string) $knownVersion === $version) { return $binary; }
+        }
+        return 'java'.$version;
     }
 
     /** @return array<array-key, string> map of version → binary */

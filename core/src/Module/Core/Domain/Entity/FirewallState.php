@@ -35,6 +35,7 @@ class FirewallState
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
+    /** @param int[] $ports */
     public function __construct(Agent $node, array $ports = [], array $rules = [])
     {
         $this->node = $node;

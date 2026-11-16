@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\HostingPanel\Infrastructure\Controller;
 
+use App\Infrastructure\Config\JsonMap;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use App\Module\HostingPanel\Application\Job\DispatchJobMessage;
 use App\Module\HostingPanel\Application\Security\AgentTokenAuthenticator;
 use App\Module\HostingPanel\Domain\Entity\Agent;
@@ -15,7 +17,7 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/api/v1/hp/agent', name: 'hp_agent_v1_')]
-class AgentV1Controller extends AbstractController
+final class AgentV1Controller extends AbstractController
 {
     public function __construct(private readonly EntityManagerInterface $entityManager)
     {
@@ -24,7 +26,7 @@ class AgentV1Controller extends AbstractController
     #[Route('/heartbeat', name: 'heartbeat', methods: ['POST'])]
     public function heartbeat(Request $request, AgentTokenAuthenticator $authenticator): JsonResponse
     {
-        $payload = json_decode($request->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        $payload = JsonMap::fromValue(json_decode($request->getContent(), true, flags: JSON_THROW_ON_ERROR)) ?? throw new BadRequestHttpException('Expected a JSON object.');
         $agent = $this->authenticateRequest($request, $payload, $authenticator);
         if (!$agent instanceof Agent) {
             return $this->json(['error' => 'unauthorized'], 401);
@@ -40,7 +42,7 @@ class AgentV1Controller extends AbstractController
     #[Route('/commands/dispatch', name: 'command_dispatch', methods: ['POST'])]
     public function dispatch(Request $request, MessageBusInterface $bus, AgentTokenAuthenticator $authenticator): JsonResponse
     {
-        $payload = json_decode($request->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        $payload = JsonMap::fromValue(json_decode($request->getContent(), true, flags: JSON_THROW_ON_ERROR)) ?? throw new BadRequestHttpException('Expected a JSON object.');
         $agent = $this->authenticateRequest($request, $payload, $authenticator);
         if (!$agent instanceof Agent) {
             return $this->json(['error' => 'unauthorized'], 401);
@@ -55,7 +57,7 @@ class AgentV1Controller extends AbstractController
             (int) ($payload['node_id'] ?? 0),
             (string) ($payload['type'] ?? 'unknown'),
             $idempotencyKey,
-            (array) ($payload['payload'] ?? []),
+            JsonMap::fromValue($payload['payload'] ?? null) ?? [],
         ));
 
         return $this->json(['status' => 'queued', 'idempotency_key' => $idempotencyKey], 202);

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Infrastructure\Grpc;
 
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Domain\Entity\Agent;
@@ -69,7 +73,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
             throw new \RuntimeException($message);
         }
 
-        $data = is_array($payload['data'] ?? null) ? $payload['data'] : $payload;
+        $data = JsonMap::fromValue($payload['data'] ?? null) ?? $payload;
 
         return new ConsoleCommandResult(
             (bool) ($data['applied'] ?? $data['accepted'] ?? true),
@@ -112,9 +116,9 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
                 usleep(min(2_000_000, 100_000 + ($emptyStreak * 100_000)));
                 continue;
             }
-            $data = $payload['data'] ?? [];
+            $data = JsonMap::fromValue($payload['data'] ?? null) ?? [];
             $newCursor = (string) ($data['cursor'] ?? '');
-            $lines = (array) ($data['lines'] ?? []);
+            $lines = JsonArray::orEmpty($data['lines'] ?? null);
 
             if ($newCursor !== '') {
                 $cursor = $newCursor;
@@ -122,8 +126,10 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
                 if (count($this->resumeCursors) > 512) { unset($this->resumeCursors[array_key_first($this->resumeCursors)]); }
             }
 
-            foreach ($lines as $line) {
-                $chunk = (string) ($line['text'] ?? '');
+            foreach (array_keys($lines) as $lineKey) {
+                $line = JsonMap::fromValue($lines[$lineKey]);
+                if ($line === null) { continue; }
+                $chunk = ScalarValue::text($line['text'] ?? null);
                 yield [
                     'type' => 'chunk',
                     'chunk' => $chunk,
@@ -158,7 +164,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
             ['headers' => $this->buildHeaders($instance, 'GET', $requestUri), 'timeout' => 8],
         );
 
-        return $response->toArray(false);
+        return JsonMap::fromValue($response->toArray(false)) ?? [];
     }
 
     private function isIdleTimeout(TransportExceptionInterface $exception): bool
@@ -189,7 +195,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
             ['headers' => $this->buildHeaders($instance, 'GET', $requestUri), 'timeout' => 8],
         );
 
-        return $response->toArray(false);
+        return JsonMap::fromValue($response->toArray(false)) ?? [];
     }
 
     private function resolveInstance(int $instanceId): Instance
@@ -221,7 +227,6 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
     private function encodeJsonBody(array $payload): string
     {
         $body = json_encode($payload, \JSON_THROW_ON_ERROR);
-        \assert(is_string($body));
 
         return $body;
     }

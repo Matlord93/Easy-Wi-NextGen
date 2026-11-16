@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
@@ -237,7 +239,7 @@ final class AdminMusicbotBackupController
     private function parseJsonPayload(Request $request): array
     {
         try {
-            return $request->toArray();
+            return (JsonMap::fromValue($request->toArray()) ?? []);
         } catch (\JsonException) {
             return [];
         }

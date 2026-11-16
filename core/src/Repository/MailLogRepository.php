@@ -29,7 +29,7 @@ final class MailLogRepository extends ServiceEntityRepository
             ->setMaxResults(max(1, min($limit, 1000)));
 
         if ($domain !== null) {
-            $qb->andWhere('ml.domain = :domain')->setParameter('domain', $domain);
+            $qb->andWhere('ml.domain = :domain')->setParameter('domain', QueryParameter::entityId($domain->getId(), \App\Module\Core\Domain\Entity\Domain::class));
         }
         if ($level !== null && $level !== '') {
             $qb->andWhere('ml.level = :level')->setParameter('level', strtolower(trim($level)));
@@ -49,13 +49,13 @@ final class MailLogRepository extends ServiceEntityRepository
      */
     public function countByLevelSince(\DateTimeImmutable $since): array
     {
-        $rows = $this->createQueryBuilder('ml')
+        $rows = ScalarQueryResult::rows($this->createQueryBuilder('ml')
             ->select('ml.level AS level, COUNT(ml.id) AS total')
             ->andWhere('ml.createdAt >= :since')
             ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->groupBy('ml.level')
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult());
 
         $summary = [
             MailLog::LEVEL_INFO => 0,
@@ -79,13 +79,13 @@ final class MailLogRepository extends ServiceEntityRepository
      */
     public function countBySourceSince(\DateTimeImmutable $since): array
     {
-        $rows = $this->createQueryBuilder('ml')
+        $rows = ScalarQueryResult::rows($this->createQueryBuilder('ml')
             ->select('ml.source AS source, COUNT(ml.id) AS total')
             ->andWhere('ml.createdAt >= :since')
             ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
             ->groupBy('ml.source')
             ->getQuery()
-            ->getArrayResult();
+            ->getArrayResult());
 
         $summary = [];
         foreach ($rows as $row) {

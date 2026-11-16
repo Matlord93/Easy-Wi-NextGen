@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\Application\Query;
 
-use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
@@ -76,7 +76,7 @@ final class SshQueryTransport implements QueryTransportInterface
     private function authenticate(SFTP $sftp, SshConnectionConfig $sshConfig): bool
     {
         if ($sshConfig->privateKey() !== null) {
-            $key = PublicKeyLoader::load($sshConfig->privateKey());
+            $key = PublicKeyLoader::loadPrivateKey($sshConfig->privateKey());
             return $sftp->login($sshConfig->username(), $key);
         }
 
@@ -122,7 +122,7 @@ final class SshQueryTransport implements QueryTransportInterface
      */
     private function parseResult(string $output): array
     {
-        $decoded = JsonArray::decode($output);
+        $decoded = JsonMap::decode($output);
         if (!is_array($decoded)) {
             return [
                 'success' => false,
@@ -134,17 +134,18 @@ final class SshQueryTransport implements QueryTransportInterface
 
         $error = null;
         if (isset($decoded['error']) && is_array($decoded['error'])) {
-            $code = is_string($decoded['error']['code'] ?? null) ? $decoded['error']['code'] : 'runner_error';
-            $message = is_string($decoded['error']['message'] ?? null) ? $decoded['error']['message'] : 'Query runner error.';
-            $details = JsonArray::orEmpty($decoded['error']['details'] ?? null);
+            $fields = JsonMap::strings($decoded['error']);
+            $code = $fields['code'] ?? 'runner_error';
+            $message = $fields['message'] ?? 'Query runner error.';
+            $details = JsonMap::fromValue($decoded['error']['details'] ?? null) ?? [];
             $error = new QueryError($code, $message, $details);
         }
 
         return [
             'success' => (bool) ($decoded['ok'] ?? $decoded['success'] ?? false),
-            'payload' => JsonArray::orEmpty($decoded['payload'] ?? null),
+            'payload' => JsonMap::fromValue($decoded['payload'] ?? null) ?? [],
             'error' => $error,
-            'actionId' => is_string($decoded['actionId'] ?? null) ? $decoded['actionId'] : null,
+            'actionId' => JsonMap::strings($decoded)['actionId'] ?? null,
         ];
     }
 }

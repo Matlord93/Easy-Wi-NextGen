@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\ScalarValue;
+
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 
@@ -87,8 +89,8 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
     public function mask(array $secrets): array
     {
         $result = [];
-        foreach ($secrets as $key => $value) {
-            $result[$key] = ($value !== '' && $value !== null) ? self::MASK : '';
+        foreach (array_keys($secrets) as $key) {
+            $result[$key] = ($secrets[$key] !== '' && $secrets[$key] !== null) ? self::MASK : '';
         }
 
         return $result;
@@ -147,10 +149,10 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
     #[\Override]
     public function mergeSecretUpdates(array $existingEncrypted, array $updates): array
     {
-        $result = array_map('strval', $existingEncrypted);
+        $result = array_map(ScalarValue::text(...), $existingEncrypted);
 
-        foreach ($updates as $key => $value) {
-            $strVal = (string) $value;
+        foreach (array_keys($updates) as $key) {
+            $strVal = ScalarValue::text($updates[$key]);
             if ($strVal === '' || $strVal === self::MASK) {
                 continue;
             }
@@ -171,7 +173,8 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
     public function sanitizePayload(array $payload): array
     {
         $sanitized = [];
-        foreach ($payload as $key => $value) {
+        foreach (array_keys($payload) as $key) {
+            $value = MusicbotInputValue::from($payload[$key]);
             if ($this->isSecretKey((string) $key)) {
                 continue;
             }

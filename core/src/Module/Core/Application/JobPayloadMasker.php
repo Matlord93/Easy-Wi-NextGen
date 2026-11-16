@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 final class JobPayloadMasker
 {
     private const MASK = '[redacted]';
@@ -44,9 +45,7 @@ final class JobPayloadMasker
      */
     public function maskPayload(array $payload): array
     {
-        $masked = $this->maskValue($payload);
-
-        return JsonArray::orEmpty($masked);
+        return JsonMap::fromValue($this->maskArray($payload)) ?? [];
     }
 
     public function maskText(string $value): string
@@ -75,13 +74,13 @@ final class JobPayloadMasker
     {
         $masked = [];
 
-        foreach ($value as $key => $item) {
+        foreach (array_keys($value) as $key) {
             if (is_string($key) && $this->isSensitiveKey($key)) {
                 $masked[$key] = self::MASK;
                 continue;
             }
 
-            $masked[$key] = $this->maskValue($item);
+            self::setField($masked, $key, $this->maskValue($value[$key]));
         }
 
         return $masked;
@@ -89,7 +88,7 @@ final class JobPayloadMasker
 
     private function isSensitiveKey(string $key): bool
     {
-        $normalized = strtolower(preg_replace('/[^a-z0-9]/i', '', $key));
+        $normalized = strtolower(preg_replace('/[^a-z0-9]/i', '', $key) ?? $key);
 
         return in_array($normalized, self::SENSITIVE_KEYS, true);
     }
@@ -98,11 +97,10 @@ final class JobPayloadMasker
     {
         $trimmed = trim($value);
         if ($trimmed !== '' && (str_starts_with($trimmed, '{') || str_starts_with($trimmed, '['))) {
-            $decoded = json_decode($trimmed, true);
+            $decoded = JsonArray::decode($trimmed);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $masked = $this->maskValue($decoded);
-
-                return json_encode($masked, JSON_UNESCAPED_SLASHES) ?: $value;
+                $encoded = json_encode($this->maskArray($decoded), JSON_UNESCAPED_SLASHES);
+                return $encoded === false ? $value : $encoded;
             }
         }
 
@@ -130,5 +128,14 @@ final class JobPayloadMasker
         }
 
         return self::MASK;
+    }
+    /**
+     * @template T
+     * @param array<array-key,T> $fields
+     * @param T $value
+     */
+    private static function setField(array &$fields, int|string $key, mixed $value): void
+    {
+        $fields[$key] = $value;
     }
 }

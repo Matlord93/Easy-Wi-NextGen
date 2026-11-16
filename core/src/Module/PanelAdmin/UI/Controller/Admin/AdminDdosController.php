@@ -235,7 +235,7 @@ final class AdminDdosController
     }
 
     /**
-     * @param array<int, mixed> $ports
+     * @param array<array-key, mixed> $ports
      * @return int[]
      */
     private function parsePortsFromSelection(array $ports): array
@@ -271,7 +271,7 @@ final class AdminDdosController
     }
 
     /**
-     * @param int[] $ports
+     * @param array<array-key, mixed> $ports
      * @return int[]
      */
     private function normalizePorts(array $ports): array
@@ -295,7 +295,7 @@ final class AdminDdosController
     }
 
     /**
-     * @param array<int, mixed> $protocols
+     * @param array<array-key, mixed> $protocols
      * @return string[]
      */
     private function normalizeProtocols(array $protocols): array

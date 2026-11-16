@@ -17,7 +17,7 @@ final class LocalBackupTargetWriter implements BackupTargetWriterInterface
     #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
-        $basePath = (string) ($target->config()['base_path'] ?? $target->config()['path'] ?? '');
+        $basePath = self::configText($target->config()['base_path'] ?? $target->config()['path'] ?? '');
         if ($basePath === '' || !str_starts_with($basePath, '/')) {
             throw new \InvalidArgumentException('Local backup target requires an absolute path config.');
         }
@@ -52,5 +52,14 @@ final class LocalBackupTargetWriter implements BackupTargetWriterInterface
         }
 
         return $destination;
+    }
+
+    private static function configText(mixed $value): string
+    {
+        if ($value === null || is_scalar($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException('Backup target field must be scalar.');
     }
 }

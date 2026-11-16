@@ -86,7 +86,7 @@ class PortLeaseManager
         $allocated = $this->allocatedPorts($pool);
         $probed = [];
         $busy = [];
-        $deadline = microtime(true) + 20;
+        $deadline = microtime(true) + 20.0;
         for ($candidateStart = $rangeStart; $candidateStart <= $rangeEnd; $candidateStart += $step) {
             $candidateEnd = $candidateStart + $size - 1;
             if ($candidateEnd > $rangeEnd) {
@@ -134,6 +134,11 @@ class PortLeaseManager
         throw new \RuntimeException('No free ports left in pool.');
     }
 
+    /**
+     * @template TBlocks of list<PortBlock>
+     * @param callable(): TBlocks $allocate
+     * @return TBlocks
+     */
     private function reserve(PortPool $pool, callable $allocate): array
     {
         if (!$pool->isEnabled()) {
@@ -152,6 +157,7 @@ class PortLeaseManager
         });
     }
 
+    /** @return array<int, true> */
     private function allocatedPorts(PortPool $pool): array
     {
         $result = [];
@@ -162,6 +168,7 @@ class PortLeaseManager
         return $result;
     }
 
+    /** @param array<array-key, int> $ports */
     private function assertPortsFree(PortPool $pool, array $ports): void
     {
         $allocated = $this->allocatedPorts($pool);

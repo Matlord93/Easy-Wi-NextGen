@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
+use App\Infrastructure\Config\JsonMap;
+
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Application\Dto\PluginManifest;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -109,9 +111,11 @@ final class MusicbotPluginService
     private function defaultConfig(PluginManifest $manifest): array
     {
         $config = ['enabled' => $manifest->enabledByDefault];
-        foreach (($manifest->settingsSchema['properties'] ?? []) as $key => $schema) {
-            if (is_array($schema) && array_key_exists('default', $schema)) {
-                $config[(string) $key] = $schema['default'];
+        $properties = JsonMap::fromValue($manifest->settingsSchema['properties'] ?? null) ?? [];
+        foreach (array_keys($properties) as $key) {
+            $schema = JsonMap::fromValue($properties[$key]);
+            if ($schema !== null && array_key_exists('default', $schema)) {
+                $config[$key] = MusicbotInputValue::from($schema['default']);
             }
         }
 
