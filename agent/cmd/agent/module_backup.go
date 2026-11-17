@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -145,7 +146,11 @@ func (h *moduleBackupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "create private staging directory", http.StatusInternalServerError)
 		return
 	}
-	defer os.RemoveAll(scratch)
+	defer func() {
+		if err := os.RemoveAll(scratch); err != nil {
+			log.Printf("module backup: remove staging directory: %v", err)
+		}
+	}()
 	var request moduleBackupRequest
 	archivePath := filepath.Join(scratch, "archive.tar.gz")
 	if r.URL.Path == "/v1/module-backups/snapshot" {
@@ -206,7 +211,11 @@ func (h *moduleBackupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			moduleBackupResponse(w, http.StatusInternalServerError, false, false, "open completed archive")
 			return
 		}
-		defer f.Close()
+		defer func() {
+			if err := f.Close(); err != nil {
+				log.Printf("module backup: close streamed archive: %v", err)
+			}
+		}()
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 		w.Header().Set("X-Archive-SHA256", digest)
@@ -302,12 +311,16 @@ func (r moduleContextReader) Read(p []byte) (int, error) {
 	}
 	return r.r.Read(p)
 }
-func readModuleEnvelope(envelope, archivePath string, request *moduleBackupRequest, maxBytes int64) error {
+func readModuleEnvelope(envelope, archivePath string, request *moduleBackupRequest, maxBytes int64) (result error) {
 	f, err := os.Open(envelope)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); result == nil {
+			result = closeErr
+		}
+	}()
 	tr := tar.NewReader(f)
 	seen := map[string]bool{}
 	for {

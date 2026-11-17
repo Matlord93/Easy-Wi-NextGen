@@ -174,7 +174,7 @@ func (h *moduleBackupHandler) writeArchive(ctx context.Context, request moduleBa
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() { result = errors.Join(result, f.Close()) }()
 		info, err := f.Stat()
 		if err != nil {
 			return err
@@ -226,13 +226,21 @@ func (h *moduleBackupHandler) prepareRestore(ctx context.Context, request module
 	if err != nil {
 		return prepared, "", err
 	}
-	defer in.Close()
+	defer func() {
+		if closeErr := in.Close(); result == nil {
+			result = closeErr
+		}
+	}()
 	compressed := bufio.NewReader(in)
 	gz, err := gzip.NewReader(compressed)
 	if err != nil {
 		return prepared, "", errors.New("invalid gzip archive")
 	}
-	defer gz.Close()
+	defer func() {
+		if closeErr := gz.Close(); result == nil {
+			result = closeErr
+		}
+	}()
 	// One gzip member only; trailing data is rejected after CRC/size validation.
 	gz.Multistream(false)
 	tr := tar.NewReader(gz)

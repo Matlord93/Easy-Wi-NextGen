@@ -29,7 +29,11 @@ func runPermissionDeniedUnprivileged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(fixture)
+	t.Cleanup(func() {
+		if err := os.RemoveAll(fixture); err != nil {
+			t.Errorf("remove permission test fixture: %v", err)
+		}
+	})
 	if err = os.Chmod(fixture, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +41,11 @@ func runPermissionDeniedUnprivileged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer source.Close()
+	defer func() {
+		if err := source.Close(); err != nil {
+			t.Errorf("close permission test executable: %v", err)
+		}
+	}()
 	copied := filepath.Join(fixture, "fileapi.test")
 	destination, err := os.OpenFile(copied, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0755)
 	if err != nil {

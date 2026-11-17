@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,7 +85,11 @@ func (h *moduleBackupHandler) databaseCommand(ctx context.Context, db *moduleBac
 			return caErr
 		}
 		caPath = caFile.Name()
-		defer os.Remove(caPath)
+		defer func() {
+			if err := os.Remove(caPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+				log.Printf("module backup: remove temporary database CA certificate: %v", err)
+			}
+		}()
 		if _, caErr = caFile.WriteString(db.CACert); caErr != nil {
 			_ = caFile.Close()
 			return caErr
@@ -116,7 +121,11 @@ func (h *moduleBackupHandler) databaseCommand(ctx context.Context, db *moduleBac
 		return err
 	}
 	name := file.Name()
-	defer os.Remove(name)
+	defer func() {
+		if err := os.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Printf("module backup: remove temporary database options file: %v", err)
+		}
+	}()
 	if _, err = file.WriteString(options); err != nil {
 		_ = file.Close()
 		return err
@@ -152,7 +161,11 @@ func (h *moduleBackupHandler) importDatabase(ctx context.Context, db *moduleBack
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Printf("module backup: close database restore input: %v", err)
+		}
+	}()
 	if err = h.databaseCommand(ctx, db, scratch, false, f, io.Discard); err != nil {
 		return fmt.Errorf("database restore failed: %w", err)
 	}
