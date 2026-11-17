@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\VoiceNode;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Repository\JobRepository;
 use App\Repository\VoiceInstanceRepository;
 use App\Repository\VoiceNodeRepository;
@@ -33,7 +34,7 @@ final class AdminVoiceNodeController
         private readonly JobRepository $jobRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-class DatabaseNamingPolicy
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
+
+#[AsAlias(DatabaseNamingPolicyInterface::class)]
+final class DatabaseNamingPolicy implements DatabaseNamingPolicyInterface
 {
     private const string NAME_REGEX = '/^[a-z][a-z0-9_]{2,62}$/';
     private const string QUOTED_IDENTIFIER_REGEX = '/[`"\[\]]/';
@@ -16,6 +19,7 @@ class DatabaseNamingPolicy
     /**
      * @return string[]
      */
+    #[\Override]
     public function validateDatabaseName(string $name): array
     {
         $normalized = $this->normalizeIdentifier($name);
@@ -34,6 +38,7 @@ class DatabaseNamingPolicy
         return [];
     }
 
+    #[\Override]
     public function buildCustomerScopedName(int $customerId, string $name): string
     {
         $normalized = $this->normalizeIdentifier($name);
@@ -44,6 +49,7 @@ class DatabaseNamingPolicy
     /**
      * @return string[]
      */
+    #[\Override]
     public function validateUsername(string $username): array
     {
         $normalized = $this->normalizeIdentifier($username);

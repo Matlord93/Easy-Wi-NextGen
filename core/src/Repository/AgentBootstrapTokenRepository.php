@@ -7,17 +7,20 @@ namespace App\Repository;
 use App\Module\Core\Domain\Entity\AgentBootstrapToken;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
 /**
  * @extends ServiceEntityRepository<AgentBootstrapToken>
  */
-class AgentBootstrapTokenRepository extends ServiceEntityRepository
+#[AsAlias(id: AgentBootstrapTokenRepositoryInterface::class)]
+final class AgentBootstrapTokenRepository extends ServiceEntityRepository implements AgentBootstrapTokenRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, AgentBootstrapToken::class);
     }
 
+    #[\Override]
     public function findActiveByHash(string $tokenHash): ?AgentBootstrapToken
     {
         $qb = $this->createQueryBuilder('token');
@@ -36,6 +39,7 @@ class AgentBootstrapTokenRepository extends ServiceEntityRepository
     /**
      * @return AgentBootstrapToken[]
      */
+    #[\Override]
     public function findRecent(int $limit): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('token')

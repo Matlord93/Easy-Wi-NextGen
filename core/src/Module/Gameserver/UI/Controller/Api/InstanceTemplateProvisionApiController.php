@@ -9,6 +9,7 @@ use App\Infrastructure\Http\RequestActor;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Repository\InstanceRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,7 +20,7 @@ final class InstanceTemplateProvisionApiController
 {
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
-        private readonly AgentGameServerClient $agentGameServerClient,
+        private readonly AgentGameServerClientInterface $agentGameServerClient,
         private readonly TranslatorInterface $translator,
     ) {
     }

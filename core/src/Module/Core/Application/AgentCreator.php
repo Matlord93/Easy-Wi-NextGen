@@ -6,7 +6,8 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Agent;
 
-class AgentCreator
+#[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: AgentCreatorInterface::class)]
+final class AgentCreator implements AgentCreatorInterface
 {
     public function __construct(
         private readonly Ipv4AddressResolver $ipv4AddressResolver,
@@ -17,6 +18,7 @@ class AgentCreator
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string} $secretPayload
      */
+    #[\Override]
     public function create(string $agentId, array $secretPayload, ?string $name = null): Agent
     {
         $agent = new Agent($agentId, $secretPayload, $name);

@@ -12,9 +12,9 @@ use App\Repository\MusicbotPlaylistItemRepository;
 use App\Repository\MusicbotPlaylistRepository;
 use App\Repository\MusicbotPluginLogRepository;
 use App\Repository\MusicbotPluginRepository;
-use App\Repository\MusicbotQueueItemRepository;
+use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use App\Repository\MusicbotRadioStationRepository;
-use App\Repository\MusicbotTrackRepository;
+use App\Repository\MusicbotTrackQueryRepositoryInterface;
 
 final class DoctrineBackupDataProvider implements MusicbotBackupDataProvider
 {
@@ -22,8 +22,8 @@ final class DoctrineBackupDataProvider implements MusicbotBackupDataProvider
         private readonly MusicbotConnectionRepository $connectionRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
         private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
-        private readonly MusicbotTrackRepository $trackRepository,
-        private readonly MusicbotQueueItemRepository $queueItemRepository,
+        private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
+        private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
         private readonly MusicbotRadioStationRepository $radioStationRepository,
         private readonly MusicbotAutoDjSettingsRepository $autoDjSettingsRepository,
         private readonly MusicbotPluginRepository $pluginRepository,

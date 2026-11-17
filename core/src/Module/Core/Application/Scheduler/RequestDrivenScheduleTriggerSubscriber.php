@@ -7,7 +7,6 @@ namespace App\Module\Core\Application\Scheduler;
 use App\Infrastructure\Config\DbConfigProvider;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Process\Process;
 
@@ -30,7 +29,7 @@ final class RequestDrivenScheduleTriggerSubscriber implements EventSubscriberInt
         return [KernelEvents::TERMINATE => 'onTerminate'];
     }
 
-    public function onTerminate(TerminateEvent $event): void
+    public function onTerminate(): void
     {
         if (\PHP_SAPI === 'cli' || !$this->configProvider->exists()) {
             return;

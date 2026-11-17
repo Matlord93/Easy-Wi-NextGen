@@ -24,7 +24,7 @@ final class VoiceProbeGuard
     {
         $now = new \DateTimeImmutable();
         $node = $instance->getNode();
-        $state = $this->stateRepository->findOneByNodeAndProvider($node, $node->getProviderType());
+        $state = $this->findState($instance);
         if (!$state instanceof VoiceRateLimitState) {
             $state = new VoiceRateLimitState($node, $node->getProviderType());
             $this->entityManager->persist($state);
@@ -73,10 +73,20 @@ final class VoiceProbeGuard
         return ['allowed' => true, 'retry_after' => 0, 'reason' => null, 'error_code' => null];
     }
 
+    public function recordProbeResult(VoiceInstance $instance, string $status, ?string $errorCode): void
+    {
+        if (in_array($errorCode, ['voice_query_timeout', 'voice_query_banned', 'voice_query_auth_failed', 'voice_query_failed'], true)) {
+            $this->registerFailure($instance);
+        } elseif ($errorCode === null && in_array($status, ['online', 'offline'], true)) {
+            // An offline server is a valid probe result, not a failed query.
+            $this->resetFailures($instance);
+        }
+    }
+
     public function registerFailure(VoiceInstance $instance): void
     {
         $node = $instance->getNode();
-        $state = $this->stateRepository->findOneByNodeAndProvider($node, $node->getProviderType());
+        $state = $this->findState($instance);
         if (!$state instanceof VoiceRateLimitState) {
             $state = new VoiceRateLimitState($node, $node->getProviderType());
             $this->entityManager->persist($state);
@@ -91,12 +101,36 @@ final class VoiceProbeGuard
 
     public function resetFailures(VoiceInstance $instance): void
     {
-        $node = $instance->getNode();
-        $state = $this->stateRepository->findOneByNodeAndProvider($node, $node->getProviderType());
+        $state = $this->findState($instance);
         if (!$state instanceof VoiceRateLimitState) {
             return;
         }
         $state->setConsecutiveFailures(0);
         $state->setCircuitOpenUntil(null);
+    }
+
+    private function findState(VoiceInstance $instance): ?VoiceRateLimitState
+    {
+        $node = $instance->getNode();
+        $providerType = $node->getProviderType();
+        $state = $this->stateRepository->findOneByNodeAndProvider($node, $providerType);
+        if ($state !== null) {
+            return $state;
+        }
+
+        // allow() may have persisted the first state without flushing yet.
+        // Doctrine queries do not include scheduled inserts; reuse that managed
+        // entity so the token bucket and failure history stay in one row.
+        $nodeId = $node->getId();
+        foreach ($this->entityManager->getUnitOfWork()->getScheduledEntityInsertions() as $pending) {
+            if (!$pending instanceof VoiceRateLimitState || $pending->getProviderType() !== $providerType) {
+                continue;
+            }
+            if ($pending->getNode() === $node || ($nodeId !== null && $pending->getNode()->getId() === $nodeId)) {
+                return $pending;
+            }
+        }
+
+        return null;
     }
 }

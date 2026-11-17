@@ -4,11 +4,14 @@ doctrine:
     # through Symfony's env processor. Production does not use .env DATABASE_URL.
     url: '%env(easywi_database_url:)%'
     driver: 'pdo_mysql'
+    schema_manager_factory: App\Infrastructure\Doctrine\JsonDefaultsSchemaManagerFactory
     charset: 'utf8mb4'
     default_table_options:
       charset: 'utf8mb4'
       collate: 'utf8mb4_unicode_ci'
-    schema_filter: '~^(?!messenger_messages)~'
+    # Messenger and the encrypted generic backup store are maintained by DBAL
+    # migrations, not ORM metadata. Keep ORM schema synchronization off those tables.
+    schema_filter: '~^(?!messenger_messages|(?:backup_plans|backup_plan_runs|backup_plan_locks|backup_archive_inventory|backup_module_bindings)$)~'
   orm:
     naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
     auto_mapping: true

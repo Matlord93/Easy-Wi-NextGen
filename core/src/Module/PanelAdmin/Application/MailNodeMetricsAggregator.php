@@ -8,8 +8,14 @@ use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailNode;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
-class MailNodeMetricsAggregator
+/**
+ * @psalm-import-type MailMetrics from MailNodeMetricsAggregatorInterface
+ * @psalm-import-type MetricsNode from MailNodeMetricsAggregatorInterface
+ */
+#[AsAlias(id: MailNodeMetricsAggregatorInterface::class)]
+final class MailNodeMetricsAggregator implements MailNodeMetricsAggregatorInterface
 {
     /** @var string[] */
     private const array PORT_KEYS = ['25', '465', '587', '110', '143', '993', '995'];
@@ -17,7 +23,9 @@ class MailNodeMetricsAggregator
     /**
      * @param MailNode[] $mailNodes
      * @param MailDomain[] $mailDomains
+     * @return array{nodes: list<MetricsNode>}
      */
+    #[\Override]
     public function aggregate(array $mailNodes, array $mailDomains): array
     {
         $agentsByMailNode = $this->mapAgentsByMailNode($mailDomains);
@@ -30,6 +38,7 @@ class MailNodeMetricsAggregator
         return ['nodes' => $nodes];
     }
 
+    /** @return MetricsNode */
     private function buildNodeMetrics(MailNode $mailNode, ?Agent $agent): array
     {
         $stats = $agent?->getLastHeartbeatStats();
@@ -47,6 +56,10 @@ class MailNodeMetricsAggregator
         ];
     }
 
+    /**
+     * @param array<array-key, mixed> $mail
+     * @return MailMetrics
+     */
     private function sanitizeMetrics(array $mail): array
     {
         $ports = JsonArray::orEmpty($mail['ports'] ?? null);
@@ -68,6 +81,10 @@ class MailNodeMetricsAggregator
     }
 
 
+    /**
+     * @param array<array-key, mixed> $usage
+     * @return array<string, array{used_bytes: int}>
+     */
     private function normalizeMailboxUsage(array $usage): array
     {
         $normalized = [];

@@ -9,7 +9,7 @@ use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Config\ScalarValue;
 
 use App\Module\Core\Application\AgentConfigurationException;
-use App\Module\Core\Application\AgentEndpointResolver;
+use App\Module\Core\Application\AgentEndpointResolverInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
@@ -31,7 +31,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         private readonly InstanceRepository $instanceRepository,
         private readonly HttpClientInterface $httpClient,
         private readonly AgentHmacHeaderFactory $hmacHeaderFactory,
-        private readonly AgentEndpointResolver $endpointResolver,
+        private readonly AgentEndpointResolverInterface $endpointResolver,
     ) {
     }
 

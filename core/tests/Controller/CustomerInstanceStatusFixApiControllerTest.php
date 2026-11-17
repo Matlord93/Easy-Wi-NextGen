@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
@@ -44,7 +45,7 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
         $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
-        $agentClient = $this->createMock(AgentGameServerClient::class);
+        $agentClient = $this->createMock(AgentGameServerClientInterface::class);
         $agentClient->expects(self::once())->method('getInstanceStatus')->with($instance)->willReturn(['status' => 'running']);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
@@ -86,7 +87,7 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
         $jobRepository = $this->createStub(JobRepository::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn($activeJob);
 
-        $agentClient = $this->createStub(AgentGameServerClient::class);
+        $agentClient = $this->createStub(AgentGameServerClientInterface::class);
         $entityManager = $this->createStub(EntityManagerInterface::class);
         $auditLogger = $this->createStub(AuditLogger::class);
 
@@ -107,7 +108,7 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
     private function newController(
         InstanceRepository $instanceRepository,
         JobRepository $jobRepository,
-        AgentGameServerClient $agentClient,
+        AgentGameServerClientInterface $agentClient,
         EntityManagerInterface $entityManager,
         AuditLogger $auditLogger,
     ): CustomerInstanceActionApiController {

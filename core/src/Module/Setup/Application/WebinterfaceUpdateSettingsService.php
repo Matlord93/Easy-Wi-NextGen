@@ -50,11 +50,6 @@ final class WebinterfaceUpdateSettingsService
         return $this->getSettings()['agentChannel'];
     }
 
-    public function isAutoMigrateEnabled(): bool
-    {
-        return $this->getSettings()['autoMigrate'];
-    }
-
     public function setAutoEnabled(bool $enabled): void
     {
         $settings = $this->readSettings();

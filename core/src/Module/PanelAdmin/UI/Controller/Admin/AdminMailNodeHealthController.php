@@ -10,10 +10,10 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailNode;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\PanelAdmin\Application\MailNodeHealthAggregator;
-use App\Module\PanelAdmin\Application\MailNodeMetricsAggregator;
+use App\Module\PanelAdmin\Application\MailNodeHealthAggregatorInterface;
+use App\Module\PanelAdmin\Application\MailNodeMetricsAggregatorInterface;
 use App\Repository\MailDomainRepository;
-use App\Repository\MailNodeRepository;
+use App\Repository\MailNodeRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,10 +23,10 @@ use Symfony\Component\Routing\Attribute\Route;
 final class AdminMailNodeHealthController
 {
     public function __construct(
-        private readonly MailNodeRepository $mailNodeRepository,
+        private readonly MailNodeRepositoryInterface $mailNodeRepository,
         private readonly MailDomainRepository $mailDomainRepository,
-        private readonly MailNodeHealthAggregator $healthAggregator,
-        private readonly MailNodeMetricsAggregator $metricsAggregator,
+        private readonly MailNodeHealthAggregatorInterface $healthAggregator,
+        private readonly MailNodeMetricsAggregatorInterface $metricsAggregator,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
     ) {

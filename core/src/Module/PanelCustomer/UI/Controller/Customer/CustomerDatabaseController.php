@@ -9,7 +9,7 @@ use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Config\ScalarValue;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\DatabaseNamingPolicy;
+use App\Module\Core\Application\DatabaseNamingPolicyInterface;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\DatabaseTableServiceInterface;
 use App\Module\Core\Domain\Entity\Database;
@@ -40,7 +40,7 @@ final class CustomerDatabaseController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly DatabaseProvisioningService $provisioningService,
-        private readonly DatabaseNamingPolicy $namingPolicy,
+        private readonly DatabaseNamingPolicyInterface $namingPolicy,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
         private readonly DatabaseTableServiceInterface $databaseTableService,

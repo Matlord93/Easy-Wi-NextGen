@@ -6,6 +6,7 @@ namespace App\Tests\Controller;
 
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
 use PHPUnit\Framework\TestCase;
 
@@ -80,7 +81,7 @@ final class CustomerInstanceConsoleHealthProbeTest extends TestCase
 
     private function buildController(array $runtimeStatusPayload): CustomerInstanceActionApiController
     {
-        $agentClient = $this->createStub(AgentGameServerClient::class);
+        $agentClient = $this->createStub(AgentGameServerClientInterface::class);
         if ($runtimeStatusPayload === []) {
             $agentClient->method('getInstanceStatus')->willThrowException(new \RuntimeException('offline'));
         } else {

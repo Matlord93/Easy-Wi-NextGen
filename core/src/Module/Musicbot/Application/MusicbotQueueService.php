@@ -11,7 +11,6 @@ use App\Module\Musicbot\Domain\Entity\MusicbotQueueItem;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Repository\MusicbotQueueItemRepositoryInterface;
-use App\Repository\MusicbotTrackRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class MusicbotQueueService
@@ -19,7 +18,6 @@ final class MusicbotQueueService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotQueueItemRepositoryInterface $queueItemRepository,
-        private readonly MusicbotTrackRepositoryInterface $trackRepository,
         private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly AgentJobDispatcherInterface $jobDispatcher,
         private readonly MusicbotTrackPathResolver $trackPathResolver,

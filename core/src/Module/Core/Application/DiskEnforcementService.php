@@ -12,7 +12,6 @@ final class DiskEnforcementService
 {
     public function __construct(
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
-        private readonly InstanceDiskStateResolver $diskStateResolver,
         private readonly TranslatorInterface $translator,
     ) {
     }

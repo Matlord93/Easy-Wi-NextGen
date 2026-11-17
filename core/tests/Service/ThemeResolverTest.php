@@ -8,7 +8,7 @@ use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
-use App\Repository\CmsSiteSettingsRepository;
+use App\Repository\CmsSiteSettingsRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -55,7 +55,7 @@ final class ThemeResolverTest extends TestCase
     {
         $storage ??= [];
 
-        $repository = $this->createStub(CmsSiteSettingsRepository::class);
+        $repository = $this->createStub(CmsSiteSettingsRepositoryInterface::class);
         $repository->method('findOneBySite')->willReturnCallback(static function (Site $site) use (&$storage): ?CmsSiteSettings {
             return $storage[spl_object_hash($site)] ?? null;
         });

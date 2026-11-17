@@ -75,6 +75,7 @@ final class UnifiApiClient
         $cookie = $this->login($settings, $password);
         $options['headers'] = ['Cookie' => $cookie];
         $options['timeout'] = 10;
+        $options['max_duration'] = 30;
         $options['verify_peer'] = $settings->isVerifyTls();
         $options['verify_host'] = $settings->isVerifyTls();
 
@@ -118,6 +119,7 @@ final class UnifiApiClient
                 $response = $this->httpClient->request('POST', $baseUrl . $path, [
                     'json' => $payload,
                     'timeout' => 10,
+                    'max_duration' => 30,
                     'verify_peer' => $settings->isVerifyTls(),
                     'verify_host' => $settings->isVerifyTls(),
                 ]);

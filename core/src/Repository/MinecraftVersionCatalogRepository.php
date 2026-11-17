@@ -82,7 +82,6 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
         return $grouped;
     }
 
-
     /**
      * @return array<int, MinecraftVersionCatalog>
      */
@@ -217,32 +216,4 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
             ->getSingleScalarResult() > 0;
     }
 
-    public function upsert(
-        string $channel,
-        string $mcVersion,
-        ?string $build,
-        string $downloadUrl,
-        ?string $sha256,
-        ?\DateTimeImmutable $releasedAt,
-    ): void {
-        $entry = $this->findOneBy([
-            'channel' => $channel,
-            'mcVersion' => $mcVersion,
-            'build' => $build,
-        ]);
-
-        if (!$entry instanceof MinecraftVersionCatalog) {
-            $entry = new MinecraftVersionCatalog($channel, $mcVersion, $build, $downloadUrl, $sha256, $releasedAt);
-            $this->getEntityManager()->persist($entry);
-            return;
-        }
-
-        $entry->setDownloadUrl($downloadUrl);
-        $entry->setSha256($sha256);
-        $entry->setDownloadUrl($downloadUrl);
-        $entry->setSha256($sha256);
-        $entry->setReleasedAt($releasedAt);
-        $entry->setSource('import');
-        $entry->setIsActive(true);
-    }
 }

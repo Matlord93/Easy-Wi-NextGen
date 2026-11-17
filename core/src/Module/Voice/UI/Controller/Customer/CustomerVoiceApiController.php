@@ -24,6 +24,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Dto\Ts3\ViewerDto as Ts3ViewerDto;
 use App\Module\Core\Dto\Ts6\ViewerDto as Ts6ViewerDto;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\Teamspeak\Application\Query\ServerQueryLimiterInterface;
 use App\Module\Voice\Application\Provider\VoiceProviderRegistry;
 use App\Module\Voice\Application\VoiceProbeGuard;
@@ -53,7 +54,7 @@ final class CustomerVoiceApiController
         private readonly VoiceProviderRegistry $providers,
         private readonly VoiceProbeGuard $probeGuard,
         private readonly EntityManagerInterface $entityManager,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly Ts3VirtualServerRepository $ts3Servers,
         private readonly Ts6VirtualServerRepository $ts6Servers,
         private readonly Ts3TokenRepository $ts3Tokens,
@@ -152,6 +153,7 @@ final class CustomerVoiceApiController
                 $result['reason'] ?? null,
                 $result['error_code'] ?? null,
             );
+            $this->probeGuard->recordProbeResult($instance, $normalizedStatus, $result['error_code'] ?? null);
             $this->entityManager->flush();
         } finally {
             $this->releaseInstanceLock($lockHandle);

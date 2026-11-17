@@ -8,7 +8,8 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
-class TemplateInstallResolver
+#[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: TemplateInstallResolverInterface::class)]
+final class TemplateInstallResolver implements TemplateInstallResolverInterface
 {
     public function __construct(
         private readonly MinecraftCatalogService $catalogService,
@@ -17,6 +18,7 @@ class TemplateInstallResolver
     ) {
     }
 
+    #[\Override]
     public function resolveInstallCommand(Instance $instance): string
     {
         $template = $instance->getTemplate();
@@ -37,6 +39,7 @@ class TemplateInstallResolver
         return $this->finalizeCommand($command, $instance);
     }
 
+    #[\Override]
     public function resolveUpdateCommand(Instance $instance): string
     {
         $template = $instance->getTemplate();
@@ -64,6 +67,7 @@ class TemplateInstallResolver
         return $this->prependSteamDumpCleanup($command, $instance);
     }
 
+    #[\Override]
     public function resolveJavaBin(Instance $instance): ?string
     {
         $resolver = $instance->getTemplate()->getInstallResolver();

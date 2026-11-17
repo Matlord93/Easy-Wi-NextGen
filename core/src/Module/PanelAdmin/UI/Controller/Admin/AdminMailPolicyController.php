@@ -11,7 +11,7 @@ use App\Module\Core\Domain\Entity\MailPolicy;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Dto\Mail\MailPolicyUpsertDto;
 use App\Repository\DomainRepository;
-use App\Repository\MailPolicyRepository;
+use App\Repository\MailPolicyRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,7 +23,7 @@ final class AdminMailPolicyController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly DomainRepository $domainRepository,
-        private readonly MailPolicyRepository $mailPolicyRepository,
+        private readonly MailPolicyRepositoryInterface $mailPolicyRepository,
         private readonly AuditLogger $auditLogger,
     ) {
     }

@@ -33,9 +33,11 @@ final class RetentionPruner
 
     /**
      * @param list<BackupRun> $runs
+     * @param callable(BackupRun):bool|null $authorizeDelete
+     * @param callable(BackupRun):void|null $onDeleted
      * @return array{pruned: list<BackupRun>, deleted: list<string>, skipped: list<string>}
      */
-    public function pruneWithAudit(array $runs, RetentionPolicy $policy, \DateTimeImmutable $now, ?string $allowedLocalPrefix = null): array
+    public function pruneWithAudit(array $runs, RetentionPolicy $policy, \DateTimeImmutable $now, ?string $allowedLocalPrefix = null, ?callable $authorizeDelete = null, ?callable $onDeleted = null): array
     {
         $pruned = $this->prune($runs, $policy, $now);
         $deleted = [];
@@ -47,10 +49,17 @@ final class RetentionPruner
                 $skipped[] = sprintf('%s (unsafe-path)', $path);
                 continue;
             }
+            if ($authorizeDelete !== null && !$authorizeDelete($run)) {
+                $skipped[] = sprintf('%s (validation-failed)', $path);
+                continue;
+            }
 
             if (is_file($path)) {
                 if (@unlink($path)) {
                     $deleted[] = $path;
+                    if ($onDeleted !== null) {
+                        $onDeleted($run);
+                    }
                 } else {
                     $skipped[] = sprintf('%s (delete-failed)', $path);
                 }
@@ -65,7 +74,7 @@ final class RetentionPruner
 
     private function isSafeDeletionPath(string $path, ?string $allowedLocalPrefix): bool
     {
-        if ($path === '' || str_contains($path, '://')) {
+        if ($path === '' || str_contains($path, '://') || str_contains($path, "\0") || is_link($path)) {
             return false;
         }
 
@@ -75,11 +84,11 @@ final class RetentionPruner
         }
 
         if ($allowedLocalPrefix === null || trim($allowedLocalPrefix) === '') {
-            return true;
+            return false;
         }
 
         $realPrefix = realpath($allowedLocalPrefix);
-        if ($realPrefix === false) {
+        if ($realPrefix === false || $realPrefix === '/' || !is_dir($realPrefix)) {
             return false;
         }
 

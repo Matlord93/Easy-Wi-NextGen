@@ -6,7 +6,7 @@ namespace App\Module\Nodes\Application\Console;
 
 use App\Repository\QueryParameter;
 use App\Module\Core\Application\AgentCredentialsResolver;
-use App\Module\Core\Application\AgentEndpointResolver;
+use App\Module\Core\Application\AgentEndpointResolverInterface;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\User;
@@ -34,7 +34,7 @@ final readonly class VmConsoleBroker
         private ProxmoxApiClient $api,
         private KvmPanelService $kvm,
         private SecretsCrypto $crypto,
-        private AgentEndpointResolver $endpoints,
+        private AgentEndpointResolverInterface $endpoints,
         private AgentCredentialsResolver $credentials,
         private UserSessionRepository $sessions,
         private AuditLogger $audit,

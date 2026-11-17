@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Webhook;
 
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
+
 use App\Infrastructure\Config\JsonMap;
 
-class WebhookUrlValidator
+#[AsAlias(WebhookUrlValidatorInterface::class)]
+final class WebhookUrlValidator implements WebhookUrlValidatorInterface
 {
+    #[\Override]
     public function validate(string $url): string
     {
         $parts = parse_url($url);

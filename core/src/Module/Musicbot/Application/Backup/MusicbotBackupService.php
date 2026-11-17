@@ -38,7 +38,8 @@ final class MusicbotBackupService
         }
 
         if ($options->includeYoutubeHistory) {
-            $data['youtube_history'] = [];
+            $youtube = JsonArray::orEmpty($instance->getInstanceConfig()['youtube'] ?? null);
+            $data['youtube_history'] = JsonArray::orEmpty($youtube['history'] ?? null);
         }
 
         if ($options->includePluginLogs) {

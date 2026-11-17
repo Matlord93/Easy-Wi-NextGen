@@ -76,7 +76,7 @@ func TestTeamspeakBackendStubBuildRequiresClientBackend(t *testing.T) {
 	job := teamspeakBackendJob(t, "stub")
 	result := handleMusicbotTeamspeakBackendValidate(job)
 	if result.resultPayload["status"] != teamspeakBackendStatusClientBackendRequired {
-		t.Fatalf("status=%v, want client_backend_required", result.resultPayload["status"])
+		t.Fatalf("status=%v, want client_backend_required; error=%q payload=%#v", result.resultPayload["status"], result.errorText, result.resultPayload)
 	}
 }
 
@@ -935,5 +935,32 @@ func TestUbuntu2404DepsIncludeLibasound2t64(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("libasound2t64 not found in teamspeakExternalBridgePackageAlternatives as preferred package")
+	}
+}
+
+func TestResolveOpusLibraryPathHonorsExplicitOverride(t *testing.T) {
+	t.Parallel()
+	bundled := t.TempDir()
+	bundledOpus := filepath.Join(bundled, "libopus.so")
+	if err := os.WriteFile(bundledOpus, []byte("bundled opus"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, override := range []string{filepath.Join(t.TempDir(), "libopus.so"), t.TempDir()} {
+		if got, err := resolveOpusLibraryPath(override, bundled); err == nil {
+			t.Fatalf("explicit unavailable Opus override %q silently fell back to %q", override, got)
+		}
+	}
+	if got, err := resolveOpusLibraryPath("", bundled); err != nil || got != bundledOpus {
+		t.Fatalf("automatic bundled Opus discovery = %q, %v; want %q", got, err, bundledOpus)
+	}
+	configured := t.TempDir()
+	configuredOpus := filepath.Join(configured, "libopus.so.0")
+	if err := os.WriteFile(configuredOpus, []byte("configured versioned opus"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, override := range []string{configured, configuredOpus} {
+		if got, err := resolveOpusLibraryPath(override, bundled); err != nil || got != configuredOpus {
+			t.Fatalf("explicit Opus selection %q = %q, %v; want %q", override, got, err, configuredOpus)
+		}
 	}
 }

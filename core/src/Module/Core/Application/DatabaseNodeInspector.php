@@ -6,13 +6,15 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Database;
 
-class DatabaseNodeInspector
+#[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: DatabaseNodeInspectorInterface::class)]
+final class DatabaseNodeInspector implements DatabaseNodeInspectorInterface
 {
     public function __construct(private readonly EncryptionService $encryptionService)
     {
     }
 
     /** @return array{database_exists:bool,user_exists:bool,grants_ok:bool} */
+    #[\Override]
     public function inspect(Database $database): array
     {
         $node = $database->getNode();

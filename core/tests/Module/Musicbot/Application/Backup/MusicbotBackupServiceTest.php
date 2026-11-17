@@ -233,6 +233,15 @@ final class MusicbotBackupServiceTest extends TestCase
         );
     }
 
+    public function testYoutubeHistoryContainsActualStoredEvents(): void
+    {
+        $history = [['type' => 'import', 'url' => 'https://example.test/source', 'tracks' => 2]];
+        $instance = $this->buildMockInstance(['youtube' => ['history' => $history]]);
+        $this->configureEmptyDataProvider();
+        $manifest = $this->service->createBackup($instance, new MusicbotBackupOptions(includeYoutubeHistory: true));
+        self::assertSame($history, $manifest->data['youtube_history']);
+    }
+
     private function buildMockInstance(array $instanceConfig = ['volume' => 80]): MusicbotInstance
     {
         $customer = new \App\Module\Core\Domain\Entity\User('customer@example.com', UserType::Customer);

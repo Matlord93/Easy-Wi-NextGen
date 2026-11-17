@@ -8,7 +8,8 @@ use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 
-class AgentEndpointResolver
+#[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: AgentEndpointResolverInterface::class)]
+final class AgentEndpointResolver implements AgentEndpointResolverInterface
 {
     /** Loopback addresses that indicate a co-located (same-server) agent. */
     private const array LOOPBACK = ['127.0.0.1', '::1', 'localhost'];
@@ -21,11 +22,13 @@ class AgentEndpointResolver
     ) {
     }
 
+    #[\Override]
     public function resolveForNode(SinusbotNode $node): AgentEndpoint
     {
         return $this->resolveForAgent($node->getAgent());
     }
 
+    #[\Override]
     public function resolveForAgent(Agent $agent): AgentEndpoint
     {
         $baseUrl = trim($agent->getServiceBaseUrl());
@@ -61,6 +64,7 @@ class AgentEndpointResolver
         throw new AgentConfigurationException('Agent-Konfiguration unvollständig: Service-URL fehlt.');
     }
 
+    #[\Override]
     public function isLoopback(Agent $agent): bool
     {
         $url = trim($agent->getServiceBaseUrl());

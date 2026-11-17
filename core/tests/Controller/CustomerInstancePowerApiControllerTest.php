@@ -7,7 +7,6 @@ namespace App\Tests\Controller;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
-use App\Module\Core\Application\InstanceDiskStateResolver;
 use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
@@ -16,6 +15,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
@@ -163,7 +163,7 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         AppSettingsService $settings,
         ?JobRepository $jobRepository = null,
         ?AuditLogger $auditLogger = null,
-        ?AgentGameServerClient $agentClient = null,
+        ?AgentGameServerClientInterface $agentClient = null,
     ): CustomerInstanceActionApiController
     {
         $reflection = new \ReflectionClass(CustomerInstanceActionApiController::class);
@@ -201,7 +201,6 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
     {
         return new DiskEnforcementService(
             new NodeDiskProtectionService(),
-            new InstanceDiskStateResolver(),
             $this->createStub(TranslatorInterface::class),
         );
     }

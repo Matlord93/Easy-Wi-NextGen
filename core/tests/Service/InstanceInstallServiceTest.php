@@ -14,6 +14,7 @@ use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
+use App\Module\Gameserver\Application\TemplateInstallResolverInterface;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
@@ -127,7 +128,7 @@ final class InstanceInstallServiceTest extends TestCase
 
     private function buildService(?SharedStorageTemplateLocatorInterface $sharedStorageLocator = null): InstanceInstallService
     {
-        $resolver = $this->createStub(TemplateInstallResolver::class);
+        $resolver = $this->createStub(TemplateInstallResolverInterface::class);
         $resolver->method('resolveInstallCommand')->willReturn('install');
         $resolver->method('resolveUpdateCommand')->willReturn('update');
 

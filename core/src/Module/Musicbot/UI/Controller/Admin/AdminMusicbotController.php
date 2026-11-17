@@ -47,7 +47,7 @@ use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPluginRepository;
 use App\Repository\MusicbotCustomerLimitsRepository;
-use App\Repository\MusicbotQueueItemRepository;
+use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use App\Repository\MusicbotScheduleRepository;
 use App\Repository\MusicbotTeamspeakBackendConfigRepository;
 use App\Repository\UserRepository;
@@ -99,7 +99,7 @@ final class AdminMusicbotController
         private readonly MusicbotInstanceRepository $instanceRepository,
         private readonly MusicbotConnectionRepository $connectionRepository,
         private readonly MusicbotTeamspeakBackendConfigRepository $teamspeakBackendConfigRepository,
-        private readonly MusicbotQueueItemRepository $queueItemRepository,
+        private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly MusicbotAutoDjService $autoDjService,
         private readonly MusicbotScheduleService $scheduleService,

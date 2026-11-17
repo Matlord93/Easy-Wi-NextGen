@@ -17,8 +17,8 @@ use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Repository\MusicbotAutoDjSettingsRepository;
 use App\Repository\MusicbotPlaylistItemRepository;
 use App\Repository\MusicbotPlaylistRepository;
-use App\Repository\MusicbotQueueItemRepository;
-use App\Repository\MusicbotTrackRepository;
+use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
+use App\Repository\MusicbotTrackQueryRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class MusicbotAutoDjService
@@ -29,8 +29,8 @@ final class MusicbotAutoDjService
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotAutoDjSettingsRepository $settingsRepository,
         private readonly MusicbotQueueService $queueService,
-        private readonly MusicbotQueueItemRepository $queueItemRepository,
-        private readonly MusicbotTrackRepository $trackRepository,
+        private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
+        private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
         private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
         private readonly MusicbotRuntimeEventService $runtimeEventService,

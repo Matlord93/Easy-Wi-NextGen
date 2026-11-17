@@ -461,11 +461,10 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
     private function buildRadioService(?MusicbotRadioStationRepository $stationRepo = null): MusicbotRadioService
     {
         $stationRepo ??= $this->createStub(MusicbotRadioStationRepository::class);
-        $favoriteRepo = $this->createStub(MusicbotRadioFavoriteRepository::class);
-        $queueRepo = $this->createStub(\App\Repository\MusicbotQueueItemRepository::class);
+        $queueRepo = $this->createStub(\App\Repository\MusicbotQueueItemQueryRepositoryInterface::class);
         $playlistRepo = $this->createStub(\App\Repository\MusicbotPlaylistRepository::class);
         $playlistItemRepo = $this->createStub(\App\Repository\MusicbotPlaylistItemRepository::class);
-        $trackRepo = $this->createStub(\App\Repository\MusicbotTrackRepository::class);
+        $trackRepo = $this->createStub(\App\Repository\MusicbotTrackQueryRepositoryInterface::class);
         $resolver = $this->createStub(MusicbotRadioPlaylistResolver::class);
         $urlValidator = $this->createStub(MusicbotWebradioUrlValidator::class);
         $quotaService = $this->createStub(\App\Module\Musicbot\Application\MusicbotQuotaService::class);
@@ -473,7 +472,7 @@ final class MusicbotWebradioFullCatalogRegressionTest extends TestCase
         $em = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
 
         return new MusicbotRadioService(
-            $stationRepo, $favoriteRepo, $queueRepo, $playlistRepo, $playlistItemRepo,
+            $stationRepo, $queueRepo, $playlistRepo, $playlistItemRepo,
             $trackRepo, $resolver, $urlValidator, $quotaService, $catalogService, $em,
         );
     }

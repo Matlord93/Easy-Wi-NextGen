@@ -8,9 +8,12 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
 /** @extends ServiceEntityRepository<MusicbotTrack> */
-class MusicbotTrackRepository extends ServiceEntityRepository implements MusicbotTrackRepositoryInterface
+#[AsAlias(id: MusicbotTrackRepositoryInterface::class)]
+#[AsAlias(id: MusicbotTrackQueryRepositoryInterface::class)]
+final class MusicbotTrackRepository extends ServiceEntityRepository implements MusicbotTrackQueryRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {

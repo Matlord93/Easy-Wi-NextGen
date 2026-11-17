@@ -11,7 +11,7 @@ final readonly class WebhookDispatcher
 {
     public function __construct(
         private HttpClientInterface $httpClient,
-        private WebhookUrlValidator $urlValidator,
+        private WebhookUrlValidatorInterface $urlValidator,
         private LoggerInterface $logger,
     ) {
     }

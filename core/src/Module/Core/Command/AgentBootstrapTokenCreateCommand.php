@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\TokenGenerator;
+use App\Module\Core\Application\TokenGeneratorInterface;
 use App\Module\Core\Domain\Entity\AgentBootstrapToken;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -21,7 +21,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class AgentBootstrapTokenCreateCommand extends Command
 {
     public function __construct(
-        private readonly TokenGenerator $tokenGenerator,
+        private readonly TokenGeneratorInterface $tokenGenerator,
         private readonly EntityManagerInterface $entityManager,
     ) {
         parent::__construct();

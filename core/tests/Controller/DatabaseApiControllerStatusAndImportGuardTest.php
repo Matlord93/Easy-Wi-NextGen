@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\DatabaseNamingPolicy;
+use App\Module\Core\Application\DatabaseNamingPolicyInterface;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\JobPayloadMasker;
@@ -17,6 +17,7 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\PanelCustomer\UI\Controller\Api\DatabaseApiController;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerDatabaseController;
 use App\Repository\DatabaseNodeRepository;
@@ -56,12 +57,12 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $audit = $this->createStub(AuditLogger::class);
         $prov = $this->createStub(DatabaseProvisioningService::class);
         $prov->method('buildCreateJobs')->willReturn([new Job('database.create',[])]);
-        $naming = $this->createStub(DatabaseNamingPolicy::class);
+        $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
         $naming->method('validateDatabaseName')->willReturn([]);
         $naming->method('buildCustomerScopedName')->willReturn('u1_demo');
 
         $env = $this->createStub(EncryptionService::class);
-        $respFactory = $this->createStub(ResponseEnvelopeFactory::class);
+        $respFactory = $this->createStub(ResponseEnvelopeFactoryInterface::class);
         $respFactory->method('success')->willReturn(new JsonResponse([],202));
         $respFactory->method('error')->willReturn(new JsonResponse([],400));
         $translator = $this->createStub(TranslatorInterface::class);
@@ -91,7 +92,7 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $em = $this->createStub(EntityManagerInterface::class);
         $audit = $this->createStub(AuditLogger::class);
         $prov = $this->createStub(DatabaseProvisioningService::class);
-        $naming = $this->createStub(DatabaseNamingPolicy::class);
+        $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
         $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturnCallback(fn($tpl,$ctx)=>json_encode($ctx['errors']??[]));
         $translator = $this->createStub(TranslatorInterface::class);

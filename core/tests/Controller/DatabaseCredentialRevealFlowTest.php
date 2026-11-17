@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\DatabaseNamingPolicy;
+use App\Module\Core\Application\DatabaseNamingPolicyInterface;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\JobPayloadMasker;
@@ -18,6 +18,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\PanelCustomer\UI\Controller\Api\DatabaseApiController;
 use App\Repository\DatabaseNodeRepository;
 use App\Repository\DatabaseRepository;
@@ -106,7 +107,7 @@ final class DatabaseCredentialRevealFlowTest extends TestCase
 
         $audit = $this->createStub(AuditLogger::class);
         $prov = $this->createStub(DatabaseProvisioningService::class);
-        $naming = $this->createStub(DatabaseNamingPolicy::class);
+        $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
 
         $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('decrypt')->willReturnMap([
@@ -114,7 +115,7 @@ final class DatabaseCredentialRevealFlowTest extends TestCase
             [['key_id'=>'k2','nonce'=>'n2','ciphertext'=>'c2'], 'reveal-pass'],
         ]);
 
-        $respFactory = $this->createStub(ResponseEnvelopeFactory::class);
+        $respFactory = $this->createStub(ResponseEnvelopeFactoryInterface::class);
         $respFactory->method('error')->willReturnCallback(static fn(Request $r, string $m, string $code, int $status) => new JsonResponse(['error_code'=>$code], $status));
         $respFactory->method('success')->willReturnCallback(static fn(Request $r, string $id, string $m, int $status, array $extra=[]) => new JsonResponse($extra, $status));
 

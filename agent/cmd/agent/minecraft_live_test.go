@@ -1,3 +1,5 @@
+//go:build minecraft_integration
+
 package main
 
 import (
@@ -6,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -21,11 +22,8 @@ import (
 // Opt-in integration test. Downloads official artifacts and starts a temporary,
 // loopback-only server; no customer worlds or system services are touched.
 func TestManagedMinecraftLiveVanilla(t *testing.T) {
-	if os.Getenv("EASYWI_TEST_MINECRAFT_LIVE") != "1" {
-		t.Skip("set EASYWI_TEST_MINECRAFT_LIVE=1 to test official downloads and an actual server")
-	}
 	if runtime.GOOS != "linux" {
-		t.Skip("Linux node integration")
+		t.Fatal("Minecraft live integration requires a Linux node")
 	}
 	client := minecraftDownloadClient(2 * time.Minute)
 	fetch := func(url string) map[string]any {
@@ -130,9 +128,6 @@ func TestManagedMinecraftLiveVanilla(t *testing.T) {
 }
 
 func TestManagedMinecraftLiveJavaMajors(t *testing.T) {
-	if os.Getenv("EASYWI_TEST_MINECRAFT_LIVE") != "1" {
-		t.Skip("opt-in official Java download validation")
-	}
 	for _, major := range []string{"8", "16", "17", "21", "25"} {
 		t.Run("Java"+major, func(t *testing.T) {
 			payload := map[string]any{"minecraft_java_version": major}
@@ -145,14 +140,11 @@ func TestManagedMinecraftLiveJavaMajors(t *testing.T) {
 }
 
 func TestManagedMinecraftLiveDistributions(t *testing.T) {
-	if os.Getenv("EASYWI_TEST_MINECRAFT_DISTRIBUTIONS_LIVE") != "1" {
-		t.Skip("opt-in official distribution install validation")
-	}
 	if runtime.GOOS != "linux" {
-		t.Skip("Linux distributions")
+		t.Fatal("Minecraft distribution integration requires Linux")
 	}
 	client := minecraftDownloadClient(2 * time.Minute)
-	fetch := func(url string, target any) {
+	fetch := func(t *testing.T, url string, target any) {
 		t.Helper()
 		r, err := client.Get(url)
 		if err != nil {
@@ -166,6 +158,35 @@ func TestManagedMinecraftLiveDistributions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+	officialAsset := func(t *testing.T, repository, artifact string) (string, string, string) {
+		t.Helper()
+		var release struct {
+			Tag    string `json:"tag_name"`
+			Assets []struct {
+				Name   string `json:"name"`
+				URL    string `json:"browser_download_url"`
+				Digest string `json:"digest"`
+			} `json:"assets"`
+		}
+		fetch(t, "https://api.github.com/repos/SpigotMC/"+repository+"/releases/latest", &release)
+		for _, asset := range release.Assets {
+			if asset.Name != artifact {
+				continue
+			}
+			checksum := strings.TrimPrefix(asset.Digest, "sha256:")
+			if _, err := hex.DecodeString(checksum); err != nil || len(checksum) != sha256.Size*2 {
+				t.Fatalf("official %s release has no valid SHA-256 digest", repository)
+			}
+			expected := "https://github.com/SpigotMC/" + repository + "/releases/download/" + release.Tag + "/" + artifact
+			if asset.URL != expected {
+				t.Fatalf("unexpected official %s asset URL: %s", repository, asset.URL)
+			}
+			return asset.URL, checksum, strings.TrimPrefix(release.Tag, "build/b")
+		}
+		t.Fatalf("official %s release does not contain %s", repository, artifact)
+		return "", "", ""
+	}
 	for _, channel := range []string{"paper", "bungeecord", "bedrock", "spigot"} {
 		t.Run(channel, func(t *testing.T) {
 			var url, checksum, version, build, java string
@@ -178,7 +199,7 @@ func TestManagedMinecraftLiveDistributions(t *testing.T) {
 						Checksums map[string]string `json:"checksums"`
 					} `json:"downloads"`
 				}
-				fetch("https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds", &entries)
+				fetch(t, "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds", &entries)
 				if len(entries) == 0 {
 					t.Fatal("no Paper builds")
 				}
@@ -188,14 +209,9 @@ func TestManagedMinecraftLiveDistributions(t *testing.T) {
 				build = fmt.Sprint(entries[0].ID)
 				java = "21"
 			case "bungeecord":
-				var job struct {
-					Number int `json:"number"`
-				}
-				fetch("https://hub.spigotmc.org/jenkins/job/BungeeCord/lastSuccessfulBuild/api/json?tree=number", &job)
-				build = fmt.Sprint(job.Number)
+				url, checksum, build = officialAsset(t, "BungeeCord", "BungeeCord.jar")
 				version = "BungeeCord"
 				java = "17"
-				url = "https://hub.spigotmc.org/jenkins/job/BungeeCord/" + build + "/artifact/bootstrap/target/BungeeCord.jar"
 			case "bedrock":
 				var data struct {
 					Result struct {
@@ -205,7 +221,7 @@ func TestManagedMinecraftLiveDistributions(t *testing.T) {
 						} `json:"links"`
 					} `json:"result"`
 				}
-				fetch("https://net-secondary.web.minecraft-services.net/api/v1.0/download/links", &data)
+				fetch(t, "https://net-secondary.web.minecraft-services.net/api/v1.0/download/links", &data)
 				for _, link := range data.Result.Links {
 					if link.Type == "serverBedrockLinux" {
 						url = link.URL
@@ -213,25 +229,10 @@ func TestManagedMinecraftLiveDistributions(t *testing.T) {
 				}
 				version = "current"
 			case "spigot":
-				var tool struct {
-					Number int `json:"number"`
-				}
-				fetch("https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/api/json?tree=number", &tool)
+				url, checksum, build = officialAsset(t, "BuildTools", "BuildTools.jar")
 				version = "1.21.11"
 				java = "21"
-				url = fmt.Sprintf("https://hub.spigotmc.org/jenkins/job/BuildTools/%d/artifact/target/BuildTools.jar", tool.Number)
-				// Pin the BuildTools bytes exactly as the catalog synchronizer does.
-				r, err := client.Get(url)
-				if err != nil {
-					t.Fatal(err)
-				}
-				bytes, err := io.ReadAll(r.Body)
-				_ = r.Body.Close()
-				if err != nil {
-					t.Fatal(err)
-				}
-				sum := sha256.Sum256(bytes)
-				checksum = hex.EncodeToString(sum[:])
+
 			}
 			listener, err := net.Listen("tcp", "127.0.0.1:0")
 			if err != nil {

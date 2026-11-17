@@ -12,103 +12,112 @@ final class BackupAgent
         private readonly BackupTargetValidator $targetValidator,
         private readonly BackupTargetWriterRegistry $targetWriterRegistry,
         private readonly BackupAdapterRegistry $adapterRegistry,
+        private readonly ?BackupArchiveInventory $inventory = null,
+        private readonly ?BackupOperationHeartbeat $heartbeat = null,
     ) {
     }
 
     public function run(BackupPlan $plan, ?string $idempotencyKey = null): BackupRun
     {
         $this->targetValidator->validate($plan->target());
-
+        $this->inventory?->assertReady();
         $adapter = $this->adapterRegistry->forModule($plan->module());
         $snapshot = $adapter->snapshot($plan->resourceId());
-
         $runId = $idempotencyKey !== null && $idempotencyKey !== '' ? $idempotencyKey : bin2hex(random_bytes(12));
-        $tempArchive = sys_get_temp_dir().'/'.$plan->id().'-'.$runId.'.tar';
-
-        $this->archivePath($snapshot->sourcePath(), $tempArchive);
-
-        $finalArchivePath = $tempArchive;
-        $compression = strtolower(self::configText($plan->options()['compression'] ?? 'none'));
-        if ($compression === 'gzip') {
-            $finalArchivePath = $tempArchive.'.gz';
-            $this->gzipFile($tempArchive, $finalArchivePath);
-        }
-
-        if (($plan->options()['encrypt'] ?? false) === true) {
-            $key = self::configText($plan->options()['encryption_key'] ?? '');
-            if ($key === '') {
-                throw new \InvalidArgumentException('Encryption was enabled but encryption_key is empty.');
+        $workspace = null;
+        try {
+            $workspace = BackupTemporaryDirectory::create();
+            $codec = new BackupArchiveCodec($this->heartbeat);
+            $identity = substr(hash('sha256', json_encode([$plan->id(), $runId], JSON_THROW_ON_ERROR)), 0, 32);
+            $archiveStem = self::filenameComponent(pathinfo($snapshot->archiveName(), PATHINFO_FILENAME));
+            $tempArchive = $workspace.'/'.self::filenameComponent($plan->id()).'-'.$archiveStem.'-'.$identity.'.tar';
+            // Web restore still uses PharData, whose individual-member limit is below 4 GiB.
+            $this->archivePath($snapshot->sourcePath(), $tempArchive, $plan->module() === 'web' ? 4294966784 : null);
+            $finalArchivePath = $tempArchive;
+            if (strtolower(self::configText($plan->options()['compression'] ?? 'none')) === 'gzip') {
+                $finalArchivePath = $tempArchive.'.gz';
+                $codec->gzip($tempArchive, $finalArchivePath);
             }
-            $encryptedPath = $finalArchivePath.'.enc';
-            $this->encryptFile($finalArchivePath, $encryptedPath, $key);
-            $finalArchivePath = $encryptedPath;
+            if (($plan->options()['encrypt'] ?? false) === true) {
+                $encryptedPath = $finalArchivePath.'.enc';
+                $codec->encrypt($finalArchivePath, $encryptedPath, self::encryptionKey($plan));
+                $finalArchivePath = $encryptedPath;
+            }
+            $checksum = BackupFileChecksum::sha256($finalArchivePath, $this->heartbeat);
+            $size = filesize($finalArchivePath);
+            if ($size === false) {
+                throw new \RuntimeException('Unable to inspect completed backup archive.');
+            }
+            $destination = $this->targetWriterRegistry->write($plan->target(), basename($finalArchivePath), $finalArchivePath);
+            $this->heartbeat?->pulse(true);
+
+            $run = new BackupRun($runId, $plan->id(), 'succeeded', $destination, $size, $checksum);
+            $this->inventory?->record($plan, $run);
+
+            return $run;
+        } finally {
+            if ($workspace !== null) {
+                BackupTemporaryDirectory::remove($workspace, 'easywi-backup-work-');
+            }
+            $snapshot->cleanup();
         }
-
-        $checksum = hash_file('sha256', $finalArchivePath);
-        if ($checksum === false) {
-            throw new \RuntimeException('Failed to generate backup checksum.');
-        }
-
-        $destination = $this->targetWriterRegistry->write($plan->target(), basename($finalArchivePath), $finalArchivePath);
-        $size = filesize($finalArchivePath);
-        $size = $size === false ? 0 : $size;
-
-        return new BackupRun($runId, $plan->id(), 'succeeded', $destination, $size, $checksum);
     }
 
     public function restore(BackupPlan $plan, string $archivePath, bool $dryRun = false): RestoreReport
     {
         $adapter = $this->adapterRegistry->forModule($plan->module());
+        $workspace = null;
+        try {
+            if (str_contains($archivePath, '://') || !is_file($archivePath) || !is_readable($archivePath)) {
+                throw new \InvalidArgumentException('Backup archive is not a readable local file.');
+            }
+            $codec = new BackupArchiveCodec($this->heartbeat);
+            $preparedArchive = $archivePath;
+            if (($plan->options()['encrypt'] ?? false) === true) {
+                $workspace = BackupTemporaryDirectory::create();
+                $preparedArchive = $workspace.'/decrypted.tar';
+                $codec->decrypt($archivePath, $preparedArchive, self::encryptionKey($plan));
+            }
+            if ($codec->isGzip($preparedArchive)) {
+                $workspace ??= BackupTemporaryDirectory::create();
+                $decompressed = $workspace.'/expanded.tar';
+                $codec->gunzip($preparedArchive, $decompressed);
+                $preparedArchive = $decompressed;
+            }
 
-        return $adapter->restore($plan->resourceId(), $archivePath, $dryRun);
+            return $adapter->restore($plan->resourceId(), $preparedArchive, $dryRun);
+        } catch (\Throwable $exception) {
+            return new RestoreReport($dryRun, false, 'Backup archive preparation failed: '.$exception->getMessage());
+        } finally {
+            if ($workspace !== null) {
+                BackupTemporaryDirectory::remove($workspace, 'easywi-backup-work-');
+            }
+        }
     }
 
-    private function archivePath(string $sourcePath, string $archivePath): void
+    private function archivePath(string $sourcePath, string $archivePath, ?int $maximumMemberBytes): void
     {
         $source = rtrim($sourcePath, '/');
         if (!is_dir($source)) {
             throw new \InvalidArgumentException('Backup source path does not exist: '.$source);
         }
-
-        $archive = new \PharData($archivePath);
-        $archive->buildFromDirectory($source);
+        (new BackupTarWriter($this->heartbeat))->write($source, $archivePath, maximumMemberBytes: $maximumMemberBytes);
     }
 
-    private function gzipFile(string $inputPath, string $outputPath): void
+    private static function filenameComponent(string $value): string
     {
-        $input = fopen($inputPath, 'rb');
-        $output = gzopen($outputPath, 'wb9');
-
-        if (!is_resource($input) || $output === false) {
-            throw new \RuntimeException('Failed to open compression streams.');
-        }
-
-        while (!feof($input)) {
-            $chunk = fread($input, 1048576);
-            if ($chunk === false) {
-                throw new \RuntimeException('Failed to read archive chunk during compression.');
-            }
-            gzwrite($output, $chunk);
-        }
-
-        fclose($input);
-        gzclose($output);
+        return strlen($value) <= 100 && $value !== '.' && $value !== '..'
+            && preg_match('/^[A-Za-z0-9_.-]+$/D', $value) === 1
+            ? $value : hash('sha256', $value);
     }
 
-    private function encryptFile(string $inputPath, string $outputPath, string $key): void
+    private static function encryptionKey(BackupPlan $plan): string
     {
-        $plaintext = file_get_contents($inputPath);
-        if (!is_string($plaintext)) {
-            throw new \RuntimeException('Failed to read archive for encryption.');
+        $key = self::configText($plan->options()['encryption_key'] ?? '');
+        if ($key === '') {
+            throw new \InvalidArgumentException('Encryption was enabled but encryption_key is empty.');
         }
-
-        $iv = random_bytes(16);
-        $ciphertext = openssl_encrypt($plaintext, 'AES-256-CBC', hash('sha256', $key, true), OPENSSL_RAW_DATA, $iv);
-        if (!is_string($ciphertext)) {
-            throw new \RuntimeException('Backup encryption failed.');
-        }
-
-        file_put_contents($outputPath, $iv.$ciphertext);
+        return $key;
     }
 
     private static function configText(mixed $value): string
@@ -116,7 +125,6 @@ final class BackupAgent
         if ($value === null || is_scalar($value)) {
             return (string) $value;
         }
-
         throw new \InvalidArgumentException('Backup configuration fields must contain scalar values.');
     }
 }

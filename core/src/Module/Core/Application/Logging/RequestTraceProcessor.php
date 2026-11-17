@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Logging;
 
 use App\Module\Core\Application\TraceContext;
+use Monolog\Attribute\AsMonologProcessor;
+use Monolog\LogRecord;
+use Monolog\Processor\ProcessorInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 
-final class RequestTraceProcessor
+#[AsMonologProcessor]
+final class RequestTraceProcessor implements ProcessorInterface
 {
     public function __construct(
         private readonly RequestStack $requestStack,
@@ -15,25 +19,22 @@ final class RequestTraceProcessor
     ) {
     }
 
-    /**
-     * @param array<string,mixed> $record
-     * @return array<string,mixed>
-     */
-    public function __invoke(array $record): array
+    #[\Override]
+    public function __invoke(LogRecord $record): LogRecord
     {
-        $record['extra'] = \App\Infrastructure\Config\JsonMap::fromValue($record['extra'] ?? null) ?? [];
+        $extra = $record->extra;
         $request = $this->requestStack->getCurrentRequest();
         if ($request === null) {
             $fallbackId = $this->traceContext->newId();
-            $record['extra']['request_id'] = $fallbackId;
-            $record['extra']['correlation_id'] = $fallbackId;
+            $extra['request_id'] = $fallbackId;
+            $extra['correlation_id'] = $fallbackId;
 
-            return $record;
+            return $record->with(extra: $extra);
         }
 
-        $record['extra']['request_id'] = $this->traceContext->requestId($request);
-        $record['extra']['correlation_id'] = $this->traceContext->correlationId($request);
+        $extra['request_id'] = $this->traceContext->requestId($request);
+        $extra['correlation_id'] = $this->traceContext->correlationId($request);
 
-        return $record;
+        return $record->with(extra: $extra);
     }
 }

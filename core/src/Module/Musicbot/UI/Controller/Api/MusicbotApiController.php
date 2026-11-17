@@ -61,8 +61,8 @@ use App\Repository\MusicbotWorkflowRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPlaylistRepository;
 use App\Repository\MusicbotPluginRepository;
-use App\Repository\MusicbotQueueItemRepository;
-use App\Repository\MusicbotTrackRepository;
+use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
+use App\Repository\MusicbotTrackQueryRepositoryInterface;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -98,8 +98,8 @@ final class MusicbotApiController
         private readonly MusicbotPlanLimitResolver $planLimitResolver,
         private readonly MusicbotInstanceRepository $instanceRepository,
         private readonly MusicbotConnectionRepository $connectionRepository,
-        private readonly MusicbotQueueItemRepository $queueItemRepository,
-        private readonly MusicbotTrackRepository $trackRepository,
+        private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
+        private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
         private readonly MusicbotPluginRepository $pluginRepository,
         private readonly MusicbotCustomerLimitsRepository $customerLimitsRepository,

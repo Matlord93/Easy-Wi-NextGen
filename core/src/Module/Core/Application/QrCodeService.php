@@ -42,15 +42,6 @@ final class QrCodeService
         }
     }
 
-    public function renderPng(string $data): string
-    {
-        try {
-            return $this->buildWithEndroid($data, new PngWriter());
-        } catch (\Throwable) {
-            return $this->buildWithBaconSvg($data);
-        }
-    }
-
     private function buildWithEndroid(string $data, PngWriter|SvgWriter $writer): string
     {
         $result = (new Builder(

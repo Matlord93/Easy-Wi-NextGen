@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Command;
 
-use App\Module\Core\Application\DatabaseNamingPolicy;
-use App\Module\Core\Application\DatabaseNodeInspector;
+use App\Module\Core\Application\DatabaseNamingPolicyInterface;
+use App\Module\Core\Application\DatabaseNodeInspectorInterface;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Command\DatabaseSyncUsersCommand;
@@ -35,7 +35,7 @@ final class DatabaseSyncUsersCommandTest extends TestCase
         $provisioning = $this->createStub(DatabaseProvisioningService::class);
         $provisioning->method('buildCreateJobs')->willReturn([new Job('database.create', ['database_id' => '1'])]);
 
-        $inspector = $this->createStub(DatabaseNodeInspector::class);
+        $inspector = $this->createStub(DatabaseNodeInspectorInterface::class);
         $inspector->method('inspect')->willReturn([
             'database_exists' => false,
             'user_exists' => false,
@@ -45,7 +45,7 @@ final class DatabaseSyncUsersCommandTest extends TestCase
         $encryption = $this->createStub(EncryptionService::class);
         $encryption->method('encrypt')->willReturn(['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
 
-        $naming = $this->createStub(DatabaseNamingPolicy::class);
+        $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
         $naming->method('buildCustomerScopedName')->willReturn('u2_demo');
 
         $em = $this->createMock(EntityManagerInterface::class);

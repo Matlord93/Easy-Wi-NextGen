@@ -25,7 +25,6 @@ final class AgentMetricsIngestionService
         private readonly MetricAggregateRepository $aggregateRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly MetricsLiveBuffer $liveBuffer,
-        private readonly AuditLogger $auditLogger,
     ) {
     }
 

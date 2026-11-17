@@ -2,7 +2,8 @@
 declare(strict_types=1);
 namespace App\Module\Core\Application;
 
-class MailDnsCheckService
+#[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: MailDnsCheckServiceInterface::class)]
+final class MailDnsCheckService implements MailDnsCheckServiceInterface
 {
     public function __construct(private readonly DnsResolverInterface $resolver) {}
 
@@ -11,6 +12,7 @@ class MailDnsCheckService
      * spf: array{ok: bool, message: string}, dmarc: array{ok: bool, message: string}, dkim: array{ok: bool,
      * message: string}, mailhost?: array{ok: bool, message: string}}}
      */
+    #[\Override]
     public function check(string $domain, ?string $mailHost = null, ?string $dkimSelector = null): array
     {
         $mx = $this->resolver->query($domain, DNS_MX);

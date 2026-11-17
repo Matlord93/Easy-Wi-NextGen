@@ -6,19 +6,13 @@ namespace App\Module\Core\Application\Mail;
 
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\MailUser;
-use Doctrine\Common\EventSubscriber;
+use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\Event\OnFlushEventArgs;
 use Doctrine\ORM\Events;
 
-final class MailUserProjector implements EventSubscriber
+#[AsDoctrineListener(event: Events::onFlush)]
+final class MailUserProjector
 {
-    /** @return list<string> */
-    #[\Override]
-    public function getSubscribedEvents(): array
-    {
-        return [Events::onFlush];
-    }
-
     public function onFlush(OnFlushEventArgs $args): void
     {
         $entityManager = $args->getObjectManager();
@@ -46,7 +40,9 @@ final class MailUserProjector implements EventSubscriber
         $mailUserRepository = $entityManager->getRepository(MailUser::class);
 
         foreach ($mailboxes as $mailbox) {
-            $mailUser = $mailUserRepository->findOneBy(['mailbox' => $mailbox]);
+            $mailUser = $mailbox->getId() === null
+                ? null
+                : $mailUserRepository->findOneBy(['mailbox' => $mailbox]);
             if (!$mailUser instanceof MailUser) {
                 $mailUser = new MailUser($mailbox);
                 $entityManager->persist($mailUser);

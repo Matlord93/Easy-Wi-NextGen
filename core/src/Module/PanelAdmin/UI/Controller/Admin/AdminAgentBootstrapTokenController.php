@@ -7,10 +7,10 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\TokenGenerator;
+use App\Module\Core\Application\TokenGeneratorInterface;
 use App\Module\Core\Domain\Entity\AgentBootstrapToken;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\AgentBootstrapTokenRepository;
+use App\Repository\AgentBootstrapTokenRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,8 +28,8 @@ final class AdminAgentBootstrapTokenController
     private const RECENT_TOKEN_LIMIT = 50;
 
     public function __construct(
-        private readonly AgentBootstrapTokenRepository $bootstrapTokenRepository,
-        private readonly TokenGenerator $tokenGenerator,
+        private readonly AgentBootstrapTokenRepositoryInterface $bootstrapTokenRepository,
+        private readonly TokenGeneratorInterface $tokenGenerator,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,

@@ -73,6 +73,8 @@ final class MusicbotBackupApiController
         return new JsonResponse([
             'success' => true,
             'backup_type' => $manifest->backupType,
+            'backup_scope' => 'configuration',
+            'contains_media_files' => false,
             'instance_id' => $manifest->instanceId,
             'customer_id' => $manifest->customerId,
             'created_at' => $manifest->createdAt->format(\DateTimeInterface::ATOM),
@@ -109,6 +111,7 @@ final class MusicbotBackupApiController
         $response = JsonResponse::fromJsonString($json);
 
         $response->headers->set('Content-Type', 'application/json');
+        $response->headers->set('X-Musicbot-Backup-Scope', 'configuration');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Cache-Control', 'private, no-store');
         $response->headers->set('Content-Disposition', 'attachment; filename="'.$filename.'"');

@@ -6,18 +6,21 @@ namespace App\Module\PanelAdmin\Application;
 
 use App\Infrastructure\Config\JsonArray;
 
-use App\Module\Core\Application\AgentEndpointResolver;
+use App\Module\Core\Application\AgentEndpointResolverInterface;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailNode;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-class MailNodeHealthAggregator
+/** @psalm-import-type HealthNode from MailNodeHealthAggregatorInterface */
+#[AsAlias(id: MailNodeHealthAggregatorInterface::class)]
+final class MailNodeHealthAggregator implements MailNodeHealthAggregatorInterface
 {
-    /** @var string[] */
+    /** @var list<string> */
     private const array REQUIRED_KEYS = [
         'postfix_installed', 'dovecot_installed', 'postmap_available', 'postfix_active', 'dovecot_active',
         'postfix_virtual_mailboxes_file', 'postfix_virtual_domains_file', 'postfix_virtual_aliases_file',
@@ -25,7 +28,7 @@ class MailNodeHealthAggregator
         'port_587_listening', 'port_110_listening', 'port_143_listening', 'port_993_listening', 'port_995_listening',
     ];
 
-    /** @var string[] */
+    /** @var list<string> */
     private const array CRITICAL_KEYS = [
         'postfix_installed', 'dovecot_installed', 'postmap_available', 'postfix_active', 'dovecot_active',
         'postfix_virtual_mailboxes_file', 'dovecot_users_file', 'maildir_writable',
@@ -34,7 +37,7 @@ class MailNodeHealthAggregator
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
-        private readonly AgentEndpointResolver $endpointResolver,
+        private readonly AgentEndpointResolverInterface $endpointResolver,
         private readonly SecretsCrypto $secretsCrypto,
         private readonly LoggerInterface $logger,
     ) {
@@ -43,7 +46,9 @@ class MailNodeHealthAggregator
     /**
      * @param MailNode[] $mailNodes
      * @param MailDomain[] $mailDomains
+     * @return array{nodes: list<HealthNode>}
      */
+    #[\Override]
     public function aggregate(array $mailNodes, array $mailDomains): array
     {
         $agentsByMailNode = $this->mapAgentsByMailNode($mailDomains);
@@ -56,6 +61,7 @@ class MailNodeHealthAggregator
         return ['nodes' => $nodes];
     }
 
+    /** @return HealthNode */
     private function buildNodeHealth(MailNode $mailNode, ?Agent $agent): array
     {
         $checks = [];
@@ -93,6 +99,13 @@ class MailNodeHealthAggregator
         return $this->nodePayload($mailNode, $agent, $online, $overallOk, $agent->getLastSeenAt(), $checks, $criticalFailures, $warnings, $mailReport);
     }
 
+    /**
+     * @param array<string, array<array-key, mixed>> $checks
+     * @param list<string> $criticalFailures
+     * @param list<string> $warnings
+     * @param array<array-key, mixed>|null $mailReport
+     * @return HealthNode
+     */
     private function nodePayload(MailNode $mailNode, ?Agent $agent, bool $online, bool $overallOk, ?\DateTimeImmutable $lastSeenAt, array $checks, array $criticalFailures, array $warnings, ?array $mailReport = null): array
     {
         return [
@@ -130,6 +143,8 @@ class MailNodeHealthAggregator
         }
     }
 
+    /** @return array<array-key, mixed>|null */
+    #[\Override]
     public function fetchAgentMailReport(Agent $agent, bool $refresh): ?array
     {
         try {
@@ -148,6 +163,7 @@ class MailNodeHealthAggregator
         }
     }
 
+    /** @return array<string, array{ok: bool, message: string}> */
     private function fallbackMissingChecks(string $message): array
     {
         $checks = [];

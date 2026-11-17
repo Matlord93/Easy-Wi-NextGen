@@ -89,7 +89,7 @@ final class Ts6NodeService
         $this->entityManager->flush();
     }
 
-    private function queueFirewallPorts(Ts6Node $node, InstallDto $dto): ?Job
+    private function queueFirewallPorts(Ts6Node $node, InstallDto $dto): void
     {
         $ports = [
             22,
@@ -106,7 +106,7 @@ final class Ts6NodeService
 
         $ports = array_values(array_unique(array_filter($ports, static fn (int $port): bool => $port <= 65535)));
         if ($ports === []) {
-            return null;
+            return;
         }
 
         $job = new Job('firewall.open_ports', [
@@ -115,7 +115,5 @@ final class Ts6NodeService
             'ports' => implode(',', array_map('strval', $ports)),
         ]);
         $this->entityManager->persist($job);
-
-        return $job;
     }
 }

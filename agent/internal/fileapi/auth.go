@@ -28,22 +28,9 @@ func VerifyRequestSignature(r *http.Request, cfg Config) (string, error) {
 }
 
 func verifyRequestSignature(r *http.Request, cfg Config) (string, error) {
-	agentID := strings.TrimSpace(r.Header.Get(headerAgentID))
-	if agentID == "" || agentID != cfg.AgentID {
-		return "", errors.New("missing or mismatched agent id")
-	}
-	customerID := strings.TrimSpace(r.Header.Get(headerCustomerID))
-	if customerID == "" {
-		return "", errors.New("missing customer id")
-	}
-	timestampRaw := strings.TrimSpace(r.Header.Get(headerTimestamp))
-	signature := strings.TrimSpace(r.Header.Get(headerSignature))
-	bodyHash := strings.ToLower(strings.TrimSpace(r.Header.Get(headerBodySHA256)))
-	if timestampRaw == "" || signature == "" || bodyHash == "" {
-		return "", errors.New("missing signature headers")
-	}
-	if !isHexSHA256(bodyHash) {
-		return "", errors.New("invalid body hash")
+	customerID, bodyHash, err := VerifyRequestSignatureHeaders(r, cfg)
+	if err != nil {
+		return "", err
 	}
 	actualBodyHash, err := requestBodySHA256(r)
 	if err != nil {
@@ -52,20 +39,45 @@ func verifyRequestSignature(r *http.Request, cfg Config) (string, error) {
 	if !hmac.Equal([]byte(actualBodyHash), []byte(bodyHash)) {
 		return "", errors.New("invalid body hash")
 	}
+	return customerID, nil
+}
+
+// VerifyRequestSignatureHeaders authenticates the signed request metadata without
+// reading its body. The caller MUST hash the entire body and compare it against
+// the returned digest before interpreting the body or performing any mutation.
+// This supports bounded-memory archive uploads while rejecting unauthenticated
+// senders before accepting their data.
+func VerifyRequestSignatureHeaders(r *http.Request, cfg Config) (string, string, error) {
+	agentID := strings.TrimSpace(r.Header.Get(headerAgentID))
+	if agentID == "" || agentID != cfg.AgentID {
+		return "", "", errors.New("missing or mismatched agent id")
+	}
+	customerID := strings.TrimSpace(r.Header.Get(headerCustomerID))
+	if customerID == "" {
+		return "", "", errors.New("missing customer id")
+	}
+	timestampRaw := strings.TrimSpace(r.Header.Get(headerTimestamp))
+	signature := strings.TrimSpace(r.Header.Get(headerSignature))
+	bodyHash := strings.ToLower(strings.TrimSpace(r.Header.Get(headerBodySHA256)))
+	if timestampRaw == "" || signature == "" || bodyHash == "" {
+		return "", "", errors.New("missing signature headers")
+	}
+	if !isHexSHA256(bodyHash) {
+		return "", "", errors.New("invalid body hash")
+	}
 	parsed, err := time.Parse(time.RFC3339, timestampRaw)
 	if err != nil {
-		return "", errors.New("invalid timestamp")
+		return "", "", errors.New("invalid timestamp")
 	}
 	if skew := time.Since(parsed); skew > cfg.MaxSkew || skew < -cfg.MaxSkew {
-		return "", errors.New("signature expired")
+		return "", "", errors.New("signature expired")
 	}
-
 	payload := buildSignaturePayload(agentID, customerID, r.Method, r.URL.RequestURI(), timestampRaw, bodyHash)
 	expected := signPayload(payload, cfg.Secret)
-	if !hmac.Equal([]byte(expected), []byte(signature)) {
-		return "", errors.New("invalid signature")
+	if cfg.Secret == "" || !hmac.Equal([]byte(expected), []byte(signature)) {
+		return "", "", errors.New("invalid signature")
 	}
-	return customerID, nil
+	return customerID, bodyHash, nil
 }
 
 func buildSignaturePayload(agentID, customerID, method, requestURI, timestamp, bodyHash string) string {

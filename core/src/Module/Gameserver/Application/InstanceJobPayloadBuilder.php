@@ -22,7 +22,7 @@ final class InstanceJobPayloadBuilder
     private MinecraftJavaVersionResolver $minecraftJavaVersionResolver;
 
     public function __construct(
-        private readonly TemplateInstallResolver $templateInstallResolver,
+        private readonly TemplateInstallResolverInterface $templateInstallResolver,
         private readonly PortBlockFinderInterface $portBlockRepository,
         private readonly SharedStorageTemplateLocatorInterface $templateRepository,
         ?MinecraftCatalogService $minecraftCatalogService = null,

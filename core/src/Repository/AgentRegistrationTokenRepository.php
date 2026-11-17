@@ -7,17 +7,20 @@ namespace App\Repository;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
 /**
  * @extends ServiceEntityRepository<AgentRegistrationToken>
  */
-class AgentRegistrationTokenRepository extends ServiceEntityRepository
+#[AsAlias(id: AgentRegistrationTokenRepositoryInterface::class)]
+final class AgentRegistrationTokenRepository extends ServiceEntityRepository implements AgentRegistrationTokenRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, AgentRegistrationToken::class);
     }
 
+    #[\Override]
     public function findActiveByHash(string $tokenHash): ?AgentRegistrationToken
     {
         $qb = $this->createQueryBuilder('token');

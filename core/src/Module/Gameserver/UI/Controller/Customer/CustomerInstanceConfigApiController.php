@@ -18,6 +18,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\Gameserver\Application\ConfigTemplateRegistry;
 use App\Module\Gameserver\Application\InstanceAddonResolver;
 use App\Module\Gameserver\Application\InstanceConfigPathResolver;
@@ -57,7 +58,7 @@ final class CustomerInstanceConfigApiController
         private readonly InstanceConfigPathResolver $instanceConfigPathResolver,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
     ) {
     }
 

@@ -46,7 +46,7 @@ use App\Repository\AgentRepository;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPlaylistRepository;
-use App\Repository\MusicbotQueueItemRepository;
+use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -65,7 +65,7 @@ final class CustomerMusicbotController
     public function __construct(
         private readonly MusicbotInstanceRepository $instanceRepository,
         private readonly MusicbotConnectionRepository $connectionRepository,
-        private readonly MusicbotQueueItemRepository $queueItemRepository,
+        private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
         private readonly MusicbotTrackService $trackService,
         private readonly MusicbotPlaylistService $playlistService,

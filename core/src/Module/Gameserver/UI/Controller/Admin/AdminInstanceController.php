@@ -34,6 +34,7 @@ use App\Module\Gameserver\Application\GameServerInstallPathManager;
 use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 use App\Module\Ports\Domain\Entity\PortBlock;
@@ -85,7 +86,7 @@ final class AdminInstanceController
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly InstanceInstallService $instanceInstallService,
         private readonly InstanceQueryService $instanceQueryService,
-        private readonly AgentGameServerClient $agentGameServerClient,
+        private readonly AgentGameServerClientInterface $agentGameServerClient,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly PortLeaseManager $portLeaseManager,
         private readonly Environment $twig,

@@ -19,12 +19,13 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\AgentRepository;
 use App\Repository\DomainRepository;
 use App\Repository\JobRepository;
 use App\Repository\MailDomainRepository;
-use App\Repository\MailNodeRepository;
+use App\Repository\MailNodeRepositoryInterface;
 use App\Repository\UserRepository;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -44,12 +45,12 @@ final class WebspaceApiController
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DomainRepository $domainRepository,
         private readonly JobRepository $jobRepository,
-        private readonly MailNodeRepository $mailNodeRepository,
+        private readonly MailNodeRepositoryInterface $mailNodeRepository,
         private readonly MailDomainRepository $mailDomainRepository,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly AuditLogger $auditLogger,
         private readonly WebspacePathSanitizer $pathSanitizer,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
     ) {

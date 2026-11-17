@@ -27,6 +27,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\Gameserver\Application\ConsoleCommandValidator;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Module\Gameserver\Application\GameServerPathResolver;
@@ -34,6 +35,7 @@ use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\GithubReleaseAssetUrlResolver;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\BackupTargetRepository;
@@ -85,10 +87,10 @@ final class CustomerInstanceActionApiController
         private readonly RateLimiterFactory $consoleLimiter,
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly EncryptionService $encryptionService,
         private readonly TranslatorInterface $translator,
-        private readonly ?AgentGameServerClient $agentGameServerClient = null,
+        private readonly ?AgentGameServerClientInterface $agentGameServerClient = null,
         private readonly ?ConsoleStreamDiagnostics $consoleStreamDiagnostics = null,
         private readonly ?GithubReleaseAssetUrlResolver $githubReleaseAssetUrlResolver = null,
     ) {
@@ -293,7 +295,7 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        if (!$this->agentGameServerClient instanceof AgentGameServerClient) {
+        if (!$this->agentGameServerClient instanceof AgentGameServerClientInterface) {
             return $this->apiError($request, 'AGENT_UNAVAILABLE', 'Agent status client is not configured.', JsonResponse::HTTP_SERVICE_UNAVAILABLE);
         }
 
@@ -694,7 +696,7 @@ final class CustomerInstanceActionApiController
             return $response;
         }
 
-        if (!$this->agentGameServerClient instanceof AgentGameServerClient) {
+        if (!$this->agentGameServerClient instanceof AgentGameServerClientInterface) {
             return $this->apiError($request, 'NOT_FOUND', 'Backup archive is unavailable.', JsonResponse::HTTP_NOT_FOUND);
         }
 
@@ -1193,7 +1195,7 @@ final class CustomerInstanceActionApiController
 
         $cursorRaw = trim($request->query->getString('cursor', ''));
 
-        if ($this->agentGameServerClient instanceof AgentGameServerClient) {
+        if ($this->agentGameServerClient instanceof AgentGameServerClientInterface) {
             try {
                 $agentPayload = $this->agentGameServerClient->getConsoleLogs($instance, $cursorRaw !== '' ? $cursorRaw : null);
                 $data = AgentGameServerClient::unwrapAgentEnvelope($agentPayload);

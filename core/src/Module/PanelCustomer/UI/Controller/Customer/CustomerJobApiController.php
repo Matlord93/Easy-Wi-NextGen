@@ -20,9 +20,11 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
+use App\Module\Gameserver\Application\TemplateInstallResolverInterface;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobLogRepository;
@@ -52,11 +54,11 @@ final class CustomerJobApiController
         private readonly SetupChecker $setupChecker,
         private readonly InstanceInstallService $instanceInstallService,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
-        private readonly TemplateInstallResolver $templateInstallResolver,
+        private readonly TemplateInstallResolverInterface $templateInstallResolver,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly TranslatorInterface $translator,
     ) {
     }

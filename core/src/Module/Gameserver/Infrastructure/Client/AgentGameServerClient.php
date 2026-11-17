@@ -13,7 +13,8 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
-class AgentGameServerClient
+#[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: AgentGameServerClientInterface::class)]
+final class AgentGameServerClient implements AgentGameServerClientInterface
 {
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -27,6 +28,7 @@ class AgentGameServerClient
      * @param array<int, array{proto: string, port: int}> $checks
      * @return array<int, array{proto: string, port: int, free: bool}>
      */
+    #[\Override]
     public function checkFreePortsForNode(Agent $node, array $checks): array
     {
         $token = trim((string) ($node->getMetadata()['gamesvc_bearer_token'] ?? ''));
@@ -50,6 +52,7 @@ class AgentGameServerClient
      * @param array<string, mixed> $payload
      * @return array{response: ResponseInterface, content_type: string|null}
      */
+    #[\Override]
     public function openInstanceBackupDownload(Instance $instance, array $payload): array
     {
         $endpoint = sprintf('/v1/instances/%d/backups/download', (int) $instance->getId());
@@ -84,6 +87,7 @@ class AgentGameServerClient
     /**
      * @return \Generator<int, string>
      */
+    #[\Override]
     public function streamResponseContent(ResponseInterface $response): \Generator
     {
         foreach ($this->httpClient->stream($response) as $chunk) {
@@ -120,6 +124,7 @@ class AgentGameServerClient
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
+    #[\Override]
     public function createFromMasterTemplate(Instance $instance, array $payload): array
     {
         return $this->requestJson($instance, 'POST', '/api/server/create', $payload);
@@ -128,6 +133,7 @@ class AgentGameServerClient
     /**
      * @return array<string, mixed>
      */
+    #[\Override]
     public function getInstanceStatus(Instance $instance): array
     {
         $payload = $this->requestJson($instance, 'POST', '/instance/status', [
@@ -140,6 +146,7 @@ class AgentGameServerClient
     /**
      * @return array<string, mixed>
      */
+    #[\Override]
     public function getInstanceAccessHealth(Instance $instance): array
     {
         return $this->requestJson($instance, 'GET', sprintf('/v1/instances/%d/access/health', (int) $instance->getId()), []);
@@ -149,6 +156,7 @@ class AgentGameServerClient
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
+    #[\Override]
     public function provisionInstanceAccess(Instance $instance, array $payload): array
     {
         return $this->requestJson($instance, 'POST', sprintf('/v1/instances/%d/access/provision', (int) $instance->getId()), $payload);
@@ -158,6 +166,7 @@ class AgentGameServerClient
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
+    #[\Override]
     public function resetInstanceAccess(Instance $instance, array $payload): array
     {
         return $this->requestJson($instance, 'POST', sprintf('/v1/instances/%d/access/reset', (int) $instance->getId()), $payload);
@@ -166,6 +175,7 @@ class AgentGameServerClient
     /**
      * @return array<string, mixed>
      */
+    #[\Override]
     public function getAccessCapabilities(Instance $instance): array
     {
         return $this->requestJson($instance, 'GET', '/v1/access/capabilities', []);
@@ -174,6 +184,7 @@ class AgentGameServerClient
     /**
      * @return array<string, mixed>
      */
+    #[\Override]
     public function getConsoleLogs(Instance $instance, ?string $cursor = null): array
     {
         $payload = [];

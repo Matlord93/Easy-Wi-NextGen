@@ -11,11 +11,11 @@ use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailPolicy;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\MailboxRepository;
-use App\Repository\MailAliasRepository;
+use App\Repository\MailAliasRepositoryInterface;
 use App\Repository\MailDomainRepository;
 use App\Repository\MailLogRepository;
-use App\Repository\MailNodeRepository;
-use App\Repository\MailPolicyRepository;
+use App\Repository\MailNodeRepositoryInterface;
+use App\Repository\MailPolicyRepositoryInterface;
 use App\Repository\QuotaPolicyRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -30,12 +30,12 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminMailSystemController
 {
     public function __construct(
-        private readonly MailNodeRepository $mailNodeRepository,
+        private readonly MailNodeRepositoryInterface $mailNodeRepository,
         private readonly QuotaPolicyRepository $quotaPolicyRepository,
-        private readonly MailPolicyRepository $mailPolicyRepository,
+        private readonly MailPolicyRepositoryInterface $mailPolicyRepository,
         private readonly MailDomainRepository $mailDomainRepository,
         private readonly MailboxRepository $mailboxRepository,
-        private readonly MailAliasRepository $mailAliasRepository,
+        private readonly MailAliasRepositoryInterface $mailAliasRepository,
         private readonly MailLogRepository $mailLogRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,

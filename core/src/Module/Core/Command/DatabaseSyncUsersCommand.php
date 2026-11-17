@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\DatabaseNamingPolicy;
-use App\Module\Core\Application\DatabaseNodeInspector;
+use App\Module\Core\Application\DatabaseNamingPolicyInterface;
+use App\Module\Core\Application\DatabaseNodeInspectorInterface;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Database;
@@ -24,8 +24,8 @@ final class DatabaseSyncUsersCommand extends Command
     public function __construct(
         private readonly DatabaseRepository $databaseRepository,
         private readonly DatabaseProvisioningService $provisioningService,
-        private readonly DatabaseNamingPolicy $namingPolicy,
-        private readonly DatabaseNodeInspector $nodeInspector,
+        private readonly DatabaseNamingPolicyInterface $namingPolicy,
+        private readonly DatabaseNodeInspectorInterface $nodeInspector,
         private readonly EncryptionService $encryptionService,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,

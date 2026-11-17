@@ -25,7 +25,7 @@ class PortAllocation
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Instance::class)]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Instance $instance;
 
     #[ORM\ManyToOne(targetEntity: Agent::class)]

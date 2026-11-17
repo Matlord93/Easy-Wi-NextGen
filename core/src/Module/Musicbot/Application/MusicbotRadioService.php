@@ -15,10 +15,9 @@ use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
 use App\Repository\MusicbotPlaylistItemRepository;
 use App\Repository\MusicbotPlaylistRepository;
-use App\Repository\MusicbotQueueItemRepository;
-use App\Repository\MusicbotRadioFavoriteRepository;
+use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use App\Repository\MusicbotRadioStationRepository;
-use App\Repository\MusicbotTrackRepository;
+use App\Repository\MusicbotTrackQueryRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class MusicbotRadioService
@@ -27,11 +26,10 @@ final class MusicbotRadioService
 
     public function __construct(
         private readonly MusicbotRadioStationRepository $stationRepository,
-        private readonly MusicbotRadioFavoriteRepository $favoriteRepository,
-        private readonly MusicbotQueueItemRepository $queueItemRepository,
+        private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
         private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
-        private readonly MusicbotTrackRepository $trackRepository,
+        private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
         private readonly MusicbotRadioPlaylistResolver $resolver,
         private readonly MusicbotWebradioUrlValidator $urlValidator,
         private readonly MusicbotQuotaService $quotaService,

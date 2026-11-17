@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-class TokenGenerator
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
+
+#[AsAlias(TokenGeneratorInterface::class)]
+final class TokenGenerator implements TokenGeneratorInterface
 {
     public function __construct(private readonly EncryptionService $encryptionService)
     {
@@ -14,6 +17,7 @@ class TokenGenerator
      * @return array{token: string, token_hash: string, token_prefix: string, encrypted_token: array{key_id:
      * string, nonce: string, ciphertext: string}}
      */
+    #[\Override]
     public function generate(int $bytes = 32): array
     {
         if ($bytes < 1) {
@@ -27,6 +31,7 @@ class TokenGenerator
      * @return array{token: string, token_hash: string, token_prefix: string, encrypted_token:
      * array{key_id: string, nonce: string, ciphertext: string}}
      */
+    #[\Override]
     public function fromToken(string $token): array
     {
         $tokenHash = hash('sha256', $token);

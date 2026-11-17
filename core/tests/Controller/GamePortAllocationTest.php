@@ -6,6 +6,7 @@ namespace App\Tests\Controller;
 
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Ports\Application\GamePortPoolPolicy;
 use App\Module\Ports\Application\NodePortAvailability;
 use App\Module\Ports\Application\PortCheckUnavailable;
@@ -35,7 +36,7 @@ final class GamePortAllocationTest extends AbstractWebTestCase
 
     private function manager(EntityManagerInterface $em, callable $reply): PortLeaseManager
     {
-        $client = $this->createStub(AgentGameServerClient::class);
+        $client = $this->createStub(AgentGameServerClientInterface::class);
         $client->method('checkFreePortsForNode')->willReturnCallback($reply);
 
         return new PortLeaseManager($em->getRepository(PortBlock::class), new NodePortAvailability($client), $em);
@@ -120,7 +121,7 @@ final class GamePortAllocationTest extends AbstractWebTestCase
         $this->loginPortAdmin($client);
         $client->disableReboot();
         $offline = false;
-        $agent = $this->createStub(AgentGameServerClient::class);
+        $agent = $this->createStub(AgentGameServerClientInterface::class);
         $agent->method('checkFreePortsForNode')->willReturnCallback(static function ($node, array $checks) use (&$offline): array {
             if ($offline) {
                 throw new \RuntimeException('node offline');

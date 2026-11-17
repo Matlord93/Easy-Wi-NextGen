@@ -19,11 +19,6 @@ final class MusicbotRoleAssignmentRepository extends ServiceEntityRepository
         parent::__construct($registry, MusicbotRoleAssignment::class);
     }
 
-    public function findById(int $id): ?MusicbotRoleAssignment
-    {
-        return $this->find($id);
-    }
-
     /** @return MusicbotRoleAssignment[] */
     public function findByRole(MusicbotRole $role): array
     {

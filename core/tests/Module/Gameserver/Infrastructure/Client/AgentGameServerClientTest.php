@@ -7,6 +7,7 @@ namespace App\Tests\Module\Gameserver\Infrastructure\Client;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 
@@ -133,7 +134,7 @@ final class AgentGameServerClientTest extends TestCase
         $this->invokeResolveBaseUrl($client, $agent);
     }
 
-    private function invokeResolveBaseUrl(AgentGameServerClient $client, Agent $agent): string
+    private function invokeResolveBaseUrl(AgentGameServerClientInterface $client, Agent $agent): string
     {
         /** @var string $resolved */
         $resolved = (fn (Agent $target): string => $this->resolveBaseUrl($target))->call($client, $agent);

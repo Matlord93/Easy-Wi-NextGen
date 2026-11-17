@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Module\Nodes\UI\Controller\Agent;
 
 use App\Module\Core\Application\AgentConfigurationException;
-use App\Module\Core\Application\AgentCreator;
+use App\Module\Core\Application\AgentCreatorInterface;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
-use App\Repository\AgentRegistrationTokenRepository;
+use App\Repository\AgentRegistrationTokenRepositoryInterface;
 use App\Repository\AgentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
@@ -28,11 +28,11 @@ final class AgentRegistrationController
 
     public function __construct(
         private readonly AgentRepository $agentRepository,
-        private readonly AgentRegistrationTokenRepository $registrationTokenRepository,
+        private readonly AgentRegistrationTokenRepositoryInterface $registrationTokenRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
-        private readonly AgentCreator $agentCreator,
+        private readonly AgentCreatorInterface $agentCreator,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
     ) {

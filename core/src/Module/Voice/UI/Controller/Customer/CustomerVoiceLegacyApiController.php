@@ -25,6 +25,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Dto\Ts3\ViewerDto as Ts3ViewerDto;
 use App\Module\Core\Dto\Ts6\ViewerDto as Ts6ViewerDto;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\Teamspeak\Application\Query\ServerQueryLimiterInterface;
 use App\Repository\Ts3TokenRepository;
 use App\Repository\Ts3ViewerRepository;
@@ -58,7 +59,7 @@ final class CustomerVoiceLegacyApiController
         private readonly SecretsCrypto $crypto,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly ServerQueryLimiterInterface $queryLimiter,
         private readonly CacheInterface $cache,
         private readonly TranslatorInterface $translator,

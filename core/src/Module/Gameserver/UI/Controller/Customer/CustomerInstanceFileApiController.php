@@ -18,6 +18,7 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use Psr\Log\LoggerInterface;
@@ -53,7 +54,7 @@ final class CustomerInstanceFileApiController
         private readonly RateLimiterFactory $uploadsLimiter,
         #[Autowire(service: 'limiter.instance_files_commands')]
         private readonly RateLimiterFactory $commandsLimiter,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly TranslatorInterface $translator,
         #[Autowire(param: 'kernel.debug')]
         private readonly bool $kernelDebug = false,

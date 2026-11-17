@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-use App\Module\Core\Domain\Entity\GdprExport;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
@@ -17,7 +16,7 @@ use App\Repository\DomainRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InvoiceArchiveRepository;
 use App\Repository\InvoiceRepository;
-use App\Repository\MailAliasRepository;
+use App\Repository\MailAliasRepositoryInterface;
 use App\Repository\MailboxRepository;
 use App\Repository\PaymentRepository;
 use App\Repository\TicketMessageRepository;
@@ -42,7 +41,7 @@ final class GdprExportService
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DatabaseRepository $databaseRepository,
         private readonly MailboxRepository $mailboxRepository,
-        private readonly MailAliasRepository $mailAliasRepository,
+        private readonly MailAliasRepositoryInterface $mailAliasRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
         private readonly DnsRecordRepository $dnsRecordRepository,
@@ -55,20 +54,6 @@ final class GdprExportService
     {
         $now ??= new \DateTimeImmutable();
         return sprintf('gdpr_export_%d_%s.zip', $customer->getId() ?? 0, $now->format('Ymd_His'));
-    }
-
-    public function buildExport(User $customer): GdprExport
-    {
-        $data = $this->buildExportData($customer);
-
-        return new GdprExport(
-            $customer,
-            $data['fileName'],
-            $data['fileSize'],
-            $data['encryptedPayload'],
-            $data['expiresAt'],
-            $data['readyAt'],
-        );
     }
 
     /**

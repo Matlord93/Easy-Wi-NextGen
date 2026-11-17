@@ -16,11 +16,11 @@ final class Version20260624100000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql("ALTER TABLE musicbot_instances CHANGE instance_config instance_config JSON DEFAULT '{}' NOT NULL");
+        $this->addSql("ALTER TABLE musicbot_instances CHANGE instance_config instance_config JSON DEFAULT ('{}') NOT NULL");
     }
 
     public function down(Schema $schema): void
     {
-        $this->addSql("ALTER TABLE musicbot_instances CHANGE instance_config instance_config LONGTEXT NOT NULL DEFAULT '{}' COMMENT '(DC2Type:json)'");
+        $this->addSql("ALTER TABLE musicbot_instances CHANGE instance_config instance_config LONGTEXT NOT NULL DEFAULT ('{}') COMMENT '(DC2Type:json)'");
     }
 }

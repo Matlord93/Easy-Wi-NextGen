@@ -51,9 +51,9 @@ final class NotificationRepository extends ServiceEntityRepository
         ]);
     }
 
-    public function deleteByRecipient(User $recipient): int
+    public function deleteByRecipient(User $recipient): void
     {
-        return EntityQueryResult::affected($this->createQueryBuilder('notification')
+        EntityQueryResult::affected($this->createQueryBuilder('notification')
             ->delete()
             ->andWhere('notification.recipient = :recipient')
             ->setParameter('recipient', QueryParameter::entityId($recipient->getId(), \App\Module\Core\Domain\Entity\User::class))

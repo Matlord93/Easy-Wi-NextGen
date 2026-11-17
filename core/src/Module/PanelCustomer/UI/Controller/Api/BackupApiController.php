@@ -15,6 +15,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupTargetRepository;
 use App\Repository\UserRepository;
@@ -43,7 +44,7 @@ final class BackupApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
     ) {
     }
 

@@ -15,7 +15,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\DomainRepository;
 use App\Repository\JobRepository;
 use App\Repository\MailDomainRepository;
-use App\Repository\MailNodeRepository;
+use App\Repository\MailNodeRepositoryInterface;
 use App\Repository\QuotaPolicyRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -27,7 +27,7 @@ final class AdminMailPlatformController
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly MailNodeRepository $nodeRepository,
+        private readonly MailNodeRepositoryInterface $nodeRepository,
         private readonly QuotaPolicyRepository $policyRepository,
         private readonly DomainRepository $domainRepository,
         private readonly MailDomainRepository $mailDomainRepository,

@@ -7,11 +7,13 @@ namespace App\Repository;
 use App\Module\Core\Domain\Entity\MailNode;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
 /**
  * @extends ServiceEntityRepository<MailNode>
  */
-class MailNodeRepository extends ServiceEntityRepository
+#[AsAlias(id: MailNodeRepositoryInterface::class)]
+final class MailNodeRepository extends ServiceEntityRepository implements MailNodeRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {

@@ -19,9 +19,9 @@ final class ApiTokenRepository extends ServiceEntityRepository
         parent::__construct($registry, ApiToken::class);
     }
 
-    public function deleteByCustomer(User $customer): int
+    public function deleteByCustomer(User $customer): void
     {
-        return EntityQueryResult::affected($this->createQueryBuilder('token')
+        EntityQueryResult::affected($this->createQueryBuilder('token')
             ->delete()
             ->andWhere('token.customer = :customer')
             ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))

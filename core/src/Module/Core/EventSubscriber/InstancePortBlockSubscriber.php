@@ -7,25 +7,19 @@ namespace App\Module\Core\EventSubscriber;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use Doctrine\Common\EventSubscriber;
+use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\PreRemoveEventArgs;
 use Doctrine\ORM\Events;
 
-final class InstancePortBlockSubscriber implements EventSubscriber
+#[AsDoctrineListener(event: Events::preRemove)]
+final class InstancePortBlockSubscriber
 {
     public function __construct(
         private readonly PortBlockRepository $portBlockRepository,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
-    }
-
-    /** @return list<string> */
-    #[\Override]
-    public function getSubscribedEvents(): array
-    {
-        return [Events::preRemove];
     }
 
     public function preRemove(PreRemoveEventArgs $args): void

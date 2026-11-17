@@ -6,6 +6,7 @@ namespace App\Tests\Module\Core\Application\Webhook;
 
 use App\Module\Core\Application\Webhook\WebhookDispatcher;
 use App\Module\Core\Application\Webhook\WebhookUrlValidator;
+use App\Module\Core\Application\Webhook\WebhookUrlValidatorInterface;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -15,7 +16,7 @@ final class WebhookDispatcherTest extends TestCase
 {
     public function testSignsPayloadAndDisablesRedirects(): void
     {
-        $validator = $this->createStub(WebhookUrlValidator::class);
+        $validator = $this->createStub(WebhookUrlValidatorInterface::class);
         $validator->method('validate')->willReturn('93.184.216.34');
         $http = new MockHttpClient(function (string $method, string $url, array $options): MockResponse {
             self::assertSame('POST', $method);

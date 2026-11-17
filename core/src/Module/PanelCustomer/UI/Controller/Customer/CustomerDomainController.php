@@ -15,7 +15,7 @@ use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
 use App\Repository\MailDomainRepository;
-use App\Repository\MailNodeRepository;
+use App\Repository\MailNodeRepositoryInterface;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,7 +31,7 @@ final class CustomerDomainController
 {
     public function __construct(
         private readonly DomainRepository $domainRepository,
-        private readonly MailNodeRepository $mailNodeRepository,
+        private readonly MailNodeRepositoryInterface $mailNodeRepository,
         private readonly MailDomainRepository $mailDomainRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly EntityManagerInterface $entityManager,

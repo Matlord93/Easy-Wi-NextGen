@@ -16,7 +16,8 @@ use App\Module\Unifi\Infrastructure\Repository\UnifiPortMappingRepository;
 use App\Repository\InstanceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class UnifiPortSyncService implements UnifiSynchronizerInterface
+#[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: QueuedUnifiSynchronizerInterface::class)]
+final class UnifiPortSyncService implements UnifiSynchronizerInterface, QueuedUnifiSynchronizerInterface
 {
     public const string AUTO_PREFIX = 'PANEL';
     public const string MANUAL_PREFIX = 'MANUAL';
@@ -61,7 +62,7 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
         try {
             $password = $this->decryptPassword($settings);
             $currentRules = $this->apiClient->listPortForwardRules($settings, $password);
-            $currentMap = $this->filterManagedRules($currentRules);
+            $currentMap = $this->filterManagedRules($currentRules, $instanceId);
         } catch (UnifiApiException $exception) {
             $errors[] = ['code' => $exception->getErrorCode(), 'message' => $exception->getMessage()];
             $currentMap = [];
@@ -86,16 +87,62 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
     #[\Override]
     public function sync(?int $instanceId = null, bool $dryRun = false, ?string $requestId = null): array
     {
+        return $this->synchronize($instanceId, $dryRun, $requestId, null);
+    }
+
+    /** @param callable():void $heartbeat
+     * @return array{status:string,...}
+     */
+    #[\Override]
+    public function syncQueued(int $instanceId, callable $heartbeat): array
+    {
+        try {
+            return $this->synchronize($instanceId, false, null, $heartbeat, true);
+        } catch (\Throwable $error) {
+            // A failed worker must not leave its bookkeeping to another handler's flush.
+            if ($this->entityManager->isOpen()) {
+                foreach ($this->entityManager->getUnitOfWork()->getIdentityMap() as $entities) {
+                    foreach ($entities as $entity) {
+                        if ($entity instanceof UnifiPortMapping || $entity instanceof UnifiAuditLog) {
+                            $this->entityManager->detach($entity);
+                        }
+                    }
+                }
+                foreach ($this->entityManager->getUnitOfWork()->getScheduledEntityInsertions() as $entity) {
+                    if ($entity instanceof UnifiPortMapping || $entity instanceof UnifiAuditLog) {
+                        $this->entityManager->detach($entity);
+                    }
+                }
+            }
+            throw $error;
+        }
+    }
+
+    /**
+     * @param callable():void|null $heartbeat
+     * @return array{status:string,request_id:string,diff:array{create:list<UnifiRule>,update:array<int,array{rule:UnifiRule,currentId:string}>,delete:array<int,array{currentId:string,name:string}>},errors:array<int,array{code:string,message:string}>}
+     */
+    private function synchronize(?int $instanceId, bool $dryRun, ?string $requestId, ?callable $heartbeat, bool $queued = false): array
+    {
+        if ($heartbeat !== null) {
+            $heartbeat();
+        }
         $requestId = $requestId ?? $this->generateRequestId();
         $settings = $this->settingsRepository->getSettings();
         $errors = [];
-        $desiredResult = $this->buildDesiredRules($settings, $instanceId, $errors);
+        $desiredResult = $this->buildDesiredRules($settings, $instanceId, $errors, !$queued);
 
         if (!$settings->isEnabled()) {
             $this->recordAudit('sync', 'disabled', $requestId, 'Module disabled.', [
                 'instance_id' => $instanceId,
                 'dry_run' => $dryRun,
             ]);
+            if (!$dryRun) {
+                if ($heartbeat !== null) {
+                    $heartbeat();
+                }
+                $this->entityManager->flush();
+            }
 
             return [
                 'status' => 'disabled',
@@ -107,14 +154,23 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
 
         try {
             $password = $this->decryptPassword($settings);
+            if ($heartbeat !== null) {
+                $heartbeat();
+            }
             $currentRules = $this->apiClient->listPortForwardRules($settings, $password);
-            $currentMap = $this->filterManagedRules($currentRules);
+            $currentMap = $this->filterManagedRules($currentRules, $instanceId, !$queued);
         } catch (UnifiApiException $exception) {
             $errors[] = ['code' => $exception->getErrorCode(), 'message' => $exception->getMessage()];
             $this->recordAudit('sync', 'error', $requestId, $exception->getErrorCode(), [
                 'instance_id' => $instanceId,
                 'dry_run' => $dryRun,
             ]);
+            if (!$dryRun) {
+                if ($heartbeat !== null) {
+                    $heartbeat();
+                }
+                $this->entityManager->flush();
+            }
 
             return [
                 'status' => 'error',
@@ -128,6 +184,12 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
                 'instance_id' => $instanceId,
                 'dry_run' => $dryRun,
             ]);
+            if (!$dryRun) {
+                if ($heartbeat !== null) {
+                    $heartbeat();
+                }
+                $this->entityManager->flush();
+            }
 
             return [
                 'status' => 'error',
@@ -149,6 +211,9 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
 
         foreach ($diff['create'] as $rule) {
             try {
+                if ($heartbeat !== null) {
+                    $heartbeat();
+                }
                 $response = $this->apiClient->createRule($settings, $password, $rule->toPayload());
                 $ruleId = $this->extractRuleId($response);
                 $this->upsertMapping($rule, $ruleId, null, null);
@@ -166,6 +231,9 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
             }
 
             try {
+                if ($heartbeat !== null) {
+                    $heartbeat();
+                }
                 $response = $this->apiClient->updateRule($settings, $password, $currentId, $rule->toPayload());
                 $ruleId = $this->extractRuleId($response) ?? $currentId;
                 $this->upsertMapping($rule, $ruleId, null, null);
@@ -179,6 +247,9 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
             $currentId = $entry['currentId'];
             if ($currentId !== '') {
                 try {
+                    if ($heartbeat !== null) {
+                        $heartbeat();
+                    }
                     $this->apiClient->deleteRule($settings, $password, $currentId);
                 } catch (UnifiApiException $exception) {
                     $errors[] = ['code' => $exception->getErrorCode(), 'message' => $exception->getMessage()];
@@ -198,6 +269,9 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
             'errors' => $errors,
         ]);
 
+        if ($heartbeat !== null) {
+            $heartbeat();
+        }
         $this->entityManager->flush();
 
         return [
@@ -212,7 +286,7 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
      * @param array<int, array<string, mixed>> $currentRules
      * @return array<string, array<string, mixed>>
      */
-    private function filterManagedRules(array $currentRules): array
+    private function filterManagedRules(array $currentRules, ?int $instanceId, bool $includeManual = true): array
     {
         $result = [];
         foreach ($currentRules as $rule) {
@@ -221,6 +295,14 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
                 continue;
             }
             if (!str_starts_with($name, self::AUTO_PREFIX . '-') && !str_starts_with($name, self::MANUAL_PREFIX . '-')) {
+                continue;
+            }
+
+            if ($instanceId !== null && str_starts_with($name, self::AUTO_PREFIX.'-') && !str_starts_with($name, self::AUTO_PREFIX.'-'.$instanceId.'-')) {
+                continue;
+            }
+
+            if (!$includeManual && str_starts_with($name, self::MANUAL_PREFIX.'-')) {
                 continue;
             }
 
@@ -238,6 +320,7 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
         \App\Module\Unifi\Domain\Entity\UnifiSettings $settings,
         ?int $instanceId,
         array &$errors,
+        bool $includeManual = true,
     ): array {
         $policy = $this->policyRepository->getPolicy();
         $mode = $policy->getMode();
@@ -294,7 +377,7 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface
             }
         }
 
-        if ($mode === UnifiPolicy::MODE_MANUAL || $mode === UnifiPolicy::MODE_HYBRID) {
+        if ($includeManual && ($mode === UnifiPolicy::MODE_MANUAL || $mode === UnifiPolicy::MODE_HYBRID)) {
             $manualRules = $this->manualRuleRepository->findEnabled();
             foreach ($manualRules as $rule) {
                 $rules[$this->manualRuleName($rule)] = new UnifiRule(

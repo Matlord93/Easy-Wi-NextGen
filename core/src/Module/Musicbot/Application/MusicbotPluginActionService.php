@@ -13,7 +13,7 @@ use App\Module\Musicbot\Domain\Enum\MusicbotPermission;
 use App\Module\Musicbot\Domain\Enum\MusicbotRoleChannel;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Repository\MusicbotPlaylistRepository;
-use App\Repository\MusicbotTrackRepository;
+use App\Repository\MusicbotTrackQueryRepositoryInterface;
 
 final class MusicbotPluginActionService
 {
@@ -25,7 +25,7 @@ final class MusicbotPluginActionService
         private readonly MusicbotTrackService $trackService,
         private readonly MusicbotQuotaService $quotaService,
         private readonly MusicbotPermissionService $permissionService,
-        private readonly MusicbotTrackRepository $trackRepository,
+        private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
         private readonly AgentJobDispatcher $jobDispatcher,
     ) {}

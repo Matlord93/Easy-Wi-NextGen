@@ -37,7 +37,6 @@ final class MusicbotTrackServiceUploadTest extends TestCase
             $this->trackRepo,
             $quota ?? $this->quota,
             new MusicbotTrackPathResolver($this->projectDir),
-            $this->projectDir,
             new MusicbotWebradioUrlValidator(),
         );
     }

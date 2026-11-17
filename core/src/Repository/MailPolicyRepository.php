@@ -9,17 +9,20 @@ use App\Module\Core\Domain\Entity\MailPolicy;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
 /**
  * @extends ServiceEntityRepository<MailPolicy>
  */
-class MailPolicyRepository extends ServiceEntityRepository
+#[AsAlias(id: MailPolicyRepositoryInterface::class)]
+final class MailPolicyRepository extends ServiceEntityRepository implements MailPolicyRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, MailPolicy::class);
     }
 
+    #[\Override]
     public function findOneByDomain(Domain $domain): ?MailPolicy
     {
         return $this->findOneBy(['domain' => $domain]);
@@ -28,6 +31,7 @@ class MailPolicyRepository extends ServiceEntityRepository
     /**
      * @return array{total:int,strict_tls:int,external_forwarding_enabled:int,high_spam_protection:int,greylisting_enabled:int}
      */
+    #[\Override]
     public function countSecurityPosture(): array
     {
         $result = ScalarQueryResult::row($this->createQueryBuilder('p')

@@ -314,7 +314,8 @@ func TestListLargeDirectoryUsesPagination(t *testing.T) {
 
 func TestListPermissionDeniedReturnsClearError(t *testing.T) {
 	if os.Geteuid() == 0 {
-		t.Skip("root can bypass directory permissions")
+		runPermissionDeniedUnprivileged(t)
+		return
 	}
 	base := t.TempDir()
 	instanceRoot := filepath.Join(base, "instance")

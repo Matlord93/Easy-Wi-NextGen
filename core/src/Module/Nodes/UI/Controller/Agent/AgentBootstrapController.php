@@ -6,9 +6,9 @@ namespace App\Module\Nodes\UI\Controller\Agent;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\LimiterFactoryInterface;
-use App\Module\Core\Application\TokenGenerator;
+use App\Module\Core\Application\TokenGeneratorInterface;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
-use App\Repository\AgentBootstrapTokenRepository;
+use App\Repository\AgentBootstrapTokenRepositoryInterface;
 use App\Repository\AgentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
@@ -26,10 +26,10 @@ final class AgentBootstrapController
     private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Ensure /etc/easywi/secret.key is readable and contains a base64 key (JSON with active_key_id/keys or "v1:<base64>").';
 
     public function __construct(
-        private readonly AgentBootstrapTokenRepository $bootstrapTokenRepository,
+        private readonly AgentBootstrapTokenRepositoryInterface $bootstrapTokenRepository,
         private readonly AgentRepository $agentRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly TokenGenerator $tokenGenerator,
+        private readonly TokenGeneratorInterface $tokenGenerator,
         private readonly AuditLogger $auditLogger,
         #[Autowire(service: 'app.limiter_factory.agent_bootstrap')]
         private readonly LimiterFactoryInterface $bootstrapLimiter,

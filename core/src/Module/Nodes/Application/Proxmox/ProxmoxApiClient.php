@@ -113,12 +113,6 @@ final readonly class ProxmoxApiClient
         );
     }
 
-    /** @return array<array-key, mixed> */
-    public function nodeStatus(ProxmoxConnection $connection, string $node): array
-    {
-        return $this->item($connection, '/nodes/'.rawurlencode($node).'/status');
-    }
-
     /** @return list<array<array-key, mixed>> */
     public function storages(ProxmoxConnection $connection, string $node): array
     {
@@ -375,12 +369,6 @@ final readonly class ProxmoxApiClient
     public function taskStatus(ProxmoxConnection $connection, string $node, string $upid): array
     {
         return $this->item($connection, '/nodes/'.rawurlencode($node).'/tasks/'.rawurlencode($upid).'/status');
-    }
-
-    /** @return list<array<array-key, mixed>> */
-    public function taskLog(ProxmoxConnection $connection, string $node, string $upid): array
-    {
-        return $this->list($connection, '/nodes/'.rawurlencode($node).'/tasks/'.rawurlencode($upid).'/log', ['limit' => 50]);
     }
 
     /** @return list<array<array-key, mixed>> */

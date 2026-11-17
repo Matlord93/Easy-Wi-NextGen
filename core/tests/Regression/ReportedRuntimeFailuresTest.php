@@ -31,6 +31,7 @@ use App\Repository\CmsPostRepository;
 use App\Repository\DomainRepository;
 use App\Repository\MailDomainRepository;
 use App\Repository\MailPolicyRepository;
+use App\Repository\MailPolicyRepositoryInterface;
 use App\Repository\SiteRepository;
 use App\Repository\TeamMemberRepository;
 use App\Repository\Ts3NodeRepository;
@@ -52,7 +53,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
         $domainRepository->method('find')->willReturn($domain);
         $policy = new MailPolicy($domain);
         $policy->apply(false, false, 100, 500, false, false, MailPolicy::SPAM_LOW, true);
-        $policyRepository = $this->createStub(MailPolicyRepository::class);
+        $policyRepository = $this->createStub(MailPolicyRepositoryInterface::class);
         $policyRepository->method('findOneByDomain')->willReturn($policy);
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('flush');
@@ -83,7 +84,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
         $domainRepository->method('find')->willReturn($binding);
         $policy = new MailPolicy($domain);
         $policy->apply(false, false, 100, 500, false, true, MailPolicy::SPAM_LOW, false);
-        $policyRepository = $this->createMock(MailPolicyRepository::class);
+        $policyRepository = $this->createMock(MailPolicyRepositoryInterface::class);
         $policyRepository->expects(self::once())->method('findOneByDomain')->with($domain)->willReturn($policy);
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('flush');
@@ -178,7 +179,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
         $controller = $this->withDependencies(\App\Module\PanelCustomer\UI\Controller\Customer\CustomerMailController::class, [
             'mailboxRepository' => $mailboxRepository,
             'mailDomainRepository' => $this->createStub(MailDomainRepository::class),
-            'mailPolicyRepository' => $this->createStub(MailPolicyRepository::class),
+            'mailPolicyRepository' => $this->createStub(MailPolicyRepositoryInterface::class),
             'jobRepository' => $jobRepository,
             'csrfTokenManager' => $csrf,
             'twig' => new \Twig\Environment(new \Twig\Loader\ArrayLoader(['customer/mail/detail.html.twig' => '{{ last_job.error }}'])),

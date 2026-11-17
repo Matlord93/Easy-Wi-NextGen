@@ -47,7 +47,7 @@ final class MusicbotTrackStorageSecurityTest extends TestCase
 
     private function service(): MusicbotTrackService
     {
-        return new MusicbotTrackService($this->createStub(EntityManagerInterface::class), $this->createStub(MusicbotTrackRepositoryInterface::class), $this->createStub(MusicbotQuotaServiceInterface::class), new MusicbotTrackPathResolver($this->directory), $this->directory);
+        return new MusicbotTrackService($this->createStub(EntityManagerInterface::class), $this->createStub(MusicbotTrackRepositoryInterface::class), $this->createStub(MusicbotQuotaServiceInterface::class), new MusicbotTrackPathResolver($this->directory));
     }
 
     private function track(string $path): MusicbotTrack

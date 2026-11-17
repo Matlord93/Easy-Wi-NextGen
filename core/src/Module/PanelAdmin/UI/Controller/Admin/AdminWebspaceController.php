@@ -24,7 +24,7 @@ use App\Repository\AgentRepository;
 use App\Repository\DomainRepository;
 use App\Repository\MailDomainRepository;
 use App\Repository\MailboxRepository;
-use App\Repository\MailNodeRepository;
+use App\Repository\MailNodeRepositoryInterface;
 use App\Repository\UserRepository;
 use App\Repository\WebspaceNodeRepository;
 use App\Repository\WebspaceRepository;
@@ -44,7 +44,7 @@ final class AdminWebspaceController
     public function __construct(
         private readonly UserRepository $userRepository,
         private readonly AgentRepository $agentRepository,
-        private readonly MailNodeRepository $mailNodeRepository,
+        private readonly MailNodeRepositoryInterface $mailNodeRepository,
         private readonly MailDomainRepository $mailDomainRepository,
         private readonly MailboxRepository $mailboxRepository,
         private readonly DomainRepository $domainRepository,

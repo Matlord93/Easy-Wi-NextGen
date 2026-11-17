@@ -4,7 +4,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\MailDnsCheckService;
+use App\Module\Core\Application\MailDnsCheckServiceInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\MailDomainRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -14,7 +14,7 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route(path: '/api/v1/admin/mail/domains')]
 final class AdminMailDnsCheckController
 {
-    public function __construct(private readonly MailDomainRepository $mailDomainRepository, private readonly MailDnsCheckService $mailDnsCheckService) {}
+    public function __construct(private readonly MailDomainRepository $mailDomainRepository, private readonly MailDnsCheckServiceInterface $mailDnsCheckService) {}
 
     #[Route(path: '/{id}/dns-check', methods: ['GET'])]
     public function check(Request $request, int $id): JsonResponse

@@ -21,51 +21,6 @@ final class FirewallStateManager
     ) {
     }
 
-    /**
-     * @param int[] $ports
-     */
-    public function applyOpenPorts(Agent $agent, array $ports): ?FirewallState
-    {
-        $ports = $this->sanitizePorts($ports);
-        if ($ports === []) {
-            return null;
-        }
-
-        $state = $this->applyRules($agent, $this->buildRulesFromPorts($ports, 'open'));
-
-        $this->auditLogger->log(null, 'firewall.state_updated', [
-            'agent_id' => $agent->getId(),
-            'action' => 'open_ports',
-            'ports' => $ports,
-        ]);
-
-        return $state;
-    }
-
-    /**
-     * @param int[] $ports
-     */
-    public function applyClosePorts(Agent $agent, array $ports): ?FirewallState
-    {
-        $ports = $this->sanitizePorts($ports);
-        if ($ports === []) {
-            return null;
-        }
-
-        $state = $this->applyRules($agent, $this->buildRulesFromPorts($ports, 'closed'));
-        if ($state === null) {
-            return null;
-        }
-
-        $this->auditLogger->log(null, 'firewall.state_updated', [
-            'agent_id' => $agent->getId(),
-            'action' => 'close_ports',
-            'ports' => $ports,
-        ]);
-
-        return $state;
-    }
-
     public function applyFirewallJobResult(Job $job, Agent $agent, array $output): ?FirewallState
     {
         if (!in_array($job->getType(), ['firewall.open_ports', 'firewall.close_ports'], true)) {

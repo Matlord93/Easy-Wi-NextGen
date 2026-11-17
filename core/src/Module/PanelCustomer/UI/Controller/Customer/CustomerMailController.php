@@ -14,7 +14,7 @@ use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
-use App\Module\Core\Application\MailDnsCheckService;
+use App\Module\Core\Application\MailDnsCheckServiceInterface;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\MailAlias;
@@ -22,8 +22,8 @@ use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
-use App\Repository\MailAliasRepository;
-use App\Repository\MailPolicyRepository;
+use App\Repository\MailAliasRepositoryInterface;
+use App\Repository\MailPolicyRepositoryInterface;
 use App\Repository\MailboxRepository;
 use App\Repository\MailDomainRepository;
 use App\Repository\JobRepository;
@@ -56,18 +56,18 @@ final class CustomerMailController
 
     public function __construct(
         private readonly MailboxRepository $mailboxRepository,
-        private readonly MailAliasRepository $mailAliasRepository,
+        private readonly MailAliasRepositoryInterface $mailAliasRepository,
         private readonly DomainRepository $domainRepository,
         private readonly MailDomainRepository $mailDomainRepository,
         private readonly JobRepository $jobRepository,
-        private readonly MailPolicyRepository $mailPolicyRepository,
+        private readonly MailPolicyRepositoryInterface $mailPolicyRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly EncryptionService $encryptionService,
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly MailLimitEnforcer $mailLimitEnforcer,
         private readonly MailAliasLoopGuard $mailAliasLoopGuard,
-        private readonly MailDnsCheckService $mailDnsCheckService,
+        private readonly MailDnsCheckServiceInterface $mailDnsCheckService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

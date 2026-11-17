@@ -10,6 +10,7 @@ use App\Infrastructure\Http\RequestActor;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\WebspaceNode;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Repository\AgentRepository;
 use App\Repository\WebspaceNodeRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -23,7 +24,7 @@ final class AdminWebspaceNodeController
     public function __construct(
         private readonly WebspaceNodeRepository $repository,
         private readonly AgentRepository $agentRepository,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

@@ -7,7 +7,7 @@ namespace App\Tests\Controller;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailAliasLoopGuard;
-use App\Module\Core\Application\MailDnsCheckService;
+use App\Module\Core\Application\MailDnsCheckServiceInterface;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Application\MailboxStatsProviderInterface;
@@ -17,9 +17,9 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerMailController;
 use App\Repository\DomainRepository;
 use App\Repository\JobRepository;
-use App\Repository\MailAliasRepository;
+use App\Repository\MailAliasRepositoryInterface;
 use App\Repository\MailDomainRepository;
-use App\Repository\MailPolicyRepository;
+use App\Repository\MailPolicyRepositoryInterface;
 use App\Repository\MailboxRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -289,18 +289,18 @@ final class CustomerMailboxDetailControllerTest extends TestCase
 
         return new CustomerMailController(
             $mailboxRepository,
-            $this->createStub(MailAliasRepository::class),
+            $this->createStub(MailAliasRepositoryInterface::class),
             $this->createDomainRepository(),
             $mailDomainRepository ?? $this->createStub(MailDomainRepository::class),
             $this->createStub(JobRepository::class),
-            $this->createStub(MailPolicyRepository::class),
+            $this->createStub(MailPolicyRepositoryInterface::class),
             $entityManager ?? $this->createStub(EntityManagerInterface::class),
             $this->createStub(AuditLogger::class),
             $encryptionService ?? $this->createStub(EncryptionService::class),
             $mailPasswordHasher ?? new MailPasswordHasher(),
             $this->createMailLimitEnforcer(),
             new MailAliasLoopGuard(),
-            $this->createStub(MailDnsCheckService::class),
+            $this->createStub(MailDnsCheckServiceInterface::class),
             $csrfManager,
             $twig,
             $this->createStub(TranslatorInterface::class),

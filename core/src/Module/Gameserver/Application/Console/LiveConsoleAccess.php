@@ -6,13 +6,13 @@ namespace App\Module\Gameserver\Application\Console;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\AgentCredentialsResolver;
-use App\Module\Core\Application\AgentEndpointResolver;
+use App\Module\Core\Application\AgentEndpointResolverInterface;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 
 final readonly class LiveConsoleAccess
 {
-    public function __construct(private AgentEndpointResolver $endpoints, private AgentCredentialsResolver $credentials)
+    public function __construct(private AgentEndpointResolverInterface $endpoints, private AgentCredentialsResolver $credentials)
     {
     }
 

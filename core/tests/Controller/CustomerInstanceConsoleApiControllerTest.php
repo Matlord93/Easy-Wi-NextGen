@@ -14,6 +14,7 @@ use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;
 use App\Module\Gameserver\Application\Console\ConsoleCommandResult;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
 use App\Repository\InstanceRepository;
 use PHPUnit\Framework\TestCase;
@@ -141,7 +142,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $repo = $this->createMock(InstanceRepository::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $agentClient = $this->createStub(AgentGameServerClient::class);
+        $agentClient = $this->createStub(AgentGameServerClientInterface::class);
         $agentClient->method('getInstanceStatus')->willReturn(['status' => 'stopped', 'running' => false]);
         $agentClient->method('getConsoleLogs')->willReturn(['data' => ['session' => ['connected' => false]]]);
 
@@ -172,7 +173,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $repo = $this->createMock(InstanceRepository::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $agentClient = $this->createStub(AgentGameServerClient::class);
+        $agentClient = $this->createStub(AgentGameServerClientInterface::class);
         $agentClient->method('getConsoleLogs')->willReturn([
             'cursor' => 'abc:1',
             'lines' => [['id' => 1, 'text' => 'hello', 'ts' => '2026-01-01T00:00:00Z']],
@@ -202,7 +203,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $repo = $this->createMock(InstanceRepository::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $agentClient = $this->createStub(AgentGameServerClient::class);
+        $agentClient = $this->createStub(AgentGameServerClientInterface::class);
         $agentClient->method('getConsoleLogs')->willReturn([
             'ok' => true,
             'data' => [
@@ -238,7 +239,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $repo = $this->createMock(InstanceRepository::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $agentClient = $this->createStub(AgentGameServerClient::class);
+        $agentClient = $this->createStub(AgentGameServerClientInterface::class);
         $agentClient->method('getInstanceStatus')->willReturn(['status' => 'running', 'running' => true]);
         $agentClient->method('getConsoleLogs')->willReturn(['ok' => true, 'data' => ['meta' => ['state' => 'connected']]]);
 
@@ -270,7 +271,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         self::assertSame('ok', $payload['data']['live_output_status']);
     }
 
-    private function newControllerWithRepo(InstanceRepository $repo, ?AgentGameServerClient $agentClient = null): CustomerInstanceActionApiController
+    private function newControllerWithRepo(InstanceRepository $repo, ?AgentGameServerClientInterface $agentClient = null): CustomerInstanceActionApiController
     {
         $reflection = new \ReflectionClass(CustomerInstanceActionApiController::class);
         /** @var CustomerInstanceActionApiController $controller */

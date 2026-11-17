@@ -7,11 +7,13 @@ namespace App\Module\Core\UI\Api;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
-class ResponseEnvelopeFactory
+#[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: ResponseEnvelopeFactoryInterface::class)]
+final class ResponseEnvelopeFactory implements ResponseEnvelopeFactoryInterface
 {
     /**
      * @param array<string, mixed> $extra
      */
+    #[\Override]
     public function success(
         Request $request,
         ?string $jobId,
@@ -30,6 +32,7 @@ class ResponseEnvelopeFactory
     /**
      * @param array<string, mixed> $extra
      */
+    #[\Override]
     public function error(
         Request $request,
         string $message,

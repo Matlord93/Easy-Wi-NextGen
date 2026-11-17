@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AgentCreator;
+use App\Module\Core\Application\AgentCreatorInterface;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\LimiterFactoryInterface;
-use App\Module\Core\Application\TokenGenerator;
+use App\Module\Core\Application\TokenGeneratorInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\AgentBootstrapToken;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
 use App\Module\Nodes\UI\Controller\Agent\AgentBootstrapController;
 use App\Module\Nodes\UI\Controller\Agent\AgentRegistrationController;
-use App\Repository\AgentBootstrapTokenRepository;
-use App\Repository\AgentRegistrationTokenRepository;
+use App\Repository\AgentBootstrapTokenRepositoryInterface;
+use App\Repository\AgentRegistrationTokenRepositoryInterface;
 use App\Repository\AgentRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -32,11 +32,11 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
 {
     public function testBootstrapReturns503ForWindowsWhenDisabled(): void
     {
-        $bootstrapRepo = $this->createMock(AgentBootstrapTokenRepository::class);
+        $bootstrapRepo = $this->createMock(AgentBootstrapTokenRepositoryInterface::class);
         $bootstrapRepo->expects($this->never())->method('findActiveByHash');
 
         $agentRepo = $this->createStub(AgentRepository::class);
-        $tokenGenerator = $this->createStub(TokenGenerator::class);
+        $tokenGenerator = $this->createStub(TokenGeneratorInterface::class);
         $auditLogger = $this->createStub(AuditLogger::class);
 
         $limiter = $this->createStub(LimiterInterface::class);
@@ -99,7 +99,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
             new DateTimeImmutable('+1 hour'),
         );
 
-        $bootstrapRepo = $this->createMock(AgentBootstrapTokenRepository::class);
+        $bootstrapRepo = $this->createMock(AgentBootstrapTokenRepositoryInterface::class);
         $bootstrapRepo->expects($this->once())
             ->method('findActiveByHash')
             ->with($bootstrapTokenHash)
@@ -108,7 +108,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         $agentRepo = $this->createStub(AgentRepository::class);
         $agentRepo->method('find')->willReturn(null);
 
-        $tokenGenerator = $this->createMock(TokenGenerator::class);
+        $tokenGenerator = $this->createMock(TokenGeneratorInterface::class);
         $registerToken = 'register-token';
         $registerTokenHash = hash('sha256', $registerToken);
         $tokenGenerator->expects($this->once())
@@ -172,7 +172,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
             $bootstrapToken,
         );
 
-        $registrationRepo = $this->createMock(AgentRegistrationTokenRepository::class);
+        $registrationRepo = $this->createMock(AgentRegistrationTokenRepositoryInterface::class);
         $registrationRepo->expects($this->once())
             ->method('findActiveByHash')
             ->with($registerTokenHash)
@@ -185,7 +185,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         $signatureVerifier = new AgentSignatureVerifier(new \App\Module\Core\Application\AgentNonceStore($this->createStub(\Doctrine\DBAL\Connection::class)), new NullLogger(), 300, 600);
 
         $createdAgent = null;
-        $agentCreator = $this->createStub(AgentCreator::class);
+        $agentCreator = $this->createStub(AgentCreatorInterface::class);
         $agentCreator->method('create')
             ->willReturnCallback(static function (string $id, array $secretPayload, ?string $name) use (&$createdAgent): Agent {
                 return $createdAgent = new Agent($id, $secretPayload, $name);

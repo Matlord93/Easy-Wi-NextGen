@@ -6,7 +6,7 @@ namespace App\Module\Core\Application\Sinusbot;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\AgentConfigurationException;
-use App\Module\Core\Application\AgentEndpointResolver;
+use App\Module\Core\Application\AgentEndpointResolverInterface;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
 use App\Module\Core\Domain\Entity\SinusbotNode;
@@ -19,7 +19,7 @@ class SinusbotInstanceProvisioner
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
         private readonly AgentClient $agentClient,
-        private readonly AgentEndpointResolver $endpointResolver,
+        private readonly AgentEndpointResolverInterface $endpointResolver,
         private readonly SinusbotQuotaValidator $quotaValidator,
     ) {
     }

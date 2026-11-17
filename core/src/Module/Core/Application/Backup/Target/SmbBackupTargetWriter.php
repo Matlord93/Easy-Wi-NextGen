@@ -4,94 +4,248 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Backup\Target;
 
+use App\Module\Core\Application\Backup\BackupOperationHeartbeat;
+use App\Module\Core\Application\Backup\BackupRun;
 use App\Module\Core\Application\Backup\BackupStorageTarget;
+use App\Module\Core\Application\Backup\RemoteArchiveProof;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
 
-/**
- * Uploads backup archives to an SMB/CIFS share via the smbclient CLI.
- *
- * Required target config keys:
- *   host   – SMB server hostname or IP
- *   share  – share name (without leading //)
- *   path   – (optional) sub-directory inside the share
- *
- * Required target secrets keys:
- *   username – SMB username (may include domain as DOMAIN\\user)
- *   password – SMB password
- */
-final class SmbBackupTargetWriter implements BackupTargetWriterInterface
+/** SMB transfers use signing and a private authentication file, never shell commands. */
+final class SmbBackupTargetWriter implements BackupArchiveStorageInterface
 {
+    public function __construct(private readonly ?BackupOperationHeartbeat $lease = null)
+    {
+    }
+
     #[\Override]
     public function supports(BackupStorageTarget $target): bool
     {
-        return $target->type() === 'smb';
+        return 'smb' === $target->type();
     }
 
     #[\Override]
     public function write(BackupStorageTarget $target, string $archiveName, string $sourceFile): string
     {
-        $host     = self::configText($target->config()['host'] ?? '');
-        $share    = self::configText($target->config()['share'] ?? '');
-        $path     = trim(self::configText($target->config()['path'] ?? ''), '/\\');
-        $username = self::configText($target->secrets()['username'] ?? '');
-        $password = self::configText($target->secrets()['password'] ?? '');
-
-        if ($host === '' || $share === '') {
-            throw new \InvalidArgumentException('SMB backup target requires host and share.');
+        self::assertName($archiveName);
+        self::assertArgument($sourceFile);
+        $directory = $this->directory($target);
+        if ('' !== $directory) {
+            $prefix = '';
+            foreach (explode('/', $directory) as $segment) {
+                $prefix .= '/'.$segment;
+                try {
+                    // A standalone cd verifies existence without issuing destructive
+                    // commands after a failed directory change. allinfo additionally
+                    // requests optional shadow-copy metadata and can fail on valid dirs.
+                    $this->execute($target, 'cd '.self::quote(str_replace('/', '\\', $prefix)));
+                } catch (\RuntimeException) {
+                    $this->execute($target, 'mkdir '.self::quote(str_replace('/', '\\', $prefix)));
+                }
+            }
         }
-
-        // Validate that smbclient is available.
-        $smbclient = (new ExecutableFinder())->find('smbclient');
-        if ($smbclient === null) {
-            throw new \RuntimeException('smbclient binary not found. Install the samba-client package.');
-        }
-
-        // Build the UNC path: //host/share
-        $uncPath = sprintf('//%s/%s', $host, $share);
-
-        // Build the remote directory path inside the share.
-        $remoteDir = $path !== '' ? str_replace('/', '\\', $path) : '\\';
-
-        // Use a temp file for the password to avoid it appearing in process list.
-        $authFile  = tempnam(sys_get_temp_dir(), 'smb_auth_');
-        if ($authFile === false) {
-            throw new \RuntimeException('Failed to create smbclient auth temp file.');
-        }
-
+        $temporary = '.easywi-upload-'.bin2hex(random_bytes(16));
         try {
-            $authContent = sprintf("username = %s\npassword = %s\n", $username, $password);
-            if (file_put_contents($authFile, $authContent) === false) {
-                throw new \RuntimeException('Failed to write smbclient auth file.');
+            $this->execute($target, 'put '.self::quote($sourceFile).' '.self::quote($this->remoteFile($target, $temporary)));
+            $this->execute($target, 'rename '.self::quote($this->remoteFile($target, $temporary)).' '.self::quote($this->remoteFile($target, $archiveName)));
+        } catch (\Throwable $error) {
+            try {
+                $this->execute($target, 'del '.self::quote($this->remoteFile($target, $temporary)));
+            } catch (\Throwable) {
+                // Preserve the original upload failure; an incomplete staging file is never recorded.
             }
-            chmod($authFile, 0600);
-
-            $uploadCommand = $path !== ''
-                ? sprintf('mkdir "%s"; cd "%s"; put "%s" "%s"', $remoteDir, $remoteDir, $sourceFile, $archiveName)
-                : sprintf('put "%s" "%s"', $sourceFile, $archiveName);
-
-            $process = new Process([$smbclient, $uncPath, '-A', $authFile, '-c', $uploadCommand], timeout: 900);
-            $process->run();
-
-            if (!$process->isSuccessful()) {
-                throw new \RuntimeException(sprintf(
-                    'smbclient upload failed (exit %d): %s',
-                    $process->getExitCode() ?? 1,
-                    trim($process->getOutput().' '.$process->getErrorOutput()),
-                ));
-            }
-        } finally {
-            @unlink($authFile);
+            throw $error;
         }
 
-        $remotePath = $path !== '' ? $path.'/'.$archiveName : $archiveName;
-
-        return sprintf('smb://%s/%s/%s', $host, $share, $remotePath);
+        return $this->location($target, $archiveName);
     }
 
-    private static function configText(mixed $value): string
+    #[\Override]
+    public function inspect(BackupStorageTarget $target, string $location, callable $heartbeat): RemoteArchiveProof
     {
-        if ($value === null || is_scalar($value)) {
+        return $this->inspectName($target, $this->nameAt($target, $location), $heartbeat);
+    }
+
+    #[\Override]
+    public function delete(BackupStorageTarget $target, BackupRun $run, RemoteArchiveProof $proof, callable $heartbeat): void
+    {
+        $name = $this->nameAt($target, $run->archivePath());
+        if ($proof->size !== $run->sizeBytes() || !hash_equals($run->checksumSha256(), $proof->sha256)) {
+            throw new \RuntimeException('SMB deletion requires a matching verified archive.');
+        }
+        if ($this->inspectName($target, $name, $heartbeat) != $proof) {
+            throw new \RuntimeException('SMB archive changed before deletion.');
+        }
+        $quarantine = '.easywi-retention-'.bin2hex(random_bytes(16));
+        $this->execute($target, 'rename '.self::quote($this->remoteFile($target, $name)).' '.self::quote($this->remoteFile($target, $quarantine)), $heartbeat);
+        try {
+            if ($this->inspectName($target, $quarantine, $heartbeat) != $proof) {
+                throw new \RuntimeException('SMB archive changed while being isolated.');
+            }
+            $this->execute($target, 'del '.self::quote($this->remoteFile($target, $quarantine)), $heartbeat);
+        } catch (\Throwable $error) {
+            try {
+                // SMB rename refuses to replace a file that appeared at the old name.
+                $this->execute($target, 'rename '.self::quote($this->remoteFile($target, $quarantine)).' '.self::quote($this->remoteFile($target, $name)));
+                $message = 'SMB retention stopped; original archive restored.';
+            } catch (\Throwable) {
+                $message = 'SMB retention stopped; isolated archive retained at '.$this->location($target, $quarantine).'.';
+            }
+            throw new \RuntimeException($message, 0, $error);
+        }
+    }
+
+    /** @param callable():void $heartbeat */
+    private function inspectName(BackupStorageTarget $target, string $name, callable $heartbeat): RemoteArchiveProof
+    {
+        $temporary = tempnam(sys_get_temp_dir(), 'easywi-smb-verify-');
+        if (false === $temporary) {
+            throw new \RuntimeException('Cannot stage SMB archive verification.');
+        }
+        try {
+            if (!chmod($temporary, 0600)) {
+                throw new \RuntimeException('Cannot protect SMB verification file.');
+            }
+            $this->execute($target, 'get '.self::quote($this->remoteFile($target, $name)).' '.self::quote($temporary), $heartbeat);
+            $proof = VerifiedArchiveFile::inspect($temporary, $heartbeat);
+
+            return new RemoteArchiveProof($proof->size, $proof->sha256, $proof->sha256.':'.$proof->size);
+        } finally {
+            @unlink($temporary);
+        }
+    }
+
+    /** @param (callable():void)|null $heartbeat */
+    private function execute(BackupStorageTarget $target, string $command, ?callable $heartbeat = null): void
+    {
+        $host = self::text($target->config()['host'] ?? '');
+        $share = self::text($target->config()['share'] ?? '');
+        self::assertArgument($host);
+        self::assertArgument($share);
+        if ('' === $host || '' === $share || false !== strpbrk($host.$share, '/\\') || str_starts_with($host, '-')) {
+            throw new \InvalidArgumentException('SMB requires a valid host and share.');
+        }
+        $username = self::text($target->secrets()['username'] ?? $target->config()['username'] ?? '');
+        $password = self::text($target->secrets()['password'] ?? '');
+        if ('' === $username || false !== strpbrk($username.$password, "\r\n\0")) {
+            throw new \InvalidArgumentException('SMB requires valid credentials without line breaks.');
+        }
+        $binary = (new ExecutableFinder())->find('smbclient');
+        if (null === $binary) {
+            throw new \RuntimeException('smbclient binary not found. Install the samba-client package.');
+        }
+        $authFile = tempnam(sys_get_temp_dir(), 'smb_auth_');
+        if (false === $authFile) {
+            throw new \RuntimeException('Cannot create SMB authentication file.');
+        }
+        $process = null;
+        try {
+            if (!chmod($authFile, 0600) || false === file_put_contents($authFile, 'username = '.$username."\npassword = ".$password."\n")) {
+                throw new \RuntimeException('Cannot protect SMB authentication file.');
+            }
+            if (null !== $heartbeat) {
+                $heartbeat();
+            }
+            $arguments = [$binary, '//'.$host.'/'.$share, '-A', $authFile, '--option=client signing=required'];
+            if (isset($target->config()['port'])) {
+                $port = filter_var($target->config()['port'], FILTER_VALIDATE_INT);
+                if (!is_int($port) || $port < 1 || $port > 65535) {
+                    throw new \InvalidArgumentException('Invalid SMB server port.');
+                }
+                $arguments[] = '-p';
+                $arguments[] = (string) $port;
+            }
+            array_push($arguments, '-c', $command);
+            $process = new Process($arguments, timeout: 900);
+            $this->lease?->pulse(true);
+            $process->start();
+            $nextHeartbeat = microtime(true) + 1.0;
+            while ($process->isRunning()) {
+                $this->lease?->pulse();
+                if (null !== $heartbeat && microtime(true) >= $nextHeartbeat) {
+                    $heartbeat();
+                    $nextHeartbeat = microtime(true) + 1.0;
+                }
+                $process->checkTimeout();
+                usleep(100000);
+            }
+            // smbclient can report a failed sub-command even when its process exits zero.
+            $output = $process->getOutput().' '.$process->getErrorOutput();
+            if (!$process->isSuccessful() || 1 === preg_match('/\bNT_STATUS_[A-Z_]+\b/', $output)) {
+                throw new \RuntimeException('smbclient operation failed (exit '.($process->getExitCode() ?? 1).').');
+            }
+        } finally {
+            if (null !== $process && $process->isRunning()) {
+                $process->stop();
+            }
+            @unlink($authFile);
+        }
+    }
+
+    private function directory(BackupStorageTarget $target): string
+    {
+        $path = trim(str_replace('\\', '/', self::text($target->config()['path'] ?? '')), '/');
+        self::assertArgument($path);
+        foreach (explode('/', $path) as $segment) {
+            if ('.' === $segment || '..' === $segment) {
+                throw new \InvalidArgumentException('Invalid SMB backup directory.');
+            }
+        }
+
+        return $path;
+    }
+
+    private function remoteFile(BackupStorageTarget $target, string $name): string
+    {
+        self::assertName($name);
+        $directory = $this->directory($target);
+
+        return ('' === $directory ? '' : '\\'.str_replace('/', '\\', $directory).'\\').$name;
+    }
+
+    private function location(BackupStorageTarget $target, string $name): string
+    {
+        self::assertName($name);
+        $directory = $this->directory($target);
+
+        return 'smb://'.self::text($target->config()['host'] ?? '').'/'.self::text($target->config()['share'] ?? '').'/'.('' === $directory ? '' : $directory.'/').$name;
+    }
+
+    private function nameAt(BackupStorageTarget $target, string $location): string
+    {
+        $name = basename($location);
+        if ($this->location($target, $name) !== $location) {
+            throw new \RuntimeException('SMB archive is outside the configured target directory.');
+        }
+
+        return $name;
+    }
+
+    private static function quote(string $value): string
+    {
+        self::assertArgument($value);
+
+        return '"'.$value.'"';
+    }
+
+    private static function assertName(string $name): void
+    {
+        self::assertArgument($name);
+        if ('' === $name || '.' === $name || '..' === $name || false !== strpbrk($name, '/\\')) {
+            throw new \InvalidArgumentException('Invalid SMB archive name.');
+        }
+    }
+
+    private static function assertArgument(string $value): void
+    {
+        if (false !== strpbrk($value, "\"';\r\n\0")) {
+            throw new \InvalidArgumentException('SMB path contains unsupported command delimiters.');
+        }
+    }
+
+    private static function text(mixed $value): string
+    {
+        if (null === $value || is_scalar($value)) {
             return (string) $value;
         }
 

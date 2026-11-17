@@ -7,7 +7,7 @@ namespace App\Module\Core\Application\Sinusbot;
 use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Application\AgentCredentialsResolver;
-use App\Module\Core\Application\AgentEndpointResolver;
+use App\Module\Core\Application\AgentEndpointResolverInterface;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
@@ -21,7 +21,7 @@ final class AgentClient
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
-        private readonly AgentEndpointResolver $endpointResolver,
+        private readonly AgentEndpointResolverInterface $endpointResolver,
         private readonly AgentCredentialsResolver $credentialsResolver,
         private readonly LoggerInterface $logger,
         private readonly int $timeoutSeconds = 10,

@@ -9,15 +9,19 @@ use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotQueueItem;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
 /** @extends ServiceEntityRepository<MusicbotQueueItem> */
-class MusicbotQueueItemRepository extends ServiceEntityRepository implements MusicbotQueueItemRepositoryInterface
+#[AsAlias(id: MusicbotQueueItemRepositoryInterface::class)]
+#[AsAlias(id: MusicbotQueueItemQueryRepositoryInterface::class)]
+final class MusicbotQueueItemRepository extends ServiceEntityRepository implements MusicbotQueueItemQueryRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, MusicbotQueueItem::class);
     }
 
+    #[\Override]
     public function findOneForCustomer(int $id, User $customer): ?MusicbotQueueItem
     {
         return EntityQueryResult::one($this->createQueryBuilder('queueItem')

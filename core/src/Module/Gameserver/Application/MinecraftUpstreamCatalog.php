@@ -129,25 +129,10 @@ final class MinecraftUpstreamCatalog
         if ([] === $matches[1]) {
             throw new \RuntimeException('Spigot returned no version metadata.');
         }
-        $tool = $this->json('https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/api/json?tree=number');
-        $number = ScalarValue::integer($tool['number'] ?? null, 0);
-        if ($number < 1) {
-            throw new \RuntimeException('BuildTools build is unavailable.');
-        }
-        $url = 'https://hub.spigotmc.org/jenkins/job/BuildTools/'.$number.'/artifact/target/BuildTools.jar';
-        // Pin the official HTTPS artifact and pass its digest to the node.
-        $sha = $this->cachedDigest($this->cache->get('minecraft.buildtools.'.$number, function (ItemInterface $item) use ($url): string {
-            $item->expiresAfter(86400 * 30);
-
-            $response = $this->http->request('GET', $url, ['timeout' => 30, 'max_duration' => 90, 'buffer' => false]);
-            $response->getHeaders();
-            $hash = hash_init('sha256');
-            foreach ($this->http->stream($response) as $chunk) {
-                hash_update($hash, $chunk->getContent());
-            }
-
-            return hash_final($hash);
-        }));
+        $tool = $this->buildTools();
+        $number = $tool['number'];
+        $url = $tool['url'];
+        $sha = $tool['sha256'];
         foreach (array_unique($matches[1]) as $version) {
             $info = $this->json('https://hub.spigotmc.org/versions/'.rawurlencode($version).'.json', 3600);
             $java = (new MinecraftJavaVersionResolver())->resolve($version);
@@ -163,11 +148,13 @@ final class MinecraftUpstreamCatalog
     private function bungee(): iterable
     {
         $base = 'https://hub.spigotmc.org/jenkins/job/BungeeCord';
-        $job = $this->json($base.'/api/json?tree=builds[number,result,timestamp,artifacts[fileName,relativePath]]');
-        if (!is_array($job['builds'] ?? null)) {
-            throw new \RuntimeException('Invalid BungeeCord build list.');
+        try {
+            $job = $this->json($base.'/api/json?tree=builds[number,result,timestamp,artifacts[fileName,relativePath]]');
+        } catch (\Throwable) {
+            $job = [];
         }
-        foreach ($this->rows($job['builds']) as $build) {
+        $found = false;
+        foreach ($this->rows($job['builds'] ?? null) as $build) {
             if (($build['result'] ?? '') !== 'SUCCESS') {
                 continue;
             }
@@ -177,12 +164,105 @@ final class MinecraftUpstreamCatalog
                 }
                 $id = ScalarValue::text($build['number'] ?? null);
                 $path = ScalarValue::text($artifact['relativePath'] ?? null);
-                if ($id === '' || $path === '') {
+                if (preg_match('/^[1-9][0-9]*$/D', $id) !== 1 || $path === '' || str_starts_with($path, '/')
+                    || str_contains($path, "\0") || str_contains($path, '\\') || in_array('..', explode('/', $path), true)) {
                     continue;
                 }
+                $found = true;
                 yield ['version' => 'BungeeCord', 'build' => $id, 'url' => $base.'/'.$id.'/artifact/'.implode('/', array_map('rawurlencode', explode('/', $path))), 'java' => '17', 'released' => is_numeric($build['timestamp'] ?? null) ? '@'.(int) ((float) $build['timestamp'] / 1000.0) : null, 'metadata' => ['release_type' => 'release', 'strategy' => 'proxy']];
             }
         }
+        if ($found) {
+            return;
+        }
+        try {
+            $release = $this->officialGithubRelease('BungeeCord', 'BungeeCord.jar');
+        } catch (\Throwable $error) {
+            throw new \RuntimeException('BungeeCord Jenkins metadata and official GitHub release are unavailable; no usable build was returned.', 0, $error);
+        }
+        yield ['version' => 'BungeeCord', 'build' => $release['number'], 'url' => $release['url'], 'sha256' => $release['sha256'],
+            'java' => '17', 'released' => $release['released'], 'metadata' => ['release_type' => 'release', 'strategy' => 'proxy']];
+    }
+
+    /** @return array{number: int, url: string, sha256: string} */
+    private function buildTools(): array
+    {
+        try {
+            $tool = $this->json('https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/api/json?tree=number');
+            $number = ScalarValue::integer($tool['number'] ?? null, 0);
+            if ($number < 1) {
+                throw new \RuntimeException('BuildTools build is unavailable.');
+            }
+            $url = 'https://hub.spigotmc.org/jenkins/job/BuildTools/'.$number.'/artifact/target/BuildTools.jar';
+
+            return ['number' => $number, 'url' => $url, 'sha256' => $this->artifactDigest($url, 'minecraft.buildtools.'.$number)];
+        } catch (\Throwable) {
+            // Official release publication mirrors BuildTools when Jenkins is unavailable.
+        }
+        try {
+            $release = $this->officialGithubRelease('BuildTools', 'BuildTools.jar');
+
+            $number = filter_var($release['number'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($number === false) {
+                throw new \RuntimeException('Invalid official BuildTools build number.');
+            }
+
+            return ['number' => $number, 'url' => $release['url'],
+                'sha256' => $release['sha256'] ?? $this->artifactDigest($release['url'], 'minecraft.buildtools.github.'.$release['number'])];
+        } catch (\Throwable $error) {
+            throw new \RuntimeException('BuildTools Jenkins metadata/artifact and official GitHub release are unavailable.', 0, $error);
+        }
+    }
+
+    private function artifactDigest(string $url, string $cacheKey): string
+    {
+        return $this->cachedDigest($this->cache->get($cacheKey, function (ItemInterface $item) use ($url): string {
+            $item->expiresAfter(86400 * 30);
+            $response = $this->http->request('GET', $url, ['timeout' => 30, 'max_duration' => 90, 'buffer' => false]);
+            $response->getHeaders();
+            $hash = hash_init('sha256');
+            foreach ($this->http->stream($response) as $chunk) {
+                hash_update($hash, $chunk->getContent());
+            }
+
+            return hash_final($hash);
+        }));
+    }
+
+    /** @return array{number: string, url: string, sha256: ?string, released: ?string} */
+    private function officialGithubRelease(string $repository, string $assetName): array
+    {
+        if (!in_array([$repository, $assetName], [['BungeeCord', 'BungeeCord.jar'], ['BuildTools', 'BuildTools.jar']], true)) {
+            throw new \InvalidArgumentException('Unsupported official SpigotMC release repository.');
+        }
+        $release = $this->json('https://api.github.com/repos/SpigotMC/'.$repository.'/releases/latest');
+        $tag = ScalarValue::text($release['tag_name'] ?? null);
+        if (preg_match('~^(?:build/)?b?([1-9][0-9]*)$~D', $tag, $match) !== 1
+            || ($release['draft'] ?? false) !== false || ($release['prerelease'] ?? false) !== false) {
+            throw new \RuntimeException('Invalid official SpigotMC release metadata.');
+        }
+        $base = 'https://github.com/SpigotMC/'.$repository.'/releases/download/';
+        $allowedUrls = [$base.$tag.'/'.$assetName, $base.rawurlencode($tag).'/'.$assetName];
+        foreach ($this->rows($release['assets'] ?? null) as $asset) {
+            if (($asset['name'] ?? null) !== $assetName || ($asset['state'] ?? 'uploaded') !== 'uploaded') {
+                continue;
+            }
+            $url = ScalarValue::text($asset['browser_download_url'] ?? null);
+            if (!in_array($url, $allowedUrls, true)) {
+                throw new \RuntimeException('Official SpigotMC release asset has an unexpected download URL.');
+            }
+            $digest = $asset['digest'] ?? null;
+            $sha256 = null;
+            if ($digest !== null) {
+                if (!is_string($digest) || preg_match('/^sha256:([a-fA-F0-9]{64})$/D', $digest, $checksum) !== 1) {
+                    throw new \RuntimeException('Invalid official SpigotMC release SHA256 digest.');
+                }
+                $sha256 = strtolower($checksum[1]);
+            }
+
+            return ['number' => $match[1], 'url' => $url, 'sha256' => $sha256, 'released' => $this->optionalText($release['published_at'] ?? null)];
+        }
+        throw new \RuntimeException('Official SpigotMC release has no usable '.$assetName.' asset.');
     }
 
     /** @return \Generator<int, CatalogEntry> */

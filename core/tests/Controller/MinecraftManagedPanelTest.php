@@ -361,7 +361,7 @@ final class MinecraftManagedPanelTest extends AbstractWebTestCase
     private function useFreeNodePorts(\Symfony\Bundle\FrameworkBundle\KernelBrowser $client): void
     {
         $client->disableReboot();
-        $agent = $this->createStub(\App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient::class);
+        $agent = $this->createStub(\App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface::class);
         $agent->method('checkFreePortsForNode')->willReturnCallback(static fn ($node,array $checks): array => array_map(static fn (array $check): array => $check+['free'=>true],$checks));
         self::getContainer()->set(\App\Module\Ports\Application\NodePortAvailability::class,new \App\Module\Ports\Application\NodePortAvailability($agent));
     }

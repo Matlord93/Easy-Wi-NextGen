@@ -251,7 +251,6 @@ services:
 
   App\Module\Core\Application\UpdateJobService:
     arguments:
-      $runnerCommand: '%app.core_update_runner_command%'
       $jobsDir: '%app.core_update_jobs_dir%'
       $logsDir: '%app.core_update_logs_dir%'
       $backupsDir: '%app.core_update_backups_dir%'
@@ -267,9 +266,6 @@ services:
     arguments:
       $algorithm: '%app.mail_password_hash_algorithm%'
 
-  App\Module\Core\Application\Mail\MailUserProjector:
-    tags:
-      - { name: doctrine.event_subscriber }
   App\Module\Core\Domain\Event\EventBusInterface: '@App\Module\Core\Domain\Event\SymfonyEventBus'
   App\Module\Core\Application\MailboxStatsProviderInterface: '@App\Repository\MailboxRepository'
 
@@ -387,7 +383,9 @@ services:
     arguments:
       $encryptionKey: '%app.hosting_panel_secret_key%'
 
-  App\Module\Core\Application\Backup\BackupPlanStoreInterface: '@App\Module\Core\Application\Backup\InMemoryBackupPlanStore'
+  App\Module\Core\Application\Backup\BackupPlanStoreInterface: '@App\Module\Core\Application\Backup\DbalBackupPlanStore'
+  App\Module\Core\Application\Backup\WritableBackupPlanStoreInterface: '@App\Module\Core\Application\Backup\DbalBackupPlanStore'
+  App\Module\Core\Application\Backup\BackupLeaseStoreInterface: '@App\Module\Core\Application\Backup\DbalBackupPlanStore'
 
   App\Module\Core\Application\Backup\BackupAdapterRegistry:
     arguments:
@@ -397,6 +395,8 @@ services:
         - '@App\Module\Core\Application\Backup\Adapter\MailBackupAdapter'
         - '@App\Module\Core\Application\Backup\Adapter\VoiceBackupAdapter'
         - '@App\Module\Core\Application\Backup\Adapter\GameBackupAdapter'
+        - '@App\Module\Musicbot\Application\Backup\MusicbotBackupAdapter'
+        - '@App\Module\Musicbot\Application\Backup\MusicbotFullBackupAdapter'
 
   App\Module\Core\Application\Backup\BackupTargetWriterRegistry:
     arguments:
@@ -406,6 +406,7 @@ services:
         - '@App\Module\Core\Application\Backup\Target\S3BackupTargetWriter'
         - '@App\Module\Core\Application\Backup\Target\SmbBackupTargetWriter'
         - '@App\Module\Core\Application\Backup\Target\NfsBackupTargetWriter'
+        - '@App\Module\Core\Application\Backup\Target\SftpBackupTargetWriter'
 
   App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Grpc\GrpcConsoleAgentGrpcClient'
   App\Module\Gameserver\Application\Console\ConsoleEventBusInterface: '@App\Module\Gameserver\Infrastructure\Console\FallbackConsoleEventBus'

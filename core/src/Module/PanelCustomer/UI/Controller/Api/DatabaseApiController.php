@@ -9,7 +9,7 @@ use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Config\JsonArray;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\DatabaseNamingPolicy;
+use App\Module\Core\Application\DatabaseNamingPolicyInterface;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\JobPayloadMasker;
@@ -21,6 +21,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\EngineType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Repository\DatabaseNodeRepository;
 use App\Repository\DatabaseRepository;
 use App\Repository\JobRepository;
@@ -42,8 +43,8 @@ final class DatabaseApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly DatabaseProvisioningService $provisioningService,
-        private readonly DatabaseNamingPolicy $namingPolicy,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly DatabaseNamingPolicyInterface $namingPolicy,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly EncryptionService $encryptionService,
         private readonly JobPayloadMasker $jobPayloadMasker,
         private readonly TranslatorInterface $translator,

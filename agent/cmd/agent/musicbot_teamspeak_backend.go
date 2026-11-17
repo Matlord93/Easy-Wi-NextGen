@@ -1231,11 +1231,14 @@ func resolveOpusLibraryPath(path string, libraryDir string) (string, error) {
 		} else {
 			candidates = append(candidates, candidate)
 		}
+	} else {
+		// An administrator-supplied file or directory is authoritative. Only
+		// installations without an override may discover a bundled/system Opus.
+		if libraryDir != "" {
+			candidates = append(candidates, filepath.Join(libraryDir, "libopus.so"), filepath.Join(libraryDir, "libopus.so.0"))
+		}
+		candidates = append(candidates, "/usr/lib/x86_64-linux-gnu/libopus.so.0", "/usr/lib/x86_64-linux-gnu/libopus.so", "/usr/lib64/libopus.so.0", "/usr/lib64/libopus.so", "/usr/lib/libopus.so.0", "/usr/lib/libopus.so")
 	}
-	if libraryDir != "" {
-		candidates = append(candidates, filepath.Join(libraryDir, "libopus.so"), filepath.Join(libraryDir, "libopus.so.0"))
-	}
-	candidates = append(candidates, "/usr/lib/x86_64-linux-gnu/libopus.so.0", "/usr/lib/x86_64-linux-gnu/libopus.so", "/usr/lib64/libopus.so.0", "/usr/lib64/libopus.so", "/usr/lib/libopus.so.0", "/usr/lib/libopus.so")
 	for _, candidate := range candidates {
 		stat, err := os.Stat(candidate)
 		if err == nil && !stat.IsDir() && stat.Mode().Perm()&0o444 != 0 && (filepath.Base(candidate) == "libopus.so" || filepath.Base(candidate) == "libopus.so.0") {

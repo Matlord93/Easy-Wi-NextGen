@@ -23,7 +23,7 @@ final class InstanceInstallService
         private readonly PortPoolRepository $portPoolRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly PortLeaseManager $portLeaseManager,
-        private readonly TemplateInstallResolver $templateInstallResolver,
+        private readonly TemplateInstallResolverInterface $templateInstallResolver,
         private readonly SharedStorageTemplateLocatorInterface $templateRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly ?InstanceJobPayloadBuilder $managedPayloadBuilder = null,

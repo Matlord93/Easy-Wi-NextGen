@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\DatabaseNamingPolicy;
+use App\Module\Core\Application\DatabaseNamingPolicyInterface;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\DatabaseTableServiceInterface as DatabaseTableService;
 use App\Module\Core\Domain\Entity\Agent;
@@ -37,7 +37,7 @@ final class DatabaseTableControllerAccessTest extends TestCase
         $em = $this->createStub(EntityManagerInterface::class);
         $audit = $this->createStub(AuditLogger::class);
         $prov = $this->createStub(DatabaseProvisioningService::class);
-        $naming = $this->createStub(DatabaseNamingPolicy::class);
+        $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
         $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturn('ok');
         $translator = $this->createStub(TranslatorInterface::class);
@@ -101,7 +101,7 @@ $r2 = new Request();
         $controller = new CustomerDatabaseController(
             $repository, $this->createStub(DatabaseNodeRepository::class), $this->createStub(JobRepository::class),
             $this->createStub(EntityManagerInterface::class), $this->createStub(AuditLogger::class),
-            $this->createStub(DatabaseProvisioningService::class), $this->createStub(DatabaseNamingPolicy::class),
+            $this->createStub(DatabaseProvisioningService::class), $this->createStub(DatabaseNamingPolicyInterface::class),
             $this->createStub(Environment::class), $this->createStub(TranslatorInterface::class), $tables,
         );
         $request = new Request();

@@ -23,6 +23,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\BackupDestinationType;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\BackupTargetRepository;
@@ -54,7 +55,7 @@ final class AdminBackupController
         private readonly AppSettingsService $settingsService,
         private readonly EncryptionService $encryptionService,
         private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,

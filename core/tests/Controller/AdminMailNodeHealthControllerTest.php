@@ -8,11 +8,11 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\MailNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\PanelAdmin\Application\MailNodeHealthAggregator;
-use App\Module\PanelAdmin\Application\MailNodeMetricsAggregator;
+use App\Module\PanelAdmin\Application\MailNodeHealthAggregatorInterface;
+use App\Module\PanelAdmin\Application\MailNodeMetricsAggregatorInterface;
 use App\Module\PanelAdmin\UI\Controller\Admin\AdminMailNodeHealthController;
 use App\Repository\MailDomainRepository;
-use App\Repository\MailNodeRepository;
+use App\Repository\MailNodeRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -29,8 +29,8 @@ final class AdminMailNodeHealthControllerTest extends TestCase
     private function adminReq(): Request { $r=new Request(); $r->headers->set('X-Admin-Request', '1'); $r->attributes->set('current_user', new User('a@x', UserType::Superadmin)); return $r; }
     private function controller(): AdminMailNodeHealthController { return $this->controllerWithRepos()[0]; }
     private function controllerWithRepos(): array {
-        $nodeRepo=$this->createStub(MailNodeRepository::class); $domainRepo=$this->createStub(MailDomainRepository::class);
+        $nodeRepo=$this->createStub(MailNodeRepositoryInterface::class); $domainRepo=$this->createStub(MailDomainRepository::class);
         $em=$this->createStub(EntityManagerInterface::class); $audit=$this->createStub(AuditLogger::class);
-        return [new AdminMailNodeHealthController($nodeRepo,$domainRepo,$this->createStub(MailNodeHealthAggregator::class),$this->createStub(MailNodeMetricsAggregator::class),$em,$audit),$nodeRepo,$domainRepo];
+        return [new AdminMailNodeHealthController($nodeRepo,$domainRepo,$this->createStub(MailNodeHealthAggregatorInterface::class),$this->createStub(MailNodeMetricsAggregatorInterface::class),$em,$audit),$nodeRepo,$domainRepo];
     }
 }

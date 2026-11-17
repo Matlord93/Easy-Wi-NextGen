@@ -16,6 +16,7 @@ use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
 use App\Repository\JobRepository;
@@ -35,7 +36,7 @@ final class InstanceSftpCredentialApiController
         private readonly JobRepository $jobRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
-        private readonly AgentGameServerClient $agentGameServerClient,
+        private readonly AgentGameServerClientInterface $agentGameServerClient,
         private readonly AppSettingsService $settingsService,
         private readonly AuditLogger $auditLogger,
         private readonly LoggerInterface $logger,

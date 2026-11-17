@@ -14,7 +14,7 @@ final class UpdateJobServiceTriggerRunnerTest extends TestCase
     public function testDetachedPhpRunnerReturnsTrueWhenPidIsReturned(): void
     {
         $dir = $this->createCoreDir('#!/usr/bin/env php\n<?php usleep(700000);\n');
-        $service = $this->createService('', $dir);
+        $service = $this->createService($dir);
 
         self::assertTrue($service->triggerRunner('job-1'));
     }
@@ -22,7 +22,7 @@ final class UpdateJobServiceTriggerRunnerTest extends TestCase
     public function testDetachedPhpRunnerUsesJobLogPathForOutput(): void
     {
         $dir = $this->createCoreDir('#!/usr/bin/env php\n<?php echo "runner-output\\n";\n');
-        $service = $this->createService('', $dir);
+        $service = $this->createService($dir);
 
         $job = $service->createJob('update', 'tester');
         self::assertTrue($service->triggerRunner((string) $job['id']));
@@ -36,12 +36,12 @@ final class UpdateJobServiceTriggerRunnerTest extends TestCase
 
     public function testMissingCoreDirectoryReturnsFalse(): void
     {
-        $service = $this->createService('', '/path/does/not/exist-core');
+        $service = $this->createService('/path/does/not/exist-core');
 
         self::assertFalse($service->triggerRunner('job-3'));
     }
 
-    private function createService(string $runnerCommand, ?string $coreDir = null): UpdateJobService
+    private function createService(?string $coreDir = null): UpdateJobService
     {
         $coreDir ??= $this->createCoreDir();
         $tmp = sys_get_temp_dir() . '/update-job-test-' . bin2hex(random_bytes(4));
@@ -54,7 +54,6 @@ final class UpdateJobServiceTriggerRunnerTest extends TestCase
             $configProvider,
             $logger,
             $tmp,
-            $runnerCommand,
             $tmp . '/jobs',
             $tmp . '/logs',
             $tmp . '/backups',

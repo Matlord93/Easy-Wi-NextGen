@@ -7,6 +7,8 @@ namespace App\MessageHandler;
 use App\Message\RunBackupPlanMessage;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\Backup\BackupAgent;
+use App\Module\Core\Application\Backup\BackupLeaseStoreInterface;
+use App\Module\Core\Application\Backup\BackupOperationHeartbeat;
 use App\Module\Core\Application\Backup\BackupPlanStoreInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -17,6 +19,8 @@ final class RunBackupPlanMessageHandler
         private readonly BackupPlanStoreInterface $planStore,
         private readonly BackupAgent $backupAgent,
         private readonly AuditLogger $auditLogger,
+        private readonly ?BackupOperationHeartbeat $heartbeat = null,
+        private readonly ?BackupLeaseStoreInterface $leases = null,
     ) {
     }
 
@@ -39,21 +43,36 @@ final class RunBackupPlanMessageHandler
 
         $targetLockScope = null;
         $targetLockEnabled = (bool) ($plan->options()['lock_target'] ?? false);
-        if ($targetLockEnabled) {
-            $targetLockScope = 'target:'.$plan->target()->type().':'.hash('sha256', json_encode($plan->target()->config(), JSON_THROW_ON_ERROR));
-            if (!$this->planStore->acquireLock($targetLockScope, $lockExpiresAt)) {
-                $this->planStore->releaseLock($planLockScope);
-                return;
-            }
-        }
-
+        $previous = null;
+        $heartbeatEntered = false;
         try {
+            if ($targetLockEnabled) {
+                $scope = 'target:'.$plan->target()->type().':'.hash('sha256', json_encode($plan->target()->config(), JSON_THROW_ON_ERROR));
+                if (!$this->planStore->acquireLock($scope, $lockExpiresAt)) {
+                    return;
+                }
+                $targetLockScope = $scope;
+            }
+            $previous = $this->heartbeat?->enter(function () use ($planLockScope, $targetLockScope, $lockTtlSeconds): void {
+                if ($this->leases === null) {
+                    return;
+                }
+                $expires = new \DateTimeImmutable(sprintf('+%d seconds', $lockTtlSeconds));
+                foreach (array_filter([$planLockScope, $targetLockScope]) as $scope) {
+                    if (!$this->leases->renewLock($scope, $expires)) {
+                        throw new \RuntimeException('Backup lease expired or changed ownership; operation stopped.');
+                    }
+                }
+            });
+            $heartbeatEntered = true;
+            $this->heartbeat?->pulse(true);
             $idempotencyKey = $message->idempotencyKey();
             if (is_string($idempotencyKey) && $idempotencyKey !== '' && $this->planStore->hasRunForIdempotency($plan->id(), $idempotencyKey)) {
                 return;
             }
 
             $run = $this->backupAgent->run($plan, $idempotencyKey);
+            $this->heartbeat?->pulse(true);
             $ttlSeconds = max(60, self::ttl($plan->options()['idempotency_ttl_seconds'] ?? null, 86400));
             $this->planStore->saveRun($run, new \DateInterval(sprintf('PT%dS', $ttlSeconds)));
 
@@ -66,12 +85,19 @@ final class RunBackupPlanMessageHandler
                 'target_lock' => $targetLockEnabled,
             ]);
         } finally {
-            if ($targetLockScope !== null) {
-                $this->planStore->releaseLock($targetLockScope);
+            if ($heartbeatEntered) {
+                $this->heartbeat?->leave($previous);
             }
-            $this->planStore->releaseLock($planLockScope);
+            try {
+                if ($targetLockScope !== null) {
+                    $this->planStore->releaseLock($targetLockScope);
+                }
+            } finally {
+                $this->planStore->releaseLock($planLockScope);
+            }
         }
     }
+
     private static function ttl(mixed $value, int $default): int
     {
         $validated = filter_var($value, FILTER_VALIDATE_INT);

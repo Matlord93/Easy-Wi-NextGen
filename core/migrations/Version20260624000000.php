@@ -16,7 +16,7 @@ final class Version20260624000000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql("ALTER TABLE musicbot_instances ADD instance_config LONGTEXT NOT NULL DEFAULT '{}' COMMENT '(DC2Type:json)'");
+        $this->addSql("ALTER TABLE musicbot_instances ADD instance_config LONGTEXT NOT NULL DEFAULT ('{}') COMMENT '(DC2Type:json)'");
     }
 
     public function down(Schema $schema): void

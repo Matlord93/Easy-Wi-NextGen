@@ -69,6 +69,29 @@ final class BackupAgentTest extends TestCase
         self::assertTrue($restoreReport->success());
     }
 
+    public function testWebBackupCannotPublishAnArchiveThatItsRestoreReaderCannotRead(): void
+    {
+        $source = $this->workspace.'/large-web';
+        mkdir($source);
+        $file = fopen($source.'/oversized.bin', 'xb');
+        self::assertIsResource($file);
+        try {
+            self::assertTrue(ftruncate($file, 4294966785));
+        } finally {
+            fclose($file);
+        }
+        $destination = $this->workspace.'/must-not-publish';
+        $agent = new BackupAgent(new BackupTargetValidator(), new BackupTargetWriterRegistry([new LocalBackupTargetWriter()]), new BackupAdapterRegistry([new WebBackupAdapter()]));
+        $plan = new BackupPlan('oversized-web', 'web', $source, new BackupStorageTarget('local', 'Test', ['path' => $destination]), new RetentionPolicy(1, 1));
+        try {
+            $agent->run($plan);
+            self::fail('An archive unsupported by the existing Web reader must not be published.');
+        } catch (\InvalidArgumentException $error) {
+            self::assertStringContainsString('restore-reader limit', $error->getMessage());
+        }
+        self::assertDirectoryDoesNotExist($destination);
+    }
+
     public function testRetentionPruneRemovesOldRunsByCountAndAge(): void
     {
         $pruner = new RetentionPruner();
@@ -112,6 +135,19 @@ final class BackupAgentTest extends TestCase
 
         $validator = new BackupTargetValidator();
         $validator->validate(new BackupStorageTarget('webdav', 'Bad', ['url' => 'http://insecure.invalid']));
+    }
+
+    public function testRetentionWithoutExplicitAllowedRootCannotDeleteFiles(): void
+    {
+        $path = $this->workspace.'/old-without-root.tar';
+        file_put_contents($path, 'original');
+        $run = new BackupRun('old', 'plan', 'succeeded', $path, 8, 'checksum', new \DateTimeImmutable('-60 days'));
+
+        $result = (new RetentionPruner())->pruneWithAudit([$run], new RetentionPolicy(0, 1), new \DateTimeImmutable());
+
+        self::assertSame([], $result['deleted']);
+        self::assertNotEmpty($result['skipped']);
+        self::assertSame('original', file_get_contents($path));
     }
 
     public function testRejectsSchemeRelativeAndPrivateWebdavTarget(): void

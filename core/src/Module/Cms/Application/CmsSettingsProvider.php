@@ -7,7 +7,7 @@ namespace App\Module\Cms\Application;
 use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
-use App\Repository\CmsSiteSettingsRepository;
+use App\Repository\CmsSiteSettingsRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class CmsSettingsProvider
@@ -33,7 +33,7 @@ final class CmsSettingsProvider
     ];
 
     public function __construct(
-        private readonly CmsSiteSettingsRepository $settingsRepository,
+        private readonly CmsSiteSettingsRepositoryInterface $settingsRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

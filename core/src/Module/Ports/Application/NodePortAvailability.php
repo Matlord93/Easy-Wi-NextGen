@@ -6,10 +6,11 @@ namespace App\Module\Ports\Application;
 
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 
 final class NodePortAvailability
 {
-    public function __construct(private readonly AgentGameServerClient $client)
+    public function __construct(private readonly AgentGameServerClientInterface $client)
     {
     }
 

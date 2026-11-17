@@ -13,7 +13,7 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DomainRepository;
-use App\Repository\MailAliasRepository;
+use App\Repository\MailAliasRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,7 +28,7 @@ final class AdminMailAliasController
     private string $aliasMapPath;
 
     public function __construct(
-        private readonly MailAliasRepository $aliasRepository,
+        private readonly MailAliasRepositoryInterface $aliasRepository,
         private readonly DomainRepository $domainRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,

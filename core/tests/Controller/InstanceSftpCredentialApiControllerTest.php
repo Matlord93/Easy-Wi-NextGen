@@ -16,6 +16,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\PanelCustomer\UI\Controller\Api\InstanceSftpCredentialApiController;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
@@ -36,7 +37,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             $this->createStub(JobRepository::class),
             $this->createStub(EntityManagerInterface::class),
             $this->createStub(EncryptionService::class),
-            $this->createStub(AgentGameServerClient::class),
+            $this->createStub(AgentGameServerClientInterface::class),
             $this->createStub(AppSettingsService::class),
             $this->createStub(AuditLogger::class),
             new NullLogger(),
@@ -112,7 +113,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $auditLogger = $this->createMock(AuditLogger::class);
         $auditLogger->expects($this->once())->method('log');
 
-        $agentClient = $this->createStub(AgentGameServerClient::class);
+        $agentClient = $this->createStub(AgentGameServerClientInterface::class);
         $agentClient->method('resetInstanceAccess')->willReturn([
             'ok' => true,
             'data' => [
@@ -211,7 +212,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             $this->createStub(JobRepository::class),
             $entityManager,
             $encryption,
-            $this->createStub(AgentGameServerClient::class),
+            $this->createStub(AgentGameServerClientInterface::class),
             $settings,
             $this->createStub(AuditLogger::class),
             new NullLogger(),

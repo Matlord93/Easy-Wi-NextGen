@@ -31,12 +31,14 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Ports\Infrastructure\Repository\PortAllocationRepository;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
@@ -92,10 +94,10 @@ final class CustomerInstanceController
         private readonly TemplateRepository $templateRepository,
         private readonly MinecraftCatalogService $minecraftCatalogService,
         private readonly EncryptionService $encryptionService,
-        private readonly AgentGameServerClient $agentGameServerClient,
+        private readonly AgentGameServerClientInterface $agentGameServerClient,
         private readonly SetupChecker $setupChecker,
         private readonly AppSettingsService $appSettingsService,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly UrlGeneratorInterface $urlGenerator,

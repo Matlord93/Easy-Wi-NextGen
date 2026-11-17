@@ -17,7 +17,6 @@ use App\Module\Musicbot\Domain\Entity\MusicbotQueueItem;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Repository\MusicbotQueueItemRepositoryInterface;
-use App\Repository\MusicbotTrackRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -44,18 +43,6 @@ final class MusicbotQueueServiceSyncTest extends TestCase
             public function findQueueForInstanceOrdered(MusicbotInstance $instance): array
             {
                 return $this->items;
-            }
-        };
-
-        $trackRepo = new class implements MusicbotTrackRepositoryInterface {
-            public function findOneForCustomer(int $id, User $customer): ?MusicbotTrack
-            {
-                return null;
-            }
-
-            public function findByCustomer(User $customer): array
-            {
-                return [];
             }
         };
 
@@ -90,7 +77,6 @@ final class MusicbotQueueServiceSyncTest extends TestCase
         return new MusicbotQueueService(
             $this->entityManager,
             $queueItemRepo,
-            $trackRepo,
             $quotaService,
             $jobDispatcher,
             new MusicbotTrackPathResolver(dirname(__DIR__, 2)),

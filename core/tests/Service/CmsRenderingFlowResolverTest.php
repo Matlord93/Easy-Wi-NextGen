@@ -18,7 +18,7 @@ final class CmsRenderingFlowResolverTest extends TestCase
 {
     public function testWindowMaintenanceOverridesNormalRenderingBySchedule(): void
     {
-        $settingsRepository = $this->createStub(\App\Repository\CmsSiteSettingsRepository::class);
+        $settingsRepository = $this->createStub(\App\Repository\CmsSiteSettingsRepositoryInterface::class);
         $settingsRepository->method('findOneBySite')->willReturn(null);
         $entityManager = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
         $themeResolver = new ThemeResolver(new \App\Module\Cms\Application\CmsSettingsProvider($settingsRepository, $entityManager));

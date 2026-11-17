@@ -13,8 +13,4 @@ final class PrivacyGdprBackgroundJobResult
     ) {
     }
 
-    public function totalAffected(): int
-    {
-        return array_sum($this->counts);
-    }
 }

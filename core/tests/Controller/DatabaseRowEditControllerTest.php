@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\DatabaseNamingPolicy;
+use App\Module\Core\Application\DatabaseNamingPolicyInterface;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\DatabaseTableServiceInterface as DatabaseTableService;
 use App\Module\Core\Domain\Entity\Agent;
@@ -140,7 +140,7 @@ final class DatabaseRowEditControllerTest extends TestCase
             $this->createStub(EntityManagerInterface::class),
             $this->createStub(AuditLogger::class),
             $this->createStub(DatabaseProvisioningService::class),
-            $this->createStub(DatabaseNamingPolicy::class),
+            $this->createStub(DatabaseNamingPolicyInterface::class),
             $twig,
             $translator,
             $tables,

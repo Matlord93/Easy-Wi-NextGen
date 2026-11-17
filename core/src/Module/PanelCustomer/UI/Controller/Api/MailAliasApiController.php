@@ -12,8 +12,8 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DomainRepository;
-use App\Repository\MailAliasRepository;
-use App\Repository\MailPolicyRepository;
+use App\Repository\MailAliasRepositoryInterface;
+use App\Repository\MailPolicyRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -26,9 +26,9 @@ final class MailAliasApiController
     private const MAX_DESTINATIONS = 20;
 
     public function __construct(
-        private readonly MailAliasRepository $aliasRepository,
+        private readonly MailAliasRepositoryInterface $aliasRepository,
         private readonly DomainRepository $domainRepository,
-        private readonly MailPolicyRepository $mailPolicyRepository,
+        private readonly MailPolicyRepositoryInterface $mailPolicyRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly MailAliasLoopGuard $loopGuard,

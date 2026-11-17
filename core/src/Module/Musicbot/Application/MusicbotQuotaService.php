@@ -7,25 +7,23 @@ namespace App\Module\Musicbot\Application;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
-use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPlaylistRepository;
 use App\Repository\MusicbotPlaylistItemRepository;
 use App\Repository\MusicbotPluginRepository;
-use App\Repository\MusicbotQueueItemRepository;
-use App\Repository\MusicbotTrackRepository;
+use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
+use App\Repository\MusicbotTrackQueryRepositoryInterface;
 
 class MusicbotQuotaService implements MusicbotQuotaServiceInterface
 {
     public function __construct(
         private readonly MusicbotPlanLimitResolver $limitResolver,
         private readonly MusicbotInstanceRepository $instanceRepository,
-        private readonly MusicbotTrackRepository $trackRepository,
+        private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
         private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
         private readonly MusicbotPluginRepository $pluginRepository,
-        private readonly MusicbotQueueItemRepository $queueItemRepository,
-        private readonly MusicbotConnectionRepository $connectionRepository,
+        private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
     ) {
     }
 
@@ -156,17 +154,6 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         $limits = $this->limitResolver->resolve($customer);
         if (!$limits->allowDiscord) {
             throw new MusicbotQuotaExceededException('Discord connections are not available in your current plan.');
-        }
-    }
-
-    public function assertConnectionCountAllowed(User $customer, MusicbotInstance $instance): void
-    {
-        $limits = $this->limitResolver->resolve($customer);
-        $count = count($this->connectionRepository->findBy(['musicbotInstance' => $instance]));
-        if ($count >= $limits->maxConnections) {
-            throw new MusicbotQuotaExceededException(
-                sprintf('Connection limit reached (%d/%d). Remove an existing connection first.', $count, $limits->maxConnections),
-            );
         }
     }
 

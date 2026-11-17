@@ -14,6 +14,7 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
 use App\Module\Gameserver\Application\Console\ConsoleCommandLimiterInterface;
@@ -38,7 +39,7 @@ final class CustomerInstanceConsoleCommandController
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly JobRepository $jobRepository,
-        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly ConsoleAgentGrpcClientInterface $grpcClient,
         private readonly ConsoleCommandLimiterInterface $consoleLimiter,
         private readonly AuditLogger $auditLogger,

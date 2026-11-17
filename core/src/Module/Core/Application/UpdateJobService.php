@@ -24,7 +24,6 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
         private readonly DbConfigProvider $configProvider,
         private readonly LoggerInterface $logger,
         private readonly string $projectDir,
-        private readonly string $runnerCommand,
         private readonly string $jobsDir,
         private readonly string $logsDir,
         private readonly string $backupsDir,

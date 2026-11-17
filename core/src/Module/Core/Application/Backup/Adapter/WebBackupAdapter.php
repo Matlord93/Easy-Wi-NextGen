@@ -34,11 +34,18 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
             return new RestoreReport($dryRun, false, 'Backup archive validation failed: '.$e->getMessage());
         }
 
+        $targetDir = rtrim($resourceId, '/');
+        try {
+            $this->assertNoSymlinkRoot($targetDir);
+            $this->assertNoSymlinkTargets($targetDir, $entries);
+        } catch (\Throwable $e) {
+            return new RestoreReport($dryRun, false, 'Restore target validation failed: '.$e->getMessage());
+        }
+
         if ($dryRun) {
             return new RestoreReport(true, true, sprintf('Dry-run restore validated archive with %d entries.', count($entries)));
         }
 
-        $targetDir = rtrim($resourceId, '/');
         if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
             return new RestoreReport(false, false, 'Unable to create restore directory.');
         }
@@ -56,12 +63,6 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
 
         return new RestoreReport(false, true, 'Restore completed.');
     }
-
-
-
-
-
-
 
     /**
      * @return list<string>
@@ -89,10 +90,10 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
         $verboseOutput = $verbose->getOutput();
         if ($verboseOutput !== '') {
             foreach ((preg_split('/\R/', trim($verboseOutput)) ?: []) as $line) {
-                if ($line === '' || $line[0] !== 'l') {
+                if ($line === '' || in_array($line[0], ['-', 'd'], true)) {
                     continue;
                 }
-                throw new \InvalidArgumentException('Symlink entries are not allowed in backup archive.');
+                throw new \InvalidArgumentException('Symlink, hardlink and special-file entries are not allowed in backup archive.');
             }
         }
         return $entries;
@@ -105,7 +106,6 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
     {
         foreach ($entries as $entry) {
             $segments = explode('/', $entry);
-            array_pop($segments);
             $current = rtrim($targetDir, '/');
             foreach ($segments as $segment) {
                 if ($segment === '' || $segment === '.') {
@@ -115,6 +115,31 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
                 if (is_link($current)) {
                     throw new \InvalidArgumentException(sprintf('Restore target contains symlink path segment (%s).', $entry));
                 }
+            }
+        }
+    }
+
+    private function assertNoSymlinkRoot(string $path): void
+    {
+        if ($path === '' || str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Invalid restore directory.');
+        }
+        $workingDirectory = getcwd();
+        if ($workingDirectory === false) {
+            throw new \RuntimeException('Cannot resolve current directory.');
+        }
+        $absolute = str_starts_with($path, '/') ? $path : $workingDirectory.'/'.$path;
+        $current = '/';
+        foreach (explode('/', $absolute) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            $current = $segment === '..' ? dirname($current) : rtrim($current, '/').'/'.$segment;
+            if (is_link($current)) {
+                throw new \InvalidArgumentException('Restore directory contains a symlink path segment.');
+            }
+            if (file_exists($current) && !is_dir($current)) {
+                throw new \InvalidArgumentException('Restore directory contains a non-directory path segment.');
             }
         }
     }

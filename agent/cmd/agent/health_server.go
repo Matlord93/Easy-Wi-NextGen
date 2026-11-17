@@ -137,6 +137,7 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 	})
 	instanceHMACCfg := fileapi.Config{AgentID: cfg.AgentID, Secret: cfg.Secret, MaxSkew: cfg.FileMaxSkew}
 	mux.Handle("/v1/instances/", withInstanceSubRouteAuth(instanceHMACCfg, http.HandlerFunc(handleInstanceQueryHTTP)))
+	mux.Handle("/v1/module-backups/", newModuleBackupHandler(instanceHMACCfg))
 	mux.Handle("/internal/sinusbot/instances", sinusbotServer.Handler())
 	mux.Handle("/internal/sinusbot/instances/", sinusbotServer.Handler())
 
